@@ -215,18 +215,14 @@ Detailed specs in [`spec/`](spec/):
 
 ## Uninstall
 
+1. Right-click **AI Battery** in the menu bar → **Quit**
+2. Open **Applications** in Finder → drag **AI Battery** to the Trash
+
+To also remove stored settings, run in Terminal:
+
 ```bash
-# Quit the app
-osascript -e 'quit app "AI Battery"'
-
-# Remove the app
-rm -rf /Applications/AIBattery.app
-
-# Remove stored OAuth tokens from Keychain
-security delete-generic-password -s "AIBattery" 2>/dev/null
-
-# Remove preferences
-defaults delete com.KyleNesium.AIBattery 2>/dev/null
+security delete-generic-password -s "AIBattery" 2>/dev/null   # OAuth token
+defaults delete com.KyleNesium.AIBattery 2>/dev/null           # Preferences
 ```
 
 AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) is untouched.
