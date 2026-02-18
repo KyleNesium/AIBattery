@@ -10,16 +10,29 @@ Rate limits, context health, and token usage — always visible in your macOS me
 [![macOS](https://img.shields.io/badge/macOS-13%2B-blue?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/KyleNesium/AIBattery/actions/workflows/ci.yml/badge.svg)](https://github.com/KyleNesium/AIBattery/actions/workflows/ci.yml)
+[![GitHub stars](https://img.shields.io/github/stars/KyleNesium/AIBattery?style=social)](https://github.com/KyleNesium/AIBattery/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/KyleNesium/AIBattery/total?logo=github&label=Downloads)](https://github.com/KyleNesium/AIBattery/releases)
 
 <br/>
 
 <img src="screenshots/dashboard.png" width="240" alt="AI Battery dashboard" />
+
+<br/>
+
+<img src="screenshots/demo.gif" width="480" alt="AI Battery demo" />
 
 </div>
 
 ---
 
 ## Install
+
+**Homebrew** (recommended):
+
+```bash
+brew tap KyleNesium/tap
+brew install --cask aibattery
+```
 
 **Quick install** — paste in Terminal:
 
@@ -47,7 +60,13 @@ Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/clau
 
 ## Update
 
-Re-run the quick install command — it overwrites the old version in place:
+**Homebrew:**
+
+```bash
+brew upgrade --cask aibattery
+```
+
+**Or** re-run the quick install command — it overwrites the old version in place:
 
 ```bash
 curl -sL https://github.com/KyleNesium/AIBattery/releases/latest/download/AIBattery.zip -o /tmp/AIBattery.zip && ditto -x -k /tmp/AIBattery.zip /Applications && xattr -cr /Applications/AIBattery.app && open /Applications/AIBattery.app
@@ -214,6 +233,14 @@ Detailed specs in [`spec/`](spec/):
 | [`CONSTANTS.md`](spec/CONSTANTS.md) | Every hardcoded value — thresholds, URLs, pricing, sizes |
 
 ## Uninstall
+
+**Homebrew:**
+
+```bash
+brew uninstall --cask aibattery
+```
+
+**Manual:**
 
 1. Right-click **AI Battery** in the menu bar → **Quit**
 2. Open **Applications** in Finder → drag **AI Battery** to the Trash
