@@ -27,9 +27,13 @@ Rate limits, context health, and token usage — always visible in your macOS me
 curl -sL https://github.com/KyleNesium/AIBattery/releases/latest/download/AIBattery.zip -o /tmp/AIBattery.zip && ditto -x -k /tmp/AIBattery.zip /Applications && xattr -cr /Applications/AIBattery.app && open /Applications/AIBattery.app
 ```
 
-**Or download manually** from [Releases](https://github.com/KyleNesium/AIBattery/releases/latest) — grab the `.dmg` or `.zip`.
+**Or download the DMG** from [Releases](https://github.com/KyleNesium/AIBattery/releases/latest):
 
-> The app isn't notarized. If macOS says it's damaged, run `xattr -cr /Applications/AIBattery.app` in Terminal.
+1. Open `AIBattery.dmg` and drag **AI Battery** to **Applications**
+2. Launch from Applications — macOS will block it on first run
+3. Open **System Settings → Privacy & Security** → scroll down → click **Open Anyway**
+
+> **Terminal alternative:** If macOS says the app is damaged, run `xattr -cr /Applications/AIBattery.app` then relaunch.
 
 **Or build from source:**
 
