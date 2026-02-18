@@ -52,6 +52,17 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
+# Copy entitlements into bundle
+cp AIBattery/AIBattery.entitlements "$APP_DIR/Contents/Resources/"
+
+# Ad-hoc codesign — gives the app a stable identity for Keychain ACL
+echo "Codesigning..."
+codesign --sign - --deep --force \
+  --entitlements AIBattery/AIBattery.entitlements \
+  --identifier com.KyleNesium.AIBattery \
+  --options runtime \
+  "$APP_DIR"
+
 echo "Done! App bundle at: $APP_DIR"
 
 # Create distribution artifacts

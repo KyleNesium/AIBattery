@@ -70,7 +70,7 @@ These aren't obvious from reading the code — know them before making changes:
 - StatusChecker backs off 5 min after failures — no immediate retries
 - SessionLogReader cache caps at 200 entries with LRU eviction; trailing JSONL lines without closing `}` are skipped
 - NotificationManager fires once per outage via `osascript`, deduplicates per component, resets on recovery
-- `~/.claude.json` oauthAccount may not match the Keychain API key's org if user switched accounts
+- `~/.claude.json` oauthAccount may not match the OAuth token's org if user switched accounts
 
 ## Security
 
@@ -78,6 +78,6 @@ These aren't obvious from reading the code — know them before making changes:
 - Never log token values — mask or redact in error messages
 - JSONL reads are token-count-only — never parse, store, or display message content
 - `osascript` notifications use shell-escaped strings to prevent injection
-- API key from Claude Code's Keychain (`service: "Claude Code"`) is read-only; AIBattery never writes to it
 - PKCE (SHA-256) protects the OAuth code exchange — the verifier never leaves the process
+- App bundle is ad-hoc codesigned with hardened runtime — gives Keychain a stable identity for ACL whitelisting
 - All network requests use HTTPS with system certificate validation — no custom trust or pinning overrides

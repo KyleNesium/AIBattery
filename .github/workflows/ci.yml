@@ -31,9 +31,6 @@ jobs:
 
       - name: Verify app bundle
         run: |
-          mkdir -p .build/AIBattery.app/Contents/MacOS
-          cp .build/release/AIBattery .build/AIBattery.app/Contents/MacOS/
-          cp AIBattery/Info.plist .build/AIBattery.app/Contents/
-          test -f .build/AIBattery.app/Contents/MacOS/AIBattery
-          test -f .build/AIBattery.app/Contents/Info.plist
-          echo "App bundle OK"
+          ./scripts/build-app.sh
+          codesign --verify --deep .build/AIBattery.app
+          echo "Codesign OK"

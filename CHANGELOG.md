@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1] — 2026-02-18
+
+### Fixed
+- Ad-hoc codesign the app bundle so macOS Keychain can identify the app — eliminates repeated Keychain access prompts on launch
+
+### Removed
+- Dead `KeychainReader.swift` (unused Claude Code API key reader)
+
 ## [1.0.0] — 2026-02-18
 
 Initial public release.

@@ -62,7 +62,6 @@ AIBattery/
   Services/
     OAuthManager.swift            — OAuth 2.0 PKCE flow, token storage, auto-refresh
     RateLimitFetcher.swift        — POST /v1/messages, parse unified headers + org profile
-    KeychainReader.swift          — Reads API key from macOS Keychain
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
     SessionLogReader.swift        — JSONL streaming reader (FileHandle, 64KB chunks)
     FileWatcher.swift             — DispatchSource + FSEventStream for live updates
@@ -123,6 +122,7 @@ CHANGELOG.md                      — Release notes per version
 - **SPM**: swift-tools-version 5.9, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests)
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
+- **Codesigning**: Ad-hoc (`codesign --sign -`) with hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting without requiring an Apple Developer account
 - **Dock icon**: None (LSUIElement = true)
 - **Dependencies**: None (Apple frameworks only: SwiftUI, Charts, Security, Foundation, AppKit)
 
@@ -135,7 +135,7 @@ CHANGELOG.md                      — Release notes per version
 
 ## Local File Access (exhaustive)
 
-1. macOS Keychain, service `"Claude Code"` — API key (`sk-ant-*`)
+1. macOS Keychain, service `"AIBattery"` — OAuth tokens (access, refresh, expiry)
 2. `~/.claude.json` → `oauthAccount` — displayName, organizationName
 3. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
 4. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
