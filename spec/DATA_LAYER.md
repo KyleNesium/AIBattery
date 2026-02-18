@@ -209,7 +209,7 @@ JSONL line schema (Codable):
 - `fetch() async -> APIFetchResult` — returns both rate limits and org profile from a single API call
 - POST `/v1/messages?beta=true` with `max_tokens: 1`, content `"."`
 - Model fallback list: tries `claude-sonnet-4-5-20250929` first, falls back to `claude-haiku-3-5-20241022`. Remembers last working model index to avoid repeated fallbacks.
-- Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/1.0.1 (macOS)`
+- Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/1.0.2 (macOS)`
 - Gets access token from `OAuthManager.shared.getAccessToken()` (auto-refreshes if expired)
 - Timeout: 15 sec
 - Parses `anthropic-ratelimit-unified-*` response headers via `RateLimitUsage.parse(headers:)` and `APIProfile.parse(headers:)` from the same response

@@ -112,6 +112,7 @@ Tests/AIBatteryCoreTests/
   release.yml                     — Release workflow (macos-15)
 scripts/
   build-app.sh                    — Build release binary + .app bundle + zip/dmg
+  generate-icon.swift             — Generate AppIcon.icns (sparkle star, all macOS sizes)
 project.yml                       — XcodeGen project spec (optional, SPM is primary)
 Package.swift                     — SPM manifest: AIBatteryCore, AIBattery, AIBatteryCoreTests
 CHANGELOG.md                      — Release notes per version
@@ -123,6 +124,7 @@ CHANGELOG.md                      — Release notes per version
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
 - **Codesigning**: Ad-hoc (`codesign --sign -`) with hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting without requiring an Apple Developer account
+- **App icon**: Generated at build time via `scripts/generate-icon.swift` (sparkle star, all macOS sizes). Embedded in `Contents/Resources/AppIcon.icns` and used as DMG volume icon.
 - **Dock icon**: None (LSUIElement = true)
 - **Dependencies**: None (Apple frameworks only: SwiftUI, Charts, Security, Foundation, AppKit)
 

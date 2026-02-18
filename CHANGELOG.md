@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.2] — 2026-02-18
+
+### Added
+- App icon — sparkle star matching the menu bar icon, generated at build time
+- DMG volume icon for a polished install experience
+- `scripts/generate-icon.swift` for reproducible icon generation
+
+### Fixed
+- Install instructions now include Gatekeeper approval steps (System Settings → Privacy & Security → Open Anyway)
+
 ## [1.0.1] — 2026-02-18
 
 ### Fixed
