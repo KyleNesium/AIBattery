@@ -45,9 +45,20 @@ open .build/AIBattery.app
 
 Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
+## Authentication
+
+OAuth 2.0 with PKCE — same protocol as Claude Code.
+
+1. Launch AI Battery — the auth screen appears on first run
+2. Click **Authenticate** → browser opens to Anthropic's sign-in page
+3. Sign in → copy the authorization code
+4. Paste into AI Battery → done
+
+Sessions auto-refresh. Tokens stored in macOS Keychain (separate from Claude Code credentials). Error messages are specific — expired codes, invalid codes, and network errors each get a clear description.
+
 ## How It Works
 
-AI Battery authenticates via OAuth 2.0 (same protocol as Claude Code) and makes a minimal API call each refresh cycle to read your rate limit headers. It also reads local JSONL session logs for token counts and context health — **never your message content**.
+AI Battery makes a minimal API call each refresh cycle to read your rate limit headers. It also reads local JSONL session logs for token counts and context health — **never your message content**.
 
 ```
 ✦ 71% · ACME          ← menu bar: selected metric + org
@@ -132,15 +143,25 @@ The footer shows a **staleness indicator** — "Updated just now" when fresh, or
 </tr>
 </table>
 
-## Authentication
+## FAQ
 
-OAuth 2.0 with PKCE — same protocol as Claude Code.
+**Only rate limits show — tokens, models, and activity are all empty?**
 
-1. Click **Authenticate** → browser opens
-2. Sign in → copy the authorization code
-3. Paste into AI Battery → done
+Token usage, context health, and activity stats come from Claude Code's local session logs (`~/.claude/`). These populate after you've used Claude Code for a bit. To kickstart it:
 
-Sessions auto-refresh. Tokens stored in macOS Keychain (separate from Claude Code credentials). Error messages are specific — expired codes, invalid codes, and network errors each get a clear description.
+1. Run a few Claude Code sessions from the terminal
+2. Run `/stats` inside Claude Code — this generates the stats cache
+3. Click the refresh button in AI Battery
+
+Rate limits (5-hour / 7-day) always work immediately since they come from the API.
+
+**Green ✦ at 0%?** Credits just reset, or no usage yet — this is normal.
+
+**Wrong org?** Click ⚙️ → set it manually (the API only returns a UUID).
+
+**What's "binding"?** Whichever rate limit window is currently the active constraint.
+
+**What's ⚠️ "throttled"?** Anthropic is actively limiting your requests. Wait for the reset timer.
 
 ## Privacy
 
@@ -170,26 +191,6 @@ Detailed specs in [`spec/`](spec/):
 | [`DATA_LAYER.md`](spec/DATA_LAYER.md) | Every model, service, and algorithm |
 | [`UI_SPEC.md`](spec/UI_SPEC.md) | View hierarchy, layout rules, section specs |
 | [`CONSTANTS.md`](spec/CONSTANTS.md) | Every hardcoded value — thresholds, URLs, pricing, sizes |
-
-## FAQ
-
-**Only rate limits show — tokens, models, and activity are all empty?**
-
-Token usage, context health, and activity stats come from Claude Code's local session logs (`~/.claude/`). These populate after you've used Claude Code for a bit. To kickstart it:
-
-1. Run a few Claude Code sessions from the terminal
-2. Run `/stats` inside Claude Code — this generates the stats cache
-3. Click the refresh button in AI Battery
-
-Rate limits (5-hour / 7-day) always work immediately since they come from the API.
-
-**Green ✦ at 0%?** Credits just reset, or no usage yet — this is normal.
-
-**Wrong org?** Click ⚙️ → set it manually (the API only returns a UUID).
-
-**What's "binding"?** Whichever rate limit window is currently the active constraint.
-
-**What's ⚠️ "throttled"?** Anthropic is actively limiting your requests. Wait for the reset timer.
 
 ## Uninstall
 
