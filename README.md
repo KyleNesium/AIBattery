@@ -187,6 +187,24 @@ Rate limits (5-hour / 7-day) always work immediately since they come from the AP
 
 **What's ⚠️ "throttled"?** Anthropic is actively limiting your requests. Wait for the reset timer.
 
+## Uninstall
+
+```bash
+# Quit the app
+osascript -e 'quit app "AI Battery"'
+
+# Remove the app
+rm -rf /Applications/AIBattery.app
+
+# Remove stored OAuth tokens from Keychain
+security delete-generic-password -s "AIBattery" 2>/dev/null
+
+# Remove preferences
+defaults delete com.KyleNesium.AIBattery 2>/dev/null
+```
+
+AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) is untouched.
+
 ## Accessibility
 
 All interactive UI elements include VoiceOver labels. The app is navigable with keyboard and screen readers.
