@@ -163,6 +163,15 @@ Rate limits (5-hour / 7-day) always work immediately since they come from the AP
 
 **What's ⚠️ "throttled"?** Anthropic is actively limiting your requests. Wait for the reset timer.
 
+**Why does macOS block the app or ask about Keychain access?**
+
+AI Battery isn't notarized — there's no Apple Developer license behind this project, so macOS treats it as unidentified. Two prompts may appear on first launch:
+
+- **Gatekeeper block** — macOS prevents the app from opening. Fix: **System Settings → Privacy & Security → Open Anyway** (see [Install](#install))
+- **Keychain access** — the app stores a single OAuth token in macOS Keychain, Apple's encrypted credential store. This is the safest option — the same place Claude Code, browsers, and every other macOS app stores secrets. Click **Always Allow**.
+
+Both are one-time prompts. Neither will appear again after the first launch.
+
 ## Privacy
 
 - Reads local JSONL for token counts only — **never your message content**
