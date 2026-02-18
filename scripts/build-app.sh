@@ -18,8 +18,12 @@ rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
+echo "Generating app icon..."
+swift scripts/generate-icon.swift .build
+
 echo "Creating .app bundle..."
 cp .build/release/AIBattery "$APP_DIR/Contents/MacOS/AIBattery"
+cp .build/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -46,6 +50,8 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
 	<string>2</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>LSUIElement</key>
 	<true/>
 </dict>
@@ -75,6 +81,11 @@ rm -rf "$DMG_DIR"
 mkdir -p "$DMG_DIR"
 cp -R "$APP_DIR" "$DMG_DIR/"
 ln -s /Applications "$DMG_DIR/Applications"
+
+# Set volume icon on the DMG
+cp .build/AppIcon.icns "$DMG_DIR/.VolumeIcon.icns"
+SetFile -a C "$DMG_DIR" 2>/dev/null || true
+
 hdiutil create -volname "AI Battery" -srcfolder "$DMG_DIR" -ov -format UDZO .build/AIBattery.dmg
 rm -rf "$DMG_DIR"
 
