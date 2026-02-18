@@ -1,0 +1,100 @@
+import SwiftUI
+
+struct TokenUsageSection: View {
+    let snapshot: UsageSnapshot
+    var activeModelId: String? = nil
+
+    private let modelIcons = [
+        "cpu", "bolt", "sparkles", "cube", "wand.and.stars"
+    ]
+
+    /// Sort: active model first, then by total tokens descending.
+    private var sortedTokens: [ModelTokenSummary] {
+        guard let activeId = activeModelId, !activeId.isEmpty else {
+            return snapshot.modelTokens
+        }
+        var sorted = snapshot.modelTokens
+        if let idx = sorted.firstIndex(where: { activeId.hasPrefix($0.id) || $0.id.hasPrefix(activeId) }) {
+            let active = sorted.remove(at: idx)
+            sorted.insert(active, at: 0)
+        }
+        return sorted
+    }
+
+    private func isActive(_ model: ModelTokenSummary) -> Bool {
+        guard let activeId = activeModelId, !activeId.isEmpty else { return false }
+        return activeId.hasPrefix(model.id) || model.id.hasPrefix(activeId)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header: total tokens
+            HStack {
+                Text("Tokens")
+                    .font(.subheadline.bold())
+                Spacer()
+                Text(TokenFormatter.format(snapshot.totalTokens))
+                    .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+            }
+
+            // Per-model breakdown with token types underneath
+            if !snapshot.modelTokens.isEmpty {
+                ForEach(Array(sortedTokens.enumerated()), id: \.element.id) { index, model in
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Model row
+                        HStack(spacing: 6) {
+                            Image(systemName: modelIcons[index % modelIcons.count])
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 14)
+
+                            Text(model.displayName)
+                                .font(.caption)
+
+                            if isActive(model) {
+                                Text("▶")
+                                    .font(.caption2)
+                                    .foregroundStyle(.green)
+                            }
+
+                            Spacer()
+
+                            Text(TokenFormatter.format(model.totalTokens))
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        // Token type breakdown for this model
+                        HStack(spacing: 10) {
+                            Spacer()
+                                .frame(width: 14)
+                            TokenTag(icon: "arrow.up", label: TokenFormatter.format(model.inputTokens))
+                            TokenTag(icon: "arrow.down", label: TokenFormatter.format(model.outputTokens))
+                            TokenTag(icon: "doc.on.doc", label: TokenFormatter.format(model.cacheReadTokens))
+                            TokenTag(icon: "square.and.pencil", label: TokenFormatter.format(model.cacheWriteTokens))
+                            Spacer()
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+private struct TokenTag: View {
+    let icon: String
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+                .foregroundStyle(.tertiary)
+            Text(label)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(.tertiary)
+        }
+    }
+}
