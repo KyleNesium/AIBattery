@@ -204,14 +204,6 @@ JSONL line schema (Codable):
 - `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.unknownError(String)` — each has `userMessage` for display
 - **Refresh resilience**: network errors during token refresh do NOT mark `isAuthenticated = false` — preserves auth state so retry happens on next refresh cycle. Only auth errors (invalid/revoked tokens) trigger logout.
 
-### KeychainReader (`Services/KeychainReader.swift`)
-- Singleton: `.shared`
-- `readAPIKey() -> String?` — reads once, caches in memory for app lifetime
-- `invalidateCache()` — forces re-read (available for manual cache clearing)
-- Queries Keychain for service `"Claude Code"`, class `kSecClassGenericPassword`, `kSecMatchLimitOne`
-- Returns raw string if starts with `"sk-"` and passes format validation (20–256 chars, ASCII alphanumeric/hyphens/underscores), else tries JSON parse for `accessToken`/`access_token` field
-- **EDR mitigation**: single Keychain read at launch, no repeated access
-
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`
 - `fetch() async -> APIFetchResult` — returns both rate limits and org profile from a single API call
