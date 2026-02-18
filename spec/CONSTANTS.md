@@ -33,8 +33,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Probe models (fallback order) | `claude-sonnet-4-5-20250929`, `claude-haiku-3-5-20241022` |
 | Probe content | `"."` |
 | Probe max_tokens | `1` |
-| User-Agent | `AIBattery/1.0.0 (macOS)` |
-| Keychain service | `"Claude Code"` |
+| User-Agent | `AIBattery/1.0.1 (macOS)` |
+| Keychain service (OAuth) | `"AIBattery"` |
 
 ## Statuspage Component IDs
 

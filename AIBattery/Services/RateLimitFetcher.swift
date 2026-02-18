@@ -91,7 +91,7 @@ final class RateLimitFetcher {
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("oauth-2025-04-20,interleaved-thinking-2025-05-14", forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("AIBattery/1.0.0 (macOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("AIBattery/1.0.1 (macOS)", forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 15
 
         let body: [String: Any] = [
