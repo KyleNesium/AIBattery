@@ -45,6 +45,16 @@ open .build/AIBattery.app
 
 Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
+## Update
+
+Re-run the quick install command — it overwrites the old version in place:
+
+```bash
+curl -sL https://github.com/KyleNesium/AIBattery/releases/latest/download/AIBattery.zip -o /tmp/AIBattery.zip && ditto -x -k /tmp/AIBattery.zip /Applications && xattr -cr /Applications/AIBattery.app && open /Applications/AIBattery.app
+```
+
+Your settings and OAuth session carry over automatically.
+
 ## Authentication
 
 OAuth 2.0 with PKCE — same protocol as Claude Code.
