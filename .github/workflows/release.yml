@@ -24,3 +24,10 @@ jobs:
             .build/AIBattery.zip
             .build/AIBattery.dmg
           generate_release_notes: true
+
+      - name: Update Homebrew cask
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: ./scripts/update-homebrew.sh "${{ github.ref_name }}"
