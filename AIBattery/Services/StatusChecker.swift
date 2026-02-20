@@ -20,7 +20,8 @@ final class StatusChecker {
     private var cachedStatus: ClaudeSystemStatus?
 
     /// Backoff: when a fetch fails, don't retry for this many seconds.
-    private static let backoffInterval: TimeInterval = 300 // 5 minutes
+    /// 60s balances avoiding hammering a downed service with faster recovery detection.
+    private static let backoffInterval: TimeInterval = 60
     private var lastFailedAt: Date?
 
     func fetchStatus() async -> ClaudeSystemStatus {
@@ -37,7 +38,7 @@ final class StatusChecker {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 lastFailedAt = Date()
-                AppLogger.network.warning("StatusChecker HTTP error, backing off for 5 min")
+                AppLogger.network.warning("StatusChecker HTTP error, backing off for 60s")
                 return cachedStatus ?? .unknown
             }
 
@@ -48,7 +49,7 @@ final class StatusChecker {
             return result
         } catch {
             lastFailedAt = Date()
-            AppLogger.network.warning("StatusChecker fetch failed: \(error.localizedDescription, privacy: .public), backing off for 5 min")
+            AppLogger.network.warning("StatusChecker fetch failed: \(error.localizedDescription, privacy: .public), backing off for 60s")
             return cachedStatus ?? .unknown
         }
     }

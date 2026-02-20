@@ -6,6 +6,7 @@ final class FileWatcher {
     private var fsEventStream: FSEventStreamRef?
     private var debounceWorkItem: DispatchWorkItem?
     private var timer: Timer?
+    private var retryTimer: Timer?
     private let onChange: () -> Void
     private var isStopped = false
 
@@ -43,15 +44,21 @@ final class FileWatcher {
 
         timer?.invalidate()
         timer = nil
+
+        retryTimer?.invalidate()
+        retryTimer = nil
     }
 
     private func watchStatsCache() {
         let path = NSHomeDirectory() + "/.claude/stats-cache.json"
         let fd = open(path, O_EVTONLY)
         guard fd >= 0 else {
-            AppLogger.files.warning("FileWatcher: failed to open stats-cache at \(path, privacy: .public) (fd < 0), falling back to timer only")
+            AppLogger.files.warning("FileWatcher: stats-cache not found, will retry in 60s")
+            scheduleStatsCacheRetry()
             return
         }
+        retryTimer?.invalidate()
+        retryTimer = nil
 
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
@@ -111,6 +118,15 @@ final class FileWatcher {
         FSEventStreamSetDispatchQueue(stream, .main)
         FSEventStreamStart(stream)
         fsEventStream = stream
+    }
+
+    /// Retry opening stats-cache every 60s until it exists (created after first `/stats` run).
+    private func scheduleStatsCacheRetry() {
+        retryTimer?.invalidate()
+        retryTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            guard let self, !self.isStopped, self.fileSource == nil else { return }
+            self.watchStatsCache()
+        }
     }
 
     private func startFallbackTimer() {

@@ -228,7 +228,7 @@ JSONL line schema (Codable):
 - **Incident impact escalation**: when components report "operational" but active incidents exist, factors in incident `impact` field (`"none"`, `"minor"`, `"major"`, `"critical"`) to determine overall indicator. If impact is `"none"` but incidents are active, escalates to at least `.degradedPerformance` (yellow dot).
 - Checks for active incidents (status not `resolved` or `postmortem`)
 - Returns `.unknown` on any error
-- **Backoff**: on failure, skips fetches for 5 minutes (`backoffInterval = 300s`) to avoid noise; clears on success
+- **Backoff**: on failure, skips fetches for 60 seconds (`backoffInterval = 60`) to avoid noise; clears on success
 
 ### StatsCacheReader (`Services/StatsCacheReader.swift`)
 - Singleton: `.shared`

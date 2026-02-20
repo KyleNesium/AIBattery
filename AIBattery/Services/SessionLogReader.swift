@@ -90,12 +90,14 @@ final class SessionLogReader {
         return entries
     }
 
-    /// Evict the oldest cache entry (by mod date) to stay under the limit.
-    /// Uses O(n) single-pass min-find instead of O(n log n) sort.
+    /// Evict oldest cache entries (by mod date) to stay under the limit.
+    /// Batch-sorts once to avoid O(n²) from repeated min-find.
     private func evictCache() {
-        while cache.count > maxCacheEntries {
-            guard let oldest = cache.min(by: { $0.value.0 < $1.value.0 }) else { break }
-            cache.removeValue(forKey: oldest.key)
+        let overflow = cache.count - maxCacheEntries
+        guard overflow > 0 else { return }
+        let toRemove = cache.sorted { $0.value.0 < $1.value.0 }.prefix(overflow)
+        for entry in toRemove {
+            cache.removeValue(forKey: entry.key)
         }
     }
 
@@ -179,8 +181,12 @@ final class SessionLogReader {
 
         var entries: [AssistantUsageEntry] = []
         let decoder = JSONDecoder()
-        let assistantMarker = "\"type\":\"assistant\"".data(using: .utf8)!
-        let assistantMarkerSpaced = "\"type\": \"assistant\"".data(using: .utf8)!
+        // Pre-filter markers for fast scanning without full JSON decode.
+        // Check both compact and spaced variants of the type field.
+        let assistantMarkers: [Data] = [
+            "\"type\":\"assistant\"",
+            "\"type\": \"assistant\"",
+        ].map { $0.data(using: .utf8)! }
         let usageMarker = "\"usage\"".data(using: .utf8)!
 
         let bufferSize = 64 * 1024 // 64KB chunks
@@ -198,8 +204,7 @@ final class SessionLogReader {
                 guard !lineData.isEmpty else { continue }
 
                 // Fast pre-filter: check for markers without decoding
-                let hasAssistant = lineData.range(of: assistantMarker) != nil
-                    || lineData.range(of: assistantMarkerSpaced) != nil
+                let hasAssistant = assistantMarkers.contains { lineData.range(of: $0) != nil }
                 guard hasAssistant, lineData.range(of: usageMarker) != nil else { continue }
 
                 let decoded: SessionEntry
@@ -242,8 +247,7 @@ final class SessionLogReader {
         // Skip incomplete lines (no closing brace = partial write, likely still being written).
         if !leftover.isEmpty,
            leftover.last == UInt8(ascii: "}") {
-            let hasAssistant = leftover.range(of: assistantMarker) != nil
-                || leftover.range(of: assistantMarkerSpaced) != nil
+            let hasAssistant = assistantMarkers.contains { leftover.range(of: $0) != nil }
             if hasAssistant, leftover.range(of: usageMarker) != nil {
                 let decoded: SessionEntry?
                 do {

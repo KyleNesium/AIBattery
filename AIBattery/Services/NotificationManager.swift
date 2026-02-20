@@ -56,15 +56,22 @@ public final class NotificationManager {
     }
 
     /// Deliver notification via osascript — works reliably for unsigned menu bar apps.
+    /// Process.arguments bypasses the shell (uses execve directly), so shell metacharacters
+    /// like $ and ` are safe. We only need to escape AppleScript string delimiters.
     private func send(title: String, body: String) {
-        let escaped = { (s: String) -> String in
-            s.replacingOccurrences(of: "\\", with: "\\\\")
-             .replacingOccurrences(of: "\"", with: "\\\"")
-        }
-        let script = "display notification \"\(escaped(body))\" with title \"\(escaped(title))\" sound name \"default\""
+        let script = "display notification \(applescriptQuoted(body)) with title \(applescriptQuoted(title)) sound name \"default\""
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         proc.arguments = ["-e", script]
         try? proc.run()
+    }
+
+    /// Safely quote a string for embedding in AppleScript.
+    /// Escapes backslashes and double quotes (the only special chars inside AppleScript strings).
+    private func applescriptQuoted(_ s: String) -> String {
+        let escaped = s
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 }

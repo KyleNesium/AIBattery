@@ -51,12 +51,14 @@ public final class UsageViewModel: ObservableObject {
             lastFreshFetch = api.fetchedAt
         }
 
-        // Aggregate on background thread — purely local, no timeout needed
+        // Aggregate on background thread — purely local, no timeout needed.
+        // Capture values directly from `api` (not self.apiResult) to avoid racing
+        // with a concurrent refresh that could overwrite the instance variable.
         let aggregator = self.aggregator
-        let currentResult = self.apiResult
-        let orgName = currentResult?.profile?.organizationName
+        let rateLimits = api.rateLimits
+        let orgName = api.profile?.organizationName
         let result = await Task.detached {
-            aggregator.aggregate(rateLimits: currentResult?.rateLimits, orgName: orgName)
+            aggregator.aggregate(rateLimits: rateLimits, orgName: orgName)
         }.value
 
         snapshot = result

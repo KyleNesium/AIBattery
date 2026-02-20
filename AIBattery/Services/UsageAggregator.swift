@@ -5,6 +5,10 @@ final class UsageAggregator {
     private let statsCacheReader = StatsCacheReader.shared
     private let sessionLogReader = SessionLogReader.shared
 
+    // Cache for ~/.claude.json — only re-read when file mod date changes.
+    private var cachedAccountInfo: AccountInfo?
+    private var accountInfoModDate: Date?
+
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
@@ -187,8 +191,19 @@ final class UsageAggregator {
     }
 
     private func readAccountInfo() -> AccountInfo? {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude.json")
+        let path = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude.json").path
+
+        // Check mod date — skip re-read if unchanged
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+           let modDate = attrs[.modificationDate] as? Date {
+            if modDate == accountInfoModDate, let cached = cachedAccountInfo {
+                return cached
+            }
+            accountInfoModDate = modDate
+        }
+
+        let url = URL(fileURLWithPath: path)
         let data: Data
         do {
             data = try Data(contentsOf: url)
@@ -204,11 +219,13 @@ final class UsageAggregator {
             return nil
         }
         guard let oauth = json["oauthAccount"] as? [String: Any] else { return nil }
-        return AccountInfo(
+        let info = AccountInfo(
             displayName: oauth["displayName"] as? String,
             organizationName: oauth["organizationName"] as? String,
             billingType: oauth["organizationBillingType"] as? String
         )
+        cachedAccountInfo = info
+        return info
     }
 }
 
