@@ -200,11 +200,12 @@ JSONL line schema (Codable):
 - Scopes: `org:create_api_key user:profile user:inference`
 - `startAuthFlow()` → opens browser with PKCE challenge. Generates a separate random `state` parameter (never reuses the PKCE verifier, which could leak via redirect URLs or server logs).
 - `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens, returns typed errors. Validates state parameter against stored `pendingState` (CSRF protection). Only clears `pendingVerifier`/`pendingState` on success — allows retry on network failure.
-- `getAccessToken()` → returns valid token (auto-refreshes if expired)
-- `signOut()` → clears all stored tokens
+- `getAccessToken()` → returns valid token, refreshes 5 minutes before expiry to avoid clock-skew 401s. Serializes concurrent refresh attempts via a shared `refreshTask` — multiple callers await the same in-flight refresh instead of firing parallel requests.
+- `signOut()` → clears all stored tokens, cancels in-flight refresh
 - Tokens stored in macOS Keychain under service `"AIBattery"` (separate from Claude Code)
-- `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.unknownError(String)` — each has `userMessage` for display
-- **Refresh resilience**: network errors during token refresh do NOT mark `isAuthenticated = false` — preserves auth state so retry happens on next refresh cycle. Only auth errors (invalid/revoked tokens) trigger logout.
+- `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.serverError(Int)`, `.unknownError(String)` — each has `userMessage` for display. `isTransient` computed property returns true for `.networkError` and `.serverError` (caller should preserve auth state and retry).
+- **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) on 5xx server errors. Non-retryable errors (401, 403) fail immediately.
+- **Refresh resilience**: transient errors (network errors, server 5xx) during token refresh do NOT mark `isAuthenticated = false` — preserves auth state so retry happens on next refresh cycle. Only auth errors (invalid/revoked tokens) trigger logout.
 
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`

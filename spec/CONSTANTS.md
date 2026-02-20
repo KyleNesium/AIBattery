@@ -14,6 +14,9 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Status request timeout | 5 sec | StatusChecker |
 | Status backoff interval | 60 sec | StatusChecker |
 | Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
+| Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
+| Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx | OAuthManager |
+| Token endpoint timeout | 15 sec | OAuthManager |
 | Menu bar staleness threshold | 300 sec (5 min) | MenuBarLabel |
 
 ## URLs
