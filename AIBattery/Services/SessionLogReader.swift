@@ -187,11 +187,20 @@ final class SessionLogReader {
         let usageMarker = "\"usage\"".data(using: .utf8) ?? Data()
 
         let bufferSize = 64 * 1024 // 64KB chunks
+        let maxLineSize = 1_048_576 // 1MB — skip lines longer than this (malformed/corrupt)
         var leftover = Data()
 
         while true {
             guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             leftover.append(chunk)
+
+            // Safety: if leftover exceeds max line size without finding a newline,
+            // the JSONL line is malformed — discard and move on.
+            if leftover.count > maxLineSize, leftover.firstIndex(of: UInt8(ascii: "\n")) == nil {
+                AppLogger.files.warning("Skipping oversized JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
+                leftover.removeAll()
+                continue
+            }
 
             // Process complete lines
             while let newlineIndex = leftover.firstIndex(of: UInt8(ascii: "\n")) {

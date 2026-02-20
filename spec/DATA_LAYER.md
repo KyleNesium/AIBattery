@@ -245,7 +245,7 @@ JSONL line schema (Codable):
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
 - `readTodayEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
-- FileHandle streaming: 64KB buffer, line-by-line
+- FileHandle streaming: 64KB buffer, line-by-line, 1MB max line size safety cap (discards oversized lines)
 - Pre-filter: byte search for `"type":"assistant"` AND `"usage"` before JSON decode
 - **Decode error logging**: when pre-filter matches but JSON decode fails, logs via `AppLogger.files.debug` with filename and error description
 - **Trailing line safety**: remaining data after last newline is only processed if it ends with `}` (skips incomplete/partial writes still being written)
