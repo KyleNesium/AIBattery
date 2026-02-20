@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.0.3] — 2026-02-20
+
+### Fixed
+- **Frequent logouts** — transient server errors (5xx) during token refresh no longer trigger logout; auth state is preserved and retried next cycle
+- **"Server returned status 500" during auth** — token endpoint now retries up to 2 times with exponential backoff (1s, 2s) on 5xx errors
+- **Clock-skew logouts** — access tokens now refresh 5 minutes before expiry, preventing 401s from timing mismatches
+- **Concurrent refresh races** — multiple polling cycles seeing an expired token now share a single in-flight refresh instead of firing parallel requests
+- **OAuth PKCE state reuse** — state parameter is now generated separately from the PKCE verifier (prevents verifier leakage via redirect URLs)
+- **API 400 fallthrough** — non-model 400/404 errors no longer silently fall through to success with no data
+- **DateFormatter locale safety** — fixed-format date formatters now use `en_US_POSIX` locale to prevent incorrect parsing on non-Gregorian calendars
+- **Empty sessions crash** — TokenHealthSection now guards against empty session arrays
+- **Zombie processes** — osascript notifications now reap child processes via background `waitUntilExit()`
+- **Force-unwrap removals** — replaced remaining force-unwraps with safe alternatives
+
+### Added
+- `ClaudePaths` utility for centralized Claude Code file paths
+- JSONL leftover buffer capped at 1MB (prevents unbounded memory growth from malformed data)
+- `TokenHealthStatus.empty` placeholder for defensive code paths
+- `SessionLogReader.makeUsageEntry(from:)` shared helper (DRY)
+- `AuthError.serverError(Int)` with `isTransient` classification
+- 23 new unit tests (ClaudePaths, APIFetchResult, UsageSnapshot, TokenFormatter boundaries, ModelNameMapper edge cases)
+
 ## [1.0.2] — 2026-02-18
 
 ### Added
