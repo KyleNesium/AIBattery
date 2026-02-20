@@ -213,7 +213,7 @@ Rate limits (5-hour / 7-day) always work immediately since they come from the AP
 
 - Reads local JSONL for token counts only — **never your message content**
 - Network calls: `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status)
-- Status checks back off for 5 minutes after failures — no hammering downed services
+- Status checks back off for 60 seconds after failures — no hammering downed services
 - No analytics. No telemetry. No tracking.
 
 ## Architecture

@@ -12,7 +12,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Fallback timer | 60 sec | FileWatcher |
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
-| Status backoff interval | 300 sec (5 min) | StatusChecker |
+| Status backoff interval | 60 sec | StatusChecker |
 | Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
 | Menu bar staleness threshold | 300 sec (5 min) | MenuBarLabel |
 

@@ -28,6 +28,12 @@ final class RateLimitFetcher {
     /// Which model index to use (remembers last working model to avoid repeated fallbacks).
     private var currentModelIndex = 0
 
+    /// User-Agent string built from bundle version at startup.
+    private let userAgent: String = {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+        return "AIBattery/\(version) (macOS)"
+    }()
+
     /// Fetches rate limits + org profile in a single API call.
     func fetch() async -> APIFetchResult {
         guard let accessToken = await OAuthManager.shared.getAccessToken() else {
@@ -91,7 +97,7 @@ final class RateLimitFetcher {
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("oauth-2025-04-20,interleaved-thinking-2025-05-14", forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("AIBattery/1.0.2 (macOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 15
 
         let body: [String: Any] = [
