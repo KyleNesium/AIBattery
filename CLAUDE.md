@@ -66,9 +66,9 @@ These aren't obvious from reading the code — know them before making changes:
 - JSONL tokens must not double-count with `stats-cache.json` (see DATA_LAYER.md)
 - `OAuthManager.exchangeCode()` returns `Result<Void, AuthError>` — callers handle typed errors. Validates state parameter for CSRF protection.
 - `APIFetchResult.isCached` distinguishes fresh API data from stale cache — always check before treating as fresh. Cache expires after 1 hour.
-- OAuth refresh: network errors keep `isAuthenticated` true (retry next cycle); only auth errors trigger logout
+- OAuth refresh: transient errors (network + server 5xx) keep `isAuthenticated` true (retry next cycle); only auth errors trigger logout. Token endpoint retries 5xx up to 2 times with backoff. Token refresh fires 5 min before expiry to avoid clock-skew 401s. Concurrent refresh attempts are serialized via a shared task.
 - StatusChecker backs off 60s after failures — no immediate retries
-- SessionLogReader cache caps at 200 entries with LRU eviction; trailing JSONL lines without closing `}` are skipped
+- SessionLogReader cache caps at 200 entries with LRU eviction; trailing JSONL lines without closing `}` are skipped; leftover buffer capped at 1MB (oversized lines discarded)
 - NotificationManager fires once per outage via `osascript`, deduplicates per component, resets on recovery
 - `~/.claude.json` oauthAccount may not match the OAuth token's org if user switched accounts
 

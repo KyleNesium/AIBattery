@@ -85,7 +85,7 @@ OAuth 2.0 with PKCE — same protocol as Claude Code.
 3. Sign in → copy the authorization code
 4. Paste into AI Battery → done
 
-Sessions auto-refresh. Tokens stored in macOS Keychain (separate from Claude Code credentials). Error messages are specific — expired codes, invalid codes, and network errors each get a clear description.
+Sessions auto-refresh (with a 5-minute buffer to avoid clock-skew issues). Temporary server errors retry automatically. Tokens stored in macOS Keychain (separate from Claude Code credentials). Error messages are specific — expired codes, invalid codes, server errors, and network errors each get a clear description.
 
 ### Why does macOS block the app or ask about Keychain access?
 

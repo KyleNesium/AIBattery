@@ -136,6 +136,7 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Constant | Value |
 |----------|-------|
 | Read buffer size | 64 KB |
+| Max line size | 1 MB — oversized lines discarded (malformed data protection) |
 | Pre-filter marker 1 | `"type":"assistant"` |
 | Pre-filter marker 2 | `"usage"` |
 | Cache max entries | 200 files |
