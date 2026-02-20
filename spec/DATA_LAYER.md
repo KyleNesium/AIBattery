@@ -143,6 +143,8 @@ Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPe
 | `sessionDuration` | `TimeInterval?` — last - first entry |
 | `lastActivity` | `Date?` — timestamp of most recent entry in session |
 
+Static: `empty` — zero-value placeholder for defensive code paths (empty sessions guard in `TokenHealthSection`).
+
 Computed: `suggestedAction` — nil for green/unknown, recommendation text for orange/red.
 
 ### HealthWarning
@@ -196,25 +198,27 @@ JSONL line schema (Codable):
 - Auth URL: `https://claude.ai/oauth/authorize`
 - Token URL: `https://console.anthropic.com/v1/oauth/token`
 - Scopes: `org:create_api_key user:profile user:inference`
-- `startAuthFlow()` → opens browser with PKCE challenge
-- `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens, returns typed errors. Validates state parameter matches PKCE verifier (CSRF protection).
-- `getAccessToken()` → returns valid token (auto-refreshes if expired)
-- `signOut()` → clears all stored tokens
+- `startAuthFlow()` → opens browser with PKCE challenge. Generates a separate random `state` parameter (never reuses the PKCE verifier, which could leak via redirect URLs or server logs).
+- `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens, returns typed errors. Validates state parameter against stored `pendingState` (CSRF protection). Only clears `pendingVerifier`/`pendingState` on success — allows retry on network failure.
+- `getAccessToken()` → returns valid token, refreshes 5 minutes before expiry to avoid clock-skew 401s. Serializes concurrent refresh attempts via a shared `refreshTask` — multiple callers await the same in-flight refresh instead of firing parallel requests.
+- `signOut()` → clears all stored tokens, cancels in-flight refresh
 - Tokens stored in macOS Keychain under service `"AIBattery"` (separate from Claude Code)
-- `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.unknownError(String)` — each has `userMessage` for display
-- **Refresh resilience**: network errors during token refresh do NOT mark `isAuthenticated = false` — preserves auth state so retry happens on next refresh cycle. Only auth errors (invalid/revoked tokens) trigger logout.
+- `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.serverError(Int)`, `.unknownError(String)` — each has `userMessage` for display. `isTransient` computed property returns true for `.networkError` and `.serverError` (caller should preserve auth state and retry).
+- **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) on 5xx server errors. Non-retryable errors (401, 403) fail immediately.
+- **Refresh resilience**: transient errors (network errors, server 5xx) during token refresh do NOT mark `isAuthenticated = false` — preserves auth state so retry happens on next refresh cycle. Only auth errors (invalid/revoked tokens) trigger logout.
 
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`
 - `fetch() async -> APIFetchResult` — returns both rate limits and org profile from a single API call
 - POST `/v1/messages?beta=true` with `max_tokens: 1`, content `"."`
 - Model fallback list: tries `claude-sonnet-4-5-20250929` first, falls back to `claude-haiku-3-5-20241022`. Remembers last working model index to avoid repeated fallbacks.
-- Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/1.0.2 (macOS)`
+- Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/{version} (macOS)` (dynamic from bundle)
 - Gets access token from `OAuthManager.shared.getAccessToken()` (auto-refreshes if expired)
 - Timeout: 15 sec
 - Parses `anthropic-ratelimit-unified-*` response headers via `RateLimitUsage.parse(headers:)` and `APIProfile.parse(headers:)` from the same response
 - Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache expires after 1 hour (`cacheMaxAge = 3600s`) to avoid showing very old data.
 - Model unavailable (400/404 with model/access error message) → tries next model in list
+- Non-model 400/404 errors: extracts rate limit headers if present and returns as success; otherwise returns `.networkError` (never silently falls through to header-less success)
 
 ### StatusChecker (`Services/StatusChecker.swift`)
 - Singleton: `.shared`
@@ -241,16 +245,17 @@ JSONL line schema (Codable):
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
 - `readTodayEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
-- FileHandle streaming: 64KB buffer, line-by-line
+- FileHandle streaming: 64KB buffer, line-by-line, 1MB max line size safety cap (discards oversized lines)
 - Pre-filter: byte search for `"type":"assistant"` AND `"usage"` before JSON decode
 - **Decode error logging**: when pre-filter matches but JSON decode fails, logs via `AppLogger.files.debug` with filename and error description
 - **Trailing line safety**: remaining data after last newline is only processed if it ends with `}` (skips incomplete/partial writes still being written)
 - Mod-time + file-size cache to skip unchanged files
 - **Result-level caching**: caches the merged `[AssistantUsageEntry]` result; invalidated by FileWatcher via `invalidate()`. Avoids re-sorting and re-deduplicating on every refresh.
 - **Discovery caching**: caches discovered JSONL file list with parent directory modification dates; re-scans only when directory contents change.
-- **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using O(n) single-pass min-find (not sort)
+- **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
 - Deduplication by messageId within each file
 - Sorted by timestamp ascending
+- **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - Created per-ViewModel (not singleton)
@@ -289,7 +294,9 @@ JSONL line schema (Codable):
 - **Cache invalidation**: debounced handler calls `SessionLogReader.shared.invalidate()` and `StatsCacheReader.shared.invalidate()` before triggering refresh
 - Fallback timer: 60 seconds — only starts if both DispatchSource and FSEventStream fail (avoids redundant polling)
 - Calls `onChange` closure → triggers `viewModel.refresh()`
+- **Stats-cache retry**: if `stats-cache.json` doesn't exist on launch (normal before first `/stats` run), retries `open()` every 60 seconds until it appears
 - **Failure logging**: logs via `AppLogger.files.warning` when file descriptors fail to open, projects directory not found, or FSEventStream creation fails — falls back to timer in all cases
+- File paths sourced from `ClaudePaths` (centralized)
 
 ### NotificationManager (`Services/NotificationManager.swift`)
 - Singleton: `.shared`
@@ -297,7 +304,7 @@ JSONL line schema (Codable):
 - `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
 - `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
 - Deduplication: `hasFired[key]` bool per component, resets when service recovers
-- Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps
+- Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps. Process reaping via `waitUntilExit()` on background queue prevents zombie processes.
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
 
 ## ViewModel
@@ -313,8 +320,16 @@ JSONL line schema (Codable):
 
 ## Utilities
 
+### ClaudePaths (`Utilities/ClaudePaths.swift`)
+- Centralized file paths for all Claude Code data locations
+- `statsCache` / `statsCachePath` — `~/.claude/stats-cache.json`
+- `projects` / `projectsPath` — `~/.claude/projects/`
+- `accountConfig` / `accountConfigPath` — `~/.claude.json`
+- Used by FileWatcher, StatsCacheReader, SessionLogReader, UsageAggregator
+
 ### TokenFormatter (`Utilities/TokenFormatter.swift`)
 - `format(_ count: Int) -> String` — 500 → "500", 2500 → "2.5K", 15000 → "15K", 3200000 → "3.2M"
+- Guards against negative input (returns "0")
 
 ### ModelNameMapper (`Utilities/ModelNameMapper.swift`)
 - `displayName(for modelId: String) -> String`

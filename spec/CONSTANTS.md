@@ -14,6 +14,9 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Status request timeout | 5 sec | StatusChecker |
 | Status backoff interval | 60 sec | StatusChecker |
 | Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
+| Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
+| Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx | OAuthManager |
+| Token endpoint timeout | 15 sec | OAuthManager |
 | Menu bar staleness threshold | 300 sec (5 min) | MenuBarLabel |
 
 ## URLs
@@ -33,7 +36,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Probe models (fallback order) | `claude-sonnet-4-5-20250929`, `claude-haiku-3-5-20241022` |
 | Probe content | `"."` |
 | Probe max_tokens | `1` |
-| User-Agent | `AIBattery/1.0.2 (macOS)` |
+| User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
 | Keychain service (OAuth) | `"AIBattery"` |
 
 ## Statuspage Component IDs
@@ -133,6 +136,7 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Constant | Value |
 |----------|-------|
 | Read buffer size | 64 KB |
+| Max line size | 1 MB — oversized lines discarded (malformed data protection) |
 | Pre-filter marker 1 | `"type":"assistant"` |
 | Pre-filter marker 2 | `"usage"` |
 | Cache max entries | 200 files |
@@ -154,6 +158,8 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |
+
+All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
 ## Color Thresholds
 

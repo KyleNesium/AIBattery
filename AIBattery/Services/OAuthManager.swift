@@ -33,13 +33,23 @@ public final class OAuthManager: ObservableObject {
     private let refreshTokenAccount = "refreshToken"
     private let expiresAtAccount = "expiresAt"
 
-    // In-flight PKCE verifier (lives only during auth flow)
+    // In-flight PKCE verifier and state (lives only during auth flow)
     private var pendingVerifier: String?
+    private var pendingState: String?
 
     // Cached tokens (in-memory)
     private var accessToken: String?
     private var refreshToken: String?
     private var expiresAt: Date?
+
+    /// Refresh the access token 5 minutes before it expires to avoid clock-skew
+    /// and network-delay induced 401s that trigger unnecessary re-authentication.
+    private static let expiryBuffer: TimeInterval = 300 // 5 minutes
+
+    /// Serializes concurrent refresh attempts so only one token refresh is in-flight
+    /// at a time. Without this, multiple polling cycles that all see an expired token
+    /// could fire parallel refresh requests, wasting network and risking race conditions.
+    private var refreshTask: Task<String?, Never>?
 
     @Published public var isAuthenticated: Bool = false
 
@@ -50,21 +60,32 @@ public final class OAuthManager: ObservableObject {
     // MARK: - Public API
 
     /// Returns a valid access token, refreshing if needed. Returns nil if not authenticated.
+    ///
+    /// Refreshes 5 minutes before expiry to avoid clock-skew 401s.
+    /// Serializes concurrent refresh attempts — if a refresh is already in-flight,
+    /// subsequent callers await the same task instead of firing parallel requests.
     func getAccessToken() async -> String? {
-        // If we have a valid (non-expired) access token, return it
-        if let token = accessToken, let expires = expiresAt, expires > Date() {
+        // If we have a valid token with enough remaining lifetime, return it
+        if let token = accessToken, let expires = expiresAt,
+           expires.addingTimeInterval(-Self.expiryBuffer) > Date() {
             return token
         }
 
-        // Try to refresh
-        if let refresh = refreshToken {
-            if let newToken = await refreshAccessToken(refresh) {
-                return newToken
-            }
+        // If a refresh is already in-flight, piggyback on it
+        if let existing = refreshTask {
+            return await existing.value
         }
 
-        // No valid auth
-        return nil
+        // Try to refresh
+        guard let refresh = refreshToken else { return nil }
+
+        let task = Task<String?, Never> {
+            let result = await refreshAccessToken(refresh)
+            refreshTask = nil
+            return result
+        }
+        refreshTask = task
+        return await task.value
     }
 
     /// Start the OAuth flow: generates PKCE, returns the authorization URL to open in browser.
@@ -72,7 +93,12 @@ public final class OAuthManager: ObservableObject {
         let (verifier, challenge) = generatePKCE()
         pendingVerifier = verifier
 
-        var components = URLComponents(string: authBaseURL)!
+        // Separate state parameter — never reuse the PKCE verifier as state,
+        // because the state is reflected in redirect URLs and server logs.
+        let state = generateRandomState()
+        pendingState = state
+
+        guard var components = URLComponents(string: authBaseURL) else { return nil }
         components.queryItems = [
             URLQueryItem(name: "code", value: "true"),
             URLQueryItem(name: "client_id", value: clientID),
@@ -81,7 +107,7 @@ public final class OAuthManager: ObservableObject {
             URLQueryItem(name: "scope", value: scopes),
             URLQueryItem(name: "code_challenge", value: challenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
-            URLQueryItem(name: "state", value: verifier),
+            URLQueryItem(name: "state", value: state),
         ]
 
         return components.url
@@ -93,6 +119,7 @@ public final class OAuthManager: ObservableObject {
         case invalidCode
         case expired
         case networkError
+        case serverError(Int)
         case unknownError(String)
 
         var userMessage: String {
@@ -101,7 +128,16 @@ public final class OAuthManager: ObservableObject {
             case .invalidCode: return "Invalid authorization code. Please try again."
             case .expired: return "Authorization code expired. Please re-authenticate."
             case .networkError: return "Network error. Check your connection and try again."
+            case .serverError(let code): return "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
             case .unknownError(let msg): return msg
+            }
+        }
+
+        /// Whether this error is transient and the caller should preserve auth state.
+        var isTransient: Bool {
+            switch self {
+            case .networkError, .serverError: return true
+            default: return false
             }
         }
     }
@@ -110,23 +146,23 @@ public final class OAuthManager: ObservableObject {
     /// The code may be in "code#state" format (as returned by Anthropic).
     func exchangeCode(_ rawCode: String) async -> Result<Void, AuthError> {
         guard let verifier = pendingVerifier else { return .failure(.noVerifier) }
-        pendingVerifier = nil
+        let expectedState = pendingState
 
         // Anthropic returns code#state format
         let parts = rawCode.split(separator: "#")
         let code = parts.first.map(String.init) ?? rawCode
 
-        // Validate state parameter matches our verifier (CSRF protection)
-        if parts.count >= 2 {
+        // Validate state parameter (CSRF protection)
+        if parts.count >= 2, let expectedState {
             let returnedState = String(parts[1])
-            if returnedState != verifier {
+            if returnedState != expectedState {
                 return .failure(.unknownError("State mismatch — possible CSRF attack. Please try again."))
             }
         }
 
         let body: [String: String] = [
             "code": code.trimmingCharacters(in: .whitespacesAndNewlines),
-            "state": verifier,
+            "state": expectedState ?? verifier,
             "grant_type": "authorization_code",
             "client_id": clientID,
             "redirect_uri": redirectURI,
@@ -136,6 +172,9 @@ public final class OAuthManager: ObservableObject {
         let tokenResult = await postToken(body: body)
         switch tokenResult {
         case .success(let result):
+            // Only clear pending state on success — allows retry on network failure
+            pendingVerifier = nil
+            pendingState = nil
             accessToken = result.accessToken
             refreshToken = result.refreshToken
             expiresAt = result.expiresAt
@@ -153,6 +192,9 @@ public final class OAuthManager: ObservableObject {
         refreshToken = nil
         expiresAt = nil
         pendingVerifier = nil
+        pendingState = nil
+        refreshTask?.cancel()
+        refreshTask = nil
         deleteFromKeychain()
         isAuthenticated = false
     }
@@ -177,15 +219,13 @@ public final class OAuthManager: ObservableObject {
             return result.accessToken
         case .failure(let error):
             // Only mark as unauthenticated for auth errors (revoked/invalid token).
-            // Network errors are transient — keep isAuthenticated so we retry next cycle.
-            switch error {
-            case .networkError:
-                AppLogger.oauth.warning("OAuth refresh failed due to network error, will retry next cycle")
-                return nil
-            default:
+            // Transient errors (network, 5xx) keep isAuthenticated so we retry next cycle.
+            if error.isTransient {
+                AppLogger.oauth.warning("OAuth refresh failed (\(String(describing: error))), will retry next cycle")
+            } else {
                 isAuthenticated = false
-                return nil
             }
+            return nil
         }
     }
 
@@ -197,52 +237,81 @@ public final class OAuthManager: ObservableObject {
         let expiresAt: Date
     }
 
+    /// Maximum number of retries for transient server errors (5xx).
+    private static let maxRetries = 2
+
     private func postToken(body: [String: String]) async -> Result<TokenResult, AuthError> {
         guard let url = URL(string: tokenURL) else { return .failure(.unknownError("Invalid token URL")) }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        var lastError: AuthError = .networkError
+        for attempt in 0...Self.maxRetries {
+            if attempt > 0 {
+                // Exponential backoff: 1s, 2s
+                let delay = TimeInterval(1 << (attempt - 1))
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return .failure(.networkError) }
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.timeoutInterval = 15
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-            if http.statusCode == 401 || http.statusCode == 403 {
-                // Parse error body for specific message
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let errorMsg = json["error_description"] as? String {
-                    if errorMsg.lowercased().contains("expired") {
-                        return .failure(.expired)
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse else { return .failure(.networkError) }
+
+                if http.statusCode == 401 || http.statusCode == 403 {
+                    // Parse error body for specific message
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let errorMsg = json["error_description"] as? String {
+                        if errorMsg.lowercased().contains("expired") {
+                            return .failure(.expired)
+                        }
                     }
+                    return .failure(.invalidCode)
                 }
-                return .failure(.invalidCode)
-            }
 
-            guard http.statusCode == 200 else {
-                return .failure(.unknownError("Server returned status \(http.statusCode)"))
-            }
+                // Retry on transient server errors (500, 502, 503)
+                if http.statusCode >= 500 && http.statusCode < 600 {
+                    AppLogger.oauth.warning("Token endpoint returned \(http.statusCode), attempt \(attempt + 1)/\(Self.maxRetries + 1)")
+                    lastError = .serverError(http.statusCode)
+                    continue
+                }
 
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let access = json["access_token"] as? String,
-                  let refresh = json["refresh_token"] as? String,
-                  let expiresIn = json["expires_in"] as? Int else {
-                return .failure(.unknownError("Invalid token response format"))
-            }
+                guard http.statusCode == 200 else {
+                    return .failure(.unknownError("Server returned status \(http.statusCode)"))
+                }
 
-            return .success(TokenResult(
-                accessToken: access,
-                refreshToken: refresh,
-                expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn))
-            ))
-        } catch {
-            return .failure(.networkError)
+                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let access = json["access_token"] as? String,
+                      let refresh = json["refresh_token"] as? String,
+                      let expiresIn = json["expires_in"] as? Int else {
+                    return .failure(.unknownError("Invalid token response format"))
+                }
+
+                return .success(TokenResult(
+                    accessToken: access,
+                    refreshToken: refresh,
+                    expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn))
+                ))
+            } catch {
+                lastError = .networkError
+                continue
+            }
         }
+
+        return .failure(lastError)
     }
 
-    // MARK: - PKCE (SHA-256)
+    // MARK: - PKCE (SHA-256) & State
+
+    /// Generate a random state parameter (separate from the PKCE verifier).
+    private func generateRandomState() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes).base64URLEncoded()
+    }
 
     private func generatePKCE() -> (verifier: String, challenge: String) {
         // 32 random bytes → base64url → verifier

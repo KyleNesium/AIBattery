@@ -50,7 +50,7 @@ final class FileWatcher {
     }
 
     private func watchStatsCache() {
-        let path = NSHomeDirectory() + "/.claude/stats-cache.json"
+        let path = ClaudePaths.statsCachePath
         let fd = open(path, O_EVTONLY)
         guard fd >= 0 else {
             AppLogger.files.warning("FileWatcher: stats-cache not found, will retry in 60s")
@@ -80,7 +80,7 @@ final class FileWatcher {
     }
 
     private func watchProjectsDirectory() {
-        let path = NSHomeDirectory() + "/.claude/projects"
+        let path = ClaudePaths.projectsPath
         guard FileManager.default.fileExists(atPath: path) else {
             AppLogger.files.warning("FileWatcher: projects directory not found at \(path, privacy: .public), falling back to timer only")
             return

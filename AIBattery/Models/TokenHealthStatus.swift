@@ -43,6 +43,16 @@ struct TokenHealthStatus: Identifiable {
     let sessionDuration: TimeInterval?
     let lastActivity: Date?           // timestamp of most recent entry in this session
 
+    /// Placeholder for defensive code paths that should never be reached.
+    static let empty = TokenHealthStatus(
+        id: "", band: .unknown, usagePercentage: 0,
+        totalUsed: 0, contextWindow: 0, usableWindow: 0, remainingTokens: 0,
+        inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+        model: "", turnCount: 0, warnings: [],
+        tokensPerMinute: nil, projectName: nil, gitBranch: nil,
+        sessionStart: nil, sessionDuration: nil, lastActivity: nil
+    )
+
     var suggestedAction: String? {
         switch band {
         case .orange:

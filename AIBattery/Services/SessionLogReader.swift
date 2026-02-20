@@ -4,10 +4,7 @@ import os
 final class SessionLogReader {
     static let shared = SessionLogReader()
 
-    private var projectsURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/projects")
-    }
+    private var projectsURL: URL { ClaudePaths.projects }
 
     // Cache: filePath -> (modDate, fileSize, entries)
     private var cache: [String: (Date, UInt64, [AssistantUsageEntry])] = [:]
@@ -186,15 +183,24 @@ final class SessionLogReader {
         let assistantMarkers: [Data] = [
             "\"type\":\"assistant\"",
             "\"type\": \"assistant\"",
-        ].map { $0.data(using: .utf8)! }
-        let usageMarker = "\"usage\"".data(using: .utf8)!
+        ].compactMap { $0.data(using: .utf8) }
+        let usageMarker = "\"usage\"".data(using: .utf8) ?? Data()
 
         let bufferSize = 64 * 1024 // 64KB chunks
+        let maxLineSize = 1_048_576 // 1MB — skip lines longer than this (malformed/corrupt)
         var leftover = Data()
 
         while true {
             guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             leftover.append(chunk)
+
+            // Safety: if leftover exceeds max line size without finding a newline,
+            // the JSONL line is malformed — discard and move on.
+            if leftover.count > maxLineSize, leftover.firstIndex(of: UInt8(ascii: "\n")) == nil {
+                AppLogger.files.warning("Skipping oversized JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
+                leftover.removeAll()
+                continue
+            }
 
             // Process complete lines
             while let newlineIndex = leftover.firstIndex(of: UInt8(ascii: "\n")) {
@@ -214,32 +220,9 @@ final class SessionLogReader {
                     AppLogger.files.debug("JSONL decode failed in \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
                     continue
                 }
-                guard decoded.type == "assistant",
-                      let message = decoded.message,
-                      let usage = message.usage,
-                      let model = message.model else { continue }
-                let entry = decoded
-
-                let messageId = message.id ?? entry.uuid ?? UUID().uuidString
-                let timestamp: Date
-                if let ts = entry.timestamp {
-                    timestamp = Self.isoFormatter.date(from: ts) ?? Date()
-                } else {
-                    timestamp = Date()
+                if let usageEntry = Self.makeUsageEntry(from: decoded) {
+                    entries.append(usageEntry)
                 }
-
-                entries.append(AssistantUsageEntry(
-                    timestamp: timestamp,
-                    model: model,
-                    messageId: messageId,
-                    inputTokens: usage.input_tokens ?? 0,
-                    outputTokens: usage.output_tokens ?? 0,
-                    cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-                    cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
-                    sessionId: entry.sessionId ?? "",
-                    cwd: entry.cwd,
-                    gitBranch: entry.gitBranch
-                ))
             }
         }
 
@@ -256,34 +239,41 @@ final class SessionLogReader {
                     AppLogger.files.debug("JSONL decode failed (trailing) in \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
                     decoded = nil
                 }
-                if let entry = decoded,
-                   entry.type == "assistant",
-                   let message = entry.message,
-                   let usage = message.usage,
-                   let model = message.model {
-                    let messageId = message.id ?? entry.uuid ?? UUID().uuidString
-                    let timestamp: Date
-                    if let ts = entry.timestamp {
-                        timestamp = Self.isoFormatter.date(from: ts) ?? Date()
-                    } else {
-                        timestamp = Date()
-                    }
-                    entries.append(AssistantUsageEntry(
-                        timestamp: timestamp,
-                        model: model,
-                        messageId: messageId,
-                        inputTokens: usage.input_tokens ?? 0,
-                        outputTokens: usage.output_tokens ?? 0,
-                        cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-                        cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
-                        sessionId: entry.sessionId ?? "",
-                        cwd: entry.cwd,
-                        gitBranch: entry.gitBranch
-                    ))
+                if let entry = decoded, let usageEntry = Self.makeUsageEntry(from: entry) {
+                    entries.append(usageEntry)
                 }
             }
         }
 
         return entries
+    }
+
+    /// Build an `AssistantUsageEntry` from a decoded session entry, or nil if it's not an assistant message with usage.
+    private static func makeUsageEntry(from entry: SessionEntry) -> AssistantUsageEntry? {
+        guard entry.type == "assistant",
+              let message = entry.message,
+              let usage = message.usage,
+              let model = message.model else { return nil }
+
+        let messageId = message.id ?? entry.uuid ?? UUID().uuidString
+        let timestamp: Date
+        if let ts = entry.timestamp {
+            timestamp = isoFormatter.date(from: ts) ?? Date()
+        } else {
+            timestamp = Date()
+        }
+
+        return AssistantUsageEntry(
+            timestamp: timestamp,
+            model: model,
+            messageId: messageId,
+            inputTokens: usage.input_tokens ?? 0,
+            outputTokens: usage.output_tokens ?? 0,
+            cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+            cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
+            sessionId: entry.sessionId ?? "",
+            cwd: entry.cwd,
+            gitBranch: entry.gitBranch
+        )
     }
 }
