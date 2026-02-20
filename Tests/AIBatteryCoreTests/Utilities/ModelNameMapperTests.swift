@@ -57,4 +57,21 @@ struct ModelNameMapperTests {
         // Just "claude-opus" with no version segments
         #expect(ModelNameMapper.displayName(for: "claude-opus") == "Opus")
     }
+
+    // MARK: - Additional edge cases
+
+    @Test func displayName_multipleHyphens() {
+        // "claude-3-5-haiku-20241022" → strip "claude-" → "3-5-haiku-20241022" → strip date → "3-5-haiku"
+        #expect(ModelNameMapper.displayName(for: "claude-3-5-haiku-20241022") == "3 5.haiku")
+    }
+
+    @Test func displayName_justClaude() {
+        // "claude" → strip "claude-" doesn't match (no hyphen after) → stays "claude"
+        #expect(ModelNameMapper.displayName(for: "claude") == "Claude")
+    }
+
+    @Test func displayName_longVersionSegments() {
+        // Future model: "claude-titan-10-3-2-20260101"
+        #expect(ModelNameMapper.displayName(for: "claude-titan-10-3-2-20260101") == "Titan 10.3.2")
+    }
 }

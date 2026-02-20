@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Fires macOS notifications for status-page outages (Claude.ai / Claude Code).
 /// Uses osascript for reliable delivery from unsigned/SPM-built menu bar apps.
@@ -63,7 +64,11 @@ public final class NotificationManager {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         proc.arguments = ["-e", script]
-        try? proc.run()
+        do {
+            try proc.run()
+        } catch {
+            AppLogger.general.warning("osascript notification failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// Safely quote a string for embedding in AppleScript.

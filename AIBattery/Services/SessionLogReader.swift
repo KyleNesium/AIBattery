@@ -4,10 +4,7 @@ import os
 final class SessionLogReader {
     static let shared = SessionLogReader()
 
-    private var projectsURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/projects")
-    }
+    private var projectsURL: URL { ClaudePaths.projects }
 
     // Cache: filePath -> (modDate, fileSize, entries)
     private var cache: [String: (Date, UInt64, [AssistantUsageEntry])] = [:]
@@ -186,8 +183,8 @@ final class SessionLogReader {
         let assistantMarkers: [Data] = [
             "\"type\":\"assistant\"",
             "\"type\": \"assistant\"",
-        ].map { $0.data(using: .utf8)! }
-        let usageMarker = "\"usage\"".data(using: .utf8)!
+        ].compactMap { $0.data(using: .utf8) }
+        let usageMarker = "\"usage\"".data(using: .utf8) ?? Data()
 
         let bufferSize = 64 * 1024 // 64KB chunks
         var leftover = Data()

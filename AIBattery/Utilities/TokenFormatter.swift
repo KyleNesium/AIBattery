@@ -2,6 +2,7 @@ import Foundation
 
 enum TokenFormatter {
     static func format(_ count: Int) -> String {
+        guard count >= 0 else { return "0" }
         switch count {
         case 0..<1_000:
             return "\(count)"

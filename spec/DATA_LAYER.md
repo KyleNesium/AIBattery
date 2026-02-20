@@ -209,7 +209,7 @@ JSONL line schema (Codable):
 - `fetch() async -> APIFetchResult` — returns both rate limits and org profile from a single API call
 - POST `/v1/messages?beta=true` with `max_tokens: 1`, content `"."`
 - Model fallback list: tries `claude-sonnet-4-5-20250929` first, falls back to `claude-haiku-3-5-20241022`. Remembers last working model index to avoid repeated fallbacks.
-- Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/1.0.2 (macOS)`
+- Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/{version} (macOS)` (dynamic from bundle)
 - Gets access token from `OAuthManager.shared.getAccessToken()` (auto-refreshes if expired)
 - Timeout: 15 sec
 - Parses `anthropic-ratelimit-unified-*` response headers via `RateLimitUsage.parse(headers:)` and `APIProfile.parse(headers:)` from the same response
@@ -248,7 +248,7 @@ JSONL line schema (Codable):
 - Mod-time + file-size cache to skip unchanged files
 - **Result-level caching**: caches the merged `[AssistantUsageEntry]` result; invalidated by FileWatcher via `invalidate()`. Avoids re-sorting and re-deduplicating on every refresh.
 - **Discovery caching**: caches discovered JSONL file list with parent directory modification dates; re-scans only when directory contents change.
-- **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using O(n) single-pass min-find (not sort)
+- **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
 - Deduplication by messageId within each file
 - Sorted by timestamp ascending
 
@@ -289,7 +289,9 @@ JSONL line schema (Codable):
 - **Cache invalidation**: debounced handler calls `SessionLogReader.shared.invalidate()` and `StatsCacheReader.shared.invalidate()` before triggering refresh
 - Fallback timer: 60 seconds — only starts if both DispatchSource and FSEventStream fail (avoids redundant polling)
 - Calls `onChange` closure → triggers `viewModel.refresh()`
+- **Stats-cache retry**: if `stats-cache.json` doesn't exist on launch (normal before first `/stats` run), retries `open()` every 60 seconds until it appears
 - **Failure logging**: logs via `AppLogger.files.warning` when file descriptors fail to open, projects directory not found, or FSEventStream creation fails — falls back to timer in all cases
+- File paths sourced from `ClaudePaths` (centralized)
 
 ### NotificationManager (`Services/NotificationManager.swift`)
 - Singleton: `.shared`
@@ -313,8 +315,16 @@ JSONL line schema (Codable):
 
 ## Utilities
 
+### ClaudePaths (`Utilities/ClaudePaths.swift`)
+- Centralized file paths for all Claude Code data locations
+- `statsCache` / `statsCachePath` — `~/.claude/stats-cache.json`
+- `projects` / `projectsPath` — `~/.claude/projects/`
+- `accountConfig` / `accountConfigPath` — `~/.claude.json`
+- Used by FileWatcher, StatsCacheReader, SessionLogReader, UsageAggregator
+
 ### TokenFormatter (`Utilities/TokenFormatter.swift`)
 - `format(_ count: Int) -> String` — 500 → "500", 2500 → "2.5K", 15000 → "15K", 3200000 → "3.2M"
+- Guards against negative input (returns "0")
 
 ### ModelNameMapper (`Utilities/ModelNameMapper.swift`)
 - `displayName(for modelId: String) -> String`

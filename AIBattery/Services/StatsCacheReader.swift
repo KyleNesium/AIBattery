@@ -4,10 +4,7 @@ import os
 final class StatsCacheReader {
     static let shared = StatsCacheReader()
 
-    private var fileURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/stats-cache.json")
-    }
+    private var fileURL: URL { ClaudePaths.statsCache }
 
     /// Cached decode result — avoids re-reading and decoding on every refresh.
     private var cached: StatsCache?

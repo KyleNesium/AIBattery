@@ -33,7 +33,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Probe models (fallback order) | `claude-sonnet-4-5-20250929`, `claude-haiku-3-5-20241022` |
 | Probe content | `"."` |
 | Probe max_tokens | `1` |
-| User-Agent | `AIBattery/1.0.2 (macOS)` |
+| User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
 | Keychain service (OAuth) | `"AIBattery"` |
 
 ## Statuspage Component IDs
@@ -154,6 +154,8 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |
+
+All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
 ## Color Thresholds
 

@@ -60,9 +60,35 @@ struct TokenFormatterTests {
         #expect(TokenFormatter.format(150_000_000) == "150M")
     }
 
-    // MARK: - Edge case
+    // MARK: - Edge cases
 
     @Test func format_1() {
         #expect(TokenFormatter.format(1) == "1")
+    }
+
+    @Test func format_negativeReturnsZero() {
+        #expect(TokenFormatter.format(-1) == "0")
+        #expect(TokenFormatter.format(-999) == "0")
+        #expect(TokenFormatter.format(-1_000_000) == "0")
+    }
+
+    @Test func format_boundaryAt1K() {
+        #expect(TokenFormatter.format(999) == "999")
+        #expect(TokenFormatter.format(1_000) == "1.0K")
+    }
+
+    @Test func format_boundaryAt10K() {
+        #expect(TokenFormatter.format(9_999) == "10.0K")
+        #expect(TokenFormatter.format(10_000) == "10K")
+    }
+
+    @Test func format_boundaryAt1M() {
+        #expect(TokenFormatter.format(999_999) == "1000K")
+        #expect(TokenFormatter.format(1_000_000) == "1.0M")
+    }
+
+    @Test func format_boundaryAt10M() {
+        #expect(TokenFormatter.format(9_999_999) == "10.0M")
+        #expect(TokenFormatter.format(10_000_000) == "10M")
     }
 }

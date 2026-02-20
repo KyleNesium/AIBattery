@@ -191,8 +191,7 @@ final class UsageAggregator {
     }
 
     private func readAccountInfo() -> AccountInfo? {
-        let path = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude.json").path
+        let path = ClaudePaths.accountConfigPath
 
         // Check mod date — skip re-read if unchanged
         if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
@@ -203,7 +202,7 @@ final class UsageAggregator {
             accountInfoModDate = modDate
         }
 
-        let url = URL(fileURLWithPath: path)
+        let url = ClaudePaths.accountConfig
         let data: Data
         do {
             data = try Data(contentsOf: url)
