@@ -144,7 +144,13 @@ Percentages are relative to the **usable window** — 80% of the model's raw con
 | 🟠 Orange | 60–80% | Quality may degrade |
 | 🔴 Red | > 80% | Start a fresh session |
 
-Additional warnings for long conversations (15+ turns) and high input-to-output ratios (20:1+).
+Additional warnings appear when context is being used inefficiently:
+
+**⚠️ Long conversation (15+ turns)** — Nothing is discarded between turns. Your messages, Claude's responses, tool calls, and results all accumulate. After ~15 turns the window is full of old history that Claude still reads every turn — slowing responses, reducing quality, and burning through your token budget on stale context.
+
+**⚠️ High input:output ratio (20:1+)** — More tokens are going in (file reads, error logs, tool results) than coming out. For example, reading 5 large files dumps thousands of tokens into context that Claude may only reference once. That data stays in the window for the rest of the session, consuming tokens on every subsequent turn and leaving less room for useful work.
+
+Fix: run `/compact` to drop old history, or start a fresh session.
 
 </td>
 <td width="45%" align="center">
