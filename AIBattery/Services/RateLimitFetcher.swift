@@ -120,14 +120,23 @@ final class RateLimitFetcher {
 
             // Model not available for this account (400 with invalid model, or 404)
             if http.statusCode == 400 || http.statusCode == 404 {
-                // Check if it's specifically a model-access error
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let error = json["error"] as? [String: Any],
                    let message = error["message"] as? String,
                    message.lowercased().contains("model") || message.lowercased().contains("access") {
                     return .modelUnavailable
                 }
-                // Rate limit headers may still be present even on error responses
+                // Non-model 400/404 (e.g., malformed request) — don't treat as success.
+                // Still try to extract rate limit headers before falling back.
+                let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
+                if let rateLimits {
+                    let profile = APIProfile.parse(headers: http.allHeaderFields)
+                    return .success(APIFetchResult(
+                        rateLimits: rateLimits,
+                        profile: profile ?? cachedResult?.profile
+                    ))
+                }
+                return .networkError
             }
 
             // Parse both rate limits and org info from the same response headers

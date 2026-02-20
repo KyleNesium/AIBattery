@@ -87,21 +87,25 @@ AIBattery/
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"
     UserDefaultsKeys.swift        — Centralized @AppStorage / UserDefaults key constants
     AppLogger.swift               — Structured os.Logger instances by category
+    ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
 Tests/AIBatteryCoreTests/
   Utilities/
-    TokenFormatterTests.swift     — format() for 0, 500, 1K, 2.5K, 15K, 1M, 3.2M, 150M
-    ModelNameMapperTests.swift    — displayName() for all model families, edge cases, empty
+    TokenFormatterTests.swift     — format() for 0, 500, 1K, 2.5K, 15K, 1M, 3.2M, 150M + negatives + boundaries
+    ModelNameMapperTests.swift    — displayName() for all model families, edge cases, empty, multi-hyphens
     UserDefaultsKeysTests.swift   — prefix validation, uniqueness
+    ClaudePathsTests.swift        — path suffixes, URL↔path consistency, absolute paths
   Models/
     PlanTierTests.swift           — fromBillingType() for all known tiers + unknown + empty
     MetricModeTests.swift         — rawValues, labels, shortLabels, allCases
     RateLimitUsageTests.swift     — parse() with full/partial/missing headers; computed properties
     APIProfileTests.swift         — parse() with both/one/no headers
+    APIFetchResultTests.swift     — defaults, explicit cached flag, profile preservation
     TokenHealthConfigTests.swift  — contextWindow() exact/prefix/fallback; default thresholds
     StatsCacheTests.swift         — DailyActivity.parsedDate, LongestSession.durationFormatted, Codable round-trip
     ModelTokenSummaryTests.swift  — totalTokens sum
     TokenHealthStatusTests.swift  — suggestedAction per band, HealthBand rawValues
     SessionEntryTests.swift       — Codable decode from real JSONL, minimal entry, round-trip
+    UsageSnapshotTests.swift      — totalTokens, percent(for:), planTier
   Services/
     StatusIndicatorTests.swift    — from() all status strings, severity ordering, displayName
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
@@ -109,9 +113,10 @@ Tests/AIBatteryCoreTests/
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
-  release.yml                     — Release workflow (macos-15)
+  release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)
 scripts/
   build-app.sh                    — Build release binary + .app bundle + zip/dmg
+  update-homebrew.sh              — Auto-update KyleNesium/homebrew-tap cask (version + SHA256)
   generate-icon.swift             — Generate AppIcon.icns (sparkle star, all macOS sizes)
 project.yml                       — XcodeGen project spec (optional, SPM is primary)
 Package.swift                     — SPM manifest: AIBatteryCore, AIBattery, AIBatteryCoreTests
@@ -127,6 +132,15 @@ CHANGELOG.md                      — Release notes per version
 - **App icon**: Generated at build time via `scripts/generate-icon.swift` (sparkle star, all macOS sizes). Embedded in `Contents/Resources/AppIcon.icns` and used as DMG volume icon.
 - **Dock icon**: None (LSUIElement = true)
 - **Dependencies**: None (Apple frameworks only: SwiftUI, Charts, Security, Foundation, AppKit)
+
+## Release Pipeline
+
+1. Tag a version: `git tag v1.x.x && git push --tags`
+2. `release.yml` builds the app, creates a GitHub Release with `.zip` and `.dmg`
+3. `scripts/update-homebrew.sh` auto-updates `KyleNesium/homebrew-tap` — downloads the zip, computes SHA256, commits updated cask formula
+4. Requires `HOMEBREW_TAP_TOKEN` repo secret (GitHub PAT with `repo` scope for the homebrew-tap repo)
+
+**Important**: Every release must update the Homebrew cask. The automation handles this when the secret is configured.
 
 ## Network Calls (exhaustive)
 

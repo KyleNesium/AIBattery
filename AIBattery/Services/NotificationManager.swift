@@ -66,6 +66,10 @@ public final class NotificationManager {
         proc.arguments = ["-e", script]
         do {
             try proc.run()
+            // Reap the child process on a background queue to prevent zombies
+            DispatchQueue.global(qos: .utility).async {
+                proc.waitUntilExit()
+            }
         } catch {
             AppLogger.general.warning("osascript notification failed: \(error.localizedDescription, privacy: .public)")
         }

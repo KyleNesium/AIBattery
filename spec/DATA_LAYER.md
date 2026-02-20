@@ -143,6 +143,8 @@ Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPe
 | `sessionDuration` | `TimeInterval?` — last - first entry |
 | `lastActivity` | `Date?` — timestamp of most recent entry in session |
 
+Static: `empty` — zero-value placeholder for defensive code paths (empty sessions guard in `TokenHealthSection`).
+
 Computed: `suggestedAction` — nil for green/unknown, recommendation text for orange/red.
 
 ### HealthWarning
@@ -196,8 +198,8 @@ JSONL line schema (Codable):
 - Auth URL: `https://claude.ai/oauth/authorize`
 - Token URL: `https://console.anthropic.com/v1/oauth/token`
 - Scopes: `org:create_api_key user:profile user:inference`
-- `startAuthFlow()` → opens browser with PKCE challenge
-- `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens, returns typed errors. Validates state parameter matches PKCE verifier (CSRF protection).
+- `startAuthFlow()` → opens browser with PKCE challenge. Generates a separate random `state` parameter (never reuses the PKCE verifier, which could leak via redirect URLs or server logs).
+- `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens, returns typed errors. Validates state parameter against stored `pendingState` (CSRF protection). Only clears `pendingVerifier`/`pendingState` on success — allows retry on network failure.
 - `getAccessToken()` → returns valid token (auto-refreshes if expired)
 - `signOut()` → clears all stored tokens
 - Tokens stored in macOS Keychain under service `"AIBattery"` (separate from Claude Code)
@@ -215,6 +217,7 @@ JSONL line schema (Codable):
 - Parses `anthropic-ratelimit-unified-*` response headers via `RateLimitUsage.parse(headers:)` and `APIProfile.parse(headers:)` from the same response
 - Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache expires after 1 hour (`cacheMaxAge = 3600s`) to avoid showing very old data.
 - Model unavailable (400/404 with model/access error message) → tries next model in list
+- Non-model 400/404 errors: extracts rate limit headers if present and returns as success; otherwise returns `.networkError` (never silently falls through to header-less success)
 
 ### StatusChecker (`Services/StatusChecker.swift`)
 - Singleton: `.shared`
@@ -251,6 +254,7 @@ JSONL line schema (Codable):
 - **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
 - Deduplication by messageId within each file
 - Sorted by timestamp ascending
+- **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - Created per-ViewModel (not singleton)
@@ -299,7 +303,7 @@ JSONL line schema (Codable):
 - `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
 - `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
 - Deduplication: `hasFired[key]` bool per component, resets when service recovers
-- Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps
+- Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps. Process reaping via `waitUntilExit()` on background queue prevents zombie processes.
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
 
 ## ViewModel

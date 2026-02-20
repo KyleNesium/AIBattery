@@ -33,8 +33,9 @@ public final class OAuthManager: ObservableObject {
     private let refreshTokenAccount = "refreshToken"
     private let expiresAtAccount = "expiresAt"
 
-    // In-flight PKCE verifier (lives only during auth flow)
+    // In-flight PKCE verifier and state (lives only during auth flow)
     private var pendingVerifier: String?
+    private var pendingState: String?
 
     // Cached tokens (in-memory)
     private var accessToken: String?
@@ -72,7 +73,12 @@ public final class OAuthManager: ObservableObject {
         let (verifier, challenge) = generatePKCE()
         pendingVerifier = verifier
 
-        var components = URLComponents(string: authBaseURL)!
+        // Separate state parameter — never reuse the PKCE verifier as state,
+        // because the state is reflected in redirect URLs and server logs.
+        let state = generateRandomState()
+        pendingState = state
+
+        guard var components = URLComponents(string: authBaseURL) else { return nil }
         components.queryItems = [
             URLQueryItem(name: "code", value: "true"),
             URLQueryItem(name: "client_id", value: clientID),
@@ -81,7 +87,7 @@ public final class OAuthManager: ObservableObject {
             URLQueryItem(name: "scope", value: scopes),
             URLQueryItem(name: "code_challenge", value: challenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
-            URLQueryItem(name: "state", value: verifier),
+            URLQueryItem(name: "state", value: state),
         ]
 
         return components.url
@@ -110,23 +116,23 @@ public final class OAuthManager: ObservableObject {
     /// The code may be in "code#state" format (as returned by Anthropic).
     func exchangeCode(_ rawCode: String) async -> Result<Void, AuthError> {
         guard let verifier = pendingVerifier else { return .failure(.noVerifier) }
-        pendingVerifier = nil
+        let expectedState = pendingState
 
         // Anthropic returns code#state format
         let parts = rawCode.split(separator: "#")
         let code = parts.first.map(String.init) ?? rawCode
 
-        // Validate state parameter matches our verifier (CSRF protection)
-        if parts.count >= 2 {
+        // Validate state parameter (CSRF protection)
+        if parts.count >= 2, let expectedState {
             let returnedState = String(parts[1])
-            if returnedState != verifier {
+            if returnedState != expectedState {
                 return .failure(.unknownError("State mismatch — possible CSRF attack. Please try again."))
             }
         }
 
         let body: [String: String] = [
             "code": code.trimmingCharacters(in: .whitespacesAndNewlines),
-            "state": verifier,
+            "state": expectedState ?? verifier,
             "grant_type": "authorization_code",
             "client_id": clientID,
             "redirect_uri": redirectURI,
@@ -136,6 +142,9 @@ public final class OAuthManager: ObservableObject {
         let tokenResult = await postToken(body: body)
         switch tokenResult {
         case .success(let result):
+            // Only clear pending state on success — allows retry on network failure
+            pendingVerifier = nil
+            pendingState = nil
             accessToken = result.accessToken
             refreshToken = result.refreshToken
             expiresAt = result.expiresAt
@@ -153,6 +162,7 @@ public final class OAuthManager: ObservableObject {
         refreshToken = nil
         expiresAt = nil
         pendingVerifier = nil
+        pendingState = nil
         deleteFromKeychain()
         isAuthenticated = false
     }
@@ -242,7 +252,14 @@ public final class OAuthManager: ObservableObject {
         }
     }
 
-    // MARK: - PKCE (SHA-256)
+    // MARK: - PKCE (SHA-256) & State
+
+    /// Generate a random state parameter (separate from the PKCE verifier).
+    private func generateRandomState() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return Data(bytes).base64URLEncoded()
+    }
 
     private func generatePKCE() -> (verifier: String, challenge: String) {
         // 32 random bytes → base64url → verifier

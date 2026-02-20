@@ -17,6 +17,10 @@ struct TokenHealthSection: View {
     }
 
     private var health: TokenHealthStatus {
+        guard !sessions.isEmpty else {
+            // Shouldn't happen — callers guard for empty sessions — but avoid a crash.
+            return TokenHealthStatus.empty
+        }
         let idx = min(selectedIndex, sessions.count - 1)
         return sessions[max(idx, 0)]
     }
