@@ -2,15 +2,22 @@ import SwiftUI
 
 /// Authentication view shown when the user is not authenticated.
 /// Handles the OAuth PKCE flow: opens browser → user pastes code → tokens exchanged.
+///
+/// When `isAddingAccount` is true, shows different copy for the "add another account" flow
+/// and displays a Cancel button to return to the main view.
 public struct AuthView: View {
     @ObservedObject var oauthManager: OAuthManager
+    var isAddingAccount: Bool = false
+    var onCancel: (() -> Void)?
     @State private var authCode: String = ""
     @State private var isWaitingForCode = false
     @State private var isExchanging = false
     @State private var errorMessage: String?
 
-    public init(oauthManager: OAuthManager) {
+    public init(oauthManager: OAuthManager, isAddingAccount: Bool = false, onCancel: (() -> Void)? = nil) {
         self.oauthManager = oauthManager
+        self.isAddingAccount = isAddingAccount
+        self.onCancel = onCancel
     }
 
     public var body: some View {
@@ -19,7 +26,7 @@ public struct AuthView: View {
             VStack(spacing: 4) {
                 Text("✦ AI Battery")
                     .font(.headline)
-                Text("Sign in with your Claude account")
+                Text(isAddingAccount ? "Add another Claude account" : "Sign in with your Claude account")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -29,7 +36,9 @@ public struct AuthView: View {
             if !isWaitingForCode {
                 // Step 1: Start auth
                 VStack(spacing: 8) {
-                    Text("Connect your Anthropic account to see your usage, rate limits, and plan details.")
+                    Text(isAddingAccount
+                        ? "Connect a second Claude account to monitor both from AI Battery."
+                        : "Connect your Anthropic account to see your usage, rate limits, and plan details.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -134,10 +143,18 @@ public struct AuthView: View {
 
             // Footer
             HStack {
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if isAddingAccount, let onCancel {
+                    Button("Cancel") { onCancel() }
+                        .buttonStyle(.plain)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Cancel adding account")
+                } else {
+                    Button("Quit") { NSApplication.shared.terminate(nil) }
+                        .buttonStyle(.plain)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
             }
         }
@@ -147,7 +164,7 @@ public struct AuthView: View {
 
     private func startAuth() {
         errorMessage = nil
-        guard let url = oauthManager.startAuthFlow() else {
+        guard let url = oauthManager.startAuthFlow(addingAccount: isAddingAccount) else {
             errorMessage = "Failed to create authorization URL"
             return
         }

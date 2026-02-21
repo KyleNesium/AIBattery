@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 import os
 
-/// Manages Anthropic OAuth 2.0 authentication with PKCE.
+/// Manages Anthropic OAuth 2.0 authentication with PKCE for multiple accounts.
 ///
 /// Flow:
 /// 1. User clicks "Authenticate" → opens browser to claude.ai/oauth/authorize
@@ -10,6 +10,13 @@ import os
 /// 3. User pastes code into AIBattery → exchanged for access + refresh tokens
 /// 4. Access token used as Bearer token for API calls
 /// 5. Auto-refreshes when expired using refresh token
+///
+/// Multi-account:
+/// - Supports up to 2 accounts (separate Claude orgs)
+/// - Each account's tokens stored under prefixed Keychain entries
+/// - `AccountStore` tracks known accounts; `activeAccountId` drives which one polls
+/// - New accounts get a temporary `"pending-<UUID>"` ID until the first API call
+///   returns the real `anthropic-organization-id`, which triggers `resolveAccountIdentity()`
 ///
 /// Security:
 /// - PKCE (SHA-256) prevents authorization code interception
@@ -29,67 +36,73 @@ public final class OAuthManager: ObservableObject {
 
     // Keychain storage (AIBattery's own entries, not Claude Code's)
     private let keychainService = "AIBattery"
-    private let accessTokenAccount = "accessToken"
-    private let refreshTokenAccount = "refreshToken"
-    private let expiresAtAccount = "expiresAt"
 
     // In-flight PKCE verifier and state (lives only during auth flow)
     private var pendingVerifier: String?
     private var pendingState: String?
 
-    // Cached tokens (in-memory)
-    private var accessToken: String?
-    private var refreshToken: String?
-    private var expiresAt: Date?
+    /// Whether the current auth flow is for adding a second account.
+    private var isAddingAccount = false
+
+    /// Per-account in-memory token cache, keyed by account ID.
+    private var tokens: [String: AccountTokens] = [:]
 
     /// Refresh the access token 5 minutes before it expires to avoid clock-skew
     /// and network-delay induced 401s that trigger unnecessary re-authentication.
     private static let expiryBuffer: TimeInterval = 300 // 5 minutes
 
-    /// Serializes concurrent refresh attempts so only one token refresh is in-flight
-    /// at a time. Without this, multiple polling cycles that all see an expired token
-    /// could fire parallel refresh requests, wasting network and risking race conditions.
-    private var refreshTask: Task<String?, Never>?
+    /// Serializes concurrent refresh attempts per account.
+    private var refreshTasks: [String: Task<String?, Never>] = [:]
+
+    /// Account registry — persisted to UserDefaults.
+    @Published public var accountStore = AccountStore()
 
     @Published public var isAuthenticated: Bool = false
 
     public init() {
-        loadFromKeychain()
+        migrateFromLegacy()
+        loadAllTokens()
+        updateAuthState()
     }
 
     // MARK: - Public API
 
-    /// Returns a valid access token, refreshing if needed. Returns nil if not authenticated.
-    ///
-    /// Refreshes 5 minutes before expiry to avoid clock-skew 401s.
-    /// Serializes concurrent refresh attempts — if a refresh is already in-flight,
-    /// subsequent callers await the same task instead of firing parallel requests.
+    /// Returns a valid access token for the active account, refreshing if needed.
     func getAccessToken() async -> String? {
+        guard let accountId = accountStore.activeAccountId else { return nil }
+        return await getAccessToken(for: accountId)
+    }
+
+    /// Returns a valid access token for a specific account, refreshing if needed.
+    func getAccessToken(for accountId: String) async -> String? {
+        guard let acctTokens = tokens[accountId] else { return nil }
+
         // If we have a valid token with enough remaining lifetime, return it
-        if let token = accessToken, let expires = expiresAt,
+        if let token = acctTokens.accessToken, let expires = acctTokens.expiresAt,
            expires.addingTimeInterval(-Self.expiryBuffer) > Date() {
             return token
         }
 
-        // If a refresh is already in-flight, piggyback on it
-        if let existing = refreshTask {
+        // If a refresh is already in-flight for this account, piggyback on it
+        if let existing = refreshTasks[accountId] {
             return await existing.value
         }
 
         // Try to refresh
-        guard let refresh = refreshToken else { return nil }
+        guard let refresh = acctTokens.refreshToken else { return nil }
 
         let task = Task<String?, Never> {
-            let result = await refreshAccessToken(refresh)
-            refreshTask = nil
+            let result = await refreshAccessToken(refresh, accountId: accountId)
+            refreshTasks[accountId] = nil
             return result
         }
-        refreshTask = task
+        refreshTasks[accountId] = task
         return await task.value
     }
 
     /// Start the OAuth flow: generates PKCE, returns the authorization URL to open in browser.
-    func startAuthFlow() -> URL? {
+    func startAuthFlow(addingAccount: Bool = false) -> URL? {
+        isAddingAccount = addingAccount
         let (verifier, challenge) = generatePKCE()
         pendingVerifier = verifier
 
@@ -120,6 +133,7 @@ public final class OAuthManager: ObservableObject {
         case expired
         case networkError
         case serverError(Int)
+        case maxAccountsReached
         case unknownError(String)
 
         var userMessage: String {
@@ -129,6 +143,7 @@ public final class OAuthManager: ObservableObject {
             case .expired: return "Authorization code expired. Please re-authenticate."
             case .networkError: return "Network error. Check your connection and try again."
             case .serverError(let code): return "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
+            case .maxAccountsReached: return "Maximum of \(AccountStore.maxAccounts) accounts reached. Remove one before adding another."
             case .unknownError(let msg): return msg
             }
         }
@@ -143,10 +158,15 @@ public final class OAuthManager: ObservableObject {
     }
 
     /// Complete the OAuth flow: exchange the authorization code for tokens.
-    /// The code may be in "code#state" format (as returned by Anthropic).
+    /// Creates a new account record with a pending identity.
     func exchangeCode(_ rawCode: String) async -> Result<Void, AuthError> {
         guard let verifier = pendingVerifier else { return .failure(.noVerifier) }
         let expectedState = pendingState
+
+        // Check account limit when adding
+        if isAddingAccount && !accountStore.canAddAccount {
+            return .failure(.maxAccountsReached)
+        }
 
         // Anthropic returns code#state format
         let parts = rawCode.split(separator: "#")
@@ -175,33 +195,109 @@ public final class OAuthManager: ObservableObject {
             // Only clear pending state on success — allows retry on network failure
             pendingVerifier = nil
             pendingState = nil
-            accessToken = result.accessToken
-            refreshToken = result.refreshToken
-            expiresAt = result.expiresAt
-            saveToKeychain()
-            isAuthenticated = true
+
+            // Create a new account with a temporary ID
+            let tempId = "pending-\(UUID().uuidString)"
+            let record = AccountRecord(
+                id: tempId,
+                displayName: nil,
+                organizationName: nil,
+                billingType: nil,
+                addedAt: Date()
+            )
+            accountStore.add(record)
+            accountStore.setActive(id: tempId)
+
+            tokens[tempId] = AccountTokens(
+                accessToken: result.accessToken,
+                refreshToken: result.refreshToken,
+                expiresAt: result.expiresAt
+            )
+            saveTokens(for: tempId)
+            isAddingAccount = false
+            updateAuthState()
             return .success(())
         case .failure(let error):
             return .failure(error)
         }
     }
 
-    /// Sign out: clear all stored tokens.
-    func signOut() {
-        accessToken = nil
-        refreshToken = nil
-        expiresAt = nil
+    /// Resolve a pending account identity after the first API call returns the real org ID.
+    /// Idempotent — skips if the account is already resolved.
+    func resolveAccountIdentity(tempId: String, realOrgId: String, orgName: String? = nil, billingType: String? = nil) {
+        guard let account = accountStore.accounts.first(where: { $0.id == tempId }),
+              account.isPendingIdentity else { return }
+
+        var updated = account
+        updated.id = realOrgId
+        if let name = orgName { updated.organizationName = name }
+        if let billing = billingType { updated.billingType = billing }
+
+        // Move Keychain entries from temp ID to real org ID
+        let tokenData = tokens[tempId]
+        deleteTokens(for: tempId)
+        tokens.removeValue(forKey: tempId)
+
+        if let data = tokenData {
+            tokens[realOrgId] = data
+            saveTokens(for: realOrgId)
+        }
+
+        // Update account store (handles duplicate detection/merge internally)
+        accountStore.update(oldId: tempId, with: updated)
+
+        // Clean up refresh tasks
+        if let task = refreshTasks.removeValue(forKey: tempId) {
+            refreshTasks[realOrgId] = task
+        }
+
+        updateAuthState()
+        AppLogger.oauth.info("Resolved account identity: \(tempId, privacy: .public) → \(realOrgId, privacy: .public)")
+    }
+
+    /// Update an existing account's metadata (org name, billing type, display name).
+    func updateAccountMetadata(accountId: String, orgName: String? = nil, displayName: String? = nil, billingType: String? = nil) {
+        guard var record = accountStore.accounts.first(where: { $0.id == accountId }) else { return }
+        if let name = orgName { record.organizationName = name }
+        if let name = displayName { record.displayName = name }
+        if let billing = billingType { record.billingType = billing }
+        accountStore.update(oldId: accountId, with: record)
+    }
+
+    /// Sign out a specific account (or the active one if nil).
+    func signOut(accountId: String? = nil) {
+        let targetId = accountId ?? accountStore.activeAccountId
+        guard let id = targetId else { return }
+
+        tokens.removeValue(forKey: id)
+        refreshTasks[id]?.cancel()
+        refreshTasks.removeValue(forKey: id)
+        deleteTokens(for: id)
+        accountStore.remove(id: id)
+
+        // Clear PKCE state if in the middle of a flow
         pendingVerifier = nil
         pendingState = nil
-        refreshTask?.cancel()
-        refreshTask = nil
-        deleteFromKeychain()
-        isAuthenticated = false
+        isAddingAccount = false
+
+        updateAuthState()
+    }
+
+    // MARK: - Auth State
+
+    private func updateAuthState() {
+        guard let activeId = accountStore.activeAccountId,
+              let acctTokens = tokens[activeId],
+              acctTokens.refreshToken != nil else {
+            isAuthenticated = false
+            return
+        }
+        isAuthenticated = true
     }
 
     // MARK: - Token Refresh
 
-    private func refreshAccessToken(_ refresh: String) async -> String? {
+    private func refreshAccessToken(_ refresh: String, accountId: String) async -> String? {
         let body: [String: String] = [
             "grant_type": "refresh_token",
             "refresh_token": refresh,
@@ -211,19 +307,24 @@ public final class OAuthManager: ObservableObject {
         let tokenResult = await postToken(body: body)
         switch tokenResult {
         case .success(let result):
-            accessToken = result.accessToken
-            refreshToken = result.refreshToken
-            expiresAt = result.expiresAt
-            saveToKeychain()
-            isAuthenticated = true
+            tokens[accountId] = AccountTokens(
+                accessToken: result.accessToken,
+                refreshToken: result.refreshToken,
+                expiresAt: result.expiresAt
+            )
+            saveTokens(for: accountId)
+            updateAuthState()
             return result.accessToken
         case .failure(let error):
             // Only mark as unauthenticated for auth errors (revoked/invalid token).
             // Transient errors (network, 5xx) keep isAuthenticated so we retry next cycle.
             if error.isTransient {
-                AppLogger.oauth.warning("OAuth refresh failed (\(String(describing: error))), will retry next cycle")
+                AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), will retry next cycle")
+            } else if accountId == accountStore.activeAccountId {
+                signOut(accountId: accountId)
             } else {
-                isAuthenticated = false
+                // Non-active account auth failure — remove it silently
+                signOut(accountId: accountId)
             }
             return nil
         }
@@ -326,35 +427,85 @@ public final class OAuthManager: ObservableObject {
         return (verifier, challenge)
     }
 
-    // MARK: - Keychain Storage (AIBattery's own entries)
+    // MARK: - Per-Account Keychain Storage
 
-    private func saveToKeychain() {
-        if let token = accessToken {
-            keychainSet(account: accessTokenAccount, value: token)
+    private struct AccountTokens {
+        var accessToken: String?
+        var refreshToken: String?
+        var expiresAt: Date?
+    }
+
+    private func saveTokens(for accountId: String) {
+        guard let data = tokens[accountId] else { return }
+        if let token = data.accessToken {
+            keychainSet(account: "accessToken_\(accountId)", value: token)
         }
-        if let refresh = refreshToken {
-            keychainSet(account: refreshTokenAccount, value: refresh)
+        if let refresh = data.refreshToken {
+            keychainSet(account: "refreshToken_\(accountId)", value: refresh)
         }
-        if let expires = expiresAt {
-            keychainSet(account: expiresAtAccount, value: String(expires.timeIntervalSince1970))
+        if let expires = data.expiresAt {
+            keychainSet(account: "expiresAt_\(accountId)", value: String(expires.timeIntervalSince1970))
         }
     }
 
-    private func loadFromKeychain() {
-        accessToken = keychainGet(account: accessTokenAccount)
-        refreshToken = keychainGet(account: refreshTokenAccount)
-        if let expiresStr = keychainGet(account: expiresAtAccount),
+    private func loadTokens(for accountId: String) -> AccountTokens {
+        let access = keychainGet(account: "accessToken_\(accountId)")
+        let refresh = keychainGet(account: "refreshToken_\(accountId)")
+        var expires: Date?
+        if let expiresStr = keychainGet(account: "expiresAt_\(accountId)"),
            let interval = Double(expiresStr) {
-            expiresAt = Date(timeIntervalSince1970: interval)
+            expires = Date(timeIntervalSince1970: interval)
         }
-        isAuthenticated = (refreshToken != nil)
+        return AccountTokens(accessToken: access, refreshToken: refresh, expiresAt: expires)
     }
 
-    private func deleteFromKeychain() {
-        keychainDelete(account: accessTokenAccount)
-        keychainDelete(account: refreshTokenAccount)
-        keychainDelete(account: expiresAtAccount)
+    private func deleteTokens(for accountId: String) {
+        keychainDelete(account: "accessToken_\(accountId)")
+        keychainDelete(account: "refreshToken_\(accountId)")
+        keychainDelete(account: "expiresAt_\(accountId)")
     }
+
+    private func loadAllTokens() {
+        for account in accountStore.accounts {
+            tokens[account.id] = loadTokens(for: account.id)
+        }
+    }
+
+    // MARK: - Migration from Single-Account Format
+
+    /// One-time migration: moves legacy Keychain entries to the new prefixed format.
+    private func migrateFromLegacy() {
+        // Already migrated — accounts exist
+        guard accountStore.accounts.isEmpty else { return }
+
+        // Check for legacy (unprefixed) Keychain entries
+        let legacyRefresh = keychainGet(account: "refreshToken")
+        guard legacyRefresh != nil else { return }
+
+        AppLogger.oauth.info("Migrating legacy single-account Keychain entries")
+
+        let tempId = "pending-\(UUID().uuidString)"
+        let record = AccountRecord(
+            id: tempId,
+            displayName: UserDefaults.standard.string(forKey: UserDefaultsKeys.displayName),
+            organizationName: UserDefaults.standard.string(forKey: UserDefaultsKeys.orgName),
+            billingType: UserDefaults.standard.string(forKey: UserDefaultsKeys.plan),
+            addedAt: Date()
+        )
+
+        // Copy legacy entries to new prefixed format
+        for key in ["accessToken", "refreshToken", "expiresAt"] {
+            if let value = keychainGet(account: key) {
+                keychainSet(account: "\(key)_\(tempId)", value: value)
+                keychainDelete(account: key)
+            }
+        }
+
+        accountStore.add(record)
+        accountStore.setActive(id: tempId)
+    }
+
+    // MARK: - Keychain Helpers
 
     private func keychainSet(account: String, value: String) {
         let data = Data(value.utf8)

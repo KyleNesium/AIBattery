@@ -8,10 +8,12 @@
 
 ```
 ┌──────────────────────────────────────┐
-│ ✦ AI Battery  Kyle · Org   ⚙ ⟳  │  ← ❶ Header
+│ ✦ AI Battery  Kyle · Org ▾  ⚙   │  ← ❶ Header
 ├──────────────────────────────────────┤
 │ [Settings panel — collapsible]       │  ← ❶b Settings
-│  Name: [________]  Org: [________]  │     (gear toggle)
+│  Active: [________]  Org sub-label  │     (gear toggle)
+│  Account: [________] (×)            │
+│  + Add Account                      │
 │  Refresh: [slider 10-60s]           │
 │  Models: [slider 1d-7d-All]         │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
@@ -53,6 +55,8 @@
 
 ```
 UsagePopoverView (275px, VStack)
+  @ObservedObject viewModel: UsageViewModel
+  @ObservedObject accountStore: AccountStore (drives account picker reactivity)
 ├── headerSection
 ├── Divider
 ├── SettingsRow (if showSettings — toggled by gear icon)
@@ -78,23 +82,28 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 ### ❶ Header (`UsagePopoverView.headerSection`)
 
 - Title: `"✦ AI Battery"` (.headline)
-- Identity parts (left): `displayName · organizationName` (joined by " · ")
-  - Reads from snapshot first, falls back to `@AppStorage` for live updates
-  - Omits org name if it's just `"Name's Individual Org"`
-  - (.caption, .secondary)
-- Identity is shown to the right of the title
-  - (.caption, .secondary)
+- **Account picker**: always-visible dropdown Menu next to title
+  - Label: `accountPickerLabel` + chevron.up.chevron.down (7pt), (.caption, .secondary)
+    - Single account: `"displayName · organizationName"` (omits default individual org pattern)
+    - Multi-account: active account's org name or display name
+    - Fallback: `"Account"` when no metadata available
+  - Menu items: all accounts with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
+  - "Add Account" item (plus.circle icon) below divider when `canAddAccount` (< max) — triggers AuthView overlay
+  - `.menuStyle(.borderlessButton)`, `.fixedSize()`
 - Gear button: `gearshape`, 11pt, toggles Settings panel
-- Refresh button: `arrow.clockwise`, 12pt, plain style
 - Loading spinner: ProgressView at 0.6 scale
 - Padding: H 16, V 10
 
 ### ❶b Settings (`SettingsRow` — private struct)
 
-Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence.
+Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence (except per-account names stored in `AccountRecord`).
 
-- **Name**: TextField → `aibattery_displayName`
-- **Org**: TextField → `aibattery_orgName`
+- **Per-account names**: `ForEach(accountStore.accounts)` renders `accountNameRow` per account
+  - Label: "Active" / "Account" (multi-account) or "Name" (single account)
+  - TextField → writes `displayName` on `AccountRecord` via `OAuthManager.updateAccountMetadata()`, clamped to 30 chars
+  - Org name sub-label (.caption2, .tertiary) shown below when non-empty
+  - Remove button (`xmark.circle`, 10pt, .secondary) — shown only when >1 account, calls `OAuthManager.signOut(accountId:)`
+- **Add Account**: `"+ Add Account"` button (.caption, .blue) — shown when `canAddAccount` (< max). Triggers AuthView overlay for second-account flow.
 - **Refresh**: Slider (10–60s, step 5) → `aibattery_refreshInterval`
   - Calls `viewModel.updatePollingInterval()` on change
   - Hint: `"~3 tokens per poll"` (.caption2, .tertiary)
@@ -109,7 +118,7 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence.
   - Hint: `"Notify when service is down"` (.caption2, .tertiary)
   - On enable: calls `NotificationManager.shared.requestPermission()`
 
-Values propagate to header + menu bar immediately via `@AppStorage`.
+Values propagate to header + menu bar immediately via `@AppStorage` (settings) and `@Published` (account names).
 
 Padding: H 16, V 10
 

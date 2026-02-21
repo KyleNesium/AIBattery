@@ -78,21 +78,25 @@ Your settings and OAuth session carry over automatically.
 
 ## Authentication
 
-OAuth 2.0 with PKCE — same protocol as Claude Code.
+OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **2 accounts** (separate Claude orgs).
 
 1. Launch AI Battery — the auth screen appears on first run
 2. Click **Authenticate** → browser opens to Anthropic's sign-in page
 3. Sign in → copy the authorization code
 4. Paste into AI Battery → done
 
-Sessions auto-refresh (with a 5-minute buffer to avoid clock-skew issues). Temporary server errors retry automatically. Tokens stored in macOS Keychain (separate from Claude Code credentials). Error messages are specific — expired codes, invalid codes, server errors, and network errors each get a clear description.
+To add a second account, click the account name in the header → **Add Account**, or open Settings (⚙️) → **Add Account**.
+
+Switch between accounts by clicking the account name dropdown in the header. Each account has its own rate limits, tokens, and identity.
+
+Sessions auto-refresh (with a 5-minute buffer to avoid clock-skew issues). Temporary server errors retry automatically. Tokens stored in macOS Keychain per account (separate from Claude Code credentials). Error messages are specific — expired codes, invalid codes, server errors, and network errors each get a clear description.
 
 ### Why does macOS block the app or ask about Keychain access?
 
 AI Battery isn't notarized — there's no Apple Developer license behind this project, so macOS treats it as unidentified. Two prompts may appear on first launch:
 
 - **Gatekeeper block** — macOS prevents the app from opening. Fix: **System Settings → Privacy & Security → Open Anyway** (see [Install](#install))
-- **Keychain access** — the app stores a single OAuth token in macOS Keychain, Apple's encrypted credential store. This is the safest option — the same place Claude Code, browsers, and every other macOS app stores secrets. Click **Always Allow**.
+- **Keychain access** — the app stores OAuth tokens in macOS Keychain (one set per account), Apple's encrypted credential store. This is the safest option — the same place Claude Code, browsers, and every other macOS app stores secrets. Click **Always Allow**.
 
 Both are one-time prompts. Neither will appear again after the first launch.
 
@@ -174,8 +178,8 @@ Click ⚙️ in the header to configure:
 
 | Setting | What it does |
 |---|---|
-| **Name** | Display name shown in the header |
-| **Org** | Organization name (the API only returns a UUID) |
+| **Account names** | Per-account display name shown in the header and account picker |
+| **Add Account** | Connect a second Claude account (up to 2) |
 | **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | **Models** | Only show models used within period: 1–7 days or All |
 | **Alerts** | Notify when Claude.ai or Claude Code goes down (separate toggles) |
@@ -197,13 +201,13 @@ Token usage, context health, and activity stats come from Claude Code's local se
 
 1. Run a few Claude Code sessions from the terminal
 2. Run `/stats` inside Claude Code — this generates the stats cache
-3. Click the refresh button in AI Battery
+3. AI Battery refreshes automatically every polling cycle
 
 Rate limits (5-hour / 7-day) always work immediately since they come from the API.
 
 **Green ✦ at 0%?** Credits just reset, or no usage yet — this is normal.
 
-**Wrong org?** Click ⚙️ → set it manually (the API only returns a UUID).
+**Wrong org?** Org names come from the API automatically. Click the account name to see which account is active.
 
 **What's "binding"?** Whichever rate limit window is currently the active constraint.
 
@@ -254,7 +258,7 @@ brew uninstall --cask aibattery
 To also remove stored settings, run in Terminal:
 
 ```bash
-security delete-generic-password -s "AIBattery" 2>/dev/null   # OAuth token
+security delete-generic-password -s "AIBattery" 2>/dev/null   # OAuth tokens (all accounts)
 defaults delete com.KyleNesium.AIBattery 2>/dev/null           # Preferences
 ```
 

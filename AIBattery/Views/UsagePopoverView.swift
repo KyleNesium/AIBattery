@@ -1,14 +1,16 @@
+import Combine
 import SwiftUI
 
 public struct UsagePopoverView: View {
     @ObservedObject var viewModel: UsageViewModel
+    @ObservedObject private var accountStore: AccountStore
     @State private var showSettings = false
-    @AppStorage(UserDefaultsKeys.orgName) private var storedOrgName: String = ""
-    @AppStorage(UserDefaultsKeys.displayName) private var storedDisplayName: String = ""
+    @State private var isAddingAccount = false
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
+        self.accountStore = OAuthManager.shared.accountStore
     }
 
     private var metricMode: MetricMode {
@@ -16,13 +18,36 @@ public struct UsagePopoverView: View {
     }
 
     public var body: some View {
+        if isAddingAccount {
+            AuthView(
+                oauthManager: OAuthManager.shared,
+                isAddingAccount: true,
+                onCancel: { isAddingAccount = false }
+            )
+            .onReceive(accountStore.$accounts) { newAccounts in
+                // Auth completed for new account — switch back to main view
+                if newAccounts.count > 1 && isAddingAccount {
+                    isAddingAccount = false
+                    Task { await viewModel.refresh() }
+                }
+            }
+        } else {
+            mainContent
+        }
+    }
+
+    private var mainContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection
 
             Divider()
 
             if showSettings {
-                SettingsRow(viewModel: viewModel)
+                SettingsRow(
+                    viewModel: viewModel,
+                    accountStore: accountStore,
+                    onAddAccount: { isAddingAccount = true }
+                )
                 Divider()
             }
 
@@ -92,20 +117,16 @@ public struct UsagePopoverView: View {
         .frame(width: 275)
     }
 
+    private var accounts: [AccountRecord] {
+        accountStore.accounts
+    }
+
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline) {
                 Text("✦ AI Battery")
                     .font(.headline)
-                if let snapshot = viewModel.snapshot {
-                    let identity = headerIdentityParts(snapshot)
-                    if !identity.isEmpty {
-                        Text(identity.joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
+                accountPicker
                 Spacer()
                 if viewModel.isLoading {
                     ProgressView()
@@ -121,18 +142,74 @@ public struct UsagePopoverView: View {
                 .help("Settings")
                 .accessibilityLabel("Settings")
                 .accessibilityHint(showSettings ? "Close settings" : "Open settings")
-                Button(action: { Task { await viewModel.refresh() } }) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.plain)
-                .help("Refresh")
-                .accessibilityLabel("Refresh usage data")
             }
-
-}
+        }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    /// Account picker — always visible. Shows active account name with dropdown
+    /// to switch accounts or add a new one.
+    private var accountPicker: some View {
+        Menu {
+            let activeId = accountStore.activeAccountId
+            ForEach(accounts) { account in
+                Button(action: {
+                    viewModel.switchAccount(to: account.id)
+                }) {
+                    HStack {
+                        Text(accountLabel(account))
+                        if account.id == activeId {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+            if accountStore.canAddAccount {
+                Divider()
+                Button(action: { isAddingAccount = true }) {
+                    HStack {
+                        Image(systemName: "plus.circle")
+                        Text("Add Account")
+                    }
+                }
+            }
+        } label: {
+            let active = accountStore.activeAccount
+            Text(accountPickerLabel(active))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .accessibilityLabel("Switch account")
+    }
+
+    /// Label for the account picker button. Shows identity parts for single
+    /// account, org/display name for multi.
+    private func accountPickerLabel(_ active: AccountRecord?) -> String {
+        if accounts.count > 1 {
+            return active.map { accountLabel($0) } ?? "Account"
+        }
+        // Single account — show richer identity like before
+        guard let active else { return "Account" }
+        var parts: [String] = []
+        if let name = active.displayName, !name.isEmpty { parts.append(name) }
+        if let org = active.organizationName, !org.isEmpty {
+            let isDefault = active.displayName.map {
+                org == "\($0)\u{2018}s Individual Org" || org == "\($0)'s Individual Org"
+            } ?? false
+            if !isDefault { parts.append(org) }
+        }
+        return parts.isEmpty ? "Account" : parts.joined(separator: " · ")
+    }
+
+    /// Short label for an account in the picker.
+    private func accountLabel(_ account: AccountRecord) -> String {
+        if let org = account.organizationName, !org.isEmpty { return org }
+        if let name = account.displayName, !name.isEmpty { return name }
+        return "Account"
     }
 
     private var loadingView: some View {
@@ -206,26 +283,6 @@ public struct UsagePopoverView: View {
         .padding(.vertical, 6)
     }
 
-    /// Identity parts shown next to the title: name + org.
-    /// Reads @AppStorage directly so it updates live when user edits settings.
-    private func headerIdentityParts(_ snapshot: UsageSnapshot) -> [String] {
-        var parts: [String] = []
-        let name = snapshot.displayName ?? (storedDisplayName.isEmpty ? nil : storedDisplayName)
-        if let name, !name.isEmpty {
-            parts.append(name)
-        }
-        let org = snapshot.organizationName ?? (storedOrgName.isEmpty ? nil : storedOrgName)
-        if let org, !org.isEmpty {
-            let isDefault = name.map {
-                org == "\($0)\u{2018}s Individual Org" || org == "\($0)'s Individual Org"
-            } ?? false
-            if !isDefault {
-                parts.append(org)
-            }
-        }
-        return parts
-    }
-
     private var footerSection: some View {
         VStack(spacing: 6) {
             // Links row
@@ -276,7 +333,7 @@ public struct UsagePopoverView: View {
 
                 Spacer()
 
-                // Logout
+                // Logout (active account)
                 Button(action: {
                     OAuthManager.shared.signOut()
                 }) {
@@ -291,7 +348,7 @@ public struct UsagePopoverView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .accessibilityLabel("Logout")
-                .accessibilityHint("Sign out of your Claude account")
+                .accessibilityHint("Sign out of active Claude account")
 
                 // Quit
                 Button(action: {
@@ -374,11 +431,11 @@ public struct UsagePopoverView: View {
     }
 }
 
-/// Inline settings for name, org, refresh rate, and notifications.
+/// Inline settings for account names, refresh rate, and notifications.
 private struct SettingsRow: View {
     let viewModel: UsageViewModel
-    @AppStorage(UserDefaultsKeys.orgName) private var orgName: String = ""
-    @AppStorage(UserDefaultsKeys.displayName) private var displayName: String = ""
+    @ObservedObject var accountStore: AccountStore
+    let onAddAccount: () -> Void
     @AppStorage(UserDefaultsKeys.refreshInterval) private var refreshInterval: Double = 60
     @AppStorage(UserDefaultsKeys.tokenWindowDays) private var tokenWindowDays: Double = 0
     @AppStorage(UserDefaultsKeys.alertClaudeAI) private var alertClaudeAI: Bool = false
@@ -390,32 +447,26 @@ private struct SettingsRow: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            // Name
-            HStack(spacing: 8) {
-                Text("Name")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-                TextField("Your name", text: $displayName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-                    .onChange(of: displayName) { _ in
-                        if displayName.count > 30 { displayName = String(displayName.prefix(30)) }
-                    }
+            // Per-account names
+            ForEach(accountStore.accounts) { account in
+                accountNameRow(account)
             }
 
-            // Org
-            HStack(spacing: 8) {
-                Text("Org")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-                TextField("Organization name", text: $orgName)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-                    .onChange(of: orgName) { _ in
-                        if orgName.count > 50 { orgName = String(orgName.prefix(50)) }
+            if accountStore.canAddAccount {
+                HStack(spacing: 8) {
+                    Spacer().frame(width: 50)
+                    Button(action: onAddAccount) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: 10))
+                            Text("Add Account")
+                                .font(.caption)
+                        }
                     }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+                    .accessibilityLabel("Add another Claude account")
+                }
             }
 
             // Refresh interval
@@ -489,6 +540,59 @@ private struct SettingsRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    /// Editable name row for a single account.
+    private func accountNameRow(_ account: AccountRecord) -> some View {
+        let isActive = account.id == accountStore.activeAccountId
+        let label = accountStore.accounts.count > 1
+            ? (isActive ? "Active" : "Account")
+            : "Name"
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                TextField("Your name", text: nameBinding(for: account.id))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                if accountStore.accounts.count > 1 {
+                    Button(action: {
+                        OAuthManager.shared.signOut(accountId: account.id)
+                    }) {
+                        Image(systemName: "xmark.circle")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove this account")
+                    .accessibilityLabel("Remove account \(account.displayName ?? "")")
+                }
+            }
+            if let org = account.organizationName, !org.isEmpty {
+                Text(org)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 58)
+            }
+        }
+    }
+
+    /// Two-way binding that reads/writes `displayName` on the AccountRecord.
+    private func nameBinding(for accountId: String) -> Binding<String> {
+        Binding(
+            get: {
+                accountStore.accounts.first { $0.id == accountId }?.displayName ?? ""
+            },
+            set: { newValue in
+                let clamped = String(newValue.prefix(30))
+                OAuthManager.shared.updateAccountMetadata(
+                    accountId: accountId,
+                    displayName: clamped
+                )
+            }
+        )
     }
 
     /// Maps slider position (1–8) ↔ stored value (1–7 days, 0 = all time).

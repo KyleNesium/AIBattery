@@ -88,6 +88,22 @@ Organization info extracted from Messages API response headers.
 
 `parse(headers:)` static method: reads `anthropic-organization-id` and `x-organization-name` from HTTP response.
 
+### AccountRecord (`Models/AccountRecord.swift`)
+
+Per-account identity record. Stored as JSON array in UserDefaults.
+
+| Field | Type |
+|-------|------|
+| `id` | `String` — organizationId (or `"pending-<UUID>"` before first API call) |
+| `displayName` | `String?` |
+| `organizationName` | `String?` |
+| `billingType` | `String?` |
+| `addedAt` | `Date` |
+
+Computed: `isPendingIdentity: Bool` — true when `id` starts with `"pending-"`
+
+Conforms to `Codable`, `Identifiable`, `Equatable`.
+
 ### APIFetchResult (`Models/APIFetchResult.swift`)
 
 Combined result from a single Messages API call.
@@ -192,28 +208,44 @@ JSONL line schema (Codable):
 
 ### OAuthManager (`Services/OAuthManager.swift`)
 - Singleton: `.shared`, `@MainActor ObservableObject`
-- Published: `isAuthenticated: Bool`
+- Published: `isAuthenticated: Bool`, `accountStore: AccountStore`
 - OAuth 2.0 PKCE flow with Anthropic (same protocol as Claude Code)
 - Client ID: `9d1c250a-e61b-44d9-88ed-5944d1962f5e`
 - Auth URL: `https://claude.ai/oauth/authorize`
 - Token URL: `https://console.anthropic.com/v1/oauth/token`
 - Scopes: `org:create_api_key user:profile user:inference`
-- `startAuthFlow()` → opens browser with PKCE challenge. Generates a separate random `state` parameter (never reuses the PKCE verifier, which could leak via redirect URLs or server logs).
-- `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens, returns typed errors. Validates state parameter against stored `pendingState` (CSRF protection). Only clears `pendingVerifier`/`pendingState` on success — allows retry on network failure.
-- `getAccessToken()` → returns valid token, refreshes 5 minutes before expiry to avoid clock-skew 401s. Serializes concurrent refresh attempts via a shared `refreshTask` — multiple callers await the same in-flight refresh instead of firing parallel requests.
-- `signOut()` → clears all stored tokens, cancels in-flight refresh
-- Tokens stored in macOS Keychain under service `"AIBattery"` (separate from Claude Code)
-- `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.serverError(Int)`, `.unknownError(String)` — each has `userMessage` for display. `isTransient` computed property returns true for `.networkError` and `.serverError` (caller should preserve auth state and retry).
-- **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) on 5xx server errors. Non-retryable errors (401, 403) fail immediately.
-- **Refresh resilience**: transient errors (network errors, server 5xx) during token refresh do NOT mark `isAuthenticated = false` — preserves auth state so retry happens on next refresh cycle. Only auth errors (invalid/revoked tokens) trigger logout.
+- **Multi-account**: supports up to 2 accounts (separate Claude orgs). Each account's tokens stored under prefixed Keychain entries (`accessToken_{accountId}`, etc.). `AccountStore` tracks known accounts; `activeAccountId` drives which one polls. New accounts get a temporary `"pending-<UUID>"` ID until the first API call returns the real `anthropic-organization-id`.
+- `startAuthFlow(addingAccount:)` → opens browser with PKCE challenge. `addingAccount` flag tracks whether this is a second-account flow. Generates a separate random `state` parameter (never reuses the PKCE verifier).
+- `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens. Creates `AccountRecord` with pending ID, stores tokens under prefixed Keychain entries. Validates state parameter (CSRF protection). Only clears PKCE state on success.
+- `getAccessToken()` → returns active account's valid token, refreshes 5 minutes before expiry. `getAccessToken(for:)` for specific account. Serializes concurrent refresh attempts per account via `refreshTasks` dictionary.
+- `resolveAccountIdentity(tempId:realOrgId:orgName:billingType:)` → called after first API call returns real org ID. Renames Keychain entries from temp to real ID, updates AccountStore. Idempotent. Handles duplicate detection (same org authed twice → merge, keep newer tokens).
+- `updateAccountMetadata(accountId:orgName:displayName:billingType:)` → updates existing account's metadata in AccountStore.
+- `signOut(accountId:)` → removes specific account (or active if nil), auto-switches to remaining account if any.
+- **Legacy migration**: `migrateFromLegacy()` on init — detects old unprefixed Keychain entries, creates AccountRecord with temp ID, copies to prefixed format, deletes old entries. Runs only when accounts array is empty.
+- **Per-account Keychain**: `saveTokens(for:)`, `loadTokens(for:)`, `deleteTokens(for:)` using `"accessToken_{accountId}"` format under service `"AIBattery"`.
+- `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.serverError(Int)`, `.maxAccountsReached`, `.unknownError(String)` — each has `userMessage` for display. `isTransient` for `.networkError`/`.serverError`.
+- **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) on 5xx. Non-retryable errors fail immediately.
+- **Refresh resilience**: transient errors during refresh do NOT mark `isAuthenticated = false`. Only auth errors trigger logout.
+
+### AccountStore (`Services/AccountStore.swift`)
+- `@MainActor ObservableObject`, owned by `OAuthManager`
+- Published: `accounts: [AccountRecord]`, `activeAccountId: String?`
+- Computed: `activeAccount`, `canAddAccount` (< 2)
+- `add(_:)` — appends record, sets as active if first, rejects duplicates and over-max
+- `remove(id:)` — removes account, auto-switches active to remaining
+- `setActive(id:)` — changes active account (no-op for unknown IDs)
+- `update(oldId:with:)` — replaces account record, handles identity resolution (pending → real org ID). Detects and merges duplicates (same org authed twice).
+- Persistence: JSON-encoded `[AccountRecord]` to `UserDefaults(aibattery_accounts)` + `activeAccountId` string to `UserDefaults(aibattery_activeAccountId)`
+- Load on init: fixes dangling `activeAccountId` pointing at removed accounts
+- `nonisolated static let maxAccounts = 2`
 
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`
-- `fetch() async -> APIFetchResult` — returns both rate limits and org profile from a single API call
+- `fetch(accessToken:accountId:) async -> APIFetchResult` — returns both rate limits and org profile from a single API call
 - POST `/v1/messages?beta=true` with `max_tokens: 1`, content `"."`
 - Model fallback list: tries `claude-sonnet-4-5-20250929` first, falls back to `claude-haiku-3-5-20241022`. Remembers last working model index to avoid repeated fallbacks.
 - Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/{version} (macOS)` (dynamic from bundle)
-- Gets access token from `OAuthManager.shared.getAccessToken()` (auto-refreshes if expired)
+- Caller provides token and account ID. Per-account caching: `cachedResults: [String: APIFetchResult]` and `currentModelIndex: [String: Int]` keyed by account ID.
 - Timeout: 15 sec
 - Parses `anthropic-ratelimit-unified-*` response headers via `RateLimitUsage.parse(headers:)` and `APIProfile.parse(headers:)` from the same response
 - Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache expires after 1 hour (`cacheMaxAge = 3600s`) to avoid showing very old data.
@@ -313,7 +345,8 @@ JSONL line schema (Codable):
 - `@MainActor`, `ObservableObject`
 - Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`
 - Computed: `metricMode: MetricMode` (from UserDefaults `aibattery_metricMode`), `menuBarPercent: Double` (delegates to `snapshot.percent(for:)`), `hasData: Bool`
-- `refresh()`: single API call via `RateLimitFetcher.shared.fetch()` returns both rate limits and org profile. `async let` for API + status concurrently, then `Task.detached` for aggregation on background thread. Passes `orgName` from API response to aggregator. After updating snapshot, calls `NotificationManager.shared.checkStatusAlerts(status:)` to check for outages. Tracks `isCached` and `fetchedAt` from API result for staleness indicator. Sets `errorMessage` when API returns no data and no local data exists.
+- `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Org name from API or active account record flows into aggregator. `Task.detached` for aggregation. Calls `NotificationManager.shared.checkStatusAlerts(status:)`. Tracks staleness from API result.
+- `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
 - Deinit: invalidates timer, stops file watcher
@@ -339,7 +372,7 @@ JSONL line schema (Codable):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`
+- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`
