@@ -11,6 +11,8 @@
 
 Single `@StateObject UsageViewModel` owns all state. Views read `viewModel.snapshot`.
 
+Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is shown. Multi-account add-account flow is handled inline by UsagePopoverView (shows AuthView as overlay).
+
 ## Data Flow
 
 ```
@@ -30,7 +32,7 @@ Single `@StateObject UsageViewModel` owns all state. Views read `viewModel.snaps
                            (stats-cache.json) (JSONL files)   (~/.claude.json)
 ```
 
-`refresh()` runs: single API call returns both rate limits and org profile via `RateLimitFetcher.fetch()`. `async let` for API + status concurrently, then `Task.detached` for aggregation. Org name from API headers flows into aggregator.
+`refresh()` runs: gets active account + token from `OAuthManager`, passes both to `RateLimitFetcher.fetch(accessToken:accountId:)` for per-account rate limits + org profile. Status check runs concurrently. After fetch, resolves pending account identity or updates metadata. `Task.detached` for aggregation. Org name from API headers or active account record flows into aggregator.
 
 ## Refresh Triggers
 
@@ -40,7 +42,7 @@ Single `@StateObject UsageViewModel` owns all state. Views read `viewModel.snaps
 | Stats cache write | 2 sec debounce | FileWatcher (DispatchSource on stats-cache.json) |
 | JSONL file change | 2 sec FSEvent latency | FileWatcher (FSEventStream on ~/.claude/projects/) |
 | Fallback | 60 sec | FileWatcher fallback timer |
-| Manual | On click | Refresh button in header |
+| Account switch | On click | Account picker in header |
 
 ## Project Tree
 
@@ -51,6 +53,7 @@ AIBattery/
   Info.plist                      — LSUIElement = YES (no Dock icon)
   AIBattery.entitlements          — App sandbox disabled
   Models/
+    AccountRecord.swift           — Per-account identity record (Codable, Identifiable)
     APIFetchResult.swift          — Combined result from a single Messages API call
     APIProfile.swift              — Organization info from API response headers
     RateLimitUsage.swift          — Unified rate limit header parsing (5h/7d windows)
@@ -60,6 +63,7 @@ AIBattery/
     TokenHealthConfig.swift       — Health thresholds + context window lookup
     TokenHealthStatus.swift       — HealthBand, HealthWarning, TokenHealthStatus (Identifiable by sessionId)
   Services/
+    AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 2)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, token storage, auto-refresh
     RateLimitFetcher.swift        — POST /v1/messages, parse unified headers + org profile
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
@@ -95,6 +99,7 @@ Tests/AIBatteryCoreTests/
     UserDefaultsKeysTests.swift   — prefix validation, uniqueness
     ClaudePathsTests.swift        — path suffixes, URL↔path consistency, absolute paths
   Models/
+    AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     PlanTierTests.swift           — fromBillingType() for all known tiers + unknown + empty
     MetricModeTests.swift         — rawValues, labels, shortLabels, allCases
     RateLimitUsageTests.swift     — parse() with full/partial/missing headers; computed properties
@@ -107,6 +112,7 @@ Tests/AIBatteryCoreTests/
     SessionEntryTests.swift       — Codable decode from real JSONL, minimal entry, round-trip
     UsageSnapshotTests.swift      — totalTokens, percent(for:), planTier
   Services/
+    AccountStoreTests.swift       — Add/remove/update/merge, persistence, migration
     StatusIndicatorTests.swift    — from() all status strings, severity ordering, displayName
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
@@ -151,8 +157,9 @@ CHANGELOG.md                      — Release notes per version
 
 ## Local File Access (exhaustive)
 
-1. macOS Keychain, service `"AIBattery"` — OAuth tokens (access, refresh, expiry)
-2. `~/.claude.json` → `oauthAccount` — displayName, organizationName
-3. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
-4. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
-5. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data
+1. macOS Keychain, service `"AIBattery"` — Per-account OAuth tokens (prefixed: accessToken_{accountId}, refreshToken_{accountId}, expiresAt_{accountId})
+2. UserDefaults `aibattery_accounts` + `aibattery_activeAccountId` — Multi-account registry (JSON-encoded [AccountRecord])
+3. `~/.claude.json` → `oauthAccount` — displayName, organizationName
+4. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
+5. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
+6. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data

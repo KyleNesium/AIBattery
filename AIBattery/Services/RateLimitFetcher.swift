@@ -10,11 +10,14 @@ import Foundation
 /// Tries models in order of preference, falling back to cheaper models
 /// if the account doesn't have access (e.g. free-tier users).
 /// Rate limit headers are account-level, so any model works.
+///
+/// Caches results per account ID to support multi-account.
 final class RateLimitFetcher {
     static let shared = RateLimitFetcher()
 
     private let messagesURL = URL(string: "https://api.anthropic.com/v1/messages?beta=true")!
-    private var cachedResult: APIFetchResult?
+    /// Per-account cache of API results.
+    private var cachedResults: [String: APIFetchResult] = [:]
     /// Maximum age of cached result before it's considered stale and discarded.
     private static let cacheMaxAge: TimeInterval = 3600 // 1 hour
 
@@ -25,8 +28,8 @@ final class RateLimitFetcher {
         "claude-haiku-3-5-20241022",
     ]
 
-    /// Which model index to use (remembers last working model to avoid repeated fallbacks).
-    private var currentModelIndex = 0
+    /// Per-account model index (remembers last working model to avoid repeated fallbacks).
+    private var currentModelIndex: [String: Int] = [:]
 
     /// User-Agent string built from bundle version at startup.
     private let userAgent: String = {
@@ -34,40 +37,38 @@ final class RateLimitFetcher {
         return "AIBattery/\(version) (macOS)"
     }()
 
-    /// Fetches rate limits + org profile in a single API call.
-    func fetch() async -> APIFetchResult {
-        guard let accessToken = await OAuthManager.shared.getAccessToken() else {
-            return cachedOrEmpty()
-        }
+    /// Fetches rate limits + org profile for a specific account.
+    func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
+        let startIndex = currentModelIndex[accountId] ?? 0
 
         // Try from the last-known-working model, then fall back through the list
-        for i in currentModelIndex..<models.count {
+        for i in startIndex..<models.count {
             let model = models[i]
-            let result = await tryFetch(accessToken: accessToken, model: model)
+            let result = await tryFetch(accessToken: accessToken, model: model, accountId: accountId)
 
             switch result {
             case .success(let fetchResult):
-                currentModelIndex = i
-                cachedResult = fetchResult
+                currentModelIndex[accountId] = i
+                cachedResults[accountId] = fetchResult
                 return fetchResult
             case .modelUnavailable:
                 // This model isn't available for this account — try the next one
                 continue
             case .authFailed:
-                return cachedOrEmpty()
+                return cachedOrEmpty(accountId: accountId)
             case .networkError:
-                return cachedOrEmpty()
+                return cachedOrEmpty(accountId: accountId)
             }
         }
 
         // All models failed — return cached
-        return cachedOrEmpty()
+        return cachedOrEmpty(accountId: accountId)
     }
 
     /// Return cached result marked as stale, or an empty result.
     /// Expires cache after `cacheMaxAge` to avoid showing very old data.
-    private func cachedOrEmpty() -> APIFetchResult {
-        if let cached = cachedResult {
+    private func cachedOrEmpty(accountId: String) -> APIFetchResult {
+        if let cached = cachedResults[accountId] {
             let age = Date().timeIntervalSince(cached.fetchedAt)
             if age < Self.cacheMaxAge {
                 return APIFetchResult(
@@ -78,7 +79,7 @@ final class RateLimitFetcher {
                 )
             }
             // Cache too old — discard it
-            cachedResult = nil
+            cachedResults[accountId] = nil
         }
         return APIFetchResult(rateLimits: nil, profile: nil)
     }
@@ -90,7 +91,7 @@ final class RateLimitFetcher {
         case networkError
     }
 
-    private func tryFetch(accessToken: String, model: String) async -> FetchResult {
+    private func tryFetch(accessToken: String, model: String, accountId: String) async -> FetchResult {
         var request = URLRequest(url: messagesURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -133,7 +134,7 @@ final class RateLimitFetcher {
                     let profile = APIProfile.parse(headers: http.allHeaderFields)
                     return .success(APIFetchResult(
                         rateLimits: rateLimits,
-                        profile: profile ?? cachedResult?.profile
+                        profile: profile ?? cachedResults[accountId]?.profile
                     ))
                 }
                 return .networkError
@@ -144,8 +145,8 @@ final class RateLimitFetcher {
             let profile = APIProfile.parse(headers: http.allHeaderFields)
 
             let result = APIFetchResult(
-                rateLimits: rateLimits ?? cachedResult?.rateLimits,
-                profile: profile ?? cachedResult?.profile
+                rateLimits: rateLimits ?? cachedResults[accountId]?.rateLimits,
+                profile: profile ?? cachedResults[accountId]?.profile
             )
             return .success(result)
         } catch {

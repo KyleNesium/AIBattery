@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.0] — 2026-02-21
+
+### Added
+- **Multi-account support** — connect up to 2 Claude accounts (separate orgs) and switch between them from the header dropdown
+- `AccountRecord` model and `AccountStore` service for per-account identity persistence
+- Per-account Keychain token storage (prefixed entries: `accessToken_{accountId}`, etc.)
+- Account picker dropdown in header — always visible, shows active account with switch and "Add Account" options
+- Per-account name editing in Settings (replaces global Name/Org fields)
+- Per-account rate limit caching and model fallback in `RateLimitFetcher`
+- Pending identity resolution — new accounts start as `"pending-<UUID>"` and resolve to real org ID after first API call
+- Duplicate account detection and merge (same org authed twice)
+- Legacy migration — existing single-account Keychain entries automatically migrate to the new prefixed format
+- Stale-result guard in `UsageViewModel` — discards API results if active account changed mid-flight
+- 35 new unit tests (AccountRecord, AccountStore)
+
+### Removed
+- Manual refresh button from header (data refreshes automatically via polling + file watchers)
+
 ## [1.0.3] — 2026-02-20
 
 ### Fixed

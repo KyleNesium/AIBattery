@@ -36,12 +36,22 @@ public final class UsageViewModel: ObservableObject {
         let wasEmpty = snapshot == nil
         if wasEmpty { isLoading = true }
 
-        // Single API call fetches both rate limits AND org info from the same response.
-        // Status check is a separate call to a different service (Statuspage).
-        async let fetchedAPI = RateLimitFetcher.shared.fetch()
+        let oauthManager = OAuthManager.shared
+        let accountId = oauthManager.accountStore.activeAccountId
+        let accessToken = await oauthManager.getAccessToken()
+
+        // Fetch API data and status concurrently — they hit different services.
         async let fetchedStatus = StatusChecker.shared.fetchStatus()
 
-        let (api, status) = await (fetchedAPI, fetchedStatus)
+        let api: APIFetchResult
+        if let token = accessToken, let id = accountId {
+            api = await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
+        } else {
+            api = APIFetchResult(rateLimits: nil, profile: nil)
+        }
+
+        let status = await fetchedStatus
+
         apiResult = api
         systemStatus = status
 
@@ -51,12 +61,36 @@ public final class UsageViewModel: ObservableObject {
             lastFreshFetch = api.fetchedAt
         }
 
+        // Resolve pending account identity from API response
+        if let id = accountId, let orgId = api.profile?.organizationId {
+            let account = oauthManager.accountStore.accounts.first { $0.id == id }
+            if account?.isPendingIdentity == true {
+                oauthManager.resolveAccountIdentity(
+                    tempId: id,
+                    realOrgId: orgId,
+                    orgName: api.profile?.organizationName
+                )
+            } else {
+                // Update metadata even for resolved accounts (org name may change)
+                oauthManager.updateAccountMetadata(
+                    accountId: id,
+                    orgName: api.profile?.organizationName
+                )
+            }
+        }
+
+        // Guard: if user switched accounts while we were fetching, discard stale results.
+        // The new account's refresh() is already in flight from switchAccount().
+        let currentActiveId = oauthManager.accountStore.activeAccountId
+        guard accountId == currentActiveId else { return }
+
+        // Use account record for org name (multi-account) instead of UserDefaults
+        let activeAccount = oauthManager.accountStore.activeAccount
+        let orgName = api.profile?.organizationName ?? activeAccount?.organizationName
+
         // Aggregate on background thread — purely local, no timeout needed.
-        // Capture values directly from `api` (not self.apiResult) to avoid racing
-        // with a concurrent refresh that could overwrite the instance variable.
         let aggregator = self.aggregator
         let rateLimits = api.rateLimits
-        let orgName = api.profile?.organizationName
         let result = await Task.detached {
             aggregator.aggregate(rateLimits: rateLimits, orgName: orgName)
         }.value
@@ -73,6 +107,17 @@ public final class UsageViewModel: ObservableObject {
 
         // Check status page alerts for Claude.ai / Claude Code outages
         NotificationManager.shared.checkStatusAlerts(status: status)
+    }
+
+    /// Switch to a different account and refresh data.
+    func switchAccount(to accountId: String) {
+        OAuthManager.shared.accountStore.setActive(id: accountId)
+        snapshot = nil
+        isShowingCachedData = false
+        lastFreshFetch = nil
+        errorMessage = nil
+        OAuthManager.shared.objectWillChange.send()
+        Task { await refresh() }
     }
 
     // MARK: - Menu bar
