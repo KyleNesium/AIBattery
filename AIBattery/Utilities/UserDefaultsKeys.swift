@@ -21,4 +21,8 @@ enum UserDefaultsKeys {
     static let showActivity = "aibattery_showActivity"
     static let lastUpdateCheck = "aibattery_lastUpdateCheck"
     static let skipVersion = "aibattery_skipVersion"
+    static let menuBarDecimal = "aibattery_menuBarDecimal"
+    static let compactBars = "aibattery_compactBars"
+    static let colorblindMode = "aibattery_colorblindMode"
+    static let hasSeenTutorial = "aibattery_hasSeenTutorial"
 }

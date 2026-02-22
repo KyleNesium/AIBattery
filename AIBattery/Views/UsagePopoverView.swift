@@ -483,6 +483,7 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
     @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
+    @AppStorage(UserDefaultsKeys.menuBarDecimal) private var menuBarDecimal: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -572,6 +573,10 @@ private struct SettingsRow: View {
                 Toggle("Cost~", isOn: $showCostEstimate)
                     .toggleStyle(.checkbox)
                     .font(.caption)
+                Toggle("Decimal", isOn: $menuBarDecimal)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .help("Show decimal precision in menu bar (e.g. 42.5%)")
             }
             Text("Cost~ shows equivalent API token rates")
                 .font(.caption2)

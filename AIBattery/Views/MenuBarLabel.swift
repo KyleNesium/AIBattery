@@ -5,6 +5,7 @@ public struct MenuBarLabel: View {
     @AppStorage(UserDefaultsKeys.orgName) private var storedOrgName: String = ""
     @AppStorage(UserDefaultsKeys.displayName) private var storedDisplayName: String = ""
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
+    @AppStorage(UserDefaultsKeys.menuBarDecimal) private var menuBarDecimal: Bool = false
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -44,10 +45,10 @@ public struct MenuBarLabel: View {
         HStack(spacing: 4) {
             MenuBarIcon(requestsPercent: displayPercent)
 
-            Text("\(Int(displayPercent))%")
+            Text(menuBarDecimal ? String(format: "%.1f%%", displayPercent) : "\(Int(displayPercent))%")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.4), value: Int(displayPercent))
+                .animation(.easeInOut(duration: 0.4), value: Int(displayPercent * 10))
                 .opacity(isStale ? 0.5 : 1.0)
 
             if let org = orgLabel {
