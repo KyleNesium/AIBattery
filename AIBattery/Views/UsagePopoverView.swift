@@ -48,6 +48,7 @@ public struct UsagePopoverView: View {
                     accountStore: accountStore,
                     onAddAccount: { isAddingAccount = true }
                 )
+                .transition(.opacity.combined(with: .move(edge: .top)))
                 Divider()
             }
 
@@ -115,6 +116,7 @@ public struct UsagePopoverView: View {
             footerSection
         }
         .frame(width: 275)
+        .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
     }
 
     private var accounts: [AccountRecord] {
@@ -133,7 +135,7 @@ public struct UsagePopoverView: View {
                         .scaleEffect(0.6)
                         .frame(width: 16, height: 16)
                 }
-                Button(action: { showSettings.toggle() }) {
+                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() } }) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 11))
                 }
@@ -155,7 +157,9 @@ public struct UsagePopoverView: View {
             let activeId = accountStore.activeAccountId
             ForEach(accounts) { account in
                 Button(action: {
-                    viewModel.switchAccount(to: account.id)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.switchAccount(to: account.id)
+                    }
                 }) {
                     HStack {
                         Text(accountLabel(account))
