@@ -54,6 +54,13 @@ struct TokenHealthConfig {
     /// Flag when input:output ratio exceeds this
     var inputOutputRatioThreshold: Double = 20.0
 
+    // MARK: - Anomaly detection thresholds
+
+    /// Session idle for this many minutes triggers a stale warning.
+    var staleSessionMinutes: Int = 30
+    /// Zero output after this many turns triggers a warning.
+    var zeroOutputTurnThreshold: Int = 3
+
     static let `default` = TokenHealthConfig()
 
     static func contextWindow(for model: String) -> Int {
