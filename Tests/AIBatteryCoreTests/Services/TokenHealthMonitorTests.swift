@@ -219,6 +219,61 @@ struct TokenHealthMonitorTests {
         #expect(result?.tokensPerMinute == nil)
     }
 
+    // MARK: - Anomaly detection
+
+    @Test func assess_zeroOutput_manyTurns() {
+        // 5 turns with zero output → warning
+        let entries = (0..<5).map { i in
+            makeEntry(sessionId: "s1", input: 1000 * (i + 1), output: 0, timestamp: Date().addingTimeInterval(Double(i) * 120))
+        }
+        let result = monitor.assessCurrentSession(entries: entries)
+        #expect(result != nil)
+        let zeroOutputWarnings = result!.warnings.filter { $0.message.contains("No output") }
+        #expect(zeroOutputWarnings.count == 1)
+        #expect(zeroOutputWarnings.first?.severity == .strong)
+    }
+
+    @Test func assess_zeroOutput_fewTurns_noWarning() {
+        // 2 turns with zero output → below threshold, no warning
+        let entries = (0..<2).map { i in
+            makeEntry(sessionId: "s1", input: 1000 * (i + 1), output: 0, timestamp: Date().addingTimeInterval(Double(i) * 120))
+        }
+        let result = monitor.assessCurrentSession(entries: entries)
+        let zeroOutputWarnings = result!.warnings.filter { $0.message.contains("No output") }
+        #expect(zeroOutputWarnings.isEmpty)
+    }
+
+    @Test func assess_staleSession_nonGreenBand() {
+        // Session with last activity 45 min ago and orange band → stale warning
+        let staleTime = Date().addingTimeInterval(-45 * 60)
+        let entries = [
+            makeEntry(sessionId: "s1", input: 100_000, output: 5_000, timestamp: staleTime.addingTimeInterval(-60)),
+            makeEntry(sessionId: "s1", input: 100_000, output: 5_000, timestamp: staleTime),
+        ]
+        let result = monitor.assessCurrentSession(entries: entries)
+        #expect(result != nil)
+        let staleWarnings = result!.warnings.filter { $0.message.contains("idle") }
+        #expect(staleWarnings.count == 1)
+    }
+
+    @Test func assess_staleSession_greenBand_noWarning() {
+        // Green band session idle 45 min → no stale warning (green is fine)
+        let staleTime = Date().addingTimeInterval(-45 * 60)
+        let entries = [
+            makeEntry(sessionId: "s1", input: 1_000, output: 100, timestamp: staleTime.addingTimeInterval(-60)),
+            makeEntry(sessionId: "s1", input: 1_000, output: 100, timestamp: staleTime),
+        ]
+        let result = monitor.assessCurrentSession(entries: entries)
+        let staleWarnings = result!.warnings.filter { $0.message.contains("idle") }
+        #expect(staleWarnings.isEmpty)
+    }
+
+    @Test func assess_configThresholds_anomaly() {
+        let config = TokenHealthConfig()
+        #expect(config.staleSessionMinutes == 30)
+        #expect(config.zeroOutputTurnThreshold == 3)
+    }
+
     // MARK: - Custom config thresholds
 
     @Test func assess_customThresholds() {

@@ -118,7 +118,39 @@ final class TokenHealthMonitor {
             }
         }
 
-        // 3. Token velocity (tokens per minute)
+        // 3. Zero-output sessions (likely stuck or erroring)
+        if outputTokens == 0 && turnCount > config.zeroOutputTurnThreshold {
+            warnings.append(HealthWarning(
+                severity: .strong,
+                message: "No output after \(turnCount) turns",
+                suggestion: "Session may be stuck. Check for errors."
+            ))
+        }
+
+        // 4. Rapid token consumption (short session, high usage)
+        if let firstTs = sessionEntries.first?.timestamp,
+           let lastTs = sessionEntries.last?.timestamp,
+           lastTs.timeIntervalSince(firstTs) < 60 && totalUsed > 50_000 {
+            warnings.append(HealthWarning(
+                severity: .mild,
+                message: "Rapid token consumption detected",
+                suggestion: "High token usage in under a minute."
+            ))
+        }
+
+        // 5. Stale session (idle too long with non-green health)
+        if let lastActivity = sessionEntries.last?.timestamp,
+           Date().timeIntervalSince(lastActivity) > Double(config.staleSessionMinutes * 60),
+           band != .green {
+            let idleMinutes = Int(Date().timeIntervalSince(lastActivity) / 60)
+            warnings.append(HealthWarning(
+                severity: .mild,
+                message: "Session idle for \(idleMinutes) min",
+                suggestion: "Context may be stale. Consider starting fresh."
+            ))
+        }
+
+        // 6. Token velocity (tokens per minute)
         // Use totalUsed (not sum of all entries, which double-counts cumulative input)
         var tokensPerMinute: Double? = nil
         if sessionEntries.count >= 2,

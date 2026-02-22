@@ -3,8 +3,6 @@ import Foundation
 /// Centralized UserDefaults keys — single source of truth to prevent typo bugs.
 enum UserDefaultsKeys {
     static let metricMode = "aibattery_metricMode"
-    static let orgName = "aibattery_orgName"
-    static let displayName = "aibattery_displayName"
     static let refreshInterval = "aibattery_refreshInterval"
     static let tokenWindowDays = "aibattery_tokenWindowDays"
     static let alertClaudeAI = "aibattery_alertClaudeAI"
@@ -13,4 +11,14 @@ enum UserDefaultsKeys {
     static let plan = "aibattery_plan"
     static let accounts = "aibattery_accounts"
     static let activeAccountId = "aibattery_activeAccountId"
+    static let launchAtLogin = "aibattery_launchAtLogin"
+    static let alertRateLimit = "aibattery_alertRateLimit"
+    static let rateLimitThreshold = "aibattery_rateLimitThreshold"
+    static let showCostEstimate = "aibattery_showCostEstimate"
+    static let showTokens = "aibattery_showTokens"
+    static let showActivity = "aibattery_showActivity"
+    static let lastUpdateCheck = "aibattery_lastUpdateCheck"
+    static let skipVersion = "aibattery_skipVersion"
+    static let colorblindMode = "aibattery_colorblindMode"
+    static let hasSeenTutorial = "aibattery_hasSeenTutorial"
 }

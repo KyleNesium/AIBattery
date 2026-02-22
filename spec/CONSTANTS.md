@@ -12,11 +12,15 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Fallback timer | 60 sec | FileWatcher |
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
-| Status backoff interval | 60 sec | StatusChecker |
+| Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter | StatusChecker |
 | Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx | OAuthManager |
 | Token endpoint timeout | 15 sec | OAuthManager |
+| Adaptive polling threshold | 3 unchanged cycles | UsageViewModel |
+| Adaptive polling max | 300 sec (5 min) | UsageViewModel |
+| Notification batch delay | 500 ms | NotificationManager |
+| Identity timeout | 3600 sec (1 hour) — pending account identity | UsageViewModel |
 | Menu bar staleness threshold | 300 sec (5 min) | MenuBarLabel |
 
 ## URLs
@@ -27,6 +31,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Status API | `https://status.claude.com/api/v2/summary.json` |
 | Usage Dashboard | `https://platform.claude.com/usage` |
 | Status Page | `https://status.claude.com` |
+| GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
 
 ## API Configuration
 
@@ -89,6 +94,20 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Turn count strong | 25 | Triggers strong warning |
 | Input/output ratio | 20:1 | Triggers ratio warning (includes cache tokens) |
 | Safe minimum divisor | 5 | usableWindow / 5 for hint |
+| Stale session idle | 30 min | Triggers stale warning if band != green |
+| Zero output turns | 3 | Triggers warning if outputTokens == 0 |
+| Rapid consumption | < 60s duration, > 50K tokens | Anomaly warning |
+
+## Rate Limit Alerts
+
+| Constant | Value |
+|----------|-------|
+| Rate limit alert | `aibattery_alertRateLimit` (Bool, default false) |
+| Threshold | `aibattery_rateLimitThreshold` (Double, default 80, range 50–95, step 5) |
+| Dedup keys | `rateLimit5h`, `rateLimit7d` |
+| Delivery | Same `osascript` mechanism as status alerts |
+| Deduplication | Fires once when crossing threshold, resets when dropping below |
+
 ## Status Alerts
 
 | Constant | Value |
@@ -99,6 +118,60 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Delivery | `osascript` `display notification` |
 | Sound | `default` |
 | Deduplication | Fires once per outage, resets when service recovers |
+
+## Cost Estimation
+
+| Constant | Value |
+|----------|-------|
+| Show tokens | `aibattery_showTokens` (Bool, default true) |
+| Show activity | `aibattery_showActivity` (Bool, default true) |
+| Show cost | `aibattery_showCostEstimate` (Bool, default false) |
+| Format | `"$X.XX"` or `"<$0.01"` for sub-penny amounts |
+| Note | Shows what the same token usage would cost at API rates — Pro/Max/Teams subscribers aren't billed per-token |
+
+Pricing per million tokens:
+
+| Model | Input | Output | Cache Write | Cache Read |
+|-------|-------|--------|-------------|------------|
+| Opus 4 | $15 | $75 | $1.875 | $1.50 |
+| Sonnet 4 | $3 | $15 | $0.375 | $0.30 |
+| Haiku 4 | $0.80 | $4 | $0.10 | $0.08 |
+| Sonnet 3.5 | $3 | $15 | $0.375 | $0.30 |
+| Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
+| Opus 3 | $15 | $75 | $1.875 | $1.50 |
+
+## Display Settings
+
+| Constant | Value |
+|----------|-------|
+| Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
+| Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
+
+## Settings Export/Import
+
+| Constant | Value |
+|----------|-------|
+| Transport | Clipboard (JSON) |
+| Exported keys | metricMode, refreshInterval, tokenWindowDays, alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold, chartMode, showCostEstimate, showTokens, showActivity, launchAtLogin, colorblindMode |
+| Excluded keys | accounts, activeAccountId, lastUpdateCheck, skipVersion, hasSeenTutorial |
+
+## Launch at Login
+
+| Constant | Value |
+|----------|-------|
+| UserDefaults key | `aibattery_launchAtLogin` (Bool, default false) |
+| Framework | SMAppService.mainApp (macOS 13+) |
+| Failure mode | Silently fails during dev builds (no .app bundle) |
+
+## Update Checker
+
+| Constant | Value |
+|----------|-------|
+| GitHub API URL | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
+| Check interval | 86400 sec (24 hours) |
+| Request timeout | 10 sec |
+| Last check key | `aibattery_lastUpdateCheck` (Double, Unix timestamp) |
+| Skip version key | `aibattery_skipVersion` (String, semver) |
 
 ## Token Window
 
@@ -131,6 +204,19 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Chart height | 50pt |
 | Chart modes | 24H (hourly), 7D (daily rolling), 12M (monthly rolling) |
 
+## Animations
+
+| Constant | Value |
+|----------|-------|
+| Settings toggle | `.easeInOut(duration: 0.2)` |
+| Settings transition | `.opacity.combined(with: .move(edge: .top))` |
+| Metric mode change | `.easeInOut(duration: 0.15)` |
+| Account switch | `.easeInOut(duration: 0.2)` |
+| Copy checkmark display | 1 second, `.easeInOut(duration: 0.15)` transitions |
+| Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
+| Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
+| Copy hover highlight | `Color.primary.opacity(0.08)` background, `NSCursor.pointingHand` |
+
 ## JSONL Processing
 
 | Constant | Value |
@@ -154,7 +240,7 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Path | Purpose |
 |------|---------|
 | macOS Keychain, service `"AIBattery"` | OAuth tokens (access, refresh, expiry) |
-| `~/.claude.json` → `oauthAccount` | Account info (displayName, organizationName) |
+| `~/.claude.json` → `oauthAccount` | Account info (billingType) |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |
@@ -171,6 +257,17 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 | 50–79% | Yellow |
 | 80–94% | Orange |
 | 95–100% | Red |
+
+### Colorblind mode palette
+
+| Standard | Colorblind |
+|----------|------------|
+| Green | Blue |
+| Yellow | Cyan |
+| Orange | Amber (RGB 1.0, 0.75, 0.0) |
+| Red | Purple |
+
+Applied via `ThemeColors` to: usage bars, context health bands, system status dots, menu bar icon.
 
 ### Context health bands
 
@@ -192,3 +289,11 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 | Unknown | (any unrecognized value) | Gray |
 
 **Incident escalation**: When components report `operational` but active incidents exist, the incident `impact` field (`none`, `minor`, `major`, `critical`) is factored in. If impact is `none` but incidents are active, the status escalates to at least Degraded Performance (yellow).
+
+## Predictive Rate Limit
+
+| Constant | Value |
+|----------|-------|
+| Minimum utilization | 50% (below this, estimate not shown) |
+| Minimum elapsed time | 60 sec (need meaningful burn rate) |
+| Shown when | Estimate < remaining time before reset |

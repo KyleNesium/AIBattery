@@ -23,9 +23,9 @@ struct APIFetchResultTests {
     }
 
     @Test func preserves_rateLimitsAndProfile() {
-        let profile = APIProfile(organizationId: "org-1", organizationName: "Test")
+        let profile = APIProfile(organizationId: "org-1")
         let result = APIFetchResult(rateLimits: nil, profile: profile)
-        #expect(result.profile?.organizationName == "Test")
+        #expect(result.profile?.organizationId == "org-1")
         #expect(result.rateLimits == nil)
     }
 }

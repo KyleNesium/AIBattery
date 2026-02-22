@@ -8,6 +8,10 @@ import Foundation
 /// Each reports a utilization fraction (0.0–1.0) and a reset timestamp.
 /// The `representative-claim` tells which window is the binding constraint.
 struct RateLimitUsage {
+    /// Window identifiers used in API headers.
+    static let fiveHourWindow = "five_hour"
+    static let sevenDayWindow = "seven_day"
+
     /// The binding constraint: "five_hour" or "seven_day"
     let representativeClaim: String
 
@@ -29,7 +33,7 @@ struct RateLimitUsage {
     /// The utilization percentage of the binding window (0–100).
     var requestsPercentUsed: Double {
         switch representativeClaim {
-        case "seven_day": return sevenDayUtilization * 100.0
+        case Self.sevenDayWindow: return sevenDayUtilization * 100.0
         default: return fiveHourUtilization * 100.0
         }
     }
@@ -43,7 +47,7 @@ struct RateLimitUsage {
     /// Reset date of the binding window.
     var bindingReset: Date? {
         switch representativeClaim {
-        case "seven_day": return sevenDayReset
+        case Self.sevenDayWindow: return sevenDayReset
         default: return fiveHourReset
         }
     }
@@ -51,13 +55,47 @@ struct RateLimitUsage {
     /// Human-readable label for the binding window.
     var bindingWindowLabel: String {
         switch representativeClaim {
-        case "seven_day": return "7-day"
+        case Self.sevenDayWindow: return "7-day"
         default: return "5-hour"
         }
     }
 
     /// Whether the user is currently throttled.
     var isThrottled: Bool { overallStatus == "throttled" }
+
+    // MARK: - Predictive estimate
+
+    /// Estimate time until the rate limit is reached for a given window,
+    /// based on current utilization and time remaining until reset.
+    /// Returns nil if utilization is too low or the estimate exceeds reset time.
+    func estimatedTimeToLimit(for window: String) -> TimeInterval? {
+        let (utilization, reset): (Double, Date?) = {
+            switch window {
+            case Self.sevenDayWindow: return (sevenDayUtilization, sevenDayReset)
+            default: return (fiveHourUtilization, fiveHourReset)
+            }
+        }()
+
+        guard utilization > 0.50, let reset else { return nil }
+
+        let remaining = reset.timeIntervalSinceNow
+        guard remaining > 0 else { return nil }
+
+        // Window duration inferred from window type
+        let windowDuration: TimeInterval = window == Self.sevenDayWindow ? 7 * 24 * 3600 : 5 * 3600
+        let elapsed = windowDuration - remaining
+
+        guard elapsed > 60 else { return nil } // Need meaningful elapsed time
+
+        // burn rate = utilization / elapsed, project when we reach 1.0
+        let rate = utilization / elapsed
+        let timeToFull = (1.0 - utilization) / rate
+
+        // Only show if estimate is before the reset (otherwise it's fine)
+        guard timeToFull < remaining else { return nil }
+
+        return timeToFull
+    }
 
     // MARK: - Parsing
 
@@ -84,7 +122,7 @@ struct RateLimitUsage {
         }
 
         return RateLimitUsage(
-            representativeClaim: stringHeader("anthropic-ratelimit-unified-representative-claim") ?? "five_hour",
+            representativeClaim: stringHeader("anthropic-ratelimit-unified-representative-claim") ?? fiveHourWindow,
             fiveHourUtilization: doubleHeader("anthropic-ratelimit-unified-5h-utilization"),
             fiveHourReset: dateFromUnix("anthropic-ratelimit-unified-5h-reset"),
             fiveHourStatus: stringHeader("anthropic-ratelimit-unified-5h-status") ?? status,

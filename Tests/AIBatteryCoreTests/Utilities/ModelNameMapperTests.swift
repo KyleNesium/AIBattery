@@ -21,18 +21,18 @@ struct ModelNameMapperTests {
     // MARK: - Older models (3.x)
 
     @Test func displayName_claude3_5Sonnet() {
-        // "3-5-sonnet" → family "3", version "5.sonnet" → "3 5.sonnet"
-        #expect(ModelNameMapper.displayName(for: "claude-3-5-sonnet-20241022") == "3 5.sonnet")
+        // "3-5-sonnet" → version "3.5", family "Sonnet" → "Sonnet 3.5"
+        #expect(ModelNameMapper.displayName(for: "claude-3-5-sonnet-20241022") == "Sonnet 3.5")
     }
 
     @Test func displayName_claude3Opus() {
-        // "3-opus" → family "3", version "opus" → "3 opus"
-        #expect(ModelNameMapper.displayName(for: "claude-3-opus-20240229") == "3 opus")
+        // "3-opus" → version "3", family "Opus" → "Opus 3"
+        #expect(ModelNameMapper.displayName(for: "claude-3-opus-20240229") == "Opus 3")
     }
 
     @Test func displayName_claude3Haiku() {
-        // "3-haiku" → family "3", version "haiku" → "3 haiku"
-        #expect(ModelNameMapper.displayName(for: "claude-3-haiku-20240307") == "3 haiku")
+        // "3-haiku" → version "3", family "Haiku" → "Haiku 3"
+        #expect(ModelNameMapper.displayName(for: "claude-3-haiku-20240307") == "Haiku 3")
     }
 
     // MARK: - Edge cases
@@ -62,7 +62,7 @@ struct ModelNameMapperTests {
 
     @Test func displayName_multipleHyphens() {
         // "claude-3-5-haiku-20241022" → strip "claude-" → "3-5-haiku-20241022" → strip date → "3-5-haiku"
-        #expect(ModelNameMapper.displayName(for: "claude-3-5-haiku-20241022") == "3 5.haiku")
+        #expect(ModelNameMapper.displayName(for: "claude-3-5-haiku-20241022") == "Haiku 3.5")
     }
 
     @Test func displayName_justClaude() {
@@ -73,5 +73,31 @@ struct ModelNameMapperTests {
     @Test func displayName_longVersionSegments() {
         // Future model: "claude-titan-10-3-2-20260101"
         #expect(ModelNameMapper.displayName(for: "claude-titan-10-3-2-20260101") == "Titan 10.3.2")
+    }
+
+    // MARK: - Date stripping
+
+    @Test func displayName_stripsDateWithExtraSuffix() {
+        // Some models have date + extra suffix like "-latest"
+        #expect(ModelNameMapper.displayName(for: "claude-sonnet-4-5-20250929-latest") == "Sonnet 4.5")
+    }
+
+    @Test func displayName_shortDateNotStripped() {
+        // Only 8+ digit dates should be stripped
+        #expect(ModelNameMapper.displayName(for: "claude-opus-4-6") == "Opus 4.6")
+    }
+
+    // MARK: - Real-world model IDs
+
+    @Test func displayName_claude3_5SonnetV2() {
+        #expect(ModelNameMapper.displayName(for: "claude-3-5-sonnet-v2-20241022") == "Sonnet V2 3.5")
+    }
+
+    @Test func displayName_unknownFamily() {
+        #expect(ModelNameMapper.displayName(for: "claude-mystery-1-0") == "Mystery 1.0")
+    }
+
+    @Test func displayName_singleVersion() {
+        #expect(ModelNameMapper.displayName(for: "claude-sonnet-4") == "Sonnet 4")
     }
 }

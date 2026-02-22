@@ -9,8 +9,9 @@ struct FiveHourBarSection: View {
             label: "5-Hour",
             percent: limits.fiveHourPercent,
             resetsAt: limits.fiveHourReset,
-            isBinding: limits.representativeClaim == "five_hour",
-            isThrottled: limits.fiveHourStatus == "throttled"
+            isBinding: limits.representativeClaim == RateLimitUsage.fiveHourWindow,
+            isThrottled: limits.fiveHourStatus == "throttled",
+            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow)
         )
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -26,8 +27,9 @@ struct SevenDayBarSection: View {
             label: "7-Day",
             percent: limits.sevenDayPercent,
             resetsAt: limits.sevenDayReset,
-            isBinding: limits.representativeClaim == "seven_day",
-            isThrottled: limits.sevenDayStatus == "throttled"
+            isBinding: limits.representativeClaim == RateLimitUsage.sevenDayWindow,
+            isThrottled: limits.sevenDayStatus == "throttled",
+            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow)
         )
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -40,6 +42,7 @@ struct UsageBar: View {
     let resetsAt: Date?
     var isBinding: Bool = false
     var isThrottled: Bool = false
+    var estimatedTimeToLimit: TimeInterval?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -55,17 +58,23 @@ struct UsageBar: View {
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 3))
+                            .accessibilityLabel("Binding constraint")
+                            .help("This window is the active rate limit constraint")
                     }
                     if isThrottled {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.caption2)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(ThemeColors.danger)
                             .accessibilityLabel("Rate limited")
+                            .help("You are currently rate limited")
                     }
                 }
                 Spacer()
                 Text("\(Int(percent))%")
                     .font(.system(.title3, design: .monospaced, weight: .semibold))
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.4), value: Int(percent))
+                    .copyable("\(Int(percent))%")
             }
 
             GeometryReader { geometry in
@@ -75,8 +84,9 @@ struct UsageBar: View {
                         .frame(height: 8)
 
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(colorForPercent(percent))
+                        .fill(ThemeColors.barColor(percent: percent))
                         .frame(width: geometry.size.width * min(CGFloat(percent) / 100.0, 1.0), height: 8)
+                        .animation(.easeInOut(duration: 0.4), value: percent)
                 }
             }
             .frame(height: 8)
@@ -87,9 +97,13 @@ struct UsageBar: View {
             HStack {
                 Text(isThrottled ? "Rate limited" : "\(Int(100 - percent))% remaining")
                     .font(.caption2)
-                    .foregroundStyle(isThrottled ? Color.red : Color.secondary.opacity(0.6))
-                if let resetsAt {
-                    Spacer()
+                    .foregroundStyle(isThrottled ? ThemeColors.danger : Color.secondary.opacity(0.6))
+                Spacer()
+                if let estimate = estimatedTimeToLimit {
+                    Text("~\(formatDuration(estimate)) to limit")
+                        .font(.caption2)
+                        .foregroundStyle(ThemeColors.caution)
+                } else if let resetsAt {
                     Text("Resets \(resetTimeString(resetsAt))")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -98,13 +112,13 @@ struct UsageBar: View {
         }
     }
 
-    private func colorForPercent(_ pct: Double) -> Color {
-        switch pct {
-        case 0..<50: return .green
-        case 50..<80: return .yellow
-        case 80..<95: return .orange
-        default: return .red
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let hours = Int(seconds) / 3600
+        let minutes = (Int(seconds) % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
         }
+        return "\(max(minutes, 1))m"
     }
 
     private func resetTimeString(_ date: Date) -> String {

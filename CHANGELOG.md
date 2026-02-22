@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.2.0] — 2026-02-22
+
+### Added
+- **Launch at login** via SMAppService
+- **Click-to-copy** on stat values (percentages, tokens, costs) with clipboard icon feedback
+- **Rate limit approaching alerts** with configurable threshold (50–95%, default 80%)
+- **API cost estimation** — optional display of what token usage would cost at API rates
+- **Adaptive polling** — polling interval doubles after 3 unchanged cycles (up to 5 min), resets on data change or file watcher trigger
+- **Predictive rate limit estimate** — "~Xh Ym to limit" shown when utilization exceeds 50%, based on current burn rate
+- **Usage projections** — trend arrow (↑/↓/→) comparing this week vs last, busiest day of the week
+- **Session anomaly detection** — warnings for zero-output sessions, rapid token consumption, and stale idle sessions
+- **JSONL corruption tracking** — counts and logs skipped/failed decode lines per scan
+- **Batch notifications** — multiple alerts within 500ms combined into a single notification
+- **Help tooltips** — `.help()` modifiers across all view sections for hover descriptions
+- **Expanded session details** — hover tooltip shows full session info; stale sessions get amber "Idle Xm" badge
+- **Swipe navigation** — horizontal drag gesture to browse between sessions in Context Health
+- **Colorblind mode** — blue/cyan/amber/purple palette via centralized `ThemeColors`
+- **First-launch tutorial** — 3-step walkthrough overlay (Rate Limits, Context Health, Settings)
+- **Settings export/import** — copy/paste settings as JSON via clipboard
+- **Manual update check** — arrow button in header to force-check for new versions, with "Up to date" feedback
+- **Update checker** — footer banner when new GitHub release available, with skip option
+- **Tokens/Activity/Cost display toggles** in Settings
+- **Smooth animations** for settings toggle, metric mode change, account switch, progress bars
+- **VoiceOver accessibility** labels across all sections
+
+### Improved
+- **Exponential backoff with jitter** in StatusChecker (base 60s, doubles per failure, caps at 5 min, ±20% jitter)
+- **429 retry handling** in OAuthManager token endpoint (parses `Retry-After` header)
+- **Account identity timeout** — warns after 1 hour if pending identity hasn't resolved
+- Removed organization name from menu bar and account picker — accounts now show user-editable display names only
+- Cleaned up menu bar label to show only percentage and version
+- CI now caches SPM dependencies and skips redundant builds
+- Build script uses canonical Info.plist instead of inline heredoc
+- Extended test coverage (358 tests across 26 files)
+
 ## [1.1.0] — 2026-02-21
 
 ### Added

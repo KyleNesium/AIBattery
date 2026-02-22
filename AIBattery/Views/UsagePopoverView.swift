@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 public struct UsagePopoverView: View {
@@ -7,6 +6,11 @@ public struct UsagePopoverView: View {
     @State private var showSettings = false
     @State private var isAddingAccount = false
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
+    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
+    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
+    @AppStorage(UserDefaultsKeys.hasSeenTutorial) private var hasSeenTutorial: Bool = false
+    @State private var updateCheckMessage: String?
+    @State private var updateCheckDismissTask: Task<Void, Never>?
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -14,7 +18,7 @@ public struct UsagePopoverView: View {
     }
 
     private var metricMode: MetricMode {
-        get { MetricMode(rawValue: metricModeRaw) ?? .fiveHour }
+        MetricMode(rawValue: metricModeRaw) ?? .fiveHour
     }
 
     public var body: some View {
@@ -48,6 +52,7 @@ public struct UsagePopoverView: View {
                     accountStore: accountStore,
                     onAddAccount: { isAddingAccount = true }
                 )
+                .transition(.opacity.combined(with: .move(edge: .top)))
                 Divider()
             }
 
@@ -84,7 +89,7 @@ public struct UsagePopoverView: View {
                     }
                 }
 
-                if snapshot.totalTokens > 0 {
+                if showTokens && snapshot.totalTokens > 0 {
                     TokenUsageSection(
                         snapshot: snapshot,
                         activeModelId: snapshot.tokenHealth?.model
@@ -92,10 +97,11 @@ public struct UsagePopoverView: View {
                     Divider()
                 }
 
-                if !snapshot.dailyActivity.isEmpty || !snapshot.hourCounts.isEmpty {
+                if showActivity && (!snapshot.dailyActivity.isEmpty || !snapshot.hourCounts.isEmpty) {
                     ActivityChartView(
                         dailyActivity: snapshot.dailyActivity,
-                        hourCounts: snapshot.hourCounts
+                        hourCounts: snapshot.hourCounts,
+                        snapshot: snapshot
                     )
                     Divider()
                 }
@@ -115,6 +121,12 @@ public struct UsagePopoverView: View {
             footerSection
         }
         .frame(width: 275)
+        .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
+        .overlay {
+            if !hasSeenTutorial && viewModel.snapshot != nil {
+                TutorialOverlay()
+            }
+        }
     }
 
     private var accounts: [AccountRecord] {
@@ -122,7 +134,7 @@ public struct UsagePopoverView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Text("✦ AI Battery")
                     .font(.headline)
@@ -133,7 +145,38 @@ public struct UsagePopoverView: View {
                         .scaleEffect(0.6)
                         .frame(width: 16, height: 16)
                 }
-                Button(action: { showSettings.toggle() }) {
+                Text("v\(VersionChecker.currentAppVersion)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                Button(action: {
+                    Task {
+                        let result = await VersionChecker.shared.forceCheckForUpdate()
+                        viewModel.availableUpdate = result
+                        if result == nil {
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                updateCheckMessage = "Up to date"
+                            }
+                            updateCheckDismissTask?.cancel()
+                            updateCheckDismissTask = Task {
+                                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                guard !Task.isCancelled else { return }
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    updateCheckMessage = nil
+                                }
+                            }
+                        } else {
+                            updateCheckMessage = nil
+                        }
+                    }
+                }) {
+                    Image(systemName: "arrow.up.circle")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(viewModel.availableUpdate != nil ? ThemeColors.chartAccent : .secondary)
+                .help("Check for updates")
+                .accessibilityLabel("Check for updates")
+                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() } }) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 11))
                 }
@@ -143,22 +186,37 @@ public struct UsagePopoverView: View {
                 .accessibilityLabel("Settings")
                 .accessibilityHint(showSettings ? "Close settings" : "Open settings")
             }
+
+            // "Up to date" feedback after manual check
+            if let msg = updateCheckMessage, viewModel.availableUpdate == nil {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.green)
+                    Text(msg)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .padding(.leading, 1)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
 
-    /// Account picker — always visible. Shows active account name with dropdown
-    /// to switch accounts or add a new one.
+    /// Account picker — shows display name if set, otherwise "Account N".
     private var accountPicker: some View {
         Menu {
             let activeId = accountStore.activeAccountId
-            ForEach(accounts) { account in
+            ForEach(Array(accounts.enumerated()), id: \.element.id) { index, account in
                 Button(action: {
-                    viewModel.switchAccount(to: account.id)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.switchAccount(to: account.id)
+                    }
                 }) {
                     HStack {
-                        Text(accountLabel(account))
+                        Text(accountLabel(account, index: index))
                         if account.id == activeId {
                             Image(systemName: "checkmark")
                         }
@@ -175,41 +233,28 @@ public struct UsagePopoverView: View {
                 }
             }
         } label: {
-            let active = accountStore.activeAccount
-            Text(accountPickerLabel(active))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            if let activeIndex = accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }),
+               let active = accountStore.activeAccount {
+                Text(accountLabel(active, index: activeIndex))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else {
+                Text("Account")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
         .accessibilityLabel("Switch account")
     }
 
-    /// Label for the account picker button. Shows identity parts for single
-    /// account, org/display name for multi.
-    private func accountPickerLabel(_ active: AccountRecord?) -> String {
-        if accounts.count > 1 {
-            return active.map { accountLabel($0) } ?? "Account"
-        }
-        // Single account — show richer identity like before
-        guard let active else { return "Account" }
-        var parts: [String] = []
-        if let name = active.displayName, !name.isEmpty { parts.append(name) }
-        if let org = active.organizationName, !org.isEmpty {
-            let isDefault = active.displayName.map {
-                org == "\($0)\u{2018}s Individual Org" || org == "\($0)'s Individual Org"
-            } ?? false
-            if !isDefault { parts.append(org) }
-        }
-        return parts.isEmpty ? "Account" : parts.joined(separator: " · ")
-    }
-
-    /// Short label for an account in the picker.
-    private func accountLabel(_ account: AccountRecord) -> String {
-        if let org = account.organizationName, !org.isEmpty { return org }
+    /// Label for an account: display name if set, otherwise "Account N".
+    private func accountLabel(_ account: AccountRecord, index: Int) -> String {
         if let name = account.displayName, !name.isEmpty { return name }
-        return "Account"
+        return "Account \(index + 1)"
     }
 
     private var loadingView: some View {
@@ -229,17 +274,19 @@ public struct UsagePopoverView: View {
         VStack(spacing: 6) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.title3)
-                .foregroundStyle(.orange)
+                .foregroundStyle(ThemeColors.caution)
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .lineLimit(3)
             Button("Retry") { Task { await viewModel.refresh() } }
                 .font(.caption)
                 .buttonStyle(.plain)
                 .foregroundStyle(.blue)
                 .accessibilityHint("Retry loading usage data")
         }
+        .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
         .frame(height: 100)
     }
@@ -254,6 +301,7 @@ public struct UsagePopoverView: View {
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
         }
+        .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
         .frame(height: 80)
     }
@@ -277,10 +325,11 @@ public struct UsagePopoverView: View {
             .frame(width: 220)
             .accessibilityLabel("Metric mode")
             .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
+            .help("Select primary metric for menu bar display")
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.vertical, 10)
     }
 
     private var footerSection: some View {
@@ -310,7 +359,7 @@ public struct UsagePopoverView: View {
 
                 // Status Page — colored dot acts as status indicator
                 Button(action: {
-                    if let url = URL(string: "https://status.claude.com") {
+                    if let url = URL(string: StatusChecker.statusPageBaseURL) {
                         NSWorkspace.shared.open(url)
                     }
                 }) {
@@ -367,6 +416,37 @@ public struct UsagePopoverView: View {
                 .accessibilityLabel("Quit AI Battery")
             }
 
+            // Update available banner
+            if let update = viewModel.availableUpdate {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                    Text("v\(update.version) available")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("View") {
+                        if let url = URL(string: update.url) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+                    Button("Skip") {
+                        VersionChecker.shared.skipVersion(update.version)
+                        viewModel.availableUpdate = nil
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Version \(update.version) available. View or skip.")
+            }
+
             // Active incident banner (if any)
             if let incident = viewModel.systemStatus?.incidentName {
                 HStack(spacing: 4) {
@@ -387,11 +467,11 @@ public struct UsagePopoverView: View {
                     if viewModel.isShowingCachedData {
                         Image(systemName: "clock.arrow.circlepath")
                             .font(.system(size: 8))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ThemeColors.caution)
                     }
                     Text(Self.stalenessLabel(lastFetch))
                         .font(.system(size: 9))
-                        .foregroundStyle(viewModel.isShowingCachedData ? Color.orange : Color.gray.opacity(0.4))
+                        .foregroundStyle(viewModel.isShowingCachedData ? ThemeColors.caution : Color.gray.opacity(0.4))
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Self.stalenessLabel(lastFetch) + (viewModel.isShowingCachedData ? ", showing cached data" : ""))
@@ -409,14 +489,8 @@ public struct UsagePopoverView: View {
     }
 
     private var statusColor: Color {
-        switch viewModel.systemStatus?.indicator {
-        case .operational: return .green
-        case .degradedPerformance: return .yellow
-        case .partialOutage: return .orange
-        case .majorOutage: return .red
-        case .maintenance: return .blue
-        case .unknown, .none: return .gray
-        }
+        guard let indicator = viewModel.systemStatus?.indicator else { return .gray }
+        return ThemeColors.statusColor(indicator)
     }
 
     private var statusTooltip: String {
@@ -440,6 +514,15 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.tokenWindowDays) private var tokenWindowDays: Double = 0
     @AppStorage(UserDefaultsKeys.alertClaudeAI) private var alertClaudeAI: Bool = false
     @AppStorage(UserDefaultsKeys.alertClaudeCode) private var alertClaudeCode: Bool = false
+    @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
+    @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
+    @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
+    @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
+    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
+    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
+    @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
+    @State private var importMessage: String?
+    @State private var messageDismissTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -448,8 +531,8 @@ private struct SettingsRow: View {
                 .foregroundStyle(.secondary)
 
             // Per-account names
-            ForEach(accountStore.accounts) { account in
-                accountNameRow(account)
+            ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
+                accountNameRow(account, index: index)
             }
 
             if accountStore.canAddAccount {
@@ -514,6 +597,36 @@ private struct SettingsRow: View {
                     .padding(.leading, 58)
             }
 
+            // Display
+            HStack(spacing: 8) {
+                Text("Display")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Toggle("Tokens", isOn: $showTokens)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                Toggle("Activity", isOn: $showActivity)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+            }
+            HStack(spacing: 8) {
+                Spacer().frame(width: 50)
+                Toggle("Colorblind", isOn: $colorblindMode)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
+                Toggle("Cost*", isOn: $showCostEstimate)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+            }
+            HStack(spacing: 8) {
+                Spacer().frame(width: 50)
+                Text("Cost* = equivalent API token rates")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
             // Status alerts
             HStack(spacing: 8) {
                 Text("Alerts")
@@ -537,44 +650,135 @@ private struct SettingsRow: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .padding(.leading, 58)
+
+            // Rate limit alerts
+            VStack(spacing: 2) {
+                HStack(spacing: 8) {
+                    Spacer()
+                        .frame(width: 50)
+                    Toggle("Rate Limit Notify", isOn: $alertRateLimit)
+                        .toggleStyle(.checkbox)
+                        .font(.caption)
+                }
+                if alertRateLimit {
+                    HStack(spacing: 8) {
+                        Spacer()
+                            .frame(width: 50)
+                        Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
+                            .accessibilityLabel("Rate limit alert threshold")
+                            .accessibilityValue("\(Int(rateLimitThreshold)) percent")
+                        Text("\(Int(rateLimitThreshold))%")
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(width: 28, alignment: .trailing)
+                    }
+                    sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%"], leadingPad: 50)
+                    Text("Notify when rate limit usage exceeds threshold")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 58)
+                }
+            }
+
+            // Launch at Login
+            HStack(spacing: 8) {
+                Text("Startup")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Toggle("Launch at Login", isOn: $launchAtLogin)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .onAppear {
+                        if #available(macOS 13.0, *) {
+                            launchAtLogin = LaunchAtLoginManager.isEnabled
+                        }
+                    }
+                    .onChange(of: launchAtLogin) { newValue in
+                        if #available(macOS 13.0, *) {
+                            LaunchAtLoginManager.setEnabled(newValue)
+                        }
+                    }
+            }
+
+            // Export / Import
+            HStack(spacing: 8) {
+                Text("Backup")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Button("Export") {
+                    if SettingsManager.exportToClipboard() {
+                        showFeedback("Copied to clipboard")
+                    } else {
+                        showFeedback("Export failed")
+                    }
+                }
+                .font(.caption)
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+                .help("Copy settings as JSON to clipboard")
+                Button("Import") {
+                    do {
+                        try SettingsManager.importFromClipboard()
+                        showFeedback("Settings imported")
+                    } catch {
+                        showFeedback(error.localizedDescription)
+                    }
+                }
+                .font(.caption)
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+                .help("Import settings from clipboard JSON")
+                if let msg = importMessage {
+                    Text(msg)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
 
+    /// Show a temporary feedback message that auto-dismisses after 2 seconds.
+    private func showFeedback(_ message: String) {
+        messageDismissTask?.cancel()
+        importMessage = message
+        messageDismissTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                importMessage = nil
+            }
+        }
+    }
+
     /// Editable name row for a single account.
-    private func accountNameRow(_ account: AccountRecord) -> some View {
+    private func accountNameRow(_ account: AccountRecord, index: Int) -> some View {
         let isActive = account.id == accountStore.activeAccountId
         let label = accountStore.accounts.count > 1
             ? (isActive ? "Active" : "Account")
             : "Name"
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-                TextField("Your name", text: nameBinding(for: account.id))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-                if accountStore.accounts.count > 1 {
-                    Button(action: {
-                        OAuthManager.shared.signOut(accountId: account.id)
-                    }) {
-                        Image(systemName: "xmark.circle")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Remove this account")
-                    .accessibilityLabel("Remove account \(account.displayName ?? "")")
+        return HStack(spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .trailing)
+            TextField("Account \(index + 1)", text: nameBinding(for: account.id))
+                .textFieldStyle(.roundedBorder)
+                .font(.caption)
+            if accountStore.accounts.count > 1 {
+                Button(action: {
+                    OAuthManager.shared.signOut(accountId: account.id)
+                }) {
+                    Image(systemName: "xmark.circle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
                 }
-            }
-            if let org = account.organizationName, !org.isEmpty {
-                Text(org)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 58)
+                .buttonStyle(.plain)
+                .help("Remove this account")
+                .accessibilityLabel("Remove account \(index + 1)")
             }
         }
     }

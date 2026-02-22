@@ -63,7 +63,7 @@ public struct AuthView: View {
                 VStack(spacing: 8) {
                     HStack(spacing: 4) {
                         Image(systemName: "1.circle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ThemeColors.caution)
                             .font(.caption)
                         Text("Sign in via the browser window that just opened")
                             .font(.caption)
@@ -73,7 +73,7 @@ public struct AuthView: View {
 
                     HStack(spacing: 4) {
                         Image(systemName: "2.circle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ThemeColors.caution)
                             .font(.caption)
                         Text("Copy the authorization code shown after signing in")
                             .font(.caption)
@@ -83,7 +83,7 @@ public struct AuthView: View {
 
                     HStack(spacing: 4) {
                         Image(systemName: "3.circle.fill")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ThemeColors.caution)
                             .font(.caption)
                         Text("Paste it below:")
                             .font(.caption)
@@ -132,10 +132,10 @@ public struct AuthView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.caption2)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(ThemeColors.danger)
                     Text(error)
                         .font(.caption2)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(ThemeColors.danger)
                 }
             }
 
@@ -159,7 +159,7 @@ public struct AuthView: View {
             }
         }
         .padding(16)
-        .frame(width: 340)
+        .frame(width: 275)
     }
 
     private func startAuth() {

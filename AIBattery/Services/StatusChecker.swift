@@ -3,14 +3,18 @@ import os
 
 /// Fetches Claude system status from the public Statuspage API.
 /// Checks Claude API + Claude Code component status.
+@MainActor
 final class StatusChecker {
     static let shared = StatusChecker()
 
     private let summaryURL = URL(string: "https://status.claude.com/api/v2/summary.json")!
 
+    /// Base URL for the public status page.
+    nonisolated static let statusPageBaseURL = "https://status.claude.com"
+
     /// Statuspage component IDs for services we track.
-    static let claudeAPIComponentID = "k8w3r06qmzrp"
-    static let claudeCodeComponentID = "yyzkbfz2thpt"
+    nonisolated static let claudeAPIComponentID = "k8w3r06qmzrp"
+    nonisolated static let claudeCodeComponentID = "yyzkbfz2thpt"
 
     private let relevantComponents: Set<String> = [
         claudeAPIComponentID,
@@ -19,15 +23,25 @@ final class StatusChecker {
 
     private var cachedStatus: ClaudeSystemStatus?
 
-    /// Backoff: when a fetch fails, don't retry for this many seconds.
-    /// 60s balances avoiding hammering a downed service with faster recovery detection.
-    private static let backoffInterval: TimeInterval = 60
+    /// Exponential backoff with jitter for failed fetches.
+    /// Base interval doubles on each failure (60s → 120s → 240s), capped at 5 min.
+    /// Jitter (±20%) prevents thundering herd on macOS wake from sleep.
+    private static let baseBackoff: TimeInterval = 60
+    private static let maxBackoff: TimeInterval = 300
     private var lastFailedAt: Date?
+    private var failureCount = 0
+
+    /// Current backoff interval based on failure count.
+    private var currentBackoff: TimeInterval {
+        let raw = Self.baseBackoff * pow(2, Double(failureCount - 1))
+        let capped = min(raw, Self.maxBackoff)
+        return capped * Double.random(in: 0.8...1.2)
+    }
 
     func fetchStatus() async -> ClaudeSystemStatus {
-        // Skip fetch if we recently failed (backoff)
-        if let failedAt = lastFailedAt,
-           Date().timeIntervalSince(failedAt) < Self.backoffInterval {
+        // Skip fetch if we recently failed (exponential backoff)
+        if let failedAt = lastFailedAt, failureCount > 0,
+           Date().timeIntervalSince(failedAt) < currentBackoff {
             return cachedStatus ?? .unknown
         }
 
@@ -37,19 +51,22 @@ final class StatusChecker {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                failureCount += 1
                 lastFailedAt = Date()
-                AppLogger.network.warning("StatusChecker HTTP error, backing off for 60s")
+                AppLogger.network.warning("StatusChecker HTTP error, backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
                 return cachedStatus ?? .unknown
             }
 
             let summary = try JSONDecoder().decode(StatusPageSummary.self, from: data)
             let result = parseStatus(summary)
             cachedStatus = result
-            lastFailedAt = nil // Clear backoff on success
+            failureCount = 0
+            lastFailedAt = nil
             return result
         } catch {
+            failureCount += 1
             lastFailedAt = Date()
-            AppLogger.network.warning("StatusChecker fetch failed: \(error.localizedDescription, privacy: .public), backing off for 60s")
+            AppLogger.network.warning("StatusChecker fetch failed: \(error.localizedDescription, privacy: .public), backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
             return cachedStatus ?? .unknown
         }
     }
@@ -63,7 +80,7 @@ final class StatusChecker {
                 indicator: StatusIndicator.from(summary.status.indicator),
                 description: summary.status.description,
                 incidentName: nil,
-                statusPageURL: "https://status.claude.com"
+                statusPageURL: StatusChecker.statusPageBaseURL
             )
         }
 
@@ -117,7 +134,7 @@ final class StatusChecker {
             indicator: worstIndicator,
             description: description,
             incidentName: activeIncident?.name,
-            statusPageURL: "https://status.claude.com",
+            statusPageURL: StatusChecker.statusPageBaseURL,
             claudeAPIStatus: apiStatus,
             claudeCodeStatus: codeStatus
         )
@@ -139,7 +156,7 @@ struct ClaudeSystemStatus {
         indicator: .unknown,
         description: "Status unavailable",
         incidentName: nil,
-        statusPageURL: "https://status.claude.com"
+        statusPageURL: StatusChecker.statusPageBaseURL
     )
 }
 

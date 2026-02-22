@@ -1,14 +1,15 @@
 import Foundation
 
 struct UsageSnapshot {
+    /// Reusable formatter for weekday symbol lookup — avoids allocating a new DateFormatter per call.
+    private static let weekdayFormatter = DateFormatter()
+
     let lastUpdated: Date
 
     // Rate limit usage (from unified API response headers)
     let rateLimits: RateLimitUsage?
 
     // Account info
-    let displayName: String?
-    let organizationName: String?
     let billingType: String?
 
     // From stats-cache.json
@@ -44,6 +45,69 @@ struct UsageSnapshot {
 
     // Daily activity for chart
     let dailyActivity: [DailyActivity]
+
+    // MARK: - Projections & trends
+
+    /// Average messages per day over the last 7 days of activity.
+    var dailyAverage: Int {
+        let recent = dailyActivity.suffix(7)
+        guard !recent.isEmpty else { return 0 }
+        let total = recent.reduce(0) { $0 + $1.messageCount }
+        return total / recent.count
+    }
+
+    /// Projected total messages for today based on hour-of-day progress.
+    var projectedTodayTotal: Int {
+        let hour = Calendar.current.component(.hour, from: Date())
+        guard hour > 0, todayMessages > 0 else { return todayMessages }
+        let fractionOfDay = Double(hour) / 24.0
+        return Int(Double(todayMessages) / fractionOfDay)
+    }
+
+    /// Trend direction comparing this week's average to last week's.
+    var trendDirection: TrendDirection {
+        let count = dailyActivity.count
+        guard count >= 8 else { return .flat }
+
+        let thisWeek = dailyActivity.suffix(7)
+        let lastWeek = dailyActivity.dropLast(7).suffix(7)
+        guard !lastWeek.isEmpty else { return .flat }
+
+        let thisAvg = Double(thisWeek.reduce(0) { $0 + $1.messageCount }) / Double(thisWeek.count)
+        let lastAvg = Double(lastWeek.reduce(0) { $0 + $1.messageCount }) / Double(lastWeek.count)
+
+        guard lastAvg > 0 else { return thisAvg > 0 ? .up : .flat }
+        let change = (thisAvg - lastAvg) / lastAvg
+        if change > 0.10 { return .up }
+        if change < -0.10 { return .down }
+        return .flat
+    }
+
+    /// Busiest day of the week based on daily activity history.
+    var busiestDayOfWeek: (name: String, averageCount: Int)? {
+        let calendar = Calendar.current
+        var totals = [Int: Int]()   // weekday → total messages
+        var counts = [Int: Int]()   // weekday → number of occurrences
+
+        for day in dailyActivity {
+            guard let date = day.parsedDate else { continue }
+            let weekday = calendar.component(.weekday, from: date)
+            totals[weekday, default: 0] += day.messageCount
+            counts[weekday, default: 0] += 1
+        }
+
+        guard let (weekday, total) = totals.max(by: { a, b in
+            let avgA = Double(a.value) / Double(counts[a.key] ?? 1)
+            let avgB = Double(b.value) / Double(counts[b.key] ?? 1)
+            return avgA < avgB
+        }) else { return nil }
+
+        let avg = total / max(counts[weekday] ?? 1, 1)
+        guard avg > 0 else { return nil }
+
+        let dayName = Self.weekdayFormatter.weekdaySymbols[weekday - 1]
+        return (dayName, avg)
+    }
 
     // Hourly message distribution (hour "0"-"23" → count, from stats-cache)
     let hourCounts: [String: Int]
@@ -101,6 +165,27 @@ enum MetricMode: String, CaseIterable {
         case .fiveHour: return "5h"
         case .sevenDay: return "7d"
         case .contextHealth: return "Ctx"
+        }
+    }
+}
+
+/// Usage trend direction (this week vs last week).
+enum TrendDirection {
+    case up, down, flat
+
+    var symbol: String {
+        switch self {
+        case .up: return "\u{2191}"    // ↑
+        case .down: return "\u{2193}"  // ↓
+        case .flat: return "\u{2192}"  // →
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .up: return "increasing"
+        case .down: return "decreasing"
+        case .flat: return "stable"
         }
     }
 }

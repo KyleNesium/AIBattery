@@ -4,7 +4,7 @@ import Testing
 @Suite("APIProfile")
 struct APIProfileTests {
 
-    @Test func parse_bothHeaders() {
+    @Test func parse_withOrgId() {
         let headers: [AnyHashable: Any] = [
             "anthropic-organization-id": "org-123",
             "x-organization-name": "Acme Corp",
@@ -12,7 +12,6 @@ struct APIProfileTests {
         let profile = APIProfile.parse(headers: headers)
         #expect(profile != nil)
         #expect(profile?.organizationId == "org-123")
-        #expect(profile?.organizationName == "Acme Corp")
     }
 
     @Test func parse_onlyOrgId() {
@@ -22,17 +21,14 @@ struct APIProfileTests {
         let profile = APIProfile.parse(headers: headers)
         #expect(profile != nil)
         #expect(profile?.organizationId == "org-456")
-        #expect(profile?.organizationName == nil)
     }
 
-    @Test func parse_onlyOrgName() {
+    @Test func parse_onlyOrgName_returnsNil() {
         let headers: [AnyHashable: Any] = [
             "x-organization-name": "Test Org",
         ]
         let profile = APIProfile.parse(headers: headers)
-        #expect(profile != nil)
-        #expect(profile?.organizationId == nil)
-        #expect(profile?.organizationName == "Test Org")
+        #expect(profile == nil)
     }
 
     @Test func parse_noHeaders() {

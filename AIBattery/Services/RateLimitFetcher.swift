@@ -12,6 +12,7 @@ import Foundation
 /// Rate limit headers are account-level, so any model works.
 ///
 /// Caches results per account ID to support multi-account.
+@MainActor
 final class RateLimitFetcher {
     static let shared = RateLimitFetcher()
 

@@ -43,6 +43,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 | JSONL file change | 2 sec FSEvent latency | FileWatcher (FSEventStream on ~/.claude/projects/) |
 | Fallback | 60 sec | FileWatcher fallback timer |
 | Account switch | On click | Account picker in header |
+| Adaptive extension | Doubles interval (up to 5 min) after 3 unchanged cycles | UsageViewModel |
 
 ## Project Tree
 
@@ -62,6 +63,7 @@ AIBattery/
     UsageSnapshot.swift           — UsageSnapshot, ModelTokenSummary, MetricMode, PlanTier
     TokenHealthConfig.swift       — Health thresholds + context window lookup
     TokenHealthStatus.swift       — HealthBand, HealthWarning, TokenHealthStatus (Identifiable by sessionId)
+    ModelPricing.swift            — Per-model pricing lookup + cost calculation
   Services/
     AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 2)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, token storage, auto-refresh
@@ -73,7 +75,9 @@ AIBattery/
     TokenHealthMonitor.swift      — Analyzes session tokens → health status (single + top N sessions)
     StatusChecker.swift           — Fetches status.claude.com system status
     SingleInstanceGuard.swift     — Prevents duplicate app instances
-    NotificationManager.swift     — Status outage alerts via osascript (Claude.ai / Claude Code)
+    NotificationManager.swift     — Status outage + rate limit alerts via osascript
+    LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
+    VersionChecker.swift          — GitHub Releases update checker (24h cadence)
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
@@ -81,23 +85,29 @@ AIBattery/
     MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color)
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     AuthView.swift                 — OAuth login/paste-code screen
+    TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
-    TokenUsageSection.swift       — Per-model token breakdown with token type tags
+    TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
     InsightsSection.swift         — Today stats, all-time stats
     ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows)
+    CopyableText.swift            — ViewModifier for click-to-copy with checkmark feedback
   Utilities/
     TokenFormatter.swift          — Format tokens ("18.9M")
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"
     UserDefaultsKeys.swift        — Centralized @AppStorage / UserDefaults key constants
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
+    ThemeColors.swift             — Centralized color theming with colorblind-safe palette
+    SettingsManager.swift         — Settings export/import as JSON via clipboard
 Tests/AIBatteryCoreTests/
   Utilities/
     TokenFormatterTests.swift     — format() for 0, 500, 1K, 2.5K, 15K, 1M, 3.2M, 150M + negatives + boundaries
     ModelNameMapperTests.swift    — displayName() for all model families, edge cases, empty, multi-hyphens
     UserDefaultsKeysTests.swift   — prefix validation, uniqueness
     ClaudePathsTests.swift        — path suffixes, URL↔path consistency, absolute paths
+    ThemeColorsTests.swift        — Color theme tests (both modes, all bands)
+    SettingsManagerTests.swift    — Settings round-trip, validation, security
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     PlanTierTests.swift           — fromBillingType() for all known tiers + unknown + empty
@@ -111,12 +121,15 @@ Tests/AIBatteryCoreTests/
     TokenHealthStatusTests.swift  — suggestedAction per band, HealthBand rawValues
     SessionEntryTests.swift       — Codable decode from real JSONL, minimal entry, round-trip
     UsageSnapshotTests.swift      — totalTokens, percent(for:), planTier
+    ModelPricingTests.swift       — pricing lookup, cost calculation, formatCost, edge cases
   Services/
     AccountStoreTests.swift       — Add/remove/update/merge, persistence, migration
     StatusIndicatorTests.swift    — from() all status strings, severity ordering, displayName
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity
+    NotificationManagerTests.swift — shouldAlert() pure function threshold tests
+    VersionCheckerTests.swift     — semver comparison, tag stripping
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)
@@ -137,7 +150,7 @@ CHANGELOG.md                      — Release notes per version
 - **Codesigning**: Ad-hoc (`codesign --sign -`) with hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting without requiring an Apple Developer account
 - **App icon**: Generated at build time via `scripts/generate-icon.swift` (sparkle star, all macOS sizes). Embedded in `Contents/Resources/AppIcon.icns` and used as DMG volume icon.
 - **Dock icon**: None (LSUIElement = true)
-- **Dependencies**: None (Apple frameworks only: SwiftUI, Charts, Security, Foundation, AppKit)
+- **Dependencies**: None (Apple frameworks only: SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
 
 ## Release Pipeline
 
@@ -154,12 +167,13 @@ CHANGELOG.md                      — Release notes per version
 2. `GET https://status.claude.com/api/v2/summary.json` — system status (every refresh interval)
 3. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
 4. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)
+5. `GET https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` — update check (once per 24h)
 
 ## Local File Access (exhaustive)
 
 1. macOS Keychain, service `"AIBattery"` — Per-account OAuth tokens (prefixed: accessToken_{accountId}, refreshToken_{accountId}, expiresAt_{accountId})
 2. UserDefaults `aibattery_accounts` + `aibattery_activeAccountId` — Multi-account registry (JSON-encoded [AccountRecord])
-3. `~/.claude.json` → `oauthAccount` — displayName, organizationName
+3. `~/.claude.json` → `oauthAccount` — billingType
 4. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
 5. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
 6. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data

@@ -31,6 +31,7 @@ struct TokenHealthSection: View {
             HStack {
                 Text("Context Health")
                     .font(.subheadline.bold())
+                    .help("Percentage of usable context window consumed")
                 Spacer()
 
                 if sessions.count > 1 {
@@ -62,6 +63,7 @@ struct TokenHealthSection: View {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(bandColor)
                         .frame(width: geometry.size.width * min(CGFloat(health.usagePercentage) / 100.0, 1.0), height: 8)
+                        .animation(.easeInOut(duration: 0.4), value: health.usagePercentage)
                 }
             }
             .frame(height: 8)
@@ -74,11 +76,15 @@ struct TokenHealthSection: View {
                 Text("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .copyable("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable")
                 Spacer()
                 Text("\(health.turnCount) turns · \(health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model))")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .help("Conversation turns in this session")
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : ModelNameMapper.displayName(for: health.model))")
 
             // Recommended minimum context hint
             if health.band == .orange || health.band == .red {
@@ -86,6 +92,7 @@ struct TokenHealthSection: View {
                 Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .help("Recommended minimum tokens to maintain response quality")
             }
 
             // Warnings
@@ -93,7 +100,7 @@ struct TokenHealthSection: View {
                 HStack(spacing: 4) {
                     Image(systemName: warning.severity == .strong ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
                         .font(.caption2)
-                        .foregroundStyle(warning.severity == .strong ? .red : .orange)
+                        .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
                     Text(warning.message)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -104,13 +111,30 @@ struct TokenHealthSection: View {
             if let action = health.suggestedAction {
                 Text(action)
                     .font(.caption2)
-                    .foregroundStyle(health.band == .red ? .red : .orange)
+                    .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .gesture(
+            sessions.count > 1 ?
+            DragGesture(minimumDistance: 50)
+                .onEnded { value in
+                    let horizontal = value.translation.width
+                    guard abs(horizontal) > abs(value.translation.height) else { return }
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        if horizontal < 0 {
+                            selectedIndex = min(selectedIndex + 1, sessions.count - 1)
+                        } else {
+                            selectedIndex = max(selectedIndex - 1, 0)
+                        }
+                    }
+                }
+            : nil
+        )
     }
 
     /// Chevron buttons to cycle through sessions
@@ -153,13 +177,27 @@ struct TokenHealthSection: View {
 
     private var sessionInfoLabel: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // Line 1: project · branch · session ID prefix
-            let topParts = sessionTopParts
-            Text(topParts.isEmpty ? "Latest session" : topParts.joined(separator: " · "))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            // Line 1: project · branch · session ID prefix + stale badge
+            HStack(spacing: 4) {
+                let topParts = sessionTopParts
+                Text(topParts.isEmpty ? "Latest session" : topParts.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                if let idleMinutes = staleIdleMinutes {
+                    HStack(spacing: 2) {
+                        Circle()
+                            .fill(ThemeColors.caution)
+                            .frame(width: 5, height: 5)
+                        Text("Idle \(idleMinutes)m")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(ThemeColors.caution)
+                    }
+                    .help("Session has been idle — context may be stale")
+                }
+            }
 
             // Line 2: duration · last active · velocity
             let bottomParts = sessionBottomParts
@@ -170,6 +208,35 @@ struct TokenHealthSection: View {
                     .lineLimit(1)
             }
         }
+        .help(sessionDetailTooltip)
+    }
+
+    /// Minutes idle if session is stale (>30 min with non-green band), otherwise nil.
+    private var staleIdleMinutes: Int? {
+        guard let lastActivity = health.lastActivity, health.band != .green else { return nil }
+        let idle = Date().timeIntervalSince(lastActivity)
+        guard idle > 30 * 60 else { return nil }
+        return Int(idle / 60)
+    }
+
+    /// Full session detail string for tooltip hover.
+    private var sessionDetailTooltip: String {
+        var parts: [String] = []
+        if !health.id.isEmpty { parts.append("Session: \(health.id)") }
+        if !health.model.isEmpty { parts.append("Model: \(ModelNameMapper.displayName(for: health.model))") }
+        parts.append("Context: \(TokenFormatter.format(health.totalUsed))/\(TokenFormatter.format(health.usableWindow))")
+        parts.append("Input: \(TokenFormatter.format(health.inputTokens)) · Output: \(TokenFormatter.format(health.outputTokens))")
+        if health.cacheReadTokens > 0 || health.cacheWriteTokens > 0 {
+            parts.append("Cache R: \(TokenFormatter.format(health.cacheReadTokens)) · W: \(TokenFormatter.format(health.cacheWriteTokens))")
+        }
+        parts.append("Turns: \(health.turnCount)")
+        if let start = health.sessionStart {
+            parts.append("Started: \(Self.formatSessionTime(start))")
+        }
+        if !health.warnings.isEmpty {
+            parts.append("Warnings: \(health.warnings.map(\.message).joined(separator: ", "))")
+        }
+        return parts.joined(separator: "\n")
     }
 
     private var sessionTopParts: [String] {
@@ -214,12 +281,14 @@ struct TokenHealthSection: View {
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH:mm"
         return f
     }()
 
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "MMM d"
         return f
     }()
@@ -245,15 +314,13 @@ struct TokenHealthSection: View {
                 .frame(width: 8, height: 8)
             Text("\(Int(health.usagePercentage))%")
                 .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.4), value: Int(health.usagePercentage))
+                .copyable("\(Int(health.usagePercentage))%")
         }
     }
 
     private var bandColor: Color {
-        switch health.band {
-        case .green: return .green
-        case .orange: return .orange
-        case .red: return .red
-        case .unknown: return .gray
-        }
+        ThemeColors.bandColor(health.band)
     }
 }

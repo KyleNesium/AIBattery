@@ -34,8 +34,10 @@ private struct MonthlyPoint: Identifiable {
 struct ActivityChartView: View {
     let dailyActivity: [DailyActivity]
     let hourCounts: [String: Int]
+    var snapshot: UsageSnapshot? = nil
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
+    @State private var showTrendDetail = false
 
     private var mode: ActivityChartMode {
         ActivityChartMode(rawValue: modeRaw) ?? .hourly
@@ -108,8 +110,7 @@ struct ActivityChartView: View {
             // Header with toggle
             HStack {
                 Text("Activity")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline.bold())
                 Spacer()
                 Picker("", selection: $modeRaw) {
                     ForEach(ActivityChartMode.allCases, id: \.rawValue) { m in
@@ -121,6 +122,7 @@ struct ActivityChartView: View {
                 .scaleEffect(0.8, anchor: .trailing)
                 .accessibilityLabel("Activity time range")
                 .accessibilityHint("Switch between 24 hour, 7 day, and 12 month views")
+                .help("Switch activity chart time range")
             }
 
             if isEmpty {
@@ -138,9 +140,14 @@ struct ActivityChartView: View {
                     monthlyChart
                 }
             }
+
+            // Trend toggle
+            if let snapshot {
+                trendToggle(snapshot)
+            }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 12)
     }
 
     // MARK: - Daily Chart (7D)
@@ -154,7 +161,7 @@ struct ActivityChartView: View {
             )
             .foregroundStyle(
                 .linearGradient(
-                    colors: [.orange.opacity(0.3), .orange.opacity(0.05)],
+                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.05)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -165,7 +172,7 @@ struct ActivityChartView: View {
                 x: .value("Day", point.date, unit: .day),
                 y: .value("Messages", point.count)
             )
-            .foregroundStyle(.orange)
+            .foregroundStyle(ThemeColors.chartAccent)
             .lineStyle(StrokeStyle(lineWidth: 1.5))
             .interpolationMethod(.catmullRom)
 
@@ -173,7 +180,7 @@ struct ActivityChartView: View {
                 x: .value("Day", point.date, unit: .day),
                 y: .value("Messages", point.count)
             )
-            .foregroundStyle(.orange)
+            .foregroundStyle(ThemeColors.chartAccent)
             .symbolSize(12)
         }
         .chartXAxis {
@@ -201,7 +208,7 @@ struct ActivityChartView: View {
             )
             .foregroundStyle(
                 .linearGradient(
-                    colors: [.orange.opacity(0.3), .orange.opacity(0.05)],
+                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.05)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -212,7 +219,7 @@ struct ActivityChartView: View {
                 x: .value("Hour", point.hour),
                 y: .value("Messages", point.count)
             )
-            .foregroundStyle(.orange)
+            .foregroundStyle(ThemeColors.chartAccent)
             .lineStyle(StrokeStyle(lineWidth: 1.5))
             .interpolationMethod(.catmullRom)
         }
@@ -243,7 +250,7 @@ struct ActivityChartView: View {
             )
             .foregroundStyle(
                 .linearGradient(
-                    colors: [.orange.opacity(0.3), .orange.opacity(0.05)],
+                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.05)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -254,7 +261,7 @@ struct ActivityChartView: View {
                 x: .value("Month", point.date, unit: .month),
                 y: .value("Messages", point.count)
             )
-            .foregroundStyle(.orange)
+            .foregroundStyle(ThemeColors.chartAccent)
             .lineStyle(StrokeStyle(lineWidth: 1.5))
             .interpolationMethod(.catmullRom)
 
@@ -262,7 +269,7 @@ struct ActivityChartView: View {
                 x: .value("Month", point.date, unit: .month),
                 y: .value("Messages", point.count)
             )
-            .foregroundStyle(.orange)
+            .foregroundStyle(ThemeColors.chartAccent)
             .symbolSize(12)
         }
         .chartXAxis {
@@ -278,6 +285,103 @@ struct ActivityChartView: View {
         .chartYAxis(.hidden)
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
+    }
+
+    // MARK: - Trend
+
+    private func trendToggle(_ snapshot: UsageSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    showTrendDetail.toggle()
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Text(snapshot.trendDirection.symbol)
+                        .font(.caption)
+                        .foregroundStyle(ThemeColors.trendColor(snapshot.trendDirection))
+                    Text("Trend")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: showTrendDetail ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 7, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+            .help("Weekly trend: this week vs last week")
+            .accessibilityLabel("Trend \(snapshot.trendDirection.accessibilityLabel)")
+            .accessibilityHint(showTrendDetail ? "Collapse trend details" : "Expand trend details")
+
+            if showTrendDetail {
+                trendDetailView(snapshot)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private static let trendLabelWidth: CGFloat = 55
+
+    private func trendDetailView(_ snapshot: UsageSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let change = changeVsYesterday(snapshot) {
+                trendRow("vs Yesterday", value: change.label, color: change.color)
+            }
+
+            if let busiest = snapshot.busiestDayOfWeek {
+                trendRow("Busiest", value: "\(busiest.name)s \u{00B7} ~\(busiest.averageCount) avg")
+            }
+
+            if snapshot.dailyAverage > 0 {
+                trendRow("Daily Avg", value: "\(snapshot.dailyAverage) msgs/day")
+            }
+        }
+    }
+
+    private func trendRow(_ label: String, value: String, color: Color = .secondary) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(width: Self.trendLabelWidth, alignment: .leading)
+            Spacer()
+            Text(value)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(color)
+        }
+    }
+
+    private struct ChangeInfo {
+        let label: String
+        let color: Color
+    }
+
+    private static let yesterdayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    private func changeVsYesterday(_ snapshot: UsageSnapshot) -> ChangeInfo? {
+        let yesterdayStr = Self.yesterdayFormatter.string(
+            from: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+        )
+
+        guard let yesterday = snapshot.dailyActivity.first(where: { $0.date == yesterdayStr }) else {
+            return nil
+        }
+
+        let diff = snapshot.todayMessages - yesterday.messageCount
+
+        if diff > 0 {
+            return ChangeInfo(label: "+\(diff) msgs", color: ThemeColors.trendColor(.up))
+        } else if diff < 0 {
+            return ChangeInfo(label: "\(diff) msgs", color: ThemeColors.trendColor(.down))
+        } else {
+            return ChangeInfo(label: "same", color: .secondary)
+        }
     }
 
     // MARK: - Formatters
@@ -311,7 +415,10 @@ struct ActivityChartView: View {
         monthFormatter.string(from: date)
     }
 
+    private static let hourLabels: [String] = (0..<24).map { String(format: "%02d", $0) }
+
     private static func formatHourLabel(_ hour: Int) -> String {
-        return String(format: "%02d", hour)
+        guard hour >= 0 && hour < 24 else { return String(format: "%02d", hour) }
+        return hourLabels[hour]
     }
 }

@@ -14,7 +14,7 @@ struct MenuBarIcon: View {
 
         image.lockFocus()
 
-        let color = colorForPercent(requestsPercent)
+        let color = ThemeColors.barNSColor(percent: requestsPercent)
 
         // Draw a small AI sparkle/star icon — 4-pointed star
         // This mimics the AI sparkle icons used by Apple and others
@@ -54,12 +54,4 @@ struct MenuBarIcon: View {
         return image
     }
 
-    private func colorForPercent(_ percent: Double) -> NSColor {
-        switch percent {
-        case 0..<50: return NSColor.systemGreen
-        case 50..<80: return NSColor.systemYellow
-        case 80..<95: return NSColor.systemOrange
-        default: return NSColor.systemRed
-        }
-    }
 }

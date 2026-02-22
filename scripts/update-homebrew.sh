@@ -10,7 +10,7 @@ VERSION="${VERSION#v}"  # Strip leading 'v' if present
 ZIP_URL="https://github.com/KyleNesium/AIBattery/releases/download/v${VERSION}/AIBattery.zip"
 
 echo "Downloading AIBattery.zip for v${VERSION}..."
-curl -sL "$ZIP_URL" -o /tmp/aibattery-release.zip
+curl -fSL "$ZIP_URL" -o /tmp/aibattery-release.zip
 SHA256=$(shasum -a 256 /tmp/aibattery-release.zip | awk '{print $1}')
 echo "SHA256: ${SHA256}"
 

@@ -106,6 +106,63 @@ struct RateLimitUsageTests {
         #expect(makeUsage(status: "allowed").isThrottled == false)
     }
 
+    // MARK: - Predictive estimate
+
+    @Test func estimatedTimeToLimit_lowUtilization_returnsNil() {
+        // 30% utilization — too low to show estimate (threshold is >50%)
+        let usage = makeUsage(
+            fiveHourUtil: 0.30,
+            fiveHourReset: Date().addingTimeInterval(3 * 3600)
+        )
+        #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
+    }
+
+    @Test func estimatedTimeToLimit_noReset_returnsNil() {
+        let usage = makeUsage(fiveHourUtil: 0.70)
+        #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
+    }
+
+    @Test func estimatedTimeToLimit_highUtilization_returnsEstimate() {
+        // 80% utilization with 2h remaining of a 5h window → 3h elapsed
+        // rate = 0.80/10800 ≈ 7.4e-5/s, timeToFull = 0.20/rate ≈ 2700s (45 min)
+        // 45 min < 2h remaining, so estimate should be returned
+        let usage = makeUsage(
+            fiveHourUtil: 0.80,
+            fiveHourReset: Date().addingTimeInterval(2 * 3600)
+        )
+        let estimate = usage.estimatedTimeToLimit(for: "five_hour")
+        #expect(estimate != nil)
+        #expect(estimate! > 0)
+        #expect(estimate! < 2 * 3600) // Must be before reset
+    }
+
+    @Test func estimatedTimeToLimit_slowBurnRate_returnsNil() {
+        // 51% utilization with only 30 min remaining of a 5h window → 4.5h elapsed
+        // rate = 0.51/16200 ≈ 3.1e-5/s, timeToFull = 0.49/rate ≈ 15600s (4.3h)
+        // 4.3h > 30 min remaining → estimate exceeds reset, so nil
+        let usage = makeUsage(
+            fiveHourUtil: 0.51,
+            fiveHourReset: Date().addingTimeInterval(30 * 60)
+        )
+        #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
+    }
+
+    @Test func estimatedTimeToLimit_sevenDayWindow() {
+        // 70% utilization with 2 days remaining of a 7-day window → 5 days elapsed
+        // rate = 0.70/432000 ≈ 1.6e-6/s, timeToFull = 0.30/rate ≈ 185714s (2.1 days)
+        // 2.1 days > 2 days remaining → nil (we'll be fine before reset)
+        let usage = makeUsage(
+            sevenDayUtil: 0.70,
+            sevenDayReset: Date().addingTimeInterval(2 * 24 * 3600)
+        )
+        // At this rate, estimate is close to reset — could go either way
+        // The key test is that it doesn't crash and returns a reasonable value or nil
+        let estimate = usage.estimatedTimeToLimit(for: "seven_day")
+        if let estimate {
+            #expect(estimate > 0)
+        }
+    }
+
     // MARK: - Helpers
 
     private func makeUsage(

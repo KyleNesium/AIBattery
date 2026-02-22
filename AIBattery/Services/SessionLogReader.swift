@@ -26,6 +26,9 @@ final class SessionLogReader {
         return f
     }()
 
+    /// Number of corrupt/skipped lines from the most recent file parse cycle.
+    private(set) var lastCorruptLineCount = 0
+
     /// Called by FileWatcher when files change — invalidates caches so the next read re-scans.
     func invalidate() {
         cachedAllEntries = nil
@@ -37,6 +40,7 @@ final class SessionLogReader {
         // Return cached result if available (invalidated by FileWatcher)
         if let cached = cachedAllEntries { return cached }
 
+        lastCorruptLineCount = 0
         let jsonlFiles = discoverJSONLFiles()
         var allEntries: [AssistantUsageEntry] = []
         var seenMessageIds = Set<String>()
@@ -197,6 +201,7 @@ final class SessionLogReader {
             // Safety: if leftover exceeds max line size without finding a newline,
             // the JSONL line is malformed — discard and move on.
             if leftover.count > maxLineSize, leftover.firstIndex(of: UInt8(ascii: "\n")) == nil {
+                lastCorruptLineCount += 1
                 AppLogger.files.warning("Skipping oversized JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
                 continue
@@ -217,6 +222,7 @@ final class SessionLogReader {
                 do {
                     decoded = try decoder.decode(SessionEntry.self, from: Data(lineData))
                 } catch {
+                    lastCorruptLineCount += 1
                     AppLogger.files.debug("JSONL decode failed in \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
                     continue
                 }
@@ -249,7 +255,7 @@ final class SessionLogReader {
     }
 
     /// Build an `AssistantUsageEntry` from a decoded session entry, or nil if it's not an assistant message with usage.
-    private static func makeUsageEntry(from entry: SessionEntry) -> AssistantUsageEntry? {
+    static func makeUsageEntry(from entry: SessionEntry) -> AssistantUsageEntry? {
         guard entry.type == "assistant",
               let message = entry.message,
               let usage = message.usage,
@@ -267,10 +273,10 @@ final class SessionLogReader {
             timestamp: timestamp,
             model: model,
             messageId: messageId,
-            inputTokens: usage.input_tokens ?? 0,
-            outputTokens: usage.output_tokens ?? 0,
-            cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-            cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0,
+            cacheReadTokens: usage.cacheReadInputTokens ?? 0,
+            cacheWriteTokens: usage.cacheCreationInputTokens ?? 0,
             sessionId: entry.sessionId ?? "",
             cwd: entry.cwd,
             gitBranch: entry.gitBranch

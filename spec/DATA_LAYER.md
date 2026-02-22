@@ -12,8 +12,6 @@ Main aggregated data struct consumed by all views.
 |-------|------|--------|
 | `lastUpdated` | `Date` | Generated at aggregation time |
 | `rateLimits` | `RateLimitUsage?` | API response headers |
-| `displayName` | `String?` | `~/.claude.json` oauthAccount.displayName |
-| `organizationName` | `String?` | API header → `~/.claude.json` → UserDefaults |
 | `billingType` | `String?` | `~/.claude.json` oauthAccount.organizationBillingType |
 | `firstSessionDate` | `Date?` | stats-cache.json (ISO 8601) |
 | `totalSessions` | `Int` | stats-cache + today JSONL |
@@ -32,6 +30,8 @@ Main aggregated data struct consumed by all views.
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by most recent activity (descending) |
 
 Computed: `totalTokens`, `planTier: PlanTier?` (from billingType → UserDefaults → nil), `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover)
+
+Projections & trends: `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `projectedTodayTotal: Int` (extrapolate today's messages based on hour-of-day progress), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
 ### ModelTokenSummary
 
@@ -55,6 +55,14 @@ Which metric drives the menu bar icon percentage and color.
 | `.fiveHour` | `"5h"` | `"5-Hour"` | `"5h"` |
 | `.sevenDay` | `"7d"` | `"7-Day"` | `"7d"` |
 | `.contextHealth` | `"context"` | `"Context"` | `"Ctx"` |
+
+### TrendDirection (`Models/UsageSnapshot.swift`)
+
+| Case | Symbol |
+|------|--------|
+| `.up` | ↑ |
+| `.down` | ↓ |
+| `.flat` | → |
 
 ### PlanTier (`Models/UsageSnapshot.swift`)
 
@@ -84,9 +92,8 @@ Organization info extracted from Messages API response headers.
 | Field | Type |
 |-------|------|
 | `organizationId` | `String?` |
-| `organizationName` | `String?` |
 
-`parse(headers:)` static method: reads `anthropic-organization-id` and `x-organization-name` from HTTP response.
+`parse(headers:)` static method: reads `anthropic-organization-id` from HTTP response.
 
 ### AccountRecord (`Models/AccountRecord.swift`)
 
@@ -95,8 +102,7 @@ Per-account identity record. Stored as JSON array in UserDefaults.
 | Field | Type |
 |-------|------|
 | `id` | `String` — organizationId (or `"pending-<UUID>"` before first API call) |
-| `displayName` | `String?` |
-| `organizationName` | `String?` |
+| `displayName` | `String?` — user-editable label (max 30 chars) |
 | `billingType` | `String?` |
 | `addedAt` | `Date` |
 
@@ -130,7 +136,7 @@ Parsed from Anthropic's unified rate limit headers (`anthropic-ratelimit-unified
 | `sevenDayStatus` | `String` |
 | `overallStatus` | `String` — `"allowed"` or `"throttled"` |
 
-Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled`
+Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled`, `estimatedTimeToLimit(for window: String) -> TimeInterval?` (burn rate = utilization / elapsed, projects when 100% reached; returns nil if utilization ≤ 50%, elapsed < 60s, or estimate exceeds reset time)
 
 `parse(headers:)` static method: reads `anthropic-ratelimit-unified-status`, `anthropic-ratelimit-unified-representative-claim`, `anthropic-ratelimit-unified-5h-utilization`, `anthropic-ratelimit-unified-5h-reset`, `anthropic-ratelimit-unified-5h-status`, and equivalent `7d` headers. Reset timestamps are parsed as Unix epoch seconds.
 
@@ -169,7 +175,7 @@ Computed: `suggestedAction` — nil for green/unknown, recommendation text for o
 
 ### TokenHealthConfig (`Models/TokenHealthConfig.swift`)
 
-Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`
+Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`, `staleSessionMinutes = 30`, `zeroOutputTurnThreshold = 3`
 
 Static: `contextWindows: [String: Int]` dictionary, `defaultContextWindow = 200_000`, `usableContextRatio = 0.80`, `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
 
@@ -198,6 +204,34 @@ JSONL line schema (Codable):
 
 `AssistantUsageEntry` (processed form): `timestamp: Date`, `model: String`, `messageId: String`, `inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens: Int`, `sessionId: String`, `cwd: String?`, `gitBranch: String?`
 
+### ModelPricing (`Models/ModelPricing.swift`)
+
+Per-model pricing for API cost equivalence. Shows what the same token usage would cost at Anthropic's published API per-token rates — Pro/Max/Teams subscribers aren't billed per-token.
+
+| Field | Type |
+|-------|------|
+| `inputPerMillion` | `Double` |
+| `outputPerMillion` | `Double` |
+| `cacheWritePerMillion` | `Double` |
+| `cacheReadPerMillion` | `Double` |
+
+Methods:
+- `cost(input:output:cacheRead:cacheWrite:) -> Double` — cost in dollars
+- `static formatCost(_ cost: Double) -> String` — "$12.35" or "<$0.01"
+- `static pricing(for modelId: String) -> ModelPricing?` — lookup via `ModelNameMapper.displayName`
+- `static totalCost(for models: [ModelTokenSummary]) -> Double` — aggregate across models
+
+Pricing table (per million tokens):
+
+| Model | Input | Output | Cache Write | Cache Read |
+|-------|-------|--------|-------------|------------|
+| Opus 4 | $15 | $75 | $1.875 | $1.50 |
+| Sonnet 4 | $3 | $15 | $0.375 | $0.30 |
+| Haiku 4 | $0.80 | $4 | $0.10 | $0.08 |
+| Sonnet 3.5 | $3 | $15 | $0.375 | $0.30 |
+| Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
+| Opus 3 | $15 | $75 | $1.875 | $1.50 |
+
 ### ClaudeSystemStatus + StatusIndicator (`Services/StatusChecker.swift`)
 
 `ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentName: String?`, `statusPageURL: String`, `claudeAPIStatus: StatusIndicator` (default .unknown), `claudeCodeStatus: StatusIndicator` (default .unknown)
@@ -218,13 +252,13 @@ JSONL line schema (Codable):
 - `startAuthFlow(addingAccount:)` → opens browser with PKCE challenge. `addingAccount` flag tracks whether this is a second-account flow. Generates a separate random `state` parameter (never reuses the PKCE verifier).
 - `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens. Creates `AccountRecord` with pending ID, stores tokens under prefixed Keychain entries. Validates state parameter (CSRF protection). Only clears PKCE state on success.
 - `getAccessToken()` → returns active account's valid token, refreshes 5 minutes before expiry. `getAccessToken(for:)` for specific account. Serializes concurrent refresh attempts per account via `refreshTasks` dictionary.
-- `resolveAccountIdentity(tempId:realOrgId:orgName:billingType:)` → called after first API call returns real org ID. Renames Keychain entries from temp to real ID, updates AccountStore. Idempotent. Handles duplicate detection (same org authed twice → merge, keep newer tokens).
-- `updateAccountMetadata(accountId:orgName:displayName:billingType:)` → updates existing account's metadata in AccountStore.
+- `resolveAccountIdentity(tempId:realOrgId:billingType:)` → called after first API call returns real org ID. Renames Keychain entries from temp to real ID, updates AccountStore. Idempotent. Handles duplicate detection (same org authed twice → merge, keep newer tokens).
+- `updateAccountMetadata(accountId:displayName:billingType:)` → updates existing account's display name and/or billing type in AccountStore.
 - `signOut(accountId:)` → removes specific account (or active if nil), auto-switches to remaining account if any.
 - **Legacy migration**: `migrateFromLegacy()` on init — detects old unprefixed Keychain entries, creates AccountRecord with temp ID, copies to prefixed format, deletes old entries. Runs only when accounts array is empty.
 - **Per-account Keychain**: `saveTokens(for:)`, `loadTokens(for:)`, `deleteTokens(for:)` using `"accessToken_{accountId}"` format under service `"AIBattery"`.
 - `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.serverError(Int)`, `.maxAccountsReached`, `.unknownError(String)` — each has `userMessage` for display. `isTransient` for `.networkError`/`.serverError`.
-- **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) on 5xx. Non-retryable errors fail immediately.
+- **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) with jitter on 429 and 5xx. Parses `Retry-After` header on 429 when present. Non-retryable errors fail immediately.
 - **Refresh resilience**: transient errors during refresh do NOT mark `isAuthenticated = false`. Only auth errors trigger logout.
 
 ### AccountStore (`Services/AccountStore.swift`)
@@ -264,7 +298,7 @@ JSONL line schema (Codable):
 - **Incident impact escalation**: when components report "operational" but active incidents exist, factors in incident `impact` field (`"none"`, `"minor"`, `"major"`, `"critical"`) to determine overall indicator. If impact is `"none"` but incidents are active, escalates to at least `.degradedPerformance` (yellow dot).
 - Checks for active incidents (status not `resolved` or `postmortem`)
 - Returns `.unknown` on any error
-- **Backoff**: on failure, skips fetches for 60 seconds (`backoffInterval = 60`) to avoid noise; clears on success
+- **Backoff**: exponential backoff with jitter on failure — base 60s doubles per failure, capped at 5 min, ±20% jitter to prevent thundering herd; resets on success
 
 ### StatsCacheReader (`Services/StatsCacheReader.swift`)
 - Singleton: `.shared`
@@ -288,20 +322,19 @@ JSONL line schema (Codable):
 - Deduplication by messageId within each file
 - Sorted by timestamp ascending
 - **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
+- **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each scan
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - Created per-ViewModel (not singleton)
-- `aggregate(rateLimits:orgName:) -> UsageSnapshot`
+- `aggregate(rateLimits:) -> UsageSnapshot`
 - **Single-pass filtering**: iterates all entries once to extract both today's entries and windowed token totals simultaneously (avoids separate `.filter()` passes)
-- Reads: stats cache, all JSONL entries (single scan), account info from `~/.claude.json` (displayName, organizationName, organizationBillingType)
+- Reads: stats cache, all JSONL entries (single scan), account info from `~/.claude.json` (organizationBillingType)
 - **Token window modes**: `aibattery_tokenWindowDays` UserDefaults (0 = all time, 1–7 = windowed)
   - **All-time mode (0)**: stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache, 72-hour recent model filter
   - **Windowed mode (1–7)**: computes token totals from all JSONL entries within the window, bypasses stats-cache `modelUsage`
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
 - Tool calls from stats cache only (not parsed from JSONL)
 - Token health via `TokenHealthMonitor.assessCurrentSession` (single) + `TokenHealthMonitor.topSessions` (top 5)
-- **Org name priority**: API header → `~/.claude.json` → UserDefaults
-- **Org name persistence**: writes API-sourced org name to `UserDefaults("aibattery_orgName")` for future sessions — only when user hasn't manually set one (protects user-edited values)
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)
 - Singleton: `.shared`
@@ -314,6 +347,10 @@ JSONL line schema (Codable):
 - Band: `< greenThreshold` → green (of usable), `< redThreshold` → orange, else red
 - Warnings: high turn count (>15 mild, >25 strong), input:output ratio (>20:1, includes cache tokens)
 - Velocity: `totalUsed / duration` if 2+ entries and duration > 60 seconds (no double-counting)
+- **Anomaly detection**: three additional warnings:
+  - Zero output: `outputTokens == 0 && turnCount > zeroOutputTurnThreshold` → "Session has no output — check for errors"
+  - Rapid consumption: `sessionDuration < 60 && totalUsed > 50_000` → "Rapid token consumption detected"
+  - Stale session: `lastActivity > staleSessionMinutes * 60 && band != .green` → "Session idle for X min — context may be stale"
 - **Session metadata**: extracts projectName from cwd (last path component), gitBranch, sessionStart, sessionDuration. Uses **first** entry with cwd for project name (session identity), **latest** entry for git branch (current state).
 
 ### FileWatcher (`Services/FileWatcher.swift`)
@@ -336,20 +373,48 @@ JSONL line schema (Codable):
 - `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
 - `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
 - Deduplication: `hasFired[key]` bool per component, resets when service recovers
+- **Batch delivery**: queues alerts for 500ms; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts")
 - Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps. Process reaping via `waitUntilExit()` on background queue prevents zombie processes.
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
+
+#### Rate Limit Alerts
+- `checkRateLimitAlerts(rateLimits:)` — reads `aibattery_alertRateLimit` (Bool) and `aibattery_rateLimitThreshold` (Double, default 80)
+- Checks both 5h and 7d windows independently against threshold
+- Same dedup pattern: `hasFired[key]` per window, resets when dropping below threshold
+- `shouldAlert(percent:threshold:previouslyFired:)` — static pure function for testability
+
+### VersionChecker (`Services/VersionChecker.swift`)
+- Singleton: `.shared`
+- `checkForUpdate() async -> UpdateInfo?` — fetches GitHub Releases API once per 24h
+- `skipVersion(_:)` — persists skipped version to UserDefaults
+- `isNewer(_:than:) -> Bool` — static semver comparison (major/minor/patch)
+- `stripTag(_:) -> String` — strips leading "v" or "V"
+- `currentAppVersion` — reads `CFBundleShortVersionString` from bundle
+- `UpdateInfo`: `version: String`, `url: String`
+- Cache: `lastCheck: Date?`, `cachedUpdate: UpdateInfo?`
+- Timeout: 10 sec
+
+### LaunchAtLoginManager (`Services/LaunchAtLoginManager.swift`)
+- Enum (no instances)
+- `isEnabled: Bool` — reads `SMAppService.mainApp.status`
+- `setEnabled(_:)` — register/unregister via SMAppService
+- Requires installed .app bundle, silently fails during dev builds
+- Logs failures via `AppLogger.general`
 
 ## ViewModel
 
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
-- Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`
+- Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
 - Computed: `metricMode: MetricMode` (from UserDefaults `aibattery_metricMode`), `menuBarPercent: Double` (delegates to `snapshot.percent(for:)`), `hasData: Bool`
-- `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Org name from API or active account record flows into aggregator. `Task.detached` for aggregation. Calls `NotificationManager.shared.checkStatusAlerts(status:)`. Tracks staleness from API result.
+- `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Org name from API or active account record flows into aggregator. `Task.detached` for aggregation. Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
 - Deinit: invalidates timer, stops file watcher
+- **Adaptive polling**: tracks `unchangedCycles` counter comparing `totalMessages`/`todayMessages` before and after refresh. After 3 unchanged cycles, doubles polling interval (up to 5 min max). Any data change or file watcher trigger resets to configured interval.
+- **Identity timeout**: warns if a pending account hasn't resolved identity after 1 hour (prompts re-auth).
+- **JSONL corruption logging**: after aggregation, logs `SessionLogReader.lastCorruptLineCount` via `AppLogger.files.warning` if > 0.
 
 ## Utilities
 
@@ -372,9 +437,28 @@ JSONL line schema (Codable):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`
+- Keys: `metricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `skipVersion`, `colorblindMode`, `hasSeenTutorial`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`
 - Categories: `general`, `oauth`, `network`, `files`
 - Used throughout services for structured logging (replaces bare `print()` calls)
+
+### SettingsManager (`Utilities/SettingsManager.swift`)
+- Enum (no instances)
+- `exportableKeys: [String]` — all user-configurable preference keys, excludes accounts, tokens, update state
+- `exportSettings() -> Data` — JSON export of exportable keys from UserDefaults
+- `importSettings(from data: Data) throws` — validate JSON, apply only known keys
+- `exportToClipboard()` — exports to `NSPasteboard.general`
+- `importFromClipboard() throws` — reads from clipboard, validates, applies
+- `SettingsError`: `.invalidFormat`, `.emptyClipboard`
+
+### ThemeColors (`Utilities/ThemeColors.swift`)
+- Enum (no instances)
+- Reads `UserDefaultsKeys.colorblindMode` to switch palettes
+- `barColor(percent:) -> Color` — usage bar fill color
+- `bandColor(_: HealthBand) -> Color` — context health band color
+- `statusColor(_: StatusIndicator) -> Color` — system status dot color
+- `barNSColor(percent:) -> NSColor` — menu bar icon fill color
+- Standard palette: green → yellow → orange → red
+- Colorblind palette: blue → cyan → amber → purple (deuteranopia/protanopia safe)
