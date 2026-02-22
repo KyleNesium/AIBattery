@@ -113,6 +113,12 @@ public final class UsageViewModel: ObservableObject {
             aggregator.aggregate(rateLimits: rateLimits, orgName: orgName)
         }.value
 
+        // Log JSONL corruption metrics after aggregation
+        let corruptLines = SessionLogReader.shared.lastCorruptLineCount
+        if corruptLines > 0 {
+            AppLogger.files.warning("JSONL corruption: \(corruptLines) lines skipped or failed to decode")
+        }
+
         // Adaptive polling: compare key metrics to detect idle periods.
         let previousTotal = snapshot?.totalMessages ?? -1
         let previousToday = snapshot?.todayMessages ?? -1
