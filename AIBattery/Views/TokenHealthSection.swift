@@ -319,11 +319,6 @@ struct TokenHealthSection: View {
     }
 
     private var bandColor: Color {
-        switch health.band {
-        case .green: return .green
-        case .orange: return .orange
-        case .red: return .red
-        case .unknown: return .gray
-        }
+        ThemeColors.bandColor(health.band)
     }
 }

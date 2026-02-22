@@ -109,7 +109,7 @@ struct UsageBar: View {
                         .frame(height: 8)
 
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(colorForPercent(percent))
+                        .fill(ThemeColors.barColor(percent: percent))
                         .frame(width: geometry.size.width * min(CGFloat(percent) / 100.0, 1.0), height: 8)
                         .animation(.easeInOut(duration: 0.4), value: percent)
                 }
@@ -134,15 +134,6 @@ struct UsageBar: View {
                         .foregroundStyle(.tertiary)
                 }
             }
-        }
-    }
-
-    private func colorForPercent(_ pct: Double) -> Color {
-        switch pct {
-        case 0..<50: return .green
-        case 50..<80: return .yellow
-        case 80..<95: return .orange
-        default: return .red
         }
     }
 

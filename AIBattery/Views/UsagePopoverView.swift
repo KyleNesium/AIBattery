@@ -459,14 +459,8 @@ public struct UsagePopoverView: View {
     }
 
     private var statusColor: Color {
-        switch viewModel.systemStatus?.indicator {
-        case .operational: return .green
-        case .degradedPerformance: return .yellow
-        case .partialOutage: return .orange
-        case .majorOutage: return .red
-        case .maintenance: return .blue
-        case .unknown, .none: return .gray
-        }
+        guard let indicator = viewModel.systemStatus?.indicator else { return .gray }
+        return ThemeColors.statusColor(indicator)
     }
 
     private var statusTooltip: String {
@@ -498,6 +492,7 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.menuBarDecimal) private var menuBarDecimal: Bool = false
     @AppStorage(UserDefaultsKeys.compactBars) private var compactBars: Bool = false
+    @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -595,6 +590,10 @@ private struct SettingsRow: View {
                     .toggleStyle(.checkbox)
                     .font(.caption)
                     .help("Collapse non-selected rate limit bars into a single line")
+                Toggle("Colorblind", isOn: $colorblindMode)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
             }
             Text("Cost~ shows equivalent API token rates")
                 .font(.caption2)
