@@ -118,6 +118,23 @@ struct TokenHealthSection: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .gesture(
+            sessions.count > 1 ?
+            DragGesture(minimumDistance: 50)
+                .onEnded { value in
+                    let horizontal = value.translation.width
+                    guard abs(horizontal) > abs(value.translation.height) else { return }
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        if horizontal < 0 {
+                            selectedIndex = min(selectedIndex + 1, sessions.count - 1)
+                        } else {
+                            selectedIndex = max(selectedIndex - 1, 0)
+                        }
+                    }
+                }
+            : nil
+        )
     }
 
     /// Chevron buttons to cycle through sessions
