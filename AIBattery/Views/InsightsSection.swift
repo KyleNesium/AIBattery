@@ -11,8 +11,10 @@ struct InsightsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(snapshot.todayMessages) msgs \u{00B7} \(snapshot.todaySessions) sessions \u{00B7} \(snapshot.todayToolCalls) tools")
+                let todayStats = "\(snapshot.todayMessages) msgs \u{00B7} \(snapshot.todaySessions) sessions \u{00B7} \(snapshot.todayToolCalls) tools"
+                Text(todayStats)
                     .font(.system(.caption, design: .monospaced))
+                    .copyable(todayStats)
             }
 
             // Totals
@@ -21,8 +23,10 @@ struct InsightsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions")
+                let allTimeStats = "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions"
+                Text(allTimeStats)
                     .font(.system(.caption, design: .monospaced))
+                    .copyable(allTimeStats)
             }
         }
         .padding(.horizontal, 16)

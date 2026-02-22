@@ -66,6 +66,7 @@ struct UsageBar: View {
                 Spacer()
                 Text("\(Int(percent))%")
                     .font(.system(.title3, design: .monospaced, weight: .semibold))
+                    .copyable("\(Int(percent))%")
             }
 
             GeometryReader { geometry in

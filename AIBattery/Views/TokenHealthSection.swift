@@ -74,6 +74,7 @@ struct TokenHealthSection: View {
                 Text("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .copyable("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable")
                 Spacer()
                 Text("\(health.turnCount) turns · \(health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model))")
                     .font(.caption2)
@@ -245,6 +246,7 @@ struct TokenHealthSection: View {
                 .frame(width: 8, height: 8)
             Text("\(Int(health.usagePercentage))%")
                 .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .copyable("\(Int(health.usagePercentage))%")
         }
     }
 

@@ -35,6 +35,7 @@ struct TokenUsageSection: View {
                 Spacer()
                 Text(TokenFormatter.format(snapshot.totalTokens))
                     .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                    .copyable(TokenFormatter.format(snapshot.totalTokens))
             }
 
             // Per-model breakdown with token types underneath
@@ -62,6 +63,7 @@ struct TokenUsageSection: View {
                             Text(TokenFormatter.format(model.totalTokens))
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
+                                .copyable(TokenFormatter.format(model.totalTokens))
                         }
 
                         // Token type breakdown for this model
