@@ -311,7 +311,10 @@ struct ActivityChartView: View {
         monthFormatter.string(from: date)
     }
 
+    private static let hourLabels: [String] = (0..<24).map { String(format: "%02d", $0) }
+
     private static func formatHourLabel(_ hour: Int) -> String {
-        return String(format: "%02d", hour)
+        guard hour >= 0 && hour < 24 else { return String(format: "%02d", hour) }
+        return hourLabels[hour]
     }
 }

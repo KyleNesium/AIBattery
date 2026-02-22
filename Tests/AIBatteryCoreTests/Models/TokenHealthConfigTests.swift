@@ -45,4 +45,51 @@ struct TokenHealthConfigTests {
     @Test func defaultContextWindow() {
         #expect(TokenHealthConfig.defaultContextWindow == 200_000)
     }
+
+    // MARK: - Extended context window lookup
+
+    @Test func contextWindow_allKnownModels() {
+        // Every model in contextWindows should return 200_000
+        let models = [
+            "claude-opus-4-6",
+            "claude-sonnet-4-5-20250929",
+            "claude-haiku-4-5-20251001",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022",
+            "claude-3-opus-20240229",
+            "claude-3-sonnet-20240229",
+            "claude-3-haiku-20240307",
+        ]
+        for model in models {
+            #expect(
+                TokenHealthConfig.contextWindow(for: model) == 200_000,
+                "Expected 200K for \(model)"
+            )
+        }
+    }
+
+    @Test func contextWindow_prefixMatch_futureDate() {
+        // Same model family with a different date suffix should match via prefix
+        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20260101") == 200_000)
+    }
+
+    @Test func contextWindow_prefixMatch_haiku35_futureDate() {
+        #expect(TokenHealthConfig.contextWindow(for: "claude-3-5-haiku-20260101") == 200_000)
+    }
+
+    @Test func contextWindow_noHyphen_returnsFallback() {
+        #expect(TokenHealthConfig.contextWindow(for: "gpt4") == TokenHealthConfig.defaultContextWindow)
+    }
+
+    // MARK: - Config thresholds validation
+
+    @Test func defaultConfig_greenBelowRed() {
+        let config = TokenHealthConfig.default
+        #expect(config.greenThreshold < config.redThreshold)
+    }
+
+    @Test func defaultConfig_turnCountMildBelowStrong() {
+        let config = TokenHealthConfig.default
+        #expect(config.turnCountMild < config.turnCountStrong)
+    }
 }

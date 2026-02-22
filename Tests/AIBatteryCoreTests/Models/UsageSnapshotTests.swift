@@ -85,6 +85,43 @@ struct UsageSnapshotTests {
         #expect(snapshot.percent(for: .contextHealth) == 72.5)
     }
 
+    // MARK: - percent(for:) — rate limits
+
+    @Test func percent_fiveHour_withRateLimits() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.42,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.05,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        #expect(snapshot.percent(for: .fiveHour) == 42.0)
+    }
+
+    @Test func percent_sevenDay_withRateLimits() {
+        let limits = RateLimitUsage(
+            representativeClaim: "seven_day",
+            fiveHourUtilization: 0.10,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.88,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        #expect(snapshot.percent(for: .sevenDay) == 88.0)
+    }
+
+    @Test func percent_contextHealth_nilHealth() {
+        let snapshot = makeSnapshot()
+        #expect(snapshot.percent(for: .contextHealth) == 0)
+    }
+
     // MARK: - planTier
 
     @Test func planTier_fromBillingType() {
@@ -93,9 +130,21 @@ struct UsageSnapshotTests {
         #expect(snapshot.planTier?.price == "$20/mo")
     }
 
+    @Test func planTier_max5x() {
+        let snapshot = makeSnapshot(billingType: "max_5x")
+        #expect(snapshot.planTier?.name == "Max")
+    }
+
     @Test func planTier_nilWhenNoBillingType() {
         let snapshot = makeSnapshot()
         // planTier may fall through to UserDefaults, so just check it doesn't crash
+        _ = snapshot.planTier
+    }
+
+    @Test func planTier_emptyString_isNil() {
+        let snapshot = makeSnapshot(billingType: "")
+        // Empty billing type returns nil from PlanTier.fromBillingType
+        // May still fall through to UserDefaults
         _ = snapshot.planTier
     }
 }

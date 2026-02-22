@@ -59,4 +59,38 @@ struct StatusCheckerParsingTests {
     @Test func componentIDs_areDistinct() {
         #expect(StatusChecker.claudeAPIComponentID != StatusChecker.claudeCodeComponentID)
     }
+
+    // MARK: - Extended incident escalation
+
+    @Test func degradedSeverity_exceedsMaintenance() {
+        #expect(StatusIndicator.degradedPerformance.severity > StatusIndicator.maintenance.severity)
+    }
+
+    @Test func majorOutage_isHighestSeverity() {
+        let all: [StatusIndicator] = [.unknown, .operational, .maintenance, .degradedPerformance, .partialOutage]
+        for indicator in all {
+            #expect(StatusIndicator.majorOutage.severity > indicator.severity,
+                    "majorOutage should exceed \(indicator)")
+        }
+    }
+
+    // MARK: - Component ID format
+
+    @Test func componentIDs_areAlphanumeric() {
+        let alphanumeric = CharacterSet.alphanumerics
+        #expect(StatusChecker.claudeAPIComponentID.unicodeScalars.allSatisfy { alphanumeric.contains($0) })
+        #expect(StatusChecker.claudeCodeComponentID.unicodeScalars.allSatisfy { alphanumeric.contains($0) })
+    }
+
+    // MARK: - Display names
+
+    @Test func allIndicators_haveNonEmptyDisplayNames() {
+        let indicators: [StatusIndicator] = [
+            .operational, .degradedPerformance, .partialOutage,
+            .majorOutage, .maintenance, .unknown,
+        ]
+        for indicator in indicators {
+            #expect(!indicator.displayName.isEmpty, "\(indicator) has empty displayName")
+        }
+    }
 }

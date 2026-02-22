@@ -99,4 +99,48 @@ struct ModelPricingTests {
         let model = ModelTokenSummary(id: "unknown", displayName: "Unknown", inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 0, cacheWriteTokens: 0)
         #expect(ModelPricing.totalCost(for: [model]) == 0)
     }
+
+    @Test func totalCost_mixedKnownAndUnknown() {
+        let known = ModelTokenSummary(id: "claude-sonnet-4-5-20250929", displayName: "Sonnet 4.5", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0)
+        let unknown = ModelTokenSummary(id: "unknown", displayName: "Unknown", inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 0, cacheWriteTokens: 0)
+        let total = ModelPricing.totalCost(for: [known, unknown])
+        // Only Sonnet input: $3/M × 1M = $3
+        #expect(abs(total - 3.0) < 0.001)
+    }
+
+    @Test func totalCost_multipleKnownModels() {
+        let opus = ModelTokenSummary(id: "claude-opus-4-6-20250929", displayName: "Opus 4.6", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0)
+        let sonnet = ModelTokenSummary(id: "claude-sonnet-4-5-20250929", displayName: "Sonnet 4.5", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0)
+        let total = ModelPricing.totalCost(for: [opus, sonnet])
+        // Opus input: $15 + Sonnet input: $3 = $18
+        #expect(abs(total - 18.0) < 0.001)
+    }
+
+    // MARK: - Cost calculation edge cases
+
+    @Test func cost_cacheOnlyTokens() {
+        let pricing = ModelPricing(inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 0.375, cacheReadPerMillion: 0.30)
+        let cost = pricing.cost(input: 0, output: 0, cacheRead: 2_000_000, cacheWrite: 1_000_000)
+        // cacheRead: 0.30 × 2 = 0.60, cacheWrite: 0.375 × 1 = 0.375
+        #expect(abs(cost - 0.975) < 0.001)
+    }
+
+    @Test func cost_largeTokenCounts() {
+        let pricing = ModelPricing(inputPerMillion: 15, outputPerMillion: 75, cacheWritePerMillion: 1.875, cacheReadPerMillion: 1.50)
+        let cost = pricing.cost(input: 100_000_000, output: 10_000_000, cacheRead: 50_000_000, cacheWrite: 5_000_000)
+        // input: 15 × 100 = 1500, output: 75 × 10 = 750, cacheRead: 1.50 × 50 = 75, cacheWrite: 1.875 × 5 = 9.375
+        #expect(abs(cost - 2334.375) < 0.01)
+    }
+
+    // MARK: - Format edge cases
+
+    @Test func formatCost_negative() {
+        // Negative values shouldn't happen but shouldn't crash
+        let result = ModelPricing.formatCost(-5.0)
+        #expect(result == "<$0.01")
+    }
+
+    @Test func formatCost_exactDollar() {
+        #expect(ModelPricing.formatCost(1.0) == "$1.00")
+    }
 }
