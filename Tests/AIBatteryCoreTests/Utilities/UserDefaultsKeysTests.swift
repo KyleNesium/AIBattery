@@ -6,27 +6,7 @@ struct UserDefaultsKeysTests {
 
     /// All keys must use the "aibattery_" prefix for namespacing.
     @Test func allKeys_havePrefix() {
-        let keys = [
-            UserDefaultsKeys.metricMode,
-            UserDefaultsKeys.orgName,
-            UserDefaultsKeys.displayName,
-            UserDefaultsKeys.refreshInterval,
-            UserDefaultsKeys.tokenWindowDays,
-            UserDefaultsKeys.alertClaudeAI,
-            UserDefaultsKeys.alertClaudeCode,
-            UserDefaultsKeys.chartMode,
-            UserDefaultsKeys.plan,
-            UserDefaultsKeys.accounts,
-            UserDefaultsKeys.activeAccountId,
-            UserDefaultsKeys.launchAtLogin,
-            UserDefaultsKeys.alertRateLimit,
-            UserDefaultsKeys.rateLimitThreshold,
-            UserDefaultsKeys.showCostEstimate,
-            UserDefaultsKeys.showTokens,
-            UserDefaultsKeys.showActivity,
-            UserDefaultsKeys.lastUpdateCheck,
-            UserDefaultsKeys.skipVersion,
-        ]
+        let keys = allKeys
         for key in keys {
             #expect(key.hasPrefix("aibattery_"), "Key '\(key)' missing 'aibattery_' prefix")
         }
@@ -34,7 +14,15 @@ struct UserDefaultsKeysTests {
 
     /// No two keys should share the same value.
     @Test func allKeys_areUnique() {
-        let keys = [
+        let keys = allKeys
+        let unique = Set(keys)
+        #expect(unique.count == keys.count, "Duplicate UserDefaults key detected")
+    }
+
+    // MARK: - Helpers
+
+    private var allKeys: [String] {
+        [
             UserDefaultsKeys.metricMode,
             UserDefaultsKeys.orgName,
             UserDefaultsKeys.displayName,
@@ -54,8 +42,10 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.showActivity,
             UserDefaultsKeys.lastUpdateCheck,
             UserDefaultsKeys.skipVersion,
+            UserDefaultsKeys.menuBarDecimal,
+            UserDefaultsKeys.compactBars,
+            UserDefaultsKeys.colorblindMode,
+            UserDefaultsKeys.hasSeenTutorial,
         ]
-        let unique = Set(keys)
-        #expect(unique.count == keys.count, "Duplicate UserDefaults key detected")
     }
 }
