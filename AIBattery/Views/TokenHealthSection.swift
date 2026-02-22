@@ -160,13 +160,27 @@ struct TokenHealthSection: View {
 
     private var sessionInfoLabel: some View {
         VStack(alignment: .leading, spacing: 2) {
-            // Line 1: project · branch · session ID prefix
-            let topParts = sessionTopParts
-            Text(topParts.isEmpty ? "Latest session" : topParts.joined(separator: " · "))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            // Line 1: project · branch · session ID prefix + stale badge
+            HStack(spacing: 4) {
+                let topParts = sessionTopParts
+                Text(topParts.isEmpty ? "Latest session" : topParts.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                if let idleMinutes = staleIdleMinutes {
+                    HStack(spacing: 2) {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 5, height: 5)
+                        Text("Idle \(idleMinutes)m")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.orange)
+                    }
+                    .help("Session has been idle — context may be stale")
+                }
+            }
 
             // Line 2: duration · last active · velocity
             let bottomParts = sessionBottomParts
@@ -177,6 +191,35 @@ struct TokenHealthSection: View {
                     .lineLimit(1)
             }
         }
+        .help(sessionDetailTooltip)
+    }
+
+    /// Minutes idle if session is stale (>30 min with non-green band), otherwise nil.
+    private var staleIdleMinutes: Int? {
+        guard let lastActivity = health.lastActivity, health.band != .green else { return nil }
+        let idle = Date().timeIntervalSince(lastActivity)
+        guard idle > 30 * 60 else { return nil }
+        return Int(idle / 60)
+    }
+
+    /// Full session detail string for tooltip hover.
+    private var sessionDetailTooltip: String {
+        var parts: [String] = []
+        if !health.id.isEmpty { parts.append("Session: \(health.id)") }
+        if !health.model.isEmpty { parts.append("Model: \(ModelNameMapper.displayName(for: health.model))") }
+        parts.append("Context: \(TokenFormatter.format(health.totalUsed))/\(TokenFormatter.format(health.usableWindow))")
+        parts.append("Input: \(TokenFormatter.format(health.inputTokens)) · Output: \(TokenFormatter.format(health.outputTokens))")
+        if health.cacheReadTokens > 0 || health.cacheWriteTokens > 0 {
+            parts.append("Cache R: \(TokenFormatter.format(health.cacheReadTokens)) · W: \(TokenFormatter.format(health.cacheWriteTokens))")
+        }
+        parts.append("Turns: \(health.turnCount)")
+        if let start = health.sessionStart {
+            parts.append("Started: \(Self.formatSessionTime(start))")
+        }
+        if !health.warnings.isEmpty {
+            parts.append("Warnings: \(health.warnings.map(\.message).joined(separator: ", "))")
+        }
+        return parts.joined(separator: "\n")
     }
 
     private var sessionTopParts: [String] {
