@@ -187,8 +187,30 @@ public struct UsagePopoverView: View {
                 .accessibilityHint(showSettings ? "Close settings" : "Open settings")
             }
 
-            // "Up to date" feedback after manual check
-            if let msg = updateCheckMessage, viewModel.availableUpdate == nil {
+            // Update status indicator
+            if let update = viewModel.availableUpdate {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.yellow)
+                    Text("v\(update.version) available")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Button("View") {
+                        if let url = URL(string: update.url) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Version \(update.version) available")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .padding(.leading, 1)
+            } else if let msg = updateCheckMessage {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 9))
@@ -335,7 +357,7 @@ public struct UsagePopoverView: View {
     private var footerSection: some View {
         VStack(spacing: 6) {
             // Links row
-            HStack(spacing: 6) {
+            HStack(spacing: 10) {
                 // Usage Dashboard
                 Button(action: {
                     if let url = URL(string: "https://platform.claude.com/usage") {
@@ -416,37 +438,6 @@ public struct UsagePopoverView: View {
                 .accessibilityLabel("Quit AI Battery")
             }
 
-            // Update available banner
-            if let update = viewModel.availableUpdate {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
-                    Text("v\(update.version) available")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer()
-                    Button("View") {
-                        if let url = URL(string: update.url) {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .font(.caption2)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.blue)
-                    Button("Skip") {
-                        VersionChecker.shared.skipVersion(update.version)
-                        viewModel.availableUpdate = nil
-                    }
-                    .font(.caption2)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Version \(update.version) available. View or skip.")
-            }
-
             // Active incident banner (if any)
             if let incident = viewModel.systemStatus?.incidentName {
                 HStack(spacing: 4) {
@@ -463,7 +454,7 @@ public struct UsagePopoverView: View {
 
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
     }
 
     private var statusColor: Color {

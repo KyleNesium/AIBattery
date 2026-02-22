@@ -39,7 +39,6 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.showTokens,
             UserDefaultsKeys.showActivity,
             UserDefaultsKeys.lastUpdateCheck,
-            UserDefaultsKeys.skipVersion,
             UserDefaultsKeys.colorblindMode,
             UserDefaultsKeys.hasSeenTutorial,
         ]

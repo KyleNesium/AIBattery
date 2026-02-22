@@ -400,7 +400,7 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**338 tests** across 25 test files.
+**348 tests** across 25 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
