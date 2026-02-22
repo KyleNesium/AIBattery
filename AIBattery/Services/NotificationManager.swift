@@ -35,10 +35,50 @@ public final class NotificationManager {
         }
     }
 
+    /// Check rate limits and fire alert when usage crosses the configured threshold.
+    /// Deduplicates per window: fires once when crossing, resets when dropping below.
+    func checkRateLimitAlerts(rateLimits: RateLimitUsage) {
+        let enabled = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertRateLimit)
+        guard enabled else { return }
+
+        let threshold = UserDefaults.standard.double(forKey: UserDefaultsKeys.rateLimitThreshold)
+        let effectiveThreshold = threshold > 0 ? threshold : 80.0
+
+        checkRateLimitWindow(
+            key: "rateLimit5h",
+            label: "5-Hour",
+            percent: rateLimits.fiveHourPercent,
+            threshold: effectiveThreshold
+        )
+        checkRateLimitWindow(
+            key: "rateLimit7d",
+            label: "7-Day",
+            percent: rateLimits.sevenDayPercent,
+            threshold: effectiveThreshold
+        )
+    }
+
+    /// Pure function for testability: whether an alert should fire given the current state.
+    static func shouldAlert(percent: Double, threshold: Double, previouslyFired: Bool) -> Bool {
+        percent >= threshold && !previouslyFired
+    }
+
     /// No-op kept for call-site compatibility (osascript needs no permission).
     func requestPermission() {}
 
     // MARK: - Private
+
+    private func checkRateLimitWindow(key: String, label: String, percent: Double, threshold: Double) {
+        if Self.shouldAlert(percent: percent, threshold: threshold, previouslyFired: hasFired[key] == true) {
+            hasFired[key] = true
+            send(
+                title: "AI Battery: \(label) rate limit",
+                body: "\(label) usage at \(Int(percent))% (threshold: \(Int(threshold))%)."
+            )
+        } else if percent < threshold {
+            hasFired[key] = false
+        }
+    }
 
     private func checkComponentStatus(key: String, label: String, indicator: StatusIndicator) {
         let isDown = indicator != .operational && indicator != .unknown

@@ -107,6 +107,11 @@ public final class UsageViewModel: ObservableObject {
 
         // Check status page alerts for Claude.ai / Claude Code outages
         NotificationManager.shared.checkStatusAlerts(status: status)
+
+        // Check rate limit approaching alerts
+        if let limits = api.rateLimits {
+            NotificationManager.shared.checkRateLimitAlerts(rateLimits: limits)
+        }
     }
 
     /// Switch to a different account and refresh data.

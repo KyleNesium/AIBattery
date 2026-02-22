@@ -441,6 +441,8 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.alertClaudeAI) private var alertClaudeAI: Bool = false
     @AppStorage(UserDefaultsKeys.alertClaudeCode) private var alertClaudeCode: Bool = false
     @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
+    @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
+    @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -538,6 +540,34 @@ private struct SettingsRow: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .padding(.leading, 58)
+
+            // Rate limit alerts
+            VStack(spacing: 2) {
+                HStack(spacing: 8) {
+                    Spacer()
+                        .frame(width: 50)
+                    Toggle("Rate Limit", isOn: $alertRateLimit)
+                        .toggleStyle(.checkbox)
+                        .font(.caption)
+                }
+                if alertRateLimit {
+                    HStack(spacing: 8) {
+                        Spacer()
+                            .frame(width: 50)
+                        Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
+                            .accessibilityLabel("Rate limit alert threshold")
+                            .accessibilityValue("\(Int(rateLimitThreshold)) percent")
+                        Text("\(Int(rateLimitThreshold))%")
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(width: 28, alignment: .trailing)
+                    }
+                    sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%"], leadingPad: 50)
+                    Text("Notify when rate limit usage exceeds threshold")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.leading, 58)
+                }
+            }
 
             // Launch at Login
             HStack(spacing: 8) {
