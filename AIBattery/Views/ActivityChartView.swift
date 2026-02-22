@@ -126,10 +126,16 @@ struct ActivityChartView: View {
             }
 
             if isEmpty {
-                Text("No activity data")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .frame(height: 40)
+                VStack(spacing: 4) {
+                    Image(systemName: "chart.line.flattrend.xyaxis")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.quaternary)
+                    Text("No activity data")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
             } else {
                 switch mode {
                 case .daily:

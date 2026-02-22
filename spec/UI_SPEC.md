@@ -121,12 +121,6 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence.
   - Slider + tick marks shown only when toggle is on
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
   - Syncs with `SMAppService.mainApp.status` on appear
-- **Export / Import** (at bottom of settings):
-  - "Export" button — copies settings JSON to clipboard via `SettingsManager.exportToClipboard()`
-  - "Import" button — reads clipboard JSON, applies via `SettingsManager.importFromClipboard()`
-  - Brief inline feedback message after each operation
-  - Excludes: accounts, activeAccountId, lastUpdateCheck, skipVersion
-
 **Animations**:
 - Settings toggle: `withAnimation(.easeInOut(duration: 0.2))` + `.transition(.opacity.combined(with: .move(edge: .top)))`
 - Metric mode changes: `.animation(.easeInOut(duration: 0.15), value: metricModeRaw)`
@@ -164,7 +158,8 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 most recent). Backward-compat
   - Left/right chevrons with `.easeInOut(0.15)` animation
   - Counter: monospaced caption2, e.g. `"1/3"`
   - Disabled states at bounds, `.quaternary` color when disabled
-- **Swipe gesture**: `DragGesture(minimumDistance: 50)` on main VStack — horizontal drag >50pt navigates prev/next session (same animation as chevron buttons)
+- **Swipe gesture**: `DragGesture(minimumDistance: 20)` on main VStack — horizontal drag >50pt or fast flick (velocity >300pt/s) navigates prev/next session (same animation as chevron buttons)
+- **VoiceOver**: `.accessibilityAdjustableAction` on section — increment/decrement maps to next/previous session
 - **Stale session badge** (if lastActivity > 30 min and band != .green): amber dot (6pt) + `"Idle Xm"` (.caption2, .orange)
 - **Expanded tooltip**: `.help()` on session info label with full details — session ID, model, context window, all timestamps, all token counts, warnings
 - **Refresh button**: `arrow.clockwise` 10pt, .secondary
@@ -223,7 +218,7 @@ Positioned below Insights. Compact chart with mode toggle.
 - Header row: `"Activity"` (.caption2, .secondary) + segmented picker (.segmented, width 120, scaleEffect 0.8)
 - Toggle modes: `"24H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
 - **Mode persistence**: `@AppStorage("aibattery_chartMode")` — persists across popover close/reopen
-- Empty state: `"No activity data"` (.caption2, .tertiary, 40pt height)
+- Empty state: centered VStack with `chart.line.flattrend.xyaxis` icon (14pt, .quaternary) + `"No activity data"` (.caption2, .tertiary), 50pt height
 
 Chart styling (all modes):
   - LineMark: `.orange`, 1.5pt stroke, catmullRom interpolation
@@ -261,12 +256,6 @@ Each button's inner HStack uses `.fixedSize()` to prevent text wrapping.
 - Accessible: combined label "Version X.Y.Z available. View or skip."
 
 Active incident banner below (if `incidentName` exists): triangle icon + incident name
-
-**Staleness indicator** (below incident banner, if `lastFreshFetch` exists):
-- HStack(spacing: 3): optional clock icon + label
-- When `isShowingCachedData`: `clock.arrow.circlepath` icon (8pt, orange) + "Updated Xm ago" (9pt, orange)
-- When fresh: "Updated just now" (9pt, gray 0.4 opacity)
-- Format: `< 60s` → "Updated just now", `< 1h` → "Updated Xm ago", `≥ 1h` → "Updated Xh ago"
 
 All text: .caption2, .secondary. Padding: H 16, V 8.
 

@@ -99,7 +99,6 @@ AIBattery/
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
-    SettingsManager.swift         — Settings export/import as JSON via clipboard
 Tests/AIBatteryCoreTests/
   Utilities/
     TokenFormatterTests.swift     — format() for 0, 500, 1K, 2.5K, 15K, 1M, 3.2M, 150M + negatives + boundaries
@@ -107,7 +106,6 @@ Tests/AIBatteryCoreTests/
     UserDefaultsKeysTests.swift   — prefix validation, uniqueness
     ClaudePathsTests.swift        — path suffixes, URL↔path consistency, absolute paths
     ThemeColorsTests.swift        — Color theme tests (both modes, all bands)
-    SettingsManagerTests.swift    — Settings round-trip, validation, security
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     PlanTierTests.swift           — fromBillingType() for all known tiers + unknown + empty

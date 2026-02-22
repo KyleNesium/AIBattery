@@ -461,31 +461,9 @@ public struct UsagePopoverView: View {
                 }
             }
 
-            // Staleness indicator
-            if let lastFetch = viewModel.lastFreshFetch {
-                HStack(spacing: 3) {
-                    if viewModel.isShowingCachedData {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 8))
-                            .foregroundStyle(ThemeColors.caution)
-                    }
-                    Text(Self.stalenessLabel(lastFetch))
-                        .font(.system(size: 9))
-                        .foregroundStyle(viewModel.isShowingCachedData ? ThemeColors.caution : Color.gray.opacity(0.4))
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Self.stalenessLabel(lastFetch) + (viewModel.isShowingCachedData ? ", showing cached data" : ""))
-            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-    }
-
-    private static func stalenessLabel(_ date: Date) -> String {
-        let elapsed = Date().timeIntervalSince(date)
-        if elapsed < 60 { return "Updated just now" }
-        if elapsed < 3600 { return "Updated \(Int(elapsed / 60))m ago" }
-        return "Updated \(Int(elapsed / 3600))h ago"
     }
 
     private var statusColor: Color {
@@ -521,8 +499,6 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
-    @State private var importMessage: String?
-    @State private var messageDismissTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -700,59 +676,11 @@ private struct SettingsRow: View {
                     }
             }
 
-            // Export / Import
-            HStack(spacing: 8) {
-                Text("Backup")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-                Button("Export") {
-                    if SettingsManager.exportToClipboard() {
-                        showFeedback("Copied to clipboard")
-                    } else {
-                        showFeedback("Export failed")
-                    }
-                }
-                .font(.caption)
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-                .help("Copy settings as JSON to clipboard")
-                Button("Import") {
-                    do {
-                        try SettingsManager.importFromClipboard()
-                        showFeedback("Settings imported")
-                    } catch {
-                        showFeedback(error.localizedDescription)
-                    }
-                }
-                .font(.caption)
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-                .help("Import settings from clipboard JSON")
-                if let msg = importMessage {
-                    Text(msg)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
 
-    /// Show a temporary feedback message that auto-dismisses after 2 seconds.
-    private func showFeedback(_ message: String) {
-        messageDismissTask?.cancel()
-        importMessage = message
-        messageDismissTask = Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.2)) {
-                importMessage = nil
-            }
-        }
-    }
 
     /// Editable name row for a single account.
     private func accountNameRow(_ account: AccountRecord, index: Int) -> some View {

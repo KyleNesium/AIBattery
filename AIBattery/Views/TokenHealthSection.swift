@@ -121,10 +121,13 @@ struct TokenHealthSection: View {
         .contentShape(Rectangle())
         .gesture(
             sessions.count > 1 ?
-            DragGesture(minimumDistance: 50)
+            DragGesture(minimumDistance: 20)
                 .onEnded { value in
                     let horizontal = value.translation.width
                     guard abs(horizontal) > abs(value.translation.height) else { return }
+                    // Accept either a long drag (>50pt) or a fast flick (velocity > 300pt/s)
+                    let velocity = abs(value.predictedEndTranslation.width - value.translation.width)
+                    guard abs(horizontal) > 50 || velocity > 300 else { return }
                     withAnimation(.easeInOut(duration: 0.15)) {
                         if horizontal < 0 {
                             selectedIndex = min(selectedIndex + 1, sessions.count - 1)
@@ -135,6 +138,19 @@ struct TokenHealthSection: View {
                 }
             : nil
         )
+        .accessibilityAdjustableAction { direction in
+            guard sessions.count > 1 else { return }
+            withAnimation(.easeInOut(duration: 0.15)) {
+                switch direction {
+                case .increment:
+                    selectedIndex = min(selectedIndex + 1, sessions.count - 1)
+                case .decrement:
+                    selectedIndex = max(selectedIndex - 1, 0)
+                @unknown default:
+                    break
+                }
+            }
+        }
     }
 
     /// Chevron buttons to cycle through sessions
