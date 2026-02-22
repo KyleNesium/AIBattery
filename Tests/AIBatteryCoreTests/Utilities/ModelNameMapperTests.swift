@@ -21,18 +21,18 @@ struct ModelNameMapperTests {
     // MARK: - Older models (3.x)
 
     @Test func displayName_claude3_5Sonnet() {
-        // "3-5-sonnet" → family "3", version "5.sonnet" → "3 5.sonnet"
-        #expect(ModelNameMapper.displayName(for: "claude-3-5-sonnet-20241022") == "3 5.sonnet")
+        // "3-5-sonnet" → version "3.5", family "Sonnet" → "Sonnet 3.5"
+        #expect(ModelNameMapper.displayName(for: "claude-3-5-sonnet-20241022") == "Sonnet 3.5")
     }
 
     @Test func displayName_claude3Opus() {
-        // "3-opus" → family "3", version "opus" → "3 opus"
-        #expect(ModelNameMapper.displayName(for: "claude-3-opus-20240229") == "3 opus")
+        // "3-opus" → version "3", family "Opus" → "Opus 3"
+        #expect(ModelNameMapper.displayName(for: "claude-3-opus-20240229") == "Opus 3")
     }
 
     @Test func displayName_claude3Haiku() {
-        // "3-haiku" → family "3", version "haiku" → "3 haiku"
-        #expect(ModelNameMapper.displayName(for: "claude-3-haiku-20240307") == "3 haiku")
+        // "3-haiku" → version "3", family "Haiku" → "Haiku 3"
+        #expect(ModelNameMapper.displayName(for: "claude-3-haiku-20240307") == "Haiku 3")
     }
 
     // MARK: - Edge cases
@@ -62,7 +62,7 @@ struct ModelNameMapperTests {
 
     @Test func displayName_multipleHyphens() {
         // "claude-3-5-haiku-20241022" → strip "claude-" → "3-5-haiku-20241022" → strip date → "3-5-haiku"
-        #expect(ModelNameMapper.displayName(for: "claude-3-5-haiku-20241022") == "3 5.haiku")
+        #expect(ModelNameMapper.displayName(for: "claude-3-5-haiku-20241022") == "Haiku 3.5")
     }
 
     @Test func displayName_justClaude() {

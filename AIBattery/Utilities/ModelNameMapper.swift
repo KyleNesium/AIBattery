@@ -24,10 +24,26 @@ enum ModelNameMapper {
         guard !name.isEmpty else { return modelId }
 
         // Convert "opus-4-6" -> "Opus 4.6", "sonnet-4-5" -> "Sonnet 4.5"
+        // Handle old format: "3-5-sonnet" -> "Sonnet 3.5", "3-opus" -> "Opus 3"
         let parts = name.split(separator: "-")
-        guard let family = parts.first else { return modelId }
+        guard let first = parts.first else { return modelId }
 
-        let familyName = family.prefix(1).uppercased() + family.dropFirst()
+        if first.first?.isNumber == true {
+            // Old format: version-first, e.g. "3-5-sonnet" or "3-opus"
+            let familyIndex = parts.firstIndex { $0.first?.isNumber == false } ?? parts.endIndex
+            let versionParts = parts[parts.startIndex..<familyIndex]
+            let familyParts = parts[familyIndex...]
+
+            let familyName = familyParts.map { String($0.prefix(1)).uppercased() + $0.dropFirst() }.joined(separator: " ")
+            let version = versionParts.joined(separator: ".")
+
+            if familyName.isEmpty { return version.isEmpty ? modelId : version }
+            if version.isEmpty { return familyName }
+            return "\(familyName) \(version)"
+        }
+
+        // New format: family-first, e.g. "opus-4-6"
+        let familyName = first.prefix(1).uppercased() + first.dropFirst()
         let version = parts.dropFirst().joined(separator: ".")
 
         if version.isEmpty {
