@@ -10,6 +10,7 @@ public struct UsagePopoverView: View {
     @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.compactBars) private var compactBars: Bool = false
+    @AppStorage(UserDefaultsKeys.hasSeenTutorial) private var hasSeenTutorial: Bool = false
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -132,6 +133,11 @@ public struct UsagePopoverView: View {
         }
         .frame(width: 275)
         .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
+        .overlay {
+            if !hasSeenTutorial && viewModel.snapshot != nil {
+                TutorialOverlay()
+            }
+        }
     }
 
     private var accounts: [AccountRecord] {
