@@ -55,6 +55,7 @@ struct UsageBar: View {
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 3))
+                            .accessibilityLabel("Binding constraint")
                     }
                     if isThrottled {
                         Image(systemName: "exclamationmark.triangle.fill")

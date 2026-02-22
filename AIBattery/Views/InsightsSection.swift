@@ -16,6 +16,8 @@ struct InsightsSection: View {
                     .font(.system(.caption, design: .monospaced))
                     .copyable(todayStats)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Today: \(snapshot.todayMessages) messages, \(snapshot.todaySessions) sessions, \(snapshot.todayToolCalls) tool calls")
 
             // Totals
             HStack {
@@ -28,6 +30,8 @@ struct InsightsSection: View {
                     .font(.system(.caption, design: .monospaced))
                     .copyable(allTimeStats)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

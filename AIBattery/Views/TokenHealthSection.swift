@@ -80,6 +80,8 @@ struct TokenHealthSection: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : ModelNameMapper.displayName(for: health.model))")
 
             // Recommended minimum context hint
             if health.band == .orange || health.band == .red {

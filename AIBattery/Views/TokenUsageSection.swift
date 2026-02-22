@@ -91,13 +91,15 @@ struct TokenUsageSection: View {
                         HStack(spacing: 10) {
                             Spacer()
                                 .frame(width: 14)
-                            TokenTag(icon: "arrow.up", label: TokenFormatter.format(model.inputTokens))
-                            TokenTag(icon: "arrow.down", label: TokenFormatter.format(model.outputTokens))
-                            TokenTag(icon: "doc.on.doc", label: TokenFormatter.format(model.cacheReadTokens))
-                            TokenTag(icon: "square.and.pencil", label: TokenFormatter.format(model.cacheWriteTokens))
+                            TokenTag(icon: "arrow.up", label: TokenFormatter.format(model.inputTokens), accessibilityName: "input")
+                            TokenTag(icon: "arrow.down", label: TokenFormatter.format(model.outputTokens), accessibilityName: "output")
+                            TokenTag(icon: "doc.on.doc", label: TokenFormatter.format(model.cacheReadTokens), accessibilityName: "cache read")
+                            TokenTag(icon: "square.and.pencil", label: TokenFormatter.format(model.cacheWriteTokens), accessibilityName: "cache write")
                             Spacer()
                         }
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(model.displayName), \(TokenFormatter.format(model.totalTokens)) tokens: \(TokenFormatter.format(model.inputTokens)) input, \(TokenFormatter.format(model.outputTokens)) output, \(TokenFormatter.format(model.cacheReadTokens)) cache read, \(TokenFormatter.format(model.cacheWriteTokens)) cache write")
                 }
             }
         }
@@ -109,6 +111,7 @@ struct TokenUsageSection: View {
 private struct TokenTag: View {
     let icon: String
     let label: String
+    var accessibilityName: String = ""
 
     var body: some View {
         HStack(spacing: 2) {
@@ -119,5 +122,6 @@ private struct TokenTag: View {
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(.tertiary)
         }
+        .accessibilityLabel("\(accessibilityName) \(label)")
     }
 }
