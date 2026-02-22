@@ -108,30 +108,6 @@ struct VersionCheckerTests {
         #expect(version == "0.0.0" || version.contains("."))
     }
 
-    // MARK: - skipVersion
-
-    @Test @MainActor func skipVersion_persistsToUserDefaults() {
-        let original = UserDefaults.standard.string(forKey: UserDefaultsKeys.skipVersion)
-        defer {
-            if let original { UserDefaults.standard.set(original, forKey: UserDefaultsKeys.skipVersion) }
-            else { UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.skipVersion) }
-        }
-
-        let checker = VersionChecker(releaseURL: URL(string: "https://example.com")!)
-        checker.skipVersion("2.0.0")
-
-        #expect(UserDefaults.standard.string(forKey: UserDefaultsKeys.skipVersion) == "2.0.0")
-    }
-
-    @Test @MainActor func skipVersion_clearsCachedUpdate() {
-        let checker = VersionChecker(releaseURL: URL(string: "https://example.com")!)
-        checker.cachedUpdate = VersionChecker.UpdateInfo(version: "2.0.0", url: "https://example.com")
-
-        checker.skipVersion("2.0.0")
-
-        #expect(checker.cachedUpdate == nil)
-    }
-
     // MARK: - Cache behavior
 
     @Test @MainActor func checkForUpdate_returnsCachedWithinInterval() async {

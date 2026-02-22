@@ -90,6 +90,10 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
   - `.menuStyle(.borderlessButton)`, `.fixedSize()`
 - Gear button: `gearshape`, 11pt, toggles Settings panel
 - Loading spinner: ProgressView at 0.6 scale
+- **Update status indicator** (shown below title row, mutually exclusive with "Up to date"):
+  - If `viewModel.availableUpdate` exists: yellow `arrow.down.circle.fill` (9pt) + `"vX.Y.Z available"` (.caption2, .secondary, lineLimit 1) + "View" button (.caption2, .blue, opens release URL). Persistent until next check clears it.
+  - If `updateCheckMessage` set and no update: green `checkmark.circle.fill` (9pt) + message (.caption2, .secondary). Auto-dismisses after 2.5s.
+  - Both use `.transition(.opacity.combined(with: .move(edge: .top)))`, `.padding(.leading, 1)`
 - Padding: H 16, V 10
 
 ### ❶b Settings (`SettingsRow` — private struct)
@@ -204,9 +208,7 @@ Padding: H 16, V 12
 ### ❻ Insights (`Views/InsightsSection.swift`)
 
 - Today: `"Today"` label (.caption, .secondary) + `"{msgs} msgs · {sessions} sessions · {tools} tools"` (.caption, monospaced)
-- **Trend arrow**: after today stats, trend direction indicator (↑ orange / ↓ green / → gray) with projected total when available
 - All Time: `"All Time"` label (.caption, .secondary) + `"{messages} msgs · {sessions} sessions"` (.caption, monospaced)
-- **Busiest day**: after all-time stats, shows `"Busiest: {dayName} avg {count}"` (.caption2, .tertiary) when available
 - Each row: label left, stats right (HStack with Spacer)
 
 Padding: H 16, V 12
@@ -238,7 +240,12 @@ Data per mode:
   - **7D**: `dailyActivity` last 7 days (rolling window) → daily message counts
   - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window
 
-Padding: H 16, V 8
+**Trend summary** (below chart, always visible when snapshot available):
+- Single HStack row: trend arrow (colored per `ThemeColors.trendColor`) + vs-yesterday change (monospaced, colored) + `·` separator + daily average (monospaced, .tertiary) + Spacer + busiest day label (.tertiary)
+- Example: `↑ +5 msgs  ·  42 avg/day          Tuesdays peak`
+- `.padding(.top, 2)`, `.help("Weekly trend: this week vs last week")`
+
+Padding: H 16, V 12
 
 ### ❼ Footer (`UsagePopoverView.footerSection`)
 
@@ -249,15 +256,11 @@ Links row in HStack (spacing 6):
 4. **Logout**: rectangle.portrait.and.arrow.right icon (9pt) + "Logout" → clears OAuth tokens
 5. **Quit**: xmark.circle icon (9pt) + "Quit" → terminates app
 
-Each button's inner HStack uses `.fixedSize()` to prevent text wrapping.
+Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links row spacing: 10pt.
 
-**Update available banner** (if `viewModel.availableUpdate` exists, before incident banner):
-- HStack: arrow.down.circle.fill icon (.caption2, .blue) + "vX.Y.Z available" (.caption2, .secondary) + Spacer + "View" button (.blue, opens release URL) + "Skip" button (.secondary, persists skip version)
-- Accessible: combined label "Version X.Y.Z available. View or skip."
+Active incident banner (if `incidentName` exists): triangle icon + incident name
 
-Active incident banner below (if `incidentName` exists): triangle icon + incident name
-
-All text: .caption2, .secondary. Padding: H 16, V 8.
+All text: .caption2, .secondary. Padding: H 16, V 10.
 
 Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray
 
@@ -298,7 +301,7 @@ HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monosp
 - **TokenUsageSection**: header ("Total tokens used across all models"), active indicator ("Active model in current session"), token type tags (input/output/cache read/cache write)
 - **TokenHealthSection**: context gauge ("Percentage of usable context window consumed"), turns label, safe minimum hint, expanded session details tooltip
 - **ActivityChartView**: mode picker ("Switch activity chart time range")
-- **InsightsSection**: today/all-time labels, trend arrow
+- **InsightsSection**: today/all-time labels
 - **UsagePopoverView**: metric mode picker
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)

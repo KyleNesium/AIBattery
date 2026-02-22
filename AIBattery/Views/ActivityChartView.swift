@@ -37,7 +37,6 @@ struct ActivityChartView: View {
     var snapshot: UsageSnapshot? = nil
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
-    @State private var showTrendDetail = false
 
     private var mode: ActivityChartMode {
         ActivityChartMode(rawValue: modeRaw) ?? .hourly
@@ -147,9 +146,9 @@ struct ActivityChartView: View {
                 }
             }
 
-            // Trend toggle
+            // Trend summary
             if let snapshot {
-                trendToggle(snapshot)
+                trendSummary(snapshot)
             }
         }
         .padding(.horizontal, 16)
@@ -295,67 +294,39 @@ struct ActivityChartView: View {
 
     // MARK: - Trend
 
-    private func trendToggle(_ snapshot: UsageSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    showTrendDetail.toggle()
-                }
-            }) {
-                HStack(spacing: 4) {
-                    Text(snapshot.trendDirection.symbol)
-                        .font(.caption)
-                        .foregroundStyle(ThemeColors.trendColor(snapshot.trendDirection))
-                    Text("Trend")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Image(systemName: showTrendDetail ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 7, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .buttonStyle(.plain)
-            .help("Weekly trend: this week vs last week")
-            .accessibilityLabel("Trend \(snapshot.trendDirection.accessibilityLabel)")
-            .accessibilityHint(showTrendDetail ? "Collapse trend details" : "Expand trend details")
+    private func trendSummary(_ snapshot: UsageSnapshot) -> some View {
+        HStack(spacing: 0) {
+            // Trend arrow + vs yesterday
+            Text(snapshot.trendDirection.symbol)
+                .font(.caption2)
+                .foregroundStyle(ThemeColors.trendColor(snapshot.trendDirection))
 
-            if showTrendDetail {
-                trendDetailView(snapshot)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding(.top, 4)
-    }
-
-    private static let trendLabelWidth: CGFloat = 55
-
-    private func trendDetailView(_ snapshot: UsageSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
             if let change = changeVsYesterday(snapshot) {
-                trendRow("vs Yesterday", value: change.label, color: change.color)
-            }
-
-            if let busiest = snapshot.busiestDayOfWeek {
-                trendRow("Busiest", value: "\(busiest.name)s \u{00B7} ~\(busiest.averageCount) avg")
+                Text(" \(change.label)")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(change.color)
             }
 
             if snapshot.dailyAverage > 0 {
-                trendRow("Daily Avg", value: "\(snapshot.dailyAverage) msgs/day")
+                Text("  \u{00B7}  ")
+                    .font(.caption2)
+                    .foregroundStyle(.quaternary)
+                Text("\(snapshot.dailyAverage) avg/day")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            if let busiest = snapshot.busiestDayOfWeek {
+                Text("\(busiest.name)s peak")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
         }
-    }
-
-    private func trendRow(_ label: String, value: String, color: Color = .secondary) -> some View {
-        HStack {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .frame(width: Self.trendLabelWidth, alignment: .leading)
-            Spacer()
-            Text(value)
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(color)
-        }
+        .padding(.top, 2)
+        .help("Weekly trend: this week vs last week")
+        .accessibilityLabel("Trend \(snapshot.trendDirection.accessibilityLabel)")
     }
 
     private struct ChangeInfo {

@@ -39,7 +39,6 @@ public final class VersionChecker {
             return cachedUpdate
         }
 
-        let skipVersion = UserDefaults.standard.string(forKey: UserDefaultsKeys.skipVersion)
         let currentVersion = Self.currentAppVersion
 
         do {
@@ -66,10 +65,6 @@ public final class VersionChecker {
             UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: UserDefaultsKeys.lastUpdateCheck)
 
             if Self.isNewer(latestVersion, than: currentVersion) {
-                if skipVersion == latestVersion {
-                    cachedUpdate = nil
-                    return nil
-                }
                 let update = UpdateInfo(version: latestVersion, url: htmlURL)
                 cachedUpdate = update
                 return update
@@ -89,12 +84,6 @@ public final class VersionChecker {
         lastCheck = nil
         cachedUpdate = nil
         return await checkForUpdate()
-    }
-
-    /// Dismiss the update for a specific version.
-    func skipVersion(_ version: String) {
-        UserDefaults.standard.set(version, forKey: UserDefaultsKeys.skipVersion)
-        cachedUpdate = nil
     }
 
     // MARK: - Semver Comparison
