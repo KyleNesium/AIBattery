@@ -114,7 +114,7 @@ Click the ✦ icon to open the dashboard:
 |---|---|
 | **Rate Limits** | 5-hour burst + 7-day sustained — utilization %, reset countdown, binding indicator |
 | **Context Health** | 5 most recent sessions with `< 1/5 >` navigation |
-| **Tokens** | Per-model breakdown with input/output/cache read/cache write |
+| **Tokens** | Per-model breakdown with input/output/cache read/cache write · optional API cost |
 | **Insights** | Today's messages/sessions/tools, all-time stats |
 | **Activity** | Sparkline chart — 24H · 7D · 12M toggle |
 
@@ -182,9 +182,14 @@ Click ⚙️ in the header to configure:
 | **Add Account** | Connect a second Claude account (up to 2) |
 | **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | **Models** | Only show models used within period: 1–7 days or All |
+| **Display → API Cost** | Show what your token usage would cost at Anthropic's published API rates |
 | **Alerts** | Notify when Claude.ai or Claude Code goes down (separate toggles) |
+| **Alerts → Rate Limit** | Notify when rate limit usage crosses a threshold (50–95%, default 80%) |
+| **Startup** | Launch AI Battery automatically at login |
 
-The footer shows a **staleness indicator** — "Updated just now" when fresh, or "Updated Xm ago" in orange when using cached data.
+The footer shows a **staleness indicator** — "Updated just now" when fresh, or "Updated Xm ago" in orange when using cached data. An **update banner** appears when a new version is available on GitHub — click **View** to open the release or **Skip** to dismiss.
+
+**Tip:** Click any stat value (percentages, token counts, costs) to copy it to the clipboard.
 
 </td>
 <td width="45%" align="center">
@@ -192,6 +197,14 @@ The footer shows a **staleness indicator** — "Updated just now" when fresh, or
 </td>
 </tr>
 </table>
+
+## API Cost
+
+Enable in **Settings → Display → API Cost** to see dollar amounts in the Tokens section.
+
+This shows what your token usage **would cost at Anthropic's published API per-token rates** — it's not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token. The estimate is useful for understanding the value of your usage and comparing the economics of subscription vs. API billing.
+
+Pricing uses Anthropic's published rates for input, output, cache read, and cache write tokens per model. Total and per-model costs appear inline.
 
 ## FAQ
 
@@ -216,7 +229,7 @@ Rate limits (5-hour / 7-day) always work immediately since they come from the AP
 ## Privacy
 
 - Reads local JSONL for token counts only — **never your message content**
-- Network calls: `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status)
+- Network calls: `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · `api.github.com` (update check, once/24h)
 - Status checks back off for 60 seconds after failures — no hammering downed services
 - No analytics. No telemetry. No tracking.
 

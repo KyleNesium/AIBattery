@@ -118,8 +118,8 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence (exce
   - Hint: `"Notify when service is down"` (.caption2, .tertiary)
   - On enable: calls `NotificationManager.shared.requestPermission()`
 
-- **Display**: "Cost" checkbox → `aibattery_showCostEstimate` (Bool, default false)
-  - Hint: `"Estimated cost based on published pricing"` (.caption2, .tertiary)
+- **Display**: "API Cost" checkbox → `aibattery_showCostEstimate` (Bool, default false)
+  - Hint: `"Equivalent cost at API token rates"` (.caption2, .tertiary)
   - When enabled, shows $ amounts in Tokens section (header total + per-model inline)
 - **Rate Limit**: Toggle + threshold slider (50–95%, step 5, default 80%)
   - Hint: `"Notify when rate limit usage exceeds threshold"` (.caption2, .tertiary)

@@ -558,11 +558,11 @@ private struct SettingsRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
-                Toggle("Cost", isOn: $showCostEstimate)
+                Toggle("API Cost", isOn: $showCostEstimate)
                     .toggleStyle(.checkbox)
                     .font(.caption)
             }
-            Text("Estimated cost based on published pricing")
+            Text("Equivalent cost at API token rates")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .padding(.leading, 58)

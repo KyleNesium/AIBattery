@@ -200,7 +200,7 @@ JSONL line schema (Codable):
 
 ### ModelPricing (`Models/ModelPricing.swift`)
 
-Per-model pricing for cost estimation. Shows API-rate-equivalent cost — Pro/Max users aren't billed per-token.
+Per-model pricing for API cost equivalence. Shows what the same token usage would cost at Anthropic's published API per-token rates — Pro/Max/Teams subscribers aren't billed per-token.
 
 | Field | Type |
 |-------|------|

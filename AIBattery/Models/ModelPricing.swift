@@ -1,8 +1,9 @@
 import Foundation
 
-/// Per-model pricing for cost estimation.
-/// Prices are per million tokens. Shows API-rate-equivalent cost —
-/// Pro/Max users aren't billed per-token.
+/// Per-model pricing for API cost equivalence.
+/// Prices are per million tokens from Anthropic's published API rates.
+/// Shows what the same token usage would cost on the pay-per-token API —
+/// Pro/Max/Teams subscribers aren't billed per-token.
 struct ModelPricing {
     let inputPerMillion: Double
     let outputPerMillion: Double
