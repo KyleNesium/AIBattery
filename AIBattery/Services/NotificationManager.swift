@@ -10,6 +10,12 @@ public final class NotificationManager {
     /// Tracks whether we already fired for each key while condition was active.
     private var hasFired: [String: Bool] = [:]
 
+    /// Pending alerts queued for batching (flushed after 500ms).
+    private var pendingAlerts: [(title: String, body: String)] = []
+    private var flushTimer: DispatchSourceTimer?
+    private let flushQueue = DispatchQueue(label: "com.KyleNesium.AIBattery.notifications")
+    private static let batchDelay: TimeInterval = 0.5
+
     private init() {}
 
     // MARK: - Public
@@ -96,10 +102,51 @@ public final class NotificationManager {
         }
     }
 
+    /// Queue a notification for batched delivery.
+    /// If multiple alerts arrive within 500ms, they are combined into a single notification.
+    private func send(title: String, body: String) {
+        flushQueue.async { [weak self] in
+            guard let self else { return }
+            self.pendingAlerts.append((title: title, body: body))
+
+            // Start or restart the flush timer
+            self.flushTimer?.cancel()
+            let timer = DispatchSource.makeTimerSource(queue: self.flushQueue)
+            timer.schedule(deadline: .now() + Self.batchDelay)
+            timer.setEventHandler { [weak self] in
+                self?.flushPendingAlerts()
+            }
+            timer.resume()
+            self.flushTimer = timer
+        }
+    }
+
+    /// Flush pending alerts — single alert sent as-is, multiple combined.
+    private func flushPendingAlerts() {
+        let alerts = pendingAlerts
+        pendingAlerts.removeAll()
+        flushTimer?.cancel()
+        flushTimer = nil
+
+        guard !alerts.isEmpty else { return }
+
+        let title: String
+        let body: String
+        if alerts.count == 1 {
+            title = alerts[0].title
+            body = alerts[0].body
+        } else {
+            title = "AI Battery: Multiple alerts"
+            body = alerts.map(\.body).joined(separator: "\n")
+        }
+
+        deliverNotification(title: title, body: body)
+    }
+
     /// Deliver notification via osascript — works reliably for unsigned menu bar apps.
     /// Process.arguments bypasses the shell (uses execve directly), so shell metacharacters
     /// like $ and ` are safe. We only need to escape AppleScript string delimiters.
-    private func send(title: String, body: String) {
+    private func deliverNotification(title: String, body: String) {
         let script = "display notification \(applescriptQuoted(body)) with title \(applescriptQuoted(title)) sound name \"default\""
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
