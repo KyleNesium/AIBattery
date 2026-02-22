@@ -173,9 +173,12 @@ public final class OAuthManager: ObservableObject {
         let code = parts.first.map(String.init) ?? rawCode
 
         // Validate state parameter (CSRF protection)
-        if parts.count >= 2, let expectedState {
+        if let expectedState {
+            guard parts.count >= 2 else {
+                return .failure(.unknownError("Missing state parameter. Please try again."))
+            }
             let returnedState = String(parts[1])
-            if returnedState != expectedState {
+            guard !returnedState.isEmpty, returnedState == expectedState else {
                 return .failure(.unknownError("State mismatch — possible CSRF attack. Please try again."))
             }
         }
@@ -371,6 +374,12 @@ public final class OAuthManager: ObservableObject {
                 // Retry on rate limit (429) and transient server errors (5xx)
                 if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
                     AppLogger.oauth.warning("Token endpoint returned \(http.statusCode), attempt \(attempt + 1)/\(Self.maxRetries + 1)")
+                    // Honor Retry-After header on 429 if present
+                    if http.statusCode == 429,
+                       let retryAfter = http.value(forHTTPHeaderField: "Retry-After"),
+                       let seconds = Double(retryAfter), seconds > 0, seconds <= 60 {
+                        try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                    }
                     lastError = .serverError(http.statusCode)
                     continue
                 }

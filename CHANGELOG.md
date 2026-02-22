@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.1] — 2026-02-22
+
+### Improved
+- **Session carousel** — lower drag threshold (20pt) with velocity detection for snappier swipe navigation
+- **VoiceOver session navigation** — added adjustable action (increment/decrement) for accessible session browsing
+- **Empty chart placeholder** — icon + text instead of plain text label
+- **Account switch reliability** — identity resolution now runs after stale-result guard, preventing unnecessary Keychain writes
+- **PKCE state validation** — rejects missing or empty state parameters (previously only checked mismatches)
+- **429 Retry-After** — OAuthManager now honors `Retry-After` header on rate-limited token requests
+- Corrected README test counts to match actual (335 tests across 25 files)
+
+### Removed
+- **Settings export/import** — removed (OAuth tokens are Keychain-bound and can't be exported; a clipboard-only preferences backup wasn't useful)
+- **Staleness indicator** — removed "Updated just now" label from popover footer (menu bar staleness dimming still works)
+
 ## [1.2.0] — 2026-02-22
 
 ### Added
@@ -18,7 +33,6 @@
 - **Swipe navigation** — horizontal drag gesture to browse between sessions in Context Health
 - **Colorblind mode** — blue/cyan/amber/purple palette via centralized `ThemeColors`
 - **First-launch tutorial** — 3-step walkthrough overlay (Rate Limits, Context Health, Settings)
-- **Settings export/import** — copy/paste settings as JSON via clipboard
 - **Manual update check** — arrow button in header to force-check for new versions, with "Up to date" feedback
 - **Update checker** — footer banner when new GitHub release available, with skip option
 - **Tokens/Activity/Cost display toggles** in Settings
@@ -33,7 +47,7 @@
 - Cleaned up menu bar label to show only percentage and version
 - CI now caches SPM dependencies and skips redundant builds
 - Build script uses canonical Info.plist instead of inline heredoc
-- Extended test coverage (358 tests across 26 files)
+- Extended test coverage
 
 ## [1.1.0] — 2026-02-21
 

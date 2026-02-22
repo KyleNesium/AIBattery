@@ -444,15 +444,6 @@ Pricing table (per million tokens):
 - Categories: `general`, `oauth`, `network`, `files`
 - Used throughout services for structured logging (replaces bare `print()` calls)
 
-### SettingsManager (`Utilities/SettingsManager.swift`)
-- Enum (no instances)
-- `exportableKeys: [String]` — all user-configurable preference keys, excludes accounts, tokens, update state
-- `exportSettings() -> Data` — JSON export of exportable keys from UserDefaults
-- `importSettings(from data: Data) throws` — validate JSON, apply only known keys
-- `exportToClipboard()` — exports to `NSPasteboard.general`
-- `importFromClipboard() throws` — reads from clipboard, validates, applies
-- `SettingsError`: `.invalidFormat`, `.emptyClipboard`
-
 ### ThemeColors (`Utilities/ThemeColors.swift`)
 - Enum (no instances)
 - Reads `UserDefaultsKeys.colorblindMode` to switch palettes

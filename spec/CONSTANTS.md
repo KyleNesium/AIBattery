@@ -147,14 +147,6 @@ Pricing per million tokens:
 | Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
 
-## Settings Export/Import
-
-| Constant | Value |
-|----------|-------|
-| Transport | Clipboard (JSON) |
-| Exported keys | metricMode, refreshInterval, tokenWindowDays, alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold, chartMode, showCostEstimate, showTokens, showActivity, launchAtLogin, colorblindMode |
-| Excluded keys | accounts, activeAccountId, lastUpdateCheck, skipVersion, hasSeenTutorial |
-
 ## Launch at Login
 
 | Constant | Value |

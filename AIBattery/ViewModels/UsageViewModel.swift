@@ -71,6 +71,11 @@ public final class UsageViewModel: ObservableObject {
             lastFreshFetch = api.fetchedAt
         }
 
+        // Guard: if user switched accounts while we were fetching, discard stale results.
+        // The new account's refresh() is already in flight from switchAccount().
+        let currentActiveId = oauthManager.accountStore.activeAccountId
+        guard accountId == currentActiveId else { return }
+
         // Resolve pending account identity from API response
         if let id = accountId, let orgId = api.profile?.organizationId {
             let account = oauthManager.accountStore.accounts.first { $0.id == id }
@@ -91,11 +96,6 @@ public final class UsageViewModel: ObservableObject {
                 errorMessage = "Account identity could not be confirmed. Try removing and re-adding this account."
             }
         }
-
-        // Guard: if user switched accounts while we were fetching, discard stale results.
-        // The new account's refresh() is already in flight from switchAccount().
-        let currentActiveId = oauthManager.accountStore.activeAccountId
-        guard accountId == currentActiveId else { return }
 
         // Aggregate on background thread — purely local, no timeout needed.
         let aggregator = self.aggregator
