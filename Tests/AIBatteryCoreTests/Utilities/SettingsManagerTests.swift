@@ -5,7 +5,7 @@ import Foundation
 @Suite("SettingsManager")
 struct SettingsManagerTests {
 
-    @Test func exportSettings_returnsValidJSON() {
+    @Test func exportSettings_returnsValidJSON() throws {
         let data = try #require(SettingsManager.exportSettings())
         let json = try? JSONSerialization.jsonObject(with: data)
         #expect(json != nil)
