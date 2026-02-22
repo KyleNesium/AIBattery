@@ -3,56 +3,39 @@ import SwiftUI
 struct InsightsSection: View {
     let snapshot: UsageSnapshot
 
+    /// Fixed width for left-side labels so values align in a clean column.
+    private let labelWidth: CGFloat = 55
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Today's activity with trend
+            // Today's activity
             HStack {
-                HStack(spacing: 4) {
-                    Text("Today")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .help("Activity since midnight")
-                    Text(snapshot.trendDirection.symbol)
-                        .font(.caption)
-                        .foregroundStyle(trendColor)
-                        .accessibilityHidden(true)
-                        .help("Weekly trend: this week vs last week")
-                }
+                Text("Today")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: labelWidth, alignment: .leading)
+                    .help("Activity since midnight")
                 Spacer()
-                let projected = snapshot.projectedTodayTotal
-                let todayStats = "\(snapshot.todayMessages) msgs \u{00B7} \(snapshot.todaySessions) sessions \u{00B7} \(snapshot.todayToolCalls) tools"
-                HStack(spacing: 4) {
-                    Text(todayStats)
-                        .font(.system(.caption, design: .monospaced))
-                        .copyable(todayStats)
-                    if projected > snapshot.todayMessages {
-                        Text("(\u{2192}\(projected))")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+                Text(todayStats)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .copyable(todayStats)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Today: \(snapshot.todayMessages) messages, \(snapshot.todaySessions) sessions, \(snapshot.todayToolCalls) tool calls, trend \(snapshot.trendDirection.accessibilityLabel)")
+            .accessibilityLabel("Today: \(snapshot.todayMessages) messages, \(snapshot.todaySessions) sessions\(snapshot.todayToolCalls > 0 ? ", \(snapshot.todayToolCalls) tool calls" : "")")
 
-            // Totals + busiest day
+            // All time totals
             HStack {
                 Text("All Time")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(width: labelWidth, alignment: .leading)
                     .help("Cumulative activity across all sessions")
                 Spacer()
-                let allTimeStats = "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions"
-                HStack(spacing: 4) {
-                    Text(allTimeStats)
-                        .font(.system(.caption, design: .monospaced))
-                        .copyable(allTimeStats)
-                    if let busiest = snapshot.busiestDayOfWeek {
-                        Text("\u{00B7} \(busiest.name)s")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+                Text(allTimeStats)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .copyable(allTimeStats)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
@@ -61,11 +44,16 @@ struct InsightsSection: View {
         .padding(.vertical, 12)
     }
 
-    private var trendColor: Color {
-        switch snapshot.trendDirection {
-        case .up: return .orange
-        case .down: return .green
-        case .flat: return .secondary
+    // MARK: - Computed strings
+
+    private var todayStats: String {
+        if snapshot.todayToolCalls > 0 {
+            return "\(snapshot.todayMessages) msgs \u{00B7} \(snapshot.todaySessions) sess \u{00B7} \(snapshot.todayToolCalls) tools"
         }
+        return "\(snapshot.todayMessages) msgs \u{00B7} \(snapshot.todaySessions) sessions"
+    }
+
+    private var allTimeStats: String {
+        "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions"
     }
 }

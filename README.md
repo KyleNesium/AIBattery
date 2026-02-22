@@ -128,9 +128,9 @@ OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **2 account
 | **3** | Sign in → copy the authorization code |
 | **4** | Paste into AI Battery → done |
 
-To add a second account: click the account name in the header → **Add Account**, or open Settings → **Add Account**.
+To add a second account: click the account dropdown in the header → **Add Account**, or open Settings → **Add Account**.
 
-Switch between accounts by clicking the account name dropdown in the header. Each account has its own rate limits, tokens, and identity.
+Switch between accounts by clicking the account dropdown in the header. Each account has its own rate limits, tokens, and identity.
 
 <details>
 <summary>🔑 <strong>Session details</strong></summary>
@@ -161,7 +161,7 @@ Both are one-time prompts. Neither will appear again after the first launch.
 AI Battery makes a minimal API call each refresh cycle to read your rate limit headers. It also reads local JSONL session logs for token counts and context health — **never your message content**.
 
 ```
-✦ 71% · ACME          ← menu bar: selected metric + org
+✦ 71%                 ← menu bar: selected metric
 ```
 
 Click the ✦ icon to open the dashboard:
@@ -246,14 +246,12 @@ Click ⚙️ in the header to configure:
 
 | Setting | What it does |
 |---|---|
-| 👤 **Account names** | Per-account display name shown in the header |
 | ➕ **Add Account** | Connect a second Claude account (up to 2) |
+| ✏️ **Account names** | Custom label per account (shown in picker + menu bar) |
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | 🤖 **Models** | Only show models used within period: 1–7 days or All |
-| 💲 **Cost~** | Show equivalent API token rates |
-| 🔢 **Decimal** | One decimal place in menu bar (e.g. `42.5%`) |
-| 📏 **Compact** | Collapse non-selected bars into a single line |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
+| 💲 **Cost*** | Show equivalent API token rates |
 | 🔔 **Alerts** | Notify on Claude.ai / Claude Code outages |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
 | 🚀 **Launch at Login** | Start automatically when you log in |
@@ -275,7 +273,7 @@ The footer shows a **staleness indicator** and an **update banner** when a new v
 
 ## 💰 API Cost
 
-Enable in **Settings → Display → Cost~** to see dollar amounts in the Tokens section.
+Enable in **Settings → Display → Cost*** to see dollar amounts in the Tokens section.
 
 This shows what your token usage **would cost at Anthropic's published API per-token rates** — it's not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token. The estimate is useful for understanding the value of your usage and comparing the economics of subscription vs. API billing.
 
@@ -302,13 +300,6 @@ Rate limits (5-hour / 7-day) always work immediately since they come from the AP
 <summary><strong>Green ✦ at 0%?</strong></summary>
 
 Credits just reset, or no usage yet — this is normal.
-
-</details>
-
-<details>
-<summary><strong>Wrong org?</strong></summary>
-
-Org names come from the API automatically. Click the account name to see which account is active.
 
 </details>
 
@@ -406,6 +397,16 @@ AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) i
 ## 🤝 Contributing
 
 Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) first. See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+## 🧪 Test Coverage
+
+**358 tests** across 26 test files.
+
+| Area | Tests | What's covered |
+|------|-------|----------------|
+| Models | 140 | Token summaries, rate limit parsing, plan tiers, health status, metric modes, API profiles, session entries, account records, stats cache, usage snapshots (projections, trends, busiest day) |
+| Services | 142 | Version checker (semver comparison, tag stripping, cache behavior, force check, skip version), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence) |
+| Utilities | 76 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), settings manager (export/import round-trip, defaults completeness, type preservation), UserDefaults keys (prefix, uniqueness), model pricing (cost calculation, formatting) |
 
 ## 📄 License
 

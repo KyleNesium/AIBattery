@@ -10,7 +10,6 @@ public struct AccountRecord: Codable, Identifiable, Equatable {
     /// Organization ID from the API, or `"pending-<UUID>"` before first fetch.
     public var id: String
     public var displayName: String?
-    public var organizationName: String?
     public var billingType: String?
     public var addedAt: Date
 

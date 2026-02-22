@@ -1,11 +1,13 @@
 import SwiftUI
 import AppKit
 
-/// Adds click-to-copy behavior with hover highlight and brief green checkmark feedback.
+/// Adds click-to-copy behavior with hover highlight and clipboard icon feedback.
 struct CopyableModifier: ViewModifier {
     let value: String
-    @State private var showCheck = false
+    @State private var copied = false
     @State private var isHovered = false
+    /// Tracks the active feedback task so rapid taps restart the timer.
+    @State private var feedbackTask: Task<Void, Never>?
 
     func body(content: Content) -> some View {
         content
@@ -16,12 +18,12 @@ struct CopyableModifier: ViewModifier {
                     .fill(isHovered ? Color.primary.opacity(0.08) : Color.clear)
             )
             .overlay(alignment: .trailing) {
-                if showCheck {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.green)
-                        .transition(.opacity)
-                        .padding(.trailing, -12)
+                if copied {
+                    Image(systemName: "doc.on.clipboard.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .transition(.scale.combined(with: .opacity))
+                        .padding(.trailing, -13)
                 }
             }
             .onHover { hovering in
@@ -32,20 +34,27 @@ struct CopyableModifier: ViewModifier {
                     NSCursor.pop()
                 }
             }
-            .help(value)
+            .help("Click to copy: \(value)")
             .onTapGesture {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(value, forType: .string)
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    showCheck = true
+
+                // Cancel any previous feedback timer
+                feedbackTask?.cancel()
+
+                withAnimation(.easeOut(duration: 0.12)) {
+                    copied = true
                 }
-                Task {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        showCheck = false
+                feedbackTask = Task {
+                    try? await Task.sleep(nanoseconds: 1_200_000_000)
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeIn(duration: 0.2)) {
+                        copied = false
                     }
                 }
             }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Copy \(value) to clipboard")
     }
 }
 

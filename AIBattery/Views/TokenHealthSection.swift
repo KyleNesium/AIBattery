@@ -100,7 +100,7 @@ struct TokenHealthSection: View {
                 HStack(spacing: 4) {
                     Image(systemName: warning.severity == .strong ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
                         .font(.caption2)
-                        .foregroundStyle(warning.severity == .strong ? .red : .orange)
+                        .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
                     Text(warning.message)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -111,7 +111,7 @@ struct TokenHealthSection: View {
             if let action = health.suggestedAction {
                 Text(action)
                     .font(.caption2)
-                    .foregroundStyle(health.band == .red ? .red : .orange)
+                    .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
             }
@@ -189,11 +189,11 @@ struct TokenHealthSection: View {
                 if let idleMinutes = staleIdleMinutes {
                     HStack(spacing: 2) {
                         Circle()
-                            .fill(Color.orange)
+                            .fill(ThemeColors.caution)
                             .frame(width: 5, height: 5)
                         Text("Idle \(idleMinutes)m")
                             .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ThemeColors.caution)
                     }
                     .help("Session has been idle — context may be stale")
                 }
@@ -281,12 +281,14 @@ struct TokenHealthSection: View {
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH:mm"
         return f
     }()
 
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "MMM d"
         return f
     }()

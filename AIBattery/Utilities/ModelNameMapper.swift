@@ -2,6 +2,7 @@ import Foundation
 
 enum ModelNameMapper {
     /// Pre-compiled regex for stripping trailing date segments (e.g. "-20250929").
+    /// Pattern is a compile-time constant — force-try is safe here.
     private static let dateRegex = try! NSRegularExpression(pattern: #"-\d{8}.*$"#)
 
     static func displayName(for modelId: String) -> String {

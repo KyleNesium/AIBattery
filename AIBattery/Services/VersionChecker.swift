@@ -1,6 +1,7 @@
 import Foundation
 
 /// Checks GitHub Releases for new versions. Fetches once per 24 hours.
+@MainActor
 public final class VersionChecker {
     public static let shared = VersionChecker()
 
@@ -9,12 +10,26 @@ public final class VersionChecker {
         let url: String      // release page URL
     }
 
-    private let releaseURL = URL(string: "https://api.github.com/repos/KyleNesium/AIBattery/releases/latest")!
-    private let checkInterval: TimeInterval = 86400 // 24 hours
-    private var lastCheck: Date?
-    private var cachedUpdate: UpdateInfo?
+    private let releaseURL: URL
+    let checkInterval: TimeInterval
+    /// Visible to tests via @testable import.
+    var lastCheck: Date?
+    /// Visible to tests via @testable import.
+    var cachedUpdate: UpdateInfo?
 
-    private init() {}
+    /// Singleton init — uses real GitHub API and 24h cache.
+    private convenience init() {
+        self.init(
+            releaseURL: URL(string: "https://api.github.com/repos/KyleNesium/AIBattery/releases/latest")!,
+            checkInterval: 86400
+        )
+    }
+
+    /// Testable init — accepts a custom URL and cache interval.
+    init(releaseURL: URL, checkInterval: TimeInterval = 86400) {
+        self.releaseURL = releaseURL
+        self.checkInterval = checkInterval
+    }
 
     // MARK: - Public
 
@@ -69,6 +84,13 @@ public final class VersionChecker {
         }
     }
 
+    /// Force-check for updates, ignoring the 24-hour cache.
+    func forceCheckForUpdate() async -> UpdateInfo? {
+        lastCheck = nil
+        cachedUpdate = nil
+        return await checkForUpdate()
+    }
+
     /// Dismiss the update for a specific version.
     func skipVersion(_ version: String) {
         UserDefaults.standard.set(version, forKey: UserDefaultsKeys.skipVersion)
@@ -78,7 +100,7 @@ public final class VersionChecker {
     // MARK: - Semver Comparison
 
     /// Strip leading "v" or "V" from a tag name.
-    static func stripTag(_ tag: String) -> String {
+    nonisolated static func stripTag(_ tag: String) -> String {
         var t = tag
         if t.hasPrefix("v") || t.hasPrefix("V") {
             t = String(t.dropFirst())
@@ -87,7 +109,7 @@ public final class VersionChecker {
     }
 
     /// True if `latest` is a newer semver than `current`.
-    static func isNewer(_ latest: String, than current: String) -> Bool {
+    nonisolated static func isNewer(_ latest: String, than current: String) -> Bool {
         let latestParts = latest.split(separator: ".").compactMap { Int($0) }
         let currentParts = current.split(separator: ".").compactMap { Int($0) }
 
@@ -102,7 +124,7 @@ public final class VersionChecker {
     }
 
     /// Current app version from the bundle, falling back to "0.0.0".
-    static var currentAppVersion: String {
+    nonisolated static var currentAppVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
     }
 }

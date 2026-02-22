@@ -22,7 +22,7 @@ final class UsageAggregator {
         return f
     }()
 
-    func aggregate(rateLimits: RateLimitUsage?, orgName: String? = nil) -> UsageSnapshot {
+    func aggregate(rateLimits: RateLimitUsage?) -> UsageSnapshot {
         let statsCache = statsCacheReader.read()
         let accountInfo = readAccountInfo()
 
@@ -153,25 +153,11 @@ final class UsageAggregator {
         let tokenHealth = TokenHealthMonitor.shared.assessCurrentSession(entries: allEntries)
         let topSessionHealths = TokenHealthMonitor.shared.topSessions(entries: allEntries, limit: 5)
 
-        // Org name priority: API header → ~/.claude.json → UserDefaults (user-set)
-        let displayName = accountInfo?.displayName
-            ?? UserDefaults.standard.string(forKey: UserDefaultsKeys.displayName)
-        let resolvedOrgName = orgName
-            ?? accountInfo?.organizationName
-            ?? UserDefaults.standard.string(forKey: UserDefaultsKeys.orgName)
         let billing = accountInfo?.billingType
-
-        // Persist API-sourced org name to UserDefaults — only if user hasn't manually set one
-        let userSetOrg = UserDefaults.standard.string(forKey: UserDefaultsKeys.orgName) ?? ""
-        if let name = orgName, !name.isEmpty, userSetOrg.isEmpty {
-            UserDefaults.standard.set(name, forKey: UserDefaultsKeys.orgName)
-        }
 
         return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
-            displayName: displayName,
-            organizationName: resolvedOrgName,
             billingType: billing,
             firstSessionDate: firstSessionDate,
             totalSessions: (statsCache?.totalSessions ?? 0) + todaySessions,
@@ -220,8 +206,6 @@ final class UsageAggregator {
         }
         guard let oauth = json["oauthAccount"] as? [String: Any] else { return nil }
         let info = AccountInfo(
-            displayName: oauth["displayName"] as? String,
-            organizationName: oauth["organizationName"] as? String,
             billingType: oauth["organizationBillingType"] as? String
         )
         cachedAccountInfo = info
@@ -230,7 +214,5 @@ final class UsageAggregator {
 }
 
 private struct AccountInfo {
-    let displayName: String?
-    let organizationName: String?
     let billingType: String?
 }

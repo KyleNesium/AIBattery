@@ -26,7 +26,7 @@ struct TutorialOverlay: View {
     var body: some View {
         ZStack {
             // Semi-transparent backdrop
-            Color.black.opacity(0.4)
+            Color.primary.opacity(0.35)
                 .ignoresSafeArea()
 
             // Centered card
@@ -57,16 +57,30 @@ struct TutorialOverlay: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Step \(step + 1) of \(steps.count)")
 
-                // Action button
-                Button(step < steps.count - 1 ? "Next" : "Get Started") {
+                // Action buttons
+                HStack {
                     if step < steps.count - 1 {
-                        withAnimation(.easeInOut(duration: 0.2)) { step += 1 }
-                    } else {
-                        hasSeenTutorial = true
+                        Button("Skip") {
+                            withAnimation(.easeOut(duration: 0.2)) { hasSeenTutorial = true }
+                        }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Skip tutorial")
                     }
+
+                    Spacer()
+
+                    Button(step < steps.count - 1 ? "Next" : "Get Started") {
+                        if step < steps.count - 1 {
+                            withAnimation(.easeInOut(duration: 0.2)) { step += 1 }
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) { hasSeenTutorial = true }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
             }
             .padding(24)
             .frame(maxWidth: 280)

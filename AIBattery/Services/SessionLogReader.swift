@@ -255,7 +255,7 @@ final class SessionLogReader {
     }
 
     /// Build an `AssistantUsageEntry` from a decoded session entry, or nil if it's not an assistant message with usage.
-    private static func makeUsageEntry(from entry: SessionEntry) -> AssistantUsageEntry? {
+    static func makeUsageEntry(from entry: SessionEntry) -> AssistantUsageEntry? {
         guard entry.type == "assistant",
               let message = entry.message,
               let usage = message.usage,

@@ -201,7 +201,6 @@ public final class OAuthManager: ObservableObject {
             let record = AccountRecord(
                 id: tempId,
                 displayName: nil,
-                organizationName: nil,
                 billingType: nil,
                 addedAt: Date()
             )
@@ -224,13 +223,12 @@ public final class OAuthManager: ObservableObject {
 
     /// Resolve a pending account identity after the first API call returns the real org ID.
     /// Idempotent — skips if the account is already resolved.
-    func resolveAccountIdentity(tempId: String, realOrgId: String, orgName: String? = nil, billingType: String? = nil) {
+    func resolveAccountIdentity(tempId: String, realOrgId: String, billingType: String? = nil) {
         guard let account = accountStore.accounts.first(where: { $0.id == tempId }),
               account.isPendingIdentity else { return }
 
         var updated = account
         updated.id = realOrgId
-        if let name = orgName { updated.organizationName = name }
         if let billing = billingType { updated.billingType = billing }
 
         // Move Keychain entries from temp ID to real org ID
@@ -255,10 +253,9 @@ public final class OAuthManager: ObservableObject {
         AppLogger.oauth.info("Resolved account identity: \(tempId, privacy: .public) → \(realOrgId, privacy: .public)")
     }
 
-    /// Update an existing account's metadata (org name, billing type, display name).
-    func updateAccountMetadata(accountId: String, orgName: String? = nil, displayName: String? = nil, billingType: String? = nil) {
+    /// Update an existing account's metadata (display name, billing type).
+    func updateAccountMetadata(accountId: String, displayName: String? = nil, billingType: String? = nil) {
         guard var record = accountStore.accounts.first(where: { $0.id == accountId }) else { return }
-        if let name = orgName { record.organizationName = name }
         if let name = displayName { record.displayName = name }
         if let billing = billingType { record.billingType = billing }
         accountStore.update(oldId: accountId, with: record)
@@ -485,8 +482,7 @@ public final class OAuthManager: ObservableObject {
         let tempId = "pending-\(UUID().uuidString)"
         let record = AccountRecord(
             id: tempId,
-            displayName: UserDefaults.standard.string(forKey: UserDefaultsKeys.displayName),
-            organizationName: UserDefaults.standard.string(forKey: UserDefaultsKeys.orgName),
+            displayName: nil,
             billingType: UserDefaults.standard.string(forKey: UserDefaultsKeys.plan),
             addedAt: Date()
         )

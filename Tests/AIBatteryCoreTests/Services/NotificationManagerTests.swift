@@ -49,13 +49,9 @@ struct NotificationManagerTests {
     }
 
     @Test func shouldAlert_dropsBelow_thenRisesAgain() {
-        // First crossing: fires
         #expect(NotificationManager.shouldAlert(percent: 85, threshold: 80, previouslyFired: false))
-        // Already fired: doesn't fire again
         #expect(!NotificationManager.shouldAlert(percent: 90, threshold: 80, previouslyFired: true))
-        // Drops below: doesn't fire (reset scenario)
         #expect(!NotificationManager.shouldAlert(percent: 70, threshold: 80, previouslyFired: true))
-        // Rises again after reset: fires
         #expect(NotificationManager.shouldAlert(percent: 85, threshold: 80, previouslyFired: false))
     }
 
@@ -66,5 +62,39 @@ struct NotificationManagerTests {
 
     @Test func shouldAlert_negativePercent() {
         #expect(!NotificationManager.shouldAlert(percent: -10, threshold: 80, previouslyFired: false))
+    }
+
+    // MARK: - AppleScript quoting
+
+    @Test func applescriptQuoted_plainString() {
+        let result = NotificationManager.applescriptQuoted("Hello world")
+        #expect(result == "\"Hello world\"")
+    }
+
+    @Test func applescriptQuoted_escapesDoubleQuotes() {
+        let result = NotificationManager.applescriptQuoted("He said \"hello\"")
+        #expect(result == "\"He said \\\"hello\\\"\"")
+    }
+
+    @Test func applescriptQuoted_escapesBackslashes() {
+        let result = NotificationManager.applescriptQuoted("path\\to\\file")
+        #expect(result == "\"path\\\\to\\\\file\"")
+    }
+
+    @Test func applescriptQuoted_emptyString() {
+        let result = NotificationManager.applescriptQuoted("")
+        #expect(result == "\"\"")
+    }
+
+    @Test func applescriptQuoted_mixedSpecialChars() {
+        let result = NotificationManager.applescriptQuoted("line\\n\"quoted\"")
+        #expect(result == "\"line\\\\n\\\"quoted\\\"\"")
+    }
+
+    @Test func applescriptQuoted_shellMetacharsPassThrough() {
+        // Shell chars like $ and ` should NOT be escaped — Process.arguments
+        // bypasses the shell, so only AppleScript string delimiters matter.
+        let result = NotificationManager.applescriptQuoted("$HOME `whoami`")
+        #expect(result == "\"$HOME `whoami`\"")
     }
 }

@@ -9,10 +9,12 @@ swift build -c release
 
 APP_DIR=".build/AIBattery.app"
 
-# Kill any existing instance before replacing the binary
-echo "Stopping existing AI Battery instances..."
-pkill -f "AIBattery.app/Contents/MacOS/AIBattery" 2>/dev/null || true
-sleep 1
+# Kill any existing instance before replacing the binary (skip in CI)
+if [ -z "${CI:-}" ]; then
+  echo "Stopping existing AI Battery instances..."
+  pkill -f "AIBattery.app/Contents/MacOS/AIBattery" 2>/dev/null || true
+  sleep 1
+fi
 
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
@@ -25,38 +27,7 @@ echo "Creating .app bundle..."
 cp .build/release/AIBattery "$APP_DIR/Contents/MacOS/AIBattery"
 cp .build/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
-cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
-	<key>CFBundleDisplayName</key>
-	<string>AI Battery</string>
-	<key>CFBundleExecutable</key>
-	<string>AIBattery</string>
-	<key>CFBundleIdentifier</key>
-	<string>com.KyleNesium.AIBattery</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>AI Battery</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>1.0.2</string>
-	<key>CFBundleVersion</key>
-	<string>3</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>13.0</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
-	<key>LSUIElement</key>
-	<true/>
-</dict>
-</plist>
-PLIST
+cp AIBattery/Info.plist "$APP_DIR/Contents/Info.plist"
 
 # Copy entitlements into bundle
 cp AIBattery/AIBattery.entitlements "$APP_DIR/Contents/Resources/"

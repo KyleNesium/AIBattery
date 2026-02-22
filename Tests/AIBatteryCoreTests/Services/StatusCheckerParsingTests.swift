@@ -94,4 +94,56 @@ struct StatusCheckerParsingTests {
             #expect(!indicator.displayName.isEmpty, "\(indicator) has empty displayName")
         }
     }
+
+    // MARK: - StatusIndicator.from() additional cases
+
+    @Test func from_degraded_performance_underscore() {
+        #expect(StatusIndicator.from("degraded_performance") == .degradedPerformance)
+    }
+
+    @Test func from_partial_outage_underscore() {
+        #expect(StatusIndicator.from("partial_outage") == .partialOutage)
+    }
+
+    @Test func from_major_outage_underscore() {
+        #expect(StatusIndicator.from("major_outage") == .majorOutage)
+    }
+
+    @Test func from_under_maintenance() {
+        #expect(StatusIndicator.from("under_maintenance") == .maintenance)
+    }
+
+    @Test func from_elevated() {
+        #expect(StatusIndicator.from("elevated") == .degradedPerformance)
+    }
+
+    @Test func from_unknownString_returnsUnknown() {
+        #expect(StatusIndicator.from("something_new") == .unknown)
+    }
+
+    @Test func from_caseInsensitive() {
+        #expect(StatusIndicator.from("OPERATIONAL") == .operational)
+        #expect(StatusIndicator.from("Major") == .partialOutage)
+        #expect(StatusIndicator.from("CRITICAL") == .majorOutage)
+    }
+
+    @Test func from_emptyString_returnsUnknown() {
+        #expect(StatusIndicator.from("") == .unknown)
+    }
+
+    // MARK: - ClaudeSystemStatus.unknown
+
+    @Test func unknown_status_hasNegativeSeverity() {
+        #expect(StatusIndicator.unknown.severity < StatusIndicator.operational.severity)
+    }
+
+    @Test func unknown_status_displayName() {
+        #expect(StatusIndicator.unknown.displayName == "unknown")
+    }
+
+    // MARK: - StatusPageBaseURL
+
+    @Test func statusPageBaseURL_isHTTPS() {
+        #expect(StatusChecker.statusPageBaseURL.hasPrefix("https://"))
+    }
 }

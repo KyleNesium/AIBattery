@@ -84,11 +84,8 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 
 - Title: `"✦ AI Battery"` (.headline)
 - **Account picker**: always-visible dropdown Menu next to title
-  - Label: `accountPickerLabel` + chevron.up.chevron.down (7pt), (.caption, .secondary)
-    - Single account: `"displayName · organizationName"` (omits default individual org pattern)
-    - Multi-account: active account's org name or display name
-    - Fallback: `"Account"` when no metadata available
-  - Menu items: all accounts with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
+  - Label: display name if set, otherwise `"Account N"` for multi-account / `"Account"` for single (.caption, .secondary)
+  - Menu items: display name or `"Account N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
   - "Add Account" item (plus.circle icon) below divider when `canAddAccount` (< max) — triggers AuthView overlay
   - `.menuStyle(.borderlessButton)`, `.fixedSize()`
 - Gear button: `gearshape`, 11pt, toggles Settings panel
@@ -97,14 +94,10 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 
 ### ❶b Settings (`SettingsRow` — private struct)
 
-Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence (except per-account names stored in `AccountRecord`).
+Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence.
 
-- **Per-account names**: `ForEach(accountStore.accounts)` renders `accountNameRow` per account
-  - Label: "Active" / "Account" (multi-account) or "Name" (single account)
-  - TextField → writes `displayName` on `AccountRecord` via `OAuthManager.updateAccountMetadata()`, clamped to 30 chars
-  - Org name sub-label (.caption2, .tertiary) shown below when non-empty
-  - Remove button (`xmark.circle`, 10pt, .secondary) — shown only when >1 account, calls `OAuthManager.signOut(accountId:)`
-- **Add Account**: `"+ Add Account"` button (.caption, .blue) — shown when `canAddAccount` (< max). Triggers AuthView overlay for second-account flow.
+- **Account name editing**: per-account name row with editable `TextField` (placeholder "Account N", capped at 30 chars). Label: "Active"/"Account" when multi-account, "Name" for single. Changes saved via `OAuthManager.shared.updateAccountMetadata(accountId:displayName:)`.
+- **Account management**: shown when >1 account or `canAddAccount`. Remove button (`xmark.circle`) per account when >1. "Add Account" button (.caption, .blue) when `canAddAccount`.
 - **Refresh**: Slider (10–60s, step 5) → `aibattery_refreshInterval`
   - Calls `viewModel.updatePollingInterval()` on change
   - Hint: `"~3 tokens per poll"` (.caption2, .tertiary)
@@ -119,14 +112,10 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence (exce
   - Hint: `"Notify when service is down"` (.caption2, .tertiary)
   - On enable: calls `NotificationManager.shared.requestPermission()`
 
-- **Display**: Checkboxes on one row
-  - "Tokens" → `aibattery_showTokens` (Bool, default true) — toggles the Tokens section
-  - "Activity" → `aibattery_showActivity` (Bool, default true) — toggles the Activity chart
-  - "Cost~" → `aibattery_showCostEstimate` (Bool, default false) — toggles cost display in Tokens section
-  - "Decimal" → `aibattery_menuBarDecimal` (Bool, default false) — menu bar shows `42.5%` instead of `42%`
-  - "Compact" → `aibattery_compactBars` (Bool, default false) — non-selected rate limit windows show as single-line summaries
-  - "Colorblind" → `aibattery_colorblindMode` (Bool, default false) — switches to blue/cyan/amber/purple palette
-  - When enabled, shows $ amounts in Tokens section (header total + per-model inline)
+- **Display**: Two rows of checkboxes
+  - Row 1: "Tokens" → `aibattery_showTokens` (Bool, default true) — toggles the Tokens section; "Activity" → `aibattery_showActivity` (Bool, default true) — toggles the Activity chart
+  - Row 2: "Colorblind" → `aibattery_colorblindMode` (Bool, default false) — switches to blue/cyan/amber/purple palette; "Cost*" → `aibattery_showCostEstimate` (Bool, default false) — toggles cost display in Tokens section
+  - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
 - **Rate Limit**: Toggle + threshold slider (50–95%, step 5, default 80%)
   - Hint: `"Notify when rate limit usage exceeds threshold"` (.caption2, .tertiary)
   - Slider + tick marks shown only when toggle is on
@@ -160,13 +149,6 @@ Each bar:
 Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `<1h` → "in Xm", expired → "soon"
 
 Padding: H 16, V 12
-
-#### Compact Mode (`CompactRateLimitRow`)
-
-When `aibattery_compactBars` is true, non-selected rate limit windows display as a single-line summary:
-- Format: `"5h: XX% · 7d: XX%"` (.caption, monospaced)
-- Color-coded percentages using `ThemeColors.barColor(percent:)`
-- Full bar display retained for the selected metric
 
 ### ❸ Context Health (`Views/TokenHealthSection.swift`)
 
@@ -300,11 +282,9 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 
 ### MenuBarLabel (`Views/MenuBarLabel.swift`)
 
-HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monospaced) + optional org name (10pt, with · separator)
+HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monospaced)
 
 - **Staleness**: percentage text dims to 50% opacity when last fresh fetch > 5 minutes ago
-- **Decimal precision**: when `aibattery_menuBarDecimal` is true, shows `"42.5%"` (`String(format: "%.1f%%")`) instead of `"42%"`
-- Org name reads from snapshot first, falls back to `@AppStorage("aibattery_orgName")`. Hides default individual org pattern.
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
 

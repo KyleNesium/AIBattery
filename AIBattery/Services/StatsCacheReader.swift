@@ -47,10 +47,12 @@ final class StatsCacheReader {
             }
         }
 
-        // Fallback: can't stat, just decode
+        // Fallback: can't stat, just decode (still cache the result)
         do {
             let data = try Data(contentsOf: fileURL)
-            return try JSONDecoder().decode(StatsCache.self, from: data)
+            let result = try JSONDecoder().decode(StatsCache.self, from: data)
+            cached = result
+            return result
         } catch {
             AppLogger.files.error("StatsCacheReader: error reading stats cache: \(error.localizedDescription, privacy: .public)")
             return nil

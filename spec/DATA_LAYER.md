@@ -12,8 +12,6 @@ Main aggregated data struct consumed by all views.
 |-------|------|--------|
 | `lastUpdated` | `Date` | Generated at aggregation time |
 | `rateLimits` | `RateLimitUsage?` | API response headers |
-| `displayName` | `String?` | `~/.claude.json` oauthAccount.displayName |
-| `organizationName` | `String?` | API header → `~/.claude.json` → UserDefaults |
 | `billingType` | `String?` | `~/.claude.json` oauthAccount.organizationBillingType |
 | `firstSessionDate` | `Date?` | stats-cache.json (ISO 8601) |
 | `totalSessions` | `Int` | stats-cache + today JSONL |
@@ -94,9 +92,8 @@ Organization info extracted from Messages API response headers.
 | Field | Type |
 |-------|------|
 | `organizationId` | `String?` |
-| `organizationName` | `String?` |
 
-`parse(headers:)` static method: reads `anthropic-organization-id` and `x-organization-name` from HTTP response.
+`parse(headers:)` static method: reads `anthropic-organization-id` from HTTP response.
 
 ### AccountRecord (`Models/AccountRecord.swift`)
 
@@ -105,8 +102,7 @@ Per-account identity record. Stored as JSON array in UserDefaults.
 | Field | Type |
 |-------|------|
 | `id` | `String` — organizationId (or `"pending-<UUID>"` before first API call) |
-| `displayName` | `String?` |
-| `organizationName` | `String?` |
+| `displayName` | `String?` — user-editable label (max 30 chars) |
 | `billingType` | `String?` |
 | `addedAt` | `Date` |
 
@@ -256,8 +252,8 @@ Pricing table (per million tokens):
 - `startAuthFlow(addingAccount:)` → opens browser with PKCE challenge. `addingAccount` flag tracks whether this is a second-account flow. Generates a separate random `state` parameter (never reuses the PKCE verifier).
 - `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens. Creates `AccountRecord` with pending ID, stores tokens under prefixed Keychain entries. Validates state parameter (CSRF protection). Only clears PKCE state on success.
 - `getAccessToken()` → returns active account's valid token, refreshes 5 minutes before expiry. `getAccessToken(for:)` for specific account. Serializes concurrent refresh attempts per account via `refreshTasks` dictionary.
-- `resolveAccountIdentity(tempId:realOrgId:orgName:billingType:)` → called after first API call returns real org ID. Renames Keychain entries from temp to real ID, updates AccountStore. Idempotent. Handles duplicate detection (same org authed twice → merge, keep newer tokens).
-- `updateAccountMetadata(accountId:orgName:displayName:billingType:)` → updates existing account's metadata in AccountStore.
+- `resolveAccountIdentity(tempId:realOrgId:billingType:)` → called after first API call returns real org ID. Renames Keychain entries from temp to real ID, updates AccountStore. Idempotent. Handles duplicate detection (same org authed twice → merge, keep newer tokens).
+- `updateAccountMetadata(accountId:displayName:billingType:)` → updates existing account's display name and/or billing type in AccountStore.
 - `signOut(accountId:)` → removes specific account (or active if nil), auto-switches to remaining account if any.
 - **Legacy migration**: `migrateFromLegacy()` on init — detects old unprefixed Keychain entries, creates AccountRecord with temp ID, copies to prefixed format, deletes old entries. Runs only when accounts array is empty.
 - **Per-account Keychain**: `saveTokens(for:)`, `loadTokens(for:)`, `deleteTokens(for:)` using `"accessToken_{accountId}"` format under service `"AIBattery"`.
@@ -330,17 +326,15 @@ Pricing table (per million tokens):
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - Created per-ViewModel (not singleton)
-- `aggregate(rateLimits:orgName:) -> UsageSnapshot`
+- `aggregate(rateLimits:) -> UsageSnapshot`
 - **Single-pass filtering**: iterates all entries once to extract both today's entries and windowed token totals simultaneously (avoids separate `.filter()` passes)
-- Reads: stats cache, all JSONL entries (single scan), account info from `~/.claude.json` (displayName, organizationName, organizationBillingType)
+- Reads: stats cache, all JSONL entries (single scan), account info from `~/.claude.json` (organizationBillingType)
 - **Token window modes**: `aibattery_tokenWindowDays` UserDefaults (0 = all time, 1–7 = windowed)
   - **All-time mode (0)**: stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache, 72-hour recent model filter
   - **Windowed mode (1–7)**: computes token totals from all JSONL entries within the window, bypasses stats-cache `modelUsage`
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
 - Tool calls from stats cache only (not parsed from JSONL)
 - Token health via `TokenHealthMonitor.assessCurrentSession` (single) + `TokenHealthMonitor.topSessions` (top 5)
-- **Org name priority**: API header → `~/.claude.json` → UserDefaults
-- **Org name persistence**: writes API-sourced org name to `UserDefaults("aibattery_orgName")` for future sessions — only when user hasn't manually set one (protects user-edited values)
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)
 - Singleton: `.shared`
@@ -443,7 +437,7 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `skipVersion`, `menuBarDecimal`, `compactBars`, `colorblindMode`, `hasSeenTutorial`
+- Keys: `metricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `skipVersion`, `colorblindMode`, `hasSeenTutorial`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`

@@ -5,9 +5,30 @@ import SwiftUI
 /// Standard mode: green → yellow → orange → red
 /// Colorblind mode: blue → cyan → amber → magenta (distinguishable for deuteranopia/protanopia)
 enum ThemeColors {
-    private static var isColorblind: Bool {
-        UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+    /// Cached colorblind flag — updated via KVO observer when the preference changes.
+    private(set) static var isColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+
+    /// One-time KVO registration to keep isColorblind in sync with UserDefaults.
+    private static let observer: NSObjectProtocol = {
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            isColorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+        }
+    }()
+
+    /// Call once at app launch to ensure the observer is registered.
+    static func registerObserver() { _ = observer }
+
+    /// Re-read the colorblind flag from UserDefaults. Used by tests after changing the preference.
+    static func refreshColorblindFlag() {
+        isColorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
     }
+
+    /// Amber color constant used across both colorblind palettes.
+    static let amber = Color(red: 1.0, green: 0.75, blue: 0.0)
 
     /// Color for a usage percentage (0–100).
     static func barColor(percent: Double) -> Color {
@@ -15,7 +36,7 @@ enum ThemeColors {
             switch percent {
             case 0..<50: return .blue
             case 50..<80: return .cyan
-            case 80..<95: return Color(red: 1.0, green: 0.75, blue: 0.0) // amber
+            case 80..<95: return amber // amber
             default: return .purple
             }
         }
@@ -32,7 +53,7 @@ enum ThemeColors {
         if isColorblind {
             switch band {
             case .green: return .blue
-            case .orange: return Color(red: 1.0, green: 0.75, blue: 0.0) // amber
+            case .orange: return amber // amber
             case .red: return .purple
             case .unknown: return .gray
             }
@@ -51,7 +72,7 @@ enum ThemeColors {
             switch indicator {
             case .operational: return .blue
             case .degradedPerformance, .maintenance: return .cyan
-            case .partialOutage: return Color(red: 1.0, green: 0.75, blue: 0.0)
+            case .partialOutage: return amber
             case .majorOutage: return .purple
             case .unknown: return .gray
             }
@@ -63,6 +84,30 @@ enum ThemeColors {
         case .majorOutage: return .red
         case .unknown: return .gray
         }
+    }
+
+    /// Accent color for charts and data visualizations.
+    static var chartAccent: Color {
+        isColorblind ? .blue : .orange
+    }
+
+    /// Color for the "caution" semantic (idle badges, staleness, warnings).
+    static var caution: Color {
+        isColorblind ? amber : .orange
+    }
+
+    /// Color for trend direction arrows.
+    static func trendColor(_ direction: TrendDirection) -> Color {
+        switch direction {
+        case .up: return isColorblind ? amber : .orange
+        case .down: return isColorblind ? .blue : .green
+        case .flat: return .secondary
+        }
+    }
+
+    /// Color for danger/error states (throttled, auth errors, critical warnings).
+    static var danger: Color {
+        isColorblind ? .purple : .red
     }
 
     /// NSColor variant for menu bar icon.

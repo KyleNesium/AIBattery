@@ -16,8 +16,6 @@ struct UsageSnapshotTests {
         UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
-            displayName: nil,
-            organizationName: nil,
             billingType: billingType,
             firstSessionDate: nil,
             totalSessions: 0,

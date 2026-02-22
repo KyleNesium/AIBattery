@@ -3,17 +3,18 @@ import os
 
 /// Fetches Claude system status from the public Statuspage API.
 /// Checks Claude API + Claude Code component status.
+@MainActor
 final class StatusChecker {
     static let shared = StatusChecker()
 
     private let summaryURL = URL(string: "https://status.claude.com/api/v2/summary.json")!
 
     /// Base URL for the public status page.
-    static let statusPageBaseURL = "https://status.claude.com"
+    nonisolated static let statusPageBaseURL = "https://status.claude.com"
 
     /// Statuspage component IDs for services we track.
-    static let claudeAPIComponentID = "k8w3r06qmzrp"
-    static let claudeCodeComponentID = "yyzkbfz2thpt"
+    nonisolated static let claudeAPIComponentID = "k8w3r06qmzrp"
+    nonisolated static let claudeCodeComponentID = "yyzkbfz2thpt"
 
     private let relevantComponents: Set<String> = [
         claudeAPIComponentID,

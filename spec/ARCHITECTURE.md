@@ -173,7 +173,7 @@ CHANGELOG.md                      — Release notes per version
 
 1. macOS Keychain, service `"AIBattery"` — Per-account OAuth tokens (prefixed: accessToken_{accountId}, refreshToken_{accountId}, expiresAt_{accountId})
 2. UserDefaults `aibattery_accounts` + `aibattery_activeAccountId` — Multi-account registry (JSON-encoded [AccountRecord])
-3. `~/.claude.json` → `oauthAccount` — displayName, organizationName
+3. `~/.claude.json` → `oauthAccount` — billingType
 4. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
 5. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
 6. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data

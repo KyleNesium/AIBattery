@@ -24,8 +24,6 @@ struct UserDefaultsKeysTests {
     private var allKeys: [String] {
         [
             UserDefaultsKeys.metricMode,
-            UserDefaultsKeys.orgName,
-            UserDefaultsKeys.displayName,
             UserDefaultsKeys.refreshInterval,
             UserDefaultsKeys.tokenWindowDays,
             UserDefaultsKeys.alertClaudeAI,
@@ -42,8 +40,6 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.showActivity,
             UserDefaultsKeys.lastUpdateCheck,
             UserDefaultsKeys.skipVersion,
-            UserDefaultsKeys.menuBarDecimal,
-            UserDefaultsKeys.compactBars,
             UserDefaultsKeys.colorblindMode,
             UserDefaultsKeys.hasSeenTutorial,
         ]

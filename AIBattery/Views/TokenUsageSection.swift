@@ -60,6 +60,7 @@ struct TokenUsageSection: View {
 
                             Text(model.displayName)
                                 .font(.caption)
+                                .lineLimit(1)
 
                             if isActive(model) {
                                 Text("▶")

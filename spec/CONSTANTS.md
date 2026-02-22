@@ -144,8 +144,6 @@ Pricing per million tokens:
 
 | Constant | Value |
 |----------|-------|
-| Menu bar decimal | `aibattery_menuBarDecimal` (Bool, default false) |
-| Compact bars | `aibattery_compactBars` (Bool, default false) |
 | Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
 
@@ -154,7 +152,7 @@ Pricing per million tokens:
 | Constant | Value |
 |----------|-------|
 | Transport | Clipboard (JSON) |
-| Exported keys | metricMode, refreshInterval, tokenWindowDays, alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold, chartMode, showCostEstimate, showTokens, showActivity, launchAtLogin, menuBarDecimal, compactBars, colorblindMode |
+| Exported keys | metricMode, refreshInterval, tokenWindowDays, alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold, chartMode, showCostEstimate, showTokens, showActivity, launchAtLogin, colorblindMode |
 | Excluded keys | accounts, activeAccountId, lastUpdateCheck, skipVersion, hasSeenTutorial |
 
 ## Launch at Login
@@ -242,7 +240,7 @@ Pricing per million tokens:
 | Path | Purpose |
 |------|---------|
 | macOS Keychain, service `"AIBattery"` | OAuth tokens (access, refresh, expiry) |
-| `~/.claude.json` → `oauthAccount` | Account info (displayName, organizationName) |
+| `~/.claude.json` → `oauthAccount` | Account info (billingType) |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |

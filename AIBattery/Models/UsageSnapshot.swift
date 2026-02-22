@@ -1,14 +1,15 @@
 import Foundation
 
 struct UsageSnapshot {
+    /// Reusable formatter for weekday symbol lookup — avoids allocating a new DateFormatter per call.
+    private static let weekdayFormatter = DateFormatter()
+
     let lastUpdated: Date
 
     // Rate limit usage (from unified API response headers)
     let rateLimits: RateLimitUsage?
 
     // Account info
-    let displayName: String?
-    let organizationName: String?
     let billingType: String?
 
     // From stats-cache.json
@@ -104,8 +105,7 @@ struct UsageSnapshot {
         let avg = total / max(counts[weekday] ?? 1, 1)
         guard avg > 0 else { return nil }
 
-        let formatter = DateFormatter()
-        let dayName = formatter.weekdaySymbols[weekday - 1]
+        let dayName = Self.weekdayFormatter.weekdaySymbols[weekday - 1]
         return (dayName, avg)
     }
 

@@ -26,10 +26,12 @@ public final class UsageViewModel: ObservableObject {
     private static let maxPollingInterval: TimeInterval = 300
 
     public init() {
+        ThemeColors.registerObserver()
+
         // Show local data immediately so the menu bar icon appears fast,
         // then fetch network data in the background.
         let aggregator = self.aggregator
-        let localSnapshot = aggregator.aggregate(rateLimits: nil, orgName: nil)
+        let localSnapshot = aggregator.aggregate(rateLimits: nil)
         if localSnapshot.totalMessages > 0 {
             snapshot = localSnapshot
             isLoading = false
@@ -75,14 +77,7 @@ public final class UsageViewModel: ObservableObject {
             if account?.isPendingIdentity == true {
                 oauthManager.resolveAccountIdentity(
                     tempId: id,
-                    realOrgId: orgId,
-                    orgName: api.profile?.organizationName
-                )
-            } else {
-                // Update metadata even for resolved accounts (org name may change)
-                oauthManager.updateAccountMetadata(
-                    accountId: id,
-                    orgName: api.profile?.organizationName
+                    realOrgId: orgId
                 )
             }
         }
@@ -102,15 +97,11 @@ public final class UsageViewModel: ObservableObject {
         let currentActiveId = oauthManager.accountStore.activeAccountId
         guard accountId == currentActiveId else { return }
 
-        // Use account record for org name (multi-account) instead of UserDefaults
-        let activeAccount = oauthManager.accountStore.activeAccount
-        let orgName = api.profile?.organizationName ?? activeAccount?.organizationName
-
         // Aggregate on background thread — purely local, no timeout needed.
         let aggregator = self.aggregator
         let rateLimits = api.rateLimits
         let result = await Task.detached {
-            aggregator.aggregate(rateLimits: rateLimits, orgName: orgName)
+            aggregator.aggregate(rateLimits: rateLimits)
         }.value
 
         // Log JSONL corruption metrics after aggregation

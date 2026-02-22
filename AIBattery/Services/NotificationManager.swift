@@ -147,7 +147,7 @@ public final class NotificationManager {
     /// Process.arguments bypasses the shell (uses execve directly), so shell metacharacters
     /// like $ and ` are safe. We only need to escape AppleScript string delimiters.
     private func deliverNotification(title: String, body: String) {
-        let script = "display notification \(applescriptQuoted(body)) with title \(applescriptQuoted(title)) sound name \"default\""
+        let script = "display notification \(Self.applescriptQuoted(body)) with title \(Self.applescriptQuoted(title)) sound name \"default\""
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         proc.arguments = ["-e", script]
@@ -164,7 +164,7 @@ public final class NotificationManager {
 
     /// Safely quote a string for embedding in AppleScript.
     /// Escapes backslashes and double quotes (the only special chars inside AppleScript strings).
-    private func applescriptQuoted(_ s: String) -> String {
+    static func applescriptQuoted(_ s: String) -> String {
         let escaped = s
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")

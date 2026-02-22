@@ -74,4 +74,30 @@ struct ModelNameMapperTests {
         // Future model: "claude-titan-10-3-2-20260101"
         #expect(ModelNameMapper.displayName(for: "claude-titan-10-3-2-20260101") == "Titan 10.3.2")
     }
+
+    // MARK: - Date stripping
+
+    @Test func displayName_stripsDateWithExtraSuffix() {
+        // Some models have date + extra suffix like "-latest"
+        #expect(ModelNameMapper.displayName(for: "claude-sonnet-4-5-20250929-latest") == "Sonnet 4.5")
+    }
+
+    @Test func displayName_shortDateNotStripped() {
+        // Only 8+ digit dates should be stripped
+        #expect(ModelNameMapper.displayName(for: "claude-opus-4-6") == "Opus 4.6")
+    }
+
+    // MARK: - Real-world model IDs
+
+    @Test func displayName_claude3_5SonnetV2() {
+        #expect(ModelNameMapper.displayName(for: "claude-3-5-sonnet-v2-20241022") == "Sonnet V2 3.5")
+    }
+
+    @Test func displayName_unknownFamily() {
+        #expect(ModelNameMapper.displayName(for: "claude-mystery-1-0") == "Mystery 1.0")
+    }
+
+    @Test func displayName_singleVersion() {
+        #expect(ModelNameMapper.displayName(for: "claude-sonnet-4") == "Sonnet 4")
+    }
 }
