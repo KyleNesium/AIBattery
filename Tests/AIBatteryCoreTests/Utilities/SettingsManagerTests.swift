@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import AIBatteryCore
 
-@Suite("SettingsManager")
+@Suite("SettingsManager", .serialized)
 struct SettingsManagerTests {
 
     @Test func exportSettings_returnsValidJSON() throws {
