@@ -81,6 +81,16 @@ public final class UsageViewModel: ObservableObject {
             }
         }
 
+        // Detect stale pending accounts — identity should resolve within the first fetch cycle.
+        // If still pending after 1 hour, prompt user to re-authenticate.
+        if let id = accountId {
+            let account = oauthManager.accountStore.accounts.first { $0.id == id }
+            if let account, account.isPendingIdentity,
+               Date().timeIntervalSince(account.addedAt) > 3600 {
+                errorMessage = "Account identity could not be confirmed. Try removing and re-adding this account."
+            }
+        }
+
         // Guard: if user switched accounts while we were fetching, discard stale results.
         // The new account's refresh() is already in flight from switchAccount().
         let currentActiveId = oauthManager.accountStore.activeAccountId

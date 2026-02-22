@@ -347,8 +347,9 @@ public final class OAuthManager: ObservableObject {
         var lastError: AuthError = .networkError
         for attempt in 0...Self.maxRetries {
             if attempt > 0 {
-                // Exponential backoff: 1s, 2s
-                let delay = TimeInterval(1 << (attempt - 1))
+                // Exponential backoff with jitter: 1s, 2s (±20%)
+                let base = TimeInterval(1 << (attempt - 1))
+                let delay = base * Double.random(in: 0.8...1.2)
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
 
@@ -373,8 +374,8 @@ public final class OAuthManager: ObservableObject {
                     return .failure(.invalidCode)
                 }
 
-                // Retry on transient server errors (500, 502, 503)
-                if http.statusCode >= 500 && http.statusCode < 600 {
+                // Retry on rate limit (429) and transient server errors (5xx)
+                if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
                     AppLogger.oauth.warning("Token endpoint returned \(http.statusCode), attempt \(attempt + 1)/\(Self.maxRetries + 1)")
                     lastError = .serverError(http.statusCode)
                     continue
