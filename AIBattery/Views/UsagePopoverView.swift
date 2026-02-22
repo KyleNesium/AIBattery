@@ -568,10 +568,14 @@ private struct SettingsRow: View {
                 Toggle("Activity", isOn: $showActivity)
                     .toggleStyle(.checkbox)
                     .font(.caption)
-                Toggle("API Cost", isOn: $showCostEstimate)
+                Toggle("Cost~", isOn: $showCostEstimate)
                     .toggleStyle(.checkbox)
                     .font(.caption)
             }
+            Text("Cost~ shows equivalent API token rates")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 58)
 
             // Status alerts
             HStack(spacing: 8) {
