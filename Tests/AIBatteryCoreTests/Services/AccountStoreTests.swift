@@ -275,7 +275,7 @@ struct AccountStoreTests {
     }
 
     @Test func persistence_emptyAccountsArray() {
-        let store = makeCleanStore()
+        _ = makeCleanStore()
         // Don't add anything — just re-init
         let store2 = AccountStore()
         #expect(store2.accounts.isEmpty)
