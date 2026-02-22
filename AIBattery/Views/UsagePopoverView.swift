@@ -371,6 +371,36 @@ public struct UsagePopoverView: View {
                 .accessibilityLabel("Quit AI Battery")
             }
 
+            // Update available banner
+            if let update = viewModel.availableUpdate {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                    Text("v\(update.version) available")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("View") {
+                        if let url = URL(string: update.url) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+                    Button("Skip") {
+                        VersionChecker.shared.skipVersion(update.version)
+                        viewModel.availableUpdate = nil
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Version \(update.version) available. View or skip.")
+            }
+
             // Active incident banner (if any)
             if let incident = viewModel.systemStatus?.incidentName {
                 HStack(spacing: 4) {

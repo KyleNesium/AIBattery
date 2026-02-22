@@ -22,6 +22,8 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.alertRateLimit,
             UserDefaultsKeys.rateLimitThreshold,
             UserDefaultsKeys.showCostEstimate,
+            UserDefaultsKeys.lastUpdateCheck,
+            UserDefaultsKeys.skipVersion,
         ]
         for key in keys {
             #expect(key.hasPrefix("aibattery_"), "Key '\(key)' missing 'aibattery_' prefix")
@@ -46,6 +48,8 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.alertRateLimit,
             UserDefaultsKeys.rateLimitThreshold,
             UserDefaultsKeys.showCostEstimate,
+            UserDefaultsKeys.lastUpdateCheck,
+            UserDefaultsKeys.skipVersion,
         ]
         let unique = Set(keys)
         #expect(unique.count == keys.count, "Duplicate UserDefaults key detected")
