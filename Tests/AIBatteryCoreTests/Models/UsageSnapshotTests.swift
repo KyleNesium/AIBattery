@@ -9,7 +9,9 @@ struct UsageSnapshotTests {
         modelTokens: [ModelTokenSummary] = [],
         rateLimits: RateLimitUsage? = nil,
         tokenHealth: TokenHealthStatus? = nil,
-        billingType: String? = nil
+        billingType: String? = nil,
+        todayMessages: Int = 0,
+        dailyActivity: [DailyActivity] = []
     ) -> UsageSnapshot {
         UsageSnapshot(
             lastUpdated: Date(),
@@ -24,15 +26,25 @@ struct UsageSnapshotTests {
             longestSessionMessages: 0,
             peakHour: nil,
             peakHourCount: 0,
-            todayMessages: 0,
+            todayMessages: todayMessages,
             todaySessions: 0,
             todayToolCalls: 0,
             modelTokens: modelTokens,
-            dailyActivity: [],
+            dailyActivity: dailyActivity,
             hourCounts: [:],
             tokenHealth: tokenHealth,
             topSessionHealths: []
         )
+    }
+
+    private func makeDailyActivity(daysBack: Int, messages: [Int]) -> [DailyActivity] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return messages.enumerated().map { index, count in
+            let date = Calendar.current.date(byAdding: .day, value: -(daysBack - 1 - index), to: Date())!
+            return DailyActivity(date: formatter.string(from: date), messageCount: count, sessionCount: 1, toolCallCount: 0)
+        }
     }
 
     // MARK: - totalTokens
@@ -146,5 +158,97 @@ struct UsageSnapshotTests {
         // Empty billing type returns nil from PlanTier.fromBillingType
         // May still fall through to UserDefaults
         _ = snapshot.planTier
+    }
+
+    // MARK: - dailyAverage
+
+    @Test func dailyAverage_emptyActivity() {
+        let snapshot = makeSnapshot()
+        #expect(snapshot.dailyAverage == 0)
+    }
+
+    @Test func dailyAverage_sevenDays() {
+        let activity = makeDailyActivity(daysBack: 7, messages: [10, 20, 30, 40, 50, 60, 70])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        #expect(snapshot.dailyAverage == 40) // 280 / 7
+    }
+
+    @Test func dailyAverage_moreThanSevenDays_usesLastSeven() {
+        let activity = makeDailyActivity(daysBack: 10, messages: [100, 100, 100, 10, 20, 30, 40, 50, 60, 70])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        #expect(snapshot.dailyAverage == 40) // last 7: 10+20+30+40+50+60+70 = 280 / 7
+    }
+
+    // MARK: - projectedTodayTotal
+
+    @Test func projectedTodayTotal_zeroMessages() {
+        let snapshot = makeSnapshot(todayMessages: 0)
+        #expect(snapshot.projectedTodayTotal == 0)
+    }
+
+    @Test func projectedTodayTotal_hasMessages() {
+        // At least confirms it returns >= todayMessages
+        let snapshot = makeSnapshot(todayMessages: 50)
+        #expect(snapshot.projectedTodayTotal >= 50)
+    }
+
+    // MARK: - trendDirection
+
+    @Test func trendDirection_insufficientData() {
+        let activity = makeDailyActivity(daysBack: 5, messages: [10, 20, 30, 40, 50])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        #expect(snapshot.trendDirection == .flat)
+    }
+
+    @Test func trendDirection_upWhenThisWeekHigher() {
+        // Last week: 10/day avg, This week: 50/day avg → clearly up
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            10, 10, 10, 10, 10, 10, 10,  // last week
+            50, 50, 50, 50, 50, 50, 50,  // this week
+        ])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        #expect(snapshot.trendDirection == .up)
+    }
+
+    @Test func trendDirection_downWhenThisWeekLower() {
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            50, 50, 50, 50, 50, 50, 50,  // last week
+            10, 10, 10, 10, 10, 10, 10,  // this week
+        ])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        #expect(snapshot.trendDirection == .down)
+    }
+
+    @Test func trendDirection_flatWhenSimilar() {
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            50, 50, 50, 50, 50, 50, 50,
+            50, 50, 50, 50, 50, 50, 50,
+        ])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        #expect(snapshot.trendDirection == .flat)
+    }
+
+    // MARK: - busiestDayOfWeek
+
+    @Test func busiestDayOfWeek_emptyActivity() {
+        let snapshot = makeSnapshot()
+        #expect(snapshot.busiestDayOfWeek == nil)
+    }
+
+    @Test func busiestDayOfWeek_returnsDay() {
+        let activity = makeDailyActivity(daysBack: 7, messages: [10, 10, 10, 100, 10, 10, 10])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        let busiest = snapshot.busiestDayOfWeek
+        #expect(busiest != nil)
+        #expect(busiest!.averageCount > 0)
+    }
+
+    // MARK: - TrendDirection symbols
+
+    @Test func trendDirection_symbols() {
+        #expect(!TrendDirection.up.symbol.isEmpty)
+        #expect(!TrendDirection.down.symbol.isEmpty)
+        #expect(!TrendDirection.flat.symbol.isEmpty)
+        #expect(TrendDirection.up.symbol != TrendDirection.down.symbol)
     }
 }
