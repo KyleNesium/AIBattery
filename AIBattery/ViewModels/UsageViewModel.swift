@@ -19,6 +19,12 @@ public final class UsageViewModel: ObservableObject {
     private var pollingTimer: Timer?
     private var apiResult: APIFetchResult?
 
+    /// Adaptive polling: consecutive cycles with no data change.
+    /// After 3 unchanged cycles, interval doubles (up to 5 min max).
+    private var unchangedCycles = 0
+    private static let adaptiveThreshold = 3
+    private static let maxPollingInterval: TimeInterval = 300
+
     public init() {
         // Show local data immediately so the menu bar icon appears fast,
         // then fetch network data in the background.
@@ -107,8 +113,24 @@ public final class UsageViewModel: ObservableObject {
             aggregator.aggregate(rateLimits: rateLimits, orgName: orgName)
         }.value
 
+        // Adaptive polling: compare key metrics to detect idle periods.
+        let previousTotal = snapshot?.totalMessages ?? -1
+        let previousToday = snapshot?.todayMessages ?? -1
+
         snapshot = result
         isLoading = false
+
+        if result.totalMessages == previousTotal && result.todayMessages == previousToday
+            && previousTotal >= 0 {
+            unchangedCycles += 1
+            if unchangedCycles >= Self.adaptiveThreshold {
+                let extended = min(refreshInterval * 2, Self.maxPollingInterval)
+                restartPolling(interval: extended)
+            }
+        } else {
+            unchangedCycles = 0
+            restartPolling(interval: refreshInterval)
+        }
 
         // Surface error if API returned no data at all (no cached result either)
         if api.rateLimits == nil && api.profile == nil && result.totalMessages == 0 {
@@ -162,6 +184,8 @@ public final class UsageViewModel: ObservableObject {
     private func setupFileWatcher() {
         fileWatcher = FileWatcher { [weak self] in
             Task { @MainActor [weak self] in
+                self?.unchangedCycles = 0
+                self?.restartPolling(interval: self?.refreshInterval ?? 60)
                 await self?.refresh()
             }
         }
@@ -175,8 +199,14 @@ public final class UsageViewModel: ObservableObject {
     }
 
     private func startPolling() {
+        restartPolling(interval: refreshInterval)
+    }
+
+    /// Restart the polling timer with the given interval.
+    private func restartPolling(interval: TimeInterval) {
         pollingTimer?.invalidate()
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
+        let clamped = min(max(interval, 10), Self.maxPollingInterval)
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: clamped, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.refresh()
             }
@@ -184,13 +214,8 @@ public final class UsageViewModel: ObservableObject {
     }
 
     func updatePollingInterval(_ interval: TimeInterval) {
-        pollingTimer?.invalidate()
-        let clamped = min(max(interval, 10), 60)
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: clamped, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                await self?.refresh()
-            }
-        }
+        unchangedCycles = 0
+        restartPolling(interval: interval)
     }
 
     deinit {
