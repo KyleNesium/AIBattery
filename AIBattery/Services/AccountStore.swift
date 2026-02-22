@@ -66,12 +66,25 @@ public final class AccountStore: ObservableObject {
         // Check for duplicate: another account already has this real org ID
         if newRecord.id != oldId,
            let existingIndex = accounts.firstIndex(where: { $0.id == newRecord.id }) {
-            // Merge: keep the newer record, remove the old duplicate
+            // Merge: preserve earliest addedAt and existing metadata the new record doesn't set
+            let existing = accounts[existingIndex]
+            var merged = newRecord
+            merged.addedAt = min(existing.addedAt, newRecord.addedAt)
+            if merged.displayName == nil { merged.displayName = existing.displayName }
+            if merged.billingType == nil { merged.billingType = existing.billingType }
+
             AppLogger.oauth.info("Merging duplicate account \(oldId, privacy: .public) → \(newRecord.id, privacy: .public)")
-            accounts[existingIndex] = newRecord
-            accounts.remove(at: index)
+
+            // Remove in descending index order to avoid shifting issues
+            if index > existingIndex {
+                accounts.remove(at: index)
+                accounts[existingIndex] = merged
+            } else {
+                accounts[existingIndex] = merged
+                accounts.remove(at: index)
+            }
             if activeAccountId == oldId {
-                activeAccountId = newRecord.id
+                activeAccountId = merged.id
             }
             save()
             return oldId

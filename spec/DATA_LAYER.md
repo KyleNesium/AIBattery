@@ -268,7 +268,7 @@ Pricing table (per million tokens):
 - `add(_:)` — appends record, sets as active if first, rejects duplicates and over-max
 - `remove(id:)` — removes account, auto-switches active to remaining
 - `setActive(id:)` — changes active account (no-op for unknown IDs)
-- `update(oldId:with:)` — replaces account record, handles identity resolution (pending → real org ID). Detects and merges duplicates (same org authed twice).
+- `update(oldId:with:)` — replaces account record, handles identity resolution (pending → real org ID). Detects and merges duplicates (same org authed twice): preserves earliest `addedAt`, keeps existing `displayName`/`billingType` when new record has nil. Handles index ordering correctly when removing the old entry.
 - Persistence: JSON-encoded `[AccountRecord]` to `UserDefaults(aibattery_accounts)` + `activeAccountId` string to `UserDefaults(aibattery_activeAccountId)`
 - Load on init: fixes dangling `activeAccountId` pointing at removed accounts
 - `nonisolated static let maxAccounts = 2`
@@ -322,7 +322,7 @@ Pricing table (per million tokens):
 - Deduplication by messageId within each file
 - Sorted by timestamp ascending
 - **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
-- **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each scan
+- **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each call (before cache check) to avoid stale values on cache hits
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - Created per-ViewModel (not singleton)
@@ -363,7 +363,7 @@ Pricing table (per million tokens):
 - **Cache invalidation**: debounced handler calls `SessionLogReader.shared.invalidate()` and `StatsCacheReader.shared.invalidate()` before triggering refresh
 - Fallback timer: 60 seconds — only starts if both DispatchSource and FSEventStream fail (avoids redundant polling)
 - Calls `onChange` closure → triggers `viewModel.refresh()`
-- **Stats-cache retry**: if `stats-cache.json` doesn't exist on launch (normal before first `/stats` run), retries `open()` every 60 seconds until it appears
+- **Stats-cache retry**: if `stats-cache.json` doesn't exist on launch (normal before first `/stats` run), retries with exponential backoff (60s base, doubles each retry, capped at 300s, max 10 retries ~30 min). Counter resets on success or `stopWatching()`
 - **Failure logging**: logs via `AppLogger.files.warning` when file descriptors fail to open, projects directory not found, or FSEventStream creation fails — falls back to timer in all cases
 - File paths sourced from `ClaudePaths` (centralized)
 
@@ -386,7 +386,7 @@ Pricing table (per million tokens):
 ### VersionChecker (`Services/VersionChecker.swift`)
 - Singleton: `.shared`
 - `checkForUpdate() async -> UpdateInfo?` — fetches GitHub Releases API once per 24h
-- `skipVersion(_:)` — persists skipped version to UserDefaults
+- `forceCheckForUpdate() async -> UpdateInfo?` — bypasses 24h cache
 - `isNewer(_:than:) -> Bool` — static semver comparison (major/minor/patch)
 - `stripTag(_:) -> String` — strips leading "v" or "V"
 - `currentAppVersion` — reads `CFBundleShortVersionString` from bundle
@@ -437,7 +437,7 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `skipVersion`, `colorblindMode`, `hasSeenTutorial`
+- Keys: `metricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `colorblindMode`, `hasSeenTutorial`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`

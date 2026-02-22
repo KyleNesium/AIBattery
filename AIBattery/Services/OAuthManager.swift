@@ -53,6 +53,8 @@ public final class OAuthManager: ObservableObject {
 
     /// Serializes concurrent refresh attempts per account.
     private var refreshTasks: [String: Task<String?, Never>] = [:]
+    /// Generation counter per account — used to detect stale refresh tasks.
+    private var refreshGeneration: [String: UInt64] = [:]
 
     /// Account registry — persisted to UserDefaults.
     @Published public var accountStore = AccountStore()
@@ -91,13 +93,18 @@ public final class OAuthManager: ObservableObject {
         // Try to refresh
         guard let refresh = acctTokens.refreshToken else { return nil }
 
+        let gen = (refreshGeneration[accountId] ?? 0) &+ 1
+        refreshGeneration[accountId] = gen
         let task = Task<String?, Never> {
-            let result = await refreshAccessToken(refresh, accountId: accountId)
-            refreshTasks[accountId] = nil
-            return result
+            await refreshAccessToken(refresh, accountId: accountId)
         }
         refreshTasks[accountId] = task
-        return await task.value
+        let result = await task.value
+        // Only clear if no newer refresh replaced this one while we were awaiting
+        if refreshGeneration[accountId] == gen {
+            refreshTasks[accountId] = nil
+        }
+        return result
     }
 
     /// Start the OAuth flow: generates PKCE, returns the authorization URL to open in browser.

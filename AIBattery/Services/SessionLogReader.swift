@@ -37,10 +37,10 @@ final class SessionLogReader {
     }
 
     func readAllUsageEntries() -> [AssistantUsageEntry] {
+        lastCorruptLineCount = 0
+
         // Return cached result if available (invalidated by FileWatcher)
         if let cached = cachedAllEntries { return cached }
-
-        lastCorruptLineCount = 0
         let jsonlFiles = discoverJSONLFiles()
         var allEntries: [AssistantUsageEntry] = []
         var seenMessageIds = Set<String>()

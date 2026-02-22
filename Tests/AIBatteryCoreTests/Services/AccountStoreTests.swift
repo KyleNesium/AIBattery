@@ -263,6 +263,85 @@ struct AccountStoreTests {
         #expect(store.activeAccountId == "org-1")
     }
 
+    @Test func update_mergePreservesEarliestAddedAt() {
+        let store = makeCleanStore()
+        let earlier = Date(timeIntervalSince1970: 1000)
+        let later = Date(timeIntervalSince1970: 2000)
+        let r1 = AccountRecord(id: "org-real", displayName: nil, billingType: nil, addedAt: earlier)
+        let r2 = AccountRecord(id: "pending-abc", displayName: nil, billingType: nil, addedAt: later)
+        store.add(r1)
+        store.add(r2)
+
+        var resolved = r2
+        resolved.id = "org-real"
+        store.update(oldId: "pending-abc", with: resolved)
+
+        #expect(store.accounts.count == 1)
+        #expect(store.accounts.first?.addedAt == earlier)
+    }
+
+    @Test func update_mergePreservesExistingDisplayName() {
+        let store = makeCleanStore()
+        let r1 = AccountRecord(id: "org-real", displayName: "Kyle", billingType: nil, addedAt: Date())
+        let r2 = AccountRecord(id: "pending-abc", displayName: nil, billingType: nil, addedAt: Date())
+        store.add(r1)
+        store.add(r2)
+
+        var resolved = r2
+        resolved.id = "org-real"
+        store.update(oldId: "pending-abc", with: resolved)
+
+        #expect(store.accounts.count == 1)
+        #expect(store.accounts.first?.displayName == "Kyle")
+    }
+
+    @Test func update_mergePrefersNewDisplayName() {
+        let store = makeCleanStore()
+        let r1 = AccountRecord(id: "org-real", displayName: "Old", billingType: nil, addedAt: Date())
+        let r2 = AccountRecord(id: "pending-abc", displayName: nil, billingType: nil, addedAt: Date())
+        store.add(r1)
+        store.add(r2)
+
+        var resolved = r2
+        resolved.id = "org-real"
+        resolved.displayName = "New"
+        store.update(oldId: "pending-abc", with: resolved)
+
+        #expect(store.accounts.count == 1)
+        #expect(store.accounts.first?.displayName == "New")
+    }
+
+    @Test func update_mergePrefersNewBillingType() {
+        let store = makeCleanStore()
+        let r1 = AccountRecord(id: "org-real", displayName: nil, billingType: "free", addedAt: Date())
+        let r2 = AccountRecord(id: "pending-abc", displayName: nil, billingType: nil, addedAt: Date())
+        store.add(r1)
+        store.add(r2)
+
+        var resolved = r2
+        resolved.id = "org-real"
+        resolved.billingType = "pro"
+        store.update(oldId: "pending-abc", with: resolved)
+
+        #expect(store.accounts.count == 1)
+        #expect(store.accounts.first?.billingType == "pro")
+    }
+
+    @Test func update_mergeFallsBackToExistingBillingType() {
+        let store = makeCleanStore()
+        let r1 = AccountRecord(id: "org-real", displayName: nil, billingType: "teams", addedAt: Date())
+        let r2 = AccountRecord(id: "pending-abc", displayName: nil, billingType: nil, addedAt: Date())
+        store.add(r1)
+        store.add(r2)
+
+        var resolved = r2
+        resolved.id = "org-real"
+        store.update(oldId: "pending-abc", with: resolved)
+
+        #expect(store.accounts.count == 1)
+        #expect(store.accounts.first?.billingType == "teams")
+    }
+
     @Test func persistence_emptyAccountsArray() {
         _ = makeCleanStore()
         let store2 = AccountStore()
