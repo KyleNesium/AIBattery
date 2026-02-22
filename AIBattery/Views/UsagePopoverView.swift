@@ -440,6 +440,7 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.tokenWindowDays) private var tokenWindowDays: Double = 0
     @AppStorage(UserDefaultsKeys.alertClaudeAI) private var alertClaudeAI: Bool = false
     @AppStorage(UserDefaultsKeys.alertClaudeCode) private var alertClaudeCode: Bool = false
+    @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -537,6 +538,27 @@ private struct SettingsRow: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .padding(.leading, 58)
+
+            // Launch at Login
+            HStack(spacing: 8) {
+                Text("Startup")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Toggle("Launch at Login", isOn: $launchAtLogin)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .onAppear {
+                        if #available(macOS 13.0, *) {
+                            launchAtLogin = LaunchAtLoginManager.isEnabled
+                        }
+                    }
+                    .onChange(of: launchAtLogin) { newValue in
+                        if #available(macOS 13.0, *) {
+                            LaunchAtLoginManager.setEnabled(newValue)
+                        }
+                    }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

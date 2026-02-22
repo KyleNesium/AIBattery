@@ -13,4 +13,5 @@ enum UserDefaultsKeys {
     static let plan = "aibattery_plan"
     static let accounts = "aibattery_accounts"
     static let activeAccountId = "aibattery_activeAccountId"
+    static let launchAtLogin = "aibattery_launchAtLogin"
 }
