@@ -68,7 +68,7 @@ final class UsageAggregator {
 
         // Only show models active in the last 72 hours to reduce noise.
         // Build set of recently-active model IDs from dailyModelTokens + today's JSONL.
-        let cutoffDate = Calendar.current.date(byAdding: .hour, value: -72, to: Date())!
+        let cutoffDate = Calendar.current.date(byAdding: .hour, value: -72, to: Date()) ?? Date()
         let cutoffDateStr = Self.dateFormatter.string(from: cutoffDate)
         var recentModelIds = Set<String>()
         if let cache = statsCache {

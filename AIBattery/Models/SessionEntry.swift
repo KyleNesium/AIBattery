@@ -17,11 +17,17 @@ struct SessionEntry: Codable {
     }
 
     struct TokenUsage: Codable {
-        let input_tokens: Int?
-        let output_tokens: Int?
-        let cache_creation_input_tokens: Int?
-        let cache_read_input_tokens: Int?
-        let service_tier: String?
+        let inputTokens: Int?
+        let outputTokens: Int?
+        let cacheCreationInputTokens: Int?
+        let cacheReadInputTokens: Int?
+
+        private enum CodingKeys: String, CodingKey {
+            case inputTokens = "input_tokens"
+            case outputTokens = "output_tokens"
+            case cacheCreationInputTokens = "cache_creation_input_tokens"
+            case cacheReadInputTokens = "cache_read_input_tokens"
+        }
     }
 }
 

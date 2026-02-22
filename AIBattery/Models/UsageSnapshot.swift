@@ -180,6 +180,14 @@ enum TrendDirection {
         case .flat: return "\u{2192}"  // →
         }
     }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .up: return "increasing"
+        case .down: return "decreasing"
+        case .flat: return "stable"
+        }
+    }
 }
 
 /// Plan tier inferred from billing type string.

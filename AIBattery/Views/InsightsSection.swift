@@ -15,6 +15,7 @@ struct InsightsSection: View {
                     Text(snapshot.trendDirection.symbol)
                         .font(.caption)
                         .foregroundStyle(trendColor)
+                        .accessibilityHidden(true)
                         .help("Weekly trend: this week vs last week")
                 }
                 Spacer()
@@ -32,7 +33,7 @@ struct InsightsSection: View {
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Today: \(snapshot.todayMessages) messages, \(snapshot.todaySessions) sessions, \(snapshot.todayToolCalls) tool calls")
+            .accessibilityLabel("Today: \(snapshot.todayMessages) messages, \(snapshot.todaySessions) sessions, \(snapshot.todayToolCalls) tool calls, trend \(snapshot.trendDirection.accessibilityLabel)")
 
             // Totals + busiest day
             HStack {

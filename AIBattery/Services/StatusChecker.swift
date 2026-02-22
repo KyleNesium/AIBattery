@@ -8,6 +8,9 @@ final class StatusChecker {
 
     private let summaryURL = URL(string: "https://status.claude.com/api/v2/summary.json")!
 
+    /// Base URL for the public status page.
+    static let statusPageBaseURL = "https://status.claude.com"
+
     /// Statuspage component IDs for services we track.
     static let claudeAPIComponentID = "k8w3r06qmzrp"
     static let claudeCodeComponentID = "yyzkbfz2thpt"
@@ -76,7 +79,7 @@ final class StatusChecker {
                 indicator: StatusIndicator.from(summary.status.indicator),
                 description: summary.status.description,
                 incidentName: nil,
-                statusPageURL: "https://status.claude.com"
+                statusPageURL: StatusChecker.statusPageBaseURL
             )
         }
 
@@ -130,7 +133,7 @@ final class StatusChecker {
             indicator: worstIndicator,
             description: description,
             incidentName: activeIncident?.name,
-            statusPageURL: "https://status.claude.com",
+            statusPageURL: StatusChecker.statusPageBaseURL,
             claudeAPIStatus: apiStatus,
             claudeCodeStatus: codeStatus
         )
@@ -152,7 +155,7 @@ struct ClaudeSystemStatus {
         indicator: .unknown,
         description: "Status unavailable",
         incidentName: nil,
-        statusPageURL: "https://status.claude.com"
+        statusPageURL: StatusChecker.statusPageBaseURL
     )
 }
 

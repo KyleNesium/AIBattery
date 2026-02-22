@@ -9,9 +9,9 @@ struct FiveHourBarSection: View {
             label: "5-Hour",
             percent: limits.fiveHourPercent,
             resetsAt: limits.fiveHourReset,
-            isBinding: limits.representativeClaim == "five_hour",
+            isBinding: limits.representativeClaim == RateLimitUsage.fiveHourWindow,
             isThrottled: limits.fiveHourStatus == "throttled",
-            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: "five_hour")
+            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow)
         )
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -27,9 +27,9 @@ struct SevenDayBarSection: View {
             label: "7-Day",
             percent: limits.sevenDayPercent,
             resetsAt: limits.sevenDayReset,
-            isBinding: limits.representativeClaim == "seven_day",
+            isBinding: limits.representativeClaim == RateLimitUsage.sevenDayWindow,
             isThrottled: limits.sevenDayStatus == "throttled",
-            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: "seven_day")
+            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow)
         )
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -58,6 +58,8 @@ struct CompactRateLimitRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("5-hour \(Int(limits.fiveHourPercent)) percent, 7-day \(Int(limits.sevenDayPercent)) percent\(limits.isThrottled ? ", rate limited" : "")")
     }
 }
 

@@ -1,4 +1,3 @@
-import Combine
 import SwiftUI
 
 public struct UsagePopoverView: View {
@@ -336,7 +335,7 @@ public struct UsagePopoverView: View {
 
                 // Status Page — colored dot acts as status indicator
                 Button(action: {
-                    if let url = URL(string: "https://status.claude.com") {
+                    if let url = URL(string: StatusChecker.statusPageBaseURL) {
                         NSWorkspace.shared.open(url)
                     }
                 }) {

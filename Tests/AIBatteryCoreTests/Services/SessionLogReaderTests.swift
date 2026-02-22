@@ -55,10 +55,10 @@ struct SessionLogReaderTests {
         #expect(entry.type == "assistant")
         #expect(entry.sessionId == "abc-123")
         #expect(entry.message?.model == "claude-sonnet-4-5-20250929")
-        #expect(entry.message?.usage?.input_tokens == 500)
-        #expect(entry.message?.usage?.output_tokens == 120)
-        #expect(entry.message?.usage?.cache_read_input_tokens == 1000)
-        #expect(entry.message?.usage?.cache_creation_input_tokens == 0)
+        #expect(entry.message?.usage?.inputTokens == 500)
+        #expect(entry.message?.usage?.outputTokens == 120)
+        #expect(entry.message?.usage?.cacheReadInputTokens == 1000)
+        #expect(entry.message?.usage?.cacheCreationInputTokens == 0)
     }
 
     @Test func sessionEntry_decodesMinimalEntry() throws {
@@ -100,6 +100,6 @@ struct SessionLogReaderTests {
         }
         """
         let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
-        #expect(entry.message?.usage?.service_tier == "standard")
+        // service_tier removed — decoded but unused by the app
     }
 }

@@ -34,6 +34,7 @@ struct TutorialOverlay: View {
                 Image(systemName: steps[step].icon)
                     .font(.system(size: 28))
                     .foregroundStyle(.blue)
+                    .accessibilityHidden(true)
 
                 Text(steps[step].title)
                     .font(.headline)
@@ -50,8 +51,11 @@ struct TutorialOverlay: View {
                         Circle()
                             .fill(i == step ? Color.blue : Color.secondary.opacity(0.3))
                             .frame(width: 6, height: 6)
+                            .accessibilityHidden(true)
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Step \(step + 1) of \(steps.count)")
 
                 // Action button
                 Button(step < steps.count - 1 ? "Next" : "Get Started") {
@@ -67,6 +71,8 @@ struct TutorialOverlay: View {
             .padding(24)
             .frame(maxWidth: 280)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Tutorial: \(steps[step].title)")
         }
     }
 }

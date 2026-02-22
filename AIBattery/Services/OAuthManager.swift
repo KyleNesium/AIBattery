@@ -182,7 +182,7 @@ public final class OAuthManager: ObservableObject {
 
         let body: [String: String] = [
             "code": code.trimmingCharacters(in: .whitespacesAndNewlines),
-            "state": expectedState ?? verifier,
+            "state": expectedState ?? "",
             "grant_type": "authorization_code",
             "client_id": clientID,
             "redirect_uri": redirectURI,
@@ -320,10 +320,7 @@ public final class OAuthManager: ObservableObject {
             // Transient errors (network, 5xx) keep isAuthenticated so we retry next cycle.
             if error.isTransient {
                 AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), will retry next cycle")
-            } else if accountId == accountStore.activeAccountId {
-                signOut(accountId: accountId)
             } else {
-                // Non-active account auth failure — remove it silently
                 signOut(accountId: accountId)
             }
             return nil

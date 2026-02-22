@@ -37,10 +37,10 @@ struct SessionEntryTests {
         #expect(entry.gitBranch == "main")
         #expect(entry.message?.role == "assistant")
         #expect(entry.message?.model == "claude-opus-4-6")
-        #expect(entry.message?.usage?.input_tokens == 1000)
-        #expect(entry.message?.usage?.output_tokens == 500)
-        #expect(entry.message?.usage?.cache_creation_input_tokens == 200)
-        #expect(entry.message?.usage?.cache_read_input_tokens == 100)
+        #expect(entry.message?.usage?.inputTokens == 1000)
+        #expect(entry.message?.usage?.outputTokens == 500)
+        #expect(entry.message?.usage?.cacheCreationInputTokens == 200)
+        #expect(entry.message?.usage?.cacheReadInputTokens == 100)
     }
 
     @Test func decode_minimalEntry() throws {
@@ -83,11 +83,10 @@ struct SessionEntryTests {
                 role: "assistant",
                 model: "claude-haiku-4-5-20251001",
                 usage: SessionEntry.TokenUsage(
-                    input_tokens: 500,
-                    output_tokens: 200,
-                    cache_creation_input_tokens: 0,
-                    cache_read_input_tokens: 50,
-                    service_tier: nil
+                    inputTokens: 500,
+                    outputTokens: 200,
+                    cacheCreationInputTokens: 0,
+                    cacheReadInputTokens: 50
                 ),
                 id: "msg-rt"
             ),
@@ -100,7 +99,7 @@ struct SessionEntryTests {
         #expect(decoded.type == "assistant")
         #expect(decoded.sessionId == "s-round")
         #expect(decoded.message?.model == "claude-haiku-4-5-20251001")
-        #expect(decoded.message?.usage?.input_tokens == 500)
+        #expect(decoded.message?.usage?.inputTokens == 500)
         #expect(decoded.gitBranch == "feat/test")
     }
 }

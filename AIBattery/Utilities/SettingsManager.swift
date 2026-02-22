@@ -24,16 +24,15 @@ enum SettingsManager {
         UserDefaultsKeys.colorblindMode,
     ]
 
-    /// Export current settings as JSON data.
-    static func exportSettings() -> Data {
+    /// Export current settings as JSON data. Returns nil if serialization fails.
+    static func exportSettings() -> Data? {
         var dict: [String: Any] = [:]
         for key in exportableKeys {
             if let value = UserDefaults.standard.object(forKey: key) {
                 dict[key] = value
             }
         }
-        // swiftlint:disable:next force_try
-        return try! JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys])
+        return try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys])
     }
 
     /// Import settings from JSON data. Only known keys are applied.
@@ -51,11 +50,10 @@ enum SettingsManager {
 
     /// Copy settings JSON to clipboard.
     static func exportToClipboard() {
-        let data = exportSettings()
-        if let json = String(data: data, encoding: .utf8) {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(json, forType: .string)
-        }
+        guard let data = exportSettings(),
+              let json = String(data: data, encoding: .utf8) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(json, forType: .string)
     }
 
     /// Import settings from clipboard JSON.

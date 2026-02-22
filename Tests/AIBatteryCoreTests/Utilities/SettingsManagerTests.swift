@@ -6,7 +6,7 @@ import Foundation
 struct SettingsManagerTests {
 
     @Test func exportSettings_returnsValidJSON() {
-        let data = SettingsManager.exportSettings()
+        let data = try #require(SettingsManager.exportSettings())
         let json = try? JSONSerialization.jsonObject(with: data)
         #expect(json != nil)
         #expect(json is [String: Any])
@@ -20,7 +20,7 @@ struct SettingsManagerTests {
         defer { UserDefaults.standard.set(original, forKey: testKey) }
 
         // Export
-        let data = SettingsManager.exportSettings()
+        let data = try #require(SettingsManager.exportSettings())
 
         // Change value
         UserDefaults.standard.set(99.0, forKey: testKey)
