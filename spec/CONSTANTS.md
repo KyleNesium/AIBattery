@@ -190,6 +190,9 @@ Pricing per million tokens:
 | Metric mode change | `.easeInOut(duration: 0.15)` |
 | Account switch | `.easeInOut(duration: 0.2)` |
 | Copy checkmark display | 1 second, `.easeInOut(duration: 0.15)` transitions |
+| Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
+| Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
+| Copy hover highlight | `Color.primary.opacity(0.08)` background, `NSCursor.pointingHand` |
 
 ## JSONL Processing
 

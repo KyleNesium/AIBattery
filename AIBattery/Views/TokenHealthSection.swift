@@ -62,6 +62,7 @@ struct TokenHealthSection: View {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(bandColor)
                         .frame(width: geometry.size.width * min(CGFloat(health.usagePercentage) / 100.0, 1.0), height: 8)
+                        .animation(.easeInOut(duration: 0.4), value: health.usagePercentage)
                 }
             }
             .frame(height: 8)
@@ -248,6 +249,8 @@ struct TokenHealthSection: View {
                 .frame(width: 8, height: 8)
             Text("\(Int(health.usagePercentage))%")
                 .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.4), value: Int(health.usagePercentage))
                 .copyable("\(Int(health.usagePercentage))%")
         }
     }

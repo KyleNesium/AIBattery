@@ -67,6 +67,8 @@ struct UsageBar: View {
                 Spacer()
                 Text("\(Int(percent))%")
                     .font(.system(.title3, design: .monospaced, weight: .semibold))
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.4), value: Int(percent))
                     .copyable("\(Int(percent))%")
             }
 
@@ -79,6 +81,7 @@ struct UsageBar: View {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(colorForPercent(percent))
                         .frame(width: geometry.size.width * min(CGFloat(percent) / 100.0, 1.0), height: 8)
+                        .animation(.easeInOut(duration: 0.4), value: percent)
                 }
             }
             .frame(height: 8)

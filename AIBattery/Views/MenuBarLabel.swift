@@ -46,6 +46,8 @@ public struct MenuBarLabel: View {
 
             Text("\(Int(displayPercent))%")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.4), value: Int(displayPercent))
                 .opacity(isStale ? 0.5 : 1.0)
 
             if let org = orgLabel {

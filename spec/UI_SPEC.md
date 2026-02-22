@@ -199,7 +199,8 @@ Padding: H 16, V 12
 
 `CopyableModifier` ViewModifier applied via `.copyable(_ value:)` extension:
 - Copies formatted display value to `NSPasteboard.general` on tap
-- Brief green checkmark overlay (1 second, `.opacity` transition)
+- Hover feedback: pointer cursor (`NSCursor.pointingHand`) + subtle background highlight (`.primary.opacity(0.08)`)
+- Brief green checkmark overlay (1 second, `.opacity` transition, offset right of content)
 - `.help` tooltip shows the value
 - Applied to: usage percentages, token counts, health stats, insight summaries, cost values
 
