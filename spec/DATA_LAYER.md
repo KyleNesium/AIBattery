@@ -33,6 +33,8 @@ Main aggregated data struct consumed by all views.
 
 Computed: `totalTokens`, `planTier: PlanTier?` (from billingType → UserDefaults → nil), `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover)
 
+Projections & trends: `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `projectedTodayTotal: Int` (extrapolate today's messages based on hour-of-day progress), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
+
 ### ModelTokenSummary
 
 | Field | Type |
@@ -55,6 +57,14 @@ Which metric drives the menu bar icon percentage and color.
 | `.fiveHour` | `"5h"` | `"5-Hour"` | `"5h"` |
 | `.sevenDay` | `"7d"` | `"7-Day"` | `"7d"` |
 | `.contextHealth` | `"context"` | `"Context"` | `"Ctx"` |
+
+### TrendDirection (`Models/UsageSnapshot.swift`)
+
+| Case | Symbol |
+|------|--------|
+| `.up` | ↑ |
+| `.down` | ↓ |
+| `.flat` | → |
 
 ### PlanTier (`Models/UsageSnapshot.swift`)
 
@@ -130,7 +140,7 @@ Parsed from Anthropic's unified rate limit headers (`anthropic-ratelimit-unified
 | `sevenDayStatus` | `String` |
 | `overallStatus` | `String` — `"allowed"` or `"throttled"` |
 
-Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled`
+Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled`, `estimatedTimeToLimit(for window: String) -> TimeInterval?` (burn rate = utilization / elapsed, projects when 100% reached; returns nil if utilization ≤ 50%, elapsed < 60s, or estimate exceeds reset time)
 
 `parse(headers:)` static method: reads `anthropic-ratelimit-unified-status`, `anthropic-ratelimit-unified-representative-claim`, `anthropic-ratelimit-unified-5h-utilization`, `anthropic-ratelimit-unified-5h-reset`, `anthropic-ratelimit-unified-5h-status`, and equivalent `7d` headers. Reset timestamps are parsed as Unix epoch seconds.
 
@@ -169,7 +179,7 @@ Computed: `suggestedAction` — nil for green/unknown, recommendation text for o
 
 ### TokenHealthConfig (`Models/TokenHealthConfig.swift`)
 
-Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`
+Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`, `staleSessionMinutes = 30`, `zeroOutputTurnThreshold = 3`
 
 Static: `contextWindows: [String: Int]` dictionary, `defaultContextWindow = 200_000`, `usableContextRatio = 0.80`, `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
 
@@ -252,7 +262,7 @@ Pricing table (per million tokens):
 - **Legacy migration**: `migrateFromLegacy()` on init — detects old unprefixed Keychain entries, creates AccountRecord with temp ID, copies to prefixed format, deletes old entries. Runs only when accounts array is empty.
 - **Per-account Keychain**: `saveTokens(for:)`, `loadTokens(for:)`, `deleteTokens(for:)` using `"accessToken_{accountId}"` format under service `"AIBattery"`.
 - `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.serverError(Int)`, `.maxAccountsReached`, `.unknownError(String)` — each has `userMessage` for display. `isTransient` for `.networkError`/`.serverError`.
-- **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) on 5xx. Non-retryable errors fail immediately.
+- **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) with jitter on 429 and 5xx. Parses `Retry-After` header on 429 when present. Non-retryable errors fail immediately.
 - **Refresh resilience**: transient errors during refresh do NOT mark `isAuthenticated = false`. Only auth errors trigger logout.
 
 ### AccountStore (`Services/AccountStore.swift`)
@@ -292,7 +302,7 @@ Pricing table (per million tokens):
 - **Incident impact escalation**: when components report "operational" but active incidents exist, factors in incident `impact` field (`"none"`, `"minor"`, `"major"`, `"critical"`) to determine overall indicator. If impact is `"none"` but incidents are active, escalates to at least `.degradedPerformance` (yellow dot).
 - Checks for active incidents (status not `resolved` or `postmortem`)
 - Returns `.unknown` on any error
-- **Backoff**: on failure, skips fetches for 60 seconds (`backoffInterval = 60`) to avoid noise; clears on success
+- **Backoff**: exponential backoff with jitter on failure — base 60s doubles per failure, capped at 5 min, ±20% jitter to prevent thundering herd; resets on success
 
 ### StatsCacheReader (`Services/StatsCacheReader.swift`)
 - Singleton: `.shared`
@@ -316,6 +326,7 @@ Pricing table (per million tokens):
 - Deduplication by messageId within each file
 - Sorted by timestamp ascending
 - **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
+- **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each scan
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - Created per-ViewModel (not singleton)
@@ -342,6 +353,10 @@ Pricing table (per million tokens):
 - Band: `< greenThreshold` → green (of usable), `< redThreshold` → orange, else red
 - Warnings: high turn count (>15 mild, >25 strong), input:output ratio (>20:1, includes cache tokens)
 - Velocity: `totalUsed / duration` if 2+ entries and duration > 60 seconds (no double-counting)
+- **Anomaly detection**: three additional warnings:
+  - Zero output: `outputTokens == 0 && turnCount > zeroOutputTurnThreshold` → "Session has no output — check for errors"
+  - Rapid consumption: `sessionDuration < 60 && totalUsed > 50_000` → "Rapid token consumption detected"
+  - Stale session: `lastActivity > staleSessionMinutes * 60 && band != .green` → "Session idle for X min — context may be stale"
 - **Session metadata**: extracts projectName from cwd (last path component), gitBranch, sessionStart, sessionDuration. Uses **first** entry with cwd for project name (session identity), **latest** entry for git branch (current state).
 
 ### FileWatcher (`Services/FileWatcher.swift`)
@@ -364,6 +379,7 @@ Pricing table (per million tokens):
 - `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
 - `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
 - Deduplication: `hasFired[key]` bool per component, resets when service recovers
+- **Batch delivery**: queues alerts for 500ms; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts")
 - Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps. Process reaping via `waitUntilExit()` on background queue prevents zombie processes.
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
 
@@ -402,6 +418,9 @@ Pricing table (per million tokens):
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
 - Deinit: invalidates timer, stops file watcher
+- **Adaptive polling**: tracks `unchangedCycles` counter comparing `totalMessages`/`todayMessages` before and after refresh. After 3 unchanged cycles, doubles polling interval (up to 5 min max). Any data change or file watcher trigger resets to configured interval.
+- **Identity timeout**: warns if a pending account hasn't resolved identity after 1 hour (prompts re-auth).
+- **JSONL corruption logging**: after aggregation, logs `SessionLogReader.lastCorruptLineCount` via `AppLogger.files.warning` if > 0.
 
 ## Utilities
 
@@ -424,9 +443,28 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `skipVersion`
+- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `skipVersion`, `menuBarDecimal`, `compactBars`, `colorblindMode`, `hasSeenTutorial`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`
 - Categories: `general`, `oauth`, `network`, `files`
 - Used throughout services for structured logging (replaces bare `print()` calls)
+
+### SettingsManager (`Utilities/SettingsManager.swift`)
+- Enum (no instances)
+- `exportableKeys: [String]` — all user-configurable preference keys, excludes accounts, tokens, update state
+- `exportSettings() -> Data` — JSON export of exportable keys from UserDefaults
+- `importSettings(from data: Data) throws` — validate JSON, apply only known keys
+- `exportToClipboard()` — exports to `NSPasteboard.general`
+- `importFromClipboard() throws` — reads from clipboard, validates, applies
+- `SettingsError`: `.invalidFormat`, `.emptyClipboard`
+
+### ThemeColors (`Utilities/ThemeColors.swift`)
+- Enum (no instances)
+- Reads `UserDefaultsKeys.colorblindMode` to switch palettes
+- `barColor(percent:) -> Color` — usage bar fill color
+- `bandColor(_: HealthBand) -> Color` — context health band color
+- `statusColor(_: StatusIndicator) -> Color` — system status dot color
+- `barNSColor(percent:) -> NSColor` — menu bar icon fill color
+- Standard palette: green → yellow → orange → red
+- Colorblind palette: blue → cyan → amber → purple (deuteranopia/protanopia safe)

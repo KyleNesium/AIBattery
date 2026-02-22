@@ -66,6 +66,7 @@ UsagePopoverView (275px, VStack)
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
 │   └── TokenHealthSection (if topSessionHealths or tokenHealth)
+├── TutorialOverlay (if !hasSeenTutorial && snapshot != nil)
 ├── TokenUsageSection (includes per-model breakdown)
 ├── Divider
 ├── ActivityChartView (if dailyActivity or hourCounts)
@@ -118,16 +119,24 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence (exce
   - Hint: `"Notify when service is down"` (.caption2, .tertiary)
   - On enable: calls `NotificationManager.shared.requestPermission()`
 
-- **Display**: Three checkboxes on one row
+- **Display**: Checkboxes on one row
   - "Tokens" → `aibattery_showTokens` (Bool, default true) — toggles the Tokens section
   - "Activity" → `aibattery_showActivity` (Bool, default true) — toggles the Activity chart
-  - "API Cost" → `aibattery_showCostEstimate` (Bool, default false) — toggles cost display in Tokens section
+  - "Cost~" → `aibattery_showCostEstimate` (Bool, default false) — toggles cost display in Tokens section
+  - "Decimal" → `aibattery_menuBarDecimal` (Bool, default false) — menu bar shows `42.5%` instead of `42%`
+  - "Compact" → `aibattery_compactBars` (Bool, default false) — non-selected rate limit windows show as single-line summaries
+  - "Colorblind" → `aibattery_colorblindMode` (Bool, default false) — switches to blue/cyan/amber/purple palette
   - When enabled, shows $ amounts in Tokens section (header total + per-model inline)
 - **Rate Limit**: Toggle + threshold slider (50–95%, step 5, default 80%)
   - Hint: `"Notify when rate limit usage exceeds threshold"` (.caption2, .tertiary)
   - Slider + tick marks shown only when toggle is on
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
   - Syncs with `SMAppService.mainApp.status` on appear
+- **Export / Import** (at bottom of settings):
+  - "Export" button — copies settings JSON to clipboard via `SettingsManager.exportToClipboard()`
+  - "Import" button — reads clipboard JSON, applies via `SettingsManager.importFromClipboard()`
+  - Brief inline feedback message after each operation
+  - Excludes: accounts, activeAccountId, lastUpdateCheck, skipVersion
 
 **Animations**:
 - Settings toggle: `withAnimation(.easeInOut(duration: 0.2))` + `.transition(.opacity.combined(with: .move(edge: .top)))`
@@ -146,10 +155,18 @@ Each bar:
 - **Label row**: label (.subheadline, .secondary) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.title3, monospaced, semibold)
 - **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
 - **Detail row**: `"X% remaining"` (.caption2) + `"Resets in Xh Ym"` (.caption2, .tertiary)
+- **Predictive estimate** (when `estimatedTimeToLimit` is available): replaces reset time with `"~Xh Ym to limit"` in orange (.caption2, .orange). Only shown when utilization > 50% and estimate is before reset time.
 
 Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `<1h` → "in Xm", expired → "soon"
 
 Padding: H 16, V 12
+
+#### Compact Mode (`CompactRateLimitRow`)
+
+When `aibattery_compactBars` is true, non-selected rate limit windows display as a single-line summary:
+- Format: `"5h: XX% · 7d: XX%"` (.caption, monospaced)
+- Color-coded percentages using `ThemeColors.barColor(percent:)`
+- Full bar display retained for the selected metric
 
 ### ❸ Context Health (`Views/TokenHealthSection.swift`)
 
@@ -165,6 +182,9 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 most recent). Backward-compat
   - Left/right chevrons with `.easeInOut(0.15)` animation
   - Counter: monospaced caption2, e.g. `"1/3"`
   - Disabled states at bounds, `.quaternary` color when disabled
+- **Swipe gesture**: `DragGesture(minimumDistance: 50)` on main VStack — horizontal drag >50pt navigates prev/next session (same animation as chevron buttons)
+- **Stale session badge** (if lastActivity > 30 min and band != .green): amber dot (6pt) + `"Idle Xm"` (.caption2, .orange)
+- **Expanded tooltip**: `.help()` on session info label with full details — session ID, model, context window, all timestamps, all token counts, warnings
 - **Refresh button**: `arrow.clockwise` 10pt, .secondary
 - **Health badge**: 8pt colored circle + percentage in monospaced subheadline semibold
 - **Gauge bar**: same style as usage bars (8pt, 3pt radius), width proportional to usagePercentage
@@ -207,7 +227,9 @@ Padding: H 16, V 12
 ### ❻ Insights (`Views/InsightsSection.swift`)
 
 - Today: `"Today"` label (.caption, .secondary) + `"{msgs} msgs · {sessions} sessions · {tools} tools"` (.caption, monospaced)
+- **Trend arrow**: after today stats, trend direction indicator (↑ orange / ↓ green / → gray) with projected total when available
 - All Time: `"All Time"` label (.caption, .secondary) + `"{messages} msgs · {sessions} sessions"` (.caption, monospaced)
+- **Busiest day**: after all-time stats, shows `"Busiest: {dayName} avg {count}"` (.caption2, .tertiary) when available
 - Each row: label left, stats right (HStack with Spacer)
 
 Padding: H 16, V 12
@@ -281,6 +303,7 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monospaced) + optional org name (10pt, with · separator)
 
 - **Staleness**: percentage text dims to 50% opacity when last fresh fetch > 5 minutes ago
+- **Decimal precision**: when `aibattery_menuBarDecimal` is true, shows `"42.5%"` (`String(format: "%.1f%%")`) instead of `"42%"`
 - Org name reads from snapshot first, falls back to `@AppStorage("aibattery_orgName")`. Hides default individual org pattern.
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
@@ -299,6 +322,32 @@ HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monosp
 - **UsageBarsSection**: `"Binding constraint"` label on binding badge
 - **TokenHealthSection**: combined label on detail row with remaining tokens, turn count, model name
 
+## Help Tooltips
+
+`.help()` modifiers provide hover descriptions across all sections:
+- **UsageBarsSection**: binding badge ("This window is the active rate limit constraint"), throttle icon ("You are currently rate limited")
+- **TokenUsageSection**: header ("Total tokens used across all models"), active indicator ("Active model in current session"), token type tags (input/output/cache read/cache write)
+- **TokenHealthSection**: context gauge ("Percentage of usable context window consumed"), turns label, safe minimum hint, expanded session details tooltip
+- **ActivityChartView**: mode picker ("Switch activity chart time range")
+- **InsightsSection**: today/all-time labels, trend arrow
+- **UsagePopoverView**: metric mode picker
+
+### Tutorial Overlay (`Views/TutorialOverlay.swift`)
+
+3-step walkthrough shown on first data load (`!hasSeenTutorial && snapshot != nil`):
+
+1. **Rate Limits** — explains 5h/7d bars and binding constraint
+2. **Context Health** — explains session monitoring and bands
+3. **Settings** — points to gear icon for customization
+
+- Semi-transparent backdrop (`Color.black.opacity(0.4)`)
+- Centered card with `.regularMaterial` background, 12pt corner radius, max 280pt width
+- Step indicators: 3 dots (active = blue, inactive = secondary 0.3)
+- Action button: "Next" / "Get Started" (`.borderedProminent`)
+- Sets `hasSeenTutorial = true` on dismiss
+
 ## Color Rules
 
 See `spec/CONSTANTS.md` for all color threshold tables.
+
+**Colorblind mode** (`aibattery_colorblindMode`): switches all status colors from green/yellow/orange/red to blue/cyan/amber/purple for deuteranopia/protanopia users. All color decisions centralized in `ThemeColors`.

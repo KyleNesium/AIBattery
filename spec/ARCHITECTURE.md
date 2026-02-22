@@ -43,6 +43,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 | JSONL file change | 2 sec FSEvent latency | FileWatcher (FSEventStream on ~/.claude/projects/) |
 | Fallback | 60 sec | FileWatcher fallback timer |
 | Account switch | On click | Account picker in header |
+| Adaptive extension | Doubles interval (up to 5 min) after 3 unchanged cycles | UsageViewModel |
 
 ## Project Tree
 
@@ -84,6 +85,7 @@ AIBattery/
     MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color)
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     AuthView.swift                 — OAuth login/paste-code screen
+    TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
@@ -96,12 +98,16 @@ AIBattery/
     UserDefaultsKeys.swift        — Centralized @AppStorage / UserDefaults key constants
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
+    ThemeColors.swift             — Centralized color theming with colorblind-safe palette
+    SettingsManager.swift         — Settings export/import as JSON via clipboard
 Tests/AIBatteryCoreTests/
   Utilities/
     TokenFormatterTests.swift     — format() for 0, 500, 1K, 2.5K, 15K, 1M, 3.2M, 150M + negatives + boundaries
     ModelNameMapperTests.swift    — displayName() for all model families, edge cases, empty, multi-hyphens
     UserDefaultsKeysTests.swift   — prefix validation, uniqueness
     ClaudePathsTests.swift        — path suffixes, URL↔path consistency, absolute paths
+    ThemeColorsTests.swift        — Color theme tests (both modes, all bands)
+    SettingsManagerTests.swift    — Settings round-trip, validation, security
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     PlanTierTests.swift           — fromBillingType() for all known tiers + unknown + empty

@@ -12,11 +12,15 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Fallback timer | 60 sec | FileWatcher |
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
-| Status backoff interval | 60 sec | StatusChecker |
+| Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter | StatusChecker |
 | Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx | OAuthManager |
 | Token endpoint timeout | 15 sec | OAuthManager |
+| Adaptive polling threshold | 3 unchanged cycles | UsageViewModel |
+| Adaptive polling max | 300 sec (5 min) | UsageViewModel |
+| Notification batch delay | 500 ms | NotificationManager |
+| Identity timeout | 3600 sec (1 hour) — pending account identity | UsageViewModel |
 | Menu bar staleness threshold | 300 sec (5 min) | MenuBarLabel |
 
 ## URLs
@@ -90,6 +94,10 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Turn count strong | 25 | Triggers strong warning |
 | Input/output ratio | 20:1 | Triggers ratio warning (includes cache tokens) |
 | Safe minimum divisor | 5 | usableWindow / 5 for hint |
+| Stale session idle | 30 min | Triggers stale warning if band != green |
+| Zero output turns | 3 | Triggers warning if outputTokens == 0 |
+| Rapid consumption | < 60s duration, > 50K tokens | Anomaly warning |
+
 ## Rate Limit Alerts
 
 | Constant | Value |
@@ -131,6 +139,23 @@ Pricing per million tokens:
 | Sonnet 3.5 | $3 | $15 | $0.375 | $0.30 |
 | Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
 | Opus 3 | $15 | $75 | $1.875 | $1.50 |
+
+## Display Settings
+
+| Constant | Value |
+|----------|-------|
+| Menu bar decimal | `aibattery_menuBarDecimal` (Bool, default false) |
+| Compact bars | `aibattery_compactBars` (Bool, default false) |
+| Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
+| Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
+
+## Settings Export/Import
+
+| Constant | Value |
+|----------|-------|
+| Transport | Clipboard (JSON) |
+| Exported keys | metricMode, refreshInterval, tokenWindowDays, alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold, chartMode, showCostEstimate, showTokens, showActivity, launchAtLogin, menuBarDecimal, compactBars, colorblindMode |
+| Excluded keys | accounts, activeAccountId, lastUpdateCheck, skipVersion, hasSeenTutorial |
 
 ## Launch at Login
 
@@ -235,6 +260,17 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 | 80–94% | Orange |
 | 95–100% | Red |
 
+### Colorblind mode palette
+
+| Standard | Colorblind |
+|----------|------------|
+| Green | Blue |
+| Yellow | Cyan |
+| Orange | Amber (RGB 1.0, 0.75, 0.0) |
+| Red | Purple |
+
+Applied via `ThemeColors` to: usage bars, context health bands, system status dots, menu bar icon.
+
 ### Context health bands
 
 | Range | Color | Status |
@@ -255,3 +291,11 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 | Unknown | (any unrecognized value) | Gray |
 
 **Incident escalation**: When components report `operational` but active incidents exist, the incident `impact` field (`none`, `minor`, `major`, `critical`) is factored in. If impact is `none` but incidents are active, the status escalates to at least Degraded Performance (yellow).
+
+## Predictive Rate Limit
+
+| Constant | Value |
+|----------|-------|
+| Minimum utilization | 50% (below this, estimate not shown) |
+| Minimum elapsed time | 60 sec (need meaningful burn rate) |
+| Shown when | Estimate < remaining time before reset |

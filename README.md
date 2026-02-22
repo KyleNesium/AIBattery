@@ -112,10 +112,10 @@ Click the ✦ icon to open the dashboard:
 
 | Section | What you see |
 |---|---|
-| **Rate Limits** | 5-hour burst + 7-day sustained — utilization %, reset countdown, binding indicator |
-| **Context Health** | 5 most recent sessions with `< 1/5 >` navigation |
+| **Rate Limits** | 5-hour burst + 7-day sustained — utilization %, reset countdown, binding indicator, predictive time-to-limit |
+| **Context Health** | 5 most recent sessions with `< 1/5 >` chevron + swipe navigation |
 | **Tokens** | Per-model breakdown with input/output/cache read/cache write · optional API cost |
-| **Insights** | Today's messages/sessions/tools, all-time stats |
+| **Insights** | Today's stats with trend arrow + projection, all-time stats with busiest day |
 | **Activity** | Sparkline chart — 24H · 7D · 12M toggle |
 
 ## Metrics
@@ -136,7 +136,7 @@ Selected metric moves to the top. The other two stay visible below.
 <tr>
 <td width="55%">
 
-Shows your **5 most recent sessions** with context health. Browse with `< 1/5 >` chevrons.
+Shows your **5 most recent sessions** with context health. Browse with `< 1/5 >` chevrons or swipe left/right. Stale sessions (idle > 30 min) show an amber "Idle" badge.
 
 Each session displays: **project name** · **git branch** · **duration** · **last active time**.
 
@@ -183,9 +183,13 @@ Click ⚙️ in the header to configure:
 | **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | **Models** | Only show models used within period: 1–7 days or All |
 | **Display → API Cost** | Show what your token usage would cost at Anthropic's published API rates |
+| **Display → Decimal** | Show one decimal place in the menu bar (e.g. `42.5%` instead of `42%`) |
+| **Display → Compact** | Collapse non-selected rate limit windows into a single-line summary |
+| **Display → Colorblind** | Switch to a blue/cyan/amber/purple palette (deuteranopia/protanopia safe) |
 | **Alerts** | Notify when Claude.ai or Claude Code goes down (separate toggles) |
 | **Alerts → Rate Limit** | Notify when rate limit usage crosses a threshold (50–95%, default 80%) |
 | **Startup** | Launch AI Battery automatically at login |
+| **Export / Import** | Copy settings to clipboard as JSON, or import from clipboard |
 
 The footer shows a **staleness indicator** — "Updated just now" when fresh, or "Updated Xm ago" in orange when using cached data. An **update banner** appears when a new version is available on GitHub — click **View** to open the release or **Skip** to dismiss.
 
@@ -230,7 +234,8 @@ Rate limits (5-hour / 7-day) always work immediately since they come from the AP
 
 - Reads local JSONL for token counts only — **never your message content**
 - Network calls: `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · `api.github.com` (update check, once/24h)
-- Status checks back off for 60 seconds after failures — no hammering downed services
+- Status checks use exponential backoff on failures (60s → 5 min cap) — no hammering downed services
+- Polling adapts automatically: interval doubles after 3 idle cycles, resets when data changes
 - No analytics. No telemetry. No tracking.
 
 ## Architecture
@@ -241,7 +246,7 @@ AIBattery/
   Services/     — OAuthManager, RateLimitFetcher, SessionLogReader, TokenHealthMonitor, ...
   ViewModels/   — Single UsageViewModel (@MainActor, ObservableObject)
   Views/        — SwiftUI views (popover sections, menu bar label, auth screen)
-  Utilities/    — TokenFormatter, ModelNameMapper, AppLogger, UserDefaultsKeys
+  Utilities/    — TokenFormatter, ModelNameMapper, ThemeColors, SettingsManager, AppLogger, UserDefaultsKeys
 ```
 
 Zero dependencies — Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit).
@@ -279,7 +284,7 @@ AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) i
 
 ## Accessibility
 
-All interactive UI elements include VoiceOver labels. The app is navigable with keyboard and screen readers.
+All interactive UI elements include VoiceOver labels. The app is navigable with keyboard and screen readers. A **colorblind mode** (Settings → Display → Colorblind) switches to a blue/cyan/amber/purple palette for users with color vision deficiency. A **first-launch tutorial** walks through the key sections on first use.
 
 ## Contributing
 
