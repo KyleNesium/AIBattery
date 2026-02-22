@@ -118,6 +118,20 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence (exce
   - Hint: `"Notify when service is down"` (.caption2, .tertiary)
   - On enable: calls `NotificationManager.shared.requestPermission()`
 
+- **Display**: "Cost" checkbox → `aibattery_showCostEstimate` (Bool, default false)
+  - Hint: `"Estimated cost based on published pricing"` (.caption2, .tertiary)
+  - When enabled, shows $ amounts in Tokens section (header total + per-model inline)
+- **Rate Limit**: Toggle + threshold slider (50–95%, step 5, default 80%)
+  - Hint: `"Notify when rate limit usage exceeds threshold"` (.caption2, .tertiary)
+  - Slider + tick marks shown only when toggle is on
+- **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
+  - Syncs with `SMAppService.mainApp.status` on appear
+
+**Animations**:
+- Settings toggle: `withAnimation(.easeInOut(duration: 0.2))` + `.transition(.opacity.combined(with: .move(edge: .top)))`
+- Metric mode changes: `.animation(.easeInOut(duration: 0.15), value: metricModeRaw)`
+- Account switch: `withAnimation(.easeInOut(duration: 0.2))`
+
 Values propagate to header + menu bar immediately via `@AppStorage` (settings) and `@Published` (account names).
 
 Padding: H 16, V 10
@@ -171,8 +185,21 @@ Padding: H 16, V 12
   - Input: `arrow.up`, Output: `arrow.down`, Cache Read: `doc.on.doc`, Cache Write: `square.and.pencil`
   - Each tag: icon (8pt, .tertiary) + value (.caption2 monospaced, .tertiary)
   - Aligned with 14pt leading spacer to match model icon width
+  - Each `TokenTag` has `accessibilityName` for VoiceOver
+- **Cost estimation** (when `aibattery_showCostEstimate` is true):
+  - Header: total cost next to "Tokens" label (.caption monospaced, .secondary)
+  - Per-model: cost inline before token total (.caption2 monospaced, .tertiary)
+  - All cost values have `.copyable()` modifier
 
 Padding: H 16, V 12
+
+### Click-to-Copy Behavior (`Views/CopyableText.swift`)
+
+`CopyableModifier` ViewModifier applied via `.copyable(_ value:)` extension:
+- Copies formatted display value to `NSPasteboard.general` on tap
+- Brief green checkmark overlay (1 second, `.opacity` transition)
+- `.help` tooltip shows the value
+- Applied to: usage percentages, token counts, health stats, insight summaries, cost values
 
 ### ❻ Insights (`Views/InsightsSection.swift`)
 
@@ -222,6 +249,10 @@ Links row in HStack (spacing 6):
 
 Each button's inner HStack uses `.fixedSize()` to prevent text wrapping.
 
+**Update available banner** (if `viewModel.availableUpdate` exists, before incident banner):
+- HStack: arrow.down.circle.fill icon (.caption2, .blue) + "vX.Y.Z available" (.caption2, .secondary) + Spacer + "View" button (.blue, opens release URL) + "Skip" button (.secondary, persists skip version)
+- Accessible: combined label "Version X.Y.Z available. View or skip."
+
 Active incident banner below (if `incidentName` exists): triangle icon + incident name
 
 **Staleness indicator** (below incident banner, if `lastFreshFetch` exists):
@@ -257,6 +288,13 @@ HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monosp
 - Fill: solid color based on requestsPercent
 - Stroke: same color at 0.6 alpha, 0.5pt width
 - `isTemplate = false`
+
+## Accessibility
+
+- **InsightsSection**: `.accessibilityElement(children: .combine)` on both rows with full labels ("Today: N messages, N sessions, N tool calls")
+- **TokenUsageSection**: `TokenTag` has `accessibilityName` param (input/output/cache read/cache write), model VStack has combined label
+- **UsageBarsSection**: `"Binding constraint"` label on binding badge
+- **TokenHealthSection**: combined label on detail row with remaining tokens, turn count, model name
 
 ## Color Rules
 

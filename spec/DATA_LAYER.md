@@ -198,6 +198,34 @@ JSONL line schema (Codable):
 
 `AssistantUsageEntry` (processed form): `timestamp: Date`, `model: String`, `messageId: String`, `inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens: Int`, `sessionId: String`, `cwd: String?`, `gitBranch: String?`
 
+### ModelPricing (`Models/ModelPricing.swift`)
+
+Per-model pricing for cost estimation. Shows API-rate-equivalent cost — Pro/Max users aren't billed per-token.
+
+| Field | Type |
+|-------|------|
+| `inputPerMillion` | `Double` |
+| `outputPerMillion` | `Double` |
+| `cacheWritePerMillion` | `Double` |
+| `cacheReadPerMillion` | `Double` |
+
+Methods:
+- `cost(input:output:cacheRead:cacheWrite:) -> Double` — cost in dollars
+- `static formatCost(_ cost: Double) -> String` — "$12.35" or "<$0.01"
+- `static pricing(for modelId: String) -> ModelPricing?` — lookup via `ModelNameMapper.displayName`
+- `static totalCost(for models: [ModelTokenSummary]) -> Double` — aggregate across models
+
+Pricing table (per million tokens):
+
+| Model | Input | Output | Cache Write | Cache Read |
+|-------|-------|--------|-------------|------------|
+| Opus 4 | $15 | $75 | $1.875 | $1.50 |
+| Sonnet 4 | $3 | $15 | $0.375 | $0.30 |
+| Haiku 4 | $0.80 | $4 | $0.10 | $0.08 |
+| Sonnet 3.5 | $3 | $15 | $0.375 | $0.30 |
+| Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
+| Opus 3 | $15 | $75 | $1.875 | $1.50 |
+
 ### ClaudeSystemStatus + StatusIndicator (`Services/StatusChecker.swift`)
 
 `ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentName: String?`, `statusPageURL: String`, `claudeAPIStatus: StatusIndicator` (default .unknown), `claudeCodeStatus: StatusIndicator` (default .unknown)
@@ -339,13 +367,37 @@ JSONL line schema (Codable):
 - Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps. Process reaping via `waitUntilExit()` on background queue prevents zombie processes.
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
 
+#### Rate Limit Alerts
+- `checkRateLimitAlerts(rateLimits:)` — reads `aibattery_alertRateLimit` (Bool) and `aibattery_rateLimitThreshold` (Double, default 80)
+- Checks both 5h and 7d windows independently against threshold
+- Same dedup pattern: `hasFired[key]` per window, resets when dropping below threshold
+- `shouldAlert(percent:threshold:previouslyFired:)` — static pure function for testability
+
+### VersionChecker (`Services/VersionChecker.swift`)
+- Singleton: `.shared`
+- `checkForUpdate() async -> UpdateInfo?` — fetches GitHub Releases API once per 24h
+- `skipVersion(_:)` — persists skipped version to UserDefaults
+- `isNewer(_:than:) -> Bool` — static semver comparison (major/minor/patch)
+- `stripTag(_:) -> String` — strips leading "v" or "V"
+- `currentAppVersion` — reads `CFBundleShortVersionString` from bundle
+- `UpdateInfo`: `version: String`, `url: String`
+- Cache: `lastCheck: Date?`, `cachedUpdate: UpdateInfo?`
+- Timeout: 10 sec
+
+### LaunchAtLoginManager (`Services/LaunchAtLoginManager.swift`)
+- Enum (no instances)
+- `isEnabled: Bool` — reads `SMAppService.mainApp.status`
+- `setEnabled(_:)` — register/unregister via SMAppService
+- Requires installed .app bundle, silently fails during dev builds
+- Logs failures via `AppLogger.general`
+
 ## ViewModel
 
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
-- Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`
+- Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
 - Computed: `metricMode: MetricMode` (from UserDefaults `aibattery_metricMode`), `menuBarPercent: Double` (delegates to `snapshot.percent(for:)`), `hasData: Bool`
-- `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Org name from API or active account record flows into aggregator. `Task.detached` for aggregation. Calls `NotificationManager.shared.checkStatusAlerts(status:)`. Tracks staleness from API result.
+- `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Org name from API or active account record flows into aggregator. `Task.detached` for aggregation. Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
@@ -372,7 +424,7 @@ JSONL line schema (Codable):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`
+- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `lastUpdateCheck`, `skipVersion`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`

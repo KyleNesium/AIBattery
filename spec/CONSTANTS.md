@@ -27,6 +27,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Status API | `https://status.claude.com/api/v2/summary.json` |
 | Usage Dashboard | `https://platform.claude.com/usage` |
 | Status Page | `https://status.claude.com` |
+| GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
 
 ## API Configuration
 
@@ -89,6 +90,16 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Turn count strong | 25 | Triggers strong warning |
 | Input/output ratio | 20:1 | Triggers ratio warning (includes cache tokens) |
 | Safe minimum divisor | 5 | usableWindow / 5 for hint |
+## Rate Limit Alerts
+
+| Constant | Value |
+|----------|-------|
+| Rate limit alert | `aibattery_alertRateLimit` (Bool, default false) |
+| Threshold | `aibattery_rateLimitThreshold` (Double, default 80, range 50–95, step 5) |
+| Dedup keys | `rateLimit5h`, `rateLimit7d` |
+| Delivery | Same `osascript` mechanism as status alerts |
+| Deduplication | Fires once when crossing threshold, resets when dropping below |
+
 ## Status Alerts
 
 | Constant | Value |
@@ -99,6 +110,43 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Delivery | `osascript` `display notification` |
 | Sound | `default` |
 | Deduplication | Fires once per outage, resets when service recovers |
+
+## Cost Estimation
+
+| Constant | Value |
+|----------|-------|
+| Show cost | `aibattery_showCostEstimate` (Bool, default false) |
+| Format | `"$X.XX"` or `"<$0.01"` for sub-penny amounts |
+| Note | Shows API-rate-equivalent cost — Pro/Max users aren't billed per-token |
+
+Pricing per million tokens:
+
+| Model | Input | Output | Cache Write | Cache Read |
+|-------|-------|--------|-------------|------------|
+| Opus 4 | $15 | $75 | $1.875 | $1.50 |
+| Sonnet 4 | $3 | $15 | $0.375 | $0.30 |
+| Haiku 4 | $0.80 | $4 | $0.10 | $0.08 |
+| Sonnet 3.5 | $3 | $15 | $0.375 | $0.30 |
+| Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
+| Opus 3 | $15 | $75 | $1.875 | $1.50 |
+
+## Launch at Login
+
+| Constant | Value |
+|----------|-------|
+| UserDefaults key | `aibattery_launchAtLogin` (Bool, default false) |
+| Framework | SMAppService.mainApp (macOS 13+) |
+| Failure mode | Silently fails during dev builds (no .app bundle) |
+
+## Update Checker
+
+| Constant | Value |
+|----------|-------|
+| GitHub API URL | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
+| Check interval | 86400 sec (24 hours) |
+| Request timeout | 10 sec |
+| Last check key | `aibattery_lastUpdateCheck` (Double, Unix timestamp) |
+| Skip version key | `aibattery_skipVersion` (String, semver) |
 
 ## Token Window
 
@@ -130,6 +178,16 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Token type dot size | 6pt |
 | Chart height | 50pt |
 | Chart modes | 24H (hourly), 7D (daily rolling), 12M (monthly rolling) |
+
+## Animations
+
+| Constant | Value |
+|----------|-------|
+| Settings toggle | `.easeInOut(duration: 0.2)` |
+| Settings transition | `.opacity.combined(with: .move(edge: .top))` |
+| Metric mode change | `.easeInOut(duration: 0.15)` |
+| Account switch | `.easeInOut(duration: 0.2)` |
+| Copy checkmark display | 1 second, `.easeInOut(duration: 0.15)` transitions |
 
 ## JSONL Processing
 
