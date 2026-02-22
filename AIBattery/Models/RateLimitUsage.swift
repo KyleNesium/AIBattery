@@ -59,6 +59,40 @@ struct RateLimitUsage {
     /// Whether the user is currently throttled.
     var isThrottled: Bool { overallStatus == "throttled" }
 
+    // MARK: - Predictive estimate
+
+    /// Estimate time until the rate limit is reached for a given window,
+    /// based on current utilization and time remaining until reset.
+    /// Returns nil if utilization is too low or the estimate exceeds reset time.
+    func estimatedTimeToLimit(for window: String) -> TimeInterval? {
+        let (utilization, reset): (Double, Date?) = {
+            switch window {
+            case "seven_day": return (sevenDayUtilization, sevenDayReset)
+            default: return (fiveHourUtilization, fiveHourReset)
+            }
+        }()
+
+        guard utilization > 0.50, let reset else { return nil }
+
+        let remaining = reset.timeIntervalSinceNow
+        guard remaining > 0 else { return nil }
+
+        // Window duration inferred from window type
+        let windowDuration: TimeInterval = window == "seven_day" ? 7 * 24 * 3600 : 5 * 3600
+        let elapsed = windowDuration - remaining
+
+        guard elapsed > 60 else { return nil } // Need meaningful elapsed time
+
+        // burn rate = utilization / elapsed, project when we reach 1.0
+        let rate = utilization / elapsed
+        let timeToFull = (1.0 - utilization) / rate
+
+        // Only show if estimate is before the reset (otherwise it's fine)
+        guard timeToFull < remaining else { return nil }
+
+        return timeToFull
+    }
+
     // MARK: - Parsing
 
     /// Parse unified rate limit headers from an HTTP response.

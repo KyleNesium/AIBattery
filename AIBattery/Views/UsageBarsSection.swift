@@ -10,7 +10,8 @@ struct FiveHourBarSection: View {
             percent: limits.fiveHourPercent,
             resetsAt: limits.fiveHourReset,
             isBinding: limits.representativeClaim == "five_hour",
-            isThrottled: limits.fiveHourStatus == "throttled"
+            isThrottled: limits.fiveHourStatus == "throttled",
+            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: "five_hour")
         )
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -27,7 +28,8 @@ struct SevenDayBarSection: View {
             percent: limits.sevenDayPercent,
             resetsAt: limits.sevenDayReset,
             isBinding: limits.representativeClaim == "seven_day",
-            isThrottled: limits.sevenDayStatus == "throttled"
+            isThrottled: limits.sevenDayStatus == "throttled",
+            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: "seven_day")
         )
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -40,6 +42,7 @@ struct UsageBar: View {
     let resetsAt: Date?
     var isBinding: Bool = false
     var isThrottled: Bool = false
+    var estimatedTimeToLimit: TimeInterval?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -93,8 +96,12 @@ struct UsageBar: View {
                 Text(isThrottled ? "Rate limited" : "\(Int(100 - percent))% remaining")
                     .font(.caption2)
                     .foregroundStyle(isThrottled ? Color.red : Color.secondary.opacity(0.6))
-                if let resetsAt {
-                    Spacer()
+                Spacer()
+                if let estimate = estimatedTimeToLimit {
+                    Text("~\(formatDuration(estimate)) to limit")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                } else if let resetsAt {
                     Text("Resets \(resetTimeString(resetsAt))")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
@@ -110,6 +117,15 @@ struct UsageBar: View {
         case 80..<95: return .orange
         default: return .red
         }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let hours = Int(seconds) / 3600
+        let minutes = (Int(seconds) % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(max(minutes, 1))m"
     }
 
     private func resetTimeString(_ date: Date) -> String {
