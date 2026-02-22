@@ -115,6 +115,8 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 
 | Constant | Value |
 |----------|-------|
+| Show tokens | `aibattery_showTokens` (Bool, default true) |
+| Show activity | `aibattery_showActivity` (Bool, default true) |
 | Show cost | `aibattery_showCostEstimate` (Bool, default false) |
 | Format | `"$X.XX"` or `"<$0.01"` for sub-penny amounts |
 | Note | Shows what the same token usage would cost at API rates — Pro/Max/Teams subscribers aren't billed per-token |

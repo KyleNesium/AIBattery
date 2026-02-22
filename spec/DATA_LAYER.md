@@ -424,7 +424,7 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `lastUpdateCheck`, `skipVersion`
+- Keys: `metricMode`, `orgName`, `displayName`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `skipVersion`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`

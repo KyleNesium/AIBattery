@@ -7,6 +7,8 @@ public struct UsagePopoverView: View {
     @State private var showSettings = false
     @State private var isAddingAccount = false
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
+    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
+    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -85,7 +87,7 @@ public struct UsagePopoverView: View {
                     }
                 }
 
-                if snapshot.totalTokens > 0 {
+                if showTokens && snapshot.totalTokens > 0 {
                     TokenUsageSection(
                         snapshot: snapshot,
                         activeModelId: snapshot.tokenHealth?.model
@@ -93,7 +95,7 @@ public struct UsagePopoverView: View {
                     Divider()
                 }
 
-                if !snapshot.dailyActivity.isEmpty || !snapshot.hourCounts.isEmpty {
+                if showActivity && (!snapshot.dailyActivity.isEmpty || !snapshot.hourCounts.isEmpty) {
                     ActivityChartView(
                         dailyActivity: snapshot.dailyActivity,
                         hourCounts: snapshot.hourCounts
@@ -478,6 +480,8 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
     @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
     @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
+    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
+    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -558,14 +562,16 @@ private struct SettingsRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
+                Toggle("Tokens", isOn: $showTokens)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                Toggle("Activity", isOn: $showActivity)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
                 Toggle("API Cost", isOn: $showCostEstimate)
                     .toggleStyle(.checkbox)
                     .font(.caption)
             }
-            Text("Equivalent cost at API token rates")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 58)
 
             // Status alerts
             HStack(spacing: 8) {
