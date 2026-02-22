@@ -499,6 +499,7 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.menuBarDecimal) private var menuBarDecimal: Bool = false
     @AppStorage(UserDefaultsKeys.compactBars) private var compactBars: Bool = false
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
+    @State private var importMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -677,6 +678,35 @@ private struct SettingsRow: View {
                             LaunchAtLoginManager.setEnabled(newValue)
                         }
                     }
+            }
+
+            // Export / Import
+            HStack(spacing: 8) {
+                Text("Backup")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Button("Export") {
+                    SettingsManager.exportToClipboard()
+                    importMessage = "Settings copied to clipboard"
+                }
+                .font(.caption)
+                .help("Copy settings as JSON to clipboard")
+                Button("Import") {
+                    do {
+                        try SettingsManager.importFromClipboard()
+                        importMessage = "Settings imported"
+                    } catch {
+                        importMessage = error.localizedDescription
+                    }
+                }
+                .font(.caption)
+                .help("Import settings from clipboard JSON")
+                if let msg = importMessage {
+                    Text(msg)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.horizontal, 16)
