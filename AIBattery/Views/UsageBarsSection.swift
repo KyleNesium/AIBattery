@@ -59,12 +59,14 @@ struct UsageBar: View {
                             .padding(.vertical, 1)
                             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 3))
                             .accessibilityLabel("Binding constraint")
+                            .help("This window is the active rate limit constraint")
                     }
                     if isThrottled {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.caption2)
                             .foregroundStyle(.red)
                             .accessibilityLabel("Rate limited")
+                            .help("You are currently rate limited")
                     }
                 }
                 Spacer()

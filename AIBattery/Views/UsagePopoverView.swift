@@ -283,6 +283,7 @@ public struct UsagePopoverView: View {
             .frame(width: 220)
             .accessibilityLabel("Metric mode")
             .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
+            .help("Select primary metric for menu bar display")
             Spacer()
         }
         .padding(.horizontal, 16)

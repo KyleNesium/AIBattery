@@ -121,6 +121,7 @@ struct ActivityChartView: View {
                 .scaleEffect(0.8, anchor: .trailing)
                 .accessibilityLabel("Activity time range")
                 .accessibilityHint("Switch between 24 hour, 7 day, and 12 month views")
+                .help("Switch activity chart time range")
             }
 
             if isEmpty {

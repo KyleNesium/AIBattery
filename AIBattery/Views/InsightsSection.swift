@@ -11,9 +11,11 @@ struct InsightsSection: View {
                     Text("Today")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .help("Activity since midnight")
                     Text(snapshot.trendDirection.symbol)
                         .font(.caption)
                         .foregroundStyle(trendColor)
+                        .help("Weekly trend: this week vs last week")
                 }
                 Spacer()
                 let projected = snapshot.projectedTodayTotal
@@ -37,6 +39,7 @@ struct InsightsSection: View {
                 Text("All Time")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .help("Cumulative activity across all sessions")
                 Spacer()
                 let allTimeStats = "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions"
                 HStack(spacing: 4) {

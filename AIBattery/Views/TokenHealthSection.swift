@@ -31,6 +31,7 @@ struct TokenHealthSection: View {
             HStack {
                 Text("Context Health")
                     .font(.subheadline.bold())
+                    .help("Percentage of usable context window consumed")
                 Spacer()
 
                 if sessions.count > 1 {
@@ -80,6 +81,7 @@ struct TokenHealthSection: View {
                 Text("\(health.turnCount) turns · \(health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model))")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .help("Conversation turns in this session")
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : ModelNameMapper.displayName(for: health.model))")
@@ -90,6 +92,7 @@ struct TokenHealthSection: View {
                 Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .help("Recommended minimum tokens to maintain response quality")
             }
 
             // Warnings
