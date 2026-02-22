@@ -443,6 +443,7 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
     @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
     @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
+    @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -516,6 +517,21 @@ private struct SettingsRow: View {
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 58)
             }
+
+            // Display
+            HStack(spacing: 8) {
+                Text("Display")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Toggle("Cost", isOn: $showCostEstimate)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+            }
+            Text("Estimated cost based on published pricing")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 58)
 
             // Status alerts
             HStack(spacing: 8) {

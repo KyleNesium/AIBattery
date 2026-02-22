@@ -3,6 +3,7 @@ import SwiftUI
 struct TokenUsageSection: View {
     let snapshot: UsageSnapshot
     var activeModelId: String? = nil
+    @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCost: Bool = false
 
     private let modelIcons = [
         "cpu", "bolt", "sparkles", "cube", "wand.and.stars"
@@ -28,10 +29,17 @@ struct TokenUsageSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Header: total tokens
+            // Header: total tokens + optional cost
             HStack {
                 Text("Tokens")
                     .font(.subheadline.bold())
+                if showCost {
+                    let total = ModelPricing.totalCost(for: snapshot.modelTokens)
+                    Text(ModelPricing.formatCost(total))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .copyable(ModelPricing.formatCost(total))
+                }
                 Spacer()
                 Text(TokenFormatter.format(snapshot.totalTokens))
                     .font(.system(.subheadline, design: .monospaced, weight: .semibold))
@@ -59,6 +67,19 @@ struct TokenUsageSection: View {
                             }
 
                             Spacer()
+
+                            if showCost, let pricing = ModelPricing.pricing(for: model.id) {
+                                let modelCost = pricing.cost(
+                                    input: model.inputTokens,
+                                    output: model.outputTokens,
+                                    cacheRead: model.cacheReadTokens,
+                                    cacheWrite: model.cacheWriteTokens
+                                )
+                                Text(ModelPricing.formatCost(modelCost))
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                                    .copyable(ModelPricing.formatCost(modelCost))
+                            }
 
                             Text(TokenFormatter.format(model.totalTokens))
                                 .font(.system(.caption, design: .monospaced))
