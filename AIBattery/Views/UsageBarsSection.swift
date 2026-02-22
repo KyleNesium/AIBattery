@@ -36,6 +36,31 @@ struct SevenDayBarSection: View {
     }
 }
 
+/// Compact single-line summary for rate limits (used when compact mode is on).
+struct CompactRateLimitRow: View {
+    let limits: RateLimitUsage
+
+    var body: some View {
+        HStack {
+            Text("5h: \(Int(limits.fiveHourPercent))%")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Text("\u{00B7}")
+                .foregroundStyle(.tertiary)
+            Text("7d: \(Int(limits.sevenDayPercent))%")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+            if limits.isThrottled {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+    }
+}
+
 struct UsageBar: View {
     let label: String
     let percent: Double

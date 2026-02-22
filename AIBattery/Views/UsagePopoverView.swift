@@ -9,6 +9,7 @@ public struct UsagePopoverView: View {
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
     @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
+    @AppStorage(UserDefaultsKeys.compactBars) private var compactBars: Bool = false
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -60,17 +61,29 @@ public struct UsagePopoverView: View {
                 Divider()
 
                 // Sections reordered: selected metric first, then the other two
+                // Compact mode collapses non-selected rate limit bars into a single line
                 ForEach(orderedModes, id: \.rawValue) { mode in
+                    let isSelected = mode == metricMode
                     switch mode {
                     case .fiveHour:
                         if let limits = snapshot.rateLimits {
-                            FiveHourBarSection(limits: limits)
-                            Divider()
+                            if compactBars && !isSelected && metricMode != .contextHealth {
+                                CompactRateLimitRow(limits: limits)
+                                Divider()
+                            } else {
+                                FiveHourBarSection(limits: limits)
+                                Divider()
+                            }
                         }
                     case .sevenDay:
                         if let limits = snapshot.rateLimits {
-                            SevenDayBarSection(limits: limits)
-                            Divider()
+                            if compactBars && !isSelected && metricMode != .contextHealth {
+                                CompactRateLimitRow(limits: limits)
+                                Divider()
+                            } else {
+                                SevenDayBarSection(limits: limits)
+                                Divider()
+                            }
                         }
                     case .contextHealth:
                         if !snapshot.topSessionHealths.isEmpty {
@@ -484,6 +497,7 @@ private struct SettingsRow: View {
     @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.menuBarDecimal) private var menuBarDecimal: Bool = false
+    @AppStorage(UserDefaultsKeys.compactBars) private var compactBars: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -577,6 +591,10 @@ private struct SettingsRow: View {
                     .toggleStyle(.checkbox)
                     .font(.caption)
                     .help("Show decimal precision in menu bar (e.g. 42.5%)")
+                Toggle("Compact", isOn: $compactBars)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .help("Collapse non-selected rate limit bars into a single line")
             }
             Text("Cost~ shows equivalent API token rates")
                 .font(.caption2)
