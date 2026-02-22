@@ -400,12 +400,12 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**335 tests** across 25 test files.
+**338 tests** across 25 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 140 | Token summaries, rate limit parsing, plan tiers, health status, metric modes, API profiles, session entries, account records, stats cache, usage snapshots (projections, trends, busiest day) |
-| Services | 132 | Version checker (semver comparison, tag stripping, cache behavior, force check, skip version), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence) |
+| Services | 135 | Version checker (semver comparison, tag stripping, cache behavior, force check), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation) |
 | Utilities | 63 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), model pricing (cost calculation, formatting) |
 
 ## 📄 License

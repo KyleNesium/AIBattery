@@ -9,6 +9,10 @@ final class FileWatcher {
     private var retryTimer: Timer?
     private let onChange: () -> Void
     private var isStopped = false
+    private var statsCacheRetryCount = 0
+    private static let maxStatsCacheRetries = 10
+    private static let statsCacheRetryBase: TimeInterval = 60
+    private static let statsCacheRetryCap: TimeInterval = 300
 
     init(onChange: @escaping () -> Void) {
         self.onChange = onChange
@@ -47,6 +51,7 @@ final class FileWatcher {
 
         retryTimer?.invalidate()
         retryTimer = nil
+        statsCacheRetryCount = 0
     }
 
     private func watchStatsCache() {
@@ -59,6 +64,7 @@ final class FileWatcher {
         }
         retryTimer?.invalidate()
         retryTimer = nil
+        statsCacheRetryCount = 0
 
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
@@ -120,10 +126,19 @@ final class FileWatcher {
         fsEventStream = stream
     }
 
-    /// Retry opening stats-cache every 60s until it exists (created after first `/stats` run).
+    /// Retry opening stats-cache with exponential backoff (60s → 120s → 240s → 300s cap, max 10 retries).
     private func scheduleStatsCacheRetry() {
+        guard statsCacheRetryCount < Self.maxStatsCacheRetries else {
+            AppLogger.files.info("FileWatcher: giving up on stats-cache after \(Self.maxStatsCacheRetries) retries")
+            return
+        }
+        let delay = min(
+            Self.statsCacheRetryBase * pow(2.0, Double(statsCacheRetryCount)),
+            Self.statsCacheRetryCap
+        )
+        statsCacheRetryCount += 1
         retryTimer?.invalidate()
-        retryTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        retryTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             guard let self, !self.isStopped, self.fileSource == nil else { return }
             self.watchStatsCache()
         }

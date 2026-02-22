@@ -10,6 +10,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | File watcher debounce | 2 sec | FileWatcher |
 | FSEvent latency | 2.0 sec | FileWatcher |
 | Fallback timer | 60 sec | FileWatcher |
+| Stats-cache retry (base) | 60 sec, exponential (doubles per retry), cap 300 sec, max 10 retries | FileWatcher |
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
 | Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter | StatusChecker |
@@ -163,7 +164,6 @@ Pricing per million tokens:
 | Check interval | 86400 sec (24 hours) |
 | Request timeout | 10 sec |
 | Last check key | `aibattery_lastUpdateCheck` (Double, Unix timestamp) |
-| Skip version key | `aibattery_skipVersion` (String, semver) |
 
 ## Token Window
 
