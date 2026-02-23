@@ -30,6 +30,15 @@ final class SessionLogReader {
         return f
     }()
 
+    /// Pre-computed byte markers for fast JSONL pre-filtering (avoids re-allocating per file).
+    private static let assistantMarkers: [Data] = [
+        "\"type\":\"assistant\"",
+        "\"type\": \"assistant\"",
+    ].compactMap { $0.data(using: .utf8) }
+    private static let usageMarker: Data = "\"usage\"".data(using: .utf8) ?? Data()
+    /// Shared decoder — avoids allocating a new one per JSONL file.
+    private static let jsonDecoder = JSONDecoder()
+
     /// Number of corrupt/skipped lines from the most recent file parse cycle.
     private(set) var lastCorruptLineCount = 0
 
@@ -61,11 +70,6 @@ final class SessionLogReader {
         allEntries.sort { $0.timestamp < $1.timestamp }
         cachedAllEntries = allEntries
         return allEntries
-    }
-
-    func readTodayEntries() -> [AssistantUsageEntry] {
-        let today = Calendar.current.startOfDay(for: Date())
-        return readAllUsageEntries().filter { $0.timestamp >= today }
     }
 
     // MARK: - Caching
@@ -185,14 +189,7 @@ final class SessionLogReader {
         defer { try? handle.close() }
 
         var entries: [AssistantUsageEntry] = []
-        let decoder = JSONDecoder()
-        // Pre-filter markers for fast scanning without full JSON decode.
-        // Check both compact and spaced variants of the type field.
-        let assistantMarkers: [Data] = [
-            "\"type\":\"assistant\"",
-            "\"type\": \"assistant\"",
-        ].compactMap { $0.data(using: .utf8) }
-        let usageMarker = "\"usage\"".data(using: .utf8) ?? Data()
+        let decoder = Self.jsonDecoder
 
         let bufferSize = 64 * 1024 // 64KB chunks
         let maxLineSize = 1_048_576 // 1MB — skip lines longer than this (malformed/corrupt)
@@ -219,8 +216,8 @@ final class SessionLogReader {
                 guard !lineData.isEmpty else { continue }
 
                 // Fast pre-filter: check for markers without decoding
-                let hasAssistant = assistantMarkers.contains { lineData.range(of: $0) != nil }
-                guard hasAssistant, lineData.range(of: usageMarker) != nil else { continue }
+                let hasAssistant = Self.assistantMarkers.contains { lineData.range(of: $0) != nil }
+                guard hasAssistant, lineData.range(of: Self.usageMarker) != nil else { continue }
 
                 let decoded: SessionEntry
                 do {
@@ -246,8 +243,8 @@ final class SessionLogReader {
         // Skip incomplete lines (no closing brace = partial write, likely still being written).
         if !leftover.isEmpty,
            leftover.last == UInt8(ascii: "}") {
-            let hasAssistant = assistantMarkers.contains { leftover.range(of: $0) != nil }
-            if hasAssistant, leftover.range(of: usageMarker) != nil {
+            let hasAssistant = Self.assistantMarkers.contains { leftover.range(of: $0) != nil }
+            if hasAssistant, leftover.range(of: Self.usageMarker) != nil {
                 let decoded: SessionEntry?
                 do {
                     decoded = try decoder.decode(SessionEntry.self, from: Data(leftover))

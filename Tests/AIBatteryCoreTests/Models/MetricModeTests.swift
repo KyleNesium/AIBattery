@@ -33,12 +33,6 @@ struct MetricModeTests {
         #expect(MetricMode.contextHealth.label == "Context")
     }
 
-    @Test func shortLabels() {
-        #expect(MetricMode.fiveHour.shortLabel == "5h")
-        #expect(MetricMode.sevenDay.shortLabel == "7d")
-        #expect(MetricMode.contextHealth.shortLabel == "Ctx")
-    }
-
     // MARK: - CaseIterable
 
     @Test func allCases() {

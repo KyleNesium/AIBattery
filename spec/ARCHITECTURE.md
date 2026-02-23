@@ -92,6 +92,7 @@ AIBattery/
     InsightsSection.swift         — Today stats, all-time stats
     ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows)
     CopyableText.swift            — ViewModifier for click-to-copy with checkmark feedback
+    MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
   Utilities/
     TokenFormatter.swift          — Format tokens ("18.9M")
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"
@@ -108,7 +109,7 @@ Tests/AIBatteryCoreTests/
     ThemeColorsTests.swift        — Color theme tests (both modes, all bands)
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
-    MetricModeTests.swift         — rawValues, labels, shortLabels, allCases
+    MetricModeTests.swift         — rawValues, labels, allCases
     RateLimitUsageTests.swift     — parse() with full/partial/missing headers; computed properties
     APIProfileTests.swift         — parse() with both/one/no headers
     APIFetchResultTests.swift     — defaults, explicit cached flag, profile preservation

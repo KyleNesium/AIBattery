@@ -18,7 +18,7 @@
 │  Models: [slider 1d-7d-All]         │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
 ├──────────────────────────────────────┤
-│    [5-Hour|7-Day|Context]           │  ← Metric toggle
+│ (A) [5-Hour|7-Day|Context]           │  ← Metric toggle + auto
 ├──────────────────────────────────────┤
 │ 5-Hour                         12%  │
 │ [████████████░░░░░░░░░░░] binding   │  ← ❷ Rate Limits
@@ -61,7 +61,7 @@ UsagePopoverView (275px, VStack)
 ├── Divider
 ├── SettingsRow (if showSettings — toggled by gear icon)
 ├── Divider
-├── metricToggle (segmented picker: 5-Hour | 7-Day | Context)
+├── metricToggle (auto "A" circle button left + segmented picker: 5-Hour | 7-Day | Context)
 ├── Divider
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
@@ -135,6 +135,27 @@ Values propagate to header + menu bar immediately via `@AppStorage` (settings) a
 
 Padding: H 16, V 10
 
+### Metric Toggle (`UsagePopoverView.metricToggle`)
+
+HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
+
+**Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
+- **Active**: cyan text, `Color.cyan.opacity(0.15)` fill, 1.5pt cyan stroke with pulsing opacity (0.3–0.8), pulsing cyan shadow (radius 1–5pt, opacity 0.1–0.5). Pulse: `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)`.
+- **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
+- Picker dims to 0.4 opacity and is disabled when auto mode is active.
+- **Behavior**: auto mode picks whichever metric (5h/7d/context) has the highest percentage via `resolveAutoMode()`. Applied in both popover and menu bar label.
+
+Padding: H 16, V 10
+
+### MarqueeText (`Views/MarqueeText.swift`)
+
+News-ticker style scrolling text view. Supports single or multiple texts.
+
+- **Single text**: if text fits container, displays statically. If wider, scrolls left then right (bouncing) at 30pt/s with 2s pause at each end.
+- **Multiple texts**: scrolls current text left (if needed), then cross-fades (0.3s out → swap → 0.3s in) to the next text. Non-scrolling texts hold for 3s before advancing. Cycles endlessly.
+- Container: `GeometryReader` + `.clipped()`, 14pt height.
+- Text measured via background `GeometryReader`, re-measured on index change via `.id(currentIndex)`.
+
 ### ❷ Rate Limit Bars (`Views/UsageBarsSection.swift`)
 
 `FiveHourBarSection` + `SevenDayBarSection`, each wrapping a shared `UsageBar` view.
@@ -142,8 +163,10 @@ Padding: H 16, V 10
 Each bar:
 - **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.title3, monospaced, semibold)
 - **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
-- **Detail row**: `"X% remaining"` (.caption2) + `"Resets in Xh Ym"` (.caption2, .tertiary)
-- **Predictive estimate** (when `estimatedTimeToLimit` is available): replaces reset time with `"~Xh Ym to limit"` in orange (.caption2, .orange). Only shown when utilization > 50% and estimate is before reset time.
+- **Detail row**: left status + `"Resets in Xh Ym"` (.caption2, .tertiary) always visible on right
+  - Normal: `"X% remaining"` (.caption2, .secondary)
+  - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 50%, estimate before reset)
+  - Throttled: `"Rate limited"` (.caption2, .danger)
 
 Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `<1h` → "in Xm", expired → "soon"
 
@@ -259,7 +282,7 @@ Links row in HStack (spacing 10):
 
 Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links row spacing: 10pt.
 
-Active incident banner (if `incidentName` exists): triangle icon + incident name
+Active incident banner (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:)` cycling through all active incidents with cross-fade transitions
 
 All text: .caption2, .secondary. Padding: H 16, V 10.
 
@@ -303,7 +326,7 @@ HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monosp
 - **TokenHealthSection**: context gauge ("Percentage of usable context window consumed"), turns label, safe minimum hint, expanded session details tooltip
 - **ActivityChartView**: mode picker ("Switch activity chart time range")
 - **InsightsSection**: today/all-time labels
-- **UsagePopoverView**: metric mode picker
+- **UsagePopoverView**: metric mode picker, auto mode button
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)
 

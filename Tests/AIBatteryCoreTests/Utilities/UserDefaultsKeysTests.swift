@@ -41,6 +41,7 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.lastUpdateCheck,
             UserDefaultsKeys.lastUpdateVersion,
             UserDefaultsKeys.lastUpdateURL,
+            UserDefaultsKeys.autoMetricMode,
             UserDefaultsKeys.colorblindMode,
             UserDefaultsKeys.hasSeenTutorial,
         ]

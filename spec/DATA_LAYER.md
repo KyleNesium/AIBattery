@@ -30,7 +30,7 @@ Main aggregated data struct consumed by all views.
 
 Computed: `totalTokens`, `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover)
 
-Projections & trends: `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `projectedTodayTotal: Int` (extrapolate today's messages based on hour-of-day progress), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
+Projections & trends: `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
 ### ModelTokenSummary
 
@@ -49,11 +49,11 @@ Computed: `totalTokens` = sum of all four token types
 
 Which metric drives the menu bar icon percentage and color.
 
-| Case | rawValue | label | shortLabel |
-|------|----------|-------|------------|
-| `.fiveHour` | `"5h"` | `"5-Hour"` | `"5h"` |
-| `.sevenDay` | `"7d"` | `"7-Day"` | `"7d"` |
-| `.contextHealth` | `"context"` | `"Context"` | `"Ctx"` |
+| Case | rawValue | label |
+|------|----------|-------|
+| `.fiveHour` | `"5h"` | `"5-Hour"` |
+| `.sevenDay` | `"7d"` | `"7-Day"` |
+| `.contextHealth` | `"context"` | `"Context"` |
 
 ### TrendDirection (`Models/UsageSnapshot.swift`)
 
@@ -213,7 +213,7 @@ Pricing table (per million tokens):
 
 ### ClaudeSystemStatus + StatusIndicator (`Services/StatusChecker.swift`)
 
-`ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentName: String?`, `statusPageURL: String`, `claudeAPIStatus: StatusIndicator` (default .unknown), `claudeCodeStatus: StatusIndicator` (default .unknown)
+`ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentNames: [String]`, `statusPageURL: String`, `claudeAPIStatus: StatusIndicator` (default .unknown), `claudeCodeStatus: StatusIndicator` (default .unknown). Computed: `incidentName: String?` (first incident, convenience accessor).
 
 `StatusIndicator`: enum with cases `.operational`, `.degradedPerformance`, `.partialOutage`, `.majorOutage`, `.maintenance`, `.unknown`. Has `severity: Int` for comparison (higher = worse). `from(_:)` maps Statuspage API strings to cases — notably `"elevated"` maps to `.degradedPerformance` (yellow). Also used to parse incident impact strings (`"none"`, `"minor"`, `"major"`, `"critical"`).
 
@@ -288,7 +288,6 @@ Pricing table (per million tokens):
 ### SessionLogReader (`Services/SessionLogReader.swift`)
 - Singleton: `.shared`
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
-- `readTodayEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
 - FileHandle streaming: 64KB buffer, line-by-line, 1MB max line size safety cap (discards oversized lines)
 - Pre-filter: byte search for `"type":"assistant"` AND `"usage"` before JSON decode
@@ -320,7 +319,6 @@ Pricing table (per million tokens):
 - `assessSessions(entries:topLimit:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — **single-pass**: groups entries once via `Dictionary(grouping:)`, assesses all sessions, returns current session health + top N most recent (excludes sessions with no activity in last 24 hours). Default topLimit is 5.
 - `assessCurrentSession(entries:) -> TokenHealthStatus?` — convenience wrapper, returns `assessSessions().current`
 - `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top`
-- `assessAllSessions(entries:) -> [String: TokenHealthStatus]` — all sessions keyed by sessionId (separate implementation, own grouping pass)
 - Groups by sessionId, each session assessed independently
 - **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + sum(all outputTokens)` — input + cache tokens are cumulative (latest entry has total), output tokens are per-message. Each component capped at contextWindow to guard against overflow from corrupted data.
 - **Usable window**: `usableWindow = contextWindow × 0.80` — percentages calculated against usable portion
@@ -386,7 +384,7 @@ Pricing table (per million tokens):
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
 - Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
-- Computed: `metricMode: MetricMode` (from UserDefaults `aibattery_metricMode`), `menuBarPercent: Double` (delegates to `snapshot.percent(for:)`), `hasData: Bool`
+- Computed: `metricMode: MetricMode` (from UserDefaults `aibattery_metricMode`, or auto-resolved if `aibattery_autoMetricMode` is true — picks highest percentage across 5h/7d/context), `menuBarPercent: Double` (delegates to `snapshot.percent(for:)`), `hasData: Bool`
 - `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
@@ -416,7 +414,7 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `colorblindMode`, `hasSeenTutorial`
+- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `colorblindMode`, `hasSeenTutorial`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`

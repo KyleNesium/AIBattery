@@ -4,6 +4,7 @@ import os
 final class StatsCacheReader {
     static let shared = StatsCacheReader()
 
+    private static let jsonDecoder = JSONDecoder()
     private let fileURL: URL
 
     init(fileURL: URL? = nil) {
@@ -40,7 +41,7 @@ final class StatsCacheReader {
             // File changed — decode fresh
             do {
                 let data = try Data(contentsOf: fileURL)
-                let result = try JSONDecoder().decode(StatsCache.self, from: data)
+                let result = try Self.jsonDecoder.decode(StatsCache.self, from: data)
                 cached = result
                 cachedModDate = modDate
                 cachedFileSize = fileSize

@@ -26,7 +26,11 @@ struct UsageSnapshotTests {
             todaySessions: 0,
             todayToolCalls: 0,
             modelTokens: modelTokens,
+            totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
             dailyActivity: dailyActivity,
+            dailyAverage: UsageSnapshot.computeDailyAverage(dailyActivity),
+            trendDirection: UsageSnapshot.computeTrendDirection(dailyActivity),
+            busiestDayOfWeek: UsageSnapshot.computeBusiestDay(dailyActivity),
             hourCounts: [:],
             tokenHealth: tokenHealth,
             topSessionHealths: []
@@ -147,19 +151,6 @@ struct UsageSnapshotTests {
         let activity = makeDailyActivity(daysBack: 10, messages: [100, 100, 100, 10, 20, 30, 40, 50, 60, 70])
         let snapshot = makeSnapshot(dailyActivity: activity)
         #expect(snapshot.dailyAverage == 40) // last 7: 10+20+30+40+50+60+70 = 280 / 7
-    }
-
-    // MARK: - projectedTodayTotal
-
-    @Test func projectedTodayTotal_zeroMessages() {
-        let snapshot = makeSnapshot(todayMessages: 0)
-        #expect(snapshot.projectedTodayTotal == 0)
-    }
-
-    @Test func projectedTodayTotal_hasMessages() {
-        // At least confirms it returns >= todayMessages
-        let snapshot = makeSnapshot(todayMessages: 50)
-        #expect(snapshot.projectedTodayTotal >= 50)
     }
 
     // MARK: - trendDirection

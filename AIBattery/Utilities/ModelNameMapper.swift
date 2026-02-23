@@ -1,10 +1,6 @@
 import Foundation
 
 enum ModelNameMapper {
-    /// Pre-compiled regex for stripping trailing date segments (e.g. "-20250929").
-    /// Pattern is a compile-time constant — force-try is safe here.
-    private static let dateRegex = try! NSRegularExpression(pattern: #"-\d{8}.*$"#)
-
     static func displayName(for modelId: String) -> String {
         guard !modelId.isEmpty else { return "Unknown" }
 
@@ -14,11 +10,23 @@ enum ModelNameMapper {
             name = String(name.dropFirst(7))
         }
 
-        // Strip trailing date segment (8+ digits like 20250929)
-        let nsRange = NSRange(name.startIndex..., in: name)
-        if let match = dateRegex.firstMatch(in: name, range: nsRange),
-           let range = Range(match.range, in: name) {
-            name = String(name[name.startIndex..<range.lowerBound])
+        // Strip trailing date segment: first "-" followed by 8+ consecutive digits, and everything after.
+        // Matches the old regex behavior of `-\d{8}.*$`.
+        var searchFrom = name.startIndex
+        while searchFrom < name.endIndex {
+            guard let dashIdx = name[searchFrom...].firstIndex(of: "-") else { break }
+            let afterDash = name.index(after: dashIdx)
+            guard afterDash < name.endIndex else { break }
+            // Count consecutive digits from afterDash
+            var digitEnd = afterDash
+            while digitEnd < name.endIndex, name[digitEnd].isNumber {
+                digitEnd = name.index(after: digitEnd)
+            }
+            if name.distance(from: afterDash, to: digitEnd) >= 8 {
+                name = String(name[name.startIndex..<dashIdx])
+                break
+            }
+            searchFrom = name.index(after: dashIdx)
         }
 
         // If stripping left nothing (e.g., "claude-20250101"), return original ID

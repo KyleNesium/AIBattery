@@ -34,6 +34,11 @@ struct CopyableModifier: ViewModifier {
                     NSCursor.pop()
                 }
             }
+            .onDisappear {
+                if isHovered {
+                    NSCursor.pop()
+                }
+            }
             .help("Click to copy: \(value)")
             .onTapGesture {
                 NSPasteboard.general.clearContents()

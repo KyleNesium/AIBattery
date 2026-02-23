@@ -122,10 +122,10 @@ private struct TokenTag: View {
         HStack(spacing: 2) {
             Image(systemName: icon)
                 .font(.system(size: 8))
-                .foregroundStyle(.secondary.opacity(0.7))
+                .foregroundStyle(.tertiary)
             Text(label)
                 .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(.secondary.opacity(0.7))
+                .foregroundStyle(.tertiary)
         }
         .accessibilityLabel("\(accessibilityName) \(label)")
         .help(tooltip)

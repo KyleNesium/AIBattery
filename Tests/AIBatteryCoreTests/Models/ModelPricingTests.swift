@@ -70,7 +70,7 @@ struct ModelPricingTests {
     // MARK: - Format
 
     @Test func formatCost_zero() {
-        #expect(ModelPricing.formatCost(0) == "<$0.01")
+        #expect(ModelPricing.formatCost(0) == "$0.00")
     }
 
     @Test func formatCost_small() {

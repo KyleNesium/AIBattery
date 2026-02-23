@@ -15,25 +15,33 @@ final class TokenHealthMonitor {
         guard let latestEntry = entries.last else { return (nil, []) }
 
         let now = Date()
+        let cutoff = now.addingTimeInterval(-24 * 60 * 60)
+        let currentSessionId = latestEntry.sessionId
         let grouped = Dictionary(grouping: entries, by: \.sessionId)
-        var allResults: [TokenHealthStatus] = []
+        var current: TokenHealthStatus?
+        var recentResults: [TokenHealthStatus] = []
 
         for (sessionId, sessionEntries) in grouped {
             guard !sessionEntries.isEmpty, !sessionId.isEmpty else { continue }
+            let isCurrent = sessionId == currentSessionId
+
+            // Skip expensive assessment for sessions with no activity in the last 24h
+            // (unless it's the current session — always assess that one).
+            if !isCurrent, let last = sessionEntries.last?.timestamp, last <= cutoff {
+                continue
+            }
+
             let model = sessionEntries.last?.model ?? ""
-            if let status = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model, now: now) {
-                allResults.append(status)
+            guard let status = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model, now: now) else { continue }
+
+            if isCurrent { current = status }
+            if (status.lastActivity ?? .distantPast) > cutoff {
+                recentResults.append(status)
             }
         }
 
-        let currentSessionId = latestEntry.sessionId
-        let current = allResults.first(where: { $0.id == currentSessionId })
-
-        let cutoff = now.addingTimeInterval(-24 * 60 * 60)
-        let top = Array(allResults
-            .filter { ($0.lastActivity ?? .distantPast) > cutoff }
-            .sorted { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
-            .prefix(topLimit))
+        recentResults.sort { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
+        let top = Array(recentResults.prefix(topLimit))
 
         return (current, top)
     }
@@ -46,21 +54,6 @@ final class TokenHealthMonitor {
     /// Convenience: return top N sessions sorted by most recent activity.
     func topSessions(entries: [AssistantUsageEntry], limit: Int = 5) -> [TokenHealthStatus] {
         assessSessions(entries: entries, topLimit: limit).top
-    }
-
-    /// Assess health for all active sessions (keyed by session ID).
-    func assessAllSessions(entries: [AssistantUsageEntry]) -> [String: TokenHealthStatus] {
-        let now = Date()
-        let grouped = Dictionary(grouping: entries, by: \.sessionId)
-        var results: [String: TokenHealthStatus] = [:]
-
-        for (sessionId, sessionEntries) in grouped {
-            guard !sessionEntries.isEmpty, !sessionId.isEmpty else { continue }
-            let model = sessionEntries.last?.model ?? ""
-            results[sessionId] = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model, now: now)
-        }
-
-        return results
     }
 
     // MARK: - Core Assessment

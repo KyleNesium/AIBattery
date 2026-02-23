@@ -131,6 +131,7 @@ Pricing per million tokens:
 | Constant | Value |
 |----------|-------|
 | Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
+| Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
 
 ## Launch at Login
@@ -196,6 +197,10 @@ Pricing per million tokens:
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
 | Copy hover highlight | `Color.primary.opacity(0.10)` background, `NSCursor.pointingHand` |
+| Auto mode pulse | `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)` — cyan glow |
+| MarqueeText scroll | 30pt/s linear, 2s pause at each end |
+| MarqueeText hold | 3s before cycling to next text (non-scrolling) |
+| MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
 
 ## JSONL Processing
 

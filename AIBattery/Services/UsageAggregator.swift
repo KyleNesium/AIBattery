@@ -42,10 +42,12 @@ final class UsageAggregator {
 
         var todayEntries: [AssistantUsageEntry] = []
         var windowedMap: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
+        var todayModelIds = Set<String>()
 
         for entry in allEntries {
             if entry.timestamp >= today {
                 todayEntries.append(entry)
+                todayModelIds.insert(entry.model)
             }
             if let ws = windowStart, entry.timestamp >= ws {
                 let existing = windowedMap[entry.model] ?? (0, 0, 0, 0)
@@ -68,19 +70,16 @@ final class UsageAggregator {
         let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
 
         // Only show models active in the last 72 hours to reduce noise.
-        // Build set of recently-active model IDs from dailyModelTokens + today's JSONL.
+        // todayModelIds was already collected in the single-pass above.
         let cutoffDate = calendar.date(byAdding: .hour, value: -72, to: now) ?? now
         let cutoffDateStr = Self.dateFormatter.string(from: cutoffDate)
-        var recentModelIds = Set<String>()
+        var recentModelIds = todayModelIds
         if let cache = statsCache {
             for entry in cache.dailyModelTokens where entry.date >= cutoffDateStr {
                 for (modelId, tokens) in entry.tokensByModel where tokens > 0 {
                     recentModelIds.insert(modelId)
                 }
             }
-        }
-        for entry in todayEntries {
-            recentModelIds.insert(entry.model)
         }
 
         let modelTokens: [ModelTokenSummary]
@@ -113,10 +112,10 @@ final class UsageAggregator {
                 }
             }
 
-            let uncachedEntries = todayEntries.filter { entry in
-                let entryDate = Self.dateFormatter.string(from: entry.timestamp)
-                return !cachedDates.contains(entryDate)
-            }
+            // todayEntries all have timestamp >= today, so their date string is always todayDate.
+            // A single set-membership check replaces per-entry DateFormatter calls.
+            let todayIsCached = cachedDates.contains(todayDate)
+            let uncachedEntries = todayIsCached ? [] : todayEntries
             for entry in uncachedEntries {
                 let existing = modelTokensMap[entry.model] ?? (0, 0, 0, 0)
                 modelTokensMap[entry.model] = (
@@ -155,6 +154,8 @@ final class UsageAggregator {
         let tokenHealth = healthResult.current
         let topSessionHealths = healthResult.top
 
+        let activity = statsCache?.dailyActivity ?? []
+
         return UsageSnapshot(
             lastUpdated: now,
             rateLimits: rateLimits,
@@ -169,7 +170,11 @@ final class UsageAggregator {
             todaySessions: todaySessions,
             todayToolCalls: todayToolCalls,
             modelTokens: modelTokens,
-            dailyActivity: statsCache?.dailyActivity ?? [],
+            totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
+            dailyActivity: activity,
+            dailyAverage: UsageSnapshot.computeDailyAverage(activity),
+            trendDirection: UsageSnapshot.computeTrendDirection(activity),
+            busiestDayOfWeek: UsageSnapshot.computeBusiestDay(activity),
             hourCounts: statsCache?.hourCounts ?? [:],
             tokenHealth: tokenHealth,
             topSessionHealths: topSessionHealths

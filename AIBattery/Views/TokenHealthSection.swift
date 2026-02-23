@@ -80,8 +80,8 @@ struct TokenHealthSection: View {
                     .copyable("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable")
                 Spacer()
                 Text("\(health.turnCount) turns · \(health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                     .help("Conversation turns in this session")
             }
             .accessibilityElement(children: .combine)
@@ -91,8 +91,8 @@ struct TokenHealthSection: View {
             if health.band == .orange || health.band == .red {
                 let safeMin = health.usableWindow / 5 // 20% of usable window
                 Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                     .help("Recommended minimum tokens to maintain response quality")
             }
 
@@ -100,10 +100,10 @@ struct TokenHealthSection: View {
             ForEach(health.warnings) { warning in
                 HStack(spacing: 4) {
                     Image(systemName: warning.severity == .strong ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
                     Text(warning.message)
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(.primary.opacity(0.7))
                 }
             }
@@ -111,7 +111,7 @@ struct TokenHealthSection: View {
             // Suggested action
             if let action = health.suggestedAction {
                 Text(action)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
@@ -201,27 +201,27 @@ struct TokenHealthSection: View {
                 let idPrefix = sessionIdPrefix
                 if labelParts.isEmpty && idPrefix == nil {
                     Text("Latest session")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 } else {
                     HStack(spacing: 0) {
                         if !labelParts.isEmpty {
                             Text(labelParts.joined(separator: " · "))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
                         if let idPrefix {
                             if !labelParts.isEmpty {
                                 Text(" · ")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
                             }
                             Text(idPrefix)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
                                 .copyable(idPrefix)
                         }
                     }
@@ -232,7 +232,7 @@ struct TokenHealthSection: View {
                     HStack(spacing: 2) {
                         Circle()
                             .fill(ThemeColors.caution)
-                            .frame(width: 5, height: 5)
+                            .frame(width: 6, height: 6)
                         Text("Idle \(idleMinutes)m")
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(ThemeColors.caution)
