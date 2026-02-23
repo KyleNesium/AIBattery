@@ -135,10 +135,14 @@ struct UsageAggregatorTests {
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
         let rateLimits = RateLimitUsage(
-            fiveHourPercent: 42.5,
-            sevenDayPercent: 15.0,
-            fiveHourResetAt: Date().addingTimeInterval(3600),
-            sevenDayResetAt: Date().addingTimeInterval(86400)
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.425,
+            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.15,
+            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
         )
 
         let snapshot = aggregator.aggregate(rateLimits: rateLimits)
