@@ -28,9 +28,11 @@ Main aggregated data struct consumed by all views.
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by most recent activity (descending) |
 
-Computed: `totalTokens`, `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover)
+Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
-Projections & trends: `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
+Static factory methods: `computeDailyAverage(_:)`, `computeTrendDirection(_:)`, `computeBusiestDay(_:)` — called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
+
+Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover), `autoResolvedMode: MetricMode` (picks whichever metric has the highest percentage; used by popover and menu bar when auto mode is on).
 
 ### ModelTokenSummary
 
@@ -164,7 +166,7 @@ Thresholds apply to the **usable window** (80% of raw context). Claude Code auto
 
 Codable struct matching `~/.claude/stats-cache.json`:
 - `version`, `lastComputedDate`
-- `dailyActivity: [DailyActivity]` — date, messageCount, sessionCount, toolCallCount
+- `dailyActivity: [DailyActivity]` — date, messageCount, sessionCount, toolCallCount. `DailyActivity` has `private static let dateFormatter` for `parsedDate` computed property.
 - `dailyModelTokens: [DailyModelTokens]` — date, tokensByModel: `[String: Int]` (model ID → token count)
 - `modelUsage: [String: ModelUsageEntry]` — total per-model usage (includes `webSearchRequests?`, `contextWindow?`, `maxOutputTokens?`)
 - `totalSessions`, `totalMessages`
@@ -197,7 +199,7 @@ Per-model pricing for API cost equivalence. Shows what the same token usage woul
 Methods:
 - `cost(input:output:cacheRead:cacheWrite:) -> Double` — cost in dollars
 - `static formatCost(_ cost: Double) -> String` — "$12.35" or "<$0.01"
-- `static pricing(for modelId: String) -> ModelPricing?` — lookup via `ModelNameMapper.displayName`
+- `static pricing(for modelId: String) -> ModelPricing?` — lookup via `ModelNameMapper.displayName`, cached in `private static var pricingCache: [String: ModelPricing?]` to avoid repeated lookups
 - `static totalCost(for models: [ModelTokenSummary]) -> Double` — aggregate across models
 
 Pricing table (per million tokens):
@@ -283,6 +285,7 @@ Pricing table (per million tokens):
 - Singleton: `.shared`
 - `read() -> StatsCache?`
 - Reads and JSON-decodes `~/.claude/stats-cache.json`
+- **Static decoder**: `private static let jsonDecoder = JSONDecoder()` — shared instance avoids per-read allocation
 - **Result caching**: caches decoded `StatsCache` with file modification date and size; skips re-decode when file unchanged. `invalidate()` clears cache (called by FileWatcher on change).
 
 ### SessionLogReader (`Services/SessionLogReader.swift`)
@@ -290,7 +293,8 @@ Pricing table (per million tokens):
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
 - FileHandle streaming: 64KB buffer, line-by-line, 1MB max line size safety cap (discards oversized lines)
-- Pre-filter: byte search for `"type":"assistant"` AND `"usage"` before JSON decode
+- **Static members** (avoid per-file allocation): `isoFormatter: ISO8601DateFormatter`, `assistantMarkers: [Data]` (both `"type":"assistant"` and `"type": "assistant"` with space), `usageMarker: Data`, `jsonDecoder: JSONDecoder`
+- Pre-filter: byte search for either assistant marker variant AND `"usage"` before JSON decode
 - **Decode error logging**: when pre-filter matches but JSON decode fails, logs via `AppLogger.files.debug` with filename and error description
 - **Trailing line safety**: remaining data after last newline is only processed if it ends with `}` (skips incomplete/partial writes still being written)
 - Mod-time + file-size cache to skip unchanged files
@@ -304,6 +308,7 @@ Pricing table (per million tokens):
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - Created per-ViewModel (not singleton)
+- **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
 - `aggregate(rateLimits:) -> UsageSnapshot`
 - **Single-pass filtering**: iterates all entries once to extract both today's entries and windowed token totals simultaneously (avoids separate `.filter()` passes)
 - Reads: stats cache, all JSONL entries (single scan)
@@ -369,7 +374,7 @@ Pricing table (per million tokens):
 - `stripTag(_:) -> String` — strips leading "v" or "V"
 - `currentAppVersion` — reads `CFBundleShortVersionString` from bundle
 - `UpdateInfo`: `version: String`, `url: String`
-- Cache: `lastCheck: Date?`, `cachedUpdate: UpdateInfo?`
+- Cache: `lastCheck: Date?`, `cachedUpdate: UpdateInfo?` — restored from UserDefaults on init (`aibattery_lastUpdateCheck` as Unix timestamp, `aibattery_lastUpdateVersion` + `aibattery_lastUpdateURL`), persisted after each check
 - Timeout: 10 sec
 
 ### LaunchAtLoginManager (`Services/LaunchAtLoginManager.swift`)
@@ -408,13 +413,13 @@ Pricing table (per million tokens):
 
 ### ModelNameMapper (`Utilities/ModelNameMapper.swift`)
 - `displayName(for modelId: String) -> String`
-- Strips "claude-" prefix, strips trailing date (8+ digits), converts hyphens to dots, capitalizes family
+- Strips "claude-" prefix via `hasPrefix`/`dropFirst`, strips trailing date segment (8+ consecutive digits) using manual character iteration (no regex — avoids NSRegularExpression bridging overhead), converts hyphens to dots, capitalizes family
 - "claude-opus-4-6-20250929" → "Opus 4.6"
 
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `colorblindMode`, `hasSeenTutorial`
+- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`

@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.3.0] — 2026-02-23
+
+### Added
+- **Auto mode** — (A) button on metric toggle automatically selects whichever metric (5h/7d/context) has the highest percentage, applied to both popover and menu bar
+- **Incident marquee** — scrolling `MarqueeText` view in footer cycles through active incident names with cross-fade transitions and severity-colored text
+- `OAuthManagerTests` — 10 tests (AuthError user messages, transient error classification)
+- `UsageAggregatorTests` — 2 additional tests (stats+JSONL merge, all-time mode)
+
+### Improved
+- **UsageSnapshot stored properties** — `totalTokens`, `dailyAverage`, `trendDirection`, and `busiestDayOfWeek` pre-computed at construction via static factory methods (avoids per-render iteration in SwiftUI body recomputation)
+- **SessionLogReader statics** — `assistantMarkers`, `usageMarker`, `jsonDecoder`, and `isoFormatter` promoted to static lets (avoids per-file allocation)
+- **StatsCacheReader static decoder** — shared `JSONDecoder` instance avoids per-read allocation
+- **UsageAggregator static formatters** — `DateFormatter` and `ISO8601DateFormatter` created once at load time
+- **ModelNameMapper native string ops** — replaced `NSRegularExpression` with manual character iteration for date stripping (eliminates ObjC bridging overhead)
+- **ModelPricing lookup cache** — `pricingCache` dictionary avoids repeated `displayName` + linear scan on every call
+- **MenuBarIcon band caching** — NSImage cached by color band (4 bands × 2 colorblind modes), only re-rendered when band changes
+- **DailyActivity static formatter** — shared `DateFormatter` for `parsedDate` computed property
+- **SessionLogReader buffer compaction** — leftover Data slices re-allocated to drop references to old backing buffers
+- **Auto mode color** — changed from cyan to blue for better visual consistency
+
+### Fixed
+- **Auto mode button hit target** — added `.contentShape(Circle())` so the full 20pt circle is tappable, not just the "A" glyph
+- **Rate limit slider tick marks** — added missing 95% endpoint label
+- **Tutorial overlay backdrop** — changed from `Color.primary.opacity(0.35)` to `Color.black.opacity(0.4)` (primary is white in dark mode, making backdrop invisible)
+
+### Removed
+- `PlanTier` model type (billing type now stored directly as string via `aibattery_plan` UserDefaults key)
+
 ## [1.2.3] — 2026-02-23
 
 ### Fixed

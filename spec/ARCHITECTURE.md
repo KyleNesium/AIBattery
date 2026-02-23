@@ -82,7 +82,7 @@ AIBattery/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
     MenuBarLabel.swift            — ✦ icon + percentage in menu bar
-    MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color)
+    MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color, band-based NSImage cache)
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     AuthView.swift                 — OAuth login/paste-code screen
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
@@ -91,7 +91,7 @@ AIBattery/
     TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
     InsightsSection.swift         — Today stats, all-time stats
     ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows)
-    CopyableText.swift            — ViewModifier for click-to-copy with checkmark feedback
+    CopyableText.swift            — ViewModifier for click-to-copy with clipboard icon feedback
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
   Utilities/
     TokenFormatter.swift          — Format tokens ("18.9M")
@@ -131,6 +131,7 @@ Tests/AIBatteryCoreTests/
     RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload
     UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup
+    OAuthManagerTests.swift       — AuthError user messages, transient error classification
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)

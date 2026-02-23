@@ -190,7 +190,7 @@ The segmented toggle picks which metric drives the ✦ icon color:
 
 Selected metric moves to the top. The other two stay visible below.
 
-**Auto mode**: click the **(A)** button next to the toggle. It glows cyan when active and automatically selects whichever metric has the highest percentage — so the menu bar always shows your most critical limit.
+**Auto mode**: click the **(A)** button next to the toggle. It glows blue when active and automatically selects whichever metric has the highest percentage — so the menu bar always shows your most critical limit.
 
 ---
 
@@ -252,7 +252,7 @@ Click ⚙️ in the header to configure:
 |---|---|
 | ➕ **Add Account** | Connect a second Claude account (up to 2) |
 | ✏️ **Account names** | Custom label per account (shown in picker + menu bar) |
-| 🔁 **Auto mode** | Always show the highest metric (pulsing cyan button) |
+| 🔁 **Auto mode** | Always show the highest metric (pulsing blue button on metric toggle) |
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | 🤖 **Models** | Only show models used within period: 1–7 days or All |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
@@ -449,12 +449,12 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**359 tests** across 28 test files.
+**373 tests** across 28 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 127 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults), health status, metric modes, API profiles, session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day), model pricing, health config |
-| Services | 171 | Version checker (semver comparison, tag stripping, cache behavior, force check, persistence keys), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation), OAuth manager (AuthError messages, transient error classification) |
+| Models | 127 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults), health status, metric modes, API profiles, session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode), model pricing, health config |
+| Services | 185 | Version checker (semver comparison, tag stripping, cache behavior, force check, persistence keys), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation), OAuth manager (AuthError messages, transient error classification) |
 | Utilities | 61 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness) |
 
 ## 📄 License

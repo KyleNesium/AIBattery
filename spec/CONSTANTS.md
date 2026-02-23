@@ -197,7 +197,7 @@ Pricing per million tokens:
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
 | Copy hover highlight | `Color.primary.opacity(0.10)` background, `NSCursor.pointingHand` |
-| Auto mode pulse | `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)` — cyan glow |
+| Auto mode pulse | `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)` — blue glow |
 | MarqueeText scroll | 30pt/s linear, 2s pause at each end |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
 | MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
@@ -208,7 +208,8 @@ Pricing per million tokens:
 |----------|-------|
 | Read buffer size | 64 KB |
 | Max line size | 1 MB — oversized lines discarded (malformed data protection) |
-| Pre-filter marker 1 | `"type":"assistant"` |
+| Pre-filter marker 1a | `"type":"assistant"` (no space) |
+| Pre-filter marker 1b | `"type": "assistant"` (with space) |
 | Pre-filter marker 2 | `"usage"` |
 | Cache max entries | 200 files |
 

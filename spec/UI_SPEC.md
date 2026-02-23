@@ -140,10 +140,10 @@ Padding: H 16, V 10
 HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
 
 **Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
-- **Active**: cyan text, `Color.cyan.opacity(0.15)` fill, 1.5pt cyan stroke with pulsing opacity (0.3–0.8), pulsing cyan shadow (radius 1–5pt, opacity 0.1–0.5). Pulse: `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)`.
+- **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse: `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)`.
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Picker dims to 0.4 opacity and is disabled when auto mode is active.
-- **Behavior**: auto mode picks whichever metric (5h/7d/context) has the highest percentage via `resolveAutoMode()`. Applied in both popover and menu bar label.
+- **Behavior**: auto mode picks whichever metric (5h/7d/context) has the highest percentage via `snapshot.autoResolvedMode` (computed property on `UsageSnapshot`). Applied in both popover and menu bar label.
 
 Padding: H 16, V 10
 
@@ -282,7 +282,7 @@ Links row in HStack (spacing 10):
 
 Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links row spacing: 10pt.
 
-Active incident banner (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:)` cycling through all active incidents with cross-fade transitions
+Active incident banner (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity)
 
 All text: .caption2, .secondary. Padding: H 16, V 10.
 
@@ -310,6 +310,7 @@ HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monosp
 - Fill: solid color based on requestsPercent
 - Stroke: same color at 0.6 alpha, 0.5pt width
 - `isTemplate = false`
+- **Band-based caching**: `colorBand` maps percentage to 4 discrete bands (0: <50%, 1: <80%, 2: <95%, 3: >=95%). Static `iconCache: [Int: NSImage]` stores up to 8 entries (4 bands × 2 colorblind modes). Icon only re-rendered when band changes — not on every percentage tick.
 
 ## Accessibility
 
