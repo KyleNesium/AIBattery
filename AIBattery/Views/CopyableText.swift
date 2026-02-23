@@ -15,7 +15,7 @@ struct CopyableModifier: ViewModifier {
             .padding(.vertical, 1)
             .background(
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(isHovered ? Color.primary.opacity(0.08) : Color.clear)
+                    .fill(isHovered ? Color.primary.opacity(0.10) : Color.clear)
             )
             .overlay(alignment: .trailing) {
                 if copied {

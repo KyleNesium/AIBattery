@@ -47,7 +47,7 @@ public struct AuthView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "person.crop.circle.badge.checkmark")
                                 .font(.system(size: 13))
-                            Text("Authenticate")
+                            Text("Sign In")
                                 .font(.subheadline.weight(.medium))
                         }
                         .frame(maxWidth: .infinity)
@@ -55,8 +55,8 @@ public struct AuthView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.accentColor)
-                    .accessibilityLabel("Authenticate with Claude")
-                    .accessibilityHint("Opens browser to sign in")
+                    .accessibilityLabel("Sign in with Claude")
+                    .accessibilityHint("Opens browser to sign in with your Anthropic account")
                 }
             } else {
                 // Step 2: Paste code

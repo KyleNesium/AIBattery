@@ -1,8 +1,8 @@
 import Foundation
 
 struct UsageSnapshot {
-    /// Reusable formatter for weekday symbol lookup — avoids allocating a new DateFormatter per call.
-    private static let weekdayFormatter = DateFormatter()
+    /// Weekday symbols from the user's current calendar (Sunday = index 0).
+    private static let weekdaySymbols = Calendar.current.weekdaySymbols
 
     let lastUpdated: Date
 
@@ -105,8 +105,9 @@ struct UsageSnapshot {
         let avg = total / max(counts[weekday] ?? 1, 1)
         guard avg > 0 else { return nil }
 
-        let dayName = Self.weekdayFormatter.weekdaySymbols[weekday - 1]
-        return (dayName, avg)
+        let index = weekday - 1
+        guard index >= 0, index < Self.weekdaySymbols.count else { return nil }
+        return (Self.weekdaySymbols[index], avg)
     }
 
     // Hourly message distribution (hour "0"-"23" → count, from stats-cache)

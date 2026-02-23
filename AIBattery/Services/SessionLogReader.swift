@@ -4,7 +4,11 @@ import os
 final class SessionLogReader {
     static let shared = SessionLogReader()
 
-    private var projectsURL: URL { ClaudePaths.projects }
+    private let projectsURL: URL
+
+    init(projectsURL: URL? = nil) {
+        self.projectsURL = projectsURL ?? ClaudePaths.projects
+    }
 
     // Cache: filePath -> (modDate, fileSize, entries)
     private var cache: [String: (Date, UInt64, [AssistantUsageEntry])] = [:]
@@ -129,8 +133,7 @@ final class SessionLogReader {
         ) else { return [] }
 
         for dir in projectDirs {
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else { continue }
+            guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
 
             // Track each project dir mod date
             if let attrs = try? fm.attributesOfItem(atPath: dir.path),
@@ -147,6 +150,7 @@ final class SessionLogReader {
             }
 
             let subagentsDir = dir.appendingPathComponent("subagents")
+            guard fm.fileExists(atPath: subagentsDir.path) else { continue }
             if let files = try? fm.contentsOfDirectory(
                 at: subagentsDir,
                 includingPropertiesForKeys: nil,
@@ -229,6 +233,12 @@ final class SessionLogReader {
                 if let usageEntry = Self.makeUsageEntry(from: decoded) {
                     entries.append(usageEntry)
                 }
+            }
+
+            // Compact leftover to drop reference to the old backing buffer.
+            // Without this, slice chains keep the entire read buffer alive in memory.
+            if leftover.startIndex != 0 {
+                leftover = Data(leftover)
             }
         }
 

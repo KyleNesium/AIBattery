@@ -20,11 +20,12 @@ final class RateLimitFetcher {
     /// Per-account cache of API results.
     private var cachedResults: [String: APIFetchResult] = [:]
     /// Maximum age of cached result before it's considered stale and discarded.
-    private static let cacheMaxAge: TimeInterval = 3600 // 1 hour
+    static let cacheMaxAge: TimeInterval = 3600 // 1 hour
 
     /// Models to try in order. Free accounts may not have access to larger models,
     /// but rate limit headers come back the same regardless of model.
     private let models = [
+        "claude-sonnet-4-6-20250929",
         "claude-sonnet-4-5-20250929",
         "claude-haiku-3-5-20241022",
     ]
@@ -68,7 +69,7 @@ final class RateLimitFetcher {
 
     /// Return cached result marked as stale, or an empty result.
     /// Expires cache after `cacheMaxAge` to avoid showing very old data.
-    private func cachedOrEmpty(accountId: String) -> APIFetchResult {
+    func cachedOrEmpty(accountId: String) -> APIFetchResult {
         if let cached = cachedResults[accountId] {
             let age = Date().timeIntervalSince(cached.fetchedAt)
             if age < Self.cacheMaxAge {
@@ -83,6 +84,11 @@ final class RateLimitFetcher {
             cachedResults[accountId] = nil
         }
         return APIFetchResult(rateLimits: nil, profile: nil)
+    }
+
+    /// Inject a cached result for testing.
+    func setCachedResult(_ result: APIFetchResult, for accountId: String) {
+        cachedResults[accountId] = result
     }
 
     private enum FetchResult {

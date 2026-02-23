@@ -7,7 +7,7 @@ struct InsightsSection: View {
     private let labelWidth: CGFloat = 55
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             // Today's activity
             HStack {
                 Text("Today")
@@ -48,7 +48,7 @@ struct InsightsSection: View {
 
     private var todayStats: String {
         if snapshot.todayToolCalls > 0 {
-            return "\(snapshot.todayMessages) msgs \u{00B7} \(snapshot.todaySessions) sess \u{00B7} \(snapshot.todayToolCalls) tools"
+            return "\(snapshot.todayMessages) msgs \u{00B7} \(snapshot.todaySessions) sess \u{00B7} \(snapshot.todayToolCalls) calls"
         }
         return "\(snapshot.todayMessages) msgs \u{00B7} \(snapshot.todaySessions) sessions"
     }

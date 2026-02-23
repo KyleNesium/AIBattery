@@ -36,6 +36,7 @@ Rate limits, context health, and token usage — always visible in your macOS me
 - [Context Health](#-context-health)
 - [Settings](#%EF%B8%8F-settings)
 - [API Cost](#-api-cost)
+- [Troubleshooting](#-troubleshooting)
 - [FAQ](#-faq)
 - [Privacy](#-privacy)
 - [Architecture](#-architecture)
@@ -124,7 +125,7 @@ OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **2 account
 | Step | Action |
 |:---:|---|
 | **1** | Launch AI Battery — the auth screen appears on first run |
-| **2** | Click **Authenticate** → browser opens to Anthropic's sign-in |
+| **2** | Click **Sign In** → browser opens to Anthropic's sign-in |
 | **3** | Sign in → copy the authorization code |
 | **4** | Paste into AI Battery → done |
 
@@ -255,7 +256,6 @@ Click ⚙️ in the header to configure:
 | 🔔 **Alerts** | Notify on Claude.ai / Claude Code outages |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
 | 🚀 **Launch at Login** | Start automatically when you log in |
-| 💾 **Export / Import** | Copy/paste settings as JSON via clipboard |
 
 </td>
 <td width="45%" align="center">
@@ -264,7 +264,7 @@ Click ⚙️ in the header to configure:
 </tr>
 </table>
 
-The footer shows a **staleness indicator** and an **update banner** when a new version is available.
+The header shows an **update indicator** when a new version is available (yellow arrow + "View" link).
 
 > [!TIP]
 > Click any stat value (percentages, token counts, costs) to copy it to the clipboard.
@@ -278,6 +278,51 @@ Enable in **Settings → Display → Cost*** to see dollar amounts in the Tokens
 This shows what your token usage **would cost at Anthropic's published API per-token rates** — it's not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token. The estimate is useful for understanding the value of your usage and comparing the economics of subscription vs. API billing.
 
 Pricing uses Anthropic's published rates for input, output, cache read, and cache write tokens per model.
+
+---
+
+## 🔧 Troubleshooting
+
+<details open>
+<summary><strong>App appears in the menu bar then disappears</strong></summary>
+
+**On first launch:** macOS Gatekeeper may silently kill the app because it's not notarized. AI Battery will show an alert if it detects quarantine, but sometimes macOS kills the process before the alert appears.
+
+```bash
+xattr -cr /Applications/AIBattery.app
+```
+
+Then relaunch. This removes the quarantine flag that macOS adds to downloaded apps.
+
+**After working for a while:** If the icon vanishes after the app has been running, update to the latest version — v1.2.3+ fixes concurrency issues that could cause intermittent crashes during background data refresh and sleep/wake cycles.
+
+**If it still happens:**
+
+1. Open **Console.app** → filter for "AIBattery" → look for crash logs
+2. Check your macOS version — macOS 13.0–13.2 had `MenuBarExtra` bugs fixed in 13.3+
+3. [Open an issue](https://github.com/KyleNesium/AIBattery/issues) with the crash log
+
+</details>
+
+<details>
+<summary><strong>macOS says "AI Battery is damaged and can't be opened"</strong></summary>
+
+This is the quarantine flag. Run:
+
+```bash
+xattr -cr /Applications/AIBattery.app
+```
+
+Then relaunch.
+
+</details>
+
+<details>
+<summary><strong>Keychain access dialog keeps appearing</strong></summary>
+
+Click **Always Allow** when prompted. AI Battery stores OAuth tokens in macOS Keychain (one set per account). This is the same secure storage used by browsers and Claude Code. The prompt only appears once per account.
+
+</details>
 
 ---
 
@@ -400,12 +445,12 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**348 tests** across 25 test files.
+**376 tests** across 28 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 140 | Token summaries, rate limit parsing, plan tiers, health status, metric modes, API profiles, session entries, account records, stats cache, usage snapshots (projections, trends, busiest day) |
-| Services | 135 | Version checker (semver comparison, tag stripping, cache behavior, force check), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation) |
+| Services | 173 | Version checker (semver comparison, tag stripping, cache behavior, force check, persistence keys), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication), rate limit fetcher (cache expiry, stale marking, multi-account isolation) |
 | Utilities | 63 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), model pricing (cost calculation, formatting) |
 
 ## 📄 License

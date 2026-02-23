@@ -298,7 +298,7 @@ Pricing table (per million tokens):
 - **Incident impact escalation**: when components report "operational" but active incidents exist, factors in incident `impact` field (`"none"`, `"minor"`, `"major"`, `"critical"`) to determine overall indicator. If impact is `"none"` but incidents are active, escalates to at least `.degradedPerformance` (yellow dot).
 - Checks for active incidents (status not `resolved` or `postmortem`)
 - Returns `.unknown` on any error
-- **Backoff**: exponential backoff with jitter on failure — base 60s doubles per failure, capped at 5 min, ±20% jitter to prevent thundering herd; resets on success
+- **Backoff**: exponential backoff with jitter on failure — base 60s doubles per failure, capped at 5 min, ±20% jitter to prevent thundering herd; stored once per failure increment (not re-randomized on every check); resets on success
 
 ### StatsCacheReader (`Services/StatsCacheReader.swift`)
 - Singleton: `.shared`
@@ -334,13 +334,14 @@ Pricing table (per million tokens):
   - **Windowed mode (1–7)**: computes token totals from all JSONL entries within the window, bypasses stats-cache `modelUsage`
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
 - Tool calls from stats cache only (not parsed from JSONL)
-- Token health via `TokenHealthMonitor.assessCurrentSession` (single) + `TokenHealthMonitor.topSessions` (top 5)
+- Token health via `TokenHealthMonitor.assessSessions` (single-pass: returns both current + top 5)
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)
 - Singleton: `.shared`
-- `assessCurrentSession(entries:) -> TokenHealthStatus?` — most recent session only
-- `topSessions(entries:limit:) -> [TokenHealthStatus]` — top N sessions sorted by most recent activity (newest first); excludes archived sessions (no activity in last 24 hours). Default limit is 5
-- `assessAllSessions(entries:) -> [String: TokenHealthStatus]` — all sessions keyed by sessionId
+- `assessSessions(entries:topLimit:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — **single-pass**: groups entries once via `Dictionary(grouping:)`, assesses all sessions, returns current session health + top N most recent (excludes sessions with no activity in last 24 hours). Default topLimit is 5.
+- `assessCurrentSession(entries:) -> TokenHealthStatus?` — convenience wrapper, returns `assessSessions().current`
+- `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top`
+- `assessAllSessions(entries:) -> [String: TokenHealthStatus]` — all sessions keyed by sessionId (separate implementation, own grouping pass)
 - Groups by sessionId, each session assessed independently
 - **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + sum(all outputTokens)` — input + cache tokens are cumulative (latest entry has total), output tokens are per-message. Each component capped at contextWindow to guard against overflow from corrupted data.
 - **Usable window**: `usableWindow = contextWindow × 0.80` — percentages calculated against usable portion
@@ -407,7 +408,7 @@ Pricing table (per million tokens):
 - `@MainActor`, `ObservableObject`
 - Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
 - Computed: `metricMode: MetricMode` (from UserDefaults `aibattery_metricMode`), `menuBarPercent: Double` (delegates to `snapshot.percent(for:)`), `hasData: Bool`
-- `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Org name from API or active account record flows into aggregator. `Task.detached` for aggregation. Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
+- `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
@@ -419,7 +420,7 @@ Pricing table (per million tokens):
 ## Utilities
 
 ### ClaudePaths (`Utilities/ClaudePaths.swift`)
-- Centralized file paths for all Claude Code data locations
+- Centralized file paths for all Claude Code data locations (`static let` — computed once at load time)
 - `statsCache` / `statsCachePath` — `~/.claude/stats-cache.json`
 - `projects` / `projectsPath` — `~/.claude/projects/`
 - `accountConfig` / `accountConfigPath` — `~/.claude.json`

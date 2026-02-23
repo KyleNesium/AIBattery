@@ -6,20 +6,20 @@ enum ClaudePaths {
     private static let home = FileManager.default.homeDirectoryForCurrentUser
 
     /// `~/.claude/stats-cache.json` — historical usage aggregates
-    static var statsCache: URL { home.appendingPathComponent(".claude/stats-cache.json") }
+    static let statsCache: URL = home.appendingPathComponent(".claude/stats-cache.json")
 
     /// `~/.claude/stats-cache.json` as a POSIX path (for `open()` / `FileManager`)
-    static var statsCachePath: String { statsCache.path }
+    static let statsCachePath: String = statsCache.path
 
     /// `~/.claude/projects/` — session JSONL directory
-    static var projects: URL { home.appendingPathComponent(".claude/projects") }
+    static let projects: URL = home.appendingPathComponent(".claude/projects")
 
     /// `~/.claude/projects/` as a POSIX path
-    static var projectsPath: String { projects.path }
+    static let projectsPath: String = projects.path
 
     /// `~/.claude.json` — account info (billing type)
-    static var accountConfig: URL { home.appendingPathComponent(".claude.json") }
+    static let accountConfig: URL = home.appendingPathComponent(".claude.json")
 
     /// `~/.claude.json` as a POSIX path
-    static var accountConfigPath: String { accountConfig.path }
+    static let accountConfigPath: String = accountConfig.path
 }

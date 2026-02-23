@@ -348,6 +348,15 @@ public final class OAuthManager: ObservableObject {
     private func postToken(body: [String: String]) async -> Result<TokenResult, AuthError> {
         guard let url = URL(string: tokenURL) else { return .failure(.unknownError("Invalid token URL")) }
 
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
+            return .failure(.unknownError("Failed to serialize request body"))
+        }
+        request.httpBody = bodyData
+
         var lastError: AuthError = .networkError
         for attempt in 0...Self.maxRetries {
             if attempt > 0 {
@@ -356,12 +365,6 @@ public final class OAuthManager: ObservableObject {
                 let delay = base * Double.random(in: 0.8...1.2)
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.timeoutInterval = 15
-            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)

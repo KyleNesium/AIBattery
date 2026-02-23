@@ -30,12 +30,14 @@ final class StatusChecker {
     private static let maxBackoff: TimeInterval = 300
     private var lastFailedAt: Date?
     private var failureCount = 0
+    /// Stored backoff interval — computed once per failure, not re-randomized on every check.
+    private var currentBackoff: TimeInterval = 0
 
-    /// Current backoff interval based on failure count.
-    private var currentBackoff: TimeInterval {
+    /// Compute and store the backoff interval for the current failure count.
+    private func updateBackoff() {
         let raw = Self.baseBackoff * pow(2, Double(failureCount - 1))
         let capped = min(raw, Self.maxBackoff)
-        return capped * Double.random(in: 0.8...1.2)
+        currentBackoff = capped * Double.random(in: 0.8...1.2)
     }
 
     func fetchStatus() async -> ClaudeSystemStatus {
@@ -52,6 +54,7 @@ final class StatusChecker {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 failureCount += 1
+                updateBackoff()
                 lastFailedAt = Date()
                 AppLogger.network.warning("StatusChecker HTTP error, backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
                 return cachedStatus ?? .unknown
@@ -65,6 +68,7 @@ final class StatusChecker {
             return result
         } catch {
             failureCount += 1
+            updateBackoff()
             lastFailedAt = Date()
             AppLogger.network.warning("StatusChecker fetch failed: \(error.localizedDescription, privacy: .public), backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
             return cachedStatus ?? .unknown

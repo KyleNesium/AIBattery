@@ -105,7 +105,7 @@ struct ActivityChartView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             // Header with toggle
             HStack {
                 Text("Activity")
@@ -193,7 +193,7 @@ struct ActivityChartView: View {
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(Self.dayShortLabel(date))
-                            .font(.system(size: 9))
+                            .font(.system(size: 10))
                     }
                 }
             }
@@ -233,7 +233,7 @@ struct ActivityChartView: View {
                 AxisValueLabel {
                     if let hour = value.as(Int.self) {
                         Text(Self.formatHourLabel(hour))
-                            .font(.system(size: 8))
+                            .font(.system(size: 9))
                     }
                 }
             }
@@ -282,7 +282,7 @@ struct ActivityChartView: View {
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(Self.monthAbbrev(date))
-                            .font(.system(size: 9))
+                            .font(.system(size: 10))
                     }
                 }
             }
@@ -295,36 +295,36 @@ struct ActivityChartView: View {
     // MARK: - Trend
 
     private func trendSummary(_ snapshot: UsageSnapshot) -> some View {
-        HStack(spacing: 0) {
-            // Trend arrow + vs yesterday
+        HStack(spacing: 6) {
+            // Trend arrow
             Text(snapshot.trendDirection.symbol)
-                .font(.caption2)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
                 .foregroundStyle(ThemeColors.trendColor(snapshot.trendDirection))
 
+            // Change vs yesterday
             if let change = changeVsYesterday(snapshot) {
-                Text(" \(change.label)")
-                    .font(.system(.caption2, design: .monospaced))
+                Text(change.label)
+                    .font(.system(.caption, design: .monospaced, weight: .medium))
                     .foregroundStyle(change.color)
             }
 
             if snapshot.dailyAverage > 0 {
-                Text("  \u{00B7}  ")
-                    .font(.caption2)
-                    .foregroundStyle(.quaternary)
+                Text("\u{00B7}")
+                    .foregroundStyle(.secondary)
                 Text("\(snapshot.dailyAverage) avg/day")
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.primary.opacity(0.7))
             }
 
             Spacer()
 
             if let busiest = snapshot.busiestDayOfWeek {
-                Text("\(busiest.name)s peak")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                Text("Peak on \(busiest.name)s")
+                    .font(.caption)
+                    .foregroundStyle(.primary.opacity(0.5))
             }
         }
-        .padding(.top, 2)
+        .padding(.top, 4)
         .help("Weekly trend: this week vs last week")
         .accessibilityLabel("Trend \(snapshot.trendDirection.accessibilityLabel)")
     }

@@ -139,7 +139,7 @@ Padding: H 16, V 10
 `FiveHourBarSection` + `SevenDayBarSection`, each wrapping a shared `UsageBar` view.
 
 Each bar:
-- **Label row**: label (.subheadline, .secondary) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.title3, monospaced, semibold)
+- **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.title3, monospaced, semibold)
 - **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
 - **Detail row**: `"X% remaining"` (.caption2) + `"Resets in Xh Ym"` (.caption2, .tertiary)
 - **Predictive estimate** (when `estimatedTimeToLimit` is available): replaces reset time with `"~Xh Ym to limit"` in orange (.caption2, .orange). Only shown when utilization > 50% and estimate is before reset time.
@@ -207,7 +207,7 @@ Padding: H 16, V 12
 
 ### ❻ Insights (`Views/InsightsSection.swift`)
 
-- Today: `"Today"` label (.caption, .secondary) + `"{msgs} msgs · {sessions} sessions · {tools} tools"` (.caption, monospaced)
+- Today: `"Today"` label (.caption, .secondary) + `"{msgs} msgs · {sessions} sess · {tools} calls"` (.caption, monospaced)
 - All Time: `"All Time"` label (.caption, .secondary) + `"{messages} msgs · {sessions} sessions"` (.caption, monospaced)
 - Each row: label left, stats right (HStack with Spacer)
 
@@ -217,7 +217,7 @@ Padding: H 16, V 12
 
 Positioned below Insights. Compact chart with mode toggle.
 
-- Header row: `"Activity"` (.caption2, .secondary) + segmented picker (.segmented, width 120, scaleEffect 0.8)
+- Header row: `"Activity"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
 - Toggle modes: `"24H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
 - **Mode persistence**: `@AppStorage("aibattery_chartMode")` — persists across popover close/reopen
 - Empty state: centered VStack with `chart.line.flattrend.xyaxis` icon (14pt, .quaternary) + `"No activity data"` (.caption2, .tertiary), 50pt height
@@ -242,14 +242,14 @@ Data per mode:
 
 **Trend summary** (below chart, always visible when snapshot available):
 - Single HStack row: trend arrow (colored per `ThemeColors.trendColor`) + vs-yesterday change (monospaced, colored) + `·` separator + daily average (monospaced, .tertiary) + Spacer + busiest day label (.tertiary)
-- Example: `↑ +5 msgs  ·  42 avg/day          Tuesdays peak`
-- `.padding(.top, 2)`, `.help("Weekly trend: this week vs last week")`
+- Example: `↑ +5 msgs  ·  42 avg/day          Peak on Tuesdays`
+- `.padding(.top, 4)`, `.help("Weekly trend: this week vs last week")`
 
 Padding: H 16, V 12
 
 ### ❼ Footer (`UsagePopoverView.footerSection`)
 
-Links row in HStack (spacing 6):
+Links row in HStack (spacing 10):
 1. **Usage**: chart.bar icon (9pt) + "Usage" + arrow.up.right (6pt) → opens `platform.claude.com/usage`
 2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (6pt) → opens `status.claude.com`
 3. _(Spacer)_

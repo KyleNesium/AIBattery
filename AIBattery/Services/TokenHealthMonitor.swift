@@ -10,39 +10,54 @@ final class TokenHealthMonitor {
         self.config = config
     }
 
-    /// Assess health for the most recent active session.
-    func assessCurrentSession(entries: [AssistantUsageEntry]) -> TokenHealthStatus? {
-        guard let latestEntry = entries.last else { return nil }
+    /// Single-pass assessment: groups entries once, returns current session health + top N recent sessions.
+    func assessSessions(entries: [AssistantUsageEntry], topLimit: Int = 5) -> (current: TokenHealthStatus?, top: [TokenHealthStatus]) {
+        guard let latestEntry = entries.last else { return (nil, []) }
 
-        // Group entries by session, find the most recent session
-        let sessionId = latestEntry.sessionId
-        let sessionEntries = entries.filter { $0.sessionId == sessionId }
-        guard !sessionEntries.isEmpty else { return nil }
+        let now = Date()
+        let grouped = Dictionary(grouping: entries, by: \.sessionId)
+        var allResults: [TokenHealthStatus] = []
 
-        return assess(sessionEntries: sessionEntries, sessionId: sessionId, model: latestEntry.model)
-    }
+        for (sessionId, sessionEntries) in grouped {
+            guard !sessionEntries.isEmpty, !sessionId.isEmpty else { continue }
+            let model = sessionEntries.last?.model ?? ""
+            if let status = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model, now: now) {
+                allResults.append(status)
+            }
+        }
 
-    /// Return top N sessions sorted by most recent activity (newest first).
-    /// Excludes archived sessions (no activity in last 24 hours).
-    func topSessions(entries: [AssistantUsageEntry], limit: Int = 5) -> [TokenHealthStatus] {
-        let all = assessAllSessions(entries: entries)
-        let cutoff = Date().addingTimeInterval(-24 * 60 * 60) // 24 hours ago
-        return all.values
+        let currentSessionId = latestEntry.sessionId
+        let current = allResults.first(where: { $0.id == currentSessionId })
+
+        let cutoff = now.addingTimeInterval(-24 * 60 * 60)
+        let top = Array(allResults
             .filter { ($0.lastActivity ?? .distantPast) > cutoff }
             .sorted { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
-            .prefix(limit)
-            .map { $0 }
+            .prefix(topLimit))
+
+        return (current, top)
+    }
+
+    /// Convenience: assess health for the most recent session only.
+    func assessCurrentSession(entries: [AssistantUsageEntry]) -> TokenHealthStatus? {
+        assessSessions(entries: entries).current
+    }
+
+    /// Convenience: return top N sessions sorted by most recent activity.
+    func topSessions(entries: [AssistantUsageEntry], limit: Int = 5) -> [TokenHealthStatus] {
+        assessSessions(entries: entries, topLimit: limit).top
     }
 
     /// Assess health for all active sessions (keyed by session ID).
     func assessAllSessions(entries: [AssistantUsageEntry]) -> [String: TokenHealthStatus] {
+        let now = Date()
         let grouped = Dictionary(grouping: entries, by: \.sessionId)
         var results: [String: TokenHealthStatus] = [:]
 
         for (sessionId, sessionEntries) in grouped {
             guard !sessionEntries.isEmpty, !sessionId.isEmpty else { continue }
             let model = sessionEntries.last?.model ?? ""
-            results[sessionId] = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model)
+            results[sessionId] = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model, now: now)
         }
 
         return results
@@ -50,7 +65,7 @@ final class TokenHealthMonitor {
 
     // MARK: - Core Assessment
 
-    private func assess(sessionEntries: [AssistantUsageEntry], sessionId: String = "", model: String) -> TokenHealthStatus? {
+    private func assess(sessionEntries: [AssistantUsageEntry], sessionId: String = "", model: String, now: Date = Date()) -> TokenHealthStatus? {
         guard let latestEntry = sessionEntries.last else { return nil }
         let contextWindow = TokenHealthConfig.contextWindow(for: model)
         let usableWindow = Int(Double(contextWindow) * TokenHealthConfig.usableContextRatio)
@@ -140,9 +155,9 @@ final class TokenHealthMonitor {
 
         // 5. Stale session (idle too long with non-green health)
         if let lastActivity = sessionEntries.last?.timestamp,
-           Date().timeIntervalSince(lastActivity) > Double(config.staleSessionMinutes * 60),
+           now.timeIntervalSince(lastActivity) > Double(config.staleSessionMinutes * 60),
            band != .green {
-            let idleMinutes = Int(Date().timeIntervalSince(lastActivity) / 60)
+            let idleMinutes = Int(now.timeIntervalSince(lastActivity) / 60)
             warnings.append(HealthWarning(
                 severity: .mild,
                 message: "Session idle for \(idleMinutes) min",
