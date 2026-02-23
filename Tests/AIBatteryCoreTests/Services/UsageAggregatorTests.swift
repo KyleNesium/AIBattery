@@ -277,11 +277,11 @@ struct UsageAggregatorTests {
         let now = Date()
         let lines = [
             makeAssistantLine(input: 300, output: 150, messageId: "merge-msg-1", timestamp: now),
-            makeAssistantLine(input: 400, output: 200, messageId: "merge-msg-2", sessionId: "session-2", timestamp: now),
+            makeAssistantLine(input: 400, output: 200, sessionId: "session-2", messageId: "merge-msg-2", timestamp: now),
         ]
         try writeJSONL(lines, sessionId: "session-1", to: projectsDir)
         try writeJSONL(
-            [makeAssistantLine(input: 100, output: 50, messageId: "merge-msg-3", sessionId: "session-2", timestamp: now)],
+            [makeAssistantLine(input: 100, output: 50, sessionId: "session-2", messageId: "merge-msg-3", timestamp: now)],
             projectName: "test-project-2",
             sessionId: "session-2",
             to: projectsDir

@@ -119,20 +119,22 @@ struct TokenHealthMonitorTests {
         #expect(ratioWarnings.isEmpty)
     }
 
-    // MARK: - Multiple sessions (assessAllSessions)
+    // MARK: - Multiple sessions (assessSessions)
 
-    @Test func assessAllSessions_groupsBySessionId() {
+    @Test func assessSessions_groupsBySessionId() {
         let entries = [
             makeEntry(sessionId: "s1", input: 1000, output: 100),
             makeEntry(sessionId: "s2", input: 2000, output: 200),
             makeEntry(sessionId: "s1", input: 1500, output: 150),
         ]
-        let results = monitor.assessAllSessions(entries: entries)
-        #expect(results.count == 2)
-        #expect(results["s1"] != nil)
-        #expect(results["s2"] != nil)
-        #expect(results["s1"]?.turnCount == 2)
-        #expect(results["s2"]?.turnCount == 1)
+        let results = monitor.assessSessions(entries: entries, topLimit: 10)
+        #expect(results.top.count == 2)
+        let s1 = results.top.first { $0.id == "s1" }
+        let s2 = results.top.first { $0.id == "s2" }
+        #expect(s1 != nil)
+        #expect(s2 != nil)
+        #expect(s1?.turnCount == 2)
+        #expect(s2?.turnCount == 1)
     }
 
     // MARK: - topSessions filtering/sorting
