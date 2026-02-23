@@ -4,20 +4,48 @@ import AppKit
 struct MenuBarIcon: View {
     let requestsPercent: Double
 
-    var body: some View {
-        Image(nsImage: renderIcon())
+    /// Cache key: which color band the percentage falls into.
+    /// Only re-renders the icon when the band changes (4 bands total).
+    private var colorBand: Int {
+        switch requestsPercent {
+        case ..<50: return 0
+        case ..<80: return 1
+        case ..<95: return 2
+        default: return 3
+        }
     }
 
-    private func renderIcon() -> NSImage {
+    var body: some View {
+        Image(nsImage: Self.cachedIcon(for: requestsPercent, band: colorBand))
+    }
+
+    // MARK: - Icon cache
+
+    /// Cached icons keyed by (band, colorblindMode) — at most 8 entries.
+    private static var iconCache: [Int: NSImage] = [:]
+    private static var cachedColorblindFlag: Bool = ThemeColors.isColorblind
+
+    private static func cachedIcon(for percent: Double, band: Int) -> NSImage {
+        // Invalidate cache if colorblind mode changed
+        if cachedColorblindFlag != ThemeColors.isColorblind {
+            iconCache.removeAll()
+            cachedColorblindFlag = ThemeColors.isColorblind
+        }
+        if let cached = iconCache[band] { return cached }
+        let icon = renderIcon(percent: percent)
+        iconCache[band] = icon
+        return icon
+    }
+
+    private static func renderIcon(percent: Double) -> NSImage {
         let size: CGFloat = 16
         let image = NSImage(size: NSSize(width: size, height: size))
 
         image.lockFocus()
 
-        let color = ThemeColors.barNSColor(percent: requestsPercent)
+        let color = ThemeColors.barNSColor(percent: percent)
 
         // Draw a small AI sparkle/star icon — 4-pointed star
-        // This mimics the AI sparkle icons used by Apple and others
         let center = NSPoint(x: size / 2, y: size / 2)
         let outerRadius: CGFloat = 6.5
         let innerRadius: CGFloat = 2.0

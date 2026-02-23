@@ -9,9 +9,6 @@ struct UsageSnapshot {
     // Rate limit usage (from unified API response headers)
     let rateLimits: RateLimitUsage?
 
-    // Account info
-    let billingType: String?
-
     // From stats-cache.json
     let firstSessionDate: Date?
     let totalSessions: Int
@@ -29,10 +26,8 @@ struct UsageSnapshot {
     // Token breakdown per model
     let modelTokens: [ModelTokenSummary]
 
-    // Total tokens
-    var totalTokens: Int {
-        modelTokens.reduce(0) { $0 + $1.totalTokens }
-    }
+    // Total tokens (pre-computed at construction to avoid per-render reduce)
+    let totalTokens: Int
 
     /// The percentage for a given metric mode — shared by menu bar and popover.
     func percent(for mode: MetricMode) -> Double {
@@ -43,29 +38,43 @@ struct UsageSnapshot {
         }
     }
 
+    /// Auto mode: pick whichever metric has the highest percentage.
+    var autoResolvedMode: MetricMode {
+        let fiveHour = percent(for: .fiveHour)
+        let sevenDay = percent(for: .sevenDay)
+        let context = percent(for: .contextHealth)
+        if context >= fiveHour && context >= sevenDay { return .contextHealth }
+        if sevenDay >= fiveHour { return .sevenDay }
+        return .fiveHour
+    }
+
     // Daily activity for chart
     let dailyActivity: [DailyActivity]
 
     // MARK: - Projections & trends
 
     /// Average messages per day over the last 7 days of activity.
-    var dailyAverage: Int {
+    /// Pre-computed at construction to avoid per-render iteration.
+    let dailyAverage: Int
+
+    /// Trend direction comparing this week's average to last week's.
+    /// Pre-computed at construction to avoid per-render iteration.
+    let trendDirection: TrendDirection
+
+    /// Busiest day of the week based on daily activity history.
+    /// Pre-computed at construction to avoid iterating all dailyActivity on every view render.
+    let busiestDayOfWeek: (name: String, averageCount: Int)?
+
+    /// Compute daily average from activity data.
+    static func computeDailyAverage(_ dailyActivity: [DailyActivity]) -> Int {
         let recent = dailyActivity.suffix(7)
         guard !recent.isEmpty else { return 0 }
         let total = recent.reduce(0) { $0 + $1.messageCount }
         return total / recent.count
     }
 
-    /// Projected total messages for today based on hour-of-day progress.
-    var projectedTodayTotal: Int {
-        let hour = Calendar.current.component(.hour, from: Date())
-        guard hour > 0, todayMessages > 0 else { return todayMessages }
-        let fractionOfDay = Double(hour) / 24.0
-        return Int(Double(todayMessages) / fractionOfDay)
-    }
-
-    /// Trend direction comparing this week's average to last week's.
-    var trendDirection: TrendDirection {
+    /// Compute trend direction from activity data.
+    static func computeTrendDirection(_ dailyActivity: [DailyActivity]) -> TrendDirection {
         let count = dailyActivity.count
         guard count >= 8 else { return .flat }
 
@@ -83,11 +92,11 @@ struct UsageSnapshot {
         return .flat
     }
 
-    /// Busiest day of the week based on daily activity history.
-    var busiestDayOfWeek: (name: String, averageCount: Int)? {
+    /// Compute the busiest day of the week from daily activity.
+    static func computeBusiestDay(_ dailyActivity: [DailyActivity]) -> (name: String, averageCount: Int)? {
         let calendar = Calendar.current
-        var totals = [Int: Int]()   // weekday → total messages
-        var counts = [Int: Int]()   // weekday → number of occurrences
+        var totals = [Int: Int]()
+        var counts = [Int: Int]()
 
         for day in dailyActivity {
             guard let date = day.parsedDate else { continue }
@@ -106,8 +115,8 @@ struct UsageSnapshot {
         guard avg > 0 else { return nil }
 
         let index = weekday - 1
-        guard index >= 0, index < Self.weekdaySymbols.count else { return nil }
-        return (Self.weekdaySymbols[index], avg)
+        guard index >= 0, index < weekdaySymbols.count else { return nil }
+        return (weekdaySymbols[index], avg)
     }
 
     // Hourly message distribution (hour "0"-"23" → count, from stats-cache)
@@ -118,19 +127,6 @@ struct UsageSnapshot {
 
     // Top sessions by most recent activity (up to 5, sorted newest first)
     let topSessionHealths: [TokenHealthStatus]
-
-    // Plan tier: billingType → stored preference → infer from rate limits
-    var planTier: PlanTier? {
-        if let tier = billingType.flatMap({ PlanTier.fromBillingType($0) }) {
-            return tier
-        }
-        // Fall back to UserDefaults
-        if let stored = UserDefaults.standard.string(forKey: UserDefaultsKeys.plan),
-           let tier = PlanTier.fromBillingType(stored) {
-            return tier
-        }
-        return nil
-    }
 
 }
 
@@ -161,13 +157,6 @@ enum MetricMode: String, CaseIterable {
         }
     }
 
-    var shortLabel: String {
-        switch self {
-        case .fiveHour: return "5h"
-        case .sevenDay: return "7d"
-        case .contextHealth: return "Ctx"
-        }
-    }
 }
 
 /// Usage trend direction (this week vs last week).
@@ -191,23 +180,3 @@ enum TrendDirection {
     }
 }
 
-/// Plan tier inferred from billing type string.
-struct PlanTier {
-    let name: String
-    let price: String?
-
-    static func fromBillingType(_ type: String) -> PlanTier? {
-        switch type.lowercased() {
-        case "pro": return PlanTier(name: "Pro", price: "$20/mo")
-        case "max", "max_5x": return PlanTier(name: "Max", price: "$100/mo per seat")
-        case "teams", "team": return PlanTier(name: "Teams", price: "$30/mo per seat")
-        case "free": return PlanTier(name: "Free", price: nil)
-        case "api_evaluation", "api": return PlanTier(name: "API", price: "Usage-based")
-        case "": return nil
-        default:
-            // Unknown billing type — show capitalized name so new tiers aren't silently dropped
-            let capitalized = type.prefix(1).uppercased() + type.dropFirst()
-            return PlanTier(name: capitalized, price: nil)
-        }
-    }
-}

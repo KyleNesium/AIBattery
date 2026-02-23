@@ -20,4 +20,5 @@ Key implementation details (if non-obvious).
 - [ ] Tests pass (`swift test`)
 - [ ] Tested locally with a real Claude Code session
 - [ ] Updated relevant spec files in `spec/`
+- [ ] Updated README Test Coverage section (if tests changed)
 - [ ] No new external dependencies

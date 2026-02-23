@@ -3,13 +3,17 @@ import SwiftUI
 public struct MenuBarLabel: View {
     @ObservedObject var viewModel: UsageViewModel
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
+    @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
     }
 
     private var metricMode: MetricMode {
-        MetricMode(rawValue: metricModeRaw) ?? .fiveHour
+        if autoMetricMode, let snapshot = viewModel.snapshot {
+            return snapshot.autoResolvedMode
+        }
+        return MetricMode(rawValue: metricModeRaw) ?? .fiveHour
     }
 
     /// The percentage to show, driven by the selected metric mode.

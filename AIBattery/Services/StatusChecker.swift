@@ -83,7 +83,7 @@ final class StatusChecker {
             return ClaudeSystemStatus(
                 indicator: StatusIndicator.from(summary.status.indicator),
                 description: summary.status.description,
-                incidentName: nil,
+                incidentNames: [],
                 statusPageURL: StatusChecker.statusPageBaseURL
             )
         }
@@ -137,7 +137,7 @@ final class StatusChecker {
         return ClaudeSystemStatus(
             indicator: worstIndicator,
             description: description,
-            incidentName: activeIncident?.name,
+            incidentNames: activeIncidents.map(\.name),
             statusPageURL: StatusChecker.statusPageBaseURL,
             claudeAPIStatus: apiStatus,
             claudeCodeStatus: codeStatus
@@ -150,16 +150,19 @@ final class StatusChecker {
 struct ClaudeSystemStatus {
     let indicator: StatusIndicator
     let description: String
-    let incidentName: String?
+    let incidentNames: [String]
     let statusPageURL: String
     /// Per-component status: Claude API (claude.ai) and Claude Code.
     var claudeAPIStatus: StatusIndicator = .unknown
     var claudeCodeStatus: StatusIndicator = .unknown
 
+    /// Convenience for single-incident access.
+    var incidentName: String? { incidentNames.first }
+
     static let unknown = ClaudeSystemStatus(
         indicator: .unknown,
         description: "Status unavailable",
-        incidentName: nil,
+        incidentNames: [],
         statusPageURL: StatusChecker.statusPageBaseURL
     )
 }

@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 final class UsageAggregator {
     private let statsCacheReader: StatsCacheReader
@@ -9,10 +8,6 @@ final class UsageAggregator {
         self.statsCacheReader = statsCacheReader
         self.sessionLogReader = sessionLogReader
     }
-
-    // Cache for ~/.claude.json — only re-read when file mod date changes.
-    private var cachedAccountInfo: AccountInfo?
-    private var accountInfoModDate: Date?
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -29,7 +24,6 @@ final class UsageAggregator {
 
     func aggregate(rateLimits: RateLimitUsage?) -> UsageSnapshot {
         let statsCache = statsCacheReader.read()
-        let accountInfo = readAccountInfo()
 
         // Single JSONL scan — entries are already cached by SessionLogReader.
         let allEntries = sessionLogReader.readAllUsageEntries()
@@ -48,10 +42,12 @@ final class UsageAggregator {
 
         var todayEntries: [AssistantUsageEntry] = []
         var windowedMap: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
+        var todayModelIds = Set<String>()
 
         for entry in allEntries {
             if entry.timestamp >= today {
                 todayEntries.append(entry)
+                todayModelIds.insert(entry.model)
             }
             if let ws = windowStart, entry.timestamp >= ws {
                 let existing = windowedMap[entry.model] ?? (0, 0, 0, 0)
@@ -74,19 +70,16 @@ final class UsageAggregator {
         let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
 
         // Only show models active in the last 72 hours to reduce noise.
-        // Build set of recently-active model IDs from dailyModelTokens + today's JSONL.
+        // todayModelIds was already collected in the single-pass above.
         let cutoffDate = calendar.date(byAdding: .hour, value: -72, to: now) ?? now
         let cutoffDateStr = Self.dateFormatter.string(from: cutoffDate)
-        var recentModelIds = Set<String>()
+        var recentModelIds = todayModelIds
         if let cache = statsCache {
             for entry in cache.dailyModelTokens where entry.date >= cutoffDateStr {
                 for (modelId, tokens) in entry.tokensByModel where tokens > 0 {
                     recentModelIds.insert(modelId)
                 }
             }
-        }
-        for entry in todayEntries {
-            recentModelIds.insert(entry.model)
         }
 
         let modelTokens: [ModelTokenSummary]
@@ -119,10 +112,10 @@ final class UsageAggregator {
                 }
             }
 
-            let uncachedEntries = todayEntries.filter { entry in
-                let entryDate = Self.dateFormatter.string(from: entry.timestamp)
-                return !cachedDates.contains(entryDate)
-            }
+            // todayEntries all have timestamp >= today, so their date string is always todayDate.
+            // A single set-membership check replaces per-entry DateFormatter calls.
+            let todayIsCached = cachedDates.contains(todayDate)
+            let uncachedEntries = todayIsCached ? [] : todayEntries
             for entry in uncachedEntries {
                 let existing = modelTokensMap[entry.model] ?? (0, 0, 0, 0)
                 modelTokensMap[entry.model] = (
@@ -161,12 +154,11 @@ final class UsageAggregator {
         let tokenHealth = healthResult.current
         let topSessionHealths = healthResult.top
 
-        let billing = accountInfo?.billingType
+        let activity = statsCache?.dailyActivity ?? []
 
         return UsageSnapshot(
             lastUpdated: now,
             rateLimits: rateLimits,
-            billingType: billing,
             firstSessionDate: firstSessionDate,
             totalSessions: (statsCache?.totalSessions ?? 0) + todaySessions,
             totalMessages: (statsCache?.totalMessages ?? 0) + todayMessages,
@@ -178,49 +170,15 @@ final class UsageAggregator {
             todaySessions: todaySessions,
             todayToolCalls: todayToolCalls,
             modelTokens: modelTokens,
-            dailyActivity: statsCache?.dailyActivity ?? [],
+            totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
+            dailyActivity: activity,
+            dailyAverage: UsageSnapshot.computeDailyAverage(activity),
+            trendDirection: UsageSnapshot.computeTrendDirection(activity),
+            busiestDayOfWeek: UsageSnapshot.computeBusiestDay(activity),
             hourCounts: statsCache?.hourCounts ?? [:],
             tokenHealth: tokenHealth,
             topSessionHealths: topSessionHealths
         )
     }
 
-    private func readAccountInfo() -> AccountInfo? {
-        let path = ClaudePaths.accountConfigPath
-
-        // Check mod date — skip re-read if unchanged
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let modDate = attrs[.modificationDate] as? Date {
-            if modDate == accountInfoModDate, let cached = cachedAccountInfo {
-                return cached
-            }
-            accountInfoModDate = modDate
-        }
-
-        let url = ClaudePaths.accountConfig
-        let data: Data
-        do {
-            data = try Data(contentsOf: url)
-        } catch {
-            // File missing is normal for first-run; other errors are worth logging.
-            if (error as NSError).code != NSFileReadNoSuchFileError {
-                AppLogger.files.warning("Failed to read ~/.claude.json: \(error.localizedDescription, privacy: .public)")
-            }
-            return nil
-        }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            AppLogger.files.warning("~/.claude.json is not valid JSON")
-            return nil
-        }
-        guard let oauth = json["oauthAccount"] as? [String: Any] else { return nil }
-        let info = AccountInfo(
-            billingType: oauth["organizationBillingType"] as? String
-        )
-        cachedAccountInfo = info
-        return info
-    }
-}
-
-private struct AccountInfo {
-    let billingType: String?
 }

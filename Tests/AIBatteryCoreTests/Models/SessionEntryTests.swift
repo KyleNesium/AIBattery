@@ -72,6 +72,47 @@ struct SessionEntryTests {
         #expect(entry.message?.model == "claude-opus-4-6")
     }
 
+    @Test func decode_serviceTier() throws {
+        let json = """
+        {
+            "type": "assistant",
+            "sessionId": "s-tier",
+            "message": {
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "id": "msg-tier",
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                    "service_tier": "standard"
+                }
+            }
+        }
+        """
+        let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        #expect(entry.message?.usage?.serviceTier == "standard")
+    }
+
+    @Test func decode_missingServiceTier_isNil() throws {
+        let json = """
+        {
+            "type": "assistant",
+            "sessionId": "s-no-tier",
+            "message": {
+                "role": "assistant",
+                "model": "claude-opus-4-6",
+                "id": "msg-no-tier",
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50
+                }
+            }
+        }
+        """
+        let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        #expect(entry.message?.usage?.serviceTier == nil)
+    }
+
     // MARK: - Codable round-trip
 
     @Test func encode_decode_roundTrip() throws {
@@ -86,7 +127,8 @@ struct SessionEntryTests {
                     inputTokens: 500,
                     outputTokens: 200,
                     cacheCreationInputTokens: 0,
-                    cacheReadInputTokens: 50
+                    cacheReadInputTokens: 50,
+                    serviceTier: nil
                 ),
                 id: "msg-rt"
             ),

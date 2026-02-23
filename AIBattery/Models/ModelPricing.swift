@@ -20,21 +20,32 @@ struct ModelPricing {
 
     /// Format a dollar amount for display.
     static func formatCost(_ cost: Double) -> String {
+        if cost == 0 {
+            return "$0.00"
+        }
         if cost < 0.01 {
             return "<$0.01"
         }
         return String(format: "$%.2f", cost)
     }
 
+    /// Lookup cache — avoids repeated displayName + linear scan per model ID.
+    private static var pricingCache: [String: ModelPricing?] = [:]
+
     /// Look up pricing by model ID. Uses `ModelNameMapper.displayName` for matching.
+    /// Results are cached per model ID since the pricing table is static.
     static func pricing(for modelId: String) -> ModelPricing? {
+        if let cached = pricingCache[modelId] { return cached }
         let display = ModelNameMapper.displayName(for: modelId).lowercased()
+        var result: ModelPricing?
         for (key, pricing) in pricingTable {
             if display.contains(key) {
-                return pricing
+                result = pricing
+                break
             }
         }
-        return nil
+        pricingCache[modelId] = result
+        return result
     }
 
     /// Total cost across all model summaries.

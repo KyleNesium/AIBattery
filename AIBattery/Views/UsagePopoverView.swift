@@ -6,6 +6,7 @@ public struct UsagePopoverView: View {
     @State private var showSettings = false
     @State private var isAddingAccount = false
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
+    @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
     @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.hasSeenTutorial) private var hasSeenTutorial: Bool = false
@@ -18,7 +19,10 @@ public struct UsagePopoverView: View {
     }
 
     private var metricMode: MetricMode {
-        MetricMode(rawValue: metricModeRaw) ?? .fiveHour
+        if autoMetricMode, let snapshot = viewModel.snapshot {
+            return snapshot.autoResolvedMode
+        }
+        return MetricMode(rawValue: metricModeRaw) ?? .fiveHour
     }
 
     public var body: some View {
@@ -313,7 +317,7 @@ public struct UsagePopoverView: View {
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
-        .frame(height: 80)
+        .frame(height: 100)
     }
 
     private var emptyView: some View {
@@ -338,8 +342,12 @@ public struct UsagePopoverView: View {
         return [metricMode] + modes
     }
 
+    @State private var autoGlowing = false
+
     private var metricToggle: some View {
-        HStack {
+        HStack(spacing: 0) {
+            autoModeButton
+
             Spacer()
             Picker("", selection: $metricModeRaw) {
                 ForEach(MetricMode.allCases, id: \.rawValue) { mode in
@@ -347,14 +355,66 @@ public struct UsagePopoverView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 220)
+            .frame(width: 190)
+            .opacity(autoMetricMode ? 0.4 : 1.0)
+            .disabled(autoMetricMode)
             .accessibilityLabel("Metric mode")
             .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
-            .help("Select primary metric for menu bar display")
+            .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
             Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    private var autoModeButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                autoMetricMode.toggle()
+            }
+        } label: {
+            Text("A")
+                .font(.system(size: 9, weight: .heavy, design: .rounded))
+                .foregroundStyle(autoMetricMode ? Color.blue : .secondary.opacity(0.5))
+                .frame(width: 20, height: 20)
+                .background(
+                    Circle()
+                        .fill(autoMetricMode ? Color.blue.opacity(0.15) : Color.clear)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(autoMetricMode ? Color.blue.opacity(autoGlowing ? 0.8 : 0.3) : Color.secondary.opacity(0.2), lineWidth: 1.5)
+                )
+                .shadow(
+                    color: autoMetricMode ? Color.blue.opacity(autoGlowing ? 0.5 : 0.1) : .clear,
+                    radius: autoGlowing ? 5 : 1
+                )
+                .padding(6)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Auto mode")
+        .accessibilityValue(autoMetricMode ? "On" : "Off")
+        .accessibilityHint("Automatically shows the highest usage metric")
+        .help(autoMetricMode ? "Auto mode: showing highest metric" : "Enable auto mode")
+        .onChange(of: autoMetricMode) { active in
+            if active {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    autoGlowing = true
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    autoGlowing = false
+                }
+            }
+        }
+        .onAppear {
+            if autoMetricMode {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    autoGlowing = true
+                }
+            }
+        }
     }
 
     private var footerSection: some View {
@@ -442,16 +502,12 @@ public struct UsagePopoverView: View {
             }
 
             // Active incident banner (if any)
-            if let incident = viewModel.systemStatus?.incidentName {
+            if let names = viewModel.systemStatus?.incidentNames, !names.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption2)
                         .foregroundStyle(statusColor)
-                    Text(incident)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    MarqueeText(texts: names, color: statusColor)
                 }
             }
 
@@ -615,6 +671,14 @@ private struct SettingsRow: View {
                     .onChange(of: alertClaudeCode) { on in
                         if on { NotificationManager.shared.requestPermission() }
                     }
+                if alertClaudeAI || alertClaudeCode {
+                    Button("Test") {
+                        NotificationManager.shared.testAlerts()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+                }
             }
             Text("Notify when service is down")
                 .font(.caption2)
@@ -641,7 +705,7 @@ private struct SettingsRow: View {
                             .font(.system(.caption, design: .monospaced))
                             .frame(width: 28, alignment: .trailing)
                     }
-                    sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%"], leadingPad: 50)
+                    sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)
                     Text("Notify when rate limit usage exceeds threshold")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)

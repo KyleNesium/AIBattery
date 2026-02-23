@@ -54,27 +54,12 @@ Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeCom
 | Claude API | `k8w3r06qmzrp` |
 | Claude Code | `yyzkbfz2thpt` |
 
-## Plan Tier Inference (from billingType)
-
-Source: `~/.claude.json` → `oauthAccount.organizationBillingType`
-
-| billingType | Plan Name | Price Display |
-|-------------|-----------|---------------|
-| `"pro"` | Pro | $20/mo |
-| `"max"`, `"max_5x"` | Max | $100/mo per seat |
-| `"teams"`, `"team"` | Teams | $30/mo per seat |
-| `"free"` | Free | (none) |
-| `"api_evaluation"`, `"api"` | API | Usage-based |
-| `""` (empty) | nil (not shown) | — |
-| Other | Capitalized type name | (none) |
-
-Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
-
 ## Context Windows
 
 | Model | Window |
 |-------|--------|
 | claude-opus-4-6 | 200,000 |
+| claude-sonnet-4-6-20250929 | 200,000 |
 | claude-sonnet-4-5-20250929 | 200,000 |
 | claude-haiku-4-5-20251001 | 200,000 |
 | claude-3-5-sonnet-20241022 | 200,000 |
@@ -146,6 +131,7 @@ Pricing per million tokens:
 | Constant | Value |
 |----------|-------|
 | Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
+| Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
 
 ## Launch at Login
@@ -207,10 +193,14 @@ Pricing per million tokens:
 | Settings transition | `.opacity.combined(with: .move(edge: .top))` |
 | Metric mode change | `.easeInOut(duration: 0.15)` |
 | Account switch | `.easeInOut(duration: 0.2)` |
-| Copy checkmark display | 1 second, `.easeInOut(duration: 0.15)` transitions |
+| Copy clipboard icon display | 1.2 seconds, `.easeOut(duration: 0.12)` show / `.easeIn(duration: 0.2)` hide |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
 | Copy hover highlight | `Color.primary.opacity(0.10)` background, `NSCursor.pointingHand` |
+| Auto mode pulse | `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)` — blue glow |
+| MarqueeText scroll | 30pt/s linear, 2s pause at each end |
+| MarqueeText hold | 3s before cycling to next text (non-scrolling) |
+| MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
 
 ## JSONL Processing
 
@@ -218,7 +208,8 @@ Pricing per million tokens:
 |----------|-------|
 | Read buffer size | 64 KB |
 | Max line size | 1 MB — oversized lines discarded (malformed data protection) |
-| Pre-filter marker 1 | `"type":"assistant"` |
+| Pre-filter marker 1a | `"type":"assistant"` (no space) |
+| Pre-filter marker 1b | `"type": "assistant"` (with space) |
 | Pre-filter marker 2 | `"usage"` |
 | Cache max entries | 200 files |
 
@@ -235,7 +226,6 @@ Pricing per million tokens:
 | Path | Purpose |
 |------|---------|
 | macOS Keychain, service `"AIBattery"` | OAuth tokens (access, refresh, expiry) |
-| `~/.claude.json` → `oauthAccount` | Account info (billingType) |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |

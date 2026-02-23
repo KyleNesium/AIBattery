@@ -94,11 +94,12 @@ struct ActivityChartView: View {
         }
     }
 
+    /// Check source data directly — avoids recomputing dailyData/monthlyData just for an emptiness check.
     private var isEmpty: Bool {
         switch mode {
-        case .daily: return dailyData.allSatisfy { $0.count == 0 }
+        case .daily: return dailyActivity.allSatisfy { $0.messageCount == 0 }
         case .hourly: return hourCounts.values.allSatisfy { $0 == 0 }
-        case .monthly: return monthlyData.allSatisfy { $0.count == 0 }
+        case .monthly: return dailyActivity.allSatisfy { $0.messageCount == 0 }
         }
     }
 
@@ -193,7 +194,7 @@ struct ActivityChartView: View {
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(Self.dayShortLabel(date))
-                            .font(.system(size: 10))
+                            .font(.system(size: 9))
                     }
                 }
             }
@@ -233,7 +234,7 @@ struct ActivityChartView: View {
                 AxisValueLabel {
                     if let hour = value.as(Int.self) {
                         Text(Self.formatHourLabel(hour))
-                            .font(.system(size: 9))
+                            .font(.system(size: 8))
                     }
                 }
             }
@@ -282,7 +283,7 @@ struct ActivityChartView: View {
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(Self.monthAbbrev(date))
-                            .font(.system(size: 10))
+                            .font(.system(size: 9))
                     }
                 }
             }
@@ -372,6 +373,7 @@ struct ActivityChartView: View {
 
     private static let shortDayFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "EEE" // Mon, Tue, Wed, ...
         return f
     }()
@@ -384,6 +386,7 @@ struct ActivityChartView: View {
 
     private static let monthFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "MMM" // Jan, Feb, etc.
         return f
     }()

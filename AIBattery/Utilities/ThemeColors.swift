@@ -3,7 +3,7 @@ import SwiftUI
 /// Centralized color theming with colorblind-safe palette support.
 ///
 /// Standard mode: green → yellow → orange → red
-/// Colorblind mode: blue → cyan → amber → magenta (distinguishable for deuteranopia/protanopia)
+/// Colorblind mode: blue → cyan → amber → purple (distinguishable for deuteranopia/protanopia)
 enum ThemeColors {
     /// Cached colorblind flag — updated via KVO observer when the preference changes.
     private(set) static var isColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
@@ -71,7 +71,8 @@ enum ThemeColors {
         if isColorblind {
             switch indicator {
             case .operational: return .blue
-            case .degradedPerformance, .maintenance: return .cyan
+            case .degradedPerformance: return .cyan
+            case .maintenance: return .blue
             case .partialOutage: return amber
             case .majorOutage: return .purple
             case .unknown: return .gray
@@ -79,7 +80,8 @@ enum ThemeColors {
         }
         switch indicator {
         case .operational: return .green
-        case .degradedPerformance, .maintenance: return .yellow
+        case .degradedPerformance: return .yellow
+        case .maintenance: return .blue
         case .partialOutage: return .orange
         case .majorOutage: return .red
         case .unknown: return .gray

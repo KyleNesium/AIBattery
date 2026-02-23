@@ -94,18 +94,24 @@ struct UsageBar: View {
             .accessibilityValue(isThrottled ? "Rate limited" : "\(Int(100 - percent)) percent remaining")
 
             HStack {
-                Text(isThrottled ? "Rate limited" : "\(Int(100 - percent))% remaining")
-                    .font(.caption)
-                    .foregroundStyle(isThrottled ? ThemeColors.danger : .secondary)
-                Spacer()
-                if let estimate = estimatedTimeToLimit {
+                if isThrottled {
+                    Text("Rate limited")
+                        .font(.caption2)
+                        .foregroundStyle(ThemeColors.danger)
+                } else if let estimate = estimatedTimeToLimit {
                     Text("~\(formatDuration(estimate)) to limit")
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundStyle(ThemeColors.caution)
-                } else if let resetsAt {
-                    Text("Resets \(resetTimeString(resetsAt))")
-                        .font(.caption)
+                } else {
+                    Text("\(Int(100 - percent))% remaining")
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let resetsAt {
+                    Text("Resets \(resetTimeString(resetsAt))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
         }

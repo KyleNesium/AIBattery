@@ -16,10 +16,4 @@ enum ClaudePaths {
 
     /// `~/.claude/projects/` as a POSIX path
     static let projectsPath: String = projects.path
-
-    /// `~/.claude.json` — account info (billing type)
-    static let accountConfig: URL = home.appendingPathComponent(".claude.json")
-
-    /// `~/.claude.json` as a POSIX path
-    static let accountConfigPath: String = accountConfig.path
 }

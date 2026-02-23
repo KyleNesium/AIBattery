@@ -5,6 +5,7 @@ struct TokenHealthConfig {
     /// Context window limits per model (in tokens).
     static let contextWindows: [String: Int] = [
         "claude-opus-4-6": 200_000,
+        "claude-sonnet-4-6-20250929": 200_000,
         "claude-sonnet-4-5-20250929": 200_000,
         "claude-haiku-4-5-20251001": 200_000,
         // Older models

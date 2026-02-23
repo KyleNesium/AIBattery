@@ -21,17 +21,8 @@ struct ClaudePathsTests {
         #expect(ClaudePaths.projectsPath == ClaudePaths.projects.path)
     }
 
-    @Test func accountConfig_endsWithExpectedSuffix() {
-        #expect(ClaudePaths.accountConfig.path.hasSuffix(".claude.json"))
-    }
-
-    @Test func accountConfigPath_matchesURL() {
-        #expect(ClaudePaths.accountConfigPath == ClaudePaths.accountConfig.path)
-    }
-
     @Test func allPaths_areAbsolute() {
         #expect(ClaudePaths.statsCachePath.hasPrefix("/"))
         #expect(ClaudePaths.projectsPath.hasPrefix("/"))
-        #expect(ClaudePaths.accountConfigPath.hasPrefix("/"))
     }
 }
