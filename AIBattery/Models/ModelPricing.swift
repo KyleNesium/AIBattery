@@ -30,12 +30,20 @@ struct ModelPricing {
     }
 
     /// Lookup cache — avoids repeated displayName + linear scan per model ID.
+    /// Lock-protected for thread safety (Swift Testing runs tests concurrently).
     private static var pricingCache: [String: ModelPricing?] = [:]
+    private static let cacheLock = NSLock()
 
     /// Look up pricing by model ID. Uses `ModelNameMapper.displayName` for matching.
     /// Results are cached per model ID since the pricing table is static.
     static func pricing(for modelId: String) -> ModelPricing? {
-        if let cached = pricingCache[modelId] { return cached }
+        cacheLock.lock()
+        if let cached = pricingCache[modelId] {
+            cacheLock.unlock()
+            return cached
+        }
+        cacheLock.unlock()
+
         let display = ModelNameMapper.displayName(for: modelId).lowercased()
         var result: ModelPricing?
         for (key, pricing) in pricingTable {
@@ -44,7 +52,10 @@ struct ModelPricing {
                 break
             }
         }
+
+        cacheLock.lock()
         pricingCache[modelId] = result
+        cacheLock.unlock()
         return result
     }
 
