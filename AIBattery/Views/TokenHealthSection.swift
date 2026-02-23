@@ -197,12 +197,36 @@ struct TokenHealthSection: View {
         VStack(alignment: .leading, spacing: 2) {
             // Line 1: project · branch · session ID prefix + stale badge
             HStack(spacing: 4) {
-                let topParts = sessionTopParts
-                Text(topParts.isEmpty ? "Latest session" : topParts.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                let labelParts = sessionLabelParts
+                let idPrefix = sessionIdPrefix
+                if labelParts.isEmpty && idPrefix == nil {
+                    Text("Latest session")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    HStack(spacing: 0) {
+                        if !labelParts.isEmpty {
+                            Text(labelParts.joined(separator: " · "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        if let idPrefix {
+                            if !labelParts.isEmpty {
+                                Text(" · ")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(idPrefix)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .copyable(idPrefix)
+                        }
+                    }
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                }
 
                 if let idleMinutes = staleIdleMinutes {
                     HStack(spacing: 2) {
@@ -257,7 +281,8 @@ struct TokenHealthSection: View {
         return parts.joined(separator: "\n")
     }
 
-    private var sessionTopParts: [String] {
+    /// Project name and branch for display (plain text).
+    private var sessionLabelParts: [String] {
         var parts: [String] = []
         if let name = health.projectName {
             parts.append(name)
@@ -265,12 +290,13 @@ struct TokenHealthSection: View {
         if let branch = health.gitBranch, branch != "HEAD", !branch.isEmpty {
             parts.append(branch)
         }
-        // Short session ID prefix for cross-referencing with Claude Code
-        if !health.id.isEmpty {
-            let prefix = String(health.id.prefix(8))
-            parts.append(prefix)
-        }
         return parts
+    }
+
+    /// 8-char session ID prefix for cross-referencing with Claude Code.
+    private var sessionIdPrefix: String? {
+        guard !health.id.isEmpty else { return nil }
+        return String(health.id.prefix(8))
     }
 
     private var sessionBottomParts: [String] {

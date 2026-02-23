@@ -113,6 +113,7 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence.
 - **Alerts**: Two checkboxes (`.checkbox` toggle style)
   - `Claude.ai` → `aibattery_alertClaudeAI` (Bool, default false)
   - `Claude Code` → `aibattery_alertClaudeCode` (Bool, default false)
+  - **Test button**: "Test" (.caption2, .blue, `.plain` style) — visible when at least one toggle is on, calls `NotificationManager.shared.testAlerts()`
   - Hint: `"Notify when service is down"` (.caption2, .tertiary)
   - On enable: calls `NotificationManager.shared.requestPermission()`
 
@@ -154,7 +155,7 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 most recent). Backward-compat
 
 - **Header row**: `"Context Health"` (.subheadline.bold) + session toggle + refresh + health badge
 - **Session info** (two lines below header, .caption2, .tertiary):
-  - Line 1: `projectName · gitBranch · sessionId[:8]` — project, branch, and 8-char session ID prefix for cross-referencing
+  - Line 1: `projectName · gitBranch · sessionId[:8]` — project, branch, and 8-char session ID prefix (`.copyable()`) for cross-referencing
   - Line 2: `duration · lastActivity · velocity` — e.g. "2h 15m · Today 14:32 · 1.2K/min"
   - Falls back to `"Latest session"` if no metadata on line 1
 - **Session toggle** (if multiple sessions): `< 1/3 >` chevron buttons
@@ -200,22 +201,14 @@ Padding: H 16, V 12
 
 `CopyableModifier` ViewModifier applied via `.copyable(_ value:)` extension:
 - Copies formatted display value to `NSPasteboard.general` on tap
-- Hover feedback: pointer cursor (`NSCursor.pointingHand`) + subtle background highlight (`.primary.opacity(0.08)`)
-- Brief green checkmark overlay (1 second, `.opacity` transition, offset right of content)
+- Hover feedback: pointer cursor (`NSCursor.pointingHand`) + subtle background highlight (`.primary.opacity(0.10)`)
+- Brief clipboard icon overlay (`doc.on.clipboard.fill`, 9pt, `.secondary`, 1.2s duration, `.scale.combined(with: .opacity)` transition, offset right of content)
 - `.help` tooltip shows the value
-- Applied to: usage percentages, token counts, health stats, insight summaries, cost values
-
-### ❻ Insights (`Views/InsightsSection.swift`)
-
-- Today: `"Today"` label (.caption, .secondary) + `"{msgs} msgs · {sessions} sess · {tools} calls"` (.caption, monospaced)
-- All Time: `"All Time"` label (.caption, .secondary) + `"{messages} msgs · {sessions} sessions"` (.caption, monospaced)
-- Each row: label left, stats right (HStack with Spacer)
-
-Padding: H 16, V 12
+- Applied to: usage percentages, token counts, health stats, insight summaries, cost values, session ID prefix
 
 ### ❺ Activity Chart (`Views/ActivityChartView.swift`)
 
-Positioned below Insights. Compact chart with mode toggle.
+Compact chart with mode toggle. Positioned below Tokens section.
 
 - Header row: `"Activity"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
 - Toggle modes: `"24H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
@@ -244,6 +237,14 @@ Data per mode:
 - Single HStack row: trend arrow (colored per `ThemeColors.trendColor`) + vs-yesterday change (monospaced, colored) + `·` separator + daily average (monospaced, .tertiary) + Spacer + busiest day label (.tertiary)
 - Example: `↑ +5 msgs  ·  42 avg/day          Peak on Tuesdays`
 - `.padding(.top, 4)`, `.help("Weekly trend: this week vs last week")`
+
+Padding: H 16, V 12
+
+### ❻ Insights (`Views/InsightsSection.swift`)
+
+- Today: `"Today"` label (.caption, .secondary) + `"{msgs} msgs · {sessions} sess · {tools} calls"` (.caption, monospaced)
+- All Time: `"All Time"` label (.caption, .secondary) + `"{messages} msgs · {sessions} sessions"` (.caption, monospaced)
+- Each row: label left, stats right (HStack with Spacer)
 
 Padding: H 16, V 12
 

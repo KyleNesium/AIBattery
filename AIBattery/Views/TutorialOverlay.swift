@@ -26,7 +26,7 @@ struct TutorialOverlay: View {
     var body: some View {
         ZStack {
             // Semi-transparent backdrop
-            Color.primary.opacity(0.35)
+            Color.black.opacity(0.4)
                 .ignoresSafeArea()
 
             // Centered card

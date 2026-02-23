@@ -163,6 +163,33 @@ struct RateLimitUsageTests {
         }
     }
 
+    @Test func estimatedTimeToLimit_freshWindow_returnsNil() {
+        // Window just started (< 60s elapsed) — not enough data for meaningful rate
+        // 5h window = 18000s, reset in 17950s → only 50s elapsed
+        let usage = makeUsage(
+            fiveHourUtil: 0.60,
+            fiveHourReset: Date().addingTimeInterval(5 * 3600 - 50)
+        )
+        #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
+    }
+
+    @Test func requestsPercentUsed_unknownClaim_defaultsToFiveHour() {
+        // An unrecognized claim string should fall back to the 5h window
+        let usage = makeUsage(claim: "some_future_window", fiveHourUtil: 0.55, sevenDayUtil: 0.30)
+        #expect(usage.requestsPercentUsed == 55.0)
+    }
+
+    @Test func bindingReset_unknownClaim_defaultsToFiveHour() {
+        let fiveDate = Date(timeIntervalSince1970: 1700000000)
+        let sevenDate = Date(timeIntervalSince1970: 1700500000)
+        let usage = makeUsage(claim: "unknown", fiveHourReset: fiveDate, sevenDayReset: sevenDate)
+        #expect(usage.bindingReset == fiveDate)
+    }
+
+    @Test func bindingWindowLabel_unknownClaim_defaultsToFiveHour() {
+        #expect(makeUsage(claim: "unknown").bindingWindowLabel == "5-hour")
+    }
+
     // MARK: - Helpers
 
     private func makeUsage(

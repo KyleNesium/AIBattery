@@ -127,8 +127,13 @@ public final class UsageViewModel: ObservableObject {
         }
 
         // Surface error if API returned no data at all (no cached result either)
-        if api.rateLimits == nil && api.profile == nil && result.totalMessages == 0 {
-            errorMessage = "Unable to reach Anthropic API. Check your internet connection and try again."
+        if api.rateLimits == nil && api.profile == nil {
+            if result.totalMessages == 0 {
+                // Authenticated but never used Claude Code — don't blame the API
+                errorMessage = "No usage data yet. Start a Claude Code session to see your stats."
+            } else {
+                errorMessage = "Unable to reach Anthropic API. Check your internet connection and try again."
+            }
         } else {
             errorMessage = nil
         }

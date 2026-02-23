@@ -21,12 +21,14 @@ struct SessionEntry: Codable {
         let outputTokens: Int?
         let cacheCreationInputTokens: Int?
         let cacheReadInputTokens: Int?
+        let serviceTier: String?
 
         private enum CodingKeys: String, CodingKey {
             case inputTokens = "input_tokens"
             case outputTokens = "output_tokens"
             case cacheCreationInputTokens = "cache_creation_input_tokens"
             case cacheReadInputTokens = "cache_read_input_tokens"
+            case serviceTier = "service_tier"
         }
     }
 }

@@ -615,6 +615,14 @@ private struct SettingsRow: View {
                     .onChange(of: alertClaudeCode) { on in
                         if on { NotificationManager.shared.requestPermission() }
                     }
+                if alertClaudeAI || alertClaudeCode {
+                    Button("Test") {
+                        NotificationManager.shared.testAlerts()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+                }
             }
             Text("Notify when service is down")
                 .font(.caption2)
@@ -641,7 +649,7 @@ private struct SettingsRow: View {
                             .font(.system(.caption, design: .monospaced))
                             .frame(width: 28, alignment: .trailing)
                     }
-                    sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%"], leadingPad: 50)
+                    sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)
                     Text("Notify when rate limit usage exceeds threshold")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)

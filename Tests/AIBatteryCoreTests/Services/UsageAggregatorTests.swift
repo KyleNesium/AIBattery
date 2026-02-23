@@ -265,6 +265,70 @@ struct UsageAggregatorTests {
         #expect(snapshot.todayMessages == 1)
     }
 
+    // MARK: - Stats-cache + JSONL merge
+
+    @Test func aggregate_statsCachePlusJsonl_mergesSessionCount() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = try writeStatsCache(Self.statsCacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        let lines = [
+            makeAssistantLine(input: 300, output: 150, messageId: "merge-msg-1", timestamp: now),
+            makeAssistantLine(input: 400, output: 200, messageId: "merge-msg-2", sessionId: "session-2", timestamp: now),
+        ]
+        try writeJSONL(lines, sessionId: "session-1", to: projectsDir)
+        try writeJSONL(
+            [makeAssistantLine(input: 100, output: 50, messageId: "merge-msg-3", sessionId: "session-2", timestamp: now)],
+            projectName: "test-project-2",
+            sessionId: "session-2",
+            to: projectsDir
+        )
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // Stats cache has 10 sessions + 200 messages; JSONL adds today's
+        #expect(snapshot.totalSessions >= 10)
+        #expect(snapshot.totalMessages >= 200)
+        // Today should have at least 3 messages from JSONL (msg-1 in sess-1, msg-2 + msg-3 in sess-2)
+        #expect(snapshot.todayMessages >= 2)
+        // Today should have 2 unique sessions (session-1 and session-2)
+        #expect(snapshot.todaySessions == 2)
+    }
+
+    // MARK: - All-time mode
+
+    @Test func aggregate_allTimeMode_usesStatsCacheModelUsage() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = try writeStatsCache(Self.statsCacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        // Set to all-time mode (0)
+        UserDefaults.standard.set(0.0, forKey: UserDefaultsKeys.tokenWindowDays)
+        defer { UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenWindowDays) }
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // All-time mode should include stats-cache modelUsage totals
+        #expect(!snapshot.modelTokens.isEmpty)
+        if let sonnet = snapshot.modelTokens.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
+            // Stats cache has 10000 input + 5000 output + 2000 cache read + 500 cache write = 17500
+            #expect(sonnet.totalTokens >= 17500)
+        }
+    }
+
     // MARK: - Test data
 
     private static let statsCacheJSON = """

@@ -75,6 +75,7 @@ Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
 | Model | Window |
 |-------|--------|
 | claude-opus-4-6 | 200,000 |
+| claude-sonnet-4-6-20250929 | 200,000 |
 | claude-sonnet-4-5-20250929 | 200,000 |
 | claude-haiku-4-5-20251001 | 200,000 |
 | claude-3-5-sonnet-20241022 | 200,000 |
@@ -207,7 +208,7 @@ Pricing per million tokens:
 | Settings transition | `.opacity.combined(with: .move(edge: .top))` |
 | Metric mode change | `.easeInOut(duration: 0.15)` |
 | Account switch | `.easeInOut(duration: 0.2)` |
-| Copy checkmark display | 1 second, `.easeInOut(duration: 0.15)` transitions |
+| Copy clipboard icon display | 1.2 seconds, `.easeOut(duration: 0.12)` show / `.easeIn(duration: 0.2)` hide |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
 | Copy hover highlight | `Color.primary.opacity(0.10)` background, `NSCursor.pointingHand` |
