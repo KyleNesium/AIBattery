@@ -49,8 +49,7 @@ struct UsageBar: View {
             HStack {
                 HStack(spacing: 4) {
                     Text(label)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(.subheadline.bold())
                     if isBinding {
                         Text("binding")
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
@@ -96,17 +95,17 @@ struct UsageBar: View {
 
             HStack {
                 Text(isThrottled ? "Rate limited" : "\(Int(100 - percent))% remaining")
-                    .font(.caption2)
-                    .foregroundStyle(isThrottled ? ThemeColors.danger : Color.secondary.opacity(0.6))
+                    .font(.caption)
+                    .foregroundStyle(isThrottled ? ThemeColors.danger : .secondary)
                 Spacer()
                 if let estimate = estimatedTimeToLimit {
                     Text("~\(formatDuration(estimate)) to limit")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(ThemeColors.caution)
                 } else if let resetsAt {
                     Text("Resets \(resetTimeString(resetsAt))")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

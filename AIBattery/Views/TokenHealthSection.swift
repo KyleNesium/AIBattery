@@ -52,6 +52,7 @@ struct TokenHealthSection: View {
 
             // Session info on its own line for full width
             sessionInfoLabel
+                .id(selectedIndex)
 
             // Gauge bar
             GeometryReader { geometry in
@@ -79,8 +80,8 @@ struct TokenHealthSection: View {
                     .copyable("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable")
                 Spacer()
                 Text("\(health.turnCount) turns · \(health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model))")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .help("Conversation turns in this session")
             }
             .accessibilityElement(children: .combine)
@@ -90,8 +91,8 @@ struct TokenHealthSection: View {
             if health.band == .orange || health.band == .red {
                 let safeMin = health.usableWindow / 5 // 20% of usable window
                 Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .help("Recommended minimum tokens to maintain response quality")
             }
 
@@ -99,18 +100,18 @@ struct TokenHealthSection: View {
             ForEach(health.warnings) { warning in
                 HStack(spacing: 4) {
                     Image(systemName: warning.severity == .strong ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
                     Text(warning.message)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.primary.opacity(0.7))
                 }
             }
 
             // Suggested action
             if let action = health.suggestedAction {
                 Text(action)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
@@ -138,6 +139,7 @@ struct TokenHealthSection: View {
                 }
             : nil
         )
+        .accessibilityHint(sessions.count > 1 ? "Swipe left or right to browse sessions" : "")
         .accessibilityAdjustableAction { direction in
             guard sessions.count > 1 else { return }
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -197,8 +199,8 @@ struct TokenHealthSection: View {
             HStack(spacing: 4) {
                 let topParts = sessionTopParts
                 Text(topParts.isEmpty ? "Latest session" : topParts.joined(separator: " · "))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
@@ -220,7 +222,7 @@ struct TokenHealthSection: View {
             if !bottomParts.isEmpty {
                 Text(bottomParts.joined(separator: " · "))
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
@@ -329,7 +331,7 @@ struct TokenHealthSection: View {
                 .fill(bandColor)
                 .frame(width: 8, height: 8)
             Text("\(Int(health.usagePercentage))%")
-                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .font(.system(.title3, design: .monospaced, weight: .semibold))
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.4), value: Int(health.usagePercentage))
                 .copyable("\(Int(health.usagePercentage))%")

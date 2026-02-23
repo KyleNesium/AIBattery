@@ -2,8 +2,13 @@ import Foundation
 import os
 
 final class UsageAggregator {
-    private let statsCacheReader = StatsCacheReader.shared
-    private let sessionLogReader = SessionLogReader.shared
+    private let statsCacheReader: StatsCacheReader
+    private let sessionLogReader: SessionLogReader
+
+    init(statsCacheReader: StatsCacheReader = .shared, sessionLogReader: SessionLogReader = .shared) {
+        self.statsCacheReader = statsCacheReader
+        self.sessionLogReader = sessionLogReader
+    }
 
     // Cache for ~/.claude.json — only re-read when file mod date changes.
     private var cachedAccountInfo: AccountInfo?
@@ -34,9 +39,11 @@ final class UsageAggregator {
 
         // Single-pass filter: extract today's entries and windowed entries simultaneously.
         // Since allEntries is sorted by timestamp, we can iterate once and bucket efficiently.
-        let today = Calendar.current.startOfDay(for: Date())
+        let now = Date()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
         let windowStart: Date? = tokenWindowDays > 0
-            ? Calendar.current.date(byAdding: .day, value: -tokenWindowDays, to: Date())
+            ? calendar.date(byAdding: .day, value: -tokenWindowDays, to: now)
             : nil
 
         var todayEntries: [AssistantUsageEntry] = []
@@ -57,7 +64,7 @@ final class UsageAggregator {
             }
         }
 
-        let todayDate = Self.dateFormatter.string(from: Date())
+        let todayDate = Self.dateFormatter.string(from: now)
         let todayMessages = todayEntries.count
         let todaySessions = Set(todayEntries.map(\.sessionId)).count
         let todayToolCalls = statsCache?.dailyActivity
@@ -68,7 +75,7 @@ final class UsageAggregator {
 
         // Only show models active in the last 72 hours to reduce noise.
         // Build set of recently-active model IDs from dailyModelTokens + today's JSONL.
-        let cutoffDate = Calendar.current.date(byAdding: .hour, value: -72, to: Date()) ?? Date()
+        let cutoffDate = calendar.date(byAdding: .hour, value: -72, to: now) ?? now
         let cutoffDateStr = Self.dateFormatter.string(from: cutoffDate)
         var recentModelIds = Set<String>()
         if let cache = statsCache {
@@ -149,14 +156,15 @@ final class UsageAggregator {
         let firstSessionDate = statsCache?.firstSessionDate
             .flatMap { Self.isoFormatter.date(from: $0) }
 
-        // Token health assessment — reuse allEntries for multi-session support
-        let tokenHealth = TokenHealthMonitor.shared.assessCurrentSession(entries: allEntries)
-        let topSessionHealths = TokenHealthMonitor.shared.topSessions(entries: allEntries, limit: 5)
+        // Token health assessment — single-pass grouping for current + top sessions
+        let healthResult = TokenHealthMonitor.shared.assessSessions(entries: allEntries, topLimit: 5)
+        let tokenHealth = healthResult.current
+        let topSessionHealths = healthResult.top
 
         let billing = accountInfo?.billingType
 
         return UsageSnapshot(
-            lastUpdated: Date(),
+            lastUpdated: now,
             rateLimits: rateLimits,
             billingType: billing,
             firstSessionDate: firstSessionDate,

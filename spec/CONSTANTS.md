@@ -39,7 +39,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Constant | Value |
 |----------|-------|
 | Anthropic version header | `2023-06-01` |
-| Probe models (fallback order) | `claude-sonnet-4-5-20250929`, `claude-haiku-3-5-20241022` |
+| Probe models (fallback order) | `claude-sonnet-4-6-20250929`, `claude-sonnet-4-5-20250929`, `claude-haiku-3-5-20241022` (remembers last working model per account) |
 | Probe content | `"."` |
 | Probe max_tokens | `1` |
 | User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
@@ -164,6 +164,9 @@ Pricing per million tokens:
 | Check interval | 86400 sec (24 hours) |
 | Request timeout | 10 sec |
 | Last check key | `aibattery_lastUpdateCheck` (Double, Unix timestamp) |
+| Cached version key | `aibattery_lastUpdateVersion` (String, semver) |
+| Cached URL key | `aibattery_lastUpdateURL` (String, release page URL) |
+| Persistence | Last check + cached update restored on launch, persisted after each check |
 
 ## Token Window
 
@@ -185,7 +188,7 @@ Pricing per million tokens:
 | Section padding H | 16pt |
 | Section padding V | 12pt |
 | Header padding V | 10pt |
-| Footer padding V | 8pt |
+| Footer padding V | 10pt |
 | Menu bar icon size | 16×16 |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
@@ -207,7 +210,7 @@ Pricing per million tokens:
 | Copy checkmark display | 1 second, `.easeInOut(duration: 0.15)` transitions |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
-| Copy hover highlight | `Color.primary.opacity(0.08)` background, `NSCursor.pointingHand` |
+| Copy hover highlight | `Color.primary.opacity(0.10)` background, `NSCursor.pointingHand` |
 
 ## JSONL Processing
 

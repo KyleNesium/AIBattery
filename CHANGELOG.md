@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.2.3] — 2026-02-23
+
+### Fixed
+- **Runtime crash (app disappears after running)** — removed `Task.detached` data race between background aggregation and main-thread cache invalidation; aggregation now runs on the main actor
+- **Sleep/wake crash** — replaced unsafe `signal(SIGTERM)` handler (used `DispatchQueue.main.async`, which can deadlock during sleep/wake) with `DispatchSource.makeSignalSource`
+- **Dual-launch race condition** — `SingleInstanceGuard` now uses POSIX file lock (`flock`) as primary mechanism instead of kill-based detection; atomic and race-free
+- **Weekday bounds safety** — `busiestDayOfWeek` now guards against out-of-range weekday indices from non-Gregorian calendars
+- **StatusChecker backoff jitter** — stored computed backoff instead of re-randomizing on every check (was undermining exponential backoff)
+- **OAuthManager retry efficiency** — moved `URLRequest` construction outside the retry loop in `postToken()`
+
+### Improved
+- **Quarantine detection** — new `checkQuarantine()` alert on launch when macOS quarantine xattr is detected, with "Copy Fix Command" button
+- **Update indicator moved to header** — "vX.Y.Z available" now shows below the title (yellow arrow icon + View link), matching "Up to date" placement; removed footer update banner
+- **ClaudePaths static let** — converted computed `var` properties to stored `let` (avoids repeated URL construction)
+- **TokenHealthMonitor single-pass** — new `assessSessions()` groups entries once, returns current + top N in a single pass (was doing two separate grouping passes)
+- **UsageAggregator Date consolidation** — captured `Date()` and `Calendar.current` once at top of `aggregate()` instead of 5+ separate calls
+- **SessionLogReader optimizations** — use prefetched `isDirectoryKey` instead of redundant stat; guard nonexistent subagents dirs; compact leftover Data slices to release backing buffer
+- **UsageSnapshot weekday lookup** — replaced `DateFormatter` with `Calendar.current.weekdaySymbols` for busiest-day-of-week calculation
+
+### Added
+- `RateLimitFetcherTests` — 6 tests (cache expiry, stale marking, multi-account isolation)
+- `StatsCacheReaderTests` — 12 tests (decode, caching, invalidation, full payload)
+- `UsageAggregatorTests` — 8 tests (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication)
+
 ## [1.2.1] — 2026-02-22
 
 ### Improved

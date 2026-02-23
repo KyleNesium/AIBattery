@@ -9,6 +9,7 @@ struct AIBatteryApp: App {
     init() {
         SingleInstanceGuard.ensureSingleInstance()
         SingleInstanceGuard.installSignalHandlers()
+        SingleInstanceGuard.checkQuarantine()
         // Initialize early so status alert deduplication state is ready
         _ = NotificationManager.shared
     }

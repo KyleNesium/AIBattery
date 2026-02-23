@@ -4,7 +4,11 @@ import os
 final class StatsCacheReader {
     static let shared = StatsCacheReader()
 
-    private var fileURL: URL { ClaudePaths.statsCache }
+    private let fileURL: URL
+
+    init(fileURL: URL? = nil) {
+        self.fileURL = fileURL ?? ClaudePaths.statsCache
+    }
 
     /// Cached decode result — avoids re-reading and decoding on every refresh.
     private var cached: StatsCache?

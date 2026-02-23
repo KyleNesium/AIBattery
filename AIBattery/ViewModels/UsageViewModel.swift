@@ -97,12 +97,9 @@ public final class UsageViewModel: ObservableObject {
             }
         }
 
-        // Aggregate on background thread — purely local, no timeout needed.
-        let aggregator = self.aggregator
-        let rateLimits = api.rateLimits
-        let result = await Task.detached {
-            aggregator.aggregate(rateLimits: rateLimits)
-        }.value
+        // Aggregate locally — fast with caching, and must run on main actor
+        // to avoid data races with FileWatcher's invalidate() calls.
+        let result = aggregator.aggregate(rateLimits: api.rateLimits)
 
         // Log JSONL corruption metrics after aggregation
         let corruptLines = SessionLogReader.shared.lastCorruptLineCount

@@ -96,12 +96,12 @@ enum ThemeColors {
         isColorblind ? amber : .orange
     }
 
-    /// Color for trend direction arrows.
+    /// Color for trend direction arrows — brighter than standard bar colors for small text readability.
     static func trendColor(_ direction: TrendDirection) -> Color {
         switch direction {
-        case .up: return isColorblind ? amber : .orange
-        case .down: return isColorblind ? .blue : .green
-        case .flat: return .secondary
+        case .up: return isColorblind ? amber : Color(red: 1.0, green: 0.6, blue: 0.2)
+        case .down: return isColorblind ? .cyan : Color(red: 0.3, green: 0.85, blue: 0.4)
+        case .flat: return .primary.opacity(0.5)
         }
     }
 

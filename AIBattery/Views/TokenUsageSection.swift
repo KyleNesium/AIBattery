@@ -67,6 +67,7 @@ struct TokenUsageSection: View {
                                     .font(.caption2)
                                     .foregroundStyle(.green)
                                     .help("Active model in current session")
+                                    .accessibilityLabel("Active")
                             }
 
                             Spacer()
@@ -121,10 +122,10 @@ private struct TokenTag: View {
         HStack(spacing: 2) {
             Image(systemName: icon)
                 .font(.system(size: 8))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary.opacity(0.7))
             Text(label)
                 .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary.opacity(0.7))
         }
         .accessibilityLabel("\(accessibilityName) \(label)")
         .help(tooltip)

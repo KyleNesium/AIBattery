@@ -127,6 +127,9 @@ public struct UsagePopoverView: View {
                 TutorialOverlay()
             }
         }
+        .onDisappear {
+            updateCheckDismissTask?.cancel()
+        }
     }
 
     private var accounts: [AccountRecord] {
@@ -178,7 +181,7 @@ public struct UsagePopoverView: View {
                 .accessibilityLabel("Check for updates")
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() } }) {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 11))
+                        .font(.system(size: 11, weight: .medium))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(showSettings ? .primary : .secondary)
@@ -310,7 +313,7 @@ public struct UsagePopoverView: View {
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
-        .frame(height: 100)
+        .frame(height: 80)
     }
 
     private var emptyView: some View {

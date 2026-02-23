@@ -32,7 +32,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
                            (stats-cache.json) (JSONL files)   (~/.claude.json)
 ```
 
-`refresh()` runs: gets active account + token from `OAuthManager`, passes both to `RateLimitFetcher.fetch(accessToken:accountId:)` for per-account rate limits + org profile. Status check runs concurrently. After fetch, resolves pending account identity or updates metadata. `Task.detached` for aggregation. Org name from API headers or active account record flows into aggregator.
+`refresh()` runs: gets active account + token from `OAuthManager`, passes both to `RateLimitFetcher.fetch(accessToken:accountId:)` for per-account rate limits + org profile. Status check runs concurrently. After fetch, resolves pending account identity or updates metadata. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — avoids data races). Org name from API headers or active account record flows into aggregator.
 
 ## Refresh Triggers
 
@@ -74,7 +74,7 @@ AIBattery/
     UsageAggregator.swift         — Merges all data sources → UsageSnapshot
     TokenHealthMonitor.swift      — Analyzes session tokens → health status (single + top N sessions)
     StatusChecker.swift           — Fetches status.claude.com system status
-    SingleInstanceGuard.swift     — Prevents duplicate app instances
+    SingleInstanceGuard.swift     — POSIX flock single-instance guard, quarantine detection, SIGTERM handler
     NotificationManager.swift     — Status outage + rate limit alerts via osascript
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
     VersionChecker.swift          — GitHub Releases update checker (24h cadence)
@@ -127,7 +127,10 @@ Tests/AIBatteryCoreTests/
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
-    VersionCheckerTests.swift     — semver comparison, tag stripping
+    VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence
+    RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation
+    StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload
+    UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)

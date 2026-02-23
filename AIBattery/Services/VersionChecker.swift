@@ -18,14 +18,17 @@ public final class VersionChecker {
     var cachedUpdate: UpdateInfo?
 
     /// Singleton init — uses real GitHub API and 24h cache.
+    /// Restores last check time and cached update from UserDefaults.
     private convenience init() {
         self.init(
             releaseURL: URL(string: "https://api.github.com/repos/KyleNesium/AIBattery/releases/latest")!,
             checkInterval: 86400
         )
+        restoreFromDefaults()
     }
 
     /// Testable init — accepts a custom URL and cache interval.
+    /// Does NOT restore from UserDefaults to keep tests isolated.
     init(releaseURL: URL, checkInterval: TimeInterval = 86400) {
         self.releaseURL = releaseURL
         self.checkInterval = checkInterval
@@ -62,19 +65,20 @@ public final class VersionChecker {
 
             let latestVersion = Self.stripTag(tagName)
             lastCheck = Date()
-            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: UserDefaultsKeys.lastUpdateCheck)
 
             if Self.isNewer(latestVersion, than: currentVersion) {
                 let update = UpdateInfo(version: latestVersion, url: htmlURL)
                 cachedUpdate = update
-                return update
+            } else {
+                cachedUpdate = nil
             }
 
-            cachedUpdate = nil
-            return nil
+            persistToDefaults()
+            return cachedUpdate
         } catch {
             AppLogger.network.warning("Update check failed: \(error.localizedDescription, privacy: .public)")
             lastCheck = Date()
+            persistToDefaults()
             return nil
         }
     }
@@ -115,5 +119,31 @@ public final class VersionChecker {
     /// Current app version from the bundle, falling back to "0.0.0".
     nonisolated static var currentAppVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+    }
+
+    // MARK: - UserDefaults Persistence
+
+    /// Restore last check time and cached update from UserDefaults.
+    private func restoreFromDefaults() {
+        let ts = UserDefaults.standard.double(forKey: UserDefaultsKeys.lastUpdateCheck)
+        if ts > 0 {
+            lastCheck = Date(timeIntervalSince1970: ts)
+        }
+        if let version = UserDefaults.standard.string(forKey: UserDefaultsKeys.lastUpdateVersion),
+           let url = UserDefaults.standard.string(forKey: UserDefaultsKeys.lastUpdateURL) {
+            cachedUpdate = UpdateInfo(version: version, url: url)
+        }
+    }
+
+    /// Persist last check time and cached update to UserDefaults.
+    private func persistToDefaults() {
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: UserDefaultsKeys.lastUpdateCheck)
+        if let update = cachedUpdate {
+            UserDefaults.standard.set(update.version, forKey: UserDefaultsKeys.lastUpdateVersion)
+            UserDefaults.standard.set(update.url, forKey: UserDefaultsKeys.lastUpdateURL)
+        } else {
+            UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.lastUpdateVersion)
+            UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.lastUpdateURL)
+        }
     }
 }

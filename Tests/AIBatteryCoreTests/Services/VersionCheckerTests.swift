@@ -192,4 +192,20 @@ struct VersionCheckerTests {
         let checker = VersionChecker(releaseURL: URL(string: "https://example.com")!, checkInterval: 60)
         #expect(checker.checkInterval == 60)
     }
+
+    // MARK: - Persistence keys
+
+    @Test func persistenceKeys_areUnique() {
+        let keys = [
+            UserDefaultsKeys.lastUpdateCheck,
+            UserDefaultsKeys.lastUpdateVersion,
+            UserDefaultsKeys.lastUpdateURL,
+        ]
+        #expect(Set(keys).count == keys.count)
+    }
+
+    @Test func persistenceKeys_havePrefix() {
+        #expect(UserDefaultsKeys.lastUpdateVersion.hasPrefix("aibattery_"))
+        #expect(UserDefaultsKeys.lastUpdateURL.hasPrefix("aibattery_"))
+    }
 }
