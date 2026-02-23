@@ -9,14 +9,12 @@ struct UsageSnapshotTests {
         modelTokens: [ModelTokenSummary] = [],
         rateLimits: RateLimitUsage? = nil,
         tokenHealth: TokenHealthStatus? = nil,
-        billingType: String? = nil,
         todayMessages: Int = 0,
         dailyActivity: [DailyActivity] = []
     ) -> UsageSnapshot {
         UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
-            billingType: billingType,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -130,32 +128,6 @@ struct UsageSnapshotTests {
     @Test func percent_contextHealth_nilHealth() {
         let snapshot = makeSnapshot()
         #expect(snapshot.percent(for: .contextHealth) == 0)
-    }
-
-    // MARK: - planTier
-
-    @Test func planTier_fromBillingType() {
-        let snapshot = makeSnapshot(billingType: "pro")
-        #expect(snapshot.planTier?.name == "Pro")
-        #expect(snapshot.planTier?.price == "$20/mo")
-    }
-
-    @Test func planTier_max5x() {
-        let snapshot = makeSnapshot(billingType: "max_5x")
-        #expect(snapshot.planTier?.name == "Max")
-    }
-
-    @Test func planTier_nilWhenNoBillingType() {
-        let snapshot = makeSnapshot()
-        // planTier may fall through to UserDefaults, so just check it doesn't crash
-        _ = snapshot.planTier
-    }
-
-    @Test func planTier_emptyString_isNil() {
-        let snapshot = makeSnapshot(billingType: "")
-        // Empty billing type returns nil from PlanTier.fromBillingType
-        // May still fall through to UserDefaults
-        _ = snapshot.planTier
     }
 
     // MARK: - dailyAverage

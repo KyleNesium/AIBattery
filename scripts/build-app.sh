@@ -29,6 +29,14 @@ cp .build/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 cp AIBattery/Info.plist "$APP_DIR/Contents/Info.plist"
 
+# Inject version from git tag if available (e.g. v1.2.4 → 1.2.4)
+GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || true)
+if [ -n "$GIT_TAG" ]; then
+  VERSION="${GIT_TAG#v}"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "$APP_DIR/Contents/Info.plist"
+  echo "Injected version ${VERSION} from tag ${GIT_TAG}"
+fi
+
 # Copy entitlements into bundle
 cp AIBattery/AIBattery.entitlements "$APP_DIR/Contents/Resources/"
 

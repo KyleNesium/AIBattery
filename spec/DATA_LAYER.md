@@ -12,7 +12,6 @@ Main aggregated data struct consumed by all views.
 |-------|------|--------|
 | `lastUpdated` | `Date` | Generated at aggregation time |
 | `rateLimits` | `RateLimitUsage?` | API response headers |
-| `billingType` | `String?` | `~/.claude.json` oauthAccount.organizationBillingType |
 | `firstSessionDate` | `Date?` | stats-cache.json (ISO 8601) |
 | `totalSessions` | `Int` | stats-cache + today JSONL |
 | `totalMessages` | `Int` | stats-cache + today JSONL |
@@ -29,7 +28,7 @@ Main aggregated data struct consumed by all views.
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by most recent activity (descending) |
 
-Computed: `totalTokens`, `planTier: PlanTier?` (from billingType → UserDefaults → nil), `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover)
+Computed: `totalTokens`, `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover)
 
 Projections & trends: `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `projectedTodayTotal: Int` (extrapolate today's messages based on hour-of-day progress), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
@@ -64,26 +63,6 @@ Which metric drives the menu bar icon percentage and color.
 | `.down` | ↓ |
 | `.flat` | → |
 
-### PlanTier (`Models/UsageSnapshot.swift`)
-
-Inferred from `organizationBillingType` in `~/.claude.json`.
-
-| Field | Type |
-|-------|------|
-| `name` | `String` |
-| `price` | `String?` |
-
-`fromBillingType(_ type: String) -> PlanTier?`:
-
-| billingType | Plan | Price |
-|-------------|------|-------|
-| `"pro"` | Pro | $20/mo |
-| `"max"`, `"max_5x"` | Max | $100/mo per seat |
-| `"teams"`, `"team"` | Teams | $30/mo per seat |
-| `"free"` | Free | nil |
-| `"api_evaluation"`, `"api"` | API | Usage-based |
-| `""` (empty) | nil | — |
-| Other | Capitalized type name | nil |
 
 ### APIProfile (`Models/APIProfile.swift`)
 
@@ -277,7 +256,7 @@ Pricing table (per million tokens):
 - Singleton: `.shared`
 - `fetch(accessToken:accountId:) async -> APIFetchResult` — returns both rate limits and org profile from a single API call
 - POST `/v1/messages?beta=true` with `max_tokens: 1`, content `"."`
-- Model fallback list: tries `claude-sonnet-4-5-20250929` first, falls back to `claude-haiku-3-5-20241022`. Remembers last working model index to avoid repeated fallbacks.
+- Model fallback list: tries `claude-sonnet-4-6-20250929` first, then `claude-sonnet-4-5-20250929`, then `claude-haiku-3-5-20241022`. Remembers last working model index to avoid repeated fallbacks.
 - Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/{version} (macOS)` (dynamic from bundle)
 - Caller provides token and account ID. Per-account caching: `cachedResults: [String: APIFetchResult]` and `currentModelIndex: [String: Int]` keyed by account ID.
 - Timeout: 15 sec
@@ -328,7 +307,7 @@ Pricing table (per million tokens):
 - Created per-ViewModel (not singleton)
 - `aggregate(rateLimits:) -> UsageSnapshot`
 - **Single-pass filtering**: iterates all entries once to extract both today's entries and windowed token totals simultaneously (avoids separate `.filter()` passes)
-- Reads: stats cache, all JSONL entries (single scan), account info from `~/.claude.json` (organizationBillingType)
+- Reads: stats cache, all JSONL entries (single scan)
 - **Token window modes**: `aibattery_tokenWindowDays` UserDefaults (0 = all time, 1–7 = windowed)
   - **All-time mode (0)**: stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache, 72-hour recent model filter
   - **Windowed mode (1–7)**: computes token totals from all JSONL entries within the window, bypasses stats-cache `modelUsage`
@@ -423,7 +402,6 @@ Pricing table (per million tokens):
 - Centralized file paths for all Claude Code data locations (`static let` — computed once at load time)
 - `statsCache` / `statsCachePath` — `~/.claude/stats-cache.json`
 - `projects` / `projectsPath` — `~/.claude/projects/`
-- `accountConfig` / `accountConfigPath` — `~/.claude.json`
 - Used by FileWatcher, StatsCacheReader, SessionLogReader, UsageAggregator
 
 ### TokenFormatter (`Utilities/TokenFormatter.swift`)

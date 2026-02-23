@@ -9,9 +9,6 @@ struct UsageSnapshot {
     // Rate limit usage (from unified API response headers)
     let rateLimits: RateLimitUsage?
 
-    // Account info
-    let billingType: String?
-
     // From stats-cache.json
     let firstSessionDate: Date?
     let totalSessions: Int
@@ -119,19 +116,6 @@ struct UsageSnapshot {
     // Top sessions by most recent activity (up to 5, sorted newest first)
     let topSessionHealths: [TokenHealthStatus]
 
-    // Plan tier: billingType → stored preference → infer from rate limits
-    var planTier: PlanTier? {
-        if let tier = billingType.flatMap({ PlanTier.fromBillingType($0) }) {
-            return tier
-        }
-        // Fall back to UserDefaults
-        if let stored = UserDefaults.standard.string(forKey: UserDefaultsKeys.plan),
-           let tier = PlanTier.fromBillingType(stored) {
-            return tier
-        }
-        return nil
-    }
-
 }
 
 struct ModelTokenSummary: Identifiable {
@@ -191,23 +175,3 @@ enum TrendDirection {
     }
 }
 
-/// Plan tier inferred from billing type string.
-struct PlanTier {
-    let name: String
-    let price: String?
-
-    static func fromBillingType(_ type: String) -> PlanTier? {
-        switch type.lowercased() {
-        case "pro": return PlanTier(name: "Pro", price: "$20/mo")
-        case "max", "max_5x": return PlanTier(name: "Max", price: "$100/mo per seat")
-        case "teams", "team": return PlanTier(name: "Teams", price: "$30/mo per seat")
-        case "free": return PlanTier(name: "Free", price: nil)
-        case "api_evaluation", "api": return PlanTier(name: "API", price: "Usage-based")
-        case "": return nil
-        default:
-            // Unknown billing type — show capitalized name so new tiers aren't silently dropped
-            let capitalized = type.prefix(1).uppercased() + type.dropFirst()
-            return PlanTier(name: capitalized, price: nil)
-        }
-    }
-}

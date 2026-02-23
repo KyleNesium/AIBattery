@@ -372,6 +372,7 @@ struct ActivityChartView: View {
 
     private static let shortDayFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "EEE" // Mon, Tue, Wed, ...
         return f
     }()
@@ -384,6 +385,7 @@ struct ActivityChartView: View {
 
     private static let monthFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "MMM" // Jan, Feb, etc.
         return f
     }()

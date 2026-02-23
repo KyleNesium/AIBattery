@@ -54,22 +54,6 @@ Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeCom
 | Claude API | `k8w3r06qmzrp` |
 | Claude Code | `yyzkbfz2thpt` |
 
-## Plan Tier Inference (from billingType)
-
-Source: `~/.claude.json` → `oauthAccount.organizationBillingType`
-
-| billingType | Plan Name | Price Display |
-|-------------|-----------|---------------|
-| `"pro"` | Pro | $20/mo |
-| `"max"`, `"max_5x"` | Max | $100/mo per seat |
-| `"teams"`, `"team"` | Teams | $30/mo per seat |
-| `"free"` | Free | (none) |
-| `"api_evaluation"`, `"api"` | API | Usage-based |
-| `""` (empty) | nil (not shown) | — |
-| Other | Capitalized type name | (none) |
-
-Fallback chain: billingType → UserDefaults `aibattery_plan` → nil
-
 ## Context Windows
 
 | Model | Window |
@@ -236,7 +220,6 @@ Pricing per million tokens:
 | Path | Purpose |
 |------|---------|
 | macOS Keychain, service `"AIBattery"` | OAuth tokens (access, refresh, expiry) |
-| `~/.claude.json` → `oauthAccount` | Account info (billingType) |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |

@@ -8,10 +8,10 @@
 
 ```
 ┌──────────────────────────────────────┐
-│ ✦ AI Battery  Kyle · Org ▾  ⚙   │  ← ❶ Header
+│ ✦ AI Battery  Account ▾   v⚙   │  ← ❶ Header
 ├──────────────────────────────────────┤
 │ [Settings panel — collapsible]       │  ← ❶b Settings
-│  Active: [________]  Org sub-label  │     (gear toggle)
+│  Active: [________]                 │     (gear toggle)
 │  Account: [________] (×)            │
 │  + Add Account                      │
 │  Refresh: [slider 10-60s]           │

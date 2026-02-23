@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 final class UsageAggregator {
     private let statsCacheReader: StatsCacheReader
@@ -9,10 +8,6 @@ final class UsageAggregator {
         self.statsCacheReader = statsCacheReader
         self.sessionLogReader = sessionLogReader
     }
-
-    // Cache for ~/.claude.json — only re-read when file mod date changes.
-    private var cachedAccountInfo: AccountInfo?
-    private var accountInfoModDate: Date?
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -29,7 +24,6 @@ final class UsageAggregator {
 
     func aggregate(rateLimits: RateLimitUsage?) -> UsageSnapshot {
         let statsCache = statsCacheReader.read()
-        let accountInfo = readAccountInfo()
 
         // Single JSONL scan — entries are already cached by SessionLogReader.
         let allEntries = sessionLogReader.readAllUsageEntries()
@@ -161,12 +155,9 @@ final class UsageAggregator {
         let tokenHealth = healthResult.current
         let topSessionHealths = healthResult.top
 
-        let billing = accountInfo?.billingType
-
         return UsageSnapshot(
             lastUpdated: now,
             rateLimits: rateLimits,
-            billingType: billing,
             firstSessionDate: firstSessionDate,
             totalSessions: (statsCache?.totalSessions ?? 0) + todaySessions,
             totalMessages: (statsCache?.totalMessages ?? 0) + todayMessages,
@@ -185,42 +176,4 @@ final class UsageAggregator {
         )
     }
 
-    private func readAccountInfo() -> AccountInfo? {
-        let path = ClaudePaths.accountConfigPath
-
-        // Check mod date — skip re-read if unchanged
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-           let modDate = attrs[.modificationDate] as? Date {
-            if modDate == accountInfoModDate, let cached = cachedAccountInfo {
-                return cached
-            }
-            accountInfoModDate = modDate
-        }
-
-        let url = ClaudePaths.accountConfig
-        let data: Data
-        do {
-            data = try Data(contentsOf: url)
-        } catch {
-            // File missing is normal for first-run; other errors are worth logging.
-            if (error as NSError).code != NSFileReadNoSuchFileError {
-                AppLogger.files.warning("Failed to read ~/.claude.json: \(error.localizedDescription, privacy: .public)")
-            }
-            return nil
-        }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            AppLogger.files.warning("~/.claude.json is not valid JSON")
-            return nil
-        }
-        guard let oauth = json["oauthAccount"] as? [String: Any] else { return nil }
-        let info = AccountInfo(
-            billingType: oauth["organizationBillingType"] as? String
-        )
-        cachedAccountInfo = info
-        return info
-    }
-}
-
-private struct AccountInfo {
-    let billingType: String?
 }

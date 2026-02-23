@@ -26,13 +26,13 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
      RateLimitFetcher   StatusChecker   UsageAggregator
      (unified API call)  (status.claude)  (merge all data)
      → APIFetchResult:                         │
-       rateLimits +              ┌─────────────┼─────────────┐
-       orgProfile                ▼             ▼             ▼
-                           StatsCacheReader  SessionLogReader  readAccountInfo()
-                           (stats-cache.json) (JSONL files)   (~/.claude.json)
+       rateLimits +              ┌─────────────┤
+       orgProfile                ▼             ▼
+                           StatsCacheReader  SessionLogReader
+                           (stats-cache.json) (JSONL files)
 ```
 
-`refresh()` runs: gets active account + token from `OAuthManager`, passes both to `RateLimitFetcher.fetch(accessToken:accountId:)` for per-account rate limits + org profile. Status check runs concurrently. After fetch, resolves pending account identity or updates metadata. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — avoids data races). Org name from API headers or active account record flows into aggregator.
+`refresh()` runs: gets active account + token from `OAuthManager`, passes both to `RateLimitFetcher.fetch(accessToken:accountId:)` for per-account rate limits + org profile. Status check runs concurrently. After fetch, resolves pending account identity or updates metadata. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — avoids data races).
 
 ## Refresh Triggers
 
@@ -60,7 +60,7 @@ AIBattery/
     RateLimitUsage.swift          — Unified rate limit header parsing (5h/7d windows)
     StatsCache.swift              — Codable for stats-cache.json
     SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry
-    UsageSnapshot.swift           — UsageSnapshot, ModelTokenSummary, MetricMode, PlanTier
+    UsageSnapshot.swift           — UsageSnapshot, ModelTokenSummary, MetricMode
     TokenHealthConfig.swift       — Health thresholds + context window lookup
     TokenHealthStatus.swift       — HealthBand, HealthWarning, TokenHealthStatus (Identifiable by sessionId)
     ModelPricing.swift            — Per-model pricing lookup + cost calculation
@@ -108,7 +108,6 @@ Tests/AIBatteryCoreTests/
     ThemeColorsTests.swift        — Color theme tests (both modes, all bands)
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
-    PlanTierTests.swift           — fromBillingType() for all known tiers + unknown + empty
     MetricModeTests.swift         — rawValues, labels, shortLabels, allCases
     RateLimitUsageTests.swift     — parse() with full/partial/missing headers; computed properties
     APIProfileTests.swift         — parse() with both/one/no headers
@@ -118,7 +117,7 @@ Tests/AIBatteryCoreTests/
     ModelTokenSummaryTests.swift  — totalTokens sum
     TokenHealthStatusTests.swift  — suggestedAction per band, HealthBand rawValues
     SessionEntryTests.swift       — Codable decode from real JSONL, minimal entry, round-trip
-    UsageSnapshotTests.swift      — totalTokens, percent(for:), planTier
+    UsageSnapshotTests.swift      — totalTokens, percent(for:), projections, trends, busiest day
     ModelPricingTests.swift       — pricing lookup, cost calculation, formatCost, edge cases
   Services/
     AccountStoreTests.swift       — Add/remove/update/merge, persistence, migration
@@ -174,7 +173,6 @@ CHANGELOG.md                      — Release notes per version
 
 1. macOS Keychain, service `"AIBattery"` — Per-account OAuth tokens (prefixed: accessToken_{accountId}, refreshToken_{accountId}, expiresAt_{accountId})
 2. UserDefaults `aibattery_accounts` + `aibattery_activeAccountId` — Multi-account registry (JSON-encoded [AccountRecord])
-3. `~/.claude.json` → `oauthAccount` — billingType
-4. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
-5. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
-6. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data
+3. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
+4. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
+5. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data

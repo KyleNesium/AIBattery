@@ -294,7 +294,7 @@ xattr -cr /Applications/AIBattery.app
 
 Then relaunch. This removes the quarantine flag that macOS adds to downloaded apps.
 
-**After working for a while:** If the icon vanishes after the app has been running, update to the latest version — v1.2.3+ fixes concurrency issues that could cause intermittent crashes during background data refresh and sleep/wake cycles.
+**After working for a while:** If the icon vanishes after the app has been running, update to the latest version — v1.2.3+ fixed concurrency issues that could cause intermittent crashes during background data refresh and sleep/wake cycles.
 
 **If it still happens:**
 
@@ -445,13 +445,13 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**384 tests** across 28 test files.
+**366 tests** across 27 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 146 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults), plan tiers, health status, metric modes, API profiles, session entries (service_tier decode), account records, stats cache, usage snapshots (projections, trends, busiest day) |
-| Services | 175 | Version checker (semver comparison, tag stripping, cache behavior, force check, persistence keys), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation) |
-| Utilities | 63 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), model pricing (cost calculation, formatting) |
+| Models | 130 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults), health status, metric modes, API profiles, session entries (service_tier decode), account records, stats cache, usage snapshots (projections, trends, busiest day), model pricing, health config |
+| Services | 175 | Version checker (semver comparison, tag stripping, cache behavior, force check, persistence keys), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation) |
+| Utilities | 61 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness) |
 
 ## 📄 License
 
