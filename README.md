@@ -15,11 +15,9 @@ Rate limits, context health, and token usage — always visible in your macOS me
 
 <br/>
 
-<img src="screenshots/dashboard.png" width="240" alt="AI Battery dashboard" />
+<img src="screenshots/dashboard.png" width="360" alt="AI Battery dashboard" />
 
-<br/>
 
-<img src="screenshots/demo.gif" width="480" alt="AI Battery demo" />
 
 </div>
 
