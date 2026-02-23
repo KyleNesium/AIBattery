@@ -44,10 +44,14 @@ struct RateLimitFetcherTests {
 
         // Inject a cached result
         let rateLimits = RateLimitUsage(
-            fiveHourPercent: 50.0,
-            sevenDayPercent: 20.0,
-            fiveHourResetAt: Date().addingTimeInterval(3600),
-            sevenDayResetAt: Date().addingTimeInterval(86400)
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2,
+            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
         )
         let profile = APIProfile(organizationId: "org-test")
         let cached = APIFetchResult(rateLimits: rateLimits, profile: profile, fetchedAt: Date())
@@ -65,10 +69,14 @@ struct RateLimitFetcherTests {
 
         // Inject an old cached result (2 hours ago)
         let rateLimits = RateLimitUsage(
-            fiveHourPercent: 50.0,
-            sevenDayPercent: 20.0,
-            fiveHourResetAt: Date().addingTimeInterval(3600),
-            sevenDayResetAt: Date().addingTimeInterval(86400)
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2,
+            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
         )
         let cached = APIFetchResult(
             rateLimits: rateLimits,
