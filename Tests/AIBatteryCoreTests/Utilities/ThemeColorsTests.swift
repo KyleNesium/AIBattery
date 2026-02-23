@@ -2,7 +2,7 @@ import Testing
 import SwiftUI
 @testable import AIBatteryCore
 
-@Suite("ThemeColors")
+@Suite("ThemeColors", .serialized)
 struct ThemeColorsTests {
 
     private func setColorblind(_ value: Bool) {

@@ -176,7 +176,7 @@ struct RateLimitUsageTests {
     @Test func requestsPercentUsed_unknownClaim_defaultsToFiveHour() {
         // An unrecognized claim string should fall back to the 5h window
         let usage = makeUsage(claim: "some_future_window", fiveHourUtil: 0.55, sevenDayUtil: 0.30)
-        #expect(usage.requestsPercentUsed == 55.0)
+        #expect(abs(usage.requestsPercentUsed - 55.0) < 0.001)
     }
 
     @Test func bindingReset_unknownClaim_defaultsToFiveHour() {

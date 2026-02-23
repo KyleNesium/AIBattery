@@ -311,6 +311,13 @@ struct UsageAggregatorTests {
         let cacheURL = try writeStatsCache(Self.statsCacheJSON, to: dir)
         let projectsDir = dir.appendingPathComponent("projects")
 
+        // Add a recent JSONL entry so the model passes the 72-hour recency filter
+        let now = Date()
+        try writeJSONL(
+            [makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 10, output: 5, timestamp: now)],
+            to: projectsDir
+        )
+
         // Set to all-time mode (0)
         UserDefaults.standard.set(0.0, forKey: UserDefaultsKeys.tokenWindowDays)
         defer { UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenWindowDays) }
@@ -325,6 +332,7 @@ struct UsageAggregatorTests {
         #expect(!snapshot.modelTokens.isEmpty)
         if let sonnet = snapshot.modelTokens.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             // Stats cache has 10000 input + 5000 output + 2000 cache read + 500 cache write = 17500
+            // Plus the recent JSONL entry's tokens
             #expect(sonnet.totalTokens >= 17500)
         }
     }
