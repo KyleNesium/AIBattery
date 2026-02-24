@@ -18,6 +18,7 @@ public final class UsageViewModel: ObservableObject {
     private var fileWatcher: FileWatcher?
     private var pollingTimer: Timer?
     private var apiResult: APIFetchResult?
+    private var wakeObserver: NSObjectProtocol?
 
     /// Adaptive polling: consecutive cycles with no data change.
     /// After 3 unchanged cycles, interval doubles (up to 5 min max).
@@ -38,6 +39,7 @@ public final class UsageViewModel: ObservableObject {
         }
 
         setupFileWatcher()
+        setupWakeObserver()
         startPolling()
         Task { await refresh() }
     }
@@ -191,6 +193,23 @@ public final class UsageViewModel: ObservableObject {
         fileWatcher?.startWatching()
     }
 
+    /// Listen for system wake to immediately refresh after sleep.
+    /// After sleep the rate-limit cache is likely expired and the adaptive
+    /// polling interval may have grown to 5 min — this resets both.
+    private func setupWakeObserver() {
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.unchangedCycles = 0
+                self?.restartPolling(interval: self?.refreshInterval ?? 60)
+                await self?.refresh()
+            }
+        }
+    }
+
     private var refreshInterval: TimeInterval {
         let stored = UserDefaults.standard.double(forKey: UserDefaultsKeys.refreshInterval)
         let interval = stored > 0 ? stored : 60
@@ -220,5 +239,8 @@ public final class UsageViewModel: ObservableObject {
     deinit {
         pollingTimer?.invalidate()
         fileWatcher?.stopWatching()
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
     }
 }
