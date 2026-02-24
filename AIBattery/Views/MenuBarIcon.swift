@@ -21,15 +21,24 @@ struct MenuBarIcon: View {
 
     // MARK: - Icon cache
 
-    /// Cached icons keyed by (band, colorblindMode) — at most 8 entries.
+    /// Cached icons keyed by (band, colorblindMode, highContrast, appearance) — bounded.
     private static var iconCache: [Int: NSImage] = [:]
     private static var cachedColorblindFlag: Bool = ThemeColors.isColorblind
+    private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    private static var cachedAppearanceName: String = NSApp.effectiveAppearance.name.rawValue
 
     private static func cachedIcon(for percent: Double, band: Int) -> NSImage {
-        // Invalidate cache if colorblind mode changed
-        if cachedColorblindFlag != ThemeColors.isColorblind {
+        let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let appearance = NSApp.effectiveAppearance.name.rawValue
+
+        // Invalidate cache if accessibility or appearance state changed
+        if cachedColorblindFlag != ThemeColors.isColorblind
+            || cachedHighContrastFlag != highContrast
+            || cachedAppearanceName != appearance {
             iconCache.removeAll()
             cachedColorblindFlag = ThemeColors.isColorblind
+            cachedHighContrastFlag = highContrast
+            cachedAppearanceName = appearance
         }
         if let cached = iconCache[band] { return cached }
         let icon = renderIcon(percent: percent)
@@ -44,6 +53,8 @@ struct MenuBarIcon: View {
         image.lockFocus()
 
         let color = ThemeColors.barNSColor(percent: percent)
+        let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
 
         // Draw a small AI sparkle/star icon — 4-pointed star
         let center = NSPoint(x: size / 2, y: size / 2)
@@ -72,9 +83,18 @@ struct MenuBarIcon: View {
         color.setFill()
         path.fill()
 
-        // Subtle outline for definition
-        color.withAlphaComponent(0.6).setStroke()
-        path.lineWidth = 0.5
+        // Outline for definition — stronger in high contrast or light mode
+        // to ensure the colored icon remains visible against any menu bar background.
+        if highContrast {
+            NSColor.black.withAlphaComponent(0.8).setStroke()
+            path.lineWidth = 1.0
+        } else if !isDarkMode {
+            NSColor.black.withAlphaComponent(0.3).setStroke()
+            path.lineWidth = 0.75
+        } else {
+            color.withAlphaComponent(0.6).setStroke()
+            path.lineWidth = 0.5
+        }
         path.stroke()
 
         image.unlockFocus()

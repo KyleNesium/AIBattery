@@ -19,6 +19,7 @@ public final class UsageViewModel: ObservableObject {
     private var pollingTimer: Timer?
     private var apiResult: APIFetchResult?
     private var wakeObserver: NSObjectProtocol?
+    private var sleepObserver: NSObjectProtocol?
 
     /// Adaptive polling: consecutive cycles with no data change.
     /// After 3 unchanged cycles, interval doubles (up to 5 min max).
@@ -39,16 +40,25 @@ public final class UsageViewModel: ObservableObject {
         }
 
         setupFileWatcher()
-        setupWakeObserver()
+        setupSleepWakeObservers()
         startPolling()
         Task { await refresh() }
     }
 
     public func refresh() async {
+        let oauthManager = OAuthManager.shared
+
+        // Skip network work when not authenticated — still aggregate local data.
+        guard oauthManager.isAuthenticated else {
+            let result = aggregator.aggregate(rateLimits: nil)
+            if result.totalMessages > 0 { snapshot = result }
+            isLoading = false
+            return
+        }
+
         let wasEmpty = snapshot == nil
         if wasEmpty { isLoading = true }
 
-        let oauthManager = OAuthManager.shared
         let accountId = oauthManager.accountStore.activeAccountId
         let accessToken = await oauthManager.getAccessToken()
 
@@ -193,10 +203,21 @@ public final class UsageViewModel: ObservableObject {
         fileWatcher?.startWatching()
     }
 
-    /// Listen for system wake to immediately refresh after sleep.
-    /// After sleep the rate-limit cache is likely expired and the adaptive
-    /// polling interval may have grown to 5 min — this resets both.
-    private func setupWakeObserver() {
+    /// Pause polling before sleep — avoids wasted timer fires while the
+    /// system is suspended and ensures a clean lifecycle.
+    /// On wake, reset adaptive polling and refresh immediately.
+    private func setupSleepWakeObservers() {
+        sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.pollingTimer?.invalidate()
+                self?.pollingTimer = nil
+            }
+        }
+
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
@@ -229,6 +250,7 @@ public final class UsageViewModel: ObservableObject {
                 await self?.refresh()
             }
         }
+        pollingTimer?.tolerance = clamped * 0.1
     }
 
     func updatePollingInterval(_ interval: TimeInterval) {
@@ -239,8 +261,8 @@ public final class UsageViewModel: ObservableObject {
     deinit {
         pollingTimer?.invalidate()
         fileWatcher?.stopWatching()
-        if let wakeObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        for observer in [wakeObserver, sleepObserver].compactMap({ $0 }) {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
     }
 }
