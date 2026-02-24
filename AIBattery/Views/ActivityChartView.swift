@@ -57,7 +57,7 @@ struct ActivityChartView: View {
         // Generate all 7 days (6 days ago through today)
         return (0..<7).compactMap { offset in
             guard let date = cal.date(byAdding: .day, value: -(6 - offset), to: today) else { return nil }
-            let key = Self.dateKeyFormatter.string(from: date)
+            let key = DateFormatters.dateKey.string(from: date)
             return DailyPoint(id: key, date: date, count: lookup[key] ?? 0)
         }
     }
@@ -159,8 +159,18 @@ struct ActivityChartView: View {
     // MARK: - Daily Chart (7D)
 
     private var dailyChart: some View {
-        let dates = dailyData.map(\.date)
-        return Chart(dailyData) { point in
+        let data = dailyData
+        let dates = data.map(\.date)
+        let total = data.reduce(0) { $0 + $1.count }
+        let peak = data.max(by: { $0.count < $1.count })
+        let a11yLabel: String = {
+            if let peak, peak.count > 0 {
+                return "7-day activity chart. \(total) messages this week. Peak: \(peak.count) on \(Self.dayShortLabel(peak.date))"
+            }
+            return "7-day activity chart. \(total) messages this week"
+        }()
+
+        return Chart(data) { point in
             AreaMark(
                 x: .value("Day", point.date, unit: .day),
                 y: .value("Messages", point.count)
@@ -202,12 +212,24 @@ struct ActivityChartView: View {
         .chartYAxis(.hidden)
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(a11yLabel)
     }
 
     // MARK: - Hourly Chart (24H)
 
     private var hourlyChart: some View {
-        Chart(hourlyData) { point in
+        let data = hourlyData
+        let total = data.reduce(0) { $0 + $1.count }
+        let peak = data.max(by: { $0.count < $1.count })
+        let a11yLabel: String = {
+            if let peak, peak.count > 0 {
+                return "24-hour activity chart. \(total) messages today. Peak hour: \(Self.formatHourLabel(peak.hour)) with \(peak.count) messages"
+            }
+            return "24-hour activity chart. \(total) messages today"
+        }()
+
+        return Chart(data) { point in
             AreaMark(
                 x: .value("Hour", point.hour),
                 y: .value("Messages", point.count)
@@ -243,13 +265,25 @@ struct ActivityChartView: View {
         .chartYAxis(.hidden)
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(a11yLabel)
     }
 
     // MARK: - Monthly Chart (12M)
 
     private var monthlyChart: some View {
-        let dates = monthlyData.map(\.date)
-        return Chart(monthlyData) { point in
+        let data = monthlyData
+        let dates = data.map(\.date)
+        let total = data.reduce(0) { $0 + $1.count }
+        let peak = data.max(by: { $0.count < $1.count })
+        let a11yLabel: String = {
+            if let peak, peak.count > 0 {
+                return "12-month activity chart. \(total) messages total. Highest: \(Self.monthAbbrev(peak.date)) with \(peak.count)"
+            }
+            return "12-month activity chart. \(total) messages total"
+        }()
+
+        return Chart(data) { point in
             AreaMark(
                 x: .value("Month", point.date, unit: .month),
                 y: .value("Messages", point.count)
@@ -291,6 +325,8 @@ struct ActivityChartView: View {
         .chartYAxis(.hidden)
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(a11yLabel)
     }
 
     // MARK: - Trend
@@ -335,15 +371,8 @@ struct ActivityChartView: View {
         let color: Color
     }
 
-    private static let yesterdayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     private func changeVsYesterday(_ snapshot: UsageSnapshot) -> ChangeInfo? {
-        let yesterdayStr = Self.yesterdayFormatter.string(
+        let yesterdayStr = DateFormatters.dateKey.string(
             from: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
         )
 
@@ -364,35 +393,14 @@ struct ActivityChartView: View {
 
     // MARK: - Formatters
 
-    private static let dateKeyFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
-    private static let shortDayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "EEE" // Mon, Tue, Wed, ...
-        return f
-    }()
-
-    private static func dayShortLabel(_ date: Date) -> String {
+    static func dayShortLabel(_ date: Date) -> String {
         let cal = Calendar.current
         if cal.isDateInToday(date) { return "Today" }
-        return shortDayFormatter.string(from: date)
+        return DateFormatters.shortDay.string(from: date)
     }
 
-    private static let monthFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "MMM" // Jan, Feb, etc.
-        return f
-    }()
-
-    private static func monthAbbrev(_ date: Date) -> String {
-        monthFormatter.string(from: date)
+    static func monthAbbrev(_ date: Date) -> String {
+        DateFormatters.shortMonth.string(from: date)
     }
 
     private static let hourLabels: [String] = (0..<24).map { String(format: "%02d", $0) }

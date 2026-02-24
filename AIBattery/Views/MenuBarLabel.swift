@@ -4,6 +4,7 @@ public struct MenuBarLabel: View {
     @ObservedObject var viewModel: UsageViewModel
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
+    @AppStorage(UserDefaultsKeys.showSparkline) private var showSparkline: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(viewModel: UsageViewModel) {
@@ -31,6 +32,11 @@ public struct MenuBarLabel: View {
     public var body: some View {
         HStack(spacing: 4) {
             MenuBarIcon(requestsPercent: displayPercent)
+
+            if showSparkline, let hourCounts = viewModel.snapshot?.hourCounts,
+               !hourCounts.isEmpty {
+                MenuBarSparkline(hourCounts: hourCounts)
+            }
 
             Text("\(Int(displayPercent))%")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
