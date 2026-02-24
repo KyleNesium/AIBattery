@@ -43,7 +43,9 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 | JSONL file change | 2 sec FSEvent latency | FileWatcher (FSEventStream on ~/.claude/projects/) |
 | Fallback | 60 sec | FileWatcher fallback timer |
 | Account switch | On click | Account picker in header |
-| Adaptive extension | Doubles interval (up to 5 min) after 3 unchanged cycles | UsageViewModel |
+| Sleep/wake | Immediate on wake | NSWorkspace.willSleepNotification / didWakeNotification |
+| Network recovery | On connectivity restored | NetworkMonitor (NWPathMonitor) |
+| Adaptive extension | Doubles interval (up to 5 min) after 3 unchanged cycles | AdaptivePollingState |
 
 ## Project Tree
 
@@ -73,6 +75,7 @@ AIBattery/
     FileWatcher.swift             — DispatchSource + FSEventStream for live updates
     UsageAggregator.swift         — Merges all data sources → UsageSnapshot
     TokenHealthMonitor.swift      — Analyzes session tokens → health status (single + top N sessions)
+    NetworkMonitor.swift          — NWPathMonitor connectivity observer (triggers refresh on recovery)
     StatusChecker.swift           — Fetches status.claude.com system status
     SingleInstanceGuard.swift     — POSIX flock single-instance guard, quarantine detection, SIGTERM handler
     NotificationManager.swift     — Status outage + rate limit alerts via osascript
@@ -82,8 +85,9 @@ AIBattery/
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
-    MenuBarLabel.swift            — ✦ icon + percentage in menu bar
+    MenuBarLabel.swift            — ✦ icon + optional sparkline + percentage in menu bar
     MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color, band-based NSImage cache)
+    MenuBarSparkline.swift        — 24-hour activity sparkline NSImage for menu bar (hash-based cache)
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     AuthView.swift                 — OAuth login/paste-code screen
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
@@ -98,6 +102,8 @@ AIBattery/
     TokenFormatter.swift          — Format tokens ("18.9M")
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"
     UserDefaultsKeys.swift        — Centralized @AppStorage / UserDefaults key constants
+    DateFormatters.swift          — Shared DateFormatter / ISO8601DateFormatter instances (allocated once)
+    AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
@@ -108,6 +114,8 @@ Tests/AIBatteryCoreTests/
     UserDefaultsKeysTests.swift   — prefix validation, uniqueness
     ClaudePathsTests.swift        — path suffixes, URL↔path consistency, absolute paths
     ThemeColorsTests.swift        — Color theme tests (both modes, all bands)
+    DateFormattersTests.swift     — format strings, round-trips, locale pinning
+    AdaptivePollingStateTests.swift — threshold, doubling, cap, reset, constants
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     MetricModeTests.swift         — rawValues, labels, allCases
@@ -126,14 +134,16 @@ Tests/AIBatteryCoreTests/
     StatusIndicatorTests.swift    — from() all status strings, severity ordering, displayName
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
-    TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity
+    TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity, rapid consumption, custom config
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
     VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence
     SparkleUpdateServiceTests.swift — Sparkle configuration verification (auto-check disabled, singleton)
-    RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation
+    RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation, Retry-After parsing
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload
     UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup
     OAuthManagerTests.swift       — AuthError user messages, transient error classification
+  Views/
+    MenuBarSparklineTests.swift   — hash consistency, data detection, missing hours, empty data
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)

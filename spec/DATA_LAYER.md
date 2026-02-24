@@ -156,7 +156,7 @@ Computed: `suggestedAction` — nil for green/unknown, recommendation text for o
 
 ### TokenHealthConfig (`Models/TokenHealthConfig.swift`)
 
-Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`, `staleSessionMinutes = 30`, `zeroOutputTurnThreshold = 3`
+Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`, `staleSessionMinutes = 30`, `zeroOutputTurnThreshold = 3`, `rapidConsumptionSeconds = 60`, `rapidConsumptionTokens = 50_000`, `velocityMinDuration: TimeInterval = 60`
 
 Static: `contextWindows: [String: Int]` dictionary, `defaultContextWindow = 200_000`, `usableContextRatio = 0.80`, `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
 
@@ -266,6 +266,7 @@ Pricing table (per million tokens):
 - Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache expires after 1 hour (`cacheMaxAge = 3600s`) to avoid showing very old data.
 - Model unavailable (400/404 with model/access error message) → tries next model in list
 - Non-model 400/404 errors: extracts rate limit headers if present and returns as success; otherwise returns `.networkError` (never silently falls through to header-less success)
+- `static parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double?` — parses `Retry-After` header; returns nil for nil/non-numeric/zero/negative; caps at `maxDelay`
 
 ### StatusChecker (`Services/StatusChecker.swift`)
 - Singleton: `.shared`
@@ -329,11 +330,11 @@ Pricing table (per million tokens):
 - **Usable window**: `usableWindow = contextWindow × 0.80` — percentages calculated against usable portion
 - Band: `< greenThreshold` → green (of usable), `< redThreshold` → orange, else red
 - Warnings: high turn count (>15 mild, >25 strong), input:output ratio (>20:1, includes cache tokens)
-- Velocity: `totalUsed / duration` if 2+ entries and duration > 60 seconds (no double-counting)
-- **Anomaly detection**: three additional warnings:
-  - Zero output: `outputTokens == 0 && turnCount > zeroOutputTurnThreshold` → "Session has no output — check for errors"
-  - Rapid consumption: `sessionDuration < 60 && totalUsed > 50_000` → "Rapid token consumption detected"
-  - Stale session: `lastActivity > staleSessionMinutes * 60 && band != .green` → "Session idle for X min — context may be stale"
+- Velocity: `totalUsed / duration` if 2+ entries and duration > `config.velocityMinDuration` seconds (no double-counting)
+- **Anomaly detection**: three additional warnings (all thresholds configurable via `TokenHealthConfig`):
+  - Zero output: `outputTokens == 0 && turnCount > config.zeroOutputTurnThreshold` → "Session has no output — check for errors"
+  - Rapid consumption: `sessionDuration < config.rapidConsumptionSeconds && totalUsed > config.rapidConsumptionTokens` → "Rapid token consumption detected"
+  - Stale session: `lastActivity > config.staleSessionMinutes * 60 && band != .green` → "Session idle for X min — context may be stale"
 - **Session metadata**: extracts projectName from cwd (last path component), gitBranch, sessionStart, sessionDuration. Uses **first** entry with cwd for project name (session identity), **latest** entry for git branch (current state).
 
 ### FileWatcher (`Services/FileWatcher.swift`)
@@ -388,6 +389,13 @@ Pricing table (per million tokens):
 - Feed URL: `https://kylenesium.github.io/AIBattery/appcast.xml`
 - EdDSA verification: Sparkle verifies download signature against `SUPublicEDKey` before installing
 
+### NetworkMonitor (`Services/NetworkMonitor.swift`)
+- Singleton: `.shared`, `@MainActor ObservableObject`
+- Published: `isConnected: Bool` (default true)
+- Uses `NWPathMonitor` on a private `DispatchQueue`
+- `start()` — begins monitoring; updates `isConnected` on main actor when path status changes
+- Used by `UsageViewModel` to skip network calls when offline
+
 ### LaunchAtLoginManager (`Services/LaunchAtLoginManager.swift`)
 - Enum (no instances)
 - `isEnabled: Bool` — reads `SMAppService.mainApp.status`
@@ -406,7 +414,9 @@ Pricing table (per million tokens):
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
 - Deinit: invalidates timer, stops file watcher
-- **Adaptive polling**: tracks `unchangedCycles` counter comparing `totalMessages`/`todayMessages` before and after refresh. After 3 unchanged cycles, doubles polling interval (up to 5 min max). Any data change or file watcher trigger resets to configured interval.
+- **Adaptive polling**: delegates to `AdaptivePollingState` struct. Compares `totalMessages`/`todayMessages` before and after refresh. After 3 unchanged cycles, doubles polling interval (up to 5 min max). Any data change or file watcher trigger resets to configured interval.
+- **Sleep/wake lifecycle**: `setupSleepWakeObservers()` subscribes to `NSWorkspace.willSleepNotification` (pauses timer) and `didWakeNotification` (resets adaptive polling, triggers immediate refresh + restarts timer).
+- **Network awareness**: skips network calls when `NetworkMonitor.shared.isConnected` is false — aggregates local data with cached rate limits. `NetworkMonitor.start()` called in init.
 - **Identity timeout**: warns if a pending account hasn't resolved identity after 1 hour (prompts re-auth).
 - **JSONL corruption logging**: after aggregation, logs `SessionLogReader.lastCorruptLineCount` via `AppLogger.files.warning` if > 0.
 
@@ -427,10 +437,25 @@ Pricing table (per million tokens):
 - Strips "claude-" prefix via `hasPrefix`/`dropFirst`, strips trailing date segment (8+ consecutive digits) using manual character iteration (no regex — avoids NSRegularExpression bridging overhead), converts hyphens to dots, capitalizes family
 - "claude-opus-4-6-20250929" → "Opus 4.6"
 
+### DateFormatters (`Utilities/DateFormatters.swift`)
+- Enum (no instances) — centralized, allocated-once date formatters
+- `dateKey: DateFormatter` — `"yyyy-MM-dd"`, `en_US_POSIX` locale. Used for daily activity date keys, stats cache lookups.
+- `iso8601: ISO8601DateFormatter` — with `.withFractionalSeconds`. Used for JSONL timestamps, firstSessionDate.
+- `shortDay: DateFormatter` — `"EEE"`, `en_US_POSIX` locale. Used for day-of-week labels.
+- `shortMonth: DateFormatter` — `"MMM"`, `en_US_POSIX` locale. Used for monthly chart labels.
+
+### AdaptivePollingState (`Utilities/AdaptivePollingState.swift`)
+- Pure value type (struct) — testable without `@MainActor` or framework dependencies
+- `unchangedCycles: Int` — tracks consecutive refresh cycles with no data change
+- `static let adaptiveThreshold = 3` — unchanged cycles before doubling
+- `static let maxPollingInterval: TimeInterval = 300` — hard cap (5 min)
+- `mutating func evaluate(dataChanged:baseInterval:) -> TimeInterval` — resets counter on data change (returns base); increments on no change; doubles interval when threshold reached (capped at max)
+- Used by `UsageViewModel` via `private var adaptivePolling = AdaptivePollingState()`
+
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`
+- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`, `showSparkline`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`

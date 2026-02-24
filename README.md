@@ -163,6 +163,7 @@ AI Battery makes a minimal API call each refresh cycle to read your rate limit h
 
 ```
 ✦ 71%                 ← menu bar: selected metric
+✦ ▁▃▅▇▅▂ 71%          ← with optional sparkline (Settings → Sparkline)
 ```
 
 Click the ✦ icon to open the dashboard:
@@ -255,6 +256,7 @@ Click ⚙️ in the header to configure:
 | 🔁 **Auto mode** | Always show the highest metric (pulsing blue button on metric toggle) |
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | 🤖 **Models** | Only show models used within period: 1–7 days or All |
+| 📊 **Sparkline** | 24-hour activity sparkline in the menu bar |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
 | 💲 **Cost*** | Show equivalent API token rates |
 | 🔔 **Alerts** | Notify on Claude.ai / Claude Code outages |
