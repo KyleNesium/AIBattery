@@ -55,7 +55,7 @@ final class StatsCacheReader {
         // Fallback: can't stat, just decode (still cache the result)
         do {
             let data = try Data(contentsOf: fileURL)
-            let result = try JSONDecoder().decode(StatsCache.self, from: data)
+            let result = try Self.jsonDecoder.decode(StatsCache.self, from: data)
             cached = result
             return result
         } catch {

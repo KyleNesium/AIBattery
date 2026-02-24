@@ -21,14 +21,12 @@ public final class UsageViewModel: ObservableObject {
     private var wakeObserver: NSObjectProtocol?
     private var sleepObserver: NSObjectProtocol?
 
-    /// Adaptive polling: consecutive cycles with no data change.
-    /// After 3 unchanged cycles, interval doubles (up to 5 min max).
-    private var unchangedCycles = 0
-    private static let adaptiveThreshold = 3
-    private static let maxPollingInterval: TimeInterval = 300
+    /// Adaptive polling state machine — delegates interval logic to a pure struct.
+    private var adaptivePolling = AdaptivePollingState()
 
     public init() {
         ThemeColors.registerObserver()
+        NetworkMonitor.shared.start()
 
         // Show local data immediately so the menu bar icon appears fast,
         // then fetch network data in the background.
@@ -56,13 +54,46 @@ public final class UsageViewModel: ObservableObject {
             return
         }
 
+        // Skip network when offline — show local data with cached rate limits.
+        guard NetworkMonitor.shared.isConnected else {
+            let result = aggregator.aggregate(rateLimits: apiResult?.rateLimits)
+            snapshot = result
+            isLoading = false
+            errorMessage = "No internet connection"
+            return
+        }
+
         let wasEmpty = snapshot == nil
         if wasEmpty { isLoading = true }
 
         let accountId = oauthManager.accountStore.activeAccountId
+        let (api, status) = await fetchAPIData(oauthManager: oauthManager, accountId: accountId)
+
+        apiResult = api
+        systemStatus = status
+        isShowingCachedData = api.isCached
+        if !api.isCached { lastFreshFetch = api.fetchedAt }
+
+        // If user switched accounts while fetching, discard stale results.
+        guard accountId == oauthManager.accountStore.activeAccountId else { return }
+
+        resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
+
+        let result = aggregator.aggregate(rateLimits: api.rateLimits)
+        logCorruptionMetrics()
+        updateAdaptivePolling(result)
+        updateSnapshot(result, api: api)
+        await handlePostFetchAlerts(api: api, status: status)
+    }
+
+    // MARK: - Refresh helpers
+
+    private func fetchAPIData(
+        oauthManager: OAuthManager,
+        accountId: String?
+    ) async -> (APIFetchResult, ClaudeSystemStatus) {
         let accessToken = await oauthManager.getAccessToken()
 
-        // Fetch API data and status concurrently — they hit different services.
         async let fetchedStatus = StatusChecker.shared.fetchStatus()
 
         let api: APIFetchResult
@@ -72,76 +103,41 @@ public final class UsageViewModel: ObservableObject {
             api = APIFetchResult(rateLimits: nil, profile: nil)
         }
 
-        let status = await fetchedStatus
+        return (api, await fetchedStatus)
+    }
 
-        apiResult = api
-        systemStatus = status
+    private func resolveAccountIdentity(
+        oauthManager: OAuthManager,
+        accountId: String?,
+        api: APIFetchResult
+    ) {
+        guard let id = accountId else { return }
 
-        // Track staleness
-        isShowingCachedData = api.isCached
-        if !api.isCached {
-            lastFreshFetch = api.fetchedAt
-        }
-
-        // Guard: if user switched accounts while we were fetching, discard stale results.
-        // The new account's refresh() is already in flight from switchAccount().
-        let currentActiveId = oauthManager.accountStore.activeAccountId
-        guard accountId == currentActiveId else { return }
-
-        // Resolve pending account identity from API response
-        if let id = accountId, let orgId = api.profile?.organizationId {
+        if let orgId = api.profile?.organizationId {
             let account = oauthManager.accountStore.accounts.first { $0.id == id }
             if account?.isPendingIdentity == true {
-                oauthManager.resolveAccountIdentity(
-                    tempId: id,
-                    realOrgId: orgId
-                )
+                oauthManager.resolveAccountIdentity(tempId: id, realOrgId: orgId)
             }
         }
 
         // Detect stale pending accounts — identity should resolve within the first fetch cycle.
-        // If still pending after 1 hour, prompt user to re-authenticate.
-        if let id = accountId {
-            let account = oauthManager.accountStore.accounts.first { $0.id == id }
-            if let account, account.isPendingIdentity,
-               Date().timeIntervalSince(account.addedAt) > 3600 {
-                errorMessage = "Account identity could not be confirmed. Try removing and re-adding this account."
-            }
+        let account = oauthManager.accountStore.accounts.first { $0.id == id }
+        if let account, account.isPendingIdentity,
+           Date().timeIntervalSince(account.addedAt) > 3600 {
+            errorMessage = "Account identity could not be confirmed. Try removing and re-adding this account."
         }
+    }
 
-        // Aggregate locally — fast with caching, and must run on main actor
-        // to avoid data races with FileWatcher's invalidate() calls.
-        let result = aggregator.aggregate(rateLimits: api.rateLimits)
-
-        // Log JSONL corruption metrics after aggregation
+    private func logCorruptionMetrics() {
         let corruptLines = SessionLogReader.shared.lastCorruptLineCount
         if corruptLines > 0 {
             AppLogger.files.warning("JSONL corruption: \(corruptLines) lines skipped or failed to decode")
         }
+    }
 
-        // Adaptive polling: compare key metrics to detect idle periods.
-        let previousTotal = snapshot?.totalMessages ?? -1
-        let previousToday = snapshot?.todayMessages ?? -1
-
-        snapshot = result
-        isLoading = false
-
-        if result.totalMessages == previousTotal && result.todayMessages == previousToday
-            && previousTotal >= 0 {
-            unchangedCycles += 1
-            if unchangedCycles >= Self.adaptiveThreshold {
-                let extended = min(refreshInterval * 2, Self.maxPollingInterval)
-                restartPolling(interval: extended)
-            }
-        } else {
-            unchangedCycles = 0
-            restartPolling(interval: refreshInterval)
-        }
-
-        // Surface error if API returned no data at all (no cached result either)
+    private func updateSnapshot(_ result: UsageSnapshot, api: APIFetchResult) {
         if api.rateLimits == nil && api.profile == nil {
             if result.totalMessages == 0 {
-                // Authenticated but never used Claude Code — don't blame the API
                 errorMessage = "No usage data yet. Start a Claude Code session to see your stats."
             } else {
                 errorMessage = "Unable to reach Anthropic API. Check your internet connection and try again."
@@ -150,15 +146,31 @@ public final class UsageViewModel: ObservableObject {
             errorMessage = nil
         }
 
-        // Check status page alerts for Claude.ai / Claude Code outages
+        snapshot = result
+        isLoading = false
+    }
+
+    private func updateAdaptivePolling(_ result: UsageSnapshot) {
+        let previousTotal = snapshot?.totalMessages ?? -1
+        let previousToday = snapshot?.todayMessages ?? -1
+        let dataChanged = previousTotal < 0
+            || result.totalMessages != previousTotal
+            || result.todayMessages != previousToday
+
+        let interval = adaptivePolling.evaluate(
+            dataChanged: dataChanged,
+            baseInterval: refreshInterval
+        )
+        restartPolling(interval: interval)
+    }
+
+    private func handlePostFetchAlerts(api: APIFetchResult, status: ClaudeSystemStatus) async {
         NotificationManager.shared.checkStatusAlerts(status: status)
 
-        // Check rate limit approaching alerts
         if let limits = api.rateLimits {
             NotificationManager.shared.checkRateLimitAlerts(rateLimits: limits)
         }
 
-        // Check for app updates (rate-limited to once per 24h internally)
         if availableUpdate == nil {
             availableUpdate = await VersionChecker.shared.checkForUpdate()
         }
@@ -195,7 +207,7 @@ public final class UsageViewModel: ObservableObject {
     private func setupFileWatcher() {
         fileWatcher = FileWatcher { [weak self] in
             Task { @MainActor [weak self] in
-                self?.unchangedCycles = 0
+                self?.adaptivePolling.unchangedCycles = 0
                 self?.restartPolling(interval: self?.refreshInterval ?? 60)
                 await self?.refresh()
             }
@@ -224,7 +236,7 @@ public final class UsageViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.unchangedCycles = 0
+                self?.adaptivePolling.unchangedCycles = 0
                 self?.restartPolling(interval: self?.refreshInterval ?? 60)
                 await self?.refresh()
             }
@@ -244,7 +256,7 @@ public final class UsageViewModel: ObservableObject {
     /// Restart the polling timer with the given interval.
     private func restartPolling(interval: TimeInterval) {
         pollingTimer?.invalidate()
-        let clamped = min(max(interval, 10), Self.maxPollingInterval)
+        let clamped = min(max(interval, 10), AdaptivePollingState.maxPollingInterval)
         pollingTimer = Timer.scheduledTimer(withTimeInterval: clamped, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.refresh()
@@ -254,7 +266,7 @@ public final class UsageViewModel: ObservableObject {
     }
 
     func updatePollingInterval(_ interval: TimeInterval) {
-        unchangedCycles = 0
+        adaptivePolling.unchangedCycles = 0
         restartPolling(interval: interval)
     }
 

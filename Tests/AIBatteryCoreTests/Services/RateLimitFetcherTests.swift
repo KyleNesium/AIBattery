@@ -98,4 +98,40 @@ struct RateLimitFetcherTests {
         #expect(result.rateLimits == nil)
         #expect(result.profile == nil)
     }
+
+    // MARK: - parseRetryAfter
+
+    @Test func parseRetryAfter_validDelay() {
+        #expect(RateLimitFetcher.parseRetryAfter("5") == 5.0)
+    }
+
+    @Test func parseRetryAfter_capsAtMax() {
+        #expect(RateLimitFetcher.parseRetryAfter("100") == 30.0)
+    }
+
+    @Test func parseRetryAfter_zero_returnsNil() {
+        #expect(RateLimitFetcher.parseRetryAfter("0") == nil)
+    }
+
+    @Test func parseRetryAfter_negative_returnsNil() {
+        #expect(RateLimitFetcher.parseRetryAfter("-5") == nil)
+    }
+
+    @Test func parseRetryAfter_nonNumeric_returnsNil() {
+        #expect(RateLimitFetcher.parseRetryAfter("abc") == nil)
+    }
+
+    @Test func parseRetryAfter_nil_returnsNil() {
+        #expect(RateLimitFetcher.parseRetryAfter(nil) == nil)
+    }
+
+    @Test func parseRetryAfter_fractional() {
+        let result = RateLimitFetcher.parseRetryAfter("2.5")
+        #expect(result == 2.5)
+    }
+
+    @Test func parseRetryAfter_customMax() {
+        #expect(RateLimitFetcher.parseRetryAfter("20", maxDelay: 10) == 10.0)
+        #expect(RateLimitFetcher.parseRetryAfter("5", maxDelay: 10) == 5.0)
+    }
 }
