@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.1] — 2026-02-25
+
+### Fixed
+- **Layout jump bug** — sections no longer jump to top-left on state changes. Root causes: `.animation()` was scoped to the entire VStack instead of just the ForEach; `withAnimation(.repeatForever)` for auto-mode glow leaked a global repeating animation transaction; `withAnimation` on update check caused global layout animation.
+
+### Improved
+- **Gate views** — `TokenUsageGate` and `ActivityChartGate` now own their `@AppStorage` toggles, preventing parent view redraws when display settings change
+- **TutorialOverlay** — self-managing visibility via own `@AppStorage(hasSeenTutorial)`, parent passes only `hasData: Bool`
+- **Auto-mode glow** — uses scoped `.animation()` modifiers on stroke/shadow views instead of global `withAnimation(.repeatForever)`
+
 ## [1.4.0] — 2026-02-25
 
 ### Improved
