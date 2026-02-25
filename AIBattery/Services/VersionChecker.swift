@@ -131,7 +131,13 @@ public final class VersionChecker {
         }
         if let version = UserDefaults.standard.string(forKey: UserDefaultsKeys.lastUpdateVersion),
            let url = UserDefaults.standard.string(forKey: UserDefaultsKeys.lastUpdateURL) {
-            cachedUpdate = UpdateInfo(version: version, url: url)
+            // Only restore if cached version is still newer than current (avoids stale banner after upgrade)
+            if Self.isNewer(version, than: Self.currentAppVersion) {
+                cachedUpdate = UpdateInfo(version: version, url: url)
+            } else {
+                UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.lastUpdateVersion)
+                UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.lastUpdateURL)
+            }
         }
     }
 
