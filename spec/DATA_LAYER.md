@@ -374,7 +374,7 @@ Pricing table (per million tokens):
 - `stripTag(_:) -> String` — strips leading "v" or "V"
 - `currentAppVersion` — reads `CFBundleShortVersionString` from bundle
 - `UpdateInfo`: `version: String`, `url: String`
-- Cache: `lastCheck: Date?`, `cachedUpdate: UpdateInfo?` — restored from UserDefaults on init (`aibattery_lastUpdateCheck` as Unix timestamp, `aibattery_lastUpdateVersion` + `aibattery_lastUpdateURL`), persisted after each check
+- Cache: `lastCheck: Date?`, `cachedUpdate: UpdateInfo?` — restored from UserDefaults on init (`aibattery_lastUpdateCheck` as Unix timestamp, `aibattery_lastUpdateVersion` + `aibattery_lastUpdateURL`), persisted after each check. On restore, validates cached version against `currentAppVersion` — discards stale entries when the app has been upgraded past the cached version.
 - Timeout: 10 sec
 
 ### SparkleUpdateService (`Services/SparkleUpdateService.swift`)
