@@ -101,15 +101,17 @@ Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/clau
 
 ## 🔄 Update
 
+**In-app:** Click the yellow update button → **Install Update**. Sparkle downloads, verifies, and replaces the app automatically.
+
 **Homebrew:**
 
 ```bash
 brew upgrade --cask aibattery
 ```
 
-**Or** re-run the quick install command — it overwrites the old version in place.
+**DMG:** Download the latest DMG from [Releases](https://github.com/KyleNesium/AIBattery/releases/latest), open it, and drag to Applications — replace when prompted.
 
-**Or** download the latest DMG from [Releases](https://github.com/KyleNesium/AIBattery/releases/latest), open it, and drag to Applications — replace when prompted.
+**Or** re-run the quick install command — it overwrites the old version in place.
 
 > [!NOTE]
 > Your settings and OAuth session carry over automatically.

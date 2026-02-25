@@ -35,11 +35,17 @@ public final class SparkleUpdateService {
         updaterController.updater.canCheckForUpdates
     }
 
-    /// Trigger the Sparkle update flow. Brings the app to front first
-    /// (required for LSUIElement menu bar apps so the dialog appears in front).
+    /// Trigger the Sparkle update flow. Temporarily becomes a regular app
+    /// so Sparkle's dialog appears in front (LSUIElement apps have no dock presence).
     public func checkForUpdates() {
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         updaterController.checkForUpdates(nil)
+
+        // Revert to accessory (menu bar only) after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 
     /// Exposes the underlying updater for testing configuration.

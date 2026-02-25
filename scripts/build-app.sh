@@ -26,6 +26,9 @@ swift scripts/generate-icon.swift .build
 
 echo "Creating .app bundle..."
 cp .build/release/AIBattery "$APP_DIR/Contents/MacOS/AIBattery"
+
+# Add rpath so the binary can find frameworks in Contents/Frameworks at runtime
+install_name_tool -add_rpath @executable_path/../Frameworks "$APP_DIR/Contents/MacOS/AIBattery"
 cp .build/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 cp AIBattery/Info.plist "$APP_DIR/Contents/Info.plist"
@@ -39,6 +42,12 @@ if [ -n "$GIT_TAG" ]; then
   # (Sparkle compares sparkle:version from appcast against CFBundleVersion)
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${VERSION}" "$APP_DIR/Contents/Info.plist"
   echo "Injected version ${VERSION} from tag ${GIT_TAG}"
+fi
+
+# Inject Sparkle EdDSA public key (required for signature verification)
+if [ -n "${SPARKLE_EDDSA_PUBLIC_KEY:-}" ]; then
+  /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string ${SPARKLE_EDDSA_PUBLIC_KEY}" "$APP_DIR/Contents/Info.plist"
+  echo "Injected Sparkle EdDSA public key"
 fi
 
 # Copy entitlements into bundle

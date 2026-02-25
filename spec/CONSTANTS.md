@@ -164,8 +164,8 @@ Pricing per million tokens:
 | Automatic checks | Disabled (`automaticallyChecksForUpdates = false`) |
 | Automatic downloads | Disabled (`automaticallyDownloadsUpdates = false`) |
 | Check interval | 0 (no scheduled checks — user-initiated only) |
-| Trigger | User clicks yellow update button or "Update" banner link |
-| Pre-activation | `NSApp.activate(ignoringOtherApps:)` before showing dialog (LSUIElement workaround) |
+| Trigger | User clicks "Install Update" in banner (falls back to GitHub release if Sparkle not ready) |
+| Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after 1s (LSUIElement workaround) |
 | CI secret | `SPARKLE_EDDSA_KEY` — EdDSA private key for signing release zips |
 
 ## Token Window

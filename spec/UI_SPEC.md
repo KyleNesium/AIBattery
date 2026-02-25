@@ -90,10 +90,14 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 - Gear button: `gearshape`, 11pt, toggles Settings panel
 - Loading spinner: ProgressView at 0.6 scale
 - **Update button** (`arrow.up.circle`, 11pt): three color states, no banner
-  - **Update available** (`viewModel.availableUpdate` exists): button turns `.yellow`, stays yellow. Clicking triggers `SparkleUpdateService.shared.checkForUpdates()` (Sparkle dialog). `.help("vX.Y.Z available")`.
+  - **Update available** (`viewModel.availableUpdate` exists): button turns `.yellow`, stays yellow. Clicking re-shows the update banner (if dismissed). `.help("vX.Y.Z available")`.
   - **Up to date** (`updateCheckMessage` set, no update): button turns `.green` for 2.5s, fades back to `.secondary`.
   - **Default**: `.secondary` color. Clicking triggers `forceCheckForUpdate()`.
-- **Update banner** (below header, when `availableUpdate` exists): "vX.Y.Z available — Update" link triggers Sparkle (was: "View" opening browser)
+- **Update banner** (below header, when `availableUpdate` exists and not dismissed): single-row HStack
+  - Yellow circle icon + **"vX.Y.Z available ↗"** (.caption2, .secondary) — clickable, opens GitHub release page
+  - **"↓ Install Update"** (.caption2, .blue) — tries Sparkle in-app update; falls back to opening GitHub release if Sparkle not ready
+  - **"✕"** dismiss button (.tertiary) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
+  - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
 - Padding: H 16, V 10
 
 ### ❶b Settings (`SettingsRow` — private struct)

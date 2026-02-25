@@ -20,6 +20,7 @@ jobs:
       - name: Build release
         env:
           SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
+          SPARKLE_EDDSA_PUBLIC_KEY: ${{ secrets.SPARKLE_EDDSA_PUBLIC_KEY }}
         run: ./scripts/build-app.sh
 
       - name: Create GitHub Release

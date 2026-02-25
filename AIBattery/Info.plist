@@ -28,7 +28,5 @@
 	<true/>
 	<key>SUFeedURL</key>
 	<string>https://kylenesium.github.io/AIBattery/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>PLACEHOLDER_ED25519_PUBLIC_KEY</string>
 </dict>
 </plist>
