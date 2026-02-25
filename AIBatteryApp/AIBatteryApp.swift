@@ -12,6 +12,8 @@ struct AIBatteryApp: App {
         SingleInstanceGuard.checkQuarantine()
         // Initialize early so status alert deduplication state is ready
         _ = NotificationManager.shared
+        // Initialize Sparkle updater so it's ready when user clicks update
+        _ = SparkleUpdateService.shared
     }
 
     var body: some Scene {

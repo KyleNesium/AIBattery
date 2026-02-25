@@ -447,12 +447,12 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**373 tests** across 28 test files.
+**379 tests** across 29 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 127 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults), health status, metric modes, API profiles, session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode), model pricing, health config |
-| Services | 185 | Version checker (semver comparison, tag stripping, cache behavior, force check, persistence keys), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation), OAuth manager (AuthError messages, transient error classification) |
+| Services | 191 | Version checker (semver comparison, tag stripping, cache behavior, force check, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation), OAuth manager (AuthError messages, transient error classification) |
 | Utilities | 61 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness) |
 
 ## 📄 License

@@ -138,9 +138,8 @@ public struct UsagePopoverView: View {
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.tertiary)
                 Button(action: {
-                    if let update = viewModel.availableUpdate,
-                       let url = URL(string: update.url) {
-                        NSWorkspace.shared.open(url)
+                    if viewModel.availableUpdate != nil {
+                        SparkleUpdateService.shared.checkForUpdates()
                     } else {
                         Task {
                             let result = await VersionChecker.shared.forceCheckForUpdate()
@@ -181,6 +180,34 @@ public struct UsagePopoverView: View {
                 .accessibilityHint(showSettings ? "Close settings" : "Open settings")
             }
 
+            // Update status message (appears/disappears below header row)
+            if let update = viewModel.availableUpdate {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                    Text("v\(update.version) available — ")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Button("Update") {
+                        SparkleUpdateService.shared.checkForUpdates()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+                }
+                .transition(.opacity)
+            } else if let msg = updateCheckMessage {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                    Text(msg)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .transition(.opacity)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

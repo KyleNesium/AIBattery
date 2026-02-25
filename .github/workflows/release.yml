@@ -18,6 +18,8 @@ jobs:
         run: swift test
 
       - name: Build release
+        env:
+          SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
         run: ./scripts/build-app.sh
 
       - name: Create GitHub Release
@@ -27,6 +29,34 @@ jobs:
             .build/AIBattery.zip
             .build/AIBattery.dmg
           generate_release_notes: true
+
+      - name: Generate and deploy appcast
+        if: env.SPARKLE_EDDSA_KEY != ''
+        env:
+          SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./scripts/generate-appcast.sh "$VERSION"
+
+          # Save appcast to temp before switching branches (branch switch loses .build/)
+          cp .build/appcast.xml /tmp/appcast.xml
+
+          # Deploy appcast.xml to gh-pages branch
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch gh-pages if it exists, create orphan if not
+          if git fetch origin gh-pages 2>/dev/null; then
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          cp /tmp/appcast.xml appcast.xml
+          git add appcast.xml
+          git commit -m "Update appcast for v${VERSION}" || true
+          git push origin gh-pages
 
       - name: Update Homebrew cask
         if: env.HOMEBREW_TAP_TOKEN != ''

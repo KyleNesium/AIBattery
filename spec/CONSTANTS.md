@@ -33,6 +33,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Usage Dashboard | `https://platform.claude.com/usage` |
 | Status Page | `https://status.claude.com` |
 | GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
+| Sparkle Appcast | `https://kylenesium.github.io/AIBattery/appcast.xml` |
 
 ## API Configuration
 
@@ -153,6 +154,19 @@ Pricing per million tokens:
 | Cached version key | `aibattery_lastUpdateVersion` (String, semver) |
 | Cached URL key | `aibattery_lastUpdateURL` (String, release page URL) |
 | Persistence | Last check + cached update restored on launch, persisted after each check |
+
+## Sparkle Auto-Update
+
+| Constant | Value |
+|----------|-------|
+| Appcast feed URL | `https://kylenesium.github.io/AIBattery/appcast.xml` (Info.plist `SUFeedURL`) |
+| EdDSA public key | Info.plist `SUPublicEDKey` (Ed25519, generated via Sparkle's `generate_keys`) |
+| Automatic checks | Disabled (`automaticallyChecksForUpdates = false`) |
+| Automatic downloads | Disabled (`automaticallyDownloadsUpdates = false`) |
+| Check interval | 0 (no scheduled checks — user-initiated only) |
+| Trigger | User clicks yellow update button or "Update" banner link |
+| Pre-activation | `NSApp.activate(ignoringOtherApps:)` before showing dialog (LSUIElement workaround) |
+| CI secret | `SPARKLE_EDDSA_KEY` — EdDSA private key for signing release zips |
 
 ## Token Window
 

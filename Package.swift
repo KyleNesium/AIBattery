@@ -9,9 +9,13 @@ let package = Package(
     products: [
         .library(name: "AIBatteryCore", targets: ["AIBatteryCore"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0")
+    ],
     targets: [
         .target(
             name: "AIBatteryCore",
+            dependencies: ["Sparkle"],
             path: "AIBattery",
             exclude: ["Info.plist", "AIBattery.entitlements"]
         ),

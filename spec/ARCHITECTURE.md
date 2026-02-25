@@ -49,7 +49,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 
 ```
 AIBatteryApp/
-  AIBatteryApp.swift              — @main, imports AIBatteryCore, MenuBarExtra with .window style
+  AIBatteryApp.swift              — @main, imports AIBatteryCore, MenuBarExtra with .window style, initializes SparkleUpdateService
 AIBattery/
   Info.plist                      — LSUIElement = YES (no Dock icon)
   AIBattery.entitlements          — App sandbox disabled
@@ -78,6 +78,7 @@ AIBattery/
     NotificationManager.swift     — Status outage + rate limit alerts via osascript
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
     VersionChecker.swift          — GitHub Releases update checker (24h cadence)
+    SparkleUpdateService.swift     — Sparkle 2 wrapper for user-initiated auto-update
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
@@ -128,6 +129,7 @@ Tests/AIBatteryCoreTests/
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
     VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence
+    SparkleUpdateServiceTests.swift — Sparkle configuration verification (auto-check disabled, singleton)
     RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload
     UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup
@@ -138,6 +140,7 @@ Tests/AIBatteryCoreTests/
 scripts/
   build-app.sh                    — Build release binary + .app bundle + zip/dmg
   update-homebrew.sh              — Auto-update KyleNesium/homebrew-tap cask (version + SHA256)
+  generate-appcast.sh            — Generate appcast.xml for Sparkle update feed
   generate-icon.swift             — Generate AppIcon.icns (sparkle star, all macOS sizes)
 project.yml                       — XcodeGen project spec (optional, SPM is primary)
 Package.swift                     — SPM manifest: AIBatteryCore, AIBattery, AIBatteryCoreTests
@@ -152,14 +155,15 @@ CHANGELOG.md                      — Release notes per version
 - **Codesigning**: Ad-hoc (`codesign --sign -`) with hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting without requiring an Apple Developer account
 - **App icon**: Generated at build time via `scripts/generate-icon.swift` (sparkle star, all macOS sizes). Embedded in `Contents/Resources/AppIcon.icns` and used as DMG volume icon.
 - **Dock icon**: None (LSUIElement = true)
-- **Dependencies**: None (Apple frameworks only: SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
+- **Dependencies**: Sparkle 2 (SPM, auto-update framework) — all other dependencies are Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
 
 ## Release Pipeline
 
 1. Tag a version: `git tag v1.x.x && git push --tags`
 2. `release.yml` builds the app, creates a GitHub Release with `.zip` and `.dmg`
-3. `scripts/update-homebrew.sh` auto-updates `KyleNesium/homebrew-tap` — downloads the zip, computes SHA256, commits updated cask formula
-4. Requires `HOMEBREW_TAP_TOKEN` repo secret (GitHub PAT with `repo` scope for the homebrew-tap repo)
+3. `scripts/generate-appcast.sh` generates `appcast.xml` with EdDSA signature, pushes to `gh-pages` branch (requires `SPARKLE_EDDSA_KEY` repo secret)
+4. `scripts/update-homebrew.sh` auto-updates `KyleNesium/homebrew-tap` — downloads the zip, computes SHA256, commits updated cask formula
+5. Requires `HOMEBREW_TAP_TOKEN` and `SPARKLE_EDDSA_KEY` repo secrets (GitHub PAT with `repo` scope for the homebrew-tap repo; Sparkle EdDSA private key for appcast signing)
 
 **Important**: Every release must update the Homebrew cask. The automation handles this when the secret is configured.
 
@@ -170,6 +174,7 @@ CHANGELOG.md                      — Release notes per version
 3. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
 4. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)
 5. `GET https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` — update check (once per 24h)
+6. `GET https://kylenesium.github.io/AIBattery/appcast.xml` — Sparkle update feed (on user-initiated update check)
 
 ## Local File Access (exhaustive)
 
