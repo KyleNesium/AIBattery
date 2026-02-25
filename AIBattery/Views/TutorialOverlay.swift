@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 3-step walkthrough overlay shown on first data load.
 struct TutorialOverlay: View {
+    let hasData: Bool
     @AppStorage(UserDefaultsKeys.hasSeenTutorial) private var hasSeenTutorial = false
     @State private var step = 0
 
@@ -24,6 +25,12 @@ struct TutorialOverlay: View {
     ]
 
     var body: some View {
+        if !hasSeenTutorial && hasData {
+            content
+        }
+    }
+
+    private var content: some View {
         ZStack {
             // Semi-transparent backdrop
             Color.black.opacity(0.4)

@@ -7,9 +7,6 @@ public struct UsagePopoverView: View {
     @State private var isAddingAccount = false
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
-    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
-    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
-    @AppStorage(UserDefaultsKeys.hasSeenTutorial) private var hasSeenTutorial: Bool = false
     @State private var updateCheckMessage: String?
     @State private var updateCheckDismissTask: Task<Void, Never>?
 
@@ -65,7 +62,8 @@ public struct UsagePopoverView: View {
                 metricToggle
                 Divider()
 
-                // Sections reordered: selected metric first, then the other two
+                // Sections reordered: selected metric first, then the other two.
+                // Animation scoped here — only metric sections animate on mode change.
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
@@ -92,23 +90,10 @@ public struct UsagePopoverView: View {
                         }
                     }
                 }
+                .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
 
-                if showTokens && snapshot.totalTokens > 0 {
-                    TokenUsageSection(
-                        snapshot: snapshot,
-                        activeModelId: snapshot.tokenHealth?.model
-                    )
-                    Divider()
-                }
-
-                if showActivity && (!snapshot.dailyActivity.isEmpty || !snapshot.hourCounts.isEmpty) {
-                    ActivityChartView(
-                        dailyActivity: snapshot.dailyActivity,
-                        hourCounts: snapshot.hourCounts,
-                        snapshot: snapshot
-                    )
-                    Divider()
-                }
+                TokenUsageGate(snapshot: snapshot)
+                ActivityChartGate(snapshot: snapshot)
 
                 if snapshot.totalMessages > 0 {
                     InsightsSection(snapshot: snapshot)
@@ -125,11 +110,8 @@ public struct UsagePopoverView: View {
             footerSection
         }
         .frame(width: 275)
-        .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
         .overlay {
-            if !hasSeenTutorial && viewModel.snapshot != nil {
-                TutorialOverlay()
-            }
+            TutorialOverlay(hasData: viewModel.snapshot != nil)
         }
         .onDisappear {
             updateCheckDismissTask?.cancel()
@@ -164,16 +146,12 @@ public struct UsagePopoverView: View {
                             let result = await VersionChecker.shared.forceCheckForUpdate()
                             viewModel.availableUpdate = result
                             if result == nil {
-                                withAnimation(.easeOut(duration: 0.15)) {
-                                    updateCheckMessage = "Up to date"
-                                }
+                                updateCheckMessage = "Up to date"
                                 updateCheckDismissTask?.cancel()
                                 updateCheckDismissTask = Task {
                                     try? await Task.sleep(nanoseconds: 2_500_000_000)
                                     guard !Task.isCancelled else { return }
-                                    withAnimation(.easeOut(duration: 0.2)) {
-                                        updateCheckMessage = nil
-                                    }
+                                    updateCheckMessage = nil
                                 }
                             } else {
                                 updateCheckMessage = nil
@@ -358,11 +336,13 @@ public struct UsagePopoverView: View {
                 .overlay(
                     Circle()
                         .stroke(autoMetricMode ? Color.blue.opacity(autoGlowing ? 0.8 : 0.3) : Color.secondary.opacity(0.2), lineWidth: 1.5)
+                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)
                 )
                 .shadow(
                     color: autoMetricMode ? Color.blue.opacity(autoGlowing ? 0.5 : 0.1) : .clear,
                     radius: autoGlowing ? 5 : 1
                 )
+                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)
                 .padding(6)
                 .contentShape(Circle())
         }
@@ -372,22 +352,10 @@ public struct UsagePopoverView: View {
         .accessibilityHint("Automatically shows the highest usage metric")
         .help(autoMetricMode ? "Auto mode: showing highest metric" : "Enable auto mode")
         .onChange(of: autoMetricMode) { active in
-            if active {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    autoGlowing = true
-                }
-            } else {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    autoGlowing = false
-                }
-            }
+            autoGlowing = active
         }
         .onAppear {
-            if autoMetricMode {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    autoGlowing = true
-                }
-            }
+            autoGlowing = autoMetricMode
         }
     }
 
@@ -503,6 +471,41 @@ public struct UsagePopoverView: View {
         case .majorOutage: return "Major outage"
         case .maintenance: return "Under maintenance"
         case .unknown, .none: return "Check system status"
+        }
+    }
+}
+
+// MARK: - Gate views (own their @AppStorage to avoid parent redraws)
+
+/// Shows token usage section only when the "Tokens" toggle is on.
+private struct TokenUsageGate: View {
+    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens = true
+    let snapshot: UsageSnapshot
+
+    var body: some View {
+        if showTokens && snapshot.totalTokens > 0 {
+            TokenUsageSection(
+                snapshot: snapshot,
+                activeModelId: snapshot.tokenHealth?.model
+            )
+            Divider()
+        }
+    }
+}
+
+/// Shows activity chart only when the "Activity" toggle is on.
+private struct ActivityChartGate: View {
+    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity = true
+    let snapshot: UsageSnapshot
+
+    var body: some View {
+        if showActivity && (!snapshot.dailyActivity.isEmpty || !snapshot.hourCounts.isEmpty) {
+            ActivityChartView(
+                dailyActivity: snapshot.dailyActivity,
+                hourCounts: snapshot.hourCounts,
+                snapshot: snapshot
+            )
+            Divider()
         }
     }
 }
