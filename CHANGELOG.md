@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] — 2026-02-25
+
+### Improved
+- **Update button indicator** — replaced the "vX.Y.Z available" banner below the header with persistent button color states: yellow when an update is available (click opens release page), green flash when up to date, gray default
+
+### Removed
+- Update banner and "Up to date" text block below header (button color now communicates state)
+
 ## [1.3.0] — 2026-02-23
 
 ### Added
