@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>AI Battery</title>
+    <link>https://kylenesium.github.io/AIBattery/appcast.xml</link>
+    <description>AI Battery update feed</description>
+    <language>en</language>
+    <item>
+      <title>Version 1.5.0</title>
+      <sparkle:version>1.5.0</sparkle:version>
+      <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/KyleNesium/AIBattery/releases/download/v1.5.0/AIBattery.zip"
+        sparkle:edSignature="og6id7RWYSawyeOVJ7Oyee/iME6VT5TcNaVI5ZjhyzMAMcSZr2pleWAfD28JYkb2AbEWstINLimY8x/WJisaAA=="
+        length="2487541"
+        type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>
