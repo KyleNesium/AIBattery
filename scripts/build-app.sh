@@ -90,15 +90,15 @@ if [ -n "${SPARKLE_EDDSA_KEY:-}" ]; then
   echo "EdDSA-signing zip for Sparkle..."
   SIGN_UPDATE=""
 
-  # Try to find sign_update from SPM build artifacts
-  SIGN_UPDATE=$(find .build/artifacts -name "sign_update" -type f 2>/dev/null | head -n1 || true)
+  # Try to find sign_update from SPM build artifacts (exclude deprecated DSA script)
+  SIGN_UPDATE=$(find .build/artifacts -name "sign_update" -not -path "*/old_dsa_scripts/*" -type f 2>/dev/null | head -n1 || true)
   if [ -z "$SIGN_UPDATE" ]; then
     # Fall back to Sparkle's installed location
     SIGN_UPDATE=$(command -v sign_update 2>/dev/null || true)
   fi
 
   if [ -n "$SIGN_UPDATE" ]; then
-    SIGNATURE=$(echo "$SPARKLE_EDDSA_KEY" | "$SIGN_UPDATE" .build/AIBattery.zip --ed-key-file - 2>&1)
+    SIGNATURE=$(echo "$SPARKLE_EDDSA_KEY" | "$SIGN_UPDATE" .build/AIBattery.zip --ed-key-file -)
     echo "$SIGNATURE" > .build/sparkle-signature.txt
     echo "Sparkle signature saved to .build/sparkle-signature.txt"
   else
