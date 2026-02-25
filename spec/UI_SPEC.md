@@ -66,14 +66,13 @@ UsagePopoverView (275px, VStack)
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
 │   └── TokenHealthSection (if topSessionHealths or tokenHealth)
-├── TutorialOverlay (if !hasSeenTutorial && snapshot != nil)
-├── TokenUsageSection (includes per-model breakdown)
-├── Divider
-├── ActivityChartView (if dailyActivity or hourCounts)
-├── Divider
+│   └── .animation(.easeInOut(duration: 0.15), value: metricModeRaw) ← scoped to ForEach only
+├── TokenUsageGate (owns showTokens @AppStorage, conditionally renders TokenUsageSection)
+├── ActivityChartGate (owns showActivity @AppStorage, conditionally renders ActivityChartView)
 ├── InsightsSection (Today + All Time stats)
 ├── Divider
-└── footerSection
+├── footerSection
+└── .overlay { TutorialOverlay(hasData:) } — self-managing visibility via own @AppStorage
 ```
 
 Conditional states (mutually exclusive with content): Loading | Error | Empty
@@ -128,7 +127,7 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence.
   - Syncs with `SMAppService.mainApp.status` on appear
 **Animations**:
 - Settings toggle: `withAnimation(.easeInOut(duration: 0.2))` + `.transition(.opacity.combined(with: .move(edge: .top)))`
-- Metric mode changes: `.animation(.easeInOut(duration: 0.15), value: metricModeRaw)`
+- Metric mode changes: `.animation(.easeInOut(duration: 0.15), value: metricModeRaw)` — scoped to ForEach block only, not entire VStack
 - Account switch: `withAnimation(.easeInOut(duration: 0.2))`
 
 Values propagate to header + menu bar immediately via `@AppStorage` (settings) and `@Published` (account names).
@@ -140,12 +139,19 @@ Padding: H 16, V 10
 HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
 
 **Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
-- **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse: `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)`.
+- **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse via scoped `.animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)` on stroke/shadow views only (never `withAnimation` — leaks global repeating transaction).
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Picker dims to 0.4 opacity and is disabled when auto mode is active.
 - **Behavior**: auto mode picks whichever metric (5h/7d/context) has the highest percentage via `snapshot.autoResolvedMode` (computed property on `UsageSnapshot`). Applied in both popover and menu bar label.
 
 Padding: H 16, V 10
+
+### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
+
+Each gate view owns a single `@AppStorage` toggle and conditionally renders its content section. This isolates toggle-flip redraws from the parent view.
+
+- **`TokenUsageGate`**: owns `showTokens`. Renders `TokenUsageSection` + `Divider` when `showTokens && snapshot.totalTokens > 0`.
+- **`ActivityChartGate`**: owns `showActivity`. Renders `ActivityChartView` + `Divider` when `showActivity` and activity data is available.
 
 ### MarqueeText (`Views/MarqueeText.swift`)
 
@@ -331,7 +337,7 @@ HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monosp
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)
 
-3-step walkthrough shown on first data load (`!hasSeenTutorial && snapshot != nil`):
+Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` — parent passes only `hasData: Bool`. Renders when `!hasSeenTutorial && hasData`.
 
 1. **Rate Limits** — explains 5h/7d bars and binding constraint
 2. **Context Health** — explains session monitoring and bands
@@ -340,7 +346,7 @@ HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monosp
 - Semi-transparent backdrop (`Color.black.opacity(0.4)`)
 - Centered card with `.regularMaterial` background, 12pt corner radius, max 280pt width
 - Step indicators: 3 dots (active = blue, inactive = secondary 0.3)
-- Action button: "Next" / "Get Started" (`.borderedProminent`)
+- Action button: "Next" / "Get Started" (`.borderedProminent`), "Skip" (.plain, .secondary) on non-final steps
 - Sets `hasSeenTutorial = true` on dismiss
 
 ## Color Rules
