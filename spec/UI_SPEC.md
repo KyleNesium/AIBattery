@@ -90,10 +90,10 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
   - `.menuStyle(.borderlessButton)`, `.fixedSize()`
 - Gear button: `gearshape`, 11pt, toggles Settings panel
 - Loading spinner: ProgressView at 0.6 scale
-- **Update status indicator** (shown below title row, mutually exclusive with "Up to date"):
-  - If `viewModel.availableUpdate` exists: yellow `arrow.down.circle.fill` (9pt) + `"vX.Y.Z available"` (.caption2, .secondary, lineLimit 1) + "View" button (.caption2, .blue, opens release URL). Persistent until next check clears it.
-  - If `updateCheckMessage` set and no update: green `checkmark.circle.fill` (9pt) + message (.caption2, .secondary). Auto-dismisses after 2.5s.
-  - Both use `.transition(.opacity.combined(with: .move(edge: .top)))`, `.padding(.leading, 1)`
+- **Update button** (`arrow.up.circle`, 11pt): three color states, no banner
+  - **Update available** (`viewModel.availableUpdate` exists): button turns `.yellow`, stays yellow. Clicking opens release URL in browser. `.help("vX.Y.Z available")`.
+  - **Up to date** (`updateCheckMessage` set, no update): button turns `.green` for 2.5s, fades back to `.secondary`.
+  - **Default**: `.secondary` color. Clicking triggers `forceCheckForUpdate()`.
 - Padding: H 16, V 10
 
 ### ❶b Settings (`SettingsRow` — private struct)

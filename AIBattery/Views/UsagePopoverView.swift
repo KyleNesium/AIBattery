@@ -156,23 +156,28 @@ public struct UsagePopoverView: View {
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.tertiary)
                 Button(action: {
-                    Task {
-                        let result = await VersionChecker.shared.forceCheckForUpdate()
-                        viewModel.availableUpdate = result
-                        if result == nil {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                updateCheckMessage = "Up to date"
-                            }
-                            updateCheckDismissTask?.cancel()
-                            updateCheckDismissTask = Task {
-                                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                                guard !Task.isCancelled else { return }
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    updateCheckMessage = nil
+                    if let update = viewModel.availableUpdate,
+                       let url = URL(string: update.url) {
+                        NSWorkspace.shared.open(url)
+                    } else {
+                        Task {
+                            let result = await VersionChecker.shared.forceCheckForUpdate()
+                            viewModel.availableUpdate = result
+                            if result == nil {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    updateCheckMessage = "Up to date"
                                 }
+                                updateCheckDismissTask?.cancel()
+                                updateCheckDismissTask = Task {
+                                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                    guard !Task.isCancelled else { return }
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        updateCheckMessage = nil
+                                    }
+                                }
+                            } else {
+                                updateCheckMessage = nil
                             }
-                        } else {
-                            updateCheckMessage = nil
                         }
                     }
                 }) {
@@ -180,9 +185,13 @@ public struct UsagePopoverView: View {
                         .font(.system(size: 11, weight: .medium))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(viewModel.availableUpdate != nil ? ThemeColors.chartAccent : .secondary)
-                .help("Check for updates")
-                .accessibilityLabel("Check for updates")
+                .foregroundStyle(
+                    viewModel.availableUpdate != nil ? .yellow
+                    : updateCheckMessage != nil ? .green
+                    : .secondary
+                )
+                .help(viewModel.availableUpdate.map { "v\($0.version) available" } ?? "Check for updates")
+                .accessibilityLabel(viewModel.availableUpdate.map { "Version \($0.version) available" } ?? "Check for updates")
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() } }) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 11, weight: .medium))
@@ -194,41 +203,6 @@ public struct UsagePopoverView: View {
                 .accessibilityHint(showSettings ? "Close settings" : "Open settings")
             }
 
-            // Update status indicator
-            if let update = viewModel.availableUpdate {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.yellow)
-                    Text("v\(update.version) available")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Button("View") {
-                        if let url = URL(string: update.url) {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .font(.caption2)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.blue)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Version \(update.version) available")
-                .transition(.opacity.combined(with: .move(edge: .top)))
-                .padding(.leading, 1)
-            } else if let msg = updateCheckMessage {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.green)
-                    Text(msg)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-                .padding(.leading, 1)
-            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
