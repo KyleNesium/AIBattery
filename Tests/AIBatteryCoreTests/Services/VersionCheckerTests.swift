@@ -195,21 +195,13 @@ struct VersionCheckerTests {
 
     // MARK: - Persistence keys
 
-    @Test @MainActor func restoreFromDefaults_discardsStaleVersion() {
-        // Simulate: user upgraded from 1.4.1 to 1.5.0 but cache still says 1.4.1 available
-        let defaults = UserDefaults.standard
-        defaults.set("1.4.1", forKey: UserDefaultsKeys.lastUpdateVersion)
-        defaults.set("https://example.com/v1.4.1", forKey: UserDefaultsKeys.lastUpdateURL)
-        defaults.set(Date().timeIntervalSince1970, forKey: UserDefaultsKeys.lastUpdateCheck)
-
-        // VersionChecker.isNewer("1.4.1", than: currentAppVersion) should be false
-        // when currentAppVersion >= 1.4.1, so cachedUpdate should NOT be restored
-        #expect(!VersionChecker.isNewer("1.4.1", than: VersionChecker.currentAppVersion))
-
-        // Clean up
-        defaults.removeObject(forKey: UserDefaultsKeys.lastUpdateVersion)
-        defaults.removeObject(forKey: UserDefaultsKeys.lastUpdateURL)
-        defaults.removeObject(forKey: UserDefaultsKeys.lastUpdateCheck)
+    @Test func isNewer_staleCacheScenario() {
+        // After upgrading 1.4.1 → 1.5.0, cached "1.4.1" is not newer than current "1.5.0"
+        #expect(!VersionChecker.isNewer("1.4.1", than: "1.5.0"))
+        // Same version is not newer
+        #expect(!VersionChecker.isNewer("1.5.0", than: "1.5.0"))
+        // Actual newer version should still be detected
+        #expect(VersionChecker.isNewer("1.6.0", than: "1.5.0"))
     }
 
     @Test func persistenceKeys_areUnique() {
