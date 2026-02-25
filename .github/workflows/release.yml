@@ -61,6 +61,12 @@ jobs:
           git commit -m "Update appcast for v${VERSION}" || true
           git push origin gh-pages
 
+      - name: Restore source checkout
+        if: env.SPARKLE_EDDSA_KEY != ''
+        env:
+          SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
+        run: git checkout "$GITHUB_REF_NAME"
+
       - name: Update Homebrew cask
         if: env.HOMEBREW_TAP_TOKEN != ''
         env:
