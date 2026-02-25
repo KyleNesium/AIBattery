@@ -93,10 +93,11 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
   - **Update available** (`viewModel.availableUpdate` exists): button turns `.yellow`, stays yellow. Clicking re-shows the update banner (if dismissed). `.help("vX.Y.Z available")`.
   - **Up to date** (`updateCheckMessage` set, no update): button turns `.green` for 2.5s, fades back to `.secondary`.
   - **Default**: `.secondary` color. Clicking triggers `forceCheckForUpdate()`.
-- **Update banner** (below header, when `availableUpdate` exists and not dismissed): single-row HStack
-  - Yellow circle icon + **"vX.Y.Z available ↗"** (.caption2, .secondary) — clickable, opens GitHub release page
+- **Update banner** (below header, when `availableUpdate` exists and not dismissed): bordered card, single-row HStack
+  - Background: `RoundedRectangle(cornerRadius: 6)` with `Color.yellow.opacity(0.08)` fill and `Color.yellow.opacity(0.25)` 1pt stroke, 8pt padding
+  - Yellow circle icon + **"vX.Y.Z ↗"** (.caption2, .secondary) — clickable, opens GitHub release page
   - **"↓ Install Update"** (.caption2, .blue) — tries Sparkle in-app update; falls back to opening GitHub release if Sparkle not ready
-  - **"✕"** dismiss button (.tertiary) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
+  - **"✕"** dismiss button (xmark.circle.fill, 14pt, .secondary) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
   - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
 - Padding: H 16, V 10
 

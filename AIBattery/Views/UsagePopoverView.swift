@@ -202,6 +202,7 @@ public struct UsagePopoverView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Version \(update.version) release notes")
                     Button(action: {
                         if SparkleUpdateService.shared.canCheckForUpdates {
                             SparkleUpdateService.shared.checkForUpdates()
@@ -218,6 +219,7 @@ public struct UsagePopoverView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.blue)
+                    .accessibilityLabel("Install update version \(update.version)")
                     Spacer()
                     Button(action: { updateBannerDismissed = true }) {
                         Image(systemName: "xmark.circle.fill")
@@ -226,6 +228,7 @@ public struct UsagePopoverView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Dismiss")
+                    .accessibilityLabel("Dismiss update banner")
                 }
                 .padding(8)
                 .background(
