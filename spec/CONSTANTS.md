@@ -138,7 +138,6 @@ Pricing per million tokens:
 | Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
 | Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
-| Show sparkline | `aibattery_showSparkline` (Bool, default false) |
 
 ## Launch at Login
 

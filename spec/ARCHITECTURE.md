@@ -85,9 +85,8 @@ AIBattery/
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
-    MenuBarLabel.swift            — ✦ icon + optional sparkline + percentage in menu bar
+    MenuBarLabel.swift            — ✦ icon + percentage in menu bar
     MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color, band-based NSImage cache)
-    MenuBarSparkline.swift        — 24-hour activity sparkline NSImage for menu bar (hash-based cache)
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     AuthView.swift                 — OAuth login/paste-code screen
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
@@ -142,8 +141,6 @@ Tests/AIBatteryCoreTests/
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload
     UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup
     OAuthManagerTests.swift       — AuthError user messages, transient error classification
-  Views/
-    MenuBarSparklineTests.swift   — hash consistency, data detection, missing hours, empty data
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)

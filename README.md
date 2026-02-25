@@ -163,7 +163,6 @@ AI Battery makes a minimal API call each refresh cycle to read your rate limit h
 
 ```
 ✦ 71%                 ← menu bar: selected metric
-✦ ▁▃▅▇▅▂ 71%          ← with optional sparkline (Settings → Sparkline)
 ```
 
 Click the ✦ icon to open the dashboard:
@@ -256,7 +255,6 @@ Click ⚙️ in the header to configure:
 | 🔁 **Auto mode** | Always show the highest metric (pulsing blue button on metric toggle) |
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | 🤖 **Models** | Only show models used within period: 1–7 days or All |
-| 📊 **Sparkline** | 24-hour activity sparkline in the menu bar |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
 | 💲 **Cost*** | Show equivalent API token rates |
 | 🔔 **Alerts** | Notify on Claude.ai / Claude Code outages |
@@ -451,14 +449,13 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**404 tests** across 31 test files.
+**399 tests** across 30 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 127 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults), health status, metric modes, API profiles, session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode), model pricing, health config |
 | Services | 198 | Version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
 | Utilities | 74 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, caps, reset) |
-| Views | 5 | MenuBarSparkline (hash consistency, different data detection, missing hours, empty data) |
 
 ## 📄 License
 

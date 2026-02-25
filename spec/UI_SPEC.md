@@ -63,7 +63,7 @@ UsagePopoverView (275px, VStack)
 ├── SettingsRow (if showSettings — toggled by gear icon)
 │   ├── Account name rows (depend on accountStore — stay in parent)
 │   ├── RefreshSettingsSection — owns refreshInterval, launchAtLogin
-│   ├── DisplaySettingsSection — owns tokenWindowDays, showTokens, showActivity, colorblindMode, showCostEstimate, showSparkline
+│   ├── DisplaySettingsSection — owns tokenWindowDays, showTokens, showActivity, colorblindMode, showCostEstimate
 │   └── AlertSettingsSection — owns alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold
 ├── Divider
 ├── metricToggle (auto "A" circle button left + segmented picker: 5-Hour | 7-Day | Context)
@@ -119,7 +119,7 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
   - Syncs with `SMAppService.mainApp.status` on appear
 
-**`DisplaySettingsSection`** (owns `tokenWindowDays`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`, `showSparkline`):
+**`DisplaySettingsSection`** (owns `tokenWindowDays`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
 - **Models**: Slider (1–8, step 1) → `aibattery_tokenWindowDays` (1–7 = days, 8 maps to 0 = All time)
   - Display: `"All"` when stored value is 0, `"{value}d"` when 1–7
   - Slider positions: 1d, 2d, 3d, 4d, 5d, 6d, 7d, All (left to right)
@@ -127,7 +127,6 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 - **Display**: Checkboxes
   - "Tokens" → `aibattery_showTokens`; "Activity" → `aibattery_showActivity`
   - "Colorblind" → `aibattery_colorblindMode`; "Cost*" → `aibattery_showCostEstimate`
-  - "Sparkline" → `aibattery_showSparkline` — toggles 24h activity sparkline in menu bar
   - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
 
 **`AlertSettingsSection`** (owns `alertClaudeAI`, `alertClaudeCode`, `alertRateLimit`, `rateLimitThreshold`):
@@ -328,21 +327,9 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 
 ### MenuBarLabel (`Views/MenuBarLabel.swift`)
 
-HStack(spacing: 4): `MenuBarIcon` + optional `MenuBarSparkline` + percentage text (11pt, medium weight, monospaced)
+HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monospaced)
 
-- **Sparkline**: shown when `aibattery_showSparkline` is true and `hourCounts` is non-empty
 - **Staleness**: percentage text dims to 50% opacity when last fresh fetch > 5 minutes ago
-
-### MenuBarSparkline (`Views/MenuBarSparkline.swift`)
-
-24-hour activity sparkline rendered as an NSImage in the menu bar.
-
-- 36×11pt NSImage, `isTemplate = false` — explicit dark/light colors (matches MenuBarIcon approach)
-- Dark mode: white at 85% opacity; Light mode: black at 60% opacity
-- 24 vertical bars (one per hour 0–23), 0.25pt gap between bars
-- Bar height proportional to max count; zero-count hours render no bar; bars grow upward from baseline
-- **Hash + appearance caching**: `static func dataHash(_ hourCounts:) -> Int` computes a deterministic hash over all 24 hours (missing hours default to 0). Image re-rendered when hash or system appearance changes.
-- `.accessibilityLabel("24-hour activity")`
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
 

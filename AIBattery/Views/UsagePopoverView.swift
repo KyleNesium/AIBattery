@@ -735,8 +735,6 @@ private struct DisplaySettingsSection: View {
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
     @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
-    @AppStorage(UserDefaultsKeys.showSparkline) private var showSparkline: Bool = false
-
     var body: some View {
         // Models window (slider 1–8; 1–7 = days, 8 = all time stored as 0)
         VStack(spacing: 2) {
@@ -781,13 +779,6 @@ private struct DisplaySettingsSection: View {
             Toggle("Cost*", isOn: $showCostEstimate)
                 .toggleStyle(.checkbox)
                 .font(.caption)
-        }
-        HStack(spacing: 8) {
-            Spacer().frame(width: 50)
-            Toggle("Sparkline", isOn: $showSparkline)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-                .help("Show 24-hour activity sparkline in the menu bar")
         }
         HStack(spacing: 8) {
             Spacer().frame(width: 50)
