@@ -7,7 +7,6 @@ struct MenuBarSparkline: View {
 
     var body: some View {
         Image(nsImage: Self.cachedSparkline(for: hourCounts))
-            .renderingMode(.template)
             .accessibilityLabel("24-hour activity")
     }
 
@@ -15,15 +14,18 @@ struct MenuBarSparkline: View {
 
     private static var cachedImage: NSImage?
     private static var cachedHash: Int = 0
+    private static var cachedAppearance: String = ""
 
     private static func cachedSparkline(for hourCounts: [String: Int]) -> NSImage {
         let hash = dataHash(hourCounts)
-        if let cached = cachedImage, cachedHash == hash {
+        let appearance = NSApp.effectiveAppearance.name.rawValue
+        if let cached = cachedImage, cachedHash == hash, cachedAppearance == appearance {
             return cached
         }
         let image = renderSparkline(hourCounts: hourCounts)
         cachedImage = image
         cachedHash = hash
+        cachedAppearance = appearance
         return image
     }
 
@@ -48,7 +50,11 @@ struct MenuBarSparkline: View {
         let maxCount = counts.max() ?? 0
 
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
-            let color = NSColor.labelColor
+            // Use menu bar foreground color — matches MenuBarIcon approach (no isTemplate).
+            let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let color = isDark
+                ? NSColor.white.withAlphaComponent(0.85)
+                : NSColor.black.withAlphaComponent(0.60)
 
             for (i, count) in counts.enumerated() {
                 let x = CGFloat(i) * (barWidth + gap)
@@ -59,14 +65,14 @@ struct MenuBarSparkline: View {
                     barHeight = 0
                 }
                 if barHeight > 0 {
-                    let barRect = NSRect(x: x, y: rect.height - barHeight, width: barWidth, height: barHeight)
+                    let barRect = NSRect(x: x, y: 0, width: barWidth, height: barHeight)
                     color.setFill()
                     NSBezierPath(rect: barRect).fill()
                 }
             }
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = false
         return image
     }
 }

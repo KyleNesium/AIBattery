@@ -337,10 +337,11 @@ HStack(spacing: 4): `MenuBarIcon` + optional `MenuBarSparkline` + percentage tex
 
 24-hour activity sparkline rendered as an NSImage in the menu bar.
 
-- 36×11pt NSImage, `isTemplate = true` (adapts to dark/light mode)
+- 36×11pt NSImage, `isTemplate = false` — explicit dark/light colors (matches MenuBarIcon approach)
+- Dark mode: white at 85% opacity; Light mode: black at 60% opacity
 - 24 vertical bars (one per hour 0–23), 0.25pt gap between bars
-- Bar height proportional to max count; zero-count hours render no bar
-- **Hash-based caching**: `static func dataHash(_ hourCounts:) -> Int` computes a deterministic hash over all 24 hours (missing hours default to 0). Image only re-rendered when hash changes.
+- Bar height proportional to max count; zero-count hours render no bar; bars grow upward from baseline
+- **Hash + appearance caching**: `static func dataHash(_ hourCounts:) -> Int` computes a deterministic hash over all 24 hours (missing hours default to 0). Image re-rendered when hash or system appearance changes.
 - `.accessibilityLabel("24-hour activity")`
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
