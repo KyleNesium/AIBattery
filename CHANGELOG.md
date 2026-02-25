@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0] — 2026-02-25
+
+### Added
+- **Sparkle auto-update** — in-app download, verify, and install via Sparkle 2. Click "Install Update" in the update banner to update without leaving the app. Falls back to GitHub release page if Sparkle is not ready.
+- **Update banner redesign** — bordered card with version link (opens release page), Install Update button, and dismiss (✕). Yellow icon re-shows the banner after dismiss.
+- **EdDSA signing** — release pipeline signs zips and generates appcast.xml, deployed to gh-pages for Sparkle feed
+- `SparkleUpdateServiceTests` — 8 tests for Sparkle configuration verification
+
+### Changed
+- Build script bundles Sparkle.framework into `.app/Contents/Frameworks/` with proper rpath and codesigning
+- Release workflow deploys appcast.xml to gh-pages branch on each tagged release
+
 ## [1.4.1] — 2026-02-25
 
 ### Fixed

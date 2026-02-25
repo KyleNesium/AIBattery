@@ -17,14 +17,16 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.4.1</string>
+	<string>1.5.0</string>
 	<key>CFBundleVersion</key>
-	<string>13</string>
+	<string>1.5.0</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>https://kylenesium.github.io/AIBattery/appcast.xml</string>
 </dict>
 </plist>

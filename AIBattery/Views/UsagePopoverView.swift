@@ -9,6 +9,7 @@ public struct UsagePopoverView: View {
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
     @State private var updateCheckMessage: String?
     @State private var updateCheckDismissTask: Task<Void, Never>?
+    @State private var updateBannerDismissed = false
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -138,9 +139,8 @@ public struct UsagePopoverView: View {
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.tertiary)
                 Button(action: {
-                    if let update = viewModel.availableUpdate,
-                       let url = URL(string: update.url) {
-                        NSWorkspace.shared.open(url)
+                    if viewModel.availableUpdate != nil {
+                        updateBannerDismissed = false
                     } else {
                         Task {
                             let result = await VersionChecker.shared.forceCheckForUpdate()
@@ -181,6 +181,77 @@ public struct UsagePopoverView: View {
                 .accessibilityHint(showSettings ? "Close settings" : "Open settings")
             }
 
+            // Update status message (appears/disappears below header row)
+            if let update = viewModel.availableUpdate, !updateBannerDismissed {
+                HStack(spacing: 6) {
+                    Button(action: {
+                        if let url = URL(string: update.url) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.yellow)
+                            Text("v\(update.version)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 6))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Version \(update.version) release notes")
+                    Button(action: {
+                        if SparkleUpdateService.shared.canCheckForUpdates {
+                            SparkleUpdateService.shared.checkForUpdates()
+                        } else if let url = URL(string: update.url) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.down.circle")
+                                .font(.system(size: 9))
+                            Text("Install Update")
+                                .font(.caption2)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+                    .accessibilityLabel("Install update version \(update.version)")
+                    Spacer()
+                    Button(action: { updateBannerDismissed = true }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Dismiss")
+                    .accessibilityLabel("Dismiss update banner")
+                }
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.yellow.opacity(0.08))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.yellow.opacity(0.25), lineWidth: 1)
+                        )
+                )
+                .padding(.horizontal, -2)
+                .transition(.opacity)
+            } else if let msg = updateCheckMessage {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                    Text(msg)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .transition(.opacity)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

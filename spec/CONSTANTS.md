@@ -33,6 +33,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Usage Dashboard | `https://platform.claude.com/usage` |
 | Status Page | `https://status.claude.com` |
 | GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
+| Sparkle Appcast | `https://kylenesium.github.io/AIBattery/appcast.xml` |
 
 ## API Configuration
 
@@ -153,6 +154,20 @@ Pricing per million tokens:
 | Cached version key | `aibattery_lastUpdateVersion` (String, semver) |
 | Cached URL key | `aibattery_lastUpdateURL` (String, release page URL) |
 | Persistence | Last check + cached update restored on launch, persisted after each check |
+
+## Sparkle Auto-Update
+
+| Constant | Value |
+|----------|-------|
+| Appcast feed URL | `https://kylenesium.github.io/AIBattery/appcast.xml` (Info.plist `SUFeedURL`) |
+| EdDSA public key | Info.plist `SUPublicEDKey` — injected at build time via `SPARKLE_EDDSA_PUBLIC_KEY` env var (not committed to source) |
+| Automatic checks | Disabled (`automaticallyChecksForUpdates = false`) |
+| Automatic downloads | Disabled (`automaticallyDownloadsUpdates = false`) |
+| Check interval | 0 (no scheduled checks — user-initiated only) |
+| Trigger | User clicks "Install Update" in banner (falls back to GitHub release if Sparkle not ready) |
+| Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after 5s (LSUIElement workaround) |
+| Entitlement | `com.apple.security.cs.disable-library-validation` — required for ad-hoc signed builds to load Sparkle.framework |
+| CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
 ## Token Window
 

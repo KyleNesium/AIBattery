@@ -377,6 +377,17 @@ Pricing table (per million tokens):
 - Cache: `lastCheck: Date?`, `cachedUpdate: UpdateInfo?` — restored from UserDefaults on init (`aibattery_lastUpdateCheck` as Unix timestamp, `aibattery_lastUpdateVersion` + `aibattery_lastUpdateURL`), persisted after each check
 - Timeout: 10 sec
 
+### SparkleUpdateService (`Services/SparkleUpdateService.swift`)
+- Singleton: `.shared`
+- Wraps `SPUStandardUpdaterController` from Sparkle 2
+- Disables all automatic behavior: `automaticallyChecksForUpdates = false`, `automaticallyDownloadsUpdates = false`, `updateCheckInterval = 0`
+- `checkForUpdates()` — temporarily sets `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)` (LSUIElement workaround), reverts to `.accessory` after 5s, then triggers Sparkle's standard update dialog
+- `canCheckForUpdates: Bool` — exposes Sparkle readiness
+- Testable init accepts pre-configured controller
+- Sparkle reads `SUFeedURL` and `SUPublicEDKey` from Info.plist
+- Feed URL: `https://kylenesium.github.io/AIBattery/appcast.xml`
+- EdDSA verification: Sparkle verifies download signature against `SUPublicEDKey` before installing
+
 ### LaunchAtLoginManager (`Services/LaunchAtLoginManager.swift`)
 - Enum (no instances)
 - `isEnabled: Bool` — reads `SMAppService.mainApp.status`

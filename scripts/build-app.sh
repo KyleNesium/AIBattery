@@ -19,12 +19,16 @@ fi
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
+mkdir -p "$APP_DIR/Contents/Frameworks"
 
 echo "Generating app icon..."
 swift scripts/generate-icon.swift .build
 
 echo "Creating .app bundle..."
 cp .build/release/AIBattery "$APP_DIR/Contents/MacOS/AIBattery"
+
+# Add rpath so the binary can find frameworks in Contents/Frameworks at runtime
+install_name_tool -add_rpath @executable_path/../Frameworks "$APP_DIR/Contents/MacOS/AIBattery"
 cp .build/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 cp AIBattery/Info.plist "$APP_DIR/Contents/Info.plist"
@@ -34,14 +38,50 @@ GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || true)
 if [ -n "$GIT_TAG" ]; then
   VERSION="${GIT_TAG#v}"
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "$APP_DIR/Contents/Info.plist"
+  # Align CFBundleVersion with semver so Sparkle's version comparison works correctly
+  # (Sparkle compares sparkle:version from appcast against CFBundleVersion)
+  /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${VERSION}" "$APP_DIR/Contents/Info.plist"
   echo "Injected version ${VERSION} from tag ${GIT_TAG}"
+fi
+
+# Inject Sparkle EdDSA public key (required for signature verification)
+if [ -n "${SPARKLE_EDDSA_PUBLIC_KEY:-}" ]; then
+  /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string ${SPARKLE_EDDSA_PUBLIC_KEY}" "$APP_DIR/Contents/Info.plist"
+  echo "Injected Sparkle EdDSA public key"
 fi
 
 # Copy entitlements into bundle
 cp AIBattery/AIBattery.entitlements "$APP_DIR/Contents/Resources/"
 
-# Ad-hoc codesign — gives the app a stable identity for Keychain ACL
+# --- Sparkle framework bundling ---
+# Find SPM-built Sparkle.framework (SPM places it under .build/<arch>/release/)
+SPARKLE_BUILD_DIR=$(find .build -path "*/release/Sparkle.framework" -type d 2>/dev/null | head -n1 || true)
+if [ -z "$SPARKLE_BUILD_DIR" ]; then
+  # Fallback: check the xcframework in artifacts
+  SPARKLE_BUILD_DIR=$(find .build/artifacts -path "*/macos-*/Sparkle.framework" -type d 2>/dev/null | head -n1 || true)
+fi
+
+if [ -n "$SPARKLE_BUILD_DIR" ]; then
+  echo "Bundling Sparkle framework from: $SPARKLE_BUILD_DIR"
+  cp -R "$SPARKLE_BUILD_DIR" "$APP_DIR/Contents/Frameworks/"
+  # XPC services (Downloader.xpc, Installer.xpc) are inside the framework bundle
+else
+  echo "Warning: Sparkle.framework not found in build artifacts — update functionality requires it"
+fi
+
+# Codesign inner frameworks before signing the outer bundle
 echo "Codesigning..."
+if [ -d "$APP_DIR/Contents/Frameworks" ]; then
+  for item in "$APP_DIR/Contents/Frameworks"/*.framework; do
+    [ -e "$item" ] || continue
+    echo "  Signing: $(basename "$item")"
+    codesign --sign - --force --deep \
+      --options runtime \
+      "$item"
+  done
+fi
+
+# Ad-hoc codesign the outer bundle — gives the app a stable identity for Keychain ACL
 codesign --sign - --deep --force \
   --entitlements AIBattery/AIBattery.entitlements \
   --identifier com.KyleNesium.AIBattery \
@@ -53,6 +93,27 @@ echo "Done! App bundle at: $APP_DIR"
 # Create distribution artifacts
 echo "Packaging zip..."
 ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" .build/AIBattery.zip
+
+# EdDSA-sign the zip for Sparkle (when SPARKLE_EDDSA_KEY env is set)
+if [ -n "${SPARKLE_EDDSA_KEY:-}" ]; then
+  echo "EdDSA-signing zip for Sparkle..."
+  SIGN_UPDATE=""
+
+  # Try to find sign_update from SPM build artifacts (exclude deprecated DSA script)
+  SIGN_UPDATE=$(find .build/artifacts -name "sign_update" -not -path "*/old_dsa_scripts/*" -type f 2>/dev/null | head -n1 || true)
+  if [ -z "$SIGN_UPDATE" ]; then
+    # Fall back to Sparkle's installed location
+    SIGN_UPDATE=$(command -v sign_update 2>/dev/null || true)
+  fi
+
+  if [ -n "$SIGN_UPDATE" ]; then
+    SIGNATURE=$(echo "$SPARKLE_EDDSA_KEY" | "$SIGN_UPDATE" .build/AIBattery.zip --ed-key-file -)
+    echo "$SIGNATURE" > .build/sparkle-signature.txt
+    echo "Sparkle signature saved to .build/sparkle-signature.txt"
+  else
+    echo "Warning: sign_update not found — skipping EdDSA signing"
+  fi
+fi
 
 echo "Packaging DMG..."
 DMG_DIR=".build/dmg"
@@ -72,6 +133,9 @@ echo ""
 echo "Artifacts:"
 echo "  .build/AIBattery.zip"
 echo "  .build/AIBattery.dmg"
+if [ -f .build/sparkle-signature.txt ]; then
+  echo "  .build/sparkle-signature.txt"
+fi
 echo ""
 echo "To launch:"
 echo "  open $APP_DIR"
