@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.1] — 2026-02-26
+
+### Fixed
+- **Stale update banner after upgrade** — `VersionChecker` now validates the cached update version against the current app version on startup, discarding stale entries (e.g. "v1.4.1 available" no longer shows after upgrading to v1.5.0)
+- **Release workflow Homebrew step** — appcast deploy checked out `gh-pages`, losing the source tree for the subsequent Homebrew cask update step; added checkout restore
+
 ## [1.5.0] — 2026-02-25
 
 ### Added
