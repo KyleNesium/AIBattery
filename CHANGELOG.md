@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.5.0] — 2026-02-25
 
 ### Added
 - **Sparkle auto-update** — in-app download, verify, and install via Sparkle 2. Click "Install Update" in the update banner to update without leaving the app. Falls back to GitHub release page if Sparkle is not ready.
