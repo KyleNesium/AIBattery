@@ -8,6 +8,12 @@ cd "$(dirname "$0")/.."
 VERSION="${1:?Usage: generate-appcast.sh <version> [signature-file]}"
 SIGNATURE_FILE="${2:-.build/sparkle-signature.txt}"
 
+# Validate version looks like semver (digits and dots)
+if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+  echo "Error: VERSION '$VERSION' does not look like semver (expected X.Y.Z)"
+  exit 1
+fi
+
 # Read EdDSA signature (contains sparkle:edSignature="..." sparkle:length="...")
 if [ ! -f "$SIGNATURE_FILE" ]; then
   echo "Error: Signature file not found: $SIGNATURE_FILE"
@@ -29,7 +35,16 @@ fi
 
 # Get file length from zip if not parsed from signature output
 if [ -z "$FILE_LENGTH" ]; then
+  if [ ! -f .build/AIBattery.zip ]; then
+    echo "Error: .build/AIBattery.zip not found — cannot determine file length"
+    exit 1
+  fi
   FILE_LENGTH=$(stat -f%z .build/AIBattery.zip 2>/dev/null || stat -c%s .build/AIBattery.zip 2>/dev/null)
+fi
+
+if [ -z "$ED_SIGNATURE" ] || [ -z "$FILE_LENGTH" ]; then
+  echo "Error: Could not determine EdDSA signature or file length"
+  exit 1
 fi
 
 DOWNLOAD_URL="https://github.com/KyleNesium/AIBattery/releases/download/v${VERSION}/AIBattery.zip"

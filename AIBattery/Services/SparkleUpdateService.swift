@@ -42,8 +42,8 @@ public final class SparkleUpdateService {
         NSApp.activate(ignoringOtherApps: true)
         updaterController.checkForUpdates(nil)
 
-        // Revert to accessory (menu bar only) after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+        // Revert to accessory (menu bar only) after Sparkle has time to present its dialog
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
             NSApp.setActivationPolicy(.accessory)
         }
     }

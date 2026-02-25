@@ -381,7 +381,7 @@ Pricing table (per million tokens):
 - Singleton: `.shared`
 - Wraps `SPUStandardUpdaterController` from Sparkle 2
 - Disables all automatic behavior: `automaticallyChecksForUpdates = false`, `automaticallyDownloadsUpdates = false`, `updateCheckInterval = 0`
-- `checkForUpdates()` — temporarily sets `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)` (LSUIElement workaround), reverts to `.accessory` after 1s, then triggers Sparkle's standard update dialog
+- `checkForUpdates()` — temporarily sets `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)` (LSUIElement workaround), reverts to `.accessory` after 5s, then triggers Sparkle's standard update dialog
 - `canCheckForUpdates: Bool` — exposes Sparkle readiness
 - Testable init accepts pre-configured controller
 - Sparkle reads `SUFeedURL` and `SUPublicEDKey` from Info.plist

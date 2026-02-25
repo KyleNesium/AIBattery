@@ -160,13 +160,14 @@ Pricing per million tokens:
 | Constant | Value |
 |----------|-------|
 | Appcast feed URL | `https://kylenesium.github.io/AIBattery/appcast.xml` (Info.plist `SUFeedURL`) |
-| EdDSA public key | Info.plist `SUPublicEDKey` (Ed25519, generated via Sparkle's `generate_keys`) |
+| EdDSA public key | Info.plist `SUPublicEDKey` — injected at build time via `SPARKLE_EDDSA_PUBLIC_KEY` env var (not committed to source) |
 | Automatic checks | Disabled (`automaticallyChecksForUpdates = false`) |
 | Automatic downloads | Disabled (`automaticallyDownloadsUpdates = false`) |
 | Check interval | 0 (no scheduled checks — user-initiated only) |
 | Trigger | User clicks "Install Update" in banner (falls back to GitHub release if Sparkle not ready) |
-| Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after 1s (LSUIElement workaround) |
-| CI secret | `SPARKLE_EDDSA_KEY` — EdDSA private key for signing release zips |
+| Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after 5s (LSUIElement workaround) |
+| Entitlement | `com.apple.security.cs.disable-library-validation` — required for ad-hoc signed builds to load Sparkle.framework |
+| CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
 ## Token Window
 

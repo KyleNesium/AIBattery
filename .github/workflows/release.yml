@@ -43,8 +43,10 @@ jobs:
           cp .build/appcast.xml /tmp/appcast.xml
 
           # Deploy appcast.xml to gh-pages branch
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          export GIT_AUTHOR_NAME="github-actions[bot]"
+          export GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com"
+          export GIT_COMMITTER_NAME="github-actions[bot]"
+          export GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com"
 
           # Fetch gh-pages if it exists, create orphan if not
           if git fetch origin gh-pages 2>/dev/null; then

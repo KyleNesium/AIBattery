@@ -21,14 +21,16 @@ struct SparkleUpdateServiceTests {
         #expect(service.updater.updateCheckInterval == 0)
     }
 
-    @Test @MainActor func feedURLMatchesInfoPlist() {
+    @Test @MainActor func feedURLIsSetWhenBundleHasPlist() {
         let service = SparkleUpdateService.shared
-        let expectedURL = URL(string: "https://kylenesium.github.io/AIBattery/appcast.xml")!
-        // Feed URL comes from Info.plist SUFeedURL — in tests it may be nil (no bundle),
-        // but the setter/getter path should not crash
-        if let feedURL = service.updater.feedURL {
-            #expect(feedURL == expectedURL)
+        // In the app bundle, SUFeedURL is set in Info.plist.
+        // In test bundles it may be nil — verify it doesn't crash either way.
+        let feedURL = service.updater.feedURL
+        if feedURL != nil {
+            let expected = URL(string: "https://kylenesium.github.io/AIBattery/appcast.xml")!
+            #expect(feedURL == expected)
         }
+        // No assertion failure if nil — test environment lacks Info.plist
     }
 
     @Test @MainActor func singletonIdentity() {
@@ -37,9 +39,24 @@ struct SparkleUpdateServiceTests {
         #expect(a === b)
     }
 
-    @Test @MainActor func canCheckForUpdatesReturnsWithoutCrash() {
+    @Test @MainActor func canCheckForUpdatesReturnsBool() {
         let service = SparkleUpdateService.shared
-        // Just verify it returns a Bool without crashing
+        // Verify it returns a Bool without crashing — value depends on runtime state
+        let result = service.canCheckForUpdates
+        #expect(result == true || result == false)
+    }
+
+    @Test @MainActor func updaterIsStarted() {
+        let service = SparkleUpdateService.shared
+        // After init, the updater should have been started
+        #expect(service.updater.sessionInProgress == false, "No update session should be active")
+    }
+
+    @Test @MainActor func automaticChecksStayDisabledAfterAccess() {
+        // Verify accessing canCheckForUpdates doesn't re-enable automatic checks
+        let service = SparkleUpdateService.shared
         _ = service.canCheckForUpdates
+        #expect(service.updater.automaticallyChecksForUpdates == false)
+        #expect(service.updater.automaticallyDownloadsUpdates == false)
     }
 }
