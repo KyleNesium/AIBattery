@@ -94,7 +94,7 @@ final class RateLimitFetcher {
     /// Parse a Retry-After header value into a delay in seconds.
     /// Returns nil if the value is missing, non-numeric, zero, or negative.
     /// Caps at `maxDelay` to prevent unbounded waits.
-    static func parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double? {
+    nonisolated static func parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double? {
         guard let value, let delay = Double(value), delay > 0 else { return nil }
         return min(delay, maxDelay)
     }
