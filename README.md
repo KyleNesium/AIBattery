@@ -140,7 +140,7 @@ Switch between accounts by clicking the account dropdown in the header. Each acc
 
 - Sessions auto-refresh with a 5-minute buffer to avoid clock-skew issues
 - Temporary server errors retry automatically
-- Tokens stored in macOS Keychain per account (separate from Claude Code credentials)
+- Refresh token stored in macOS Keychain per account (separate from Claude Code credentials); access token held in memory only
 - Error messages are specific — expired codes, invalid codes, server errors, and network errors each get a clear description
 
 </details>
@@ -151,9 +151,9 @@ Switch between accounts by clicking the account dropdown in the header. Each acc
 AI Battery isn't notarized — there's no Apple Developer license behind this project, so macOS treats it as unidentified. Two prompts may appear on first launch:
 
 - **Gatekeeper block** — macOS prevents the app from opening. Fix: **System Settings → Privacy & Security → Open Anyway** (see [Install](#-install))
-- **Keychain access** — the app stores OAuth tokens in macOS Keychain (one set per account), Apple's encrypted credential store. This is the safest option — the same place Claude Code, browsers, and every other macOS app stores secrets. Click **Always Allow**.
+- **Keychain access** — the app stores its OAuth refresh token in macOS Keychain (one item per account), Apple's encrypted credential store. Click **Always Allow**. The prompt may reappear once after an in-app update because the new binary has a different ad-hoc signature.
 
-Both are one-time prompts. Neither will appear again after the first launch.
+The Gatekeeper prompt is one-time. The Keychain prompt appears once on first launch and once after each in-app update.
 
 </details>
 
@@ -326,7 +326,7 @@ Then relaunch.
 <details>
 <summary><strong>Keychain access dialog keeps appearing</strong></summary>
 
-Click **Always Allow** when prompted. AI Battery stores OAuth tokens in macOS Keychain (one set per account). This is the same secure storage used by browsers and Claude Code. The prompt only appears once per account.
+Click **Always Allow** when prompted. AI Battery stores its OAuth refresh token in macOS Keychain (one item per account). After a Sparkle in-app update, a single Keychain prompt may appear because the new binary has a different ad-hoc signature. This is a one-time prompt per update.
 
 </details>
 

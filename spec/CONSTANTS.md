@@ -244,7 +244,7 @@ Pricing per million tokens:
 
 | Path | Purpose |
 |------|---------|
-| macOS Keychain, service `"AIBattery"` | OAuth tokens (access, refresh, expiry) |
+| macOS Keychain, service `"AIBattery"` | OAuth refresh token only (`refreshToken_{accountId}`); access token in memory, expiry in UserDefaults (`aibattery_expiresAt_{accountId}`) |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |
