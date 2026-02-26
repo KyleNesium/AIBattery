@@ -63,6 +63,7 @@ public final class OAuthManager: ObservableObject {
 
     public init() {
         migrateFromLegacy()
+        migrateStaleKeychainItems()
         loadAllTokens()
         updateAuthState()
     }
@@ -451,31 +452,36 @@ public final class OAuthManager: ObservableObject {
 
     private func saveTokens(for accountId: String) {
         guard let data = tokens[accountId] else { return }
-        if let token = data.accessToken {
-            keychainSet(account: "accessToken_\(accountId)", value: token)
-        }
+        // Only the refresh token is persisted in Keychain (long-lived secret).
+        // Access token stays in memory only — it's short-lived (~1h) and will be
+        // re-derived from the refresh token on next launch. This minimises the
+        // number of Keychain items so Sparkle updates trigger at most 1 prompt
+        // instead of 3.
         if let refresh = data.refreshToken {
             keychainSet(account: "refreshToken_\(accountId)", value: refresh)
         }
         if let expires = data.expiresAt {
-            keychainSet(account: "expiresAt_\(accountId)", value: String(expires.timeIntervalSince1970))
+            UserDefaults.standard.set(expires.timeIntervalSince1970,
+                                      forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
         }
     }
 
     private func loadTokens(for accountId: String) -> AccountTokens {
-        let access = keychainGet(account: "accessToken_\(accountId)")
+        // Access token is not persisted — will be refreshed on first API call.
         let refresh = keychainGet(account: "refreshToken_\(accountId)")
         var expires: Date?
-        if let expiresStr = keychainGet(account: "expiresAt_\(accountId)"),
-           let interval = Double(expiresStr) {
+        let interval = UserDefaults.standard.double(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
+        if interval > 0 {
             expires = Date(timeIntervalSince1970: interval)
         }
-        return AccountTokens(accessToken: access, refreshToken: refresh, expiresAt: expires)
+        return AccountTokens(accessToken: nil, refreshToken: refresh, expiresAt: expires)
     }
 
     private func deleteTokens(for accountId: String) {
-        keychainDelete(account: "accessToken_\(accountId)")
         keychainDelete(account: "refreshToken_\(accountId)")
+        UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
+        // Clean up legacy accessToken/expiresAt Keychain entries if they exist
+        keychainDelete(account: "accessToken_\(accountId)")
         keychainDelete(account: "expiresAt_\(accountId)")
     }
 
@@ -487,7 +493,7 @@ public final class OAuthManager: ObservableObject {
 
     // MARK: - Migration from Single-Account Format
 
-    /// One-time migration: moves legacy Keychain entries to the new prefixed format.
+    /// One-time migration: moves legacy Keychain entries (unprefixed) to the new prefixed format.
     private func migrateFromLegacy() {
         // Already migrated — accounts exist
         guard accountStore.accounts.isEmpty else { return }
@@ -506,16 +512,46 @@ public final class OAuthManager: ObservableObject {
             addedAt: Date()
         )
 
-        // Copy legacy entries to new prefixed format
+        // Only persist the refresh token (access token will be re-derived on launch)
+        if let value = keychainGet(account: "refreshToken") {
+            keychainSet(account: "refreshToken_\(tempId)", value: value)
+        }
+        // expiresAt goes to UserDefaults (not a secret)
+        if let expiresStr = keychainGet(account: "expiresAt"),
+           let interval = Double(expiresStr) {
+            UserDefaults.standard.set(interval,
+                                      forKey: UserDefaultsKeys.tokenExpiresAtPrefix + tempId)
+        }
+        // Clean up all legacy unprefixed entries
         for key in ["accessToken", "refreshToken", "expiresAt"] {
-            if let value = keychainGet(account: key) {
-                keychainSet(account: "\(key)_\(tempId)", value: value)
-                keychainDelete(account: key)
-            }
+            keychainDelete(account: key)
         }
 
         accountStore.add(record)
         accountStore.setActive(id: tempId)
+    }
+
+    // MARK: - Migration: Remove Stale Keychain Items
+
+    /// Removes accessToken and expiresAt from Keychain (they're no longer stored
+    /// there). Moves expiresAt to UserDefaults if not already present.
+    private func migrateStaleKeychainItems() {
+        for account in accountStore.accounts {
+            let accountId = account.id
+
+            // Move expiresAt from Keychain to UserDefaults if present
+            let udKey = UserDefaultsKeys.tokenExpiresAtPrefix + accountId
+            if UserDefaults.standard.double(forKey: udKey) == 0 {
+                if let expiresStr = keychainGet(account: "expiresAt_\(accountId)"),
+                   let interval = Double(expiresStr) {
+                    UserDefaults.standard.set(interval, forKey: udKey)
+                }
+            }
+
+            // Remove stale Keychain items (accessToken + expiresAt)
+            keychainDelete(account: "accessToken_\(accountId)")
+            keychainDelete(account: "expiresAt_\(accountId)")
+        }
     }
 
     // MARK: - Keychain Helpers

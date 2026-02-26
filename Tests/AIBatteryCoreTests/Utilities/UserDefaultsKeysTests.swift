@@ -44,6 +44,7 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.autoMetricMode,
             UserDefaultsKeys.colorblindMode,
             UserDefaultsKeys.hasSeenTutorial,
+            UserDefaultsKeys.tokenExpiresAtPrefix,
         ]
     }
 }

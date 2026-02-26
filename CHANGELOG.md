@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.3] — 2026-02-26
+
+### Fixed
+- **Sparkle update Keychain prompts** — reduced Keychain items from 3 to 1 per account (refresh token only). Access token is now memory-only (re-derived on launch), expiry timestamp moved to UserDefaults. Sparkle updates now trigger at most 1 Keychain prompt instead of 3.
+
+### Added
+- One-time migration (`migrateStaleKeychainItems`) cleans up legacy `accessToken` and `expiresAt` entries from Keychain on first launch after upgrade
+
 ## [1.5.2] — 2026-02-26
 
 ### Improved

@@ -53,7 +53,7 @@ CI runs on every push via GitHub Actions (`macos-15` runner): build → test →
 - **Views**: Data via init params — no `EnvironmentObject`
 - **State**: `UsageViewModel` is the only `ObservableObject` (`@MainActor`)
 - **Formatting**: `TokenFormatter` for numbers, `ModelNameMapper` for model IDs
-- **Dependencies**: Zero — stdlib + Apple frameworks only
+- **Dependencies**: Sparkle 2 for auto-update + Apple frameworks
 - **File naming**: One primary type per file, filename matches type name
 
 ## Key Design Decisions
@@ -74,7 +74,7 @@ These aren't obvious from reading the code — know them before making changes:
 
 ## Security
 
-- OAuth tokens (access + refresh) live in macOS Keychain under service `"AIBattery"` — never UserDefaults or disk
+- OAuth refresh token lives in macOS Keychain under service `"AIBattery"` — access token is memory-only (re-derived from refresh on launch), expiry timestamp in UserDefaults. Only 1 Keychain item per account to minimize Sparkle update prompts.
 - Never log token values — mask or redact in error messages
 - JSONL reads are token-count-only — never parse, store, or display message content
 - `osascript` notifications use shell-escaped strings to prevent injection

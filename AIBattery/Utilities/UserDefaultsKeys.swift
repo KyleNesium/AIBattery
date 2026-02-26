@@ -23,4 +23,6 @@ enum UserDefaultsKeys {
     static let autoMetricMode = "aibattery_autoMetricMode"
     static let colorblindMode = "aibattery_colorblindMode"
     static let hasSeenTutorial = "aibattery_hasSeenTutorial"
+    /// Prefix for per-account token expiry timestamps (append account ID).
+    static let tokenExpiresAtPrefix = "aibattery_expiresAt_"
 }
