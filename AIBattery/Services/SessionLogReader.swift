@@ -24,11 +24,7 @@ final class SessionLogReader {
     /// Parent directory mod dates used to invalidate discovery cache.
     private var discoveryDirModDates: [String: Date] = [:]
 
-    private static let isoFormatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
+    private static let isoFormatter = DateFormatters.iso8601
 
     /// Pre-computed byte markers for fast JSONL pre-filtering (avoids re-allocating per file).
     private static let assistantMarkers: [Data] = [

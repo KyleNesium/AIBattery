@@ -101,7 +101,9 @@ Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/clau
 
 ## 🔄 Update
 
-**In-app:** Click the yellow update button → **Install Update**. Sparkle downloads, verifies, and replaces the app automatically.
+AI Battery checks for new versions once per day. When an update is available, the arrow button in the header turns **yellow** and a banner appears.
+
+**In-app (recommended):** Click **Install Update** in the banner. [Sparkle](https://sparkle-project.org/) downloads the update, verifies its EdDSA signature, replaces the app, and relaunches — all without leaving the app.
 
 **Homebrew:**
 
@@ -114,7 +116,7 @@ brew upgrade --cask aibattery
 **Or** re-run the quick install command — it overwrites the old version in place.
 
 > [!NOTE]
-> Your settings and OAuth session carry over automatically.
+> Your settings and OAuth session carry over automatically. Updates are user-initiated only — the app never downloads or installs anything in the background.
 
 ---
 
@@ -268,7 +270,7 @@ Click ⚙️ in the header to configure:
 </tr>
 </table>
 
-The header shows an **update indicator** when a new version is available (yellow arrow + "View" link).
+The header shows an **update indicator** when a new version is available — the arrow button turns yellow, and a banner appears with the version number and an **Install Update** button. Clicking Install Update downloads, verifies, and installs the update in-app via Sparkle. Click the ✕ to dismiss the banner; the yellow button re-shows it.
 
 > [!TIP]
 > Click any stat value (percentages, token counts, costs) to copy it to the clipboard.
@@ -373,7 +375,7 @@ Anthropic is actively limiting your requests. Wait for the reset timer.
 | | |
 |---|---|
 | 📂 **Local data** | Reads JSONL for token counts only — **never your message content** |
-| 🌐 **Network calls** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · `api.github.com` (update check, once/24h) |
+| 🌐 **Network calls** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast, on update click) |
 | 🔄 **Backoff** | Status checks use exponential backoff on failures (60s → 5 min cap) |
 | ⏳ **Adaptive polling** | Interval doubles after 3 idle cycles, resets when data changes |
 | 🚫 **No tracking** | No analytics. No telemetry. No tracking. |
@@ -391,7 +393,7 @@ AIBattery/
   Utilities/    — TokenFormatter, ModelNameMapper, ThemeColors, AppLogger
 ```
 
-**Zero dependencies** — Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit).
+**One dependency** — [Sparkle 2](https://sparkle-project.org/) for auto-update. Everything else is Apple frameworks (SwiftUI, Charts, Security, Foundation, AppKit).
 
 <details>
 <summary>📋 <strong>Detailed specs</strong></summary>
@@ -449,13 +451,13 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**382 tests** across 29 test files.
+**408 tests** across 31 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 127 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults), health status, metric modes, API profiles, session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode), model pricing, health config |
-| Services | 194 | Version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation), OAuth manager (AuthError messages, transient error classification) |
-| Utilities | 61 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness) |
+| Services | 207 | Version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, AppleScript quoting), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
+| Utilities | 74 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, caps, reset) |
 
 ## 📄 License
 

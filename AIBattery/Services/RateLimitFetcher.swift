@@ -91,6 +91,14 @@ final class RateLimitFetcher {
         cachedResults[accountId] = result
     }
 
+    /// Parse a Retry-After header value into a delay in seconds.
+    /// Returns nil if the value is missing, non-numeric, zero, or negative.
+    /// Caps at `maxDelay` to prevent unbounded waits.
+    nonisolated static func parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double? {
+        guard let value, let delay = Double(value), delay > 0 else { return nil }
+        return min(delay, maxDelay)
+    }
+
     private enum FetchResult {
         case success(APIFetchResult)
         case modelUnavailable
@@ -124,6 +132,27 @@ final class RateLimitFetcher {
             // Auth failed — token may be expired/revoked
             if http.statusCode == 401 || http.statusCode == 403 {
                 return .authFailed
+            }
+
+            // Rate limited or server error — honor Retry-After if present
+            if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
+                if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {
+                    try? await Task.sleep(for: .seconds(delay))
+                    // Single retry — if this also fails, fall through to networkError
+                    if let (_, retryResp) = try? await URLSession.shared.data(for: request),
+                       let retryHttp = retryResp as? HTTPURLResponse,
+                       retryHttp.statusCode == 200 || retryHttp.statusCode == 400 {
+                        let rateLimits = RateLimitUsage.parse(headers: retryHttp.allHeaderFields)
+                        let profile = APIProfile.parse(headers: retryHttp.allHeaderFields)
+                        if rateLimits != nil || profile != nil {
+                            return .success(APIFetchResult(
+                                rateLimits: rateLimits ?? cachedResults[accountId]?.rateLimits,
+                                profile: profile ?? cachedResults[accountId]?.profile
+                            ))
+                        }
+                    }
+                }
+                return .networkError
             }
 
             // Model not available for this account (400 with invalid model, or 404)

@@ -57,9 +57,14 @@
 UsagePopoverView (275px, VStack)
   @ObservedObject viewModel: UsageViewModel
   @ObservedObject accountStore: AccountStore (drives account picker reactivity)
+  @AppStorage: metricModeRaw, autoMetricMode (only 2 — other toggles pushed to child views)
 ├── headerSection
 ├── Divider
 ├── SettingsRow (if showSettings — toggled by gear icon)
+│   ├── Account name rows (depend on accountStore — stay in parent)
+│   ├── RefreshSettingsSection — owns refreshInterval, launchAtLogin
+│   ├── DisplaySettingsSection — owns tokenWindowDays, showTokens, showActivity, colorblindMode, showCostEstimate
+│   └── AlertSettingsSection — owns alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold
 ├── Divider
 ├── metricToggle (auto "A" circle button left + segmented picker: 5-Hour | 7-Day | Context)
 ├── Divider
@@ -101,36 +106,41 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
   - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
 - Padding: H 16, V 10
 
-### ❶b Settings (`SettingsRow` — private struct)
+### ❶b Settings (`SettingsRow` — private struct, decomposed into sub-views)
 
-Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence.
+Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppStorage` toggle only redraws its own section.
 
-- **Account name editing**: per-account name row with editable `TextField` (placeholder "Account N", capped at 30 chars). Label: "Active"/"Account" when multi-account, "Name" for single. Changes saved via `OAuthManager.shared.updateAccountMetadata(accountId:displayName:)`.
-- **Account management**: shown when >1 account or `canAddAccount`. Remove button (`xmark.circle`) per account when >1. "Add Account" button (.caption, .blue) when `canAddAccount`.
+**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body.
+
+**`RefreshSettingsSection`** (owns `refreshInterval`, `launchAtLogin`):
 - **Refresh**: Slider (10–60s, step 5) → `aibattery_refreshInterval`
   - Calls `viewModel.updatePollingInterval()` on change
   - Hint: `"~3 tokens per poll"` (.caption2, .tertiary)
+- **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
+  - Syncs with `SMAppService.mainApp.status` on appear
+
+**`DisplaySettingsSection`** (owns `tokenWindowDays`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
 - **Models**: Slider (1–8, step 1) → `aibattery_tokenWindowDays` (1–7 = days, 8 maps to 0 = All time)
   - Display: `"All"` when stored value is 0, `"{value}d"` when 1–7
   - Slider positions: 1d, 2d, 3d, 4d, 5d, 6d, 7d, All (left to right)
   - Hint: `"Only show models used within period"` (.caption2, .tertiary)
-  - Controls which time window is used for token counts (JSONL-based when >0)
+- **Display**: Checkboxes
+  - "Tokens" → `aibattery_showTokens`; "Activity" → `aibattery_showActivity`
+  - "Colorblind" → `aibattery_colorblindMode`; "Cost*" → `aibattery_showCostEstimate`
+  - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
+
+**`AlertSettingsSection`** (owns `alertClaudeAI`, `alertClaudeCode`, `alertRateLimit`, `rateLimitThreshold`):
 - **Alerts**: Two checkboxes (`.checkbox` toggle style)
   - `Claude.ai` → `aibattery_alertClaudeAI` (Bool, default false)
   - `Claude Code` → `aibattery_alertClaudeCode` (Bool, default false)
-  - **Test button**: "Test" (.caption2, .blue, `.plain` style) — visible when at least one toggle is on, calls `NotificationManager.shared.testAlerts()`
+  - **Test button**: "Test" (.caption2, .blue, `.plain` style) — visible when at least one toggle is on
   - Hint: `"Notify when service is down"` (.caption2, .tertiary)
-  - On enable: calls `NotificationManager.shared.requestPermission()`
-
-- **Display**: Two rows of checkboxes
-  - Row 1: "Tokens" → `aibattery_showTokens` (Bool, default true) — toggles the Tokens section; "Activity" → `aibattery_showActivity` (Bool, default true) — toggles the Activity chart
-  - Row 2: "Colorblind" → `aibattery_colorblindMode` (Bool, default false) — switches to blue/cyan/amber/purple palette; "Cost*" → `aibattery_showCostEstimate` (Bool, default false) — toggles cost display in Tokens section
-  - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
 - **Rate Limit**: Toggle + threshold slider (50–95%, step 5, default 80%)
   - Hint: `"Notify when rate limit usage exceeds threshold"` (.caption2, .tertiary)
   - Slider + tick marks shown only when toggle is on
-- **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
-  - Syncs with `SMAppService.mainApp.status` on appear
+
+**`sliderMarks()`**: `fileprivate` file-level helper for generating slider tick marks (shared by sections).
+
 **Animations**:
 - Settings toggle: `withAnimation(.easeInOut(duration: 0.2))` + `.transition(.opacity.combined(with: .move(edge: .top)))`
 - Metric mode changes: `.animation(.easeInOut(duration: 0.15), value: metricModeRaw)` — scoped to ForEach block only, not entire VStack
@@ -139,6 +149,13 @@ Collapsible panel toggled by gear icon. Uses `@AppStorage` for persistence.
 Values propagate to header + menu bar immediately via `@AppStorage` (settings) and `@Published` (account names).
 
 Padding: H 16, V 10
+
+### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
+
+Each gate view owns a single `@AppStorage` toggle and conditionally renders its content section. This isolates toggle-flip redraws from the parent view.
+
+- **`TokenUsageGate`**: owns `showTokens`. Renders `TokenUsageSection` + `Divider` when `showTokens && snapshot.totalTokens > 0`.
+- **`ActivityChartGate`**: owns `showActivity`. Renders `ActivityChartView` + `Divider` when `showActivity` and activity data is available.
 
 ### Metric Toggle (`UsagePopoverView.metricToggle`)
 

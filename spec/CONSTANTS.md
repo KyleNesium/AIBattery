@@ -18,10 +18,12 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx | OAuthManager |
 | Token endpoint timeout | 15 sec | OAuthManager |
-| Adaptive polling threshold | 3 unchanged cycles | UsageViewModel |
-| Adaptive polling max | 300 sec (5 min) | UsageViewModel |
+| Adaptive polling threshold | 3 unchanged cycles | AdaptivePollingState |
+| Adaptive polling max | 300 sec (5 min) | AdaptivePollingState |
 | Notification batch delay | 500 ms | NotificationManager |
 | Identity timeout | 3600 sec (1 hour) — pending account identity | UsageViewModel |
+| Retry-After max delay | 30 sec (caps parsed Retry-After header) | RateLimitFetcher |
+| Sleep pause / wake resume | Immediate (NSWorkspace notifications) | UsageViewModel |
 | Menu bar staleness threshold | 300 sec (5 min) | MenuBarLabel |
 
 ## URLs
@@ -83,7 +85,9 @@ Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeCom
 | Safe minimum divisor | 5 | usableWindow / 5 for hint |
 | Stale session idle | 30 min | Triggers stale warning if band != green |
 | Zero output turns | 3 | Triggers warning if outputTokens == 0 |
-| Rapid consumption | < 60s duration, > 50K tokens | Anomaly warning |
+| Rapid consumption seconds | 60 sec | `config.rapidConsumptionSeconds` |
+| Rapid consumption tokens | 50,000 | `config.rapidConsumptionTokens` |
+| Velocity min duration | 60 sec | `config.velocityMinDuration` |
 
 ## Rate Limit Alerts
 

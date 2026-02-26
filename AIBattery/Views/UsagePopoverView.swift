@@ -261,7 +261,8 @@ public struct UsagePopoverView: View {
     private var accountPicker: some View {
         Menu {
             let activeId = accountStore.activeAccountId
-            ForEach(Array(accounts.enumerated()), id: \.element.id) { index, account in
+            ForEach(accounts) { account in
+                let index = accounts.firstIndex(where: { $0.id == account.id }) ?? 0
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         viewModel.switchAccount(to: account.id)
@@ -581,22 +582,14 @@ private struct ActivityChartGate: View {
     }
 }
 
+// MARK: - Settings (decomposed into focused sub-views)
+
+
 /// Inline settings for account names, refresh rate, and notifications.
 private struct SettingsRow: View {
     let viewModel: UsageViewModel
     @ObservedObject var accountStore: AccountStore
     let onAddAccount: () -> Void
-    @AppStorage(UserDefaultsKeys.refreshInterval) private var refreshInterval: Double = 60
-    @AppStorage(UserDefaultsKeys.tokenWindowDays) private var tokenWindowDays: Double = 0
-    @AppStorage(UserDefaultsKeys.alertClaudeAI) private var alertClaudeAI: Bool = false
-    @AppStorage(UserDefaultsKeys.alertClaudeCode) private var alertClaudeCode: Bool = false
-    @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
-    @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
-    @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
-    @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
-    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
-    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
-    @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -605,7 +598,8 @@ private struct SettingsRow: View {
                 .foregroundStyle(.secondary)
 
             // Per-account names
-            ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
+            ForEach(accountStore.accounts) { account in
+                let index = accountStore.accounts.firstIndex(where: { $0.id == account.id }) ?? 0
                 accountNameRow(account, index: index)
             }
 
@@ -626,167 +620,13 @@ private struct SettingsRow: View {
                 }
             }
 
-            // Refresh interval
-            VStack(spacing: 2) {
-                HStack(spacing: 8) {
-                    Text("Refresh")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 50, alignment: .trailing)
-                    Slider(value: $refreshInterval, in: 10...60, step: 5)
-                        .onChange(of: refreshInterval) { _ in
-                            viewModel.updatePollingInterval(refreshInterval)
-                        }
-                        .accessibilityLabel("Refresh interval")
-                        .accessibilityValue("\(Int(refreshInterval)) seconds")
-                    Text("\(Int(refreshInterval))s")
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(width: 28, alignment: .trailing)
-                }
-                sliderMarks(labels: ["10s", "20s", "30s", "40s", "50s", "60s"], leadingPad: 50)
-                Text("~3 tokens per poll")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 58)
-            }
-
-            // Models window (slider 1–8; 1–7 = days, 8 = all time stored as 0)
-            VStack(spacing: 2) {
-                HStack(spacing: 8) {
-                    Text("Models")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 50, alignment: .trailing)
-                    Slider(value: modelsSliderBinding, in: 1...8, step: 1)
-                        .accessibilityLabel("Models time window")
-                        .accessibilityValue(tokenWindowDays > 0 ? "\(Int(tokenWindowDays)) days" : "All time")
-                    Text(tokenWindowDays > 0 ? "\(Int(tokenWindowDays))d" : "All")
-                        .font(.system(.caption, design: .monospaced))
-                        .frame(width: 28, alignment: .trailing)
-                }
-                sliderMarks(labels: ["1d", "2d", "3d", "4d", "5d", "6d", "7d", "All"], leadingPad: 50)
-                Text("Only show models used within period")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 58)
-            }
-
-            // Display
-            HStack(spacing: 8) {
-                Text("Display")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-                Toggle("Tokens", isOn: $showTokens)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                Toggle("Activity", isOn: $showActivity)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-            }
-            HStack(spacing: 8) {
-                Spacer().frame(width: 50)
-                Toggle("Colorblind", isOn: $colorblindMode)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                    .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
-                Toggle("Cost*", isOn: $showCostEstimate)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-            }
-            HStack(spacing: 8) {
-                Spacer().frame(width: 50)
-                Text("Cost* = equivalent API token rates")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            // Status alerts
-            HStack(spacing: 8) {
-                Text("Alerts")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-                Toggle("Claude.ai", isOn: $alertClaudeAI)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                    .onChange(of: alertClaudeAI) { on in
-                        if on { NotificationManager.shared.requestPermission() }
-                    }
-                Toggle("Claude Code", isOn: $alertClaudeCode)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                    .onChange(of: alertClaudeCode) { on in
-                        if on { NotificationManager.shared.requestPermission() }
-                    }
-                if alertClaudeAI || alertClaudeCode {
-                    Button("Test") {
-                        NotificationManager.shared.testAlerts()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
-                }
-            }
-            Text("Notify when service is down")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 58)
-
-            // Rate limit alerts
-            VStack(spacing: 2) {
-                HStack(spacing: 8) {
-                    Spacer()
-                        .frame(width: 50)
-                    Toggle("Rate Limit Notify", isOn: $alertRateLimit)
-                        .toggleStyle(.checkbox)
-                        .font(.caption)
-                }
-                if alertRateLimit {
-                    HStack(spacing: 8) {
-                        Spacer()
-                            .frame(width: 50)
-                        Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
-                            .accessibilityLabel("Rate limit alert threshold")
-                            .accessibilityValue("\(Int(rateLimitThreshold)) percent")
-                        Text("\(Int(rateLimitThreshold))%")
-                            .font(.system(.caption, design: .monospaced))
-                            .frame(width: 28, alignment: .trailing)
-                    }
-                    sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)
-                    Text("Notify when rate limit usage exceeds threshold")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, 58)
-                }
-            }
-
-            // Launch at Login
-            HStack(spacing: 8) {
-                Text("Startup")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-                Toggle("Launch at Login", isOn: $launchAtLogin)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                    .onAppear {
-                        if #available(macOS 13.0, *) {
-                            launchAtLogin = LaunchAtLoginManager.isEnabled
-                        }
-                    }
-                    .onChange(of: launchAtLogin) { newValue in
-                        if #available(macOS 13.0, *) {
-                            LaunchAtLoginManager.setEnabled(newValue)
-                        }
-                    }
-            }
-
+            RefreshSettingsSection(viewModel: viewModel)
+            DisplaySettingsSection()
+            AlertSettingsSection()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
-
 
     /// Editable name row for a single account.
     private func accountNameRow(_ account: AccountRecord, index: Int) -> some View {
@@ -832,6 +672,121 @@ private struct SettingsRow: View {
             }
         )
     }
+}
+
+/// Refresh interval slider + launch-at-login toggle.
+private struct RefreshSettingsSection: View {
+    let viewModel: UsageViewModel
+    @AppStorage(UserDefaultsKeys.refreshInterval) private var refreshInterval: Double = 60
+    @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
+
+    var body: some View {
+        // Refresh interval
+        VStack(spacing: 2) {
+            HStack(spacing: 8) {
+                Text("Refresh")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Slider(value: $refreshInterval, in: 10...60, step: 5)
+                    .onChange(of: refreshInterval) { _ in
+                        viewModel.updatePollingInterval(refreshInterval)
+                    }
+                    .accessibilityLabel("Refresh interval")
+                    .accessibilityValue("\(Int(refreshInterval)) seconds")
+                Text("\(Int(refreshInterval))s")
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(width: 28, alignment: .trailing)
+            }
+            sliderMarks(labels: ["10s", "20s", "30s", "40s", "50s", "60s"], leadingPad: 50)
+            Text("~3 tokens per poll")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 58)
+        }
+
+        // Launch at Login
+        HStack(spacing: 8) {
+            Text("Startup")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .trailing)
+            Toggle("Launch at Login", isOn: $launchAtLogin)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .onAppear {
+                    if #available(macOS 13.0, *) {
+                        launchAtLogin = LaunchAtLoginManager.isEnabled
+                    }
+                }
+                .onChange(of: launchAtLogin) { newValue in
+                    if #available(macOS 13.0, *) {
+                        LaunchAtLoginManager.setEnabled(newValue)
+                    }
+                }
+        }
+    }
+}
+
+/// Display toggles + models time window slider.
+private struct DisplaySettingsSection: View {
+    @AppStorage(UserDefaultsKeys.tokenWindowDays) private var tokenWindowDays: Double = 0
+    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
+    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
+    @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
+    @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
+    var body: some View {
+        // Models window (slider 1–8; 1–7 = days, 8 = all time stored as 0)
+        VStack(spacing: 2) {
+            HStack(spacing: 8) {
+                Text("Models")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Slider(value: modelsSliderBinding, in: 1...8, step: 1)
+                    .accessibilityLabel("Models time window")
+                    .accessibilityValue(tokenWindowDays > 0 ? "\(Int(tokenWindowDays)) days" : "All time")
+                Text(tokenWindowDays > 0 ? "\(Int(tokenWindowDays))d" : "All")
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(width: 28, alignment: .trailing)
+            }
+            sliderMarks(labels: ["1d", "2d", "3d", "4d", "5d", "6d", "7d", "All"], leadingPad: 50)
+            Text("Only show models used within period")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 58)
+        }
+
+        // Display toggles
+        HStack(spacing: 8) {
+            Text("Display")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .trailing)
+            Toggle("Tokens", isOn: $showTokens)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+            Toggle("Activity", isOn: $showActivity)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+        }
+        HStack(spacing: 8) {
+            Spacer().frame(width: 50)
+            Toggle("Colorblind", isOn: $colorblindMode)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
+            Toggle("Cost*", isOn: $showCostEstimate)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+        }
+        HStack(spacing: 8) {
+            Spacer().frame(width: 50)
+            Text("Cost* = equivalent API token rates")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
 
     /// Maps slider position (1–8) ↔ stored value (1–7 days, 0 = all time).
     private var modelsSliderBinding: Binding<Double> {
@@ -840,23 +795,93 @@ private struct SettingsRow: View {
             set: { tokenWindowDays = $0 >= 8 ? 0 : $0 }
         )
     }
+}
 
-    /// Tick mark labels displayed below a slider.
-    private func sliderMarks(labels: [String], leadingPad: CGFloat) -> some View {
-        HStack {
-            Spacer().frame(width: leadingPad + 8) // label width + HStack spacing
-            HStack(spacing: 0) {
-                ForEach(Array(labels.enumerated()), id: \.offset) { i, label in
-                    Text(label)
-                        .font(.system(size: 8))
-                        .foregroundStyle(.quaternary)
-                    if i < labels.count - 1 {
-                        Spacer()
-                    }
+/// Status alerts + rate limit alerts.
+private struct AlertSettingsSection: View {
+    @AppStorage(UserDefaultsKeys.alertClaudeAI) private var alertClaudeAI: Bool = false
+    @AppStorage(UserDefaultsKeys.alertClaudeCode) private var alertClaudeCode: Bool = false
+    @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
+    @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
+
+    var body: some View {
+        // Status alerts
+        HStack(spacing: 8) {
+            Text("Alerts")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .trailing)
+            Toggle("Claude.ai", isOn: $alertClaudeAI)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .onChange(of: alertClaudeAI) { on in
+                    if on { NotificationManager.shared.requestPermission() }
+                }
+            Toggle("Claude Code", isOn: $alertClaudeCode)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .onChange(of: alertClaudeCode) { on in
+                    if on { NotificationManager.shared.requestPermission() }
+                }
+            if alertClaudeAI || alertClaudeCode {
+                Button("Test") {
+                    NotificationManager.shared.testAlerts()
+                }
+                .buttonStyle(.plain)
+                .font(.caption2)
+                .foregroundStyle(.blue)
+            }
+        }
+        Text("Notify when service is down")
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .padding(.leading, 58)
+
+        // Rate limit alerts
+        VStack(spacing: 2) {
+            HStack(spacing: 8) {
+                Spacer()
+                    .frame(width: 50)
+                Toggle("Rate Limit Notify", isOn: $alertRateLimit)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+            }
+            if alertRateLimit {
+                HStack(spacing: 8) {
+                    Spacer()
+                        .frame(width: 50)
+                    Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
+                        .accessibilityLabel("Rate limit alert threshold")
+                        .accessibilityValue("\(Int(rateLimitThreshold)) percent")
+                    Text("\(Int(rateLimitThreshold))%")
+                        .font(.system(.caption, design: .monospaced))
+                        .frame(width: 28, alignment: .trailing)
+                }
+                sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)
+                Text("Notify when rate limit usage exceeds threshold")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 58)
+            }
+        }
+    }
+}
+
+/// Tick mark labels displayed below a slider. Shared across settings sections.
+fileprivate func sliderMarks(labels: [String], leadingPad: CGFloat) -> some View {
+    HStack {
+        Spacer().frame(width: leadingPad + 8) // label width + HStack spacing
+        HStack(spacing: 0) {
+            ForEach(Array(labels.enumerated()), id: \.offset) { i, label in
+                Text(label)
+                    .font(.system(size: 8))
+                    .foregroundStyle(.quaternary)
+                if i < labels.count - 1 {
+                    Spacer()
                 }
             }
-            Spacer().frame(width: 36) // value label width + spacing
         }
+        Spacer().frame(width: 36) // value label width + spacing
     }
 }
 

@@ -4,6 +4,7 @@ public struct MenuBarLabel: View {
     @ObservedObject var viewModel: UsageViewModel
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -33,8 +34,8 @@ public struct MenuBarLabel: View {
 
             Text("\(Int(displayPercent))%")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.4), value: Int(displayPercent * 10))
+                .contentTransition(reduceMotion ? .identity : .numericText())
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: Int(displayPercent * 10))
                 .opacity(isStale ? 0.5 : 1.0)
         }
         .accessibilityElement(children: .ignore)

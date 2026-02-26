@@ -9,18 +9,8 @@ final class UsageAggregator {
         self.sessionLogReader = sessionLogReader
     }
 
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
-    private static let isoFormatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
+    private static let dateFormatter = DateFormatters.dateKey
+    private static let isoFormatter = DateFormatters.iso8601
 
     func aggregate(rateLimits: RateLimitUsage?) -> UsageSnapshot {
         let statsCache = statsCacheReader.read()

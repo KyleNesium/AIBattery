@@ -62,6 +62,15 @@ struct TokenHealthConfig {
     /// Zero output after this many turns triggers a warning.
     var zeroOutputTurnThreshold: Int = 3
 
+    // MARK: - Rapid consumption / velocity thresholds
+
+    /// Session shorter than this (seconds) with high token usage triggers a warning.
+    var rapidConsumptionSeconds: Int = 60
+    /// Token threshold for rapid consumption detection.
+    var rapidConsumptionTokens: Int = 50_000
+    /// Minimum session duration (seconds) before velocity is calculated.
+    var velocityMinDuration: TimeInterval = 60
+
     static let `default` = TokenHealthConfig()
 
     static func contextWindow(for model: String) -> Int {

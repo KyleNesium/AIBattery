@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.2] — 2026-02-26
+
+### Improved
+- **Wake/sleep lifecycle** — polling pauses on sleep, immediate refresh on wake, adaptive polling resets
+- **Network awareness** — skip API calls when offline via NWPathMonitor, show cached data with "No internet" message
+- **SwiftUI redraw optimization** — decomposed SettingsRow into 3 focused sub-views; toggling a display setting no longer redraws unrelated sections
+- **Deprecated API fix** — replaced `lockFocus`/`unlockFocus` with `NSImage(size:flipped:drawingHandler:)`
+- **Testability** — extracted `AdaptivePollingState`, `parseRetryAfter`, and `TokenHealthConfig` thresholds into testable units
+- **Centralized date formatters** — shared `DateFormatter` instances allocated once and reused
+- **Activity chart accessibility** — added VoiceOver labels to chart data points
+
+### Added
+- 26 new tests (382 → 408 total): DateFormatters, AdaptivePollingState, parseRetryAfter, rapid consumption detection, custom health thresholds, Retry-After parsing
+
 ## [1.5.1] — 2026-02-26
 
 ### Fixed

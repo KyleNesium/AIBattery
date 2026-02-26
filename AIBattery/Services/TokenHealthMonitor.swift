@@ -138,7 +138,7 @@ final class TokenHealthMonitor {
         // 4. Rapid token consumption (short session, high usage)
         if let firstTs = sessionEntries.first?.timestamp,
            let lastTs = sessionEntries.last?.timestamp,
-           lastTs.timeIntervalSince(firstTs) < 60 && totalUsed > 50_000 {
+           lastTs.timeIntervalSince(firstTs) < Double(config.rapidConsumptionSeconds) && totalUsed > config.rapidConsumptionTokens {
             warnings.append(HealthWarning(
                 severity: .mild,
                 message: "Rapid token consumption detected",
@@ -165,7 +165,7 @@ final class TokenHealthMonitor {
            let first = sessionEntries.first,
            let last = sessionEntries.last {
             let duration = last.timestamp.timeIntervalSince(first.timestamp)
-            if duration > 60 {
+            if duration > config.velocityMinDuration {
                 tokensPerMinute = Double(totalUsed) / (duration / 60.0)
             }
         }

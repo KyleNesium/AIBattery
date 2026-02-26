@@ -22,15 +22,8 @@ struct DailyActivity: Codable, Identifiable {
 
     var id: String { date }
 
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     var parsedDate: Date? {
-        Self.dateFormatter.date(from: date)
+        DateFormatters.dateKey.date(from: date)
     }
 }
 

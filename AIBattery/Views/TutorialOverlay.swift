@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// 3-step walkthrough overlay shown on first data load.
+/// Owns its own `hasSeenTutorial` @AppStorage — parent just passes `hasData`.
 struct TutorialOverlay: View {
     let hasData: Bool
     @AppStorage(UserDefaultsKeys.hasSeenTutorial) private var hasSeenTutorial = false

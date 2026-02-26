@@ -291,6 +291,78 @@ struct TokenHealthMonitorTests {
         #expect(result?.band == .orange)
     }
 
+    // MARK: - Rapid consumption
+
+    @Test func assess_rapidConsumption_triggered() {
+        // 2 entries within 30 seconds, high token usage → warning
+        let start = Date()
+        let entries = [
+            makeEntry(sessionId: "s1", input: 40_000, output: 15_000, timestamp: start),
+            makeEntry(sessionId: "s1", input: 45_000, output: 15_000, timestamp: start.addingTimeInterval(30)),
+        ]
+        let result = monitor.assessCurrentSession(entries: entries)
+        #expect(result != nil)
+        let rapidWarnings = result!.warnings.filter { $0.message.contains("Rapid") }
+        #expect(rapidWarnings.count == 1)
+    }
+
+    @Test func assess_rapidConsumption_notTriggered_longSession() {
+        // 2 entries over 2 minutes — not rapid
+        let start = Date()
+        let entries = [
+            makeEntry(sessionId: "s1", input: 40_000, output: 15_000, timestamp: start),
+            makeEntry(sessionId: "s1", input: 45_000, output: 15_000, timestamp: start.addingTimeInterval(120)),
+        ]
+        let result = monitor.assessCurrentSession(entries: entries)
+        #expect(result != nil)
+        let rapidWarnings = result!.warnings.filter { $0.message.contains("Rapid") }
+        #expect(rapidWarnings.isEmpty)
+    }
+
+    @Test func assess_rapidConsumption_customConfig() {
+        var config = TokenHealthConfig()
+        config.rapidConsumptionSeconds = 120
+        config.rapidConsumptionTokens = 10_000
+        let customMonitor = TokenHealthMonitor(config: config)
+
+        let start = Date()
+        let entries = [
+            makeEntry(sessionId: "s1", input: 8_000, output: 5_000, timestamp: start),
+            makeEntry(sessionId: "s1", input: 10_000, output: 5_000, timestamp: start.addingTimeInterval(90)),
+        ]
+        let result = customMonitor.assessCurrentSession(entries: entries)
+        #expect(result != nil)
+        let rapidWarnings = result!.warnings.filter { $0.message.contains("Rapid") }
+        #expect(rapidWarnings.count == 1)
+    }
+
+    // MARK: - Velocity with custom config
+
+    @Test func assess_velocity_customMinDuration() {
+        var config = TokenHealthConfig()
+        config.velocityMinDuration = 30
+        let customMonitor = TokenHealthMonitor(config: config)
+
+        let start = Date()
+        let entries = [
+            makeEntry(sessionId: "s1", input: 5_000, output: 500, timestamp: start),
+            makeEntry(sessionId: "s1", input: 10_000, output: 500, timestamp: start.addingTimeInterval(45)),
+        ]
+        let result = customMonitor.assessCurrentSession(entries: entries)
+        // With default config (60s min), 45s session → no velocity.
+        // With custom 30s min, 45s > 30s → velocity calculated.
+        #expect(result?.tokensPerMinute != nil)
+    }
+
+    // MARK: - Config defaults for new fields
+
+    @Test func configDefaults_rapidConsumptionAndVelocity() {
+        let config = TokenHealthConfig.default
+        #expect(config.rapidConsumptionSeconds == 60)
+        #expect(config.rapidConsumptionTokens == 50_000)
+        #expect(config.velocityMinDuration == 60)
+    }
+
     // MARK: - Helper
 
     private func makeEntry(
