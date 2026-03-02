@@ -18,11 +18,14 @@ struct AIBatteryApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            if oauthManager.isAuthenticated {
-                UsagePopoverView(viewModel: viewModel)
-            } else {
-                AuthView(oauthManager: oauthManager)
+            Group {
+                if oauthManager.isAuthenticated {
+                    UsagePopoverView(viewModel: viewModel)
+                } else {
+                    AuthView(oauthManager: oauthManager)
+                }
             }
+            .background(PanelAccessor())
         } label: {
             MenuBarLabel(viewModel: viewModel)
         }
