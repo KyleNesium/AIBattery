@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.4] — 2026-03-02
+
+### Fixed
+- **Popover mouse pass-through** — hovering over the popover no longer interacts with windows beneath it. Configured the MenuBarExtra NSPanel (`becomesKeyOnlyIfNeeded = false`, `acceptsMouseMovedEvents = true`) and added `contentShape(Rectangle())` to close SwiftUI hit-testing gaps.
+
 ## [1.5.3] — 2026-02-26
 
 ### Fixed
