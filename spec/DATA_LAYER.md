@@ -238,6 +238,7 @@ Pricing table (per million tokens):
 - `signOut(accountId:)` → removes specific account (or active if nil), auto-switches to remaining account if any.
 - **Legacy migration**: `migrateFromLegacy()` on init — detects old unprefixed Keychain entries, creates AccountRecord with temp ID, copies refresh token to prefixed format, moves expiresAt to UserDefaults, deletes old entries. Runs only when accounts array is empty.
 - **Stale item migration**: `migrateStaleKeychainItems()` on init — removes legacy `accessToken_*` and `expiresAt_*` entries from Keychain (no longer stored there), moves expiresAt values to UserDefaults if not already present.
+- **Keychain accessibility migration**: `migrateKeychainAccessibility()` on init — one-time migration from `kSecAttrAccessibleWhenUnlocked` to `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`. Prevents iCloud Keychain from syncing refresh tokens to other Apple devices. Deletes and re-adds each item (Keychain doesn't support updating `kSecAttrAccessible` in-place). Tracked via `aibattery_keychainThisDeviceOnlyMigrated` UserDefaults flag.
 - **Per-account storage**: `saveTokens(for:)`, `loadTokens(for:)`, `deleteTokens(for:)` — refresh token in Keychain under `"refreshToken_{accountId}"`, service `"AIBattery"`; expiry in UserDefaults; access token in memory only.
 - `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.serverError(Int)`, `.maxAccountsReached`, `.unknownError(String)` — each has `userMessage` for display. `isTransient` for `.networkError`/`.serverError`.
 - **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) with jitter on 429 and 5xx. Parses `Retry-After` header on 429 when present. Non-retryable errors fail immediately.
@@ -289,6 +290,7 @@ Pricing table (per million tokens):
 - Reads and JSON-decodes `~/.claude/stats-cache.json`
 - **Static decoder**: `private static let jsonDecoder = JSONDecoder()` — shared instance avoids per-read allocation
 - **Result caching**: caches decoded `StatsCache` with file modification date and size; skips re-decode when file unchanged. `invalidate()` clears cache (called by FileWatcher on change).
+- **File size guard**: `maxFileSize = 10_000_000` (10 MB). Rejects files exceeding this before `Data(contentsOf:)` — stats-cache.json is typically a few KB; anything larger suggests a symlink to a large file or runaway writer. Guard checked in both stat-based and fallback code paths.
 
 ### SessionLogReader (`Services/SessionLogReader.swift`)
 - Singleton: `.shared`
@@ -301,6 +303,7 @@ Pricing table (per million tokens):
 - **Trailing line safety**: remaining data after last newline is only processed if it ends with `}` (skips incomplete/partial writes still being written)
 - Mod-time + file-size cache to skip unchanged files
 - **Result-level caching**: caches the merged `[AssistantUsageEntry]` result; invalidated by FileWatcher via `invalidate()`. Avoids re-sorting and re-deduplicating on every refresh.
+- **Symlink boundary check**: after discovery, resolves symlinks on each file URL and filters out any that resolve outside `~/.claude/projects/`. Prevents a symlink inside the projects directory from reading arbitrary files on disk.
 - **Discovery caching**: caches discovered JSONL file list with parent directory modification dates; re-scans only when directory contents change.
 - **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
 - Deduplication by messageId within each file
@@ -457,6 +460,13 @@ Pricing table (per million tokens):
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
 - Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`
+
+### SecureNetworking (`Utilities/SecureNetworking.swift`)
+- Enum (no instances) — centralized networking layer
+- `session: URLSession` — shared ephemeral session (no disk cache, no cookies, no credential storage)
+- `maxResponseSize = 2_000_000` (2 MB) — drops responses exceeding this limit
+- `data(for:) async throws -> (Data, URLResponse)` — fetches via ephemeral session, throws `URLError(.dataLengthExceedsMaximum)` for oversized responses
+- Used by all 4 network services: `OAuthManager`, `RateLimitFetcher`, `StatusChecker`, `VersionChecker`
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`

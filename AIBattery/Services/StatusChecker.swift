@@ -51,7 +51,7 @@ final class StatusChecker {
         request.timeoutInterval = 5
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await SecureNetworking.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 failureCount += 1
                 updateBackoff()

@@ -143,7 +143,7 @@ Tests/AIBatteryCoreTests/
     VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence
     SparkleUpdateServiceTests.swift — Sparkle configuration verification (auto-check disabled, singleton)
     RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation, Retry-After parsing
-    StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload
+    StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload, file size guard
     UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup
     OAuthManagerTests.swift       — AuthError user messages, transient error classification
 .github/workflows/
