@@ -6,7 +6,8 @@
 @main AIBatteryApp: App
   └─ MenuBarExtra(.window)
        ├─ label: MenuBarLabel (✦ icon + percentage)
-       └─ content: UsagePopoverView (275pt wide popover)
+       └─ content: Group { UsagePopoverView | AuthView }
+            └─ .background(PanelAccessor)  — configures NSPanel mouse capture
 ```
 
 Single `@StateObject UsageViewModel` owns all state. Views read `viewModel.snapshot`.
@@ -97,6 +98,7 @@ AIBattery/
     ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows)
     CopyableText.swift            — ViewModifier for click-to-copy with clipboard icon feedback
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
+    PanelAccessor.swift           — NSViewRepresentable that configures MenuBarExtra NSPanel mouse capture
   Utilities/
     TokenFormatter.swift          — Format tokens ("18.9M")
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"
@@ -105,6 +107,7 @@ AIBattery/
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
+    SecureNetworking.swift        — Ephemeral URLSession + response size guard (2 MB limit)
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
 Tests/AIBatteryCoreTests/
   Utilities/
@@ -115,6 +118,7 @@ Tests/AIBatteryCoreTests/
     ThemeColorsTests.swift        — Color theme tests (both modes, all bands)
     DateFormattersTests.swift     — format strings, round-trips, locale pinning
     AdaptivePollingStateTests.swift — threshold, doubling, cap, reset, constants
+    SecureNetworkingTests.swift   — Ephemeral session config, singleton, size limit constant
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     MetricModeTests.swift         — rawValues, labels, allCases
@@ -133,6 +137,7 @@ Tests/AIBatteryCoreTests/
     StatusIndicatorTests.swift    — from() all status strings, severity ordering, displayName
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
+    SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity, rapid consumption, custom config
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
     VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence

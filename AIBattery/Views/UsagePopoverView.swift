@@ -111,6 +111,7 @@ public struct UsagePopoverView: View {
             footerSection
         }
         .frame(width: 275)
+        .contentShape(Rectangle())
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
         }
