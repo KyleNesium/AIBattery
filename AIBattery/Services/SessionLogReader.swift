@@ -16,6 +16,10 @@ final class SessionLogReader {
     /// Maximum number of cached files before eviction.
     private let maxCacheEntries = 200
 
+    /// Maximum JSONL file size to read (50 MB). Individual session files are typically
+    /// a few hundred KB; anything larger suggests a symlink to a big file or corruption.
+    static let maxJSONLFileSize: UInt64 = 50_000_000
+
     /// Cached result of readAllUsageEntries — invalidated when any file changes.
     private var cachedAllEntries: [AssistantUsageEntry]?
 
@@ -78,6 +82,16 @@ final class SessionLogReader {
               let modDate = attrs[.modificationDate] as? Date,
               let fileSize = attrs[.size] as? UInt64 else {
             return readSessionFile(at: url)
+        }
+
+        if SecureNetworking.isWorldWritable(atPath: path) {
+            AppLogger.files.warning("Skipping world-writable JSONL file: \(url.lastPathComponent, privacy: .public)")
+            return []
+        }
+
+        guard fileSize <= Self.maxJSONLFileSize else {
+            AppLogger.files.warning("Skipping oversized JSONL file (\(fileSize) bytes): \(url.lastPathComponent, privacy: .public)")
+            return []
         }
 
         if let cached = cache[path], cached.0 == modDate, cached.1 == fileSize {
@@ -159,6 +173,12 @@ final class SessionLogReader {
                 jsonlFiles.append(contentsOf: files.filter { $0.pathExtension == "jsonl" })
             }
         }
+
+        // Symlink boundary check: resolve symlinks and verify each file stays
+        // within the projects directory. Prevents a symlink inside ~/.claude/projects/
+        // pointing to an arbitrary file outside that directory.
+        let resolvedBase = projectsURL.resolvingSymlinksInPath().path
+        jsonlFiles = jsonlFiles.filter { $0.resolvingSymlinksInPath().path.hasPrefix(resolvedBase) }
 
         discoveredFiles = jsonlFiles
         discoveryDirModDates = newDirModDates

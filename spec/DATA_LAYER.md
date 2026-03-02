@@ -238,7 +238,8 @@ Pricing table (per million tokens):
 - `signOut(accountId:)` → removes specific account (or active if nil), auto-switches to remaining account if any.
 - **Legacy migration**: `migrateFromLegacy()` on init — detects old unprefixed Keychain entries, creates AccountRecord with temp ID, copies refresh token to prefixed format, moves expiresAt to UserDefaults, deletes old entries. Runs only when accounts array is empty.
 - **Stale item migration**: `migrateStaleKeychainItems()` on init — removes legacy `accessToken_*` and `expiresAt_*` entries from Keychain (no longer stored there), moves expiresAt values to UserDefaults if not already present.
-- **Per-account storage**: `saveTokens(for:)`, `loadTokens(for:)`, `deleteTokens(for:)` — refresh token in Keychain under `"refreshToken_{accountId}"`, service `"AIBattery"`; expiry in UserDefaults; access token in memory only.
+- **Per-account storage**: `saveTokens(for:)`, `loadTokens(for:)`, `deleteTokens(for:)` — refresh token in Keychain under `"refreshToken_{accountId}"`, service `"AIBattery"`, accessibility `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` (prevents iCloud Keychain sync); expiry in UserDefaults; access token in memory only.
+- **Keychain accessibility migration**: `migrateKeychainAccessibility()` on init — one-time migration from `kSecAttrAccessibleWhenUnlocked` to `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` (Keychain doesn't support in-place accessibility updates, so items are deleted and re-added). Tracked via `aibattery_keychainThisDeviceOnlyMigrated` UserDefaults flag.
 - `AuthError` enum: `.noVerifier`, `.invalidCode`, `.expired`, `.networkError`, `.serverError(Int)`, `.maxAccountsReached`, `.unknownError(String)` — each has `userMessage` for display. `isTransient` for `.networkError`/`.serverError`.
 - **Token endpoint retry**: `postToken()` retries up to 2 times with exponential backoff (1s, 2s) with jitter on 429 and 5xx. Parses `Retry-After` header on 429 when present. Non-retryable errors fail immediately.
 - **Refresh resilience**: transient errors during refresh do NOT mark `isAuthenticated = false`. Only auth errors trigger logout.
@@ -288,6 +289,8 @@ Pricing table (per million tokens):
 - `read() -> StatsCache?`
 - Reads and JSON-decodes `~/.claude/stats-cache.json`
 - **Static decoder**: `private static let jsonDecoder = JSONDecoder()` — shared instance avoids per-read allocation
+- **File size guard**: `static let maxFileSize: UInt64 = 10_000_000` (10 MB). Refuses to read files larger than this (stats-cache.json is typically a few KB). Prevents OOM from symlinks to large files or runaway writers.
+- **World-writable file check**: skips stats-cache.json if POSIX others-write bit is set (via `SecureNetworking.isWorldWritable`). Prevents reading files tampered by other users on shared machines.
 - **Result caching**: caches decoded `StatsCache` with file modification date and size; skips re-decode when file unchanged. `invalidate()` clears cache (called by FileWatcher on change).
 
 ### SessionLogReader (`Services/SessionLogReader.swift`)
@@ -301,6 +304,9 @@ Pricing table (per million tokens):
 - **Trailing line safety**: remaining data after last newline is only processed if it ends with `}` (skips incomplete/partial writes still being written)
 - Mod-time + file-size cache to skip unchanged files
 - **Result-level caching**: caches the merged `[AssistantUsageEntry]` result; invalidated by FileWatcher via `invalidate()`. Avoids re-sorting and re-deduplicating on every refresh.
+- **Symlink boundary check**: after discovery, resolves symlinks and filters out any file whose resolved path is outside `~/.claude/projects/`. Prevents a symlink inside the projects directory from causing the app to read arbitrary files.
+- **JSONL file size guard**: `static let maxJSONLFileSize: UInt64 = 50_000_000` (50 MB). Skips files larger than this in `cachedRead()`. Individual session files are typically a few hundred KB.
+- **World-writable file check**: skips JSONL files with POSIX others-write bit set (via `SecureNetworking.isWorldWritable`). Prevents reading files tampered by other users on shared machines.
 - **Discovery caching**: caches discovered JSONL file list with parent directory modification dates; re-scans only when directory contents change.
 - **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
 - Deduplication by messageId within each file
@@ -422,6 +428,15 @@ Pricing table (per million tokens):
 - **JSONL corruption logging**: after aggregation, logs `SessionLogReader.lastCorruptLineCount` via `AppLogger.files.warning` if > 0.
 
 ## Utilities
+
+### SecureNetworking (`Utilities/SecureNetworking.swift`)
+- Enum (no instances)
+- `static let session: URLSession` — ephemeral configuration (no disk cache, no persistent cookies, no credential storage). Prevents OAuth token responses from being written to `~/Library/Caches/`.
+- `static let maxResponseBytes = 2_000_000` — 2 MB response size limit. Guards against OOM from a compromised or misbehaving endpoint.
+- `static func data(for: URLRequest) async throws -> (Data, URLResponse)` — fetches with size validation; throws `URLError(.dataLengthExceedsMaximum)` on oversized responses.
+- Used by all 4 network services: OAuthManager, RateLimitFetcher, StatusChecker, VersionChecker.
+- `static let worldWritableBit: Int = 0o002` — POSIX others-write bit.
+- `static func isWorldWritable(atPath:) -> Bool` — checks POSIX permissions for world-writable bit. Used by SessionLogReader and StatsCacheReader to skip tampered files on shared machines. Returns `false` if file can't be stat'd.
 
 ### ClaudePaths (`Utilities/ClaudePaths.swift`)
 - Centralized file paths for all Claude Code data locations (`static let` — computed once at load time)

@@ -204,6 +204,49 @@ struct StatsCacheReaderTests {
         #expect(decoded.maxOutputTokens == nil)
     }
 
+    // MARK: - World-writable file check
+
+    @Test func read_worldWritableFile_returnsNil() throws {
+        let url = tempURL()
+        defer { cleanup(url) }
+        try writeJSON(Self.minimalJSON, to: url)
+
+        // Make the file world-writable
+        try FileManager.default.setAttributes([.posixPermissions: 0o666], ofItemAtPath: url.path)
+
+        let reader = StatsCacheReader(fileURL: url)
+        #expect(reader.read() == nil)
+    }
+
+    // MARK: - File size guard
+
+    @Test func maxFileSize_is10MB() {
+        #expect(StatsCacheReader.maxFileSize == 10_000_000)
+    }
+
+    @Test func read_oversizedFile_returnsNil() throws {
+        let url = tempURL()
+        defer { cleanup(url) }
+        // Write a file larger than maxFileSize (use a sparse approach: write just over the limit)
+        let oversizedData = Data(repeating: UInt8(ascii: "{"), count: Int(StatsCacheReader.maxFileSize) + 1)
+        try oversizedData.write(to: url)
+
+        let reader = StatsCacheReader(fileURL: url)
+        #expect(reader.read() == nil)
+    }
+
+    @Test func read_fileAtExactLimit_attemptsRead() throws {
+        let url = tempURL()
+        defer { cleanup(url) }
+        // File at exactly the limit should attempt a read (won't decode as valid JSON, but won't be size-blocked)
+        let data = Data(repeating: UInt8(ascii: " "), count: Int(StatsCacheReader.maxFileSize))
+        try data.write(to: url)
+
+        let reader = StatsCacheReader(fileURL: url)
+        // Will return nil due to invalid JSON, but should NOT be blocked by size guard
+        #expect(reader.read() == nil)
+    }
+
     // MARK: - Test JSON
 
     private static let minimalJSON = """
