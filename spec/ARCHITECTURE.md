@@ -195,3 +195,17 @@ CHANGELOG.md                      — Release notes per version
 3. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
 4. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
 5. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data
+
+## App Store Distribution (Future — Blockers)
+
+Not currently planned, but documented here for reference. These are the architectural changes required before an App Store submission would be possible.
+
+| Blocker | Impact | Resolution Path |
+|---------|--------|-----------------|
+| App Sandbox | Can't read `~/.claude/` — App Store requires sandbox | XPC helper process or File Provider extension with bookmark access |
+| Sparkle framework | App Store rejects third-party update mechanisms | Remove Sparkle; use App Store's built-in update system |
+| `disable-library-validation` entitlement | Rejected by App Store review (only needed for Sparkle's dynamic loading) | Remove once Sparkle is gone |
+| Apple Developer certificate | App Store requires signed builds ($99/yr) | Enroll in Apple Developer Program |
+| Info.plist privacy descriptions | Missing usage descriptions required by App Store review | Add `NSDesktopFolderUsageDescription` etc. |
+
+Each blocker is non-trivial and should be addressed as a dedicated effort, not mixed into routine code changes.

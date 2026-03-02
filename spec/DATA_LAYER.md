@@ -104,7 +104,7 @@ Combined result from a single Messages API call.
 
 ### RateLimitUsage (`Models/RateLimitUsage.swift`)
 
-Parsed from Anthropic's unified rate limit headers (`anthropic-ratelimit-unified-*`). The API uses a unified sliding-window system with two windows: 5-hour (short-term burst) and 7-day (long-term usage). Each reports a utilization fraction (0.0–1.0) and a reset timestamp. The `representative-claim` tells which window is the binding constraint.
+Parsed from Anthropic's unified rate limit headers (`anthropic-ratelimit-unified-*`). The API uses a unified sliding-window system with two windows: 5-hour (short-term burst) and 7-day (long-term usage). Each reports a utilization fraction (0.0–1.0) and a reset timestamp. The `representative-claim` tells which window is the binding constraint. Conforms to `Equatable` (used by `UsageAggregator` for redundant aggregation skip).
 
 | Field | Type |
 |-------|------|
@@ -291,6 +291,7 @@ Pricing table (per million tokens):
 - **Static decoder**: `private static let jsonDecoder = JSONDecoder()` — shared instance avoids per-read allocation
 - **Result caching**: caches decoded `StatsCache` with file modification date and size; skips re-decode when file unchanged. `invalidate()` clears cache (called by FileWatcher on change).
 - **File size guard**: `maxFileSize = 10_000_000` (10 MB). Rejects files exceeding this before `Data(contentsOf:)` — stats-cache.json is typically a few KB; anything larger suggests a symlink to a large file or runaway writer. Guard checked in both stat-based and fallback code paths.
+- `lastModificationDate: Date?` — exposes cached file modification date (read-only). Used by `UsageAggregator` as a fingerprint component for redundant aggregation skip.
 
 ### SessionLogReader (`Services/SessionLogReader.swift`)
 - Singleton: `.shared`
@@ -315,6 +316,7 @@ Pricing table (per million tokens):
 - Created per-ViewModel (not singleton)
 - **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
 - `aggregate(rateLimits:) -> UsageSnapshot`
+- **Redundant aggregation skip**: tracks a lightweight fingerprint (JSONL entry count, stats-cache modification date, rate limits via `Equatable`, token window days setting). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods.
 - **Single-pass filtering**: iterates all entries once to extract both today's entries and windowed token totals simultaneously (avoids separate `.filter()` passes)
 - Reads: stats cache, all JSONL entries (single scan)
 - **Token window modes**: `aibattery_tokenWindowDays` UserDefaults (0 = all time, 1–7 = windowed)
@@ -356,12 +358,12 @@ Pricing table (per million tokens):
 - File paths sourced from `ClaudePaths` (centralized)
 
 ### NotificationManager (`Services/NotificationManager.swift`)
-- Singleton: `.shared`
+- Singleton: `.shared`, `@MainActor`
 - `requestPermission()` — no-op (osascript needs no permission)
 - `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
 - `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
 - Deduplication: `hasFired[key]` bool per component, resets when service recovers
-- **Batch delivery**: queues alerts for 500ms; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts")
+- **Batch delivery**: queues alerts for 500ms via `Task.sleep`; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts"). Uses structured concurrency (no GCD queues).
 - Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps. Process reaping via `waitUntilExit()` on background queue prevents zombie processes.
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
 
@@ -439,6 +441,7 @@ Pricing table (per million tokens):
 ### ModelNameMapper (`Utilities/ModelNameMapper.swift`)
 - `displayName(for modelId: String) -> String`
 - Strips "claude-" prefix via `hasPrefix`/`dropFirst`, strips trailing date segment (8+ consecutive digits) using manual character iteration (no regex — avoids NSRegularExpression bridging overhead), converts hyphens to dots, capitalizes family
+- **Result cache**: static `[String: String]` dictionary. Model IDs are immutable — same input always gives same output. Cache is permanent and small (~20 entries max). Only called from `@MainActor` context — no synchronization needed.
 - "claude-opus-4-6-20250929" → "Opus 4.6"
 
 ### DateFormatters (`Utilities/DateFormatters.swift`)

@@ -19,6 +19,10 @@ final class StatsCacheReader {
     private var cachedModDate: Date?
     private var cachedFileSize: UInt64?
 
+    /// Last known modification date of stats-cache.json. Used by UsageAggregator
+    /// to detect whether re-aggregation is needed.
+    var lastModificationDate: Date? { cachedModDate }
+
     /// Called by FileWatcher when the stats-cache file changes.
     func invalidate() {
         cached = nil

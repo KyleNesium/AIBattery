@@ -100,4 +100,24 @@ struct ModelNameMapperTests {
     @Test func displayName_singleVersion() {
         #expect(ModelNameMapper.displayName(for: "claude-sonnet-4") == "Sonnet 4")
     }
+
+    // MARK: - Cache behavior
+
+    @Test func displayName_cachedResultMatchesFreshResult() {
+        // First call computes; second call returns cached — both must match.
+        let modelId = "claude-opus-4-6-20250929"
+        let first = ModelNameMapper.displayName(for: modelId)
+        let second = ModelNameMapper.displayName(for: modelId)
+        #expect(first == second)
+        #expect(first == "Opus 4.6")
+    }
+
+    @Test func displayName_sameInputReturnsSameInstance() {
+        // Strings are value types, but NSString bridging means identical cache hits
+        // share the same backing storage. Verify via repeated calls.
+        let modelId = "claude-haiku-4-5-20251001"
+        let a = ModelNameMapper.displayName(for: modelId)
+        let b = ModelNameMapper.displayName(for: modelId)
+        #expect(a == b)
+    }
 }

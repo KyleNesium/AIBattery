@@ -1,7 +1,16 @@
 import Foundation
 
 enum ModelNameMapper {
+    private static var cache: [String: String] = [:]
+
     static func displayName(for modelId: String) -> String {
+        if let cached = cache[modelId] { return cached }
+        let result = computeDisplayName(for: modelId)
+        cache[modelId] = result
+        return result
+    }
+
+    private static func computeDisplayName(for modelId: String) -> String {
         guard !modelId.isEmpty else { return "Unknown" }
 
         // Strip "claude-" prefix
