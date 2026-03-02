@@ -15,6 +15,15 @@ public struct PanelAccessor: NSViewRepresentable {
 private class PanelConfigurationView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        configurePanel()
+    }
+
+    override func viewDidUnhide() {
+        super.viewDidUnhide()
+        configurePanel()
+    }
+
+    private func configurePanel() {
         guard let panel = window as? NSPanel else { return }
         panel.becomesKeyOnlyIfNeeded = false
         panel.acceptsMouseMovedEvents = true

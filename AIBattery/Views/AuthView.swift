@@ -160,6 +160,7 @@ public struct AuthView: View {
         }
         .padding(16)
         .frame(width: 275)
+        .contentShape(Rectangle())
     }
 
     private func startAuth() {
