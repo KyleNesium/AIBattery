@@ -21,6 +21,7 @@ final class StatusChecker {
         claudeCodeComponentID,
     ]
 
+    private static let jsonDecoder = JSONDecoder()
     private var cachedStatus: ClaudeSystemStatus?
 
     /// Exponential backoff with jitter for failed fetches.
@@ -60,7 +61,7 @@ final class StatusChecker {
                 return cachedStatus ?? .unknown
             }
 
-            let summary = try JSONDecoder().decode(StatusPageSummary.self, from: data)
+            let summary = try Self.jsonDecoder.decode(StatusPageSummary.self, from: data)
             let result = parseStatus(summary)
             cachedStatus = result
             failureCount = 0

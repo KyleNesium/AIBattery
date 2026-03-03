@@ -262,8 +262,7 @@ public struct UsagePopoverView: View {
     private var accountPicker: some View {
         Menu {
             let activeId = accountStore.activeAccountId
-            ForEach(accounts) { account in
-                let index = accounts.firstIndex(where: { $0.id == account.id }) ?? 0
+            ForEach(Array(accounts.enumerated()), id: \.element.id) { index, account in
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         viewModel.switchAccount(to: account.id)
@@ -599,8 +598,7 @@ private struct SettingsRow: View {
                 .foregroundStyle(.secondary)
 
             // Per-account names
-            ForEach(accountStore.accounts) { account in
-                let index = accountStore.accounts.firstIndex(where: { $0.id == account.id }) ?? 0
+            ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
                 accountNameRow(account, index: index)
             }
 

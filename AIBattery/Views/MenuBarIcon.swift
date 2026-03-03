@@ -42,28 +42,28 @@ struct MenuBarIcon: View {
 
     private static func cachedIcon(for percent: Double, band: Int) -> NSImage {
         let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        let appearance = NSApp.effectiveAppearance.name.rawValue
+        let currentAppearance = NSApp.effectiveAppearance
+        let appearanceName = currentAppearance.name.rawValue
 
         // Invalidate cache if accessibility or appearance state changed
         if cachedColorblindFlag != ThemeColors.isColorblind
             || cachedHighContrastFlag != highContrast
-            || cachedAppearanceName != appearance {
+            || cachedAppearanceName != appearanceName {
             iconCache.removeAll()
             cachedColorblindFlag = ThemeColors.isColorblind
             cachedHighContrastFlag = highContrast
-            cachedAppearanceName = appearance
+            cachedAppearanceName = appearanceName
         }
         if let cached = iconCache[band] { return cached }
-        let icon = renderIcon(percent: percent)
+        let isDarkMode = currentAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let icon = renderIcon(percent: percent, highContrast: highContrast, isDarkMode: isDarkMode)
         iconCache[band] = icon
         return icon
     }
 
-    private static func renderIcon(percent: Double) -> NSImage {
+    private static func renderIcon(percent: Double, highContrast: Bool, isDarkMode: Bool) -> NSImage {
         let size: CGFloat = 16
         let color = ThemeColors.barNSColor(percent: percent)
-        let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
             // Draw a small AI sparkle/star icon — 4-pointed star

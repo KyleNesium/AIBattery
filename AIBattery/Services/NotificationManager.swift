@@ -158,10 +158,18 @@ public final class NotificationManager {
 
     /// Safely quote a string for embedding in AppleScript.
     /// Escapes backslashes and double quotes (the only special chars inside AppleScript strings).
+    /// Single-pass to avoid intermediate String allocations from chained replacingOccurrences.
     nonisolated static func applescriptQuoted(_ s: String) -> String {
-        let escaped = s
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
+        var result = "\""
+        result.reserveCapacity(s.count + 4)
+        for char in s {
+            switch char {
+            case "\\": result += "\\\\"
+            case "\"": result += "\\\""
+            default: result.append(char)
+            }
+        }
+        result += "\""
+        return result
     }
 }
