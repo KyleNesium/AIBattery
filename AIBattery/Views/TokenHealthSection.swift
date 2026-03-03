@@ -81,7 +81,7 @@ struct TokenHealthSection: View {
                 Spacer()
                 Text("\(health.turnCount) turns · \(health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model))")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
                     .help("Conversation turns in this session")
             }
             .accessibilityElement(children: .combine)
@@ -92,7 +92,7 @@ struct TokenHealthSection: View {
                 let safeMin = health.usableWindow / 5 // 20% of usable window
                 Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
                     .help("Recommended minimum tokens to maintain response quality")
             }
 
@@ -104,7 +104,7 @@ struct TokenHealthSection: View {
                         .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
                     Text(warning.message)
                         .font(.caption2)
-                        .foregroundStyle(.primary.opacity(0.7))
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                 }
             }
 
@@ -170,7 +170,7 @@ struct TokenHealthSection: View {
 
             Text("\(selectedIndex + 1)/\(sessions.count)")
                 .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
 
             ChevronButton(
                 direction: .right,
@@ -196,14 +196,14 @@ struct TokenHealthSection: View {
                 if labelParts.isEmpty && idPrefix == nil {
                     Text("Latest session")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
                         .lineLimit(1)
                 } else {
                     HStack(spacing: 0) {
                         if !labelParts.isEmpty {
                             Text(labelParts.joined(separator: " · "))
                                 .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
@@ -211,11 +211,11 @@ struct TokenHealthSection: View {
                             if !labelParts.isEmpty {
                                 Text(" · ")
                                     .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(ThemeColors.tertiaryLabel)
                             }
                             Text(idPrefix)
                                 .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
                                 .copyable(idPrefix)
                         }
                     }

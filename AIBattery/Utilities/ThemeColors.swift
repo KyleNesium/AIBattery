@@ -48,6 +48,12 @@ enum ThemeColors {
         })
     }
 
+    /// Darker orange for light mode — raw `.orange` washes out on white backgrounds.
+    private static let deepOrange = adaptive(
+        light: NSColor(red: 0.85, green: 0.45, blue: 0.0, alpha: 1.0),
+        dark: NSColor.systemOrange
+    )
+
     /// Color for a usage percentage (0–100).
     static func barColor(percent: Double) -> Color {
         if isColorblind {
@@ -61,7 +67,7 @@ enum ThemeColors {
         switch percent {
         case 0..<50: return .green
         case 50..<80: return gold
-        case 80..<95: return .orange
+        case 80..<95: return deepOrange
         default: return .red
         }
     }
@@ -78,7 +84,7 @@ enum ThemeColors {
         }
         switch band {
         case .green: return .green
-        case .orange: return .orange
+        case .orange: return deepOrange
         case .red: return .red
         case .unknown: return .gray
         }
@@ -100,7 +106,7 @@ enum ThemeColors {
         case .operational: return .green
         case .degradedPerformance: return gold
         case .maintenance: return .blue
-        case .partialOutage: return .orange
+        case .partialOutage: return deepOrange
         case .majorOutage: return .red
         case .unknown: return .gray
         }
@@ -117,7 +123,8 @@ enum ThemeColors {
 
     /// Color for the "caution" semantic (idle badges, staleness, warnings).
     static var caution: Color {
-        isColorblind ? amber : .orange
+        if isColorblind { return amber }
+        return deepOrange
     }
 
     /// Color for trend direction arrows — brighter than standard bar colors for small text readability.
@@ -142,6 +149,25 @@ enum ThemeColors {
     /// Color for danger/error states (throttled, auth errors, critical warnings).
     static var danger: Color {
         isColorblind ? .purple : .red
+    }
+
+    // MARK: - Text label colors
+
+    /// Secondary-level text — darker than system `.secondary` in light mode for readability.
+    static var secondaryLabel: Color {
+        adaptive(
+            light: NSColor(white: 0.0, alpha: 0.7),
+            dark: NSColor(white: 1.0, alpha: 0.55)
+        )
+    }
+
+    /// Tertiary-level text — much darker than system `.tertiary` in light mode.
+    /// Replaces `.tertiary` / `.quaternary` foregroundStyle for readability on light backgrounds.
+    static var tertiaryLabel: Color {
+        adaptive(
+            light: NSColor(white: 0.0, alpha: 0.55),
+            dark: NSColor(white: 1.0, alpha: 0.35)
+        )
     }
 
     // MARK: - Track & background colors
@@ -179,7 +205,11 @@ enum ThemeColors {
                 ? NSColor.systemYellow
                 : NSColor(red: 0.75, green: 0.58, blue: 0.0, alpha: 1.0)
         }
-        case 80..<95: return .systemOrange
+        case 80..<95: return NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor.systemOrange
+                : NSColor(red: 0.85, green: 0.45, blue: 0.0, alpha: 1.0)
+        }
         default: return .systemRed
         }
     }

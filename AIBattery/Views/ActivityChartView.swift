@@ -129,10 +129,10 @@ struct ActivityChartView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "chart.line.flattrend.xyaxis")
                         .font(.system(size: 14))
-                        .foregroundStyle(.quaternary)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
                     Text("No activity data")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
@@ -350,7 +350,7 @@ struct ActivityChartView: View {
                     .foregroundStyle(.secondary)
                 Text("\(snapshot.dailyAverage) avg/day")
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(0.7))
+                    .foregroundStyle(ThemeColors.secondaryLabel)
             }
 
             Spacer()
@@ -358,7 +358,7 @@ struct ActivityChartView: View {
             if let busiest = snapshot.busiestDayOfWeek {
                 Text("Peak on \(busiest.name)s")
                     .font(.caption)
-                    .foregroundStyle(.primary.opacity(0.5))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
             }
         }
         .padding(.top, 4)

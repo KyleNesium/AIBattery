@@ -53,7 +53,7 @@ struct UsageBar: View {
                     if isBinding {
                         Text("binding")
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: 3))
@@ -111,7 +111,7 @@ struct UsageBar: View {
                 if let resetsAt {
                     Text("Resets \(resetTimeString(resetsAt))")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
             }
         }
