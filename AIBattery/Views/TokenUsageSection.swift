@@ -2,7 +2,7 @@ import SwiftUI
 
 struct TokenUsageSection: View {
     let snapshot: UsageSnapshot
-    var activeModelId: String? = nil
+    var activeModelId: String?
     @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCost: Bool = false
 
     private let modelIcons = [

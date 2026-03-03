@@ -161,7 +161,7 @@ final class TokenHealthMonitor {
 
         // 6. Token velocity (tokens per minute)
         // Use totalUsed (not sum of all entries, which double-counts cumulative input)
-        var tokensPerMinute: Double? = nil
+        var tokensPerMinute: Double?
         if sessionEntries.count >= 2,
            let first = sessionEntries.first,
            let last = sessionEntries.last {

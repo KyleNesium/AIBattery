@@ -97,7 +97,7 @@ Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeCom
 | Rate limit alert | `aibattery_alertRateLimit` (Bool, default false) |
 | Threshold | `aibattery_rateLimitThreshold` (Double, default 80, range 50–95, step 5) |
 | Dedup keys | `rateLimit5h`, `rateLimit7d` |
-| Delivery | Same `osascript` mechanism as status alerts |
+| Delivery | Same `UNUserNotificationCenter` mechanism as status alerts |
 | Deduplication | Fires once when crossing threshold, resets when dropping below |
 
 ## Status Alerts
@@ -107,7 +107,7 @@ Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeCom
 | Claude.ai alert | `aibattery_alertClaudeAI` (Bool, default false) |
 | Claude Code alert | `aibattery_alertClaudeCode` (Bool, default false) |
 | Identifier prefix | `aibattery-status-` |
-| Delivery | `osascript` `display notification` |
+| Delivery | `UNUserNotificationCenter` (native macOS) |
 | Sound | `default` |
 | Deduplication | Fires once per outage, resets when service recovers |
 

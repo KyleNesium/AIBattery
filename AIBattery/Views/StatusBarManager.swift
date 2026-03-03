@@ -79,19 +79,11 @@ public final class StatusBarManager: NSObject {
         panel.contentView = visualEffect
         panel.setContentSize(NSSize(width: 275, height: 600))
 
-        // React to snapshot changes — update button image + title
+        // React to snapshot or staleness changes — single subscription avoids double updates
         viewModel.$snapshot
+            .combineLatest(viewModel.$lastFreshFetch)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self, weak item, weak viewModel] _ in
-                guard let self, let button = item?.button, let viewModel else { return }
-                self.updateButton(button, viewModel: viewModel)
-            }
-            .store(in: &cancellables)
-
-        // Also react to lastFreshFetch changes for staleness dimming
-        viewModel.$lastFreshFetch
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self, weak item, weak viewModel] _ in
+            .sink { [weak self, weak item, weak viewModel] _, _ in
                 guard let self, let button = item?.button, let viewModel else { return }
                 self.updateButton(button, viewModel: viewModel)
             }

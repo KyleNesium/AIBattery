@@ -25,6 +25,10 @@ struct TokenHealthSection: View {
         return sessions[max(idx, 0)]
     }
 
+    private var remainingText: String { TokenFormatter.format(health.remainingTokens) }
+    private var usableText: String { TokenFormatter.format(health.usableWindow) }
+    private var modelDisplay: String { health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Header with session toggle
@@ -70,22 +74,22 @@ struct TokenHealthSection: View {
             .frame(height: 8)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
-            .accessibilityValue("\(TokenFormatter.format(health.remainingTokens)) tokens remaining")
+            .accessibilityValue("\(remainingText) tokens remaining")
 
             // Detail row
             HStack {
-                Text("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable")
+                Text("~\(remainingText) of \(usableText) usable")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .copyable("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable")
+                    .copyable("~\(remainingText) of \(usableText) usable")
                 Spacer()
-                Text("\(health.turnCount) turns · \(health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model))")
+                Text("\(health.turnCount) turns · \(modelDisplay)")
                     .font(.caption2)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .help("Conversation turns in this session")
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("~\(TokenFormatter.format(health.remainingTokens)) of \(TokenFormatter.format(health.usableWindow)) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : ModelNameMapper.displayName(for: health.model))")
+            .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
 
             // Recommended minimum context hint
             if health.band == .orange || health.band == .red {
@@ -296,13 +300,7 @@ struct TokenHealthSection: View {
     private var sessionBottomParts: [String] {
         var parts: [String] = []
         if let duration = health.sessionDuration {
-            let hours = Int(duration) / 3600
-            let mins = (Int(duration) % 3600) / 60
-            if hours > 0 {
-                parts.append("\(hours)h \(mins)m")
-            } else {
-                parts.append("\(mins)m")
-            }
+            parts.append(DurationFormatter.compact(duration))
         }
         if let lastActivity = health.lastActivity {
             parts.append(Self.formatSessionTime(lastActivity))

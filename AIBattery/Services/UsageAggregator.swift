@@ -94,18 +94,7 @@ final class UsageAggregator {
 
         if tokenWindowDays > 0 {
             // Windowed mode: windowedMap was already built in the single-pass above
-            modelTokens = windowedMap
-                .filter { modelId, _ in modelId.hasPrefix("claude-") }
-                .map { modelId, tokens in
-                    ModelTokenSummary(
-                        id: modelId,
-                        displayName: ModelNameMapper.displayName(for: modelId),
-                        inputTokens: tokens.input,
-                        outputTokens: tokens.output,
-                        cacheReadTokens: tokens.cacheRead,
-                        cacheWriteTokens: tokens.cacheWrite
-                    )
-                }.sorted { $0.totalTokens > $1.totalTokens }
+            modelTokens = Self.buildModelTokens(from: windowedMap)
         } else {
             // All-time mode: stats cache + uncached JSONL (original behavior)
             var modelTokensMap: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
@@ -134,18 +123,7 @@ final class UsageAggregator {
                 )
             }
 
-            modelTokens = modelTokensMap
-                .filter { modelId, _ in modelId.hasPrefix("claude-") }
-                .map { modelId, tokens in
-                    ModelTokenSummary(
-                        id: modelId,
-                        displayName: ModelNameMapper.displayName(for: modelId),
-                        inputTokens: tokens.input,
-                        outputTokens: tokens.output,
-                        cacheReadTokens: tokens.cacheRead,
-                        cacheWriteTokens: tokens.cacheWrite
-                    )
-                }.sorted { $0.totalTokens > $1.totalTokens }
+            modelTokens = Self.buildModelTokens(from: modelTokensMap)
         }
 
         // Peak hour
@@ -218,6 +196,23 @@ final class UsageAggregator {
         lastTokenWindowDays = tokenWindowDays
 
         return snapshot
+    }
+
+    /// Filter to Claude models, map to summaries, sort by total tokens descending.
+    private static func buildModelTokens(
+        from map: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
+    ) -> [ModelTokenSummary] {
+        map.compactMap { modelId, tokens in
+            guard modelId.hasPrefix("claude-") else { return nil }
+            return ModelTokenSummary(
+                id: modelId,
+                displayName: ModelNameMapper.displayName(for: modelId),
+                inputTokens: tokens.input,
+                outputTokens: tokens.output,
+                cacheReadTokens: tokens.cacheRead,
+                cacheWriteTokens: tokens.cacheWrite
+            )
+        }.sorted { $0.totalTokens > $1.totalTokens }
     }
 
 }

@@ -38,42 +38,29 @@ final class StatsCacheReader {
             return nil
         }
 
-        // Check mod date + size to skip re-decode when file unchanged
-        if let attrs = try? fm.attributesOfItem(atPath: path),
-           let modDate = attrs[.modificationDate] as? Date,
-           let fileSize = attrs[.size] as? UInt64 {
-            guard fileSize <= Self.maxFileSize else {
-                AppLogger.files.warning("StatsCacheReader: file too large (\(fileSize) bytes), skipping")
-                return nil
-            }
-            if let c = cached, modDate == cachedModDate, fileSize == cachedFileSize {
-                return c
-            }
-            // File changed — decode fresh
-            do {
-                let data = try Data(contentsOf: fileURL)
-                let result = try Self.jsonDecoder.decode(StatsCache.self, from: data)
-                cached = result
-                cachedModDate = modDate
-                cachedFileSize = fileSize
-                return result
-            } catch {
-                AppLogger.files.error("StatsCacheReader: error reading stats cache: \(error.localizedDescription, privacy: .public)")
-                return nil
-            }
-        }
+        // Stat once — extract mod date and size if available
+        let attrs = try? fm.attributesOfItem(atPath: path)
+        let modDate = attrs?[.modificationDate] as? Date
+        let fileSize = attrs?[.size] as? UInt64
 
-        // Fallback: can't stat — check size explicitly before reading
-        if let attrs = try? fm.attributesOfItem(atPath: path),
-           let fileSize = attrs[.size] as? UInt64,
-           fileSize > Self.maxFileSize {
+        // Size guard
+        if let fileSize, fileSize > Self.maxFileSize {
             AppLogger.files.warning("StatsCacheReader: file too large (\(fileSize) bytes), skipping")
             return nil
         }
+
+        // Cache hit — skip re-decode when file unchanged
+        if let c = cached, let modDate, let fileSize,
+           modDate == cachedModDate, fileSize == cachedFileSize {
+            return c
+        }
+
         do {
             let data = try Data(contentsOf: fileURL)
             let result = try Self.jsonDecoder.decode(StatsCache.self, from: data)
             cached = result
+            cachedModDate = modDate
+            cachedFileSize = fileSize
             return result
         } catch {
             AppLogger.files.error("StatsCacheReader: error reading stats cache: \(error.localizedDescription, privacy: .public)")

@@ -118,29 +118,12 @@ struct UsageBar: View {
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
-        let hours = Int(seconds) / 3600
-        let minutes = (Int(seconds) % 3600) / 60
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        }
-        return "\(max(minutes, 1))m"
+        DurationFormatter.compact(seconds)
     }
 
     private func resetTimeString(_ date: Date) -> String {
-        let now = Date()
-        let diff = date.timeIntervalSince(now)
+        let diff = date.timeIntervalSince(Date())
         guard diff > 0 else { return "soon" }
-
-        let hours = Int(diff) / 3600
-        let minutes = (Int(diff) % 3600) / 60
-
-        if hours > 24 {
-            let days = hours / 24
-            return "in \(days)d \(hours % 24)h"
-        } else if hours > 0 {
-            return "in \(hours)h \(minutes)m"
-        } else {
-            return "in \(minutes)m"
-        }
+        return "in \(DurationFormatter.compact(diff))"
     }
 }

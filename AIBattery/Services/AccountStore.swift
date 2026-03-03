@@ -11,6 +11,9 @@ public final class AccountStore: ObservableObject {
     nonisolated static let maxAccounts = 2
 
     @Published public private(set) var accounts: [AccountRecord] = []
+    private static let jsonEncoder = JSONEncoder()
+    private static let jsonDecoder = JSONDecoder()
+
     @Published public var activeAccountId: String?
 
     public var activeAccount: AccountRecord? {
@@ -101,14 +104,14 @@ public final class AccountStore: ObservableObject {
     // MARK: - Persistence
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(accounts) else { return }
+        guard let data = try? Self.jsonEncoder.encode(accounts) else { return }
         UserDefaults.standard.set(data, forKey: UserDefaultsKeys.accounts)
         UserDefaults.standard.set(activeAccountId, forKey: UserDefaultsKeys.activeAccountId)
     }
 
     private func load() {
         if let data = UserDefaults.standard.data(forKey: UserDefaultsKeys.accounts),
-           let decoded = try? JSONDecoder().decode([AccountRecord].self, from: data) {
+           let decoded = try? Self.jsonDecoder.decode([AccountRecord].self, from: data) {
             accounts = decoded
         }
         activeAccountId = UserDefaults.standard.string(forKey: UserDefaultsKeys.activeAccountId)

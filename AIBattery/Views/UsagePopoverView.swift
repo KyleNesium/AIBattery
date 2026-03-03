@@ -262,8 +262,7 @@ public struct UsagePopoverView: View {
     private var accountPicker: some View {
         Menu {
             let activeId = accountStore.activeAccountId
-            ForEach(accounts) { account in
-                let index = accounts.firstIndex(where: { $0.id == account.id }) ?? 0
+            ForEach(Array(accounts.enumerated()), id: \.element.id) { index, account in
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         viewModel.switchAccount(to: account.id)
@@ -287,9 +286,8 @@ public struct UsagePopoverView: View {
                 }
             }
         } label: {
-            if let activeIndex = accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }),
-               let active = accountStore.activeAccount {
-                Text(accountLabel(active, index: activeIndex))
+            if let activeIndex = accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
+                Text(accountLabel(accounts[activeIndex], index: activeIndex))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -531,13 +529,17 @@ public struct UsagePopoverView: View {
         .padding(.vertical, 10)
     }
 
+    private var systemIndicator: StatusIndicator? {
+        viewModel.systemStatus?.indicator
+    }
+
     private var statusColor: Color {
-        guard let indicator = viewModel.systemStatus?.indicator else { return .gray }
+        guard let indicator = systemIndicator else { return .gray }
         return ThemeColors.statusColor(indicator)
     }
 
     private var statusTooltip: String {
-        switch viewModel.systemStatus?.indicator {
+        switch systemIndicator {
         case .operational: return "All systems operational"
         case .degradedPerformance: return "Degraded performance"
         case .partialOutage: return "Partial outage"
@@ -599,8 +601,7 @@ private struct SettingsRow: View {
                 .foregroundStyle(.secondary)
 
             // Per-account names
-            ForEach(accountStore.accounts) { account in
-                let index = accountStore.accounts.firstIndex(where: { $0.id == account.id }) ?? 0
+            ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
                 accountNameRow(account, index: index)
             }
 

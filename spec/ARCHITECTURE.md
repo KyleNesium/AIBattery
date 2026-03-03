@@ -84,7 +84,7 @@ AIBattery/
     NetworkMonitor.swift          — NWPathMonitor connectivity observer (triggers refresh on recovery)
     StatusChecker.swift           — Fetches status.claude.com system status
     SingleInstanceGuard.swift     — POSIX flock single-instance guard, quarantine detection, SIGTERM handler
-    NotificationManager.swift     — Status outage + rate limit alerts via osascript
+    NotificationManager.swift     — Status outage + rate limit alerts via UNUserNotificationCenter
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
     VersionChecker.swift          — GitHub Releases update checker (24h cadence)
     SparkleUpdateService.swift     — Sparkle 2 wrapper for user-initiated auto-update
@@ -112,6 +112,7 @@ AIBattery/
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
     SecureNetworking.swift        — Ephemeral URLSession + response size guard (2 MB limit)
+    DurationFormatter.swift       — Compact time duration formatting ("2h 5m", "1d 1h", "soon")
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
 Tests/AIBatteryCoreTests/
   Utilities/
@@ -123,6 +124,7 @@ Tests/AIBatteryCoreTests/
     DateFormattersTests.swift     — format strings, round-trips, locale pinning
     AdaptivePollingStateTests.swift — threshold, doubling, cap, reset, constants
     SecureNetworkingTests.swift   — Ephemeral session config, singleton, size limit constant
+    DurationFormatterTests.swift  — compact format, boundaries, days/hours/minutes
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     MetricModeTests.swift         — rawValues, labels, allCases

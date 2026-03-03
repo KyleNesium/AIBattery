@@ -119,7 +119,7 @@ Parsed from Anthropic's unified rate limit headers (`anthropic-ratelimit-unified
 
 Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled`, `estimatedTimeToLimit(for window: String) -> TimeInterval?` (burn rate = utilization / elapsed, projects when 100% reached; returns nil if utilization ≤ 50%, elapsed < 60s, or estimate exceeds reset time)
 
-Static: `countdownText(to date: Date, from now: Date = .now) -> String` — compact countdown for menu bar display. Pure function with injectable `now` for testing. Returns `"3d 2h"` (>24h), `"2h 15m"` (1–24h), `"45m"` (1–59m), `"1m"` (minimum, <60s), or `"soon"` (past/zero). Used by `StatusBarManager` when throttled.
+Static: `countdownText(to date: Date, from now: Date = .now) -> String` — compact countdown for menu bar display. Pure function with injectable `now` for testing. Delegates to `DurationFormatter.compact()`. Used by `StatusBarManager` when throttled.
 
 `parse(headers:)` static method: reads `anthropic-ratelimit-unified-status`, `anthropic-ratelimit-unified-representative-claim`, `anthropic-ratelimit-unified-5h-utilization`, `anthropic-ratelimit-unified-5h-reset`, `anthropic-ratelimit-unified-5h-status`, and equivalent `7d` headers. Reset timestamps are parsed as Unix epoch seconds.
 
@@ -326,6 +326,7 @@ Pricing table (per million tokens):
   - **All-time mode (0)**: stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache, 72-hour recent model filter
   - **Windowed mode (1–7)**: computes token totals from all JSONL entries within the window, bypasses stats-cache `modelUsage`
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
+- **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending — shared by both all-time and windowed code paths
 - **Daily activity merge**: merges today's JSONL message/session counts into `dailyActivity` before snapshot construction, so the 7D chart reflects current-day usage even when stats-cache hasn't been rebuilt. If today's JSONL has more messages than the stale cache entry, replaces it; if no entry exists for today, appends one. Preserves the higher of JSONL or cache tool-call counts.
 - Tool calls from stats cache only (not parsed from JSONL)
 - Token health via `TokenHealthMonitor.assessSessions` (single-pass: returns both current + top 5)
@@ -363,12 +364,12 @@ Pricing table (per million tokens):
 
 ### NotificationManager (`Services/NotificationManager.swift`)
 - Singleton: `.shared`, `@MainActor`
-- `requestPermission()` — no-op (osascript needs no permission)
+- `requestPermission()` — requests notification authorization via `UNUserNotificationCenter` (fire-and-forget, system remembers choice)
 - `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
 - `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
 - Deduplication: `hasFired[key]` bool per component, resets when service recovers
 - **Batch delivery**: queues alerts for 500ms via `Task.sleep`; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts"). Uses structured concurrency (no GCD queues).
-- Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps. Process reaping via `waitUntilExit()` on background queue prevents zombie processes.
+- Delivery: uses `UNUserNotificationCenter` for native macOS notifications with the app's own icon. Each notification gets a unique identifier (`aibattery-{UUID}`).
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
 
 #### Rate Limit Alerts
@@ -474,6 +475,16 @@ Pricing table (per million tokens):
 - `maxResponseSize = 2_000_000` (2 MB) — drops responses exceeding this limit
 - `data(for:) async throws -> (Data, URLResponse)` — fetches via ephemeral session, throws `URLError(.dataLengthExceedsMaximum)` for oversized responses
 - Used by all 4 network services: `OAuthManager`, `RateLimitFetcher`, `StatusChecker`, `VersionChecker`
+
+### DurationFormatter (`Utilities/DurationFormatter.swift`)
+- Enum (no instances) — shared compact time duration formatting
+- `static func compact(_ seconds: TimeInterval) -> String` — formats a duration into the shortest human-readable form
+  - `≤ 0` → `"soon"`
+  - `< 60s` → `"1m"` (minimum 1 minute)
+  - `1–59 min` → `"Xm"`
+  - `1–24 hours` → `"Xh Ym"`
+  - `> 24 hours` → `"Xd Yh"`
+- Used by: `UsageBarsSection` (reset countdown), `TokenHealthSection` (session duration), `RateLimitUsage` (countdown text), menu bar throttle countdown
 
 ### AppLogger (`Utilities/AppLogger.swift`)
 - Enum with `static let` `os.Logger` instances, subsystem `com.KyleNesium.AIBattery`
