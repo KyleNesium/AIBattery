@@ -12,6 +12,14 @@ final class UsageAggregator {
     private static let dateFormatter = DateFormatters.dateKey
     private static let isoFormatter = DateFormatters.iso8601
 
+    // MARK: - Redundant aggregation skip
+
+    private var cachedSnapshot: UsageSnapshot?
+    private var lastEntryCount = 0
+    private var lastStatsCacheModDate: Date?
+    private var lastRateLimits: RateLimitUsage?
+    private var lastTokenWindowDays: Int = -1
+
     func aggregate(rateLimits: RateLimitUsage?) -> UsageSnapshot {
         let statsCache = statsCacheReader.read()
 
@@ -20,6 +28,16 @@ final class UsageAggregator {
 
         // Token window: 0 = all time, 1–7 = that many days
         let tokenWindowDays = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.tokenWindowDays))
+
+        // Check fingerprint: skip re-aggregation if inputs haven't changed
+        let statsCacheModDate = statsCacheReader.lastModificationDate
+        if let cached = cachedSnapshot,
+           allEntries.count == lastEntryCount,
+           statsCacheModDate == lastStatsCacheModDate,
+           rateLimits == lastRateLimits,
+           tokenWindowDays == lastTokenWindowDays {
+            return cached
+        }
 
         // Single-pass filter: extract today's entries and windowed entries simultaneously.
         // Since allEntries is sorted by timestamp, we can iterate once and bucket efficiently.
@@ -146,7 +164,7 @@ final class UsageAggregator {
 
         let activity = statsCache?.dailyActivity ?? []
 
-        return UsageSnapshot(
+        let snapshot = UsageSnapshot(
             lastUpdated: now,
             rateLimits: rateLimits,
             firstSessionDate: firstSessionDate,
@@ -169,6 +187,15 @@ final class UsageAggregator {
             tokenHealth: tokenHealth,
             topSessionHealths: topSessionHealths
         )
+
+        // Cache the result and fingerprint
+        cachedSnapshot = snapshot
+        lastEntryCount = allEntries.count
+        lastStatsCacheModDate = statsCacheModDate
+        lastRateLimits = rateLimits
+        lastTokenWindowDays = tokenWindowDays
+
+        return snapshot
     }
 
 }

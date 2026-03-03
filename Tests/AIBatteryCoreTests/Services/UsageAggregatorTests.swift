@@ -337,6 +337,126 @@ struct UsageAggregatorTests {
         }
     }
 
+    // MARK: - Redundant aggregation skip
+
+    @Test func aggregate_unchangedInputs_returnsCachedSnapshot() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        let lines = [
+            makeAssistantLine(input: 100, output: 50, messageId: "cache-msg-1", timestamp: now),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let rateLimits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+
+        let first = aggregator.aggregate(rateLimits: rateLimits)
+        let second = aggregator.aggregate(rateLimits: rateLimits)
+
+        // Same object returned (reference-equal for struct means identical field values)
+        #expect(first.totalMessages == second.totalMessages)
+        #expect(first.todayMessages == second.todayMessages)
+        // The cached snapshot preserves the original lastUpdated timestamp
+        #expect(first.lastUpdated == second.lastUpdated)
+    }
+
+    @Test func aggregate_changedRateLimits_recomputes() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        try writeJSONL(
+            [makeAssistantLine(input: 100, output: 50, messageId: "rl-msg-1", timestamp: now)],
+            to: projectsDir
+        )
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let rl1 = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let rl2 = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.8,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+
+        let first = aggregator.aggregate(rateLimits: rl1)
+        let second = aggregator.aggregate(rateLimits: rl2)
+
+        // Different rate limits should produce a fresh snapshot
+        #expect(first.rateLimits?.fiveHourPercent == 50.0)
+        #expect(second.rateLimits?.fiveHourPercent == 80.0)
+    }
+
+    @Test func aggregate_newJsonlEntries_recomputes() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        try writeJSONL(
+            [makeAssistantLine(input: 100, output: 50, messageId: "new-msg-1", timestamp: now)],
+            to: projectsDir
+        )
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let first = aggregator.aggregate(rateLimits: nil)
+        #expect(first.todayMessages == 1)
+
+        // Add a new entry — invalidate and re-read
+        logReader.invalidate()
+        try writeJSONL(
+            [
+                makeAssistantLine(input: 100, output: 50, messageId: "new-msg-1", timestamp: now),
+                makeAssistantLine(input: 200, output: 100, messageId: "new-msg-2", timestamp: now),
+            ],
+            to: projectsDir
+        )
+
+        let second = aggregator.aggregate(rateLimits: nil)
+        #expect(second.todayMessages == 2)
+    }
+
     // MARK: - Test data
 
     private static let statsCacheJSON = """

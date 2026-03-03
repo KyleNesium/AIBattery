@@ -4,6 +4,7 @@ import os
 /// Fires macOS notifications for status-page outages (Claude.ai / Claude Code).
 /// Uses osascript for reliable delivery from unsigned/SPM-built menu bar apps.
 /// Deduplicates: only fires once per outage, resets when service recovers.
+@MainActor
 public final class NotificationManager {
     public static let shared = NotificationManager()
 
@@ -12,9 +13,8 @@ public final class NotificationManager {
 
     /// Pending alerts queued for batching (flushed after 500ms).
     private var pendingAlerts: [(title: String, body: String)] = []
-    private var flushTimer: DispatchSourceTimer?
-    private let flushQueue = DispatchQueue(label: "com.KyleNesium.AIBattery.notifications")
-    private static let batchDelay: TimeInterval = 0.5
+    private var flushTask: Task<Void, Never>?
+    private static let batchDelay: UInt64 = 500_000_000 // 500ms in nanoseconds
 
     private init() {}
 
@@ -65,7 +65,7 @@ public final class NotificationManager {
     }
 
     /// Pure function for testability: whether an alert should fire given the current state.
-    static func shouldAlert(percent: Double, threshold: Double, previouslyFired: Bool) -> Bool {
+    nonisolated static func shouldAlert(percent: Double, threshold: Double, previouslyFired: Bool) -> Bool {
         percent >= threshold && !previouslyFired
     }
 
@@ -105,19 +105,14 @@ public final class NotificationManager {
     /// Queue a notification for batched delivery.
     /// If multiple alerts arrive within 500ms, they are combined into a single notification.
     private func send(title: String, body: String) {
-        flushQueue.async { [weak self] in
-            guard let self else { return }
-            self.pendingAlerts.append((title: title, body: body))
+        pendingAlerts.append((title: title, body: body))
 
-            // Start or restart the flush timer
-            self.flushTimer?.cancel()
-            let timer = DispatchSource.makeTimerSource(queue: self.flushQueue)
-            timer.schedule(deadline: .now() + Self.batchDelay)
-            timer.setEventHandler { [weak self] in
-                self?.flushPendingAlerts()
-            }
-            timer.resume()
-            self.flushTimer = timer
+        // Cancel any pending flush and restart the timer
+        flushTask?.cancel()
+        flushTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.batchDelay)
+            guard !Task.isCancelled else { return }
+            self?.flushPendingAlerts()
         }
     }
 
@@ -125,8 +120,7 @@ public final class NotificationManager {
     private func flushPendingAlerts() {
         let alerts = pendingAlerts
         pendingAlerts.removeAll()
-        flushTimer?.cancel()
-        flushTimer = nil
+        flushTask = nil
 
         guard !alerts.isEmpty else { return }
 
@@ -164,7 +158,7 @@ public final class NotificationManager {
 
     /// Safely quote a string for embedding in AppleScript.
     /// Escapes backslashes and double quotes (the only special chars inside AppleScript strings).
-    static func applescriptQuoted(_ s: String) -> String {
+    nonisolated static func applescriptQuoted(_ s: String) -> String {
         let escaped = s
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
