@@ -6,6 +6,9 @@
 - **Menu bar throttle countdown** — when rate-limited, menu bar shows countdown to reset (e.g., "2h 15m", "45m") instead of "100%". Updates every 60s via TimelineView, overrides metric mode while throttled.
 - 6 new countdown formatter tests (421 → 427 total)
 
+### Fixed
+- **Panel stays open** — popover no longer dismisses when mouse moves away or focus shifts to another window (`hidesOnDeactivate = false`). Only closes on menu bar icon click.
+
 ## [1.5.5] — 2026-03-03
 
 ### Added

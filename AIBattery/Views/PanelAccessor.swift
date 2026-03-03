@@ -27,5 +27,6 @@ private class PanelConfigurationView: NSView {
         guard let panel = window as? NSPanel else { return }
         panel.becomesKeyOnlyIfNeeded = false
         panel.acceptsMouseMovedEvents = true
+        panel.hidesOnDeactivate = false
     }
 }

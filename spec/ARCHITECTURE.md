@@ -98,7 +98,7 @@ AIBattery/
     ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows)
     CopyableText.swift            — ViewModifier for click-to-copy with clipboard icon feedback
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
-    PanelAccessor.swift           — NSViewRepresentable that configures MenuBarExtra NSPanel mouse capture
+    PanelAccessor.swift           — NSViewRepresentable that configures MenuBarExtra NSPanel (mouse capture + persistent panel)
   Utilities/
     TokenFormatter.swift          — Format tokens ("18.9M")
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"
