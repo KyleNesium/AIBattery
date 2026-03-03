@@ -2,11 +2,19 @@ import Foundation
 
 enum ModelNameMapper {
     private static var cache: [String: String] = [:]
+    private static let lock = NSLock()
 
     static func displayName(for modelId: String) -> String {
-        if let cached = cache[modelId] { return cached }
+        lock.lock()
+        if let cached = cache[modelId] {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
         let result = computeDisplayName(for: modelId)
+        lock.lock()
         cache[modelId] = result
+        lock.unlock()
         return result
     }
 

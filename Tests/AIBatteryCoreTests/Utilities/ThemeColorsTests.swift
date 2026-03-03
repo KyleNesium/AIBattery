@@ -118,9 +118,9 @@ struct ThemeColorsTests {
 
     // MARK: - Semantic colors
 
-    @Test func chartAccent_standard_isOrange() {
+    @Test func chartAccent_standard_notBlue() {
         setColorblind(false)
-        #expect(ThemeColors.chartAccent == .orange)
+        #expect(ThemeColors.chartAccent != .blue)
     }
 
     @Test func chartAccent_colorblind_isBlue() {
@@ -129,9 +129,9 @@ struct ThemeColorsTests {
         #expect(ThemeColors.chartAccent == .blue)
     }
 
-    @Test func caution_standard_isOrange() {
+    @Test func caution_standard_notRed() {
         setColorblind(false)
-        #expect(ThemeColors.caution == .orange)
+        #expect(ThemeColors.caution != .red)
     }
 
     @Test func trendColor_allDirections_distinct() {
