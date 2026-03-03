@@ -221,6 +221,13 @@ Pricing per million tokens:
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
 | MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
 
+## Security Guards
+
+| Constant | Value | File |
+|----------|-------|------|
+| Max API response size | 2,000,000 bytes (2 MB) — drops oversized responses | SecureNetworking |
+| Max stats-cache file size | 10,000,000 bytes (10 MB) — rejects before read | StatsCacheReader |
+
 ## JSONL Processing
 
 | Constant | Value |
