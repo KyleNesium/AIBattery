@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.3] — 2026-03-04
+
+### Fixed
+- **Auto mode context health** — auto mode now uses the highest context health percentage across all tracked sessions, not just the most recent. Fixes menu bar showing wrong metric when an older session had higher context usage.
+- **Light mode colors** — bar gauge colors (gold, orange) now use system palette in both modes. The opaque light-mode background provides sufficient contrast, so the custom dark variants are no longer needed.
+
+### Improved
+- **Cache race windows** — `ModelPricing` and `ModelNameMapper` caches use atomic `withLock {}` instead of manual lock/unlock pairs, closing a double-checked locking race window.
+- **TokenHealthMonitor performance** — pre-filters stale sessions before `Dictionary(grouping:)` to avoid allocating dictionary buckets for months of inactive sessions. Binds timestamps once in `assess()` to avoid repeated optional chain traversals.
+- **StatsCacheReader** — collapsed `fileExists` + `attributesOfItem` into a single `stat()` syscall per read.
+- **FileWatcher** — removed redundant `DispatchQueue.main.async` hop in FSEvent callback (already dispatched on `.main`).
+- **NotificationManager** — `hasFired` uses `Set<String>` instead of `[String: Bool]` for clearer intent.
+- **UsageViewModel** — single account lookup in `resolveAccountIdentity` (was scanning twice).
+- **TokenHealthSection** — removed redundant `max(idx, 0)` guard (index is always non-negative).
+
+### Added
+- 4 new auto mode / context health tests (436 total across 34 test files)
+
 ## [1.6.2] — 2026-03-03
 
 ### Changed

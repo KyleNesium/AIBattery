@@ -284,21 +284,23 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
 Applied via `ThemeColors` to: usage bars, context health bands, system status dots, menu bar icon.
 
-### Adaptive colors (light/dark mode)
+### Colors (light/dark mode)
+
+Most bar and accent colors use system palette in both modes (the opaque light-mode background provides sufficient contrast). Only text labels and fills use adaptive variants.
 
 | Constant | Light | Dark |
 |----------|-------|------|
-| Deep orange (caution, 80–94%, orange band) | RGB (0.85, 0.45, 0.0) | `.systemOrange` |
-| Gold (50–80% bars) | RGB (0.75, 0.58, 0.0) | `.systemYellow` |
+| Orange (caution, 80–94%, orange band) | `.systemOrange` | `.systemOrange` |
+| Gold (50–80% bars) | `.systemYellow` | `.systemYellow` |
+| Chart accent | `.systemOrange` | `.systemOrange` |
+| Trend ↑ | `.orange` | `.orange` |
+| Trend ↓ | `.green` | `.green` |
+| Menu bar gold | `.systemYellow` | `.systemYellow` |
+| Menu bar orange | `.systemOrange` | `.systemOrange` |
 | Secondary label | black 70% | white 55% |
 | Tertiary label | black 55% | white 35% |
-| Chart accent | RGB (0.85, 0.45, 0.1) | `.systemOrange` |
-| Trend ↑ | RGB (0.85, 0.45, 0.1) | RGB (1.0, 0.6, 0.2) |
-| Trend ↓ | RGB (0.15, 0.55, 0.25) | RGB (0.3, 0.85, 0.4) |
 | Track fill | black 14% opacity | white 10% opacity |
 | Badge fill | black 9% opacity | white 6% opacity |
-| Menu bar gold | same as Gold | `.systemYellow` |
-| Menu bar orange | RGB (0.85, 0.45, 0.0) | `.systemOrange` |
 | Popover background | solid `windowBackgroundColor` | translucent `.popover` vibrancy |
 
 ### Context health bands
