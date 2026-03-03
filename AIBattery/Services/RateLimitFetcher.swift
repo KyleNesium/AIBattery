@@ -134,11 +134,23 @@ final class RateLimitFetcher {
                 return .authFailed
             }
 
-            // Rate limited or server error — honor Retry-After if present
+            // Rate limited — parse headers from the 429 itself (they're always present)
+            if http.statusCode == 429 {
+                let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
+                let profile = APIProfile.parse(headers: http.allHeaderFields)
+                if rateLimits != nil || profile != nil {
+                    return .success(APIFetchResult(
+                        rateLimits: rateLimits ?? cachedResults[accountId]?.rateLimits,
+                        profile: profile ?? cachedResults[accountId]?.profile
+                    ))
+                }
+                // No headers on 429 (unexpected) — fall through to retry
+            }
+
+            // Server error or headerless 429 — honor Retry-After if present
             if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
                 if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {
                     try? await Task.sleep(for: .seconds(delay))
-                    // Single retry — if this also fails, fall through to networkError
                     if let (_, retryResp) = try? await SecureNetworking.data(for: request),
                        let retryHttp = retryResp as? HTTPURLResponse,
                        retryHttp.statusCode == 200 || retryHttp.statusCode == 400 {

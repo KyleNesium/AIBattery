@@ -62,6 +62,26 @@ struct RateLimitUsageTests {
         #expect(usage.fiveHourReset!.timeIntervalSince1970 == 1700000000)
     }
 
+    @Test func parse_throttledHeaders_returnsUsageWithResetDates() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "throttled",
+            "anthropic-ratelimit-unified-representative-claim": "five_hour",
+            "anthropic-ratelimit-unified-5h-utilization": "1.0",
+            "anthropic-ratelimit-unified-5h-reset": "1700000000",
+            "anthropic-ratelimit-unified-5h-status": "throttled",
+            "anthropic-ratelimit-unified-7d-utilization": "0.85",
+            "anthropic-ratelimit-unified-7d-reset": "1700500000",
+            "anthropic-ratelimit-unified-7d-status": "allowed",
+        ]
+        let usage = RateLimitUsage.parse(headers: headers)
+        #expect(usage != nil)
+        #expect(usage?.isThrottled == true)
+        #expect(usage?.fiveHourPercent == 100.0)
+        #expect(usage?.fiveHourReset != nil)
+        #expect(usage?.sevenDayReset != nil)
+        #expect(usage?.fiveHourStatus == "throttled")
+    }
+
     // MARK: - Computed properties
 
     @Test func fiveHourPercent() {
