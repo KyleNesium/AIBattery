@@ -300,13 +300,7 @@ struct TokenHealthSection: View {
     private var sessionBottomParts: [String] {
         var parts: [String] = []
         if let duration = health.sessionDuration {
-            let hours = Int(duration) / 3600
-            let mins = (Int(duration) % 3600) / 60
-            if hours > 0 {
-                parts.append("\(hours)h \(mins)m")
-            } else {
-                parts.append("\(mins)m")
-            }
+            parts.append(DurationFormatter.compact(duration))
         }
         if let lastActivity = health.lastActivity {
             parts.append(Self.formatSessionTime(lastActivity))

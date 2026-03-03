@@ -123,6 +123,9 @@ final class RateLimitFetcher {
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
+        // Cache lookup once — used as fallback when parsed headers are partial
+        let cached = cachedResults[accountId]
+
         do {
             let (data, response) = try await SecureNetworking.data(for: request)
             guard let http = response as? HTTPURLResponse else {
@@ -140,8 +143,8 @@ final class RateLimitFetcher {
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
                 if rateLimits != nil || profile != nil {
                     return .success(APIFetchResult(
-                        rateLimits: rateLimits ?? cachedResults[accountId]?.rateLimits,
-                        profile: profile ?? cachedResults[accountId]?.profile
+                        rateLimits: rateLimits ?? cached?.rateLimits,
+                        profile: profile ?? cached?.profile
                     ))
                 }
                 // No headers on 429 (unexpected) — fall through to retry
@@ -158,8 +161,8 @@ final class RateLimitFetcher {
                         let profile = APIProfile.parse(headers: retryHttp.allHeaderFields)
                         if rateLimits != nil || profile != nil {
                             return .success(APIFetchResult(
-                                rateLimits: rateLimits ?? cachedResults[accountId]?.rateLimits,
-                                profile: profile ?? cachedResults[accountId]?.profile
+                                rateLimits: rateLimits ?? cached?.rateLimits,
+                                profile: profile ?? cached?.profile
                             ))
                         }
                     }
@@ -184,7 +187,7 @@ final class RateLimitFetcher {
                     let profile = APIProfile.parse(headers: http.allHeaderFields)
                     return .success(APIFetchResult(
                         rateLimits: rateLimits,
-                        profile: profile ?? cachedResults[accountId]?.profile
+                        profile: profile ?? cached?.profile
                     ))
                 }
                 return .networkError
@@ -195,8 +198,8 @@ final class RateLimitFetcher {
             let profile = APIProfile.parse(headers: http.allHeaderFields)
 
             let result = APIFetchResult(
-                rateLimits: rateLimits ?? cachedResults[accountId]?.rateLimits,
-                profile: profile ?? cachedResults[accountId]?.profile
+                rateLimits: rateLimits ?? cached?.rateLimits,
+                profile: profile ?? cached?.profile
             )
             return .success(result)
         } catch {
