@@ -363,12 +363,12 @@ Pricing table (per million tokens):
 
 ### NotificationManager (`Services/NotificationManager.swift`)
 - Singleton: `.shared`, `@MainActor`
-- `requestPermission()` — no-op (osascript needs no permission)
+- `requestPermission()` — requests notification authorization via `UNUserNotificationCenter` (fire-and-forget, system remembers choice)
 - `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
 - `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
 - Deduplication: `hasFired[key]` bool per component, resets when service recovers
 - **Batch delivery**: queues alerts for 500ms via `Task.sleep`; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts"). Uses structured concurrency (no GCD queues).
-- Delivery: uses `osascript` `display notification` for reliable delivery from unsigned/SPM-built menu bar apps. Process reaping via `waitUntilExit()` on background queue prevents zombie processes.
+- Delivery: uses `UNUserNotificationCenter` for native macOS notifications with the app's own icon. Each notification gets a unique identifier (`aibattery-{UUID}`).
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
 
 #### Rate Limit Alerts

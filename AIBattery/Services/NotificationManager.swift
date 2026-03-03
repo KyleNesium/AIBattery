@@ -1,8 +1,9 @@
 import Foundation
 import os
+import UserNotifications
 
 /// Fires macOS notifications for status-page outages (Claude.ai / Claude Code).
-/// Uses osascript for reliable delivery from unsigned/SPM-built menu bar apps.
+/// Uses UNUserNotificationCenter for native delivery with the app's own icon.
 /// Deduplicates: only fires once per outage, resets when service recovers.
 @MainActor
 public final class NotificationManager {
@@ -69,8 +70,15 @@ public final class NotificationManager {
         percent >= threshold && !previouslyFired
     }
 
-    /// No-op kept for call-site compatibility (osascript needs no permission).
-    func requestPermission() {}
+    /// Request notification permission from macOS. Fire-and-forget — the system
+    /// remembers the user's choice, so subsequent calls are no-ops.
+    func requestPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, error in
+            if let error {
+                AppLogger.general.warning("Notification permission request failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
 
     // MARK: - Private
 
@@ -137,39 +145,23 @@ public final class NotificationManager {
         deliverNotification(title: title, body: body)
     }
 
-    /// Deliver notification via osascript — works reliably for unsigned menu bar apps.
-    /// Process.arguments bypasses the shell (uses execve directly), so shell metacharacters
-    /// like $ and ` are safe. We only need to escape AppleScript string delimiters.
+    /// Deliver notification via UNUserNotificationCenter.
     private func deliverNotification(title: String, body: String) {
-        let script = "display notification \(Self.applescriptQuoted(body)) with title \(Self.applescriptQuoted(title)) sound name \"default\""
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        proc.arguments = ["-e", script]
-        do {
-            try proc.run()
-            // Reap the child process on a background queue to prevent zombies
-            DispatchQueue.global(qos: .utility).async {
-                proc.waitUntilExit()
-            }
-        } catch {
-            AppLogger.general.warning("osascript notification failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
 
-    /// Safely quote a string for embedding in AppleScript.
-    /// Escapes backslashes and double quotes (the only special chars inside AppleScript strings).
-    /// Single-pass to avoid intermediate String allocations from chained replacingOccurrences.
-    nonisolated static func applescriptQuoted(_ s: String) -> String {
-        var result = "\""
-        result.reserveCapacity(s.count + 4)
-        for char in s {
-            switch char {
-            case "\\": result += "\\\\"
-            case "\"": result += "\\\""
-            default: result.append(char)
+        let request = UNNotificationRequest(
+            identifier: "aibattery-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                AppLogger.general.warning("Notification delivery failed: \(error.localizedDescription, privacy: .public)")
             }
         }
-        result += "\""
-        return result
     }
 }
