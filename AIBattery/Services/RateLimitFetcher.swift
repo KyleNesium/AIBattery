@@ -171,9 +171,11 @@ final class RateLimitFetcher {
             if http.statusCode == 400 || http.statusCode == 404 {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let error = json["error"] as? [String: Any],
-                   let message = error["message"] as? String,
-                   message.lowercased().contains("model") || message.lowercased().contains("access") {
-                    return .modelUnavailable
+                   let message = error["message"] as? String {
+                    let lower = message.lowercased()
+                    if lower.contains("model") || lower.contains("access") {
+                        return .modelUnavailable
+                    }
                 }
                 // Non-model 400/404 (e.g., malformed request) — don't treat as success.
                 // Still try to extract rate limit headers before falling back.
