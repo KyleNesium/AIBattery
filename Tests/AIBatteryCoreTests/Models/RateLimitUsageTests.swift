@@ -190,6 +190,44 @@ struct RateLimitUsageTests {
         #expect(makeUsage(claim: "unknown").bindingWindowLabel == "5-hour")
     }
 
+    // MARK: - Countdown formatter
+
+    @Test func countdownText_hoursAndMinutes() {
+        let now = Date()
+        let future = now.addingTimeInterval(2 * 3600 + 30 * 60) // 2h 30m
+        #expect(RateLimitUsage.countdownText(to: future, from: now) == "2h 30m")
+    }
+
+    @Test func countdownText_minutesOnly() {
+        let now = Date()
+        let future = now.addingTimeInterval(45 * 60) // 45m
+        #expect(RateLimitUsage.countdownText(to: future, from: now) == "45m")
+    }
+
+    @Test func countdownText_pastDate() {
+        let now = Date()
+        let past = now.addingTimeInterval(-60)
+        #expect(RateLimitUsage.countdownText(to: past, from: now) == "soon")
+    }
+
+    @Test func countdownText_multiDay() {
+        let now = Date()
+        let future = now.addingTimeInterval(3 * 24 * 3600 + 2 * 3600) // 3d 2h
+        #expect(RateLimitUsage.countdownText(to: future, from: now) == "3d 2h")
+    }
+
+    @Test func countdownText_lessThanOneMinute() {
+        let now = Date()
+        let future = now.addingTimeInterval(30) // 30 seconds
+        #expect(RateLimitUsage.countdownText(to: future, from: now) == "1m")
+    }
+
+    @Test func countdownText_exactlyOneHour() {
+        let now = Date()
+        let future = now.addingTimeInterval(3600) // exactly 1h
+        #expect(RateLimitUsage.countdownText(to: future, from: now) == "1h 0m")
+    }
+
     // MARK: - Helpers
 
     private func makeUsage(

@@ -119,6 +119,8 @@ Parsed from Anthropic's unified rate limit headers (`anthropic-ratelimit-unified
 
 Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled`, `estimatedTimeToLimit(for window: String) -> TimeInterval?` (burn rate = utilization / elapsed, projects when 100% reached; returns nil if utilization ≤ 50%, elapsed < 60s, or estimate exceeds reset time)
 
+Static: `countdownText(to date: Date, from now: Date = .now) -> String` — compact countdown for menu bar display. Pure function with injectable `now` for testing. Returns `"3d 2h"` (>24h), `"2h 15m"` (1–24h), `"45m"` (1–59m), `"1m"` (minimum, <60s), or `"soon"` (past/zero). Used by `MenuBarLabel` when throttled.
+
 `parse(headers:)` static method: reads `anthropic-ratelimit-unified-status`, `anthropic-ratelimit-unified-representative-claim`, `anthropic-ratelimit-unified-5h-utilization`, `anthropic-ratelimit-unified-5h-reset`, `anthropic-ratelimit-unified-5h-status`, and equivalent `7d` headers. Reset timestamps are parsed as Unix epoch seconds.
 
 ### TokenHealthStatus (`Models/TokenHealthStatus.swift`) — `Identifiable`

@@ -28,18 +28,40 @@ public struct MenuBarLabel: View {
         return Date().timeIntervalSince(lastFetch) > 300
     }
 
-    public var body: some View {
-        HStack(spacing: 4) {
-            MenuBarIcon(requestsPercent: displayPercent)
+    /// Whether the user is currently throttled and we have a reset date to count down to.
+    private var throttleResetDate: Date? {
+        guard let rateLimits = viewModel.snapshot?.rateLimits,
+              rateLimits.isThrottled else { return nil }
+        return rateLimits.bindingReset
+    }
 
-            Text("\(Int(displayPercent))%")
+    public var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            HStack(spacing: 4) {
+                MenuBarIcon(requestsPercent: displayPercent)
+
+                Group {
+                    if let resetDate = throttleResetDate {
+                        Text(RateLimitUsage.countdownText(to: resetDate, from: context.date))
+                    } else {
+                        Text("\(Int(displayPercent))%")
+                    }
+                }
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .contentTransition(reduceMotion ? .identity : .numericText())
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: Int(displayPercent * 10))
                 .opacity(isStale ? 0.5 : 1.0)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(throttleAccessibilityLabel(at: context.date))
+            .accessibilityValue(isStale ? "Data may be stale" : "Up to date")
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("AI Battery usage \(Int(displayPercent)) percent")
-        .accessibilityValue(isStale ? "Data may be stale" : "Up to date")
+    }
+
+    private func throttleAccessibilityLabel(at date: Date) -> String {
+        if let resetDate = throttleResetDate {
+            return "AI Battery rate limited, resets in \(RateLimitUsage.countdownText(to: resetDate, from: date))"
+        }
+        return "AI Battery usage \(Int(displayPercent)) percent"
     }
 }
