@@ -34,7 +34,7 @@ private struct MonthlyPoint: Identifiable {
 struct ActivityChartView: View {
     let dailyActivity: [DailyActivity]
     let hourCounts: [String: Int]
-    var snapshot: UsageSnapshot? = nil
+    var snapshot: UsageSnapshot?
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
 

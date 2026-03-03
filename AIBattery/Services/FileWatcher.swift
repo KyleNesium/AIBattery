@@ -13,6 +13,8 @@ final class FileWatcher {
     private static let maxStatsCacheRetries = 10
     private static let statsCacheRetryBase: TimeInterval = 60
     private static let statsCacheRetryCap: TimeInterval = 300
+    private static let debounceDelay: TimeInterval = 2.0
+    private static let fallbackPollingInterval: TimeInterval = 60
 
     init(onChange: @escaping () -> Void) {
         self.onChange = onChange
@@ -145,7 +147,7 @@ final class FileWatcher {
     }
 
     private func startFallbackTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: Self.fallbackPollingInterval, repeats: true) { [weak self] _ in
             guard let self, !self.isStopped else { return }
             self.onChange()
         }
@@ -162,7 +164,7 @@ final class FileWatcher {
             self.onChange()
         }
         debounceWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.debounceDelay, execute: work)
     }
 
     deinit { stopWatching() }
