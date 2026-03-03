@@ -4,13 +4,18 @@
 
 ```
 @main AIBatteryApp: App
-  └─ MenuBarExtra(.window)
-       ├─ label: MenuBarLabel (✦ icon + percentage)
-       └─ content: Group { UsagePopoverView | AuthView }
-            └─ .background(PanelAccessor)  — configures NSPanel mouse capture
+  └─ AppDelegate (NSApplicationDelegateAdaptor)
+       └─ StatusBarManager.setup(viewModel:oauthManager:)
+            ├─ NSStatusItem: native button.image + button.title (no NSHostingView)
+            └─ PopoverPanel (floating NSPanel, borderless)
+                 └─ NSVisualEffectView (.popover material)
+                      └─ NSHostingView → PopoverContentView
+                           └─ Group { UsagePopoverView | AuthView }
 ```
 
-Single `@StateObject UsageViewModel` owns all state. Views read `viewModel.snapshot`.
+`StatusBarManager` owns the `NSStatusItem` and a floating `NSPanel` directly, bypassing SwiftUI's `MenuBarExtra`. The panel uses `hidesOnDeactivate = false` and `.floating` level so it stays open regardless of focus changes — only closes on status item click or Escape.
+
+Single `UsageViewModel` owns all state. Views read `viewModel.snapshot`.
 
 Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is shown. Multi-account add-account flow is handled inline by UsagePopoverView (shows AuthView as overlay).
 
@@ -52,7 +57,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 
 ```
 AIBatteryApp/
-  AIBatteryApp.swift              — @main, imports AIBatteryCore, MenuBarExtra with .window style, initializes SparkleUpdateService
+  AIBatteryApp.swift              — @main, imports AIBatteryCore, AppDelegate + Settings { EmptyView() }, initializes StatusBarManager
 AIBattery/
   Info.plist                      — LSUIElement = YES (no Dock icon)
   AIBattery.entitlements          — App sandbox disabled
@@ -86,7 +91,7 @@ AIBattery/
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
-    MenuBarLabel.swift            — ✦ icon + percentage in menu bar
+    StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, NSVisualEffectView, Combine-driven updates
     MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color, band-based NSImage cache)
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     AuthView.swift                 — OAuth login/paste-code screen
@@ -98,7 +103,6 @@ AIBattery/
     ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows)
     CopyableText.swift            — ViewModifier for click-to-copy with clipboard icon feedback
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
-    PanelAccessor.swift           — NSViewRepresentable that configures MenuBarExtra NSPanel mouse capture
   Utilities/
     TokenFormatter.swift          — Format tokens ("18.9M")
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"

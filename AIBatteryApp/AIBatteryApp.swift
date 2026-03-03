@@ -1,39 +1,29 @@
 import AIBatteryCore
 import SwiftUI
 
+@MainActor
+class AppDelegate: NSObject, NSApplicationDelegate {
+    let viewModel = UsageViewModel()
+    let oauthManager = OAuthManager.shared
+    let statusBarManager = StatusBarManager()
+
+    nonisolated func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor in
+            SingleInstanceGuard.ensureSingleInstance()
+            SingleInstanceGuard.installSignalHandlers()
+            SingleInstanceGuard.checkQuarantine()
+            _ = NotificationManager.shared
+            _ = SparkleUpdateService.shared
+            statusBarManager.setup(viewModel: viewModel, oauthManager: oauthManager)
+        }
+    }
+}
+
 @main
 struct AIBatteryApp: App {
-    @StateObject private var viewModel = UsageViewModel()
-    @StateObject private var oauthManager = OAuthManager.shared
-
-    init() {
-        SingleInstanceGuard.ensureSingleInstance()
-        SingleInstanceGuard.installSignalHandlers()
-        SingleInstanceGuard.checkQuarantine()
-        // Initialize early so status alert deduplication state is ready
-        _ = NotificationManager.shared
-        // Initialize Sparkle updater so it's ready when user clicks update
-        _ = SparkleUpdateService.shared
-    }
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        MenuBarExtra {
-            Group {
-                if oauthManager.isAuthenticated {
-                    UsagePopoverView(viewModel: viewModel)
-                } else {
-                    AuthView(oauthManager: oauthManager)
-                }
-            }
-            .background(PanelAccessor())
-        } label: {
-            MenuBarLabel(viewModel: viewModel)
-        }
-        .menuBarExtraStyle(.window)
-        .onChange(of: oauthManager.isAuthenticated) { authenticated in
-            if authenticated {
-                Task { await viewModel.refresh() }
-            }
-        }
+        Settings { EmptyView() }
     }
 }

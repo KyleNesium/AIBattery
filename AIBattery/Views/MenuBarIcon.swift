@@ -27,6 +27,19 @@ struct MenuBarIcon: View {
     private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
     private static var cachedAppearanceName: String = NSApp.effectiveAppearance.name.rawValue
 
+    /// Returns the cached status bar NSImage for a given percentage.
+    /// Used by StatusBarManager for native AppKit button rendering.
+    static func statusBarImage(for percent: Double) -> NSImage {
+        let band: Int
+        switch percent {
+        case ..<50: band = 0
+        case ..<80: band = 1
+        case ..<95: band = 2
+        default: band = 3
+        }
+        return cachedIcon(for: percent, band: band)
+    }
+
     private static func cachedIcon(for percent: Double, band: Int) -> NSImage {
         let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let appearance = NSApp.effectiveAppearance.name.rawValue

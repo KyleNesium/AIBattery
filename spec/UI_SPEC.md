@@ -325,11 +325,31 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 
 ## Menu Bar
 
-### MenuBarLabel (`Views/MenuBarLabel.swift`)
+### StatusBarManager (`Views/StatusBarManager.swift`)
 
-HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monospaced)
+Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (percentage/countdown). Replaces SwiftUI's `MenuBarExtra` to gain full control over popover lifecycle.
 
-- **Staleness**: percentage text dims to 50% opacity when last fresh fetch > 5 minutes ago
+**Button rendering** (native AppKit, no NSHostingView):
+- `button.image` = `MenuBarIcon.statusBarImage(for: percent)` — star icon colored by usage band
+- `button.title` = percentage or countdown text
+- `button.imagePosition = .imageLeading` for icon-then-text layout
+- `button.font` = `.monospacedDigitSystemFont(ofSize: 0, weight: .regular)` — matches macOS battery indicator style
+
+**Throttle countdown**: when `rateLimits.isThrottled == true`, title shows countdown to binding reset (e.g., "2h 15m", "45m", "3d 2h", "soon") instead of percentage. Overrides the selected metric mode entirely — being rate-limited is a hard blocker that makes other metrics irrelevant. Updates on each polling cycle.
+
+**Normal mode**: shows `"{percent}%"` driven by selected metric mode (reads `UserDefaults` directly since `@AppStorage` requires SwiftUI View context).
+
+**Staleness**: `button.appearsDisabled = true` when last fresh fetch > 5 minutes ago (native dimming).
+
+**Panel behavior** (floating `NSPanel`, not `NSPopover`):
+- Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`) with `NSVisualEffectView` (`.popover` material, 10pt corner radius) + `NSHostingView` content
+- `hidesOnDeactivate = false`, `level = .floating` — stays visible when mouse leaves or another app gains focus
+- Only closes on: (1) clicking the status item again, or (2) pressing Escape
+- Positioned below the status item, centered horizontally, clamped to screen edges
+- `NSApp.activate(ignoringOtherApps: true)` after showing ensures keyboard events reach it (LSUIElement app)
+- `NSEvent.addLocalMonitorForEvents(matching: .keyDown)` for Escape key dismissal
+
+**Reactivity**: Combine subscriptions to `viewModel.$snapshot` and `viewModel.$lastFreshFetch` drive button updates. Auth changes via `oauthManager.$isAuthenticated` trigger refresh.
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
 
@@ -340,6 +360,7 @@ HStack(spacing: 4): `MenuBarIcon` + percentage text (11pt, medium weight, monosp
 - Stroke: same color at 0.6 alpha, 0.5pt width
 - `isTemplate = false`
 - **Band-based caching**: `colorBand` maps percentage to 4 discrete bands (0: <50%, 1: <80%, 2: <95%, 3: >=95%). Static `iconCache: [Int: NSImage]` stores up to 8 entries (4 bands × 2 colorblind modes). Icon only re-rendered when band changes — not on every percentage tick.
+- **`statusBarImage(for:)`**: public static method exposing the cached NSImage for StatusBarManager's native AppKit button.
 
 ## Accessibility
 

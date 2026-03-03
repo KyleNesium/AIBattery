@@ -24,7 +24,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Identity timeout | 3600 sec (1 hour) — pending account identity | UsageViewModel |
 | Retry-After max delay | 30 sec (caps parsed Retry-After header) | RateLimitFetcher |
 | Sleep pause / wake resume | Immediate (NSWorkspace notifications) | UsageViewModel |
-| Menu bar staleness threshold | 300 sec (5 min) | MenuBarLabel |
+| Menu bar staleness threshold | 300 sec (5 min) | StatusBarManager |
+| Menu bar countdown update | Per polling cycle (10–60 sec) | StatusBarManager |
 
 ## URLs
 

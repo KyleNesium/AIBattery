@@ -63,6 +63,24 @@ struct RateLimitUsage: Equatable {
     /// Whether the user is currently throttled.
     var isThrottled: Bool { overallStatus == "throttled" }
 
+    // MARK: - Countdown formatter
+
+    /// Compact countdown string for menu bar: "2h 15m", "45m", "soon"
+    static func countdownText(to date: Date, from now: Date = .now) -> String {
+        let diff = date.timeIntervalSince(now)
+        guard diff > 0 else { return "soon" }
+        let hours = Int(diff) / 3600
+        let minutes = (Int(diff) % 3600) / 60
+        if hours > 24 {
+            let days = hours / 24
+            return "\(days)d \(hours % 24)h"
+        } else if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(max(minutes, 1))m"
+        }
+    }
+
     // MARK: - Predictive estimate
 
     /// Estimate time until the rate limit is reached for a given window,
