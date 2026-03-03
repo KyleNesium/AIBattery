@@ -58,7 +58,7 @@ struct TokenHealthSection: View {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.primary.opacity(0.1))
+                        .fill(ThemeColors.trackFill)
                         .frame(height: 8)
 
                     RoundedRectangle(cornerRadius: 3)

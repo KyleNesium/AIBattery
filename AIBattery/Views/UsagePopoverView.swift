@@ -234,10 +234,10 @@ public struct UsagePopoverView: View {
                 .padding(8)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.yellow.opacity(0.08))
+                        .fill(Color.yellow.opacity(0.12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.yellow.opacity(0.25), lineWidth: 1)
+                                .stroke(Color.yellow.opacity(0.35), lineWidth: 1)
                         )
                 )
                 .padding(.horizontal, -2)

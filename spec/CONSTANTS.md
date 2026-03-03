@@ -284,6 +284,18 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
 Applied via `ThemeColors` to: usage bars, context health bands, system status dots, menu bar icon.
 
+### Adaptive colors (light/dark mode)
+
+| Constant | Light | Dark |
+|----------|-------|------|
+| Gold (50–80% bars) | RGB (0.75, 0.58, 0.0) | `.systemYellow` |
+| Chart accent | RGB (0.85, 0.45, 0.1) | `.systemOrange` |
+| Trend ↑ | RGB (0.85, 0.45, 0.1) | RGB (1.0, 0.6, 0.2) |
+| Trend ↓ | RGB (0.15, 0.55, 0.25) | RGB (0.3, 0.85, 0.4) |
+| Track fill | black 14% opacity | white 10% opacity |
+| Badge fill | black 9% opacity | white 6% opacity |
+| Menu bar gold | same as Gold | `.systemYellow` |
+
 ### Context health bands
 
 | Range | Color | Status |

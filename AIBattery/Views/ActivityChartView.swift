@@ -177,7 +177,7 @@ struct ActivityChartView: View {
             )
             .foregroundStyle(
                 .linearGradient(
-                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.05)],
+                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -236,7 +236,7 @@ struct ActivityChartView: View {
             )
             .foregroundStyle(
                 .linearGradient(
-                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.05)],
+                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -290,7 +290,7 @@ struct ActivityChartView: View {
             )
             .foregroundStyle(
                 .linearGradient(
-                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.05)],
+                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
                     startPoint: .top,
                     endPoint: .bottom
                 )

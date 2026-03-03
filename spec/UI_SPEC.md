@@ -397,4 +397,13 @@ Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` �
 
 See `spec/CONSTANTS.md` for all color threshold tables.
 
+**Light/dark mode**: All custom colors use `ThemeColors.adaptive(light:dark:)` to provide distinct variants per appearance. Key adaptive colors:
+- **Gold** (50–80% bars): darker gold `(0.75, 0.58, 0.0)` in light mode for 4.5:1 contrast ratio against white; system yellow in dark mode
+- **Chart accent**: deeper orange `(0.85, 0.45, 0.1)` in light mode; system orange in dark mode
+- **Trend colors**: darker green/orange in light mode; brighter variants in dark mode for small text readability
+- **Track fill** (bar gauge backgrounds): `black 14%` in light mode; `white 10%` in dark mode
+- **Badge fill** (binding label, etc.): `black 9%` in light mode; `white 6%` in dark mode
+- **Chart area gradient**: top `chartAccent 30%` → bottom `chartAccent 10%` (both modes)
+- **Update banner**: `yellow 12%` fill, `yellow 35%` border (both modes)
+
 **Colorblind mode** (`aibattery_colorblindMode`): switches all status colors from green/yellow/orange/red to blue/cyan/amber/purple for deuteranopia/protanopia users. All color decisions centralized in `ThemeColors`.

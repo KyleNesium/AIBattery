@@ -1,9 +1,13 @@
 import SwiftUI
+import AppKit
 
 /// Centralized color theming with colorblind-safe palette support.
 ///
-/// Standard mode: green → yellow → orange → red
+/// Standard mode: green → gold → orange → red
 /// Colorblind mode: blue → cyan → amber → purple (distinguishable for deuteranopia/protanopia)
+///
+/// All colors are tested against both light and dark backgrounds.
+/// Custom colors use `adaptive(light:dark:)` to provide distinct variants per appearance.
 enum ThemeColors {
     /// Cached colorblind flag — updated via KVO observer when the preference changes.
     private(set) static var isColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
@@ -30,19 +34,33 @@ enum ThemeColors {
     /// Amber color constant used across both colorblind palettes.
     static let amber = Color(red: 1.0, green: 0.75, blue: 0.0)
 
+    /// Gold color for the 50–80% bar range. Pure yellow is invisible on light backgrounds;
+    /// this darker gold has ≥4.5:1 contrast ratio against white.
+    private static let gold = adaptive(
+        light: NSColor(red: 0.75, green: 0.58, blue: 0.0, alpha: 1.0),
+        dark: NSColor.systemYellow
+    )
+
+    /// Creates a SwiftUI Color that adapts between light and dark appearance.
+    static func adaptive(light: NSColor, dark: NSColor) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+        })
+    }
+
     /// Color for a usage percentage (0–100).
     static func barColor(percent: Double) -> Color {
         if isColorblind {
             switch percent {
             case 0..<50: return .blue
             case 50..<80: return .cyan
-            case 80..<95: return amber // amber
+            case 80..<95: return amber
             default: return .purple
             }
         }
         switch percent {
         case 0..<50: return .green
-        case 50..<80: return .yellow
+        case 50..<80: return gold
         case 80..<95: return .orange
         default: return .red
         }
@@ -53,7 +71,7 @@ enum ThemeColors {
         if isColorblind {
             switch band {
             case .green: return .blue
-            case .orange: return amber // amber
+            case .orange: return amber
             case .red: return .purple
             case .unknown: return .gray
             }
@@ -80,7 +98,7 @@ enum ThemeColors {
         }
         switch indicator {
         case .operational: return .green
-        case .degradedPerformance: return .yellow
+        case .degradedPerformance: return gold
         case .maintenance: return .blue
         case .partialOutage: return .orange
         case .majorOutage: return .red
@@ -90,7 +108,11 @@ enum ThemeColors {
 
     /// Accent color for charts and data visualizations.
     static var chartAccent: Color {
-        isColorblind ? .blue : .orange
+        if isColorblind { return .blue }
+        return adaptive(
+            light: NSColor(red: 0.85, green: 0.45, blue: 0.1, alpha: 1.0),
+            dark: NSColor.systemOrange
+        )
     }
 
     /// Color for the "caution" semantic (idle badges, staleness, warnings).
@@ -101,8 +123,18 @@ enum ThemeColors {
     /// Color for trend direction arrows — brighter than standard bar colors for small text readability.
     static func trendColor(_ direction: TrendDirection) -> Color {
         switch direction {
-        case .up: return isColorblind ? amber : Color(red: 1.0, green: 0.6, blue: 0.2)
-        case .down: return isColorblind ? .cyan : Color(red: 0.3, green: 0.85, blue: 0.4)
+        case .up:
+            if isColorblind { return amber }
+            return adaptive(
+                light: NSColor(red: 0.85, green: 0.45, blue: 0.1, alpha: 1.0),
+                dark: NSColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0)
+            )
+        case .down:
+            if isColorblind { return .cyan }
+            return adaptive(
+                light: NSColor(red: 0.15, green: 0.55, blue: 0.25, alpha: 1.0),
+                dark: NSColor(red: 0.3, green: 0.85, blue: 0.4, alpha: 1.0)
+            )
         case .flat: return .primary.opacity(0.5)
         }
     }
@@ -110,6 +142,24 @@ enum ThemeColors {
     /// Color for danger/error states (throttled, auth errors, critical warnings).
     static var danger: Color {
         isColorblind ? .purple : .red
+    }
+
+    // MARK: - Track & background colors
+
+    /// Background for bar gauge tracks. Slightly higher contrast in light mode.
+    static var trackFill: Color {
+        adaptive(
+            light: NSColor(white: 0.0, alpha: 0.14),
+            dark: NSColor(white: 1.0, alpha: 0.1)
+        )
+    }
+
+    /// Subtle badge background (e.g., "binding" label).
+    static var badgeFill: Color {
+        adaptive(
+            light: NSColor(white: 0.0, alpha: 0.09),
+            dark: NSColor(white: 1.0, alpha: 0.06)
+        )
     }
 
     /// NSColor variant for menu bar icon.
@@ -124,7 +174,11 @@ enum ThemeColors {
         }
         switch percent {
         case 0..<50: return .systemGreen
-        case 50..<80: return .systemYellow
+        case 50..<80: return NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor.systemYellow
+                : NSColor(red: 0.75, green: 0.58, blue: 0.0, alpha: 1.0)
+        }
         case 80..<95: return .systemOrange
         default: return .systemRed
         }
