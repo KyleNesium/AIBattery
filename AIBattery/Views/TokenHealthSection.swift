@@ -22,7 +22,7 @@ struct TokenHealthSection: View {
             return TokenHealthStatus.empty
         }
         let idx = min(selectedIndex, sessions.count - 1)
-        return sessions[max(idx, 0)]
+        return sessions[idx]
     }
 
     private var remainingText: String { TokenFormatter.format(health.remainingTokens) }

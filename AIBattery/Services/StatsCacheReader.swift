@@ -31,17 +31,15 @@ final class StatsCacheReader {
     }
 
     func read() -> StatsCache? {
-        let fm = FileManager.default
         let path = fileURL.path
-        guard fm.fileExists(atPath: path) else {
+
+        // Single stat() call — replaces fileExists + attributesOfItem double stat
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path) else {
             AppLogger.files.info("StatsCacheReader: stats-cache.json not found")
             return nil
         }
-
-        // Stat once — extract mod date and size if available
-        let attrs = try? fm.attributesOfItem(atPath: path)
-        let modDate = attrs?[.modificationDate] as? Date
-        let fileSize = attrs?[.size] as? UInt64
+        let modDate = attrs[.modificationDate] as? Date
+        let fileSize = attrs[.size] as? UInt64
 
         // Size guard
         if let fileSize, fileSize > Self.maxFileSize {

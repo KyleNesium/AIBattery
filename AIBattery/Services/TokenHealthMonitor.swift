@@ -17,24 +17,23 @@ final class TokenHealthMonitor {
         let now = Date()
         let cutoff = now.addingTimeInterval(-24 * 60 * 60)
         let currentSessionId = latestEntry.sessionId
-        let grouped = Dictionary(grouping: entries, by: \.sessionId)
+
+        // Pre-filter to sessions with recent activity (or the current session) before
+        // grouping — avoids allocating dictionary buckets for months of stale sessions.
+        let relevantEntries = entries.filter {
+            $0.sessionId == currentSessionId || $0.timestamp > cutoff
+        }
+        let grouped = Dictionary(grouping: relevantEntries, by: \.sessionId)
         var current: TokenHealthStatus?
         var recentResults: [TokenHealthStatus] = []
 
         for (sessionId, sessionEntries) in grouped {
             guard !sessionEntries.isEmpty, !sessionId.isEmpty else { continue }
-            let isCurrent = sessionId == currentSessionId
-
-            // Skip expensive assessment for sessions with no activity in the last 24h
-            // (unless it's the current session — always assess that one).
-            if !isCurrent, let last = sessionEntries.last?.timestamp, last <= cutoff {
-                continue
-            }
 
             let model = sessionEntries.last?.model ?? ""
             guard let status = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model, now: now) else { continue }
 
-            if isCurrent { current = status }
+            if sessionId == currentSessionId { current = status }
             if (status.lastActivity ?? .distantPast) > cutoff {
                 recentResults.append(status)
             }
@@ -64,6 +63,10 @@ final class TokenHealthMonitor {
         let contextWindow = TokenHealthConfig.contextWindow(for: model)
         let usableWindow = Int(Double(contextWindow) * TokenHealthConfig.usableContextRatio)
         let turnCount = sessionEntries.count
+
+        // Bind timestamps once — avoids repeated optional chain traversals
+        let firstTimestamp = sessionEntries.first?.timestamp
+        let lastTimestamp = latestEntry.timestamp
 
         // Latest entry's input tokens are cumulative (full context).
         // Cache tokens are also part of the context window footprint.
@@ -137,9 +140,8 @@ final class TokenHealthMonitor {
         }
 
         // 4. Rapid token consumption (short session, high usage)
-        if let firstTs = sessionEntries.first?.timestamp,
-           let lastTs = sessionEntries.last?.timestamp,
-           lastTs.timeIntervalSince(firstTs) < Double(config.rapidConsumptionSeconds) && totalUsed > config.rapidConsumptionTokens {
+        if let firstTs = firstTimestamp,
+           lastTimestamp.timeIntervalSince(firstTs) < Double(config.rapidConsumptionSeconds) && totalUsed > config.rapidConsumptionTokens {
             warnings.append(HealthWarning(
                 severity: .mild,
                 message: "Rapid token consumption detected",
@@ -148,10 +150,9 @@ final class TokenHealthMonitor {
         }
 
         // 5. Stale session (idle too long with non-green health)
-        if let lastActivity = sessionEntries.last?.timestamp,
-           now.timeIntervalSince(lastActivity) > Double(config.staleSessionMinutes * 60),
+        if now.timeIntervalSince(lastTimestamp) > Double(config.staleSessionMinutes * 60),
            band != .green {
-            let idleMinutes = Int(now.timeIntervalSince(lastActivity) / 60)
+            let idleMinutes = Int(now.timeIntervalSince(lastTimestamp) / 60)
             warnings.append(HealthWarning(
                 severity: .mild,
                 message: "Session idle for \(idleMinutes) min",
@@ -162,10 +163,8 @@ final class TokenHealthMonitor {
         // 6. Token velocity (tokens per minute)
         // Use totalUsed (not sum of all entries, which double-counts cumulative input)
         var tokensPerMinute: Double?
-        if sessionEntries.count >= 2,
-           let first = sessionEntries.first,
-           let last = sessionEntries.last {
-            let duration = last.timestamp.timeIntervalSince(first.timestamp)
+        if let firstTs = firstTimestamp, turnCount >= 2 {
+            let duration = lastTimestamp.timeIntervalSince(firstTs)
             if duration > config.velocityMinDuration {
                 tokensPerMinute = Double(totalUsed) / (duration / 60.0)
             }
@@ -179,11 +178,9 @@ final class TokenHealthMonitor {
         let gitBranch: String? = latestCwdEntry?.gitBranch
 
         // Session timing
-        let sessionStart = sessionEntries.first?.timestamp
         let sessionDuration: TimeInterval? = {
-            guard let first = sessionEntries.first?.timestamp,
-                  let last = sessionEntries.last?.timestamp else { return nil }
-            let d = last.timeIntervalSince(first)
+            guard let firstTs = firstTimestamp else { return nil }
+            let d = lastTimestamp.timeIntervalSince(firstTs)
             return d > 0 ? d : nil
         }()
 
@@ -205,9 +202,9 @@ final class TokenHealthMonitor {
             tokensPerMinute: tokensPerMinute,
             projectName: projectName,
             gitBranch: gitBranch,
-            sessionStart: sessionStart,
+            sessionStart: firstTimestamp,
             sessionDuration: sessionDuration,
-            lastActivity: sessionEntries.last?.timestamp
+            lastActivity: lastTimestamp
         )
     }
 }

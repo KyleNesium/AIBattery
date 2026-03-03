@@ -37,26 +37,20 @@ struct ModelPricing {
     /// Look up pricing by model ID. Uses `ModelNameMapper.displayName` for matching.
     /// Results are cached per model ID since the pricing table is static.
     static func pricing(for modelId: String) -> ModelPricing? {
-        cacheLock.lock()
-        if let cached = pricingCache[modelId] {
-            cacheLock.unlock()
-            return cached
-        }
-        cacheLock.unlock()
+        cacheLock.withLock {
+            if let cached = pricingCache[modelId] { return cached }
 
-        let display = ModelNameMapper.displayName(for: modelId).lowercased()
-        var result: ModelPricing?
-        for (key, pricing) in pricingTable {
-            if display.contains(key) {
-                result = pricing
-                break
+            let display = ModelNameMapper.displayName(for: modelId).lowercased()
+            var result: ModelPricing?
+            for (key, pricing) in pricingTable {
+                if display.contains(key) {
+                    result = pricing
+                    break
+                }
             }
+            pricingCache[modelId] = result
+            return result
         }
-
-        cacheLock.lock()
-        pricingCache[modelId] = result
-        cacheLock.unlock()
-        return result
     }
 
     /// Total cost across all model summaries.

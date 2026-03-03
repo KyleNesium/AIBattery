@@ -112,19 +112,14 @@ public final class UsageViewModel: ObservableObject {
         api: APIFetchResult
     ) {
         guard let id = accountId else { return }
+        guard let account = oauthManager.accountStore.accounts.first(where: { $0.id == id }) else { return }
 
-        if let orgId = api.profile?.organizationId {
-            let account = oauthManager.accountStore.accounts.first { $0.id == id }
-            if account?.isPendingIdentity == true {
+        if account.isPendingIdentity {
+            if let orgId = api.profile?.organizationId {
                 oauthManager.resolveAccountIdentity(tempId: id, realOrgId: orgId)
+            } else if Date().timeIntervalSince(account.addedAt) > 3600 {
+                errorMessage = "Account identity could not be confirmed. Try removing and re-adding this account."
             }
-        }
-
-        // Detect stale pending accounts — identity should resolve within the first fetch cycle.
-        let account = oauthManager.accountStore.accounts.first { $0.id == id }
-        if let account, account.isPendingIdentity,
-           Date().timeIntervalSince(account.addedAt) > 3600 {
-            errorMessage = "Account identity could not be confirmed. Try removing and re-adding this account."
         }
     }
 

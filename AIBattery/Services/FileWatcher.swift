@@ -105,11 +105,12 @@ final class FileWatcher {
             Unmanaged<WeakBox<FileWatcher>>.fromOpaque(p).release()
         }
 
+        // Callback runs on .main (set via FSEventStreamSetDispatchQueue below)
         let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
             guard let info else { return }
             let box = Unmanaged<WeakBox<FileWatcher>>.fromOpaque(info).takeUnretainedValue()
             guard let watcher = box.value else { return }
-            DispatchQueue.main.async { watcher.debounceNotify() }
+            watcher.debounceNotify()
         }
 
         guard let stream = FSEventStreamCreate(
