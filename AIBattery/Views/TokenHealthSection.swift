@@ -158,34 +158,28 @@ struct TokenHealthSection: View {
     /// Chevron buttons to cycle through sessions
     private var sessionToggle: some View {
         HStack(spacing: 2) {
-            Button(action: {
+            ChevronButton(
+                direction: .left,
+                enabled: selectedIndex > 0
+            ) {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     selectedIndex = max(selectedIndex - 1, 0)
                 }
-            }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 8, weight: .semibold))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(selectedIndex > 0 ? .secondary : .quaternary)
-            .disabled(selectedIndex == 0)
             .accessibilityLabel("Previous session")
 
             Text("\(selectedIndex + 1)/\(sessions.count)")
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(.tertiary)
 
-            Button(action: {
+            ChevronButton(
+                direction: .right,
+                enabled: selectedIndex < sessions.count - 1
+            ) {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     selectedIndex = min(selectedIndex + 1, sessions.count - 1)
                 }
-            }) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .semibold))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(selectedIndex < sessions.count - 1 ? .secondary : .quaternary)
-            .disabled(selectedIndex >= sessions.count - 1)
             .accessibilityLabel("Next session")
         }
         .help("Browse recent sessions")
@@ -366,5 +360,36 @@ struct TokenHealthSection: View {
 
     private var bandColor: Color {
         ThemeColors.bandColor(health.band)
+    }
+}
+
+// MARK: - Chevron button with larger hit target and press highlight
+
+private struct ChevronButton: View {
+    enum Direction { case left, right }
+
+    let direction: Direction
+    let enabled: Bool
+    let action: () -> Void
+
+    @State private var isPressed = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: direction == .left ? "chevron.left" : "chevron.right")
+                .font(.system(size: 9, weight: .bold))
+                .frame(width: 22, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isPressed ? Color.primary.opacity(0.1) : Color.clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(enabled ? Color.primary.opacity(0.6) : Color.primary.opacity(0.15))
+        .disabled(!enabled)
+        .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
+            isPressed = pressing
+        }, perform: {})
     }
 }

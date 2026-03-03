@@ -153,8 +153,9 @@ struct TokenHealthMonitorTests {
         #expect(top.first?.id == "recent")
     }
 
-    @Test func topSessions_sortedByRecency() {
+    @Test func topSessions_sortedByHighestUsage() {
         let now = Date()
+        // s3 has highest input (most context consumed), then s2, then s1
         let entries = [
             makeEntry(sessionId: "s1", input: 1000, output: 100, timestamp: now.addingTimeInterval(-3600)),
             makeEntry(sessionId: "s2", input: 2000, output: 200, timestamp: now),
@@ -162,9 +163,10 @@ struct TokenHealthMonitorTests {
         ]
         let top = monitor.topSessions(entries: entries, limit: 5)
         #expect(top.count == 3)
-        #expect(top[0].id == "s2")
-        #expect(top[1].id == "s1")
-        #expect(top[2].id == "s3")
+        // Sorted by usagePercentage descending (highest context usage first)
+        #expect(top[0].id == "s3")
+        #expect(top[1].id == "s2")
+        #expect(top[2].id == "s1")
     }
 
     @Test func topSessions_respectsLimit() {

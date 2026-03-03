@@ -40,7 +40,8 @@ final class TokenHealthMonitor {
             }
         }
 
-        recentResults.sort { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
+        // Highest context usage first so the most-consumed session is always position 1
+        recentResults.sort { $0.usagePercentage > $1.usagePercentage }
         let top = Array(recentResults.prefix(topLimit))
 
         return (current, top)

@@ -162,7 +162,29 @@ final class UsageAggregator {
         let tokenHealth = healthResult.current
         let topSessionHealths = healthResult.top
 
-        let activity = statsCache?.dailyActivity ?? []
+        // Merge today's live JSONL data into dailyActivity so the 7D chart
+        // reflects current-day usage even when stats-cache hasn't been rebuilt.
+        var activity = statsCache?.dailyActivity ?? []
+        if todayMessages > 0 {
+            if let idx = activity.firstIndex(where: { $0.date == todayDate }) {
+                // Replace if JSONL has more messages than stale cache entry
+                if todayMessages > activity[idx].messageCount {
+                    activity[idx] = DailyActivity(
+                        date: todayDate,
+                        messageCount: todayMessages,
+                        sessionCount: todaySessions,
+                        toolCallCount: max(todayToolCalls, activity[idx].toolCallCount)
+                    )
+                }
+            } else {
+                activity.append(DailyActivity(
+                    date: todayDate,
+                    messageCount: todayMessages,
+                    sessionCount: todaySessions,
+                    toolCallCount: todayToolCalls
+                ))
+            }
+        }
 
         let snapshot = UsageSnapshot(
             lastUpdated: now,
