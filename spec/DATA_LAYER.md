@@ -32,7 +32,7 @@ Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelToke
 
 Static factory methods: `computeDailyAverage(_:)`, `computeTrendDirection(_:)`, `computeBusiestDay(_:)` — called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
 
-Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover), `autoResolvedMode: MetricMode` (picks whichever metric has the highest percentage; used by popover and menu bar when auto mode is on).
+Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover — context health uses `topSessionHealths.first?.usagePercentage` as primary, falls back to `tokenHealth?.usagePercentage`, so auto mode reflects the most critical session, not just the most recent), `autoResolvedMode: MetricMode` (picks whichever metric has the highest percentage; used by popover and menu bar when auto mode is on).
 
 ### ModelTokenSummary
 
@@ -333,7 +333,7 @@ Pricing table (per million tokens):
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)
 - Singleton: `.shared`
-- `assessSessions(entries:topLimit:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — **single-pass**: groups entries once via `Dictionary(grouping:)`, assesses all sessions, returns current session health + top N sorted by `usagePercentage` descending (highest context usage first). Excludes sessions with no activity in last 24 hours. Default topLimit is 5.
+- `assessSessions(entries:topLimit:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — pre-filters entries to current session + those with activity in the last 24 hours before `Dictionary(grouping:)` to avoid allocating dictionary buckets for stale sessions. Returns current session health + top N sorted by `usagePercentage` descending (highest context usage first). Default topLimit is 5.
 - `assessCurrentSession(entries:) -> TokenHealthStatus?` — convenience wrapper, returns `assessSessions().current`
 - `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top` (sorted by highest usagePercentage)
 - Groups by sessionId, each session assessed independently
@@ -367,7 +367,7 @@ Pricing table (per million tokens):
 - `requestPermission()` — requests notification authorization via `UNUserNotificationCenter` (fire-and-forget, system remembers choice)
 - `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
 - `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
-- Deduplication: `hasFired[key]` bool per component, resets when service recovers
+- Deduplication: `hasFired: Set<String>` tracks fired keys, removes on recovery
 - **Batch delivery**: queues alerts for 500ms via `Task.sleep`; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts"). Uses structured concurrency (no GCD queues).
 - Delivery: uses `UNUserNotificationCenter` for native macOS notifications with the app's own icon. Each notification gets a unique identifier (`aibattery-{UUID}`).
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
@@ -375,7 +375,7 @@ Pricing table (per million tokens):
 #### Rate Limit Alerts
 - `checkRateLimitAlerts(rateLimits:)` — reads `aibattery_alertRateLimit` (Bool) and `aibattery_rateLimitThreshold` (Double, default 80)
 - Checks both 5h and 7d windows independently against threshold
-- Same dedup pattern: `hasFired[key]` per window, resets when dropping below threshold
+- Same dedup pattern: `hasFired` set per window, removes when dropping below threshold
 - `shouldAlert(percent:threshold:previouslyFired:)` — static pure function for testability
 
 ### VersionChecker (`Services/VersionChecker.swift`)

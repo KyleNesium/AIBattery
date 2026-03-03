@@ -30,11 +30,16 @@ struct UsageSnapshot {
     let totalTokens: Int
 
     /// The percentage for a given metric mode — shared by menu bar and popover.
+    /// Context health uses the highest usage across all tracked sessions (not just
+    /// the most recent), so auto mode and the menu bar reflect the most critical session.
     func percent(for mode: MetricMode) -> Double {
         switch mode {
         case .fiveHour: return rateLimits?.fiveHourPercent ?? 0
         case .sevenDay: return rateLimits?.sevenDayPercent ?? 0
-        case .contextHealth: return tokenHealth?.usagePercentage ?? 0
+        case .contextHealth:
+            return topSessionHealths.first?.usagePercentage
+                ?? tokenHealth?.usagePercentage
+                ?? 0
         }
     }
 
@@ -122,10 +127,10 @@ struct UsageSnapshot {
     // Hourly message distribution (hour "0"-"23" → count, from stats-cache)
     let hourCounts: [String: Int]
 
-    // Token health for most recent session
+    // Token health for the most recent session (last JSONL entry's session)
     let tokenHealth: TokenHealthStatus?
 
-    // Top sessions by most recent activity (up to 5, sorted newest first)
+    // Top sessions sorted by highest context usage (up to 5, within last 24h)
     let topSessionHealths: [TokenHealthStatus]
 
 }

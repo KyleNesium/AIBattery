@@ -9,6 +9,7 @@ struct UsageSnapshotTests {
         modelTokens: [ModelTokenSummary] = [],
         rateLimits: RateLimitUsage? = nil,
         tokenHealth: TokenHealthStatus? = nil,
+        topSessionHealths: [TokenHealthStatus] = [],
         todayMessages: Int = 0,
         dailyActivity: [DailyActivity] = []
     ) -> UsageSnapshot {
@@ -33,7 +34,18 @@ struct UsageSnapshotTests {
             busiestDayOfWeek: UsageSnapshot.computeBusiestDay(dailyActivity),
             hourCounts: [:],
             tokenHealth: tokenHealth,
-            topSessionHealths: []
+            topSessionHealths: topSessionHealths
+        )
+    }
+
+    private func makeHealth(id: String, usagePercentage: Double, band: HealthBand = .green) -> TokenHealthStatus {
+        TokenHealthStatus(
+            id: id, band: band, usagePercentage: usagePercentage,
+            totalUsed: 0, contextWindow: 200_000, usableWindow: 160_000, remainingTokens: 0,
+            inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+            model: "claude-sonnet-4-5", turnCount: 1, warnings: [],
+            tokensPerMinute: nil, projectName: nil, gitBranch: nil,
+            sessionStart: nil, sessionDuration: nil, lastActivity: nil
         )
     }
 
@@ -132,6 +144,63 @@ struct UsageSnapshotTests {
     @Test func percent_contextHealth_nilHealth() {
         let snapshot = makeSnapshot()
         #expect(snapshot.percent(for: .contextHealth) == 0)
+    }
+
+    @Test func percent_contextHealth_prefersHighestTopSession() {
+        let current = makeHealth(id: "current", usagePercentage: 15.0)
+        let highSession = makeHealth(id: "old", usagePercentage: 80.0, band: .red)
+        let snapshot = makeSnapshot(
+            tokenHealth: current,
+            topSessionHealths: [highSession, current]
+        )
+        // Should use the highest from topSessionHealths (80%), not tokenHealth (15%)
+        #expect(snapshot.percent(for: .contextHealth) == 80.0)
+    }
+
+    @Test func percent_contextHealth_fallsBackToTokenHealth() {
+        let current = makeHealth(id: "current", usagePercentage: 45.0)
+        // topSessionHealths empty, should fall back to tokenHealth
+        let snapshot = makeSnapshot(tokenHealth: current, topSessionHealths: [])
+        #expect(snapshot.percent(for: .contextHealth) == 45.0)
+    }
+
+    @Test func autoResolvedMode_picksContextHealthWhenHighest() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.20,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.30,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let highSession = makeHealth(id: "s1", usagePercentage: 75.0, band: .orange)
+        let snapshot = makeSnapshot(
+            rateLimits: limits,
+            topSessionHealths: [highSession]
+        )
+        #expect(snapshot.autoResolvedMode == .contextHealth)
+        #expect(snapshot.percent(for: .contextHealth) == 75.0)
+    }
+
+    @Test func autoResolvedMode_picksRateLimitOverLowContextHealth() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.60,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let lowSession = makeHealth(id: "s1", usagePercentage: 10.0)
+        let snapshot = makeSnapshot(
+            rateLimits: limits,
+            topSessionHealths: [lowSession]
+        )
+        #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
     // MARK: - dailyAverage

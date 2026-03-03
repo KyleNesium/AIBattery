@@ -399,13 +399,13 @@ See `spec/CONSTANTS.md` for all color threshold tables.
 
 **Popover background**: solid opaque `windowBackgroundColor` in light mode (no desktop bleed-through); translucent `.popover` vibrancy material with `.behindWindow` blending in dark mode. Panel tracks system appearance changes via `AppleInterfaceThemeChangedNotification`.
 
-**Light/dark mode**: All custom colors use `ThemeColors.adaptive(light:dark:)` to provide distinct variants per appearance. Key adaptive colors:
-- **Deep orange** (caution, 80–94% bars, orange band): `(0.85, 0.45, 0.0)` in light mode; system orange in dark mode
-- **Gold** (50–80% bars): darker gold `(0.75, 0.58, 0.0)` in light mode for ≥4.5:1 contrast ratio against white; system yellow in dark mode
+**Light/dark mode**: Bar and accent colors use system palette in both modes — the opaque light-mode background provides sufficient contrast for `.systemYellow`, `.systemOrange`, etc. Only text labels and fills use `ThemeColors.adaptive(light:dark:)` for distinct per-appearance values:
+- **Orange** (caution, 80–94% bars, orange band): `.systemOrange` both modes
+- **Gold** (50–80% bars): `.systemYellow` both modes
+- **Chart accent**: `.systemOrange` both modes
+- **Trend colors**: SwiftUI `.orange` (up) / `.green` (down) both modes
 - **Secondary label**: `black 70%` in light mode; `white 55%` in dark mode
 - **Tertiary label**: `black 55%` in light mode; `white 35%` in dark mode (replaces system `.tertiary`/`.quaternary`)
-- **Chart accent**: deeper orange `(0.85, 0.45, 0.1)` in light mode; system orange in dark mode
-- **Trend colors**: darker green/orange in light mode; brighter variants in dark mode for small text readability
 - **Track fill** (bar gauge backgrounds): `black 14%` in light mode; `white 10%` in dark mode
 - **Badge fill** (binding label, etc.): `black 9%` in light mode; `white 6%` in dark mode
 - **Chart area gradient**: top `chartAccent 30%` → bottom `chartAccent 10%` (both modes)

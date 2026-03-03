@@ -5,17 +5,12 @@ enum ModelNameMapper {
     private static let lock = NSLock()
 
     static func displayName(for modelId: String) -> String {
-        lock.lock()
-        if let cached = cache[modelId] {
-            lock.unlock()
-            return cached
+        lock.withLock {
+            if let cached = cache[modelId] { return cached }
+            let result = computeDisplayName(for: modelId)
+            cache[modelId] = result
+            return result
         }
-        lock.unlock()
-        let result = computeDisplayName(for: modelId)
-        lock.lock()
-        cache[modelId] = result
-        lock.unlock()
-        return result
     }
 
     private static func computeDisplayName(for modelId: String) -> String {

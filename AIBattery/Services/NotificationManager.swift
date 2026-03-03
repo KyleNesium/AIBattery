@@ -9,8 +9,8 @@ import UserNotifications
 public final class NotificationManager {
     public static let shared = NotificationManager()
 
-    /// Tracks whether we already fired for each key while condition was active.
-    private var hasFired: [String: Bool] = [:]
+    /// Tracks keys that have already fired while their condition is active.
+    private var hasFired = Set<String>()
 
     /// Pending alerts queued for batching (flushed after 500ms).
     private var pendingAlerts: [(title: String, body: String)] = []
@@ -23,8 +23,8 @@ public final class NotificationManager {
 
     /// Fire test notifications to verify alerts work. Ignores toggle state.
     func testAlerts() {
-        hasFired["claudeAPI"] = false
-        hasFired["claudeCode"] = false
+        hasFired.remove("claudeAPI")
+        hasFired.remove("claudeCode")
         checkComponentStatus(key: "claudeAPI", label: "Claude.ai", indicator: .majorOutage)
         checkComponentStatus(key: "claudeCode", label: "Claude Code", indicator: .partialOutage)
     }
@@ -83,22 +83,22 @@ public final class NotificationManager {
     // MARK: - Private
 
     private func checkRateLimitWindow(key: String, label: String, percent: Double, threshold: Double) {
-        if Self.shouldAlert(percent: percent, threshold: threshold, previouslyFired: hasFired[key] == true) {
-            hasFired[key] = true
+        if Self.shouldAlert(percent: percent, threshold: threshold, previouslyFired: hasFired.contains(key)) {
+            hasFired.insert(key)
             send(
                 title: "AI Battery: \(label) rate limit",
                 body: "\(label) usage at \(Int(percent))% (threshold: \(Int(threshold))%)."
             )
         } else if percent < threshold {
-            hasFired[key] = false
+            hasFired.remove(key)
         }
     }
 
     private func checkComponentStatus(key: String, label: String, indicator: StatusIndicator) {
         let isDown = indicator != .operational && indicator != .unknown
         if isDown {
-            if hasFired[key] != true {
-                hasFired[key] = true
+            if !hasFired.contains(key) {
+                hasFired.insert(key)
                 let statusText = indicator.displayName
                 send(
                     title: "AI Battery: \(label) is down",
@@ -106,7 +106,7 @@ public final class NotificationManager {
                 )
             }
         } else {
-            hasFired[key] = false
+            hasFired.remove(key)
         }
     }
 
