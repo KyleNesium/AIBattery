@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.5] — 2026-03-03
+
+### Added
+- **Defense-in-depth security hardening** — ephemeral URLSession (no disk cache/cookies), 2 MB response size guard, 10 MB stats-cache file size guard, symlink boundary check for JSONL discovery, Keychain accessibility migration (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)
+- **Performance caching** — ModelNameMapper result cache, UsageAggregator redundant aggregation skip (fingerprint-based), StatsCacheReader exposes `lastModificationDate` for change detection
+- **NotificationManager concurrency** — `@MainActor` annotation, structured concurrency batching (replaces DispatchSource timer), `shouldAlert` marked `nonisolated`
+- 13 new tests (408 → 421 total): SecureNetworking, SessionLogReader symlink boundary, StatsCacheReader file size guard, UsageAggregator redundant skip, ModelNameMapper result cache
+
 ## [1.5.4] — 2026-03-02
 
 ### Fixed
