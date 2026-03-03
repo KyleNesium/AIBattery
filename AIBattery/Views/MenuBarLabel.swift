@@ -28,40 +28,32 @@ public struct MenuBarLabel: View {
         return Date().timeIntervalSince(lastFetch) > 300
     }
 
-    /// Whether the user is currently throttled and we have a reset date to count down to.
-    private var throttleResetDate: Date? {
+    /// Countdown text when throttled, or nil for normal percentage display.
+    private var throttleCountdown: String? {
         guard let rateLimits = viewModel.snapshot?.rateLimits,
-              rateLimits.isThrottled else { return nil }
-        return rateLimits.bindingReset
+              rateLimits.isThrottled,
+              let resetDate = rateLimits.bindingReset else { return nil }
+        return RateLimitUsage.countdownText(to: resetDate)
+    }
+
+    private var displayText: String {
+        throttleCountdown ?? "\(Int(displayPercent))%"
     }
 
     public var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
-            HStack(spacing: 4) {
-                MenuBarIcon(requestsPercent: displayPercent)
+        HStack(spacing: 4) {
+            MenuBarIcon(requestsPercent: displayPercent)
 
-                Group {
-                    if let resetDate = throttleResetDate {
-                        Text(RateLimitUsage.countdownText(to: resetDate, from: context.date))
-                    } else {
-                        Text("\(Int(displayPercent))%")
-                    }
-                }
+            Text(displayText)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .contentTransition(reduceMotion ? .identity : .numericText())
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: Int(displayPercent * 10))
                 .opacity(isStale ? 0.5 : 1.0)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(throttleAccessibilityLabel(at: context.date))
-            .accessibilityValue(isStale ? "Data may be stale" : "Up to date")
         }
-    }
-
-    private func throttleAccessibilityLabel(at date: Date) -> String {
-        if let resetDate = throttleResetDate {
-            return "AI Battery rate limited, resets in \(RateLimitUsage.countdownText(to: resetDate, from: date))"
-        }
-        return "AI Battery usage \(Int(displayPercent)) percent"
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(throttleCountdown != nil
+            ? "AI Battery rate limited, resets in \(displayText)"
+            : "AI Battery usage \(Int(displayPercent)) percent")
+        .accessibilityValue(isStale ? "Data may be stale" : "Up to date")
     }
 }
