@@ -64,37 +64,4 @@ struct NotificationManagerTests {
         #expect(!NotificationManager.shouldAlert(percent: -10, threshold: 80, previouslyFired: false))
     }
 
-    // MARK: - AppleScript quoting
-
-    @Test func applescriptQuoted_plainString() {
-        let result = NotificationManager.applescriptQuoted("Hello world")
-        #expect(result == "\"Hello world\"")
-    }
-
-    @Test func applescriptQuoted_escapesDoubleQuotes() {
-        let result = NotificationManager.applescriptQuoted("He said \"hello\"")
-        #expect(result == "\"He said \\\"hello\\\"\"")
-    }
-
-    @Test func applescriptQuoted_escapesBackslashes() {
-        let result = NotificationManager.applescriptQuoted("path\\to\\file")
-        #expect(result == "\"path\\\\to\\\\file\"")
-    }
-
-    @Test func applescriptQuoted_emptyString() {
-        let result = NotificationManager.applescriptQuoted("")
-        #expect(result == "\"\"")
-    }
-
-    @Test func applescriptQuoted_mixedSpecialChars() {
-        let result = NotificationManager.applescriptQuoted("line\\n\"quoted\"")
-        #expect(result == "\"line\\\\n\\\"quoted\\\"\"")
-    }
-
-    @Test func applescriptQuoted_shellMetacharsPassThrough() {
-        // Shell chars like $ and ` should NOT be escaped — Process.arguments
-        // bypasses the shell, so only AppleScript string delimiters matter.
-        let result = NotificationManager.applescriptQuoted("$HOME `whoami`")
-        #expect(result == "\"$HOME `whoami`\"")
-    }
 }

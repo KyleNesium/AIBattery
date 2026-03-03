@@ -69,7 +69,7 @@ These aren't obvious from reading the code — know them before making changes:
 - OAuth refresh: transient errors (network + server 5xx) keep `isAuthenticated` true (retry next cycle); only auth errors trigger logout. Token endpoint retries 5xx up to 2 times with backoff. Token refresh fires 5 min before expiry to avoid clock-skew 401s. Concurrent refresh attempts are serialized via a shared task.
 - StatusChecker backs off 60s after failures — no immediate retries
 - SessionLogReader cache caps at 200 entries with LRU eviction; trailing JSONL lines without closing `}` are skipped; leftover buffer capped at 1MB (oversized lines discarded)
-- NotificationManager fires once per outage via `osascript`, deduplicates per component, resets on recovery
+- NotificationManager fires once per outage via `UNUserNotificationCenter`, deduplicates per component, resets on recovery
 - `~/.claude.json` oauthAccount may not match the OAuth token's org if user switched accounts
 
 ## Security
@@ -77,7 +77,7 @@ These aren't obvious from reading the code — know them before making changes:
 - OAuth refresh token lives in macOS Keychain under service `"AIBattery"` — access token is memory-only (re-derived from refresh on launch), expiry timestamp in UserDefaults. Only 1 Keychain item per account to minimize Sparkle update prompts.
 - Never log token values — mask or redact in error messages
 - JSONL reads are token-count-only — never parse, store, or display message content
-- `osascript` notifications use shell-escaped strings to prevent injection
+- Notifications use `UNUserNotificationCenter` — no shell process or string escaping needed
 - PKCE (SHA-256) protects the OAuth code exchange — the verifier never leaves the process
 - App bundle is ad-hoc codesigned with hardened runtime — gives Keychain a stable identity for ACL whitelisting
 - All network requests use HTTPS with system certificate validation — no custom trust or pinning overrides
