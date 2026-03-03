@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.2] — 2026-03-03
+
+### Changed
+- **Native notifications** — replaced `osascript display notification` with `UNUserNotificationCenter`. Notifications now show the AIBattery app icon instead of Script Editor. First toggle prompts macOS notification permission dialog.
+- **DurationFormatter** — extracted shared compact duration formatting (`"2h 5m"`, `"1d 1h"`, `"soon"`) into a dedicated utility, replacing 4 duplicate implementations across views and models.
+
+### Improved
+- **Code quality** — simplified `StatsCacheReader`, named `FileWatcher` magic constants, removed redundant nil initializers, fixed `ModelNameMapper` data race with `nonisolated(unsafe)` cache
+- **Reduced redundant work** — extracted `buildModelTokens` helper in `UsageAggregator`, cached dictionary lookup in `RateLimitFetcher.tryFetch`, eliminated double account lookup and cached `systemIndicator` in `UsagePopoverView`
+- **Removed dead code** — `applescriptQuoted` helper and 6 associated tests
+
+### Added
+- 10 new `DurationFormatter` tests (410 total across 34 test files)
+
 ## [1.6.1] — 2026-03-03
 
 ### Fixed
