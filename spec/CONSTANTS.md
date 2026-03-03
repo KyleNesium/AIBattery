@@ -25,7 +25,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Retry-After max delay | 30 sec (caps parsed Retry-After header) | RateLimitFetcher |
 | Sleep pause / wake resume | Immediate (NSWorkspace notifications) | UsageViewModel |
 | Menu bar staleness threshold | 300 sec (5 min) | MenuBarLabel |
-| Menu bar countdown update | 60 sec (TimelineView periodic) | MenuBarLabel |
+| Menu bar countdown update | Per polling cycle (10–60 sec) | MenuBarLabel |
 
 ## URLs
 

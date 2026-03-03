@@ -327,11 +327,9 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 
 ### MenuBarLabel (`Views/MenuBarLabel.swift`)
 
-Wrapped in `TimelineView(.periodic(from: .now, by: 60))` so countdown text updates every minute independently of the polling timer.
-
 HStack(spacing: 4): `MenuBarIcon` + text (11pt, medium weight, monospaced)
 
-- **Throttle countdown**: when `rateLimits.isThrottled == true`, text shows countdown to binding reset (e.g., "2h 15m", "45m", "3d 2h", "soon") instead of percentage. Falls back to "100%" if no reset date available. Overrides the selected metric mode entirely — being rate-limited is a hard blocker that makes other metrics irrelevant.
+- **Throttle countdown**: when `rateLimits.isThrottled == true`, text shows countdown to binding reset (e.g., "2h 15m", "45m", "3d 2h", "soon") instead of percentage. Falls back to "100%" if no reset date available. Overrides the selected metric mode entirely — being rate-limited is a hard blocker that makes other metrics irrelevant. Updates on each polling cycle.
 - **Normal mode**: shows `"{percent}%"` driven by selected metric mode
 - **Staleness**: text dims to 50% opacity when last fresh fetch > 5 minutes ago
 - **Accessibility**: label describes throttled state + countdown when rate-limited

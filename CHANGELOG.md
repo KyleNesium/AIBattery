@@ -3,7 +3,7 @@
 ## [1.5.6] — 2026-03-03
 
 ### Added
-- **Menu bar throttle countdown** — when rate-limited, menu bar shows countdown to reset (e.g., "2h 15m", "45m") instead of "100%". Updates every 60s via TimelineView, overrides metric mode while throttled.
+- **Menu bar throttle countdown** — when rate-limited, menu bar shows countdown to reset (e.g., "2h 15m", "45m") instead of "100%". Updates on each polling cycle, overrides metric mode while throttled.
 - 6 new countdown formatter tests (421 → 427 total)
 
 ### Fixed
