@@ -203,18 +203,18 @@ Padding: H 16, V 12
 
 ### ❸ Context Health (`Views/TokenHealthSection.swift`)
 
-Takes `sessions: [TokenHealthStatus]` array (top 5 most recent). Backward-compat `init(health:onRefresh:)` for single session.
+Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Backward-compat `init(health:onRefresh:)` for single session.
 
 - **Header row**: `"Context Health"` (.subheadline.bold) + session toggle + refresh + health badge
 - **Session info** (two lines below header, .caption2, .tertiary):
   - Line 1: `projectName · gitBranch · sessionId[:8]` — project, branch, and 8-char session ID prefix (`.copyable()`) for cross-referencing
   - Line 2: `duration · lastActivity · velocity` — e.g. "2h 15m · Today 14:32 · 1.2K/min"
   - Falls back to `"Latest session"` if no metadata on line 1
-- **Session toggle** (if multiple sessions): `< 1/3 >` chevron buttons
-  - `@State selectedIndex` tracks current session
+- **Session toggle** (if multiple sessions): `< 1/3 >` `ChevronButton` components
+  - `@State selectedIndex` tracks current session (position 1 = highest context usage)
+  - `ChevronButton`: 22pt square hit target, `chevron.left`/`chevron.right` icons at 9pt bold, 4pt corner radius background with press highlight (`Color.primary.opacity(0.1)`), `.plain` button style. Disabled state uses 0.15 opacity; enabled uses 0.6 opacity.
   - Left/right chevrons with `.easeInOut(0.15)` animation
   - Counter: monospaced caption2, e.g. `"1/3"`
-  - Disabled states at bounds, `.quaternary` color when disabled
 - **Swipe gesture**: `DragGesture(minimumDistance: 20)` on main VStack — horizontal drag >50pt or fast flick (velocity >300pt/s) navigates prev/next session (same animation as chevron buttons)
 - **VoiceOver**: `.accessibilityAdjustableAction` on section — increment/decrement maps to next/previous session
 - **Stale session badge** (if lastActivity > 30 min and band != .green): amber dot (6pt) + `"Idle Xm"` (.caption2, .orange)

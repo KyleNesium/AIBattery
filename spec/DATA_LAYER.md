@@ -24,9 +24,9 @@ Main aggregated data struct consumed by all views.
 | `todayToolCalls` | `Int` | stats-cache dailyActivity for today |
 | `hourCounts` | `[String: Int]` | stats-cache hourCounts (hour "0"-"23" → message count) |
 | `modelTokens` | `[ModelTokenSummary]` | Merged stats-cache + JSONL |
-| `dailyActivity` | `[DailyActivity]` | stats-cache |
+| `dailyActivity` | `[DailyActivity]` | stats-cache + today's JSONL merge |
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
-| `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by most recent activity (descending) |
+| `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by highest usagePercentage (descending) |
 
 Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
@@ -326,14 +326,15 @@ Pricing table (per million tokens):
   - **All-time mode (0)**: stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache, 72-hour recent model filter
   - **Windowed mode (1–7)**: computes token totals from all JSONL entries within the window, bypasses stats-cache `modelUsage`
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
+- **Daily activity merge**: merges today's JSONL message/session counts into `dailyActivity` before snapshot construction, so the 7D chart reflects current-day usage even when stats-cache hasn't been rebuilt. If today's JSONL has more messages than the stale cache entry, replaces it; if no entry exists for today, appends one. Preserves the higher of JSONL or cache tool-call counts.
 - Tool calls from stats cache only (not parsed from JSONL)
 - Token health via `TokenHealthMonitor.assessSessions` (single-pass: returns both current + top 5)
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)
 - Singleton: `.shared`
-- `assessSessions(entries:topLimit:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — **single-pass**: groups entries once via `Dictionary(grouping:)`, assesses all sessions, returns current session health + top N most recent (excludes sessions with no activity in last 24 hours). Default topLimit is 5.
+- `assessSessions(entries:topLimit:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — **single-pass**: groups entries once via `Dictionary(grouping:)`, assesses all sessions, returns current session health + top N sorted by `usagePercentage` descending (highest context usage first). Excludes sessions with no activity in last 24 hours. Default topLimit is 5.
 - `assessCurrentSession(entries:) -> TokenHealthStatus?` — convenience wrapper, returns `assessSessions().current`
-- `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top`
+- `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top` (sorted by highest usagePercentage)
 - Groups by sessionId, each session assessed independently
 - **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + sum(all outputTokens)` — input + cache tokens are cumulative (latest entry has total), output tokens are per-message. Each component capped at contextWindow to guard against overflow from corrupted data.
 - **Usable window**: `usableWindow = contextWindow × 0.80` — percentages calculated against usable portion
