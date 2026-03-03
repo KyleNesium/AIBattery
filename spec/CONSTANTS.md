@@ -202,6 +202,9 @@ Pricing per million tokens:
 | Status dot size | 6pt |
 | Model dot size | 8pt |
 | Token type dot size | 6pt |
+| Chevron button frame | 22×22pt |
+| Chevron icon size | 9pt (bold weight) |
+| Chevron corner radius | 4pt |
 | Chart height | 50pt |
 | Chart modes | 24H (hourly), 7D (daily rolling), 12M (monthly rolling) |
 
