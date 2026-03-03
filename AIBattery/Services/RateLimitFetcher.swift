@@ -124,7 +124,7 @@ final class RateLimitFetcher {
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await SecureNetworking.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 return .networkError
             }
@@ -139,7 +139,7 @@ final class RateLimitFetcher {
                 if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {
                     try? await Task.sleep(for: .seconds(delay))
                     // Single retry — if this also fails, fall through to networkError
-                    if let (_, retryResp) = try? await URLSession.shared.data(for: request),
+                    if let (_, retryResp) = try? await SecureNetworking.data(for: request),
                        let retryHttp = retryResp as? HTTPURLResponse,
                        retryHttp.statusCode == 200 || retryHttp.statusCode == 400 {
                         let rateLimits = RateLimitUsage.parse(headers: retryHttp.allHeaderFields)

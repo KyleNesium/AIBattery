@@ -106,6 +106,11 @@ final class SessionLogReader {
         }
     }
 
+    /// Exposes discovery for testing the symlink boundary check.
+    func discoverJSONLFilesForTesting() -> [URL] {
+        discoverJSONLFiles()
+    }
+
     // MARK: - Discovery
 
     private func discoverJSONLFiles() -> [URL] {
@@ -159,6 +164,12 @@ final class SessionLogReader {
                 jsonlFiles.append(contentsOf: files.filter { $0.pathExtension == "jsonl" })
             }
         }
+
+        // Symlink boundary check: resolve symlinks and verify each file stays
+        // within the projects directory. Prevents a symlink inside ~/.claude/projects/
+        // pointing to an arbitrary file outside that directory.
+        let resolvedBase = projectsURL.resolvingSymlinksInPath().path
+        jsonlFiles = jsonlFiles.filter { $0.resolvingSymlinksInPath().path.hasPrefix(resolvedBase) }
 
         discoveredFiles = jsonlFiles
         discoveryDirModDates = newDirModDates

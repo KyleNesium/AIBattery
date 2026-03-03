@@ -204,6 +204,25 @@ struct StatsCacheReaderTests {
         #expect(decoded.maxOutputTokens == nil)
     }
 
+    // MARK: - File Size Guard
+
+    @Test func read_returnsNil_forOversizedFile() throws {
+        #expect(StatsCacheReader.maxFileSize == 10_000_000)
+    }
+
+    @Test func read_skipsFile_exceedingMaxSize() throws {
+        let url = tempURL()
+        defer { cleanup(url) }
+
+        // Write a file slightly over maxFileSize
+        let oversized = Data(repeating: 0x20, count: Int(StatsCacheReader.maxFileSize) + 1)
+        try oversized.write(to: url)
+
+        let reader = StatsCacheReader(fileURL: url)
+        let result = reader.read()
+        #expect(result == nil)
+    }
+
     // MARK: - Test JSON
 
     private static let minimalJSON = """

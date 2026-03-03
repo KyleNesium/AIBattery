@@ -5,6 +5,9 @@ final class StatsCacheReader {
     static let shared = StatsCacheReader()
 
     private static let jsonDecoder = JSONDecoder()
+    /// Maximum file size to read (10 MB). stats-cache.json is typically a few KB;
+    /// anything larger suggests a symlink to a large file or a runaway writer.
+    static let maxFileSize: UInt64 = 10_000_000
     private let fileURL: URL
 
     init(fileURL: URL? = nil) {
@@ -35,6 +38,10 @@ final class StatsCacheReader {
         if let attrs = try? fm.attributesOfItem(atPath: path),
            let modDate = attrs[.modificationDate] as? Date,
            let fileSize = attrs[.size] as? UInt64 {
+            guard fileSize <= Self.maxFileSize else {
+                AppLogger.files.warning("StatsCacheReader: file too large (\(fileSize) bytes), skipping")
+                return nil
+            }
             if let c = cached, modDate == cachedModDate, fileSize == cachedFileSize {
                 return c
             }
@@ -52,7 +59,13 @@ final class StatsCacheReader {
             }
         }
 
-        // Fallback: can't stat, just decode (still cache the result)
+        // Fallback: can't stat — check size explicitly before reading
+        if let attrs = try? fm.attributesOfItem(atPath: path),
+           let fileSize = attrs[.size] as? UInt64,
+           fileSize > Self.maxFileSize {
+            AppLogger.files.warning("StatsCacheReader: file too large (\(fileSize) bytes), skipping")
+            return nil
+        }
         do {
             let data = try Data(contentsOf: fileURL)
             let result = try Self.jsonDecoder.decode(StatsCache.self, from: data)

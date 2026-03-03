@@ -48,7 +48,7 @@ public final class VersionChecker {
             var request = URLRequest(url: releaseURL)
             request.timeoutInterval = 10
             request.setValue("AIBattery", forHTTPHeaderField: "User-Agent")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await SecureNetworking.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {

@@ -64,6 +64,7 @@ public final class OAuthManager: ObservableObject {
     public init() {
         migrateFromLegacy()
         migrateStaleKeychainItems()
+        migrateKeychainAccessibility()
         loadAllTokens()
         updateAuthState()
     }
@@ -368,7 +369,7 @@ public final class OAuthManager: ObservableObject {
             }
 
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await SecureNetworking.data(for: request)
                 guard let http = response as? HTTPURLResponse else { return .failure(.networkError) }
 
                 if http.statusCode == 401 || http.statusCode == 403 {
@@ -554,6 +555,28 @@ public final class OAuthManager: ObservableObject {
         }
     }
 
+    // MARK: - Migration: Keychain ThisDeviceOnly Accessibility
+
+    /// One-time migration: re-creates Keychain items with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
+    /// The old flag (`kSecAttrAccessibleWhenUnlocked`) allows iCloud Keychain to sync refresh tokens
+    /// to other Apple devices. Keychain doesn't support updating `kSecAttrAccessible` in-place, so
+    /// we delete and re-add each item. Only runs once (tracked via UserDefaults flag).
+    private func migrateKeychainAccessibility() {
+        let migrationKey = "aibattery_keychainThisDeviceOnlyMigrated"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+
+        for account in accountStore.accounts {
+            let keychainAccount = "refreshToken_\(account.id)"
+            if let value = keychainGet(account: keychainAccount) {
+                keychainDelete(account: keychainAccount)
+                keychainSet(account: keychainAccount, value: value)
+            }
+        }
+
+        UserDefaults.standard.set(true, forKey: migrationKey)
+        AppLogger.oauth.info("Migrated Keychain items to ThisDeviceOnly accessibility")
+    }
+
     // MARK: - Keychain Helpers
 
     private func keychainSet(account: String, value: String) {
@@ -574,7 +597,7 @@ public final class OAuthManager: ObservableObject {
             // Item doesn't exist yet — add it
             var addQuery = searchQuery
             addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
             let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             if addStatus != errSecSuccess {
                 AppLogger.oauth.error("Keychain add failed for \(account, privacy: .public): \(addStatus)")
@@ -585,7 +608,7 @@ public final class OAuthManager: ObservableObject {
             SecItemDelete(searchQuery as CFDictionary)
             var addQuery = searchQuery
             addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
             let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             if addStatus != errSecSuccess {
                 AppLogger.oauth.error("Keychain fallback add failed for \(account, privacy: .public): \(addStatus)")
