@@ -6,8 +6,12 @@
 - **Menu bar throttle countdown** — when rate-limited, menu bar shows countdown to reset (e.g., "2h 15m", "45m") instead of "100%". Updates on each polling cycle, overrides metric mode while throttled.
 - 6 new countdown formatter tests (421 → 427 total)
 
+### Changed
+- **StatusBarManager rewrite** — replaced SwiftUI `MenuBarExtra` with native AppKit `NSStatusItem` + floating `NSPanel`. Menu bar button uses native `button.image` + `button.title` with system monospaced-digit font (matches macOS battery indicator). Removed `PanelAccessor.swift` and `MenuBarLabel.swift`.
+
 ### Fixed
-- **Panel stays open** — popover no longer dismisses when mouse moves away or focus shifts to another window (`hidesOnDeactivate = false`). Only closes on menu bar icon click.
+- **Popover stays open** — panel no longer dismisses when mouse moves away or focus shifts. Uses a floating `NSPanel` (`hidesOnDeactivate = false`) instead of `NSPopover` — only closes on status item click or Escape key.
+- **Blank menu bar icon** — `NSHostingView` inside `NSStatusBarButton` doesn't render; replaced with native AppKit properties (`button.image`, `button.title`).
 
 ## [1.5.5] — 2026-03-03
 
