@@ -53,10 +53,10 @@ struct UsageBar: View {
                     if isBinding {
                         Text("binding")
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
-                            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 3))
+                            .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: 3))
                             .accessibilityLabel("Binding constraint")
                             .help("This window is the active rate limit constraint")
                     }
@@ -79,7 +79,7 @@ struct UsageBar: View {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.primary.opacity(0.1))
+                        .fill(ThemeColors.trackFill)
                         .frame(height: 8)
 
                     RoundedRectangle(cornerRadius: 3)
@@ -111,7 +111,7 @@ struct UsageBar: View {
                 if let resetsAt {
                     Text("Resets \(resetTimeString(resetsAt))")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
             }
         }

@@ -81,7 +81,7 @@ struct TokenUsageSection: View {
                                 )
                                 Text(ModelPricing.formatCost(modelCost))
                                     .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(ThemeColors.tertiaryLabel)
                                     .copyable(ModelPricing.formatCost(modelCost))
                             }
 
@@ -122,10 +122,10 @@ private struct TokenTag: View {
         HStack(spacing: 2) {
             Image(systemName: icon)
                 .font(.system(size: 8))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
             Text(label)
                 .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
         }
         .accessibilityLabel("\(accessibilityName) \(label)")
         .help(tooltip)

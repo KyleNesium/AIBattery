@@ -15,6 +15,7 @@ public final class StatusBarManager: NSObject {
     /// Tracks intended panel visibility — used to re-show panel after app deactivation.
     private var isPanelShowing = false
     private var deactivationObserver: Any?
+    private var appearanceObserver: Any?
 
     public override init() {
         super.init()
@@ -50,7 +51,10 @@ public final class StatusBarManager: NSObject {
         panel.isMovableByWindowBackground = false
         panel.animationBehavior = .utilityWindow
 
-        // Visual effect background — native popover material with rounded corners
+        // Follow system light/dark appearance so the popover material matches the OS theme
+        panel.appearance = NSApp.effectiveAppearance
+
+        // Background: translucent vibrancy in dark mode, solid opaque in light mode.
         let visualEffect = NSVisualEffectView()
         visualEffect.material = .popover
         visualEffect.blendingMode = .behindWindow
@@ -113,6 +117,14 @@ public final class StatusBarManager: NSObject {
             return event
         }
 
+        // Track system appearance changes so the panel follows light/dark mode
+        appearanceObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil, queue: .main
+        ) { [weak panel] _ in
+            panel?.appearance = NSApp.effectiveAppearance
+        }
+
         // Fallback: re-show panel if app deactivation hides it despite hidesOnDeactivate override
         deactivationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
@@ -135,6 +147,9 @@ public final class StatusBarManager: NSObject {
         }
         if let observer = deactivationObserver {
             NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = appearanceObserver {
+            DistributedNotificationCenter.default().removeObserver(observer)
         }
     }
 
@@ -237,6 +252,7 @@ private class PopoverPanel: NSPanel {
 private struct PopoverContentView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject var oauthManager: OAuthManager
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
@@ -247,5 +263,6 @@ private struct PopoverContentView: View {
             }
         }
         .frame(width: 275)
+        .background(colorScheme == .light ? Color(nsColor: .windowBackgroundColor) : Color.clear)
     }
 }

@@ -138,7 +138,7 @@ public struct UsagePopoverView: View {
                 }
                 Text("v\(VersionChecker.currentAppVersion)")
                     .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
                 Button(action: {
                     if viewModel.availableUpdate != nil {
                         updateBannerDismissed = false
@@ -199,7 +199,7 @@ public struct UsagePopoverView: View {
                                 .foregroundStyle(.secondary)
                             Image(systemName: "arrow.up.right")
                                 .font(.system(size: 6))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
                         }
                     }
                     .buttonStyle(.plain)
@@ -234,10 +234,10 @@ public struct UsagePopoverView: View {
                 .padding(8)
                 .background(
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.yellow.opacity(0.08))
+                        .fill(Color.yellow.opacity(0.12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.yellow.opacity(0.25), lineWidth: 1)
+                                .stroke(Color.yellow.opacity(0.35), lineWidth: 1)
                         )
                 )
                 .padding(.horizontal, -2)
@@ -352,7 +352,7 @@ public struct UsagePopoverView: View {
                 .foregroundStyle(.secondary)
             Text("Start a Claude Code session to populate usage data.\nData appears automatically once Claude Code is running.")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
                 .multilineTextAlignment(.center)
         }
         .padding(.horizontal, 16)
@@ -702,7 +702,7 @@ private struct RefreshSettingsSection: View {
             sliderMarks(labels: ["10s", "20s", "30s", "40s", "50s", "60s"], leadingPad: 50)
             Text("~3 tokens per poll")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, 58)
         }
 
@@ -754,7 +754,7 @@ private struct DisplaySettingsSection: View {
             sliderMarks(labels: ["1d", "2d", "3d", "4d", "5d", "6d", "7d", "All"], leadingPad: 50)
             Text("Only show models used within period")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, 58)
         }
 
@@ -785,7 +785,7 @@ private struct DisplaySettingsSection: View {
             Spacer().frame(width: 50)
             Text("Cost* = equivalent API token rates")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
         }
     }
 
@@ -835,7 +835,7 @@ private struct AlertSettingsSection: View {
         }
         Text("Notify when service is down")
             .font(.caption2)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(ThemeColors.tertiaryLabel)
             .padding(.leading, 58)
 
         // Rate limit alerts
@@ -861,7 +861,7 @@ private struct AlertSettingsSection: View {
                 sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)
                 Text("Notify when rate limit usage exceeds threshold")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
                     .padding(.leading, 58)
             }
         }
@@ -876,7 +876,7 @@ fileprivate func sliderMarks(labels: [String], leadingPad: CGFloat) -> some View
             ForEach(Array(labels.enumerated()), id: \.offset) { i, label in
                 Text(label)
                     .font(.system(size: 8))
-                    .foregroundStyle(.quaternary)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
                 if i < labels.count - 1 {
                     Spacer()
                 }

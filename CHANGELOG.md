@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.6.1] — 2026-03-03
+
+### Fixed
+- **Light mode readability** — popover now has a solid opaque background in light mode (no desktop bleed-through). Dark mode retains the translucent vibrancy material.
+- **Adaptive text colors** — replaced all `.tertiary` / `.quaternary` foreground styles with `ThemeColors.tertiaryLabel` (55% black in light, 35% white in dark) for much better contrast on light backgrounds.
+- **Orange text contrast** — caution/warning orange uses a deeper `(0.85, 0.45, 0.0)` in light mode instead of system orange which washes out on white. Affects usage bars (80–94%), context health bands, status indicators, and warning labels.
+- **Adaptive bar/badge fills** — bar gauge tracks use 14% black (light) / 10% white (dark); badge fills use 9% black (light) / 6% white (dark) instead of hardcoded opacity values.
+- **Gold replaces yellow** — 50–80% usage bars use a darker gold `(0.75, 0.58, 0.0)` in light mode for ≥4.5:1 contrast ratio against white; system yellow in dark mode.
+- **Chart area gradient** — bottom opacity increased from 5% to 10% for visibility on white backgrounds. Chart accent uses deeper orange in light mode.
+- **Panel appearance tracking** — popover follows system light/dark appearance changes in real time.
+
 ## [1.6.0] — 2026-03-03
 
 ### Added
