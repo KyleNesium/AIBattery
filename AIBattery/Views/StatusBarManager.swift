@@ -12,6 +12,9 @@ public final class StatusBarManager: NSObject {
     private var hostingView: NSHostingView<PopoverContentView>?
     private var cancellables = Set<AnyCancellable>()
     private var escapeMonitor: Any?
+    /// Tracks intended panel visibility — used to re-show panel after app deactivation.
+    private var isPanelShowing = false
+    private var deactivationObserver: Any?
 
     public override init() {
         super.init()
@@ -102,11 +105,23 @@ public final class StatusBarManager: NSObject {
 
         // Close panel on Escape key
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53, let self, let panel = self.panel, panel.isVisible {
-                panel.orderOut(nil)
+            if event.keyCode == 53, let self, self.isPanelShowing {
+                self.panel?.orderOut(nil)
+                self.isPanelShowing = false
                 return nil
             }
             return event
+        }
+
+        // Fallback: re-show panel if app deactivation hides it despite hidesOnDeactivate override
+        deactivationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let panel = self.panel, self.isPanelShowing, !panel.isVisible else { return }
+                panel.orderFront(nil)
+            }
         }
 
         self.statusItem = item
@@ -117,6 +132,9 @@ public final class StatusBarManager: NSObject {
     deinit {
         if let monitor = escapeMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+        if let observer = deactivationObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 
@@ -161,12 +179,14 @@ public final class StatusBarManager: NSObject {
 
     @objc private func statusItemClicked() {
         guard let panel, let button = statusItem?.button else { return }
-        if panel.isVisible {
+        if isPanelShowing {
             panel.orderOut(nil)
+            isPanelShowing = false
         } else {
             positionPanel(relativeTo: button)
             panel.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            isPanelShowing = true
         }
     }
 
@@ -193,8 +213,22 @@ public final class StatusBarManager: NSObject {
 // MARK: - Panel subclass
 
 /// Borderless panel that can become key (accepts keyboard events).
+/// Overrides `hidesOnDeactivate` to always return false — prevents SwiftUI's
+/// app lifecycle from hiding the panel when the app loses focus.
 private class PopoverPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+    override var hidesOnDeactivate: Bool {
+        get { false }
+        set { /* ignore — panel must stay visible regardless of app activation */ }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 { // Escape
+            orderOut(nil)
+        } else {
+            super.keyDown(with: event)
+        }
+    }
 }
 
 // MARK: - SwiftUI content
