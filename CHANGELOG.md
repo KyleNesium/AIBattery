@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.6.6] — 2026-03-05
+
+### Fixed
+- **Context health double-counting** — output tokens for context calculation now uses latest entry only (was summing all entries, inflating usage percentage)
+- **Session deduplication** — messageId fallback uses stable composite key instead of random UUID (fixes count inflation after LRU cache eviction)
+- **Throttle indicator color** — throttle trend now shows orange/caution instead of green
+- **Add-account detection** — tracks account count at flow start to detect actual additions
+- **Idle session visibility** — current session always appears in session browser even when idle past cutoff
+- **Trend direction** — requires 14 days of data for symmetric 7-vs-7 comparison (was 8)
+- **Duration formatting** — exactly 24 hours now shows "1d 0h" instead of "24h 0m"
+- **Token formatting** — 999,999 displays as "1.0M" instead of "1000K" (both TokenFormatter and chart labels)
+- **Multi-monitor positioning** — panel positioned relative to status item's screen, not primary screen
+- **Negative remaining** — usage bars clamp remaining percentage to 0 instead of showing negative values
+- **Monthly projection** — skips projection for first 3 days of month (insufficient data for meaningful estimate)
+- **Monthly accessibility** — uses actual message total instead of projected data for a11y labels
+- **Quarantine alert** — path is now quoted in the fix command text
+
+### Improved
+- **Click-outside dismiss** — panel closes when clicking outside or switching apps (standard menu bar behavior)
+- **Adaptive polling** — progressive exponential backoff (2x → 4x → 8x) instead of fixed 2x doubling
+- **FileWatcher fallback** — starts fallback timer when either watcher fails (was requiring both to fail)
+- **Session list reset** — selectedIndex resets when sessions list shrinks past current position
+- **Locale-aware times** — session timestamps use user's locale formatting instead of POSIX 24h
+- **MarqueeText** — text width updates on geometry change, not just on appear
+- **7D chart labels** — shows day abbreviation for all days (removed special "Today" label)
+
+### Added
+- 4 new tests: progressive doubling, 24h boundary, 13-day trend, idle session inclusion — 475 total across 35 files
+
 ## [1.6.5] — 2026-03-05
 
 ### Fixed
