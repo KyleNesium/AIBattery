@@ -346,11 +346,12 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
 - Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`) with `NSVisualEffectView` (`.popover` material, 10pt corner radius) + `NSHostingView` content
-- `hidesOnDeactivate = false`, `level = .floating` — stays visible when mouse leaves or another app gains focus
-- Only closes on: (1) clicking the status item again, or (2) pressing Escape
-- Positioned below the status item, centered horizontally, clamped to screen edges
+- `hidesOnDeactivate = false`, `level = .floating`
+- Closes on: (1) clicking the status item again, (2) pressing Escape, or (3) clicking outside the panel / switching apps
+- Positioned below the status item, centered horizontally, clamped to the status item's screen edges (multi-monitor safe)
 - `NSApp.activate(ignoringOtherApps: true)` after showing ensures keyboard events reach it (LSUIElement app)
 - `NSEvent.addLocalMonitorForEvents(matching: .keyDown)` for Escape key dismissal
+- `NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown])` for click-outside dismissal
 
 **Reactivity**: Combine subscriptions to `viewModel.$snapshot` and `viewModel.$lastFreshFetch` drive button updates. Auth changes via `oauthManager.$isAuthenticated` trigger refresh.
 

@@ -29,7 +29,7 @@ Main aggregated data struct consumed by all views.
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by highest usagePercentage (descending) |
 
-Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
+Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (requires 14+ days of activity for a symmetric 7-vs-7 comparison; ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
 Static factory methods: `computeDailyAverage(_:)`, `computeTrendDirection(_:)`, `computeBusiestDay(_:)` — called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
 
@@ -312,7 +312,7 @@ Pricing table (per million tokens):
 - **Symlink boundary check**: after discovery, resolves symlinks on each file URL and filters out any that resolve outside `~/.claude/projects/`. Prevents a symlink inside the projects directory from reading arbitrary files on disk.
 - **Discovery caching**: caches discovered JSONL file list with parent directory modification dates; re-scans only when directory contents change.
 - **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
-- Deduplication by messageId within each file
+- Deduplication by messageId across all files (set-based). Fallback messageId uses a stable composite key (`sessionId:timestamp:inputTokens:outputTokens`) instead of random UUID — survives LRU cache eviction without inflating counts
 - Sorted by timestamp ascending
 - **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
 - **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each call (before cache check) to avoid stale values on cache hits
@@ -340,7 +340,7 @@ Pricing table (per million tokens):
 - `assessCurrentSession(entries:) -> TokenHealthStatus?` — convenience wrapper, returns `assessSessions().current`
 - `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top` (sorted by highest usagePercentage)
 - Groups by sessionId, each session assessed independently
-- **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + sum(all outputTokens)` — input + cache tokens are cumulative (latest entry has total), output tokens are per-message. Each component capped at contextWindow to guard against overflow from corrupted data.
+- **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + latestEntry.outputTokens` — input + cache tokens are the full conversation context for the latest turn (non-overlapping API components); latest output is added because it will be part of the next turn's input. Each component capped at contextWindow to guard against overflow from corrupted data. The `outputTokens` field in `TokenHealthStatus` stores the total across all entries (for display), while context calculation uses only the latest.
 - **Usable window**: `usableWindow = contextWindow × 0.80` — percentages calculated against usable portion
 - Band: `< greenThreshold` → green (of usable), `< redThreshold` → orange, else red
 - Warnings: high turn count (>15 mild, >25 strong), input:output ratio (>20:1, includes cache tokens)

@@ -276,7 +276,10 @@ final class SessionLogReader {
               let usage = message.usage,
               let model = message.model else { return nil }
 
-        let messageId = message.id ?? entry.uuid ?? UUID().uuidString
+        // Stable fallback: deterministic composite key so re-reading the same file
+        // after LRU cache eviction produces the same ID (preserving deduplication).
+        let messageId = message.id ?? entry.uuid
+            ?? "\(entry.sessionId ?? ""):\(entry.timestamp ?? ""):\(usage.inputTokens ?? 0):\(usage.outputTokens ?? 0)"
         let timestamp: Date
         if let ts = entry.timestamp {
             timestamp = isoFormatter.date(from: ts) ?? Date()

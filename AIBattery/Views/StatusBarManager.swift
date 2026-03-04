@@ -12,6 +12,7 @@ public final class StatusBarManager: NSObject {
     private var hostingView: NSHostingView<PopoverContentView>?
     private var cancellables = Set<AnyCancellable>()
     private var escapeMonitor: Any?
+    private var clickOutsideMonitor: Any?
     /// Tracks intended panel visibility — used to re-show panel after app deactivation.
     private var isPanelShowing = false
     private var deactivationObserver: Any?
@@ -109,6 +110,15 @@ public final class StatusBarManager: NSObject {
             return event
         }
 
+        // Close panel when clicking outside (global mouse events from other apps)
+        clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            guard let self, self.isPanelShowing else { return }
+            Task { @MainActor in
+                self.panel?.orderOut(nil)
+                self.isPanelShowing = false
+            }
+        }
+
         // Track system appearance changes so the panel follows light/dark mode
         appearanceObserver = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
@@ -117,14 +127,15 @@ public final class StatusBarManager: NSObject {
             panel?.appearance = NSApp.effectiveAppearance
         }
 
-        // Fallback: re-show panel if app deactivation hides it despite hidesOnDeactivate override
+        // Close panel when app loses focus (e.g., user switches to another app via Cmd+Tab)
         deactivationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self, let panel = self.panel, self.isPanelShowing, !panel.isVisible else { return }
-                panel.orderFront(nil)
+                guard let self, self.isPanelShowing else { return }
+                self.panel?.orderOut(nil)
+                self.isPanelShowing = false
             }
         }
 
@@ -135,6 +146,9 @@ public final class StatusBarManager: NSObject {
 
     deinit {
         if let monitor = escapeMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = clickOutsideMonitor {
             NSEvent.removeMonitor(monitor)
         }
         if let observer = deactivationObserver {
@@ -209,7 +223,7 @@ public final class StatusBarManager: NSObject {
         var x = screenRect.midX - panelWidth / 2
         let y = screenRect.minY - panelHeight - 4
 
-        if let screen = NSScreen.main?.visibleFrame {
+        if let screen = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame {
             x = max(screen.minX + 4, min(x, screen.maxX - panelWidth - 4))
         }
 

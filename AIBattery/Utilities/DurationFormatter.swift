@@ -9,7 +9,7 @@ enum DurationFormatter {
         guard seconds > 0 else { return "soon" }
         let hours = Int(seconds) / 3600
         let minutes = (Int(seconds) % 3600) / 60
-        if hours > 24 {
+        if hours >= 24 {
             let days = hours / 24
             return "\(days)d \(hours % 24)h"
         } else if hours > 0 {

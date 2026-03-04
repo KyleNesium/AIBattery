@@ -26,8 +26,8 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        // totalUsed = input(95K) + cacheRead(0) + cacheWrite(0) + sumOutput(6K) = 101K
-        // percentage = 101K / 160K * 100 = 63.1% → orange
+        // totalUsed = input(95K) + cacheRead(0) + cacheWrite(0) + latestOutput(3K) = 98K
+        // percentage = 98K / 160K * 100 = 61.25% → orange
         #expect(result?.band == .orange)
     }
 
@@ -40,8 +40,8 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        // totalUsed = 125K + 10K output = 135K
-        // percentage = 135K / 160K * 100 = 84.4% → red
+        // totalUsed = 125K + 5K latestOutput = 130K
+        // percentage = 130K / 160K * 100 = 81.25% → red
         #expect(result?.band == .red)
     }
 
@@ -202,7 +202,7 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result?.tokensPerMinute != nil)
-        // totalUsed = 10K + 1K output = 11K, duration = 2 min → ~5500/min
+        // totalUsed = 10K + 500 latestOutput = 10.5K, duration = 2 min → ~5250/min
         #expect(result!.tokensPerMinute! > 0)
     }
 

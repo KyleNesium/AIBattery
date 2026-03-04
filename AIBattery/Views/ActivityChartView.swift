@@ -94,12 +94,13 @@ struct ActivityChartView: View {
             let key = String(format: "%04d-%02d", y, m)
             let total = lookup[key] ?? 0
 
-            // Project current month to full-month pace so it's comparable
+            // Project current month to full-month pace so it's comparable.
+            // Skip projection in the first 3 days — too few data points to extrapolate.
             let count: Int
             if key == thisMonthKey, total > 0,
                let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count {
                 let dayOfMonth = cal.component(.day, from: now)
-                count = dayOfMonth > 0 ? total * daysInMonth / dayOfMonth : total
+                count = dayOfMonth >= 4 ? total * daysInMonth / dayOfMonth : total
             } else {
                 count = total
             }
@@ -500,7 +501,7 @@ struct ActivityChartView: View {
         if count > 0 {
             Text("\(count)× throttled \(period)")
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(ThemeColors.trendColor(.down))
+                .foregroundStyle(ThemeColors.caution)
         } else {
             Text("0 throttles \(period)")
                 .font(.system(.caption, design: .monospaced))
@@ -545,7 +546,7 @@ struct ActivityChartView: View {
         let cal = Calendar.current
         let now = Date()
         let dayOfMonth = cal.component(.day, from: now)
-        guard dayOfMonth > 0,
+        guard dayOfMonth >= 4,
               let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count else { return nil }
         let projected = thisMonth * daysInMonth / dayOfMonth
         let diff = projected - lastMonth

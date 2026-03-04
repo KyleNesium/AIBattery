@@ -72,15 +72,18 @@ final class TokenHealthMonitor {
         let firstTimestamp = sessionEntries.first?.timestamp
         let lastTimestamp = latestEntry.timestamp
 
-        // Latest entry's input tokens are cumulative (full context).
-        // Cache tokens are also part of the context window footprint.
-        // Output tokens are per-message, so sum across all entries.
+        // Latest entry's input tokens are cumulative (full conversation context).
+        // Cache tokens are separate non-overlapping components of the same input.
+        // Together, input + cacheRead + cacheWrite = total prompt tokens for the latest turn.
+        // Only the latest output matters for context estimation (previous outputs are
+        // already folded into the latest input_tokens by the API).
         let inputTokens = latestEntry.inputTokens
         let cacheReadTokens = latestEntry.cacheReadTokens
         let cacheWriteTokens = latestEntry.cacheWriteTokens
-        let outputTokens = sessionEntries.reduce(0) { $0 + $1.outputTokens }
+        let outputTokens = latestEntry.outputTokens
+        let totalOutputTokens = sessionEntries.reduce(0) { $0 + $1.outputTokens }
 
-        // Total context used includes input + cache + all outputs.
+        // Total context used: latest full input + latest output (next turn will include it).
         // Guard against overflow from corrupted data — cap each component at contextWindow.
         let safeInput = min(inputTokens, contextWindow)
         let safeCacheRead = min(cacheReadTokens, contextWindow)
@@ -197,7 +200,7 @@ final class TokenHealthMonitor {
             usableWindow: usableWindow,
             remainingTokens: remaining,
             inputTokens: inputTokens,
-            outputTokens: outputTokens,
+            outputTokens: totalOutputTokens,
             cacheReadTokens: cacheReadTokens,
             cacheWriteTokens: cacheWriteTokens,
             model: model,

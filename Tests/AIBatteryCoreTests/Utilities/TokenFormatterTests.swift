@@ -38,7 +38,7 @@ struct TokenFormatterTests {
     }
 
     @Test func format_999K() {
-        #expect(TokenFormatter.format(999_999) == "1000K")
+        #expect(TokenFormatter.format(999_999) == "1.0M")
     }
 
     // MARK: - Millions (M)
@@ -83,7 +83,7 @@ struct TokenFormatterTests {
     }
 
     @Test func format_boundaryAt1M() {
-        #expect(TokenFormatter.format(999_999) == "1000K")
+        #expect(TokenFormatter.format(999_999) == "1.0M")
         #expect(TokenFormatter.format(1_000_000) == "1.0M")
     }
 

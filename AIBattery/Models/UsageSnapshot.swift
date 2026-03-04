@@ -81,7 +81,7 @@ struct UsageSnapshot {
     /// Compute trend direction from activity data.
     static func computeTrendDirection(_ dailyActivity: [DailyActivity]) -> TrendDirection {
         let count = dailyActivity.count
-        guard count >= 8 else { return .flat }
+        guard count >= 14 else { return .flat }
 
         let thisWeek = dailyActivity.suffix(7)
         let lastWeek = dailyActivity.dropLast(7).suffix(7)
