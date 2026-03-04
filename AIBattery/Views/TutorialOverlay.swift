@@ -57,7 +57,7 @@ struct TutorialOverlay: View {
                 HStack(spacing: 6) {
                     ForEach(0..<steps.count, id: \.self) { i in
                         Circle()
-                            .fill(i == step ? Color.blue : Color.secondary.opacity(0.3))
+                            .fill(i == step ? Color.blue : Color.secondary.opacity(0.45))
                             .frame(width: 6, height: 6)
                             .accessibilityHidden(true)
                     }
