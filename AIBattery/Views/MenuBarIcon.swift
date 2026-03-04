@@ -89,7 +89,20 @@ struct MenuBarIcon: View {
             }
             path.close()
 
-            // Fill the star with the usage color
+            // Subtle glow behind the star
+            let glowColor = color.withAlphaComponent(0.35)
+            let shadow = NSShadow()
+            shadow.shadowColor = glowColor
+            shadow.shadowBlurRadius = 2.5
+            shadow.shadowOffset = .zero
+
+            NSGraphicsContext.saveGraphicsState()
+            shadow.set()
+            color.setFill()
+            path.fill()
+            NSGraphicsContext.restoreGraphicsState()
+
+            // Fill the star with the usage color (crisp, on top of glow)
             color.setFill()
             path.fill()
 

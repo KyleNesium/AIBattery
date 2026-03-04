@@ -248,25 +248,17 @@ struct UsageAggregatorTests {
         let cacheURL = try writeStatsCache(Self.statsCacheJSON, to: dir)
         let projectsDir = dir.appendingPathComponent("projects")
 
-        // Add a recent JSONL entry so the model passes the 72-hour recency filter
-        let now = Date()
-        try writeJSONL(
-            [makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 10, output: 5, timestamp: now)],
-            to: projectsDir
-        )
-
         let reader = StatsCacheReader(fileURL: cacheURL)
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
         let snapshot = aggregator.aggregate(rateLimits: nil)
 
-        // Should include stats-cache modelUsage totals
+        // Should include stats-cache modelUsage totals without needing recent JSONL
         #expect(!snapshot.modelTokens.isEmpty)
         if let sonnet = snapshot.modelTokens.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             // Stats cache has 10000 input + 5000 output + 2000 cache read + 500 cache write = 17500
-            // Plus the recent JSONL entry's tokens
-            #expect(sonnet.totalTokens >= 17500)
+            #expect(sonnet.totalTokens == 17500)
         }
     }
 
@@ -388,6 +380,294 @@ struct UsageAggregatorTests {
 
         let second = aggregator.aggregate(rateLimits: nil)
         #expect(second.todayMessages == 2)
+    }
+
+    // MARK: - Hourly merge
+
+    @Test func aggregate_mergesJsonlIntoHourCounts() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = try writeStatsCache(Self.statsCacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let calendar = Calendar.current
+        let now = Date()
+        let hour10 = calendar.date(bySettingHour: 10, minute: 30, second: 0, of: now)!
+        let hour11 = calendar.date(bySettingHour: 11, minute: 15, second: 0, of: now)!
+
+        let lines = [
+            makeAssistantLine(input: 100, output: 50, messageId: "hour-msg-1", timestamp: hour10),
+            makeAssistantLine(input: 100, output: 50, messageId: "hour-msg-2", timestamp: hour10),
+            makeAssistantLine(input: 100, output: 50, messageId: "hour-msg-3", timestamp: hour11),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // JSONL has 2 messages at hour 10 and 1 at hour 11
+        #expect(snapshot.hourCounts["10"] == 2)
+        #expect(snapshot.hourCounts["11"] == 1)
+        // Stats cache hours should still be present
+        #expect(snapshot.hourCounts["14"] == 25)
+        #expect(snapshot.hourCounts["15"] == 18)
+    }
+
+    @Test func aggregate_hourlyMerge_updatedPeakHour() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        // Stats cache has peak at hour 14 with 25 messages
+        let cacheURL = try writeStatsCache(Self.statsCacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let calendar = Calendar.current
+        let now = Date()
+        let hour9 = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now)!
+
+        // Add 30 messages at hour 9 to surpass the cache peak of 25
+        var lines: [String] = []
+        for i in 0..<30 {
+            lines.append(makeAssistantLine(input: 10, output: 5, sessionId: "sess-\(i)", messageId: "peak-msg-\(i)", timestamp: hour9))
+        }
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // Peak should now be hour 9 with 30 messages
+        #expect(snapshot.peakHour == 9)
+        #expect(snapshot.peakHourCount == 30)
+    }
+
+    // MARK: - TotalMessages dedup
+
+    @Test func aggregate_totalMessages_noDoubleCountWhenCacheIncludesToday() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let formatter = DateFormatters.dateKey
+        let todayStr = formatter.string(from: Date())
+
+        // Stats cache includes today's date in dailyActivity with 5 messages
+        let cacheJSON = """
+        {
+            "version": 1,
+            "lastComputedDate": "\(todayStr)",
+            "dailyActivity": [
+                {"date": "\(todayStr)", "messageCount": 5, "sessionCount": 2, "toolCallCount": 3}
+            ],
+            "dailyModelTokens": [],
+            "modelUsage": {},
+            "totalSessions": 2,
+            "totalMessages": 5,
+            "hourCounts": {}
+        }
+        """
+
+        let cacheURL = try writeStatsCache(cacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        // JSONL also has 5 messages for today (same data the cache was built from)
+        let now = Date()
+        var lines: [String] = []
+        for i in 0..<5 {
+            lines.append(makeAssistantLine(input: 10, output: 5, messageId: "dedup-msg-\(i)", timestamp: now))
+        }
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // Should be 5, not 10 (no double-counting)
+        #expect(snapshot.totalMessages == 5)
+    }
+
+    @Test func aggregate_totalMessages_addsNewMessagesOnlyBeyondCache() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let formatter = DateFormatters.dateKey
+        let todayStr = formatter.string(from: Date())
+
+        // Stats cache includes today with 3 messages
+        let cacheJSON = """
+        {
+            "version": 1,
+            "lastComputedDate": "\(todayStr)",
+            "dailyActivity": [
+                {"date": "\(todayStr)", "messageCount": 3, "sessionCount": 1, "toolCallCount": 0}
+            ],
+            "dailyModelTokens": [],
+            "modelUsage": {},
+            "totalSessions": 1,
+            "totalMessages": 3,
+            "hourCounts": {}
+        }
+        """
+
+        let cacheURL = try writeStatsCache(cacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        // JSONL has 5 messages (2 more than cache)
+        let now = Date()
+        var lines: [String] = []
+        for i in 0..<5 {
+            lines.append(makeAssistantLine(input: 10, output: 5, messageId: "extra-msg-\(i)", timestamp: now))
+        }
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // 3 (cache total) + 2 (additional beyond cache's today) = 5
+        #expect(snapshot.totalMessages == 5)
+    }
+
+    // MARK: - Model filter removal
+
+    @Test func aggregate_showsOldModelsWithoutRecentJsonl() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        // Stats cache has a model with no recent JSONL activity
+        let cacheJSON = """
+        {
+            "version": 1,
+            "lastComputedDate": "2025-01-15",
+            "dailyActivity": [],
+            "dailyModelTokens": [
+                {"date": "2025-01-15", "tokensByModel": {"claude-opus-4-20250514": 100000}}
+            ],
+            "modelUsage": {
+                "claude-opus-4-20250514": {
+                    "inputTokens": 50000,
+                    "outputTokens": 30000,
+                    "cacheReadInputTokens": 10000,
+                    "cacheCreationInputTokens": 5000
+                }
+            },
+            "totalSessions": 5,
+            "totalMessages": 100,
+            "hourCounts": {}
+        }
+        """
+
+        let cacheURL = try writeStatsCache(cacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // Model should appear even without recent activity
+        let opus = snapshot.modelTokens.first(where: { $0.id == "claude-opus-4-20250514" })
+        #expect(opus != nil)
+        #expect(opus?.totalTokens == 95000)
+        #expect(snapshot.totalTokens == 95000)
+    }
+
+    // MARK: - All-dates daily merge
+
+    @Test func aggregate_mergesAllDatesIntoDailyActivity() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let formatter = DateFormatters.dateKey
+        let cal = Calendar.current
+        let now = Date()
+        let yesterday = cal.date(byAdding: .day, value: -1, to: now)!
+        let twoDaysAgo = cal.date(byAdding: .day, value: -2, to: now)!
+        let yesterdayStr = formatter.string(from: yesterday)
+        let twoDaysAgoStr = formatter.string(from: twoDaysAgo)
+
+        // Stats cache was rebuilt 3 days ago — doesn't include yesterday or 2 days ago
+        let cacheJSON = """
+        {
+            "version": 1,
+            "lastComputedDate": "\(formatter.string(from: cal.date(byAdding: .day, value: -3, to: now)!))",
+            "dailyActivity": [],
+            "dailyModelTokens": [],
+            "modelUsage": {},
+            "totalSessions": 0,
+            "totalMessages": 0,
+            "hourCounts": {}
+        }
+        """
+
+        let cacheURL = try writeStatsCache(cacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        // JSONL has entries for yesterday and 2 days ago (not just today)
+        let lines = [
+            makeAssistantLine(input: 10, output: 5, messageId: "old-1", timestamp: twoDaysAgo),
+            makeAssistantLine(input: 10, output: 5, messageId: "old-2", timestamp: twoDaysAgo),
+            makeAssistantLine(input: 10, output: 5, messageId: "yest-1", timestamp: yesterday),
+            makeAssistantLine(input: 10, output: 5, messageId: "today-1", timestamp: now),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // dailyActivity should include entries for all 3 dates
+        let activityDates = Set(snapshot.dailyActivity.map(\.date))
+        #expect(activityDates.contains(twoDaysAgoStr))
+        #expect(activityDates.contains(yesterdayStr))
+        #expect(snapshot.dailyActivity.first(where: { $0.date == twoDaysAgoStr })?.messageCount == 2)
+        #expect(snapshot.dailyActivity.first(where: { $0.date == yesterdayStr })?.messageCount == 1)
+        #expect(snapshot.totalMessages == 4)
+    }
+
+    // MARK: - todayHourCounts
+
+    @Test func aggregate_todayHourCountsSeparateFromAllTime() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        // Stats cache has all-time hour counts at hour 14
+        let cacheURL = try writeStatsCache(Self.statsCacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let calendar = Calendar.current
+        let now = Date()
+        let hour10 = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: now)!
+        let lines = [
+            makeAssistantLine(input: 10, output: 5, messageId: "today-h10-1", timestamp: hour10),
+            makeAssistantLine(input: 10, output: 5, messageId: "today-h10-2", timestamp: hour10),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // todayHourCounts should only have today's data
+        #expect(snapshot.todayHourCounts["10"] == 2)
+        #expect(snapshot.todayHourCounts["14"] == nil) // stats cache hour, not today
+        // hourCounts (all-time) should have both
+        #expect(snapshot.hourCounts["10"] == 2)
+        #expect(snapshot.hourCounts["14"] == 25)
     }
 
     // MARK: - Test data

@@ -83,4 +83,99 @@ struct UsageViewModelTests {
     @Test func hasDataChanged_bothChanged_returnsTrue() {
         #expect(UsageViewModel.hasDataChanged(previousTotal: 10, previousToday: 5, newTotal: 20, newToday: 15))
     }
+
+    // MARK: - recordThrottleEvent
+
+    @Test func recordThrottleEvent_nilRateLimits_noOp() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        // Reset transition state
+        UsageViewModel.recordThrottleEvent(nil)
+        UsageViewModel.recordThrottleEvent(nil)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.isEmpty)
+    }
+
+    @Test func recordThrottleEvent_notThrottled_noOp() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        // Reset transition state, then send allowed
+        UsageViewModel.recordThrottleEvent(nil)
+        UsageViewModel.recordThrottleEvent(rl)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.isEmpty)
+    }
+
+    @Test func recordThrottleEvent_throttled_recordsTimestamp() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: nil,
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        // Reset then transition to throttled
+        UsageViewModel.recordThrottleEvent(nil)
+        UsageViewModel.recordThrottleEvent(rl)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.count == 1)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    @Test func recordThrottleEvent_repeatedThrottle_noDoubleCount() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: nil,
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        // Transition: not-throttled → throttled
+        UsageViewModel.recordThrottleEvent(nil)
+        UsageViewModel.recordThrottleEvent(rl)
+        // Still throttled on next polls — should NOT record again
+        UsageViewModel.recordThrottleEvent(rl)
+        UsageViewModel.recordThrottleEvent(rl)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.count == 1)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    // MARK: - throttleCount
+
+    @Test func throttleCount_noData_returnsZero() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7) == 0)
+    }
+
+    @Test func throttleCount_filtersOldEvents() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        let now = Date().timeIntervalSince1970
+        let old = now - 8 * 86400 // 8 days ago
+        UserDefaults.standard.set([old, now], forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7) == 1)
+        #expect(UsageViewModel.throttleCount(days: 30) == 2)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 }

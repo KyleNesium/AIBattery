@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.6.5] — 2026-03-05
+
+### Fixed
+- **Activity charts showing stale data** — 7D and 12M charts now merge JSONL entries for all dates (not just today) into `dailyActivity`, filling gaps between the last stats-cache rebuild and the present. Fixes charts showing a cliff to zero after the cache rebuild date.
+- **All Time stats double-counting** — `totalMessages`/`totalSessions` dedup now iterates all dates instead of only today, preventing inflation when stats-cache already includes recent data.
+- **24H chart using all-time data** — hourly chart now uses `todayHourCounts` (today's JSONL only) instead of cumulative `hourCounts` from stats-cache.
+- **Token totals lower than dashboard** — removed 72-hour model recency filter that was excluding older models from `modelTokens` and `totalTokens`.
+
+### Added
+- **Mode-aware trend summary** — Activity chart trend stats change per selected mode: 24H shows vs-yesterday + peak hour; 7D shows weekly trend + avg/day + busiest day; 12M shows vs-last-month (projected) + busiest month.
+- **Throttle tracking** — records rate limit events on each not-throttled→throttled transition (one count per throttle session). 30-day retention. Trend summary shows "0 throttles today/this week/this month" or "N× throttled" per chart mode.
+- **12M current month projection** — current month extrapolated to full-month pace (`total × daysInMonth / dayOfMonth`) for fair comparison with completed months.
+- **Y-axis labels** — all three chart modes now show 3 trailing Y-axis marks with compact labels ("2K", "3M") and tick marks.
+- **Menu bar icon glow** — star icon now has a subtle glow effect behind the fill (usage-colored, 0.35 alpha, 2.5pt blur).
+- **Auth view app icon** — sign-in screen displays the real app icon instead of a text sparkle.
+- 13 new tests: throttle recording/counting (6), aggregator accuracy (7) — 471 total across 35 files
+
 ## [1.6.4] — 2026-03-04
 
 ### Changed

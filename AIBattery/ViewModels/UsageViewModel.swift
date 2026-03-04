@@ -78,6 +78,7 @@ public final class UsageViewModel: ObservableObject {
         guard accountId == oauthManager.accountStore.activeAccountId else { return }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
+        Self.recordThrottleEvent(api.rateLimits)
 
         let result = aggregator.aggregate(rateLimits: api.rateLimits)
         logCorruptionMetrics()
@@ -244,6 +245,33 @@ public final class UsageViewModel: ObservableObject {
     /// Returns true on first load (previousTotal < 0) or when totals differ.
     nonisolated static func hasDataChanged(previousTotal: Int, previousToday: Int, newTotal: Int, newToday: Int) -> Bool {
         previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
+    }
+
+    /// Track whether the previous poll saw a throttled state.
+    /// Used to detect the transition from not-throttled → throttled.
+    private static var wasThrottled = false
+
+    /// Record a throttle event only on the transition from not-throttled to throttled.
+    /// Each distinct throttle session counts as one event regardless of duration.
+    /// Keeps only the last 30 days of timestamps to avoid unbounded growth.
+    static func recordThrottleEvent(_ rateLimits: RateLimitUsage?) {
+        let isThrottled = rateLimits?.isThrottled ?? false
+        defer { wasThrottled = isThrottled }
+        guard isThrottled, !wasThrottled else { return }
+        let now = Date().timeIntervalSince1970
+        var timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
+        timestamps.append(now)
+        // Prune older than 30 days
+        let cutoff = now - 30 * 86400
+        timestamps = timestamps.filter { $0 >= cutoff }
+        UserDefaults.standard.set(timestamps, forKey: UserDefaultsKeys.throttleTimestamps)
+    }
+
+    /// Count throttle events within a given number of days.
+    static func throttleCount(days: Int) -> Int {
+        let timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
+        let cutoff = Date().timeIntervalSince1970 - Double(days) * 86400
+        return timestamps.filter { $0 >= cutoff }.count
     }
 
     private func startPolling() {

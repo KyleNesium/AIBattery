@@ -574,10 +574,10 @@ private struct ActivityChartGate: View {
     let snapshot: UsageSnapshot
 
     var body: some View {
-        if showActivity && (!snapshot.dailyActivity.isEmpty || !snapshot.hourCounts.isEmpty) {
+        if showActivity && (!snapshot.dailyActivity.isEmpty || !snapshot.todayHourCounts.isEmpty) {
             ActivityChartView(
                 dailyActivity: snapshot.dailyActivity,
-                hourCounts: snapshot.hourCounts,
+                todayHourCounts: snapshot.todayHourCounts,
                 snapshot: snapshot
             )
             Divider()

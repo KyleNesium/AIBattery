@@ -44,22 +44,27 @@ final class UsageAggregator {
             return cached
         }
 
-        // Single-pass filter: extract today's entries.
+        // Single-pass grouping: bucket all entries by date, collect today's separately.
         let now = Date()
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
+        let todayDate = Self.dateFormatter.string(from: now)
 
         var todayEntries: [AssistantUsageEntry] = []
-        var todayModelIds = Set<String>()
+        var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
 
         for entry in allEntries {
+            let dateKey = Self.dateFormatter.string(from: entry.timestamp)
+            var bucket = entriesByDate[dateKey] ?? (messages: 0, sessions: [])
+            bucket.messages += 1
+            bucket.sessions.insert(entry.sessionId)
+            entriesByDate[dateKey] = bucket
+
             if entry.timestamp >= today {
                 todayEntries.append(entry)
-                todayModelIds.insert(entry.model)
             }
         }
 
-        let todayDate = Self.dateFormatter.string(from: now)
         let todayMessages = todayEntries.count
         let todaySessions = Set(todayEntries.map(\.sessionId)).count
         let todayToolCalls = statsCache?.dailyActivity
@@ -68,23 +73,10 @@ final class UsageAggregator {
         // Dates already covered by stats cache
         let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
 
-        // Only show models active in the last 72 hours to reduce noise.
-        // todayModelIds was already collected in the single-pass above.
-        let cutoffDate = calendar.date(byAdding: .hour, value: -72, to: now) ?? now
-        let cutoffDateStr = Self.dateFormatter.string(from: cutoffDate)
-        var recentModelIds = todayModelIds
-        if let cache = statsCache {
-            for entry in cache.dailyModelTokens where entry.date >= cutoffDateStr {
-                for (modelId, tokens) in entry.tokensByModel where tokens > 0 {
-                    recentModelIds.insert(modelId)
-                }
-            }
-        }
-
         // All-time mode: stats cache + uncached JSONL
         var modelTokensMap: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
         if let cache = statsCache {
-            for (modelId, usage) in cache.modelUsage where recentModelIds.contains(modelId) {
+            for (modelId, usage) in cache.modelUsage {
                 modelTokensMap[modelId] = (
                     input: usage.inputTokens,
                     output: usage.outputTokens,
@@ -110,11 +102,6 @@ final class UsageAggregator {
 
         let modelTokens = Self.buildModelTokens(from: modelTokensMap)
 
-        // Peak hour
-        let peakEntry = statsCache?.hourCounts.max(by: { $0.value < $1.value })
-        let peakHour = peakEntry.flatMap { Int($0.key) }
-        let peakHourCount = peakEntry?.value ?? 0
-
         // First session date
         let firstSessionDate = statsCache?.firstSessionDate
             .flatMap { Self.isoFormatter.date(from: $0) }
@@ -124,36 +111,68 @@ final class UsageAggregator {
         let tokenHealth = healthResult.current
         let topSessionHealths = healthResult.top
 
-        // Merge today's live JSONL data into dailyActivity so the 7D chart
-        // reflects current-day usage even when stats-cache hasn't been rebuilt.
+        // Merge JSONL daily counts into dailyActivity so charts reflect usage
+        // for days after the last stats-cache rebuild.
         var activity = statsCache?.dailyActivity ?? []
-        if todayMessages > 0 {
-            if let idx = activity.firstIndex(where: { $0.date == todayDate }) {
-                // Replace if JSONL has more messages than stale cache entry
-                if todayMessages > activity[idx].messageCount {
+        for (date, bucket) in entriesByDate {
+            let toolCalls = (date == todayDate) ? todayToolCalls : 0
+            if let idx = activity.firstIndex(where: { $0.date == date }) {
+                // Update existing entry if JSONL has more messages
+                if bucket.messages > activity[idx].messageCount {
                     activity[idx] = DailyActivity(
-                        date: todayDate,
-                        messageCount: todayMessages,
-                        sessionCount: todaySessions,
-                        toolCallCount: max(todayToolCalls, activity[idx].toolCallCount)
+                        date: date,
+                        messageCount: bucket.messages,
+                        sessionCount: bucket.sessions.count,
+                        toolCallCount: max(toolCalls, activity[idx].toolCallCount)
                     )
                 }
             } else {
                 activity.append(DailyActivity(
-                    date: todayDate,
-                    messageCount: todayMessages,
-                    sessionCount: todaySessions,
-                    toolCallCount: todayToolCalls
+                    date: date,
+                    messageCount: bucket.messages,
+                    sessionCount: bucket.sessions.count,
+                    toolCallCount: toolCalls
                 ))
             }
+        }
+
+        // Build today's hourly breakdown from JSONL (for 24H chart).
+        var todayHourCounts: [String: Int] = [:]
+        for entry in todayEntries {
+            let hour = String(calendar.component(.hour, from: entry.timestamp))
+            todayHourCounts[hour, default: 0] += 1
+        }
+
+        // Merge today's JSONL into all-time hourCounts for peak hour stat.
+        var hourCounts = statsCache?.hourCounts ?? [:]
+        for (hour, count) in todayHourCounts {
+            hourCounts[hour] = max(hourCounts[hour] ?? 0, count)
+        }
+
+        // Peak hour (computed after hourly merge to reflect live data)
+        let peakEntry = hourCounts.max(by: { $0.value < $1.value })
+        let peakHour = peakEntry.flatMap { Int($0.key) }
+        let peakHourCount = peakEntry?.value ?? 0
+
+        // Count additional messages/sessions beyond what stats-cache already
+        // includes, across all dates, to avoid double-counting.
+        let cachedActivityLookup = Dictionary(
+            uniqueKeysWithValues: (statsCache?.dailyActivity ?? []).map { ($0.date, $0) }
+        )
+        var additionalMessages = 0
+        var additionalSessions = 0
+        for (date, bucket) in entriesByDate {
+            let cached = cachedActivityLookup[date]
+            additionalMessages += max(bucket.messages - (cached?.messageCount ?? 0), 0)
+            additionalSessions += max(bucket.sessions.count - (cached?.sessionCount ?? 0), 0)
         }
 
         let snapshot = UsageSnapshot(
             lastUpdated: now,
             rateLimits: rateLimits,
             firstSessionDate: firstSessionDate,
-            totalSessions: (statsCache?.totalSessions ?? 0) + todaySessions,
-            totalMessages: (statsCache?.totalMessages ?? 0) + todayMessages,
+            totalSessions: (statsCache?.totalSessions ?? 0) + additionalSessions,
+            totalMessages: (statsCache?.totalMessages ?? 0) + additionalMessages,
             longestSessionDuration: statsCache?.longestSession?.durationFormatted,
             longestSessionMessages: statsCache?.longestSession?.messageCount ?? 0,
             peakHour: peakHour,
@@ -167,7 +186,8 @@ final class UsageAggregator {
             dailyAverage: UsageSnapshot.computeDailyAverage(activity),
             trendDirection: UsageSnapshot.computeTrendDirection(activity),
             busiestDayOfWeek: UsageSnapshot.computeBusiestDay(activity),
-            hourCounts: statsCache?.hourCounts ?? [:],
+            hourCounts: hourCounts,
+            todayHourCounts: todayHourCounts,
             tokenHealth: tokenHealth,
             topSessionHealths: topSessionHealths
         )
