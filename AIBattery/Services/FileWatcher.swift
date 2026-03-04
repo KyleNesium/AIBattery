@@ -38,7 +38,7 @@ final class FileWatcher {
         debounceWorkItem = nil
 
         if let source = fileSource {
-            source.cancel() // Cancel handler closes the fd
+            source.cancel()
             fileSource = nil
         }
 
