@@ -144,6 +144,11 @@ struct TokenHealthSection: View {
             : nil
         )
         .accessibilityHint(sessions.count > 1 ? "Swipe left or right to browse sessions" : "")
+        .onChange(of: sessions.count) { newCount in
+            if selectedIndex >= newCount {
+                selectedIndex = 0
+            }
+        }
         .accessibilityAdjustableAction { direction in
             guard sessions.count > 1 else { return }
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -317,15 +322,14 @@ struct TokenHealthSection: View {
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "HH:mm"
+        f.timeStyle = .short
+        f.dateStyle = .none
         return f
     }()
 
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "MMM d"
+        f.setLocalizedDateFormatFromTemplate("MMMd")
         return f
     }()
 

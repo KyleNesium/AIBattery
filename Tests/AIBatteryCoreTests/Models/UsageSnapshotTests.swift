@@ -231,6 +231,16 @@ struct UsageSnapshotTests {
         #expect(snapshot.trendDirection == .flat)
     }
 
+    @Test func trendDirection_13days_insufficientForSymmetricComparison() {
+        // 13 days is not enough for a full 7-vs-7 comparison
+        let activity = makeDailyActivity(daysBack: 13, messages: [
+            10, 10, 10, 10, 10, 10,  // 6 days of "last week"
+            50, 50, 50, 50, 50, 50, 50,  // 7 days of "this week"
+        ])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        #expect(snapshot.trendDirection == .flat)
+    }
+
     @Test func trendDirection_upWhenThisWeekHigher() {
         // Last week: 10/day avg, This week: 50/day avg → clearly up
         let activity = makeDailyActivity(daysBack: 14, messages: [

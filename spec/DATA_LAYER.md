@@ -29,7 +29,7 @@ Main aggregated data struct consumed by all views.
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by highest usagePercentage (descending) |
 
-Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (compare this week vs last week averages, ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
+Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (requires 14+ days of activity for a symmetric 7-vs-7 comparison; ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
 Static factory methods: `computeDailyAverage(_:)`, `computeTrendDirection(_:)`, `computeBusiestDay(_:)` — called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
 
@@ -312,7 +312,7 @@ Pricing table (per million tokens):
 - **Symlink boundary check**: after discovery, resolves symlinks on each file URL and filters out any that resolve outside `~/.claude/projects/`. Prevents a symlink inside the projects directory from reading arbitrary files on disk.
 - **Discovery caching**: caches discovered JSONL file list with parent directory modification dates; re-scans only when directory contents change.
 - **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
-- Deduplication by messageId within each file
+- Deduplication by messageId across all files (set-based). Fallback messageId uses a stable composite key (`sessionId:timestamp:inputTokens:outputTokens`) from entry fields — survives LRU cache eviction without inflating counts
 - Sorted by timestamp ascending
 - **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
 - **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each call (before cache check) to avoid stale values on cache hits
@@ -339,8 +339,8 @@ Pricing table (per million tokens):
 - `assessSessions(entries:topLimit:idleCutoffMinutes:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — pre-filters entries to current session + those with activity within the idle cutoff before `Dictionary(grouping:)` to avoid allocating dictionary buckets for stale sessions. `idleCutoffMinutes` controls the cutoff: 0 = never hide (uses 24h performance bound), >0 = that many minutes. Returns current session health + top N sorted by `usagePercentage` descending (highest context usage first). Default topLimit is 5.
 - `assessCurrentSession(entries:) -> TokenHealthStatus?` — convenience wrapper, returns `assessSessions().current`
 - `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top` (sorted by highest usagePercentage)
-- Groups by sessionId, each session assessed independently
-- **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + sum(all outputTokens)` — input + cache tokens are cumulative (latest entry has total), output tokens are per-message. Each component capped at contextWindow to guard against overflow from corrupted data.
+- Groups by sessionId, each session assessed independently. Current session is always included in `top` results even when idle past the cutoff — ensures it appears in the session browser.
+- **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + latestEntry.outputTokens` — input + cache tokens are the full conversation context for the latest turn (non-overlapping API components); latest output is added because it will be part of the next turn's input. Each component capped at contextWindow to guard against overflow from corrupted data. The `outputTokens` field in `TokenHealthStatus` stores the total across all entries (for display), while context calculation uses only the latest.
 - **Usable window**: `usableWindow = contextWindow × 0.80` — percentages calculated against usable portion
 - Band: `< greenThreshold` → green (of usable), `< redThreshold` → orange, else red
 - Warnings: high turn count (>15 mild, >25 strong), input:output ratio (>20:1, includes cache tokens)
@@ -359,7 +359,7 @@ Pricing table (per million tokens):
 - WeakBox wrapper for C callback to prevent retain cycles
 - Debounce: 2 seconds via `DispatchWorkItem`
 - **Cache invalidation**: debounced handler calls `SessionLogReader.shared.invalidate()` and `StatsCacheReader.shared.invalidate()` before triggering refresh
-- Fallback timer: 60 seconds — only starts if both DispatchSource and FSEventStream fail (avoids redundant polling)
+- Fallback timer: 60 seconds — starts if either DispatchSource or FSEventStream fails (ensures changes are picked up even if one watcher is unavailable)
 - Calls `onChange` closure → triggers `viewModel.refresh()`
 - **Stats-cache retry**: if `stats-cache.json` doesn't exist on launch (normal before first `/stats` run), retries with exponential backoff (60s base, doubles each retry, capped at 300s, max 10 retries ~30 min). Counter resets on success or `stopWatching()`
 - **Failure logging**: logs via `AppLogger.files.warning` when file descriptors fail to open, projects directory not found, or FSEventStream creation fails — falls back to timer in all cases
@@ -465,7 +465,7 @@ Pricing table (per million tokens):
 - `unchangedCycles: Int` — tracks consecutive refresh cycles with no data change
 - `static let adaptiveThreshold = 3` — unchanged cycles before doubling
 - `static let maxPollingInterval: TimeInterval = 300` — hard cap (5 min)
-- `mutating func evaluate(dataChanged:baseInterval:) -> TimeInterval` — resets counter on data change (returns base); increments on no change; doubles interval when threshold reached (capped at max)
+- `mutating func evaluate(dataChanged:baseInterval:) -> TimeInterval` — resets counter on data change (returns base); increments on no change; progressive doubling past threshold: `base × 2^(cyclesPastThreshold)` (capped at max)
 - Used by `UsageViewModel` via `private var adaptivePolling = AdaptivePollingState()`
 
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
@@ -486,8 +486,8 @@ Pricing table (per million tokens):
   - `≤ 0` → `"soon"`
   - `< 60s` → `"1m"` (minimum 1 minute)
   - `1–59 min` → `"Xm"`
-  - `1–24 hours` → `"Xh Ym"`
-  - `> 24 hours` → `"Xd Yh"`
+  - `1h–23h 59m` → `"Xh Ym"`
+  - `≥ 24 hours` → `"Xd Yh"`
 - Used by: `UsageBarsSection` (reset countdown), `TokenHealthSection` (session duration), `RateLimitUsage` (countdown text), menu bar throttle countdown
 
 ### AppLogger (`Utilities/AppLogger.swift`)

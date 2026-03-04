@@ -10,6 +10,7 @@ public struct UsagePopoverView: View {
     @State private var updateCheckMessage: String?
     @State private var updateCheckDismissTask: Task<Void, Never>?
     @State private var updateBannerDismissed = false
+    @State private var accountCountAtAddStart = 0
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -30,9 +31,10 @@ public struct UsagePopoverView: View {
                 isAddingAccount: true,
                 onCancel: { isAddingAccount = false }
             )
+            .onAppear { accountCountAtAddStart = accountStore.accounts.count }
             .onReceive(accountStore.$accounts) { newAccounts in
-                // Auth completed for new account — switch back to main view
-                if newAccounts.count > 1 && isAddingAccount {
+                // Auth completed for new account — detect actual addition, not initial publish
+                if newAccounts.count > accountCountAtAddStart && isAddingAccount {
                     isAddingAccount = false
                     Task { await viewModel.refresh() }
                 }

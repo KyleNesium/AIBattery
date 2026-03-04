@@ -26,8 +26,8 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        // totalUsed = input(95K) + cacheRead(0) + cacheWrite(0) + sumOutput(6K) = 101K
-        // percentage = 101K / 160K * 100 = 63.1% → orange
+        // totalUsed = input(95K) + cacheRead(0) + cacheWrite(0) + latestOutput(3K) = 98K
+        // percentage = 98K / 160K * 100 = 61.25% → orange
         #expect(result?.band == .orange)
     }
 
@@ -40,8 +40,8 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        // totalUsed = 125K + 10K output = 135K
-        // percentage = 135K / 160K * 100 = 84.4% → red
+        // totalUsed = 125K + 5K latestOutput = 130K
+        // percentage = 130K / 160K * 100 = 81.25% → red
         #expect(result?.band == .red)
     }
 
@@ -139,16 +139,29 @@ struct TokenHealthMonitorTests {
 
     // MARK: - topSessions filtering/sorting
 
+    @Test func assessSessions_currentSessionAlwaysInTop() {
+        // Current session is idle past cutoff but should still appear in top
+        let oldTime = Date().addingTimeInterval(-48 * 3600) // 48h ago
+        let entries = [
+            makeEntry(sessionId: "current", input: 50_000, output: 1_000, timestamp: oldTime),
+        ]
+        let results = monitor.assessSessions(entries: entries, topLimit: 5)
+        // Current session (most recent by default) should be in top despite being old
+        #expect(results.current != nil)
+        #expect(results.top.contains { $0.id == "current" })
+    }
+
     @Test func topSessions_excludesOldSessions() {
         let recentTime = Date()
         let oldTime = Date().addingTimeInterval(-48 * 3600) // 48h ago
 
+        // Entries sorted by timestamp ascending (as SessionLogReader delivers them)
         let entries = [
-            makeEntry(sessionId: "recent", input: 1000, output: 100, timestamp: recentTime),
             makeEntry(sessionId: "old", input: 2000, output: 200, timestamp: oldTime),
+            makeEntry(sessionId: "recent", input: 1000, output: 100, timestamp: recentTime),
         ]
         let top = monitor.topSessions(entries: entries, limit: 5)
-        // Only recent session should be included (24h cutoff)
+        // "recent" is current (entries.last) so always included; "old" excluded by 24h cutoff
         #expect(top.count == 1)
         #expect(top.first?.id == "recent")
     }
@@ -202,7 +215,7 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result?.tokensPerMinute != nil)
-        // totalUsed = 10K + 1K output = 11K, duration = 2 min → ~5500/min
+        // totalUsed = 10K + 500 latestOutput = 10.5K, duration = 2 min → ~5250/min
         #expect(result!.tokensPerMinute! > 0)
     }
 

@@ -8,6 +8,8 @@ enum TokenFormatter {
             return "\(count)"
         case 1_000..<1_000_000:
             let k = Double(count) / 1_000.0
+            // Avoid "1000K" — show "1.0M" instead when rounding pushes past 999
+            if k >= 999.5 { return "1.0M" }
             return k < 10 ? String(format: "%.1fK", k) : String(format: "%.0fK", k)
         default:
             let m = Double(count) / 1_000_000.0

@@ -94,12 +94,13 @@ struct ActivityChartView: View {
             let key = String(format: "%04d-%02d", y, m)
             let total = lookup[key] ?? 0
 
-            // Project current month to full-month pace so it's comparable
+            // Project current month to full-month pace so it's comparable.
+            // Skip projection in the first 3 days — too few data points to extrapolate.
             let count: Int
             if key == thisMonthKey, total > 0,
                let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count {
                 let dayOfMonth = cal.component(.day, from: now)
-                count = dayOfMonth > 0 ? total * daysInMonth / dayOfMonth : total
+                count = dayOfMonth >= 4 ? total * daysInMonth / dayOfMonth : total
             } else {
                 count = total
             }
@@ -312,14 +313,9 @@ struct ActivityChartView: View {
     private var monthlyChart: some View {
         let data = monthlyData
         let dates = data.map(\.date)
-        let total = data.reduce(0) { $0 + $1.count }
-        let peak = data.max(by: { $0.count < $1.count })
-        let a11yLabel: String = {
-            if let peak, peak.count > 0 {
-                return "12-month activity chart. \(total) messages total. Highest: \(Self.monthAbbrev(peak.date)) with \(peak.count)"
-            }
-            return "12-month activity chart. \(total) messages total"
-        }()
+        // Use actual (non-projected) total for accessibility — projected data is only for visual comparison
+        let actualTotal = dailyActivity.reduce(0) { $0 + $1.messageCount }
+        let a11yLabel = "12-month activity chart. \(actualTotal) messages total"
 
         return Chart(data) { point in
             AreaMark(
@@ -500,7 +496,7 @@ struct ActivityChartView: View {
         if count > 0 {
             Text("\(count)× throttled \(period)")
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(ThemeColors.trendColor(.down))
+                .foregroundStyle(ThemeColors.caution)
         } else {
             Text("0 throttles \(period)")
                 .font(.system(.caption, design: .monospaced))
@@ -545,7 +541,7 @@ struct ActivityChartView: View {
         let cal = Calendar.current
         let now = Date()
         let dayOfMonth = cal.component(.day, from: now)
-        guard dayOfMonth > 0,
+        guard dayOfMonth >= 4,
               let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count else { return nil }
         let projected = thisMonth * daysInMonth / dayOfMonth
         let diff = projected - lastMonth
@@ -590,9 +586,7 @@ struct ActivityChartView: View {
     // MARK: - Formatters
 
     static func dayShortLabel(_ date: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(date) { return "Today" }
-        return DateFormatters.shortDay.string(from: date)
+        DateFormatters.shortDay.string(from: date)
     }
 
     static func monthAbbrev(_ date: Date) -> String {
@@ -606,6 +600,7 @@ struct ActivityChartView: View {
         }
         if value >= 1_000 {
             let k = Double(value) / 1_000
+            if k >= 999.5 { return "1.0M" }
             return k == k.rounded() ? "\(Int(k))K" : String(format: "%.0fK", k)
         }
         return "\(value)"

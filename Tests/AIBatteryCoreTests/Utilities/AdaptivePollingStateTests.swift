@@ -23,6 +23,20 @@ struct AdaptivePollingStateTests {
         #expect(interval == 60)
     }
 
+    @Test func progressiveDoubling_escalatesPastThreshold() {
+        var state = AdaptivePollingState()
+        _ = state.evaluate(dataChanged: false, baseInterval: 30) // cycle 1: 30
+        _ = state.evaluate(dataChanged: false, baseInterval: 30) // cycle 2: 30
+        let c3 = state.evaluate(dataChanged: false, baseInterval: 30) // cycle 3: 30*2 = 60
+        let c4 = state.evaluate(dataChanged: false, baseInterval: 30) // cycle 4: 30*4 = 120
+        let c5 = state.evaluate(dataChanged: false, baseInterval: 30) // cycle 5: 30*8 = 240
+        let c6 = state.evaluate(dataChanged: false, baseInterval: 30) // cycle 6: 30*16 = 300 (capped)
+        #expect(c3 == 60)
+        #expect(c4 == 120)
+        #expect(c5 == 240)
+        #expect(c6 == 300) // capped at max
+    }
+
     @Test func capsAtMax() {
         var state = AdaptivePollingState()
         // Push past threshold with a large base interval

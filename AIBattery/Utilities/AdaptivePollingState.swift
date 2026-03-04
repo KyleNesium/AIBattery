@@ -17,7 +17,8 @@ struct AdaptivePollingState {
         }
         unchangedCycles += 1
         if unchangedCycles >= Self.adaptiveThreshold {
-            return min(baseInterval * 2, Self.maxPollingInterval)
+            let doublings = Double(unchangedCycles - Self.adaptiveThreshold + 1)
+            return min(baseInterval * pow(2.0, doublings), Self.maxPollingInterval)
         }
         return baseInterval
     }

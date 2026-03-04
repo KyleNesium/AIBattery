@@ -25,9 +25,9 @@ final class FileWatcher {
         isStopped = false
         watchStatsCache()
         watchProjectsDirectory()
-        // Only start fallback timer if both file watchers failed —
-        // avoids redundant polling when FS events are already active.
-        if fileSource == nil && fsEventStream == nil {
+        // Start fallback timer if either watcher failed — ensures changes are
+        // picked up even if one of the two FS event sources is unavailable.
+        if fileSource == nil || fsEventStream == nil {
             startFallbackTimer()
         }
     }

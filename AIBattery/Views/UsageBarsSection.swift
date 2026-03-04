@@ -91,7 +91,7 @@ struct UsageBar: View {
             .frame(height: 8)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(label) rate limit usage \(Int(percent)) percent")
-            .accessibilityValue(isThrottled ? "Rate limited" : "\(Int(100 - percent)) percent remaining")
+            .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - percent))) percent remaining")
 
             HStack {
                 if isThrottled {
@@ -103,7 +103,7 @@ struct UsageBar: View {
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.caution)
                 } else {
-                    Text("\(Int(100 - percent))% remaining")
+                    Text("\(max(0, Int(100 - percent)))% remaining")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

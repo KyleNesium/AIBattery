@@ -181,7 +181,7 @@ News-ticker style scrolling text view. Supports single or multiple texts.
 - **Single text**: if text fits container, displays statically. If wider, scrolls left then right (bouncing) at 30pt/s with 2s pause at each end.
 - **Multiple texts**: scrolls current text left (if needed), then cross-fades (0.3s out → swap → 0.3s in) to the next text. Non-scrolling texts hold for 3s before advancing. Cycles endlessly.
 - Container: `GeometryReader` + `.clipped()`, 14pt height.
-- Text measured via background `GeometryReader`, re-measured on index change via `.id(currentIndex)`.
+- Text measured via background `GeometryReader`, re-measured on index change via `.id(currentIndex)` and on geometry width change via `.onChange(of:)`.
 
 ### ❷ Rate Limit Bars (`Views/UsageBarsSection.swift`)
 
@@ -275,7 +275,7 @@ Chart styling (all modes):
 
 X-axis per mode:
   - **24H**: Every 3 hours (0, 3, 6, ..., 21) → zero-padded labels "00", "03", "06", ..., "21". Domain 0...23. Font: `.system(size: 8)`
-  - **7D**: Rolling 7-day window. Day abbreviation (`.system(size: 9)`), last day labeled "Today"
+  - **7D**: Rolling 7-day window. Day abbreviation (`.system(size: 9)`) for all days including today
   - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `.system(size: 9)`
 
 Data per mode:
@@ -346,11 +346,12 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
 - Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`) with `NSVisualEffectView` (`.popover` material, 10pt corner radius) + `NSHostingView` content
-- `hidesOnDeactivate = false`, `level = .floating` — stays visible when mouse leaves or another app gains focus
-- Only closes on: (1) clicking the status item again, or (2) pressing Escape
-- Positioned below the status item, centered horizontally, clamped to screen edges
+- `hidesOnDeactivate = false`, `level = .floating`
+- Closes on: (1) clicking the status item again, (2) pressing Escape, or (3) clicking outside the panel / switching apps
+- Positioned below the status item, centered horizontally, clamped to the status item's screen edges (multi-monitor safe)
 - `NSApp.activate(ignoringOtherApps: true)` after showing ensures keyboard events reach it (LSUIElement app)
 - `NSEvent.addLocalMonitorForEvents(matching: .keyDown)` for Escape key dismissal
+- `NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown])` for click-outside dismissal
 
 **Reactivity**: Combine subscriptions to `viewModel.$snapshot` and `viewModel.$lastFreshFetch` drive button updates. Auth changes via `oauthManager.$isAuthenticated` trigger refresh.
 

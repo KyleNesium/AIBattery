@@ -55,7 +55,11 @@ struct MarqueeText: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .background(
                     GeometryReader { textGeo in
-                        Color.clear.onAppear { textWidth = textGeo.size.width }
+                        Color.clear
+                            .onAppear { textWidth = textGeo.size.width }
+                            .onChange(of: textGeo.size.width) { newWidth in
+                                textWidth = newWidth
+                            }
                     }
                 )
                 .offset(x: offset)

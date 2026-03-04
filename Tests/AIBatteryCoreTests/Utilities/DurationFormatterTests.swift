@@ -38,6 +38,11 @@ struct DurationFormatterTests {
         #expect(DurationFormatter.compact(180000) == "2d 2h")
     }
 
+    @Test func compact_exactly24Hours() {
+        // 86400 seconds = 1d 0h (not "24h 0m")
+        #expect(DurationFormatter.compact(86400) == "1d 0h")
+    }
+
     @Test func compact_justUnder24Hours() {
         // 23h 59m
         #expect(DurationFormatter.compact(86340) == "23h 59m")
