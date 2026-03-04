@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("UsageAggregator", .serialized)
+@MainActor
 struct UsageAggregatorTests {
 
     // MARK: - Helpers
@@ -238,7 +239,7 @@ struct UsageAggregatorTests {
         #expect(snapshot.todaySessions == 2)
     }
 
-    // MARK: - All-time mode
+    // MARK: - Stats cache model usage
 
     @Test func aggregate_usesStatsCacheModelUsage() throws {
         let dir = tempDir()

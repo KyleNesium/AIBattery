@@ -1,12 +1,17 @@
 import Foundation
 
+@MainActor
 final class UsageAggregator {
     private let statsCacheReader: StatsCacheReader
     private let sessionLogReader: SessionLogReader
 
-    init(statsCacheReader: StatsCacheReader = .shared, sessionLogReader: SessionLogReader = .shared) {
+    init(statsCacheReader: StatsCacheReader, sessionLogReader: SessionLogReader) {
         self.statsCacheReader = statsCacheReader
         self.sessionLogReader = sessionLogReader
+    }
+
+    convenience init() {
+        self.init(statsCacheReader: .shared, sessionLogReader: .shared)
     }
 
     private static let dateFormatter = DateFormatters.dateKey
