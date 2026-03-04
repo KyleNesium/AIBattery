@@ -64,4 +64,43 @@ struct NotificationManagerTests {
         #expect(!NotificationManager.shouldAlert(percent: -10, threshold: 80, previouslyFired: false))
     }
 
+    // MARK: - Alert key migration
+
+    @Test func migrateAlertKeys_enablesAlertStatus_whenLegacyKeyEnabled() {
+        let defaults = UserDefaults(suiteName: "test_migrate_\(UUID().uuidString)")!
+        defaults.set(true, forKey: "aibattery_alertClaudeCode")
+        NotificationManager.migrateAlertKeys(defaults: defaults)
+        #expect(defaults.bool(forKey: UserDefaultsKeys.alertStatus))
+        defaults.removePersistentDomain(forName: defaults.suiteName!)
+    }
+
+    @Test func migrateAlertKeys_doesNotEnable_whenNoLegacyKeys() {
+        let defaults = UserDefaults(suiteName: "test_migrate_\(UUID().uuidString)")!
+        NotificationManager.migrateAlertKeys(defaults: defaults)
+        #expect(!defaults.bool(forKey: UserDefaultsKeys.alertStatus))
+        defaults.removePersistentDomain(forName: defaults.suiteName!)
+    }
+
+    @Test func migrateAlertKeys_removesAllLegacyKeys() {
+        let defaults = UserDefaults(suiteName: "test_migrate_\(UUID().uuidString)")!
+        for key in NotificationManager.legacyAlertKeys {
+            defaults.set(true, forKey: key)
+        }
+        NotificationManager.migrateAlertKeys(defaults: defaults)
+        for key in NotificationManager.legacyAlertKeys {
+            #expect(defaults.object(forKey: key) == nil, "Legacy key \(key) not removed")
+        }
+        defaults.removePersistentDomain(forName: defaults.suiteName!)
+    }
+
+    @Test func migrateAlertKeys_skipsWhenAlreadyMigrated() {
+        let defaults = UserDefaults(suiteName: "test_migrate_\(UUID().uuidString)")!
+        defaults.set(true, forKey: "aibattery_alertKeysMigrated_v2")
+        defaults.set(true, forKey: "aibattery_alertClaudeAI")
+        NotificationManager.migrateAlertKeys(defaults: defaults)
+        // Legacy key should still be there — migration was skipped
+        #expect(defaults.bool(forKey: "aibattery_alertClaudeAI"))
+        #expect(!defaults.bool(forKey: UserDefaultsKeys.alertStatus))
+        defaults.removePersistentDomain(forName: defaults.suiteName!)
+    }
 }

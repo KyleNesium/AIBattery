@@ -146,22 +146,27 @@ public final class NotificationManager {
     /// One-time migration from legacy per-component alert keys to the single toggle.
     /// If any old key was enabled, enable the unified alertStatus key.
     private func migrateAlertKeys() {
-        let defaults = UserDefaults.standard
+        Self.migrateAlertKeys(defaults: .standard)
+    }
+
+    /// Legacy alert keys from v1.5–v1.6.2 (per-component toggles).
+    nonisolated static let legacyAlertKeys = [
+        "aibattery_alertClaudeAI", "aibattery_alertClaudeCode",
+        "aibattery_alert_claudeAI", "aibattery_alert_console",
+        "aibattery_alert_claudeAPI", "aibattery_alert_claudeCode",
+        "aibattery_alert_claudeForGov",
+    ]
+
+    /// Testable migration: consolidates legacy per-component keys into unified alertStatus.
+    nonisolated static func migrateAlertKeys(defaults: UserDefaults) {
         let migrationKey = "aibattery_alertKeysMigrated_v2"
         guard !defaults.bool(forKey: migrationKey) else { return }
 
-        // Legacy keys: aibattery_alertClaudeAI, aibattery_alertClaudeCode, aibattery_alert_*
-        let legacyKeys = [
-            "aibattery_alertClaudeAI", "aibattery_alertClaudeCode",
-            "aibattery_alert_claudeAI", "aibattery_alert_console",
-            "aibattery_alert_claudeAPI", "aibattery_alert_claudeCode",
-            "aibattery_alert_claudeForGov",
-        ]
-        let anyEnabled = legacyKeys.contains { defaults.bool(forKey: $0) }
+        let anyEnabled = legacyAlertKeys.contains { defaults.bool(forKey: $0) }
         if anyEnabled {
             defaults.set(true, forKey: UserDefaultsKeys.alertStatus)
         }
-        for key in legacyKeys { defaults.removeObject(forKey: key) }
+        for key in legacyAlertKeys { defaults.removeObject(forKey: key) }
         defaults.set(true, forKey: migrationKey)
     }
 

@@ -179,6 +179,7 @@ final class FileWatcher {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.debounceDelay, execute: work)
     }
 
+    // Nonisolated deinit cannot call @MainActor methods — inline cleanup.
     deinit {
         debounceWorkItem?.cancel()
         if let source = fileSource { source.cancel() }
