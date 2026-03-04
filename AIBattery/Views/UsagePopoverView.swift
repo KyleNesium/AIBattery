@@ -798,67 +798,42 @@ private struct DisplaySettingsSection: View {
     }
 }
 
-/// Per-component status alerts + rate limit alerts.
+/// Status alerts + rate limit alerts.
 private struct AlertSettingsSection: View {
+    @AppStorage(UserDefaultsKeys.alertStatus) private var alertStatus: Bool = false
     @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
     @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
-    @State private var anyComponentEnabled = false
 
     var body: some View {
-        componentAlertRows
-        rateLimitSection
-    }
-
-    private var componentAlertRows: some View {
-        VStack(spacing: 4) {
-            // Row 1: claude.ai + Console
-            alertRow(label: "Alerts", components: Array(StatusChecker.knownComponents.prefix(2)))
-            // Row 2: Claude API + Claude Code
-            alertRow(label: nil, components: Array(StatusChecker.knownComponents.dropFirst(2).prefix(2)))
-            // Row 3: Claude for Gov + Test button
-            HStack(spacing: 8) {
-                Spacer().frame(width: 50)
-                ComponentAlertToggle(component: StatusChecker.knownComponents[4], onToggle: refreshAnyEnabled)
-                if anyComponentEnabled {
-                    Button("Test") {
-                        NotificationManager.shared.testAlerts()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
-                }
-            }
-            Text("Notify when service is down")
-                .font(.caption2)
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-                .padding(.leading, 58)
-        }
-        .onAppear { refreshAnyEnabled() }
-    }
-
-    private func alertRow(label: String?, components: [StatusComponent]) -> some View {
         HStack(spacing: 8) {
-            if let label {
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-            } else {
-                Spacer().frame(width: 50)
-            }
-            ForEach(components, id: \.alertKey) { component in
-                ComponentAlertToggle(component: component, onToggle: refreshAnyEnabled)
+            Text("Alerts")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .trailing)
+            Toggle("Status", isOn: $alertStatus)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .onChange(of: alertStatus) { on in
+                    if on { NotificationManager.shared.requestPermission() }
+                }
+            if alertStatus {
+                Button("Test") {
+                    NotificationManager.shared.testAlerts()
+                }
+                .buttonStyle(.plain)
+                .font(.caption2)
+                .foregroundStyle(.blue)
             }
         }
-    }
-
-    private var rateLimitSection: some View {
         VStack(spacing: 2) {
             HStack(spacing: 8) {
                 Spacer().frame(width: 50)
-                Toggle("Rate Limit Notify", isOn: $alertRateLimit)
+                Toggle("Rate Limit", isOn: $alertRateLimit)
                     .toggleStyle(.checkbox)
                     .font(.caption)
+                    .onChange(of: alertRateLimit) { on in
+                        if on { NotificationManager.shared.requestPermission() }
+                    }
             }
             if alertRateLimit {
                 HStack(spacing: 8) {
@@ -871,43 +846,8 @@ private struct AlertSettingsSection: View {
                         .frame(width: 28, alignment: .trailing)
                 }
                 sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)
-                Text("Notify when rate limit usage exceeds threshold")
-                    .font(.caption2)
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .padding(.leading, 58)
             }
         }
-    }
-
-    private func refreshAnyEnabled() {
-        anyComponentEnabled = StatusChecker.knownComponents.contains {
-            UserDefaults.standard.bool(forKey: $0.defaultsKey)
-        }
-    }
-}
-
-/// Toggle for a single status component alert. Uses dynamic @AppStorage key.
-private struct ComponentAlertToggle: View {
-    let component: StatusComponent
-    let onToggle: () -> Void
-
-    @State private var isEnabled: Bool
-
-    init(component: StatusComponent, onToggle: @escaping () -> Void) {
-        self.component = component
-        self.onToggle = onToggle
-        _isEnabled = State(initialValue: UserDefaults.standard.bool(forKey: component.defaultsKey))
-    }
-
-    var body: some View {
-        Toggle(component.name, isOn: $isEnabled)
-            .toggleStyle(.checkbox)
-            .font(.caption)
-            .onChange(of: isEnabled) { on in
-                UserDefaults.standard.set(on, forKey: component.defaultsKey)
-                if on { NotificationManager.shared.requestPermission() }
-                onToggle()
-            }
     }
 }
 

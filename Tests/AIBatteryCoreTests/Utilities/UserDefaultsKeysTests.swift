@@ -30,6 +30,7 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.accounts,
             UserDefaultsKeys.activeAccountId,
             UserDefaultsKeys.launchAtLogin,
+            UserDefaultsKeys.alertStatus,
             UserDefaultsKeys.alertRateLimit,
             UserDefaultsKeys.rateLimitThreshold,
             UserDefaultsKeys.showCostEstimate,

@@ -23,21 +23,18 @@ public final class NotificationManager {
 
     // MARK: - Public
 
-    /// Fire test notifications for all enabled components. If none enabled, tests all.
+    /// Fire test notifications for all components (verifies delivery works).
     func testAlerts() {
-        let components = StatusChecker.knownComponents
-        let enabled = components.filter { UserDefaults.standard.bool(forKey: $0.defaultsKey) }
-        let targets = enabled.isEmpty ? components : enabled
-        for component in targets {
+        for component in StatusChecker.knownComponents {
             hasFired.remove(component.fireKey)
             checkComponentStatus(key: component.fireKey, label: component.name, indicator: .majorOutage)
         }
     }
 
-    /// Check status page and fire alerts for enabled components.
+    /// Check status page and fire alerts for all components when alerts are enabled.
     func checkStatusAlerts(status: ClaudeSystemStatus) {
+        guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertStatus) else { return }
         for component in StatusChecker.knownComponents {
-            guard UserDefaults.standard.bool(forKey: component.defaultsKey) else { continue }
             let indicator = status.componentStatuses[component.id] ?? .unknown
             checkComponentStatus(key: component.fireKey, label: component.name, indicator: indicator)
         }
@@ -146,22 +143,25 @@ public final class NotificationManager {
         deliverNotification(title: title, body: body)
     }
 
-    /// One-time migration from legacy alert keys to per-component keys.
-    /// Old "alertClaudeAI" tracked Claude API, not claude.ai — map accordingly.
+    /// One-time migration from legacy per-component alert keys to the single toggle.
+    /// If any old key was enabled, enable the unified alertStatus key.
     private func migrateAlertKeys() {
         let defaults = UserDefaults.standard
-        let migrationKey = "aibattery_alertKeysMigrated"
+        let migrationKey = "aibattery_alertKeysMigrated_v2"
         guard !defaults.bool(forKey: migrationKey) else { return }
 
-        // aibattery_alertClaudeAI was labeled "Claude.ai" but tracked the Claude API component
-        if defaults.object(forKey: "aibattery_alertClaudeAI") != nil {
-            defaults.set(defaults.bool(forKey: "aibattery_alertClaudeAI"), forKey: "aibattery_alert_claudeAPI")
-            defaults.removeObject(forKey: "aibattery_alertClaudeAI")
+        // Legacy keys: aibattery_alertClaudeAI, aibattery_alertClaudeCode, aibattery_alert_*
+        let legacyKeys = [
+            "aibattery_alertClaudeAI", "aibattery_alertClaudeCode",
+            "aibattery_alert_claudeAI", "aibattery_alert_console",
+            "aibattery_alert_claudeAPI", "aibattery_alert_claudeCode",
+            "aibattery_alert_claudeForGov",
+        ]
+        let anyEnabled = legacyKeys.contains { defaults.bool(forKey: $0) }
+        if anyEnabled {
+            defaults.set(true, forKey: UserDefaultsKeys.alertStatus)
         }
-        if defaults.object(forKey: "aibattery_alertClaudeCode") != nil {
-            defaults.set(defaults.bool(forKey: "aibattery_alertClaudeCode"), forKey: "aibattery_alert_claudeCode")
-            defaults.removeObject(forKey: "aibattery_alertClaudeCode")
-        }
+        for key in legacyKeys { defaults.removeObject(forKey: key) }
         defaults.set(true, forKey: migrationKey)
     }
 

@@ -9,6 +9,7 @@ enum UserDefaultsKeys {
     static let accounts = "aibattery_accounts"
     static let activeAccountId = "aibattery_activeAccountId"
     static let launchAtLogin = "aibattery_launchAtLogin"
+    static let alertStatus = "aibattery_alertStatus"
     static let alertRateLimit = "aibattery_alertRateLimit"
     static let rateLimitThreshold = "aibattery_rateLimitThreshold"
     static let showCostEstimate = "aibattery_showCostEstimate"

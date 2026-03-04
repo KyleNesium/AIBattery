@@ -7,9 +7,6 @@ struct StatusComponent {
     let name: String
     let alertKey: String
 
-    /// UserDefaults key for this component's alert toggle.
-    var defaultsKey: String { "aibattery_alert_\(alertKey)" }
-
     /// Deduplication key for NotificationManager's hasFired set.
     var fireKey: String { alertKey }
 }

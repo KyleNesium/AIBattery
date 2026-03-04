@@ -105,16 +105,16 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 
 ## Status Alerts
 
-Per-component alert toggles stored via dynamic keys: `aibattery_alert_{alertKey}` (Bool, default false). See Statuspage Component IDs table for all 5 components.
+Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, alerts fire for any of the 5 tracked components.
 
 | Constant | Value |
 |----------|-------|
-| Key pattern | `aibattery_alert_{alertKey}` per component |
+| Key | `aibattery_alertStatus` |
 | Identifier prefix | `aibattery-status-` |
 | Delivery | `UNUserNotificationCenter` (native macOS) |
 | Sound | `default` |
-| Deduplication | Fires once per outage, resets when service recovers |
-| Migration | One-time: `aibattery_alertClaudeAI` → `aibattery_alert_claudeAPI`, `aibattery_alertClaudeCode` → `aibattery_alert_claudeCode` |
+| Deduplication | Fires once per component per outage, resets when service recovers |
+| Migration | One-time (v2): any legacy per-component key enabled → enables `alertStatus` |
 
 ## Cost Estimation
 

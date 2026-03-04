@@ -219,7 +219,7 @@ Pricing table (per million tokens):
 
 `ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentNames: [String]`, `statusPageURL: String`, `componentStatuses: [String: StatusIndicator]` (keyed by Statuspage component ID, default empty). Computed: `incidentName: String?` (first incident, convenience accessor).
 
-`StatusComponent`: `id: String`, `name: String`, `alertKey: String`. Computed: `defaultsKey` (`"aibattery_alert_{alertKey}"`), `fireKey` (same as `alertKey`). Catalog: `StatusChecker.knownComponents` (5 entries: claude.ai, Console, Claude API, Claude Code, Claude for Gov).
+`StatusComponent`: `id: String`, `name: String`, `alertKey: String`. Computed: `fireKey` (same as `alertKey`, used for deduplication). Catalog: `StatusChecker.knownComponents` (5 entries: claude.ai, Console, Claude API, Claude Code, Claude for Gov).
 
 `StatusIndicator`: enum with cases `.operational`, `.degradedPerformance`, `.partialOutage`, `.majorOutage`, `.maintenance`, `.unknown`. Has `severity: Int` for comparison (higher = worse). `from(_:)` maps Statuspage API strings to cases — notably `"elevated"` maps to `.degradedPerformance` (yellow). Also used to parse incident impact strings (`"none"`, `"minor"`, `"major"`, `"critical"`).
 
@@ -365,9 +365,9 @@ Pricing table (per million tokens):
 ### NotificationManager (`Services/NotificationManager.swift`)
 - Singleton: `.shared`, `@MainActor`
 - `requestPermission()` — requests notification authorization via `UNUserNotificationCenter` (fire-and-forget, system remembers choice)
-- `checkStatusAlerts(status:)` — iterates `StatusChecker.knownComponents`, reads `UserDefaults.bool(forKey: component.defaultsKey)` for each, fires notification when component is non-operational
-- `testAlerts()` — fires fake outage notifications for all enabled components (or all if none enabled)
-- **Migration**: one-time `migrateAlertKeys()` in init — moves `aibattery_alertClaudeAI` → `aibattery_alert_claudeAPI` and `aibattery_alertClaudeCode` → `aibattery_alert_claudeCode` (tracked via `aibattery_alertKeysMigrated`)
+- `checkStatusAlerts(status:)` — checks single `alertStatus` toggle, iterates all `StatusChecker.knownComponents`, fires notification when any component is non-operational
+- `testAlerts()` — fires fake outage notifications for all 5 components (verifies delivery)
+- **Migration**: one-time `migrateAlertKeys()` in init — if any legacy per-component key was enabled, enables unified `alertStatus` key; cleans up old keys (tracked via `aibattery_alertKeysMigrated_v2`)
 - Deduplication: `hasFired: Set<String>` tracks fired keys, removes on recovery
 - **Batch delivery**: queues alerts for 500ms via `Task.sleep`; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts"). Uses structured concurrency (no GCD queues).
 - Delivery: uses `UNUserNotificationCenter` for native macOS notifications with the app's own icon. Each notification gets a unique identifier (`aibattery-{UUID}`).
@@ -468,8 +468,7 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`
-- Per-component alert keys are dynamic: `aibattery_alert_{alertKey}` (generated from `StatusComponent.defaultsKey`, not stored in this enum)
+- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertStatus`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`
 
 ### SecureNetworking (`Utilities/SecureNetworking.swift`)
 - Enum (no instances) — centralized networking layer

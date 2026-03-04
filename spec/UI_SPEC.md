@@ -64,7 +64,7 @@ UsagePopoverView (275px, VStack)
 │   ├── Account name rows (depend on accountStore — stay in parent)
 │   ├── RefreshSettingsSection — owns refreshInterval
 │   ├── DisplaySettingsSection — owns idleSessionMinutes, showTokens, showActivity, colorblindMode, showCostEstimate
-│   ├── AlertSettingsSection — owns per-component toggles (dynamic keys via StatusChecker.knownComponents), alertRateLimit, rateLimitThreshold
+│   ├── AlertSettingsSection — owns alertStatus, alertRateLimit, rateLimitThreshold
 │   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
 ├── metricToggle (auto "A" circle button left + segmented picker: 5-Hour | 7-Day | Context)
@@ -128,16 +128,10 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
   - "Colorblind" → `aibattery_colorblindMode`; "Cost*" → `aibattery_showCostEstimate`
   - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
 
-**`AlertSettingsSection`** (owns per-component toggles via `StatusChecker.knownComponents`, `alertRateLimit`, `rateLimitThreshold`):
-- **Alerts**: 5 component checkboxes in 2-column grid (3 rows), each a `ComponentAlertToggle` helper view
-  - Row 1: "Alerts" label + claude.ai + Console
-  - Row 2: Claude API + Claude Code
-  - Row 3: Claude for Gov + Test button (when any enabled)
-  - Each toggle uses `@State` + `UserDefaults` (dynamic key from `component.defaultsKey`)
-  - **Test button**: "Test" (.caption2, .blue, `.plain` style) — visible when at least one toggle is on
-  - Hint: `"Notify when service is down"` (.caption2, .tertiary)
-- **Rate Limit**: Toggle + threshold slider (50–95%, step 5, default 80%)
-  - Hint: `"Notify when rate limit usage exceeds threshold"` (.caption2, .tertiary)
+**`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
+- **Alerts**: "Status" checkbox → `aibattery_alertStatus` + "Test" button (when enabled)
+  - When on, notifies on any of the 5 tracked status page components
+- **Rate Limit**: "Rate Limit" checkbox + threshold slider (50–95%, step 5, default 80%)
   - Slider + tick marks shown only when toggle is on
 
 **`LaunchAtLoginSection`** (owns `launchAtLogin`):

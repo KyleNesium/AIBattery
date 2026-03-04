@@ -94,12 +94,12 @@ struct StatusCheckerParsingTests {
         }
     }
 
-    // MARK: - StatusComponent defaultsKey
+    // MARK: - StatusComponent fireKey
 
-    @Test func defaultsKey_hasExpectedPrefix() {
+    @Test func fireKey_matchesAlertKey() {
         for component in StatusChecker.knownComponents {
-            #expect(component.defaultsKey.hasPrefix("aibattery_alert_"),
-                    "\(component.name) defaultsKey missing prefix")
+            #expect(component.fireKey == component.alertKey,
+                    "\(component.name) fireKey should match alertKey")
         }
     }
 
