@@ -418,7 +418,7 @@ struct ActivityChartView: View {
                 throttleLabel(days: 1, period: "today")
                 Spacer()
                 if let peak = snapshot.peakHour {
-                    Text("Peak at \(Self.formatHourLabel(peak))")
+                    Text("Peak at \(Self.formatHourLabel(peak)):00")
                         .font(.caption)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
