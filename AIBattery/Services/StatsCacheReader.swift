@@ -1,6 +1,7 @@
 import Foundation
 import os
 
+@MainActor
 final class StatsCacheReader {
     static let shared = StatsCacheReader()
 

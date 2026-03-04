@@ -256,10 +256,10 @@ Click ⚙️ in the header to configure:
 | ✏️ **Account names** | Custom label per account (shown in picker + menu bar) |
 | 🔁 **Auto mode** | Always show the highest metric (pulsing blue button on metric toggle) |
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
-| 🤖 **Models** | Only show models used within period: 1–7 days or All |
+| ⏳ **Idle** | Hide sessions idle longer than cutoff from context health: 30m–8h or Never |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
 | 💲 **Cost*** | Show equivalent API token rates |
-| 🔔 **Alerts** | Notify on Claude.ai / Claude Code outages |
+| 🔔 **Alerts** | Notify on status page outages (all components) |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
 | 🚀 **Launch at Login** | Start automatically when you log in |
 
@@ -451,12 +451,13 @@ Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) fir
 
 ## 🧪 Test Coverage
 
-**436 tests** across 34 test files.
+**458 tests** across 35 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 138 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults, countdown formatter, throttled header parsing), health status, metric modes, API profiles, session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode, context health fallback chain), model pricing, health config |
-| Services | 208 | Version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config), status checker (severity ordering, incident escalation, component IDs, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry, symlink boundary check), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload, file size guard), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode, redundant aggregation skip), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
+| Services | 215 | Version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, alert key migration), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config), status checker (severity ordering, incident escalation, known components catalog, fireKey identity, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry, symlink boundary check), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload, file size guard), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, windowed tokens, deduplication, stats+JSONL merge, all-time mode, redundant aggregation skip), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
+| ViewModels | 15 | UsageViewModel static helpers (refresh interval clamping, error message logic, adaptive polling data-change detection) |
 | Utilities | 90 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping, result cache), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, caps, reset), secure networking (ephemeral session config, singleton, size limit, cookie policy), duration formatter (compact format, boundaries, days/hours/minutes) |
 
 ## 📄 License

@@ -25,14 +25,12 @@ struct UserDefaultsKeysTests {
         [
             UserDefaultsKeys.metricMode,
             UserDefaultsKeys.refreshInterval,
-            UserDefaultsKeys.tokenWindowDays,
-            UserDefaultsKeys.alertClaudeAI,
-            UserDefaultsKeys.alertClaudeCode,
             UserDefaultsKeys.chartMode,
             UserDefaultsKeys.plan,
             UserDefaultsKeys.accounts,
             UserDefaultsKeys.activeAccountId,
             UserDefaultsKeys.launchAtLogin,
+            UserDefaultsKeys.alertStatus,
             UserDefaultsKeys.alertRateLimit,
             UserDefaultsKeys.rateLimitThreshold,
             UserDefaultsKeys.showCostEstimate,
@@ -44,6 +42,7 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.autoMetricMode,
             UserDefaultsKeys.colorblindMode,
             UserDefaultsKeys.hasSeenTutorial,
+            UserDefaultsKeys.idleSessionMinutes,
             UserDefaultsKeys.tokenExpiresAtPrefix,
         ]
     }

@@ -50,15 +50,24 @@ struct StatusCheckerParsingTests {
         }
     }
 
-    // MARK: - Component ID constants
+    // MARK: - Known components catalog
 
-    @Test func componentIDs_areNonEmpty() {
-        #expect(!StatusChecker.claudeAPIComponentID.isEmpty)
-        #expect(!StatusChecker.claudeCodeComponentID.isEmpty)
+    @Test func knownComponents_areNonEmpty() {
+        #expect(!StatusChecker.knownComponents.isEmpty)
     }
 
-    @Test func componentIDs_areDistinct() {
-        #expect(StatusChecker.claudeAPIComponentID != StatusChecker.claudeCodeComponentID)
+    @Test func knownComponents_haveDistinctIDs() {
+        let ids = StatusChecker.knownComponents.map(\.id)
+        #expect(Set(ids).count == ids.count, "Duplicate component ID")
+    }
+
+    @Test func knownComponents_haveDistinctAlertKeys() {
+        let keys = StatusChecker.knownComponents.map(\.alertKey)
+        #expect(Set(keys).count == keys.count, "Duplicate alert key")
+    }
+
+    @Test func knownComponents_containsFiveEntries() {
+        #expect(StatusChecker.knownComponents.count == 5)
     }
 
     // MARK: - Extended incident escalation
@@ -79,8 +88,19 @@ struct StatusCheckerParsingTests {
 
     @Test func componentIDs_areAlphanumeric() {
         let alphanumeric = CharacterSet.alphanumerics
-        #expect(StatusChecker.claudeAPIComponentID.unicodeScalars.allSatisfy { alphanumeric.contains($0) })
-        #expect(StatusChecker.claudeCodeComponentID.unicodeScalars.allSatisfy { alphanumeric.contains($0) })
+        for component in StatusChecker.knownComponents {
+            #expect(component.id.unicodeScalars.allSatisfy { alphanumeric.contains($0) },
+                    "\(component.name) has non-alphanumeric ID")
+        }
+    }
+
+    // MARK: - StatusComponent fireKey
+
+    @Test func fireKey_matchesAlertKey() {
+        for component in StatusChecker.knownComponents {
+            #expect(component.fireKey == component.alertKey,
+                    "\(component.name) fireKey should match alertKey")
+        }
     }
 
     // MARK: - Display names

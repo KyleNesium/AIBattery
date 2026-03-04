@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("UsageAggregator", .serialized)
+@MainActor
 struct UsageAggregatorTests {
 
     // MARK: - Helpers
@@ -151,70 +152,6 @@ struct UsageAggregatorTests {
         #expect(snapshot.rateLimits?.sevenDayPercent == 15.0)
     }
 
-    // MARK: - Model filtering
-
-    @Test func aggregate_filtersNonClaudeModels() throws {
-        let dir = tempDir()
-        defer { cleanup(dir) }
-
-        let cacheURL = dir.appendingPathComponent("nonexistent.json")
-        let projectsDir = dir.appendingPathComponent("projects")
-
-        let now = Date()
-        let lines = [
-            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 100, output: 50, messageId: "msg-1", timestamp: now),
-            makeAssistantLine(model: "gpt-4", input: 200, output: 100, messageId: "msg-2", timestamp: now),
-        ]
-        try writeJSONL(lines, to: projectsDir)
-
-        // Set token window to 7 days to use windowed mode
-        UserDefaults.standard.set(7.0, forKey: UserDefaultsKeys.tokenWindowDays)
-        defer { UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenWindowDays) }
-
-        let reader = StatsCacheReader(fileURL: cacheURL)
-        let logReader = SessionLogReader(projectsURL: projectsDir)
-        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
-
-        let snapshot = aggregator.aggregate(rateLimits: nil)
-
-        // Only claude- models should appear in modelTokens
-        #expect(snapshot.modelTokens.count == 1)
-        #expect(snapshot.modelTokens[0].id == "claude-sonnet-4-5-20250929")
-    }
-
-    // MARK: - Windowed token aggregation
-
-    @Test func aggregate_windowedMode_aggregatesTokens() throws {
-        let dir = tempDir()
-        defer { cleanup(dir) }
-
-        let cacheURL = dir.appendingPathComponent("nonexistent.json")
-        let projectsDir = dir.appendingPathComponent("projects")
-
-        let now = Date()
-        let lines = [
-            makeAssistantLine(input: 100, output: 50, cacheRead: 10, cacheWrite: 5, messageId: "msg-1", timestamp: now),
-            makeAssistantLine(input: 200, output: 100, cacheRead: 20, cacheWrite: 10, messageId: "msg-2", timestamp: now),
-        ]
-        try writeJSONL(lines, to: projectsDir)
-
-        UserDefaults.standard.set(1.0, forKey: UserDefaultsKeys.tokenWindowDays)
-        defer { UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenWindowDays) }
-
-        let reader = StatsCacheReader(fileURL: cacheURL)
-        let logReader = SessionLogReader(projectsURL: projectsDir)
-        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
-
-        let snapshot = aggregator.aggregate(rateLimits: nil)
-
-        #expect(snapshot.modelTokens.count == 1)
-        let model = snapshot.modelTokens[0]
-        #expect(model.inputTokens == 300)
-        #expect(model.outputTokens == 150)
-        #expect(model.cacheReadTokens == 30)
-        #expect(model.cacheWriteTokens == 15)
-    }
-
     // MARK: - Token health
 
     @Test func aggregate_populatesTokenHealth() throws {
@@ -302,9 +239,9 @@ struct UsageAggregatorTests {
         #expect(snapshot.todaySessions == 2)
     }
 
-    // MARK: - All-time mode
+    // MARK: - Stats cache model usage
 
-    @Test func aggregate_allTimeMode_usesStatsCacheModelUsage() throws {
+    @Test func aggregate_usesStatsCacheModelUsage() throws {
         let dir = tempDir()
         defer { cleanup(dir) }
 
@@ -318,17 +255,13 @@ struct UsageAggregatorTests {
             to: projectsDir
         )
 
-        // Set to all-time mode (0)
-        UserDefaults.standard.set(0.0, forKey: UserDefaultsKeys.tokenWindowDays)
-        defer { UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenWindowDays) }
-
         let reader = StatsCacheReader(fileURL: cacheURL)
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
         let snapshot = aggregator.aggregate(rateLimits: nil)
 
-        // All-time mode should include stats-cache modelUsage totals
+        // Should include stats-cache modelUsage totals
         #expect(!snapshot.modelTokens.isEmpty)
         if let sonnet = snapshot.modelTokens.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             // Stats cache has 10000 input + 5000 output + 2000 cache read + 500 cache write = 17500

@@ -217,7 +217,9 @@ Pricing table (per million tokens):
 
 ### ClaudeSystemStatus + StatusIndicator (`Services/StatusChecker.swift`)
 
-`ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentNames: [String]`, `statusPageURL: String`, `claudeAPIStatus: StatusIndicator` (default .unknown), `claudeCodeStatus: StatusIndicator` (default .unknown). Computed: `incidentName: String?` (first incident, convenience accessor).
+`ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentNames: [String]`, `statusPageURL: String`, `componentStatuses: [String: StatusIndicator]` (keyed by Statuspage component ID, default empty). Computed: `incidentName: String?` (first incident, convenience accessor).
+
+`StatusComponent`: `id: String`, `name: String`, `alertKey: String`. Computed: `fireKey` (same as `alertKey`, used for deduplication). Catalog: `StatusChecker.knownComponents` (5 entries: claude.ai, Console, Claude API, Claude Code, Claude for Gov).
 
 `StatusIndicator`: enum with cases `.operational`, `.degradedPerformance`, `.partialOutage`, `.majorOutage`, `.maintenance`, `.unknown`. Has `severity: Int` for comparison (higher = worse). `from(_:)` maps Statuspage API strings to cases — notably `"elevated"` maps to `.degradedPerformance` (yellow). Also used to parse incident impact strings (`"none"`, `"minor"`, `"major"`, `"critical"`).
 
@@ -278,17 +280,16 @@ Pricing table (per million tokens):
 - `fetchStatus() async -> ClaudeSystemStatus`
 - GET `https://status.claude.com/api/v2/summary.json`
 - Timeout: 5 sec
-- Component IDs exposed as `static let` constants: `claudeAPIComponentID`, `claudeCodeComponentID`
-- Filters components to Claude API and Claude Code
-- Returns worst status among relevant components
-- Populates per-component statuses: `claudeAPIStatus` and `claudeCodeStatus`
+- `knownComponents: [StatusComponent]` catalog of all 5 tracked components (claude.ai, Console, Claude API, Claude Code, Claude for Gov)
+- Uses ALL API-returned components for worst-status calculation (no filter)
+- Populates `componentStatuses: [String: StatusIndicator]` dictionary keyed by component ID
 - **Incident impact escalation**: when components report "operational" but active incidents exist, factors in incident `impact` field (`"none"`, `"minor"`, `"major"`, `"critical"`) to determine overall indicator. If impact is `"none"` but incidents are active, escalates to at least `.degradedPerformance` (yellow dot).
 - Checks for active incidents (status not `resolved` or `postmortem`)
 - Returns `.unknown` on any error
 - **Backoff**: exponential backoff with jitter on failure — base 60s doubles per failure, capped at 5 min, ±20% jitter to prevent thundering herd; stored once per failure increment (not re-randomized on every check); resets on success
 
 ### StatsCacheReader (`Services/StatsCacheReader.swift`)
-- Singleton: `.shared`
+- `@MainActor`, Singleton: `.shared`
 - `read() -> StatsCache?`
 - Reads and JSON-decodes `~/.claude/stats-cache.json`
 - **Static decoder**: `private static let jsonDecoder = JSONDecoder()` — shared instance avoids per-read allocation
@@ -297,7 +298,7 @@ Pricing table (per million tokens):
 - `lastModificationDate: Date?` — exposes cached file modification date (read-only). Used by `UsageAggregator` as a fingerprint component for redundant aggregation skip.
 
 ### SessionLogReader (`Services/SessionLogReader.swift`)
-- Singleton: `.shared`
+- `@MainActor`, Singleton: `.shared`
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
 - FileHandle streaming: 64KB buffer, line-by-line, 1MB max line size safety cap (discards oversized lines)
@@ -316,24 +317,23 @@ Pricing table (per million tokens):
 - **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each call (before cache check) to avoid stale values on cache hits
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
-- Created per-ViewModel (not singleton)
+- `@MainActor`, created per-ViewModel (not singleton)
 - **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
 - `aggregate(rateLimits:) -> UsageSnapshot`
-- **Redundant aggregation skip**: tracks a lightweight fingerprint (JSONL entry count, stats-cache modification date, rate limits via `Equatable`, token window days setting). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods.
-- **Single-pass filtering**: iterates all entries once to extract both today's entries and windowed token totals simultaneously (avoids separate `.filter()` passes)
+- **Redundant aggregation skip**: tracks a lightweight fingerprint (JSONL entry count, stats-cache modification date, rate limits via `Equatable`, idle session minutes setting). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods.
+- **Single-pass filtering**: iterates all entries once to extract today's entries (avoids separate `.filter()` passes)
 - Reads: stats cache, all JSONL entries (single scan)
-- **Token window modes**: `aibattery_tokenWindowDays` UserDefaults (0 = all time, 1–7 = windowed)
-  - **All-time mode (0)**: stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache, 72-hour recent model filter
-  - **Windowed mode (1–7)**: computes token totals from all JSONL entries within the window, bypasses stats-cache `modelUsage`
+- **Token aggregation**: always all-time mode — stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache, 72-hour recent model filter
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
-- **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending — shared by both all-time and windowed code paths
+- **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending
 - **Daily activity merge**: merges today's JSONL message/session counts into `dailyActivity` before snapshot construction, so the 7D chart reflects current-day usage even when stats-cache hasn't been rebuilt. If today's JSONL has more messages than the stale cache entry, replaces it; if no entry exists for today, appends one. Preserves the higher of JSONL or cache tool-call counts.
 - Tool calls from stats cache only (not parsed from JSONL)
+- **Idle session cutoff**: reads `aibattery_idleSessionMinutes` from UserDefaults (0 = never hide), passes to `TokenHealthMonitor.assessSessions(idleCutoffMinutes:)` to filter stale sessions from context health
 - Token health via `TokenHealthMonitor.assessSessions` (single-pass: returns both current + top 5)
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)
 - Singleton: `.shared`
-- `assessSessions(entries:topLimit:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — pre-filters entries to current session + those with activity in the last 24 hours before `Dictionary(grouping:)` to avoid allocating dictionary buckets for stale sessions. Returns current session health + top N sorted by `usagePercentage` descending (highest context usage first). Default topLimit is 5.
+- `assessSessions(entries:topLimit:idleCutoffMinutes:) -> (current: TokenHealthStatus?, top: [TokenHealthStatus])` — pre-filters entries to current session + those with activity within the idle cutoff before `Dictionary(grouping:)` to avoid allocating dictionary buckets for stale sessions. `idleCutoffMinutes` controls the cutoff: 0 = never hide (uses 24h performance bound), >0 = that many minutes. Returns current session health + top N sorted by `usagePercentage` descending (highest context usage first). Default topLimit is 5.
 - `assessCurrentSession(entries:) -> TokenHealthStatus?` — convenience wrapper, returns `assessSessions().current`
 - `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top` (sorted by highest usagePercentage)
 - Groups by sessionId, each session assessed independently
@@ -349,7 +349,7 @@ Pricing table (per million tokens):
 - **Session metadata**: extracts projectName from cwd (last path component), gitBranch, sessionStart, sessionDuration. Uses **first** entry with cwd for project name (session identity), **latest** entry for git branch (current state).
 
 ### FileWatcher (`Services/FileWatcher.swift`)
-- Created per-ViewModel
+- `@MainActor`, created per-ViewModel
 - Dual watch: DispatchSource on `stats-cache.json` + FSEventStream on `~/.claude/projects/`
 - DispatchSource monitors: write, rename, delete events
 - FSEventStream flags: `kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes`
@@ -365,8 +365,9 @@ Pricing table (per million tokens):
 ### NotificationManager (`Services/NotificationManager.swift`)
 - Singleton: `.shared`, `@MainActor`
 - `requestPermission()` — requests notification authorization via `UNUserNotificationCenter` (fire-and-forget, system remembers choice)
-- `checkStatusAlerts(status:)` — reads `aibattery_alertClaudeAI` and `aibattery_alertClaudeCode` from UserDefaults, fires notification when component is non-operational
-- `testAlerts()` — fires fake outage notifications for testing (bypasses toggle state)
+- `checkStatusAlerts(status:)` — checks single `alertStatus` toggle, iterates all `StatusChecker.knownComponents`, fires notification when any component is non-operational
+- `testAlerts()` — fires fake outage notifications for all 5 components (verifies delivery)
+- **Migration**: one-time `migrateAlertKeys()` in init — if any legacy per-component key was enabled, enables unified `alertStatus` key; cleans up old keys (tracked via `aibattery_alertKeysMigrated_v2`)
 - Deduplication: `hasFired: Set<String>` tracks fired keys, removes on recovery
 - **Batch delivery**: queues alerts for 500ms via `Task.sleep`; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts"). Uses structured concurrency (no GCD queues).
 - Delivery: uses `UNUserNotificationCenter` for native macOS notifications with the app's own icon. Each notification gets a unique identifier (`aibattery-{UUID}`).
@@ -419,12 +420,12 @@ Pricing table (per million tokens):
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
 - Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
-- Computed: `metricMode: MetricMode` (from UserDefaults `aibattery_metricMode`, or auto-resolved if `aibattery_autoMetricMode` is true — picks highest percentage across 5h/7d/context), `menuBarPercent: Double` (delegates to `snapshot.percent(for:)`), `hasData: Bool`
+- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:totalMessages:)` (error string or nil), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
 - `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
-- Deinit: invalidates timer, stops file watcher
+- Deinit: invalidates polling timer, removes sleep/wake observers (FileWatcher's own deinit handles its cleanup)
 - **Adaptive polling**: delegates to `AdaptivePollingState` struct. Compares `totalMessages`/`todayMessages` before and after refresh. After 3 unchanged cycles, doubles polling interval (up to 5 min max). Any data change or file watcher trigger resets to configured interval.
 - **Sleep/wake lifecycle**: `setupSleepWakeObservers()` subscribes to `NSWorkspace.willSleepNotification` (pauses timer) and `didWakeNotification` (resets adaptive polling, triggers immediate refresh + restarts timer).
 - **Network awareness**: skips network calls when `NetworkMonitor.shared.isConnected` is false — aggregates local data with cached rate limits. `NetworkMonitor.start()` called in init.
@@ -467,7 +468,7 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `tokenWindowDays`, `alertClaudeAI`, `alertClaudeCode`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`
+- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertStatus`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`
 
 ### SecureNetworking (`Utilities/SecureNetworking.swift`)
 - Enum (no instances) — centralized networking layer

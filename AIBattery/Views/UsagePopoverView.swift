@@ -625,6 +625,7 @@ private struct SettingsRow: View {
             RefreshSettingsSection(viewModel: viewModel)
             DisplaySettingsSection()
             AlertSettingsSection()
+            LaunchAtLoginSection()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -676,14 +677,12 @@ private struct SettingsRow: View {
     }
 }
 
-/// Refresh interval slider + launch-at-login toggle.
+/// Refresh interval slider.
 private struct RefreshSettingsSection: View {
     let viewModel: UsageViewModel
     @AppStorage(UserDefaultsKeys.refreshInterval) private var refreshInterval: Double = 60
-    @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
 
     var body: some View {
-        // Refresh interval
         VStack(spacing: 2) {
             HStack(spacing: 8) {
                 Text("Refresh")
@@ -706,57 +705,36 @@ private struct RefreshSettingsSection: View {
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, 58)
         }
-
-        // Launch at Login
-        HStack(spacing: 8) {
-            Text("Startup")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 50, alignment: .trailing)
-            Toggle("Launch at Login", isOn: $launchAtLogin)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-                .onAppear {
-                    if #available(macOS 13.0, *) {
-                        launchAtLogin = LaunchAtLoginManager.isEnabled
-                    }
-                }
-                .onChange(of: launchAtLogin) { newValue in
-                    if #available(macOS 13.0, *) {
-                        LaunchAtLoginManager.setEnabled(newValue)
-                    }
-                }
-        }
     }
 }
 
-/// Display toggles + models time window slider.
+/// Display toggles + idle session cutoff slider.
 private struct DisplaySettingsSection: View {
-    @AppStorage(UserDefaultsKeys.tokenWindowDays) private var tokenWindowDays: Double = 0
+    @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
     @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
+
+    /// Slider positions (1–6) mapped to minutes: 30, 60, 120, 240, 480, 0 (never).
+    private static let idleSteps: [Double] = [30, 60, 120, 240, 480, 0]
+
     var body: some View {
-        // Models window (slider 1–8; 1–7 = days, 8 = all time stored as 0)
+        // Idle session cutoff (slider 1–6; positions map to 30m/1h/2h/4h/8h/Never)
         VStack(spacing: 2) {
             HStack(spacing: 8) {
-                Text("Models")
+                Text("Hide idle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
-                Slider(value: modelsSliderBinding, in: 1...8, step: 1)
-                    .accessibilityLabel("Models time window")
-                    .accessibilityValue(tokenWindowDays > 0 ? "\(Int(tokenWindowDays)) days" : "All time")
-                Text(tokenWindowDays > 0 ? "\(Int(tokenWindowDays))d" : "All")
+                Slider(value: idleSliderBinding, in: 1...6, step: 1)
+                    .accessibilityLabel("Hide idle sessions")
+                    .accessibilityValue(idleLabel)
+                Text(idleLabel)
                     .font(.system(.caption, design: .monospaced))
                     .frame(width: 28, alignment: .trailing)
             }
-            sliderMarks(labels: ["1d", "2d", "3d", "4d", "5d", "6d", "7d", "All"], leadingPad: 50)
-            Text("Only show models used within period")
-                .font(.caption2)
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-                .padding(.leading, 58)
+            sliderMarks(labels: ["30m", "1h", "2h", "4h", "8h", "\u{221E}"], leadingPad: 50)
         }
 
         // Display toggles
@@ -790,42 +768,57 @@ private struct DisplaySettingsSection: View {
         }
     }
 
-    /// Maps slider position (1–8) ↔ stored value (1–7 days, 0 = all time).
-    private var modelsSliderBinding: Binding<Double> {
+    /// Maps slider position (1–6) ↔ stored minutes (30/60/120/240/480/0).
+    private var idleSliderBinding: Binding<Double> {
         Binding(
-            get: { tokenWindowDays > 0 ? tokenWindowDays : 8 },
-            set: { tokenWindowDays = $0 >= 8 ? 0 : $0 }
+            get: {
+                if let idx = Self.idleSteps.firstIndex(of: idleSessionMinutes) {
+                    return Double(idx + 1)
+                }
+                return 6 // default to "Never"
+            },
+            set: { idleSessionMinutes = Self.idleSteps[max(0, min(Int($0) - 1, Self.idleSteps.count - 1))] }
         )
+    }
+
+    /// Display label for the current idle cutoff.
+    private var idleLabel: String {
+        switch Int(idleSessionMinutes) {
+        case 30: return "30m"
+        case 60: return "1h"
+        case 120: return "2h"
+        case 240: return "4h"
+        case 480: return "8h"
+        default: return "\u{221E}"
+        }
     }
 }
 
 /// Status alerts + rate limit alerts.
 private struct AlertSettingsSection: View {
-    @AppStorage(UserDefaultsKeys.alertClaudeAI) private var alertClaudeAI: Bool = false
-    @AppStorage(UserDefaultsKeys.alertClaudeCode) private var alertClaudeCode: Bool = false
+    @AppStorage(UserDefaultsKeys.alertStatus) private var alertStatus: Bool = false
     @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
     @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
 
     var body: some View {
-        // Status alerts
         HStack(spacing: 8) {
             Text("Alerts")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .trailing)
-            Toggle("Claude.ai", isOn: $alertClaudeAI)
+            Toggle("Status", isOn: $alertStatus)
                 .toggleStyle(.checkbox)
                 .font(.caption)
-                .onChange(of: alertClaudeAI) { on in
+                .onChange(of: alertStatus) { on in
                     if on { NotificationManager.shared.requestPermission() }
                 }
-            Toggle("Claude Code", isOn: $alertClaudeCode)
+            Toggle("Rate Limit", isOn: $alertRateLimit)
                 .toggleStyle(.checkbox)
                 .font(.caption)
-                .onChange(of: alertClaudeCode) { on in
+                .onChange(of: alertRateLimit) { on in
                     if on { NotificationManager.shared.requestPermission() }
                 }
-            if alertClaudeAI || alertClaudeCode {
+            if alertStatus {
                 Button("Test") {
                     NotificationManager.shared.testAlerts()
                 }
@@ -834,24 +827,10 @@ private struct AlertSettingsSection: View {
                 .foregroundStyle(.blue)
             }
         }
-        Text("Notify when service is down")
-            .font(.caption2)
-            .foregroundStyle(ThemeColors.tertiaryLabel)
-            .padding(.leading, 58)
-
-        // Rate limit alerts
-        VStack(spacing: 2) {
-            HStack(spacing: 8) {
-                Spacer()
-                    .frame(width: 50)
-                Toggle("Rate Limit Notify", isOn: $alertRateLimit)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-            }
-            if alertRateLimit {
+        if alertRateLimit {
+            VStack(spacing: 2) {
                 HStack(spacing: 8) {
-                    Spacer()
-                        .frame(width: 50)
+                    Spacer().frame(width: 50)
                     Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
                         .accessibilityLabel("Rate limit alert threshold")
                         .accessibilityValue("\(Int(rateLimitThreshold)) percent")
@@ -860,11 +839,34 @@ private struct AlertSettingsSection: View {
                         .frame(width: 28, alignment: .trailing)
                 }
                 sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)
-                Text("Notify when rate limit usage exceeds threshold")
-                    .font(.caption2)
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .padding(.leading, 58)
             }
+        }
+    }
+}
+
+/// Launch at Login toggle.
+private struct LaunchAtLoginSection: View {
+    @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("Startup")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .trailing)
+            Toggle("Launch at Login", isOn: $launchAtLogin)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .onAppear {
+                    if #available(macOS 13.0, *) {
+                        launchAtLogin = LaunchAtLoginManager.isEnabled
+                    }
+                }
+                .onChange(of: launchAtLogin) { newValue in
+                    if #available(macOS 13.0, *) {
+                        LaunchAtLoginManager.setEnabled(newValue)
+                    }
+                }
         }
     }
 }

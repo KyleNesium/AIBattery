@@ -1,12 +1,17 @@
 import Foundation
 
+@MainActor
 final class UsageAggregator {
     private let statsCacheReader: StatsCacheReader
     private let sessionLogReader: SessionLogReader
 
-    init(statsCacheReader: StatsCacheReader = .shared, sessionLogReader: SessionLogReader = .shared) {
+    init(statsCacheReader: StatsCacheReader, sessionLogReader: SessionLogReader) {
         self.statsCacheReader = statsCacheReader
         self.sessionLogReader = sessionLogReader
+    }
+
+    convenience init() {
+        self.init(statsCacheReader: .shared, sessionLogReader: .shared)
     }
 
     private static let dateFormatter = DateFormatters.dateKey
@@ -18,7 +23,7 @@ final class UsageAggregator {
     private var lastEntryCount = 0
     private var lastStatsCacheModDate: Date?
     private var lastRateLimits: RateLimitUsage?
-    private var lastTokenWindowDays: Int = -1
+    private var lastIdleSessionMinutes: Int = -1
 
     func aggregate(rateLimits: RateLimitUsage?) -> UsageSnapshot {
         let statsCache = statsCacheReader.read()
@@ -26,8 +31,8 @@ final class UsageAggregator {
         // Single JSONL scan — entries are already cached by SessionLogReader.
         let allEntries = sessionLogReader.readAllUsageEntries()
 
-        // Token window: 0 = all time, 1–7 = that many days
-        let tokenWindowDays = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.tokenWindowDays))
+        // Idle session cutoff for context health (0 = never hide)
+        let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
 
         // Check fingerprint: skip re-aggregation if inputs haven't changed
         let statsCacheModDate = statsCacheReader.lastModificationDate
@@ -35,36 +40,22 @@ final class UsageAggregator {
            allEntries.count == lastEntryCount,
            statsCacheModDate == lastStatsCacheModDate,
            rateLimits == lastRateLimits,
-           tokenWindowDays == lastTokenWindowDays {
+           idleSessionMinutes == lastIdleSessionMinutes {
             return cached
         }
 
-        // Single-pass filter: extract today's entries and windowed entries simultaneously.
-        // Since allEntries is sorted by timestamp, we can iterate once and bucket efficiently.
+        // Single-pass filter: extract today's entries.
         let now = Date()
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        let windowStart: Date? = tokenWindowDays > 0
-            ? calendar.date(byAdding: .day, value: -tokenWindowDays, to: now)
-            : nil
 
         var todayEntries: [AssistantUsageEntry] = []
-        var windowedMap: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
         var todayModelIds = Set<String>()
 
         for entry in allEntries {
             if entry.timestamp >= today {
                 todayEntries.append(entry)
                 todayModelIds.insert(entry.model)
-            }
-            if let ws = windowStart, entry.timestamp >= ws {
-                let existing = windowedMap[entry.model] ?? (0, 0, 0, 0)
-                windowedMap[entry.model] = (
-                    input: existing.input + entry.inputTokens,
-                    output: existing.output + entry.outputTokens,
-                    cacheRead: existing.cacheRead + entry.cacheReadTokens,
-                    cacheWrite: existing.cacheWrite + entry.cacheWriteTokens
-                )
             }
         }
 
@@ -90,41 +81,34 @@ final class UsageAggregator {
             }
         }
 
-        let modelTokens: [ModelTokenSummary]
-
-        if tokenWindowDays > 0 {
-            // Windowed mode: windowedMap was already built in the single-pass above
-            modelTokens = Self.buildModelTokens(from: windowedMap)
-        } else {
-            // All-time mode: stats cache + uncached JSONL (original behavior)
-            var modelTokensMap: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
-            if let cache = statsCache {
-                for (modelId, usage) in cache.modelUsage where recentModelIds.contains(modelId) {
-                    modelTokensMap[modelId] = (
-                        input: usage.inputTokens,
-                        output: usage.outputTokens,
-                        cacheRead: usage.cacheReadInputTokens,
-                        cacheWrite: usage.cacheCreationInputTokens
-                    )
-                }
-            }
-
-            // todayEntries all have timestamp >= today, so their date string is always todayDate.
-            // A single set-membership check replaces per-entry DateFormatter calls.
-            let todayIsCached = cachedDates.contains(todayDate)
-            let uncachedEntries = todayIsCached ? [] : todayEntries
-            for entry in uncachedEntries {
-                let existing = modelTokensMap[entry.model] ?? (0, 0, 0, 0)
-                modelTokensMap[entry.model] = (
-                    input: existing.input + entry.inputTokens,
-                    output: existing.output + entry.outputTokens,
-                    cacheRead: existing.cacheRead + entry.cacheReadTokens,
-                    cacheWrite: existing.cacheWrite + entry.cacheWriteTokens
+        // All-time mode: stats cache + uncached JSONL
+        var modelTokensMap: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
+        if let cache = statsCache {
+            for (modelId, usage) in cache.modelUsage where recentModelIds.contains(modelId) {
+                modelTokensMap[modelId] = (
+                    input: usage.inputTokens,
+                    output: usage.outputTokens,
+                    cacheRead: usage.cacheReadInputTokens,
+                    cacheWrite: usage.cacheCreationInputTokens
                 )
             }
-
-            modelTokens = Self.buildModelTokens(from: modelTokensMap)
         }
+
+        // todayEntries all have timestamp >= today, so their date string is always todayDate.
+        // A single set-membership check replaces per-entry DateFormatter calls.
+        let todayIsCached = cachedDates.contains(todayDate)
+        let uncachedEntries = todayIsCached ? [] : todayEntries
+        for entry in uncachedEntries {
+            let existing = modelTokensMap[entry.model] ?? (0, 0, 0, 0)
+            modelTokensMap[entry.model] = (
+                input: existing.input + entry.inputTokens,
+                output: existing.output + entry.outputTokens,
+                cacheRead: existing.cacheRead + entry.cacheReadTokens,
+                cacheWrite: existing.cacheWrite + entry.cacheWriteTokens
+            )
+        }
+
+        let modelTokens = Self.buildModelTokens(from: modelTokensMap)
 
         // Peak hour
         let peakEntry = statsCache?.hourCounts.max(by: { $0.value < $1.value })
@@ -136,7 +120,7 @@ final class UsageAggregator {
             .flatMap { Self.isoFormatter.date(from: $0) }
 
         // Token health assessment — single-pass grouping for current + top sessions
-        let healthResult = TokenHealthMonitor.shared.assessSessions(entries: allEntries, topLimit: 5)
+        let healthResult = TokenHealthMonitor.shared.assessSessions(entries: allEntries, topLimit: 5, idleCutoffMinutes: idleSessionMinutes)
         let tokenHealth = healthResult.current
         let topSessionHealths = healthResult.top
 
@@ -193,7 +177,7 @@ final class UsageAggregator {
         lastEntryCount = allEntries.count
         lastStatsCacheModDate = statsCacheModDate
         lastRateLimits = rateLimits
-        lastTokenWindowDays = tokenWindowDays
+        lastIdleSessionMinutes = idleSessionMinutes
 
         return snapshot
     }

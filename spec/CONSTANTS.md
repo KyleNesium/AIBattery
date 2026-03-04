@@ -51,12 +51,15 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 
 ## Statuspage Component IDs
 
-Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeComponentID`.
+Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` structs with `id`, `name`, `alertKey`, computed `defaultsKey` (`aibattery_alert_{alertKey}`), and `fireKey`.
 
-| Component | ID |
-|-----------|-----|
-| Claude API | `k8w3r06qmzrp` |
-| Claude Code | `yyzkbfz2thpt` |
+| Component | ID | Alert Key |
+|-----------|-----|-----------|
+| claude.ai | `rwppv331jlwc` | `claudeAI` |
+| Console | `0qbwn08sd68x` | `console` |
+| Claude API | `k8w3r06qmzrp` | `claudeAPI` |
+| Claude Code | `yyzkbfz2thpt` | `claudeCode` |
+| Claude for Gov | `0scnb50nvy53` | `claudeForGov` |
 
 ## Context Windows
 
@@ -102,14 +105,16 @@ Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeCom
 
 ## Status Alerts
 
+Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, alerts fire for any of the 5 tracked components.
+
 | Constant | Value |
 |----------|-------|
-| Claude.ai alert | `aibattery_alertClaudeAI` (Bool, default false) |
-| Claude Code alert | `aibattery_alertClaudeCode` (Bool, default false) |
+| Key | `aibattery_alertStatus` |
 | Identifier prefix | `aibattery-status-` |
 | Delivery | `UNUserNotificationCenter` (native macOS) |
 | Sound | `default` |
-| Deduplication | Fires once per outage, resets when service recovers |
+| Deduplication | Fires once per component per outage, resets when service recovers |
+| Migration | One-time (v2): any legacy per-component key enabled → enables `alertStatus` |
 
 ## Cost Estimation
 
@@ -174,15 +179,16 @@ Pricing per million tokens:
 | Entitlement | `com.apple.security.cs.disable-library-validation` — required for ad-hoc signed builds to load Sparkle.framework |
 | CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
-## Token Window
+## Idle Session Cutoff
 
 | Constant | Value |
 |----------|-------|
-| Window | User-configurable 0–7 days (slider, 0 = all time) |
-| Default | `0` (all time) |
-| AppStorage key | `aibattery_tokenWindowDays` |
-| Mode when >0 | Computes tokens from JSONL entries within window |
-| Mode when 0 | Uses stats-cache modelUsage (all-time) + uncached JSONL |
+| Cutoff | User-configurable: 30m, 1h, 2h, 4h, 8h, or Never (slider) |
+| Default | `0` (Never — uses 24h performance bound) |
+| AppStorage key | `aibattery_idleSessionMinutes` |
+| Stored values | `30`, `60`, `120`, `240`, `480` (minutes), `0` (never) |
+| Effect | Hides sessions idle longer than cutoff from context health view |
+| When 0 (Never) | Uses 24h cutoff (performance bound, existing behavior) |
 
 ## UI Layout
 

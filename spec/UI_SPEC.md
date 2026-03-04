@@ -15,7 +15,7 @@
 │  Account: [________] (×)            │
 │  + Add Account                      │
 │  Refresh: [slider 10-60s]           │
-│  Models: [slider 1d-7d-All]         │
+│  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
 ├──────────────────────────────────────┤
 │ (A) [5-Hour|7-Day|Context]           │  ← Metric toggle + auto
@@ -62,9 +62,10 @@ UsagePopoverView (275px, VStack)
 ├── Divider
 ├── SettingsRow (if showSettings — toggled by gear icon)
 │   ├── Account name rows (depend on accountStore — stay in parent)
-│   ├── RefreshSettingsSection — owns refreshInterval, launchAtLogin
-│   ├── DisplaySettingsSection — owns tokenWindowDays, showTokens, showActivity, colorblindMode, showCostEstimate
-│   └── AlertSettingsSection — owns alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold
+│   ├── RefreshSettingsSection — owns refreshInterval
+│   ├── DisplaySettingsSection — owns idleSessionMinutes, showTokens, showActivity, colorblindMode, showCostEstimate
+│   ├── AlertSettingsSection — owns alertStatus, alertRateLimit, rateLimitThreshold
+│   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
 ├── metricToggle (auto "A" circle button left + segmented picker: 5-Hour | 7-Day | Context)
 ├── Divider
@@ -112,32 +113,29 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 
 **Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body.
 
-**`RefreshSettingsSection`** (owns `refreshInterval`, `launchAtLogin`):
+**`RefreshSettingsSection`** (owns `refreshInterval`):
 - **Refresh**: Slider (10–60s, step 5) → `aibattery_refreshInterval`
   - Calls `viewModel.updatePollingInterval()` on change
   - Hint: `"~3 tokens per poll"` (.caption2, .tertiary)
-- **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
-  - Syncs with `SMAppService.mainApp.status` on appear
 
-**`DisplaySettingsSection`** (owns `tokenWindowDays`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
-- **Models**: Slider (1–8, step 1) → `aibattery_tokenWindowDays` (1–7 = days, 8 maps to 0 = All time)
-  - Display: `"All"` when stored value is 0, `"{value}d"` when 1–7
-  - Slider positions: 1d, 2d, 3d, 4d, 5d, 6d, 7d, All (left to right)
-  - Hint: `"Only show models used within period"` (.caption2, .tertiary)
+**`DisplaySettingsSection`** (owns `idleSessionMinutes`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
+- **Idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never)
+  - Display: `"30m"`, `"1h"`, `"2h"`, `"4h"`, `"8h"`, or `"∞"` (Never)
+  - Slider positions: 30m, 1h, 2h, 4h, 8h, ∞ (left to right)
+  - Hint: `"Hide idle sessions from context health"` (.caption2, .tertiary)
 - **Display**: Checkboxes
   - "Tokens" → `aibattery_showTokens`; "Activity" → `aibattery_showActivity`
   - "Colorblind" → `aibattery_colorblindMode`; "Cost*" → `aibattery_showCostEstimate`
   - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
 
-**`AlertSettingsSection`** (owns `alertClaudeAI`, `alertClaudeCode`, `alertRateLimit`, `rateLimitThreshold`):
-- **Alerts**: Two checkboxes (`.checkbox` toggle style)
-  - `Claude.ai` → `aibattery_alertClaudeAI` (Bool, default false)
-  - `Claude Code` → `aibattery_alertClaudeCode` (Bool, default false)
-  - **Test button**: "Test" (.caption2, .blue, `.plain` style) — visible when at least one toggle is on
-  - Hint: `"Notify when service is down"` (.caption2, .tertiary)
-- **Rate Limit**: Toggle + threshold slider (50–95%, step 5, default 80%)
-  - Hint: `"Notify when rate limit usage exceeds threshold"` (.caption2, .tertiary)
-  - Slider + tick marks shown only when toggle is on
+**`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
+- **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)
+  - Status: notifies on any of the 5 tracked status page components
+  - Rate Limit: threshold slider (50–95%, step 5, default 80%) appears below when enabled
+
+**`LaunchAtLoginSection`** (owns `launchAtLogin`):
+- **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
+  - Syncs with `SMAppService.mainApp.status` on appear
 
 **`sliderMarks()`**: `fileprivate` file-level helper for generating slider tick marks (shared by sections).
 

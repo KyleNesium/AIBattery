@@ -2,7 +2,7 @@ import Foundation
 import os
 import UserNotifications
 
-/// Fires macOS notifications for status-page outages (Claude.ai / Claude Code).
+/// Fires macOS notifications for status-page outages across all tracked components.
 /// Uses UNUserNotificationCenter for native delivery with the app's own icon.
 /// Deduplicates: only fires once per outage, resets when service recovers.
 @MainActor
@@ -17,28 +17,26 @@ public final class NotificationManager {
     private var flushTask: Task<Void, Never>?
     private static let batchDelay: UInt64 = 500_000_000 // 500ms in nanoseconds
 
-    private init() {}
+    private init() {
+        migrateAlertKeys()
+    }
 
     // MARK: - Public
 
-    /// Fire test notifications to verify alerts work. Ignores toggle state.
+    /// Fire test notifications for all components (verifies delivery works).
     func testAlerts() {
-        hasFired.remove("claudeAPI")
-        hasFired.remove("claudeCode")
-        checkComponentStatus(key: "claudeAPI", label: "Claude.ai", indicator: .majorOutage)
-        checkComponentStatus(key: "claudeCode", label: "Claude Code", indicator: .partialOutage)
+        for component in StatusChecker.knownComponents {
+            hasFired.remove(component.fireKey)
+            checkComponentStatus(key: component.fireKey, label: component.name, indicator: .majorOutage)
+        }
     }
 
-    /// Check status page and fire alerts for Claude.ai / Claude Code outages.
+    /// Check status page and fire alerts for all components when alerts are enabled.
     func checkStatusAlerts(status: ClaudeSystemStatus) {
-        let alertAI = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertClaudeAI)
-        let alertCode = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertClaudeCode)
-
-        if alertAI {
-            checkComponentStatus(key: "claudeAPI", label: "Claude.ai", indicator: status.claudeAPIStatus)
-        }
-        if alertCode {
-            checkComponentStatus(key: "claudeCode", label: "Claude Code", indicator: status.claudeCodeStatus)
+        guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertStatus) else { return }
+        for component in StatusChecker.knownComponents {
+            let indicator = status.componentStatuses[component.id] ?? .unknown
+            checkComponentStatus(key: component.fireKey, label: component.name, indicator: indicator)
         }
     }
 
@@ -143,6 +141,33 @@ public final class NotificationManager {
         }
 
         deliverNotification(title: title, body: body)
+    }
+
+    /// One-time migration from legacy per-component alert keys to the single toggle.
+    /// If any old key was enabled, enable the unified alertStatus key.
+    private func migrateAlertKeys() {
+        Self.migrateAlertKeys(defaults: .standard)
+    }
+
+    /// Legacy alert keys from v1.5–v1.6.2 (per-component toggles).
+    nonisolated static let legacyAlertKeys = [
+        "aibattery_alertClaudeAI", "aibattery_alertClaudeCode",
+        "aibattery_alert_claudeAI", "aibattery_alert_console",
+        "aibattery_alert_claudeAPI", "aibattery_alert_claudeCode",
+        "aibattery_alert_claudeForGov",
+    ]
+
+    /// Testable migration: consolidates legacy per-component keys into unified alertStatus.
+    nonisolated static func migrateAlertKeys(defaults: UserDefaults) {
+        let migrationKey = "aibattery_alertKeysMigrated_v2"
+        guard !defaults.bool(forKey: migrationKey) else { return }
+
+        let anyEnabled = legacyAlertKeys.contains { defaults.bool(forKey: $0) }
+        if anyEnabled {
+            defaults.set(true, forKey: UserDefaultsKeys.alertStatus)
+        }
+        for key in legacyAlertKeys { defaults.removeObject(forKey: key) }
+        defaults.set(true, forKey: migrationKey)
     }
 
     /// Deliver notification via UNUserNotificationCenter.

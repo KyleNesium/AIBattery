@@ -4,14 +4,12 @@ import Foundation
 enum UserDefaultsKeys {
     static let metricMode = "aibattery_metricMode"
     static let refreshInterval = "aibattery_refreshInterval"
-    static let tokenWindowDays = "aibattery_tokenWindowDays"
-    static let alertClaudeAI = "aibattery_alertClaudeAI"
-    static let alertClaudeCode = "aibattery_alertClaudeCode"
     static let chartMode = "aibattery_chartMode"
     static let plan = "aibattery_plan"
     static let accounts = "aibattery_accounts"
     static let activeAccountId = "aibattery_activeAccountId"
     static let launchAtLogin = "aibattery_launchAtLogin"
+    static let alertStatus = "aibattery_alertStatus"
     static let alertRateLimit = "aibattery_alertRateLimit"
     static let rateLimitThreshold = "aibattery_rateLimitThreshold"
     static let showCostEstimate = "aibattery_showCostEstimate"
@@ -23,6 +21,7 @@ enum UserDefaultsKeys {
     static let autoMetricMode = "aibattery_autoMetricMode"
     static let colorblindMode = "aibattery_colorblindMode"
     static let hasSeenTutorial = "aibattery_hasSeenTutorial"
+    static let idleSessionMinutes = "aibattery_idleSessionMinutes"
     /// Prefix for per-account token expiry timestamps (append account ID).
     static let tokenExpiresAtPrefix = "aibattery_expiresAt_"
 }

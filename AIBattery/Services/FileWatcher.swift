@@ -1,6 +1,7 @@
 import Foundation
 import os
 
+@MainActor
 final class FileWatcher {
     private var fileSource: DispatchSourceFileSystemObject?
     private var fsEventStream: FSEventStreamRef?
@@ -37,7 +38,7 @@ final class FileWatcher {
         debounceWorkItem = nil
 
         if let source = fileSource {
-            source.cancel() // Cancel handler closes the fd
+            source.cancel()
             fileSource = nil
         }
 
@@ -75,7 +76,9 @@ final class FileWatcher {
         )
 
         source.setEventHandler { [weak self] in
-            self?.debounceNotify()
+            MainActor.assumeIsolated {
+                self?.debounceNotify()
+            }
         }
 
         // Close fd when source is cancelled — single owner
@@ -110,7 +113,9 @@ final class FileWatcher {
             guard let info else { return }
             let box = Unmanaged<WeakBox<FileWatcher>>.fromOpaque(info).takeUnretainedValue()
             guard let watcher = box.value else { return }
-            watcher.debounceNotify()
+            MainActor.assumeIsolated {
+                watcher.debounceNotify()
+            }
         }
 
         guard let stream = FSEventStreamCreate(
@@ -142,15 +147,19 @@ final class FileWatcher {
         statsCacheRetryCount += 1
         retryTimer?.invalidate()
         retryTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
-            guard let self, !self.isStopped, self.fileSource == nil else { return }
-            self.watchStatsCache()
+            MainActor.assumeIsolated {
+                guard let self, !self.isStopped, self.fileSource == nil else { return }
+                self.watchStatsCache()
+            }
         }
     }
 
     private func startFallbackTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: Self.fallbackPollingInterval, repeats: true) { [weak self] _ in
-            guard let self, !self.isStopped else { return }
-            self.onChange()
+            MainActor.assumeIsolated {
+                guard let self, !self.isStopped else { return }
+                self.onChange()
+            }
         }
     }
 
@@ -158,17 +167,30 @@ final class FileWatcher {
         guard !isStopped else { return }
         debounceWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, !self.isStopped else { return }
-            // Invalidate reader caches so the next refresh re-scans changed files
-            SessionLogReader.shared.invalidate()
-            StatsCacheReader.shared.invalidate()
-            self.onChange()
+            MainActor.assumeIsolated {
+                guard let self, !self.isStopped else { return }
+                // Invalidate reader caches so the next refresh re-scans changed files
+                SessionLogReader.shared.invalidate()
+                StatsCacheReader.shared.invalidate()
+                self.onChange()
+            }
         }
         debounceWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.debounceDelay, execute: work)
     }
 
-    deinit { stopWatching() }
+    // Nonisolated deinit cannot call @MainActor methods — inline cleanup.
+    deinit {
+        debounceWorkItem?.cancel()
+        if let source = fileSource { source.cancel() }
+        if let stream = fsEventStream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+        }
+        timer?.invalidate()
+        retryTimer?.invalidate()
+    }
 }
 
 private final class WeakBox<T: AnyObject> {
