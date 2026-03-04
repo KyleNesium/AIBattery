@@ -43,6 +43,12 @@ final class TokenHealthMonitor {
             }
         }
 
+        // Always include the current session so it appears in the session browser
+        // even when idle past the cutoff (it's still the most relevant session).
+        if let current, !recentResults.contains(where: { $0.id == current.id }) {
+            recentResults.append(current)
+        }
+
         // Highest context usage first so the most-consumed session is always position 1
         recentResults.sort { $0.usagePercentage > $1.usagePercentage }
         let top = Array(recentResults.prefix(topLimit))

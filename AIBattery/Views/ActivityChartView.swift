@@ -600,6 +600,7 @@ struct ActivityChartView: View {
         }
         if value >= 1_000 {
             let k = Double(value) / 1_000
+            if k >= 999.5 { return "1.0M" }
             return k == k.rounded() ? "\(Int(k))K" : String(format: "%.0fK", k)
         }
         return "\(value)"

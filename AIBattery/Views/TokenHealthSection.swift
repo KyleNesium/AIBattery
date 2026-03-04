@@ -322,15 +322,14 @@ struct TokenHealthSection: View {
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "HH:mm"
+        f.timeStyle = .short
+        f.dateStyle = .none
         return f
     }()
 
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "MMM d"
+        f.setLocalizedDateFormatFromTemplate("MMMd")
         return f
     }()
 
