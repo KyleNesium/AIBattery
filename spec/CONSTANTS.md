@@ -51,12 +51,15 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 
 ## Statuspage Component IDs
 
-Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeComponentID`.
+Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` structs with `id`, `name`, `alertKey`, computed `defaultsKey` (`aibattery_alert_{alertKey}`), and `fireKey`.
 
-| Component | ID |
-|-----------|-----|
-| Claude API | `k8w3r06qmzrp` |
-| Claude Code | `yyzkbfz2thpt` |
+| Component | ID | Alert Key |
+|-----------|-----|-----------|
+| claude.ai | `rwppv331jlwc` | `claudeAI` |
+| Console | `0qbwn08sd68x` | `console` |
+| Claude API | `k8w3r06qmzrp` | `claudeAPI` |
+| Claude Code | `yyzkbfz2thpt` | `claudeCode` |
+| Claude for Gov | `0scnb50nvy53` | `claudeForGov` |
 
 ## Context Windows
 
@@ -102,14 +105,16 @@ Exposed as `StatusChecker.claudeAPIComponentID` and `StatusChecker.claudeCodeCom
 
 ## Status Alerts
 
+Per-component alert toggles stored via dynamic keys: `aibattery_alert_{alertKey}` (Bool, default false). See Statuspage Component IDs table for all 5 components.
+
 | Constant | Value |
 |----------|-------|
-| Claude.ai alert | `aibattery_alertClaudeAI` (Bool, default false) |
-| Claude Code alert | `aibattery_alertClaudeCode` (Bool, default false) |
+| Key pattern | `aibattery_alert_{alertKey}` per component |
 | Identifier prefix | `aibattery-status-` |
 | Delivery | `UNUserNotificationCenter` (native macOS) |
 | Sound | `default` |
 | Deduplication | Fires once per outage, resets when service recovers |
+| Migration | One-time: `aibattery_alertClaudeAI` → `aibattery_alert_claudeAPI`, `aibattery_alertClaudeCode` → `aibattery_alert_claudeCode` |
 
 ## Cost Estimation
 

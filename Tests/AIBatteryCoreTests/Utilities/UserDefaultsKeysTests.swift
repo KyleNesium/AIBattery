@@ -26,8 +26,6 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.metricMode,
             UserDefaultsKeys.refreshInterval,
             UserDefaultsKeys.tokenWindowDays,
-            UserDefaultsKeys.alertClaudeAI,
-            UserDefaultsKeys.alertClaudeCode,
             UserDefaultsKeys.chartMode,
             UserDefaultsKeys.plan,
             UserDefaultsKeys.accounts,
