@@ -89,6 +89,8 @@ struct UsageViewModelTests {
     @Test func recordThrottleEvent_nilRateLimits_noOp() {
         let key = UserDefaultsKeys.throttleTimestamps
         UserDefaults.standard.removeObject(forKey: key)
+        // Reset transition state
+        UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(nil)
         let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
         #expect(timestamps.isEmpty)
@@ -107,6 +109,8 @@ struct UsageViewModelTests {
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
+        // Reset transition state, then send allowed
+        UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(rl)
         let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
         #expect(timestamps.isEmpty)
@@ -125,16 +129,17 @@ struct UsageViewModelTests {
             sevenDayStatus: "allowed",
             overallStatus: "throttled"
         )
+        // Reset then transition to throttled
+        UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(rl)
         let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
         #expect(timestamps.count == 1)
         UserDefaults.standard.removeObject(forKey: key)
     }
 
-    @Test func recordThrottleEvent_deduplicatesWithin5Minutes() {
+    @Test func recordThrottleEvent_repeatedThrottle_noDoubleCount() {
         let key = UserDefaultsKeys.throttleTimestamps
-        let now = Date().timeIntervalSince1970
-        UserDefaults.standard.set([now], forKey: key)
+        UserDefaults.standard.removeObject(forKey: key)
         let rl = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 1.0,
@@ -145,6 +150,11 @@ struct UsageViewModelTests {
             sevenDayStatus: "allowed",
             overallStatus: "throttled"
         )
+        // Transition: not-throttled → throttled
+        UsageViewModel.recordThrottleEvent(nil)
+        UsageViewModel.recordThrottleEvent(rl)
+        // Still throttled on next polls — should NOT record again
+        UsageViewModel.recordThrottleEvent(rl)
         UsageViewModel.recordThrottleEvent(rl)
         let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
         #expect(timestamps.count == 1)

@@ -247,14 +247,19 @@ public final class UsageViewModel: ObservableObject {
         previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
     }
 
-    /// Record a throttle event timestamp when the user is rate-limited.
+    /// Track whether the previous poll saw a throttled state.
+    /// Used to detect the transition from not-throttled → throttled.
+    private static var wasThrottled = false
+
+    /// Record a throttle event only on the transition from not-throttled to throttled.
+    /// Each distinct throttle session counts as one event regardless of duration.
     /// Keeps only the last 30 days of timestamps to avoid unbounded growth.
     static func recordThrottleEvent(_ rateLimits: RateLimitUsage?) {
-        guard let rl = rateLimits, rl.isThrottled else { return }
+        let isThrottled = rateLimits?.isThrottled ?? false
+        defer { wasThrottled = isThrottled }
+        guard isThrottled, !wasThrottled else { return }
         let now = Date().timeIntervalSince1970
         var timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
-        // Deduplicate: skip if last event was within 5 minutes
-        if let last = timestamps.last, now - last < 300 { return }
         timestamps.append(now)
         // Prune older than 30 days
         let cutoff = now - 30 * 86400
