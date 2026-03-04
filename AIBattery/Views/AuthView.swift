@@ -24,7 +24,13 @@ public struct AuthView: View {
         VStack(spacing: 12) {
             // Header
             VStack(spacing: 4) {
-                Text("✦ AI Battery")
+                if let appIcon = NSApp.applicationIconImage {
+                    Image(nsImage: appIcon)
+                        .resizable()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                Text("AI Battery")
                     .font(.headline)
                 Text(isAddingAccount ? "Add another Claude account" : "Sign in with your Claude account")
                     .font(.caption)

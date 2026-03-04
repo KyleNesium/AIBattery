@@ -267,10 +267,10 @@ Compact chart with mode toggle. Positioned below Tokens section.
 
 Chart styling (all modes):
   - LineMark: `.orange`, 1.5pt stroke, catmullRom interpolation
-  - AreaMark: orange gradient (0.3 → 0.05 opacity, top → bottom)
+  - AreaMark: orange gradient (0.3 → 0.1 opacity, top → bottom)
   - PointMark: `.orange`, symbolSize 12 (daily + monthly only; hourly skips — 24 dots too dense)
   - `.chartPlotStyle { $0.background(.clear) }` (fixes white background)
-  - `.chartYAxis(.hidden)` — keeps chart compact
+  - Y-axis: `AxisMarks(position: .trailing, values: .automatic(desiredCount: 3))` with compact labels (`compactCount`: "1.2K", "3.2M") and `AxisTick` (0.5pt, tertiaryLabel)
   - Height: 50pt
 
 X-axis per mode:
@@ -279,14 +279,19 @@ X-axis per mode:
   - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `.system(size: 9)`
 
 Data per mode:
-  - **24H**: `hourCounts` (hour "0"-"23" → aggregate count from stats-cache)
+  - **24H**: `todayHourCounts` (hour "0"-"23" → today's JSONL count only)
   - **7D**: `dailyActivity` last 7 days (rolling window) → daily message counts
-  - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window
+  - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
 
-**Trend summary** (below chart, always visible when snapshot available):
-- Single HStack row: trend arrow (colored per `ThemeColors.trendColor`) + vs-yesterday change (monospaced, colored) + `·` separator + daily average (monospaced, .tertiary) + Spacer + busiest day label (.tertiary)
-- Example: `↑ +5 msgs  ·  42 avg/day          Peak on Tuesdays`
-- `.padding(.top, 4)`, `.help("Weekly trend: this week vs last week")`
+**Trend summary** (below chart, mode-aware, two rows of two stats each):
+
+- **24H** — Row 1: vs-yesterday change (↑/↓/→ + delta, colored) + msgs today. Row 2: throttle count today + peak hour.
+- **7D** — Row 1: weekly trend arrow + vs-yesterday change + avg/day. Row 2: throttle count this week + busiest day.
+- **12M** — Row 1: vs-last-month change (projected, ±10% threshold) + this month total (compactCount). Row 2: throttle count this month + busiest month.
+
+Throttle label: "0 throttles today/this week/this month" (secondary) or "N× throttled period" (red). Reads `UsageViewModel.throttleCount(days:)`.
+
+`.padding(.top, 4)`
 
 Padding: H 16, V 12
 
@@ -354,8 +359,9 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 - 16×16 NSImage, custom drawing
 - 4-pointed star: 8 vertices alternating outer (6.5pt) / inner (2.0pt) radius
 - Centered at (8, 8), rotation offset -π/2 (starts from top)
+- Glow: `NSShadow` with usage color at 0.35 alpha, blur radius 2.5pt (rendered behind fill)
 - Fill: solid color based on requestsPercent
-- Stroke: same color at 0.6 alpha, 0.5pt width
+- Stroke: high-contrast → black 0.8 / 1.0pt; light mode → black 0.3 / 0.75pt; dark mode → color 0.6 / 0.5pt
 - `isTemplate = false`
 - **Band-based caching**: `colorBand` maps percentage to 4 discrete bands (0: <50%, 1: <80%, 2: <95%, 3: >=95%). Static `iconCache: [Int: NSImage]` stores up to 8 entries (4 bands × 2 colorblind modes). Icon only re-rendered when band changes — not on every percentage tick.
 - **`statusBarImage(for:)`**: public static method exposing the cached NSImage for StatusBarManager's native AppKit button.

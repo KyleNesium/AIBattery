@@ -78,6 +78,7 @@ public final class UsageViewModel: ObservableObject {
         guard accountId == oauthManager.accountStore.activeAccountId else { return }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
+        Self.recordThrottleEvent(api.rateLimits)
 
         let result = aggregator.aggregate(rateLimits: api.rateLimits)
         logCorruptionMetrics()
@@ -244,6 +245,28 @@ public final class UsageViewModel: ObservableObject {
     /// Returns true on first load (previousTotal < 0) or when totals differ.
     nonisolated static func hasDataChanged(previousTotal: Int, previousToday: Int, newTotal: Int, newToday: Int) -> Bool {
         previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
+    }
+
+    /// Record a throttle event timestamp when the user is rate-limited.
+    /// Keeps only the last 30 days of timestamps to avoid unbounded growth.
+    static func recordThrottleEvent(_ rateLimits: RateLimitUsage?) {
+        guard let rl = rateLimits, rl.isThrottled else { return }
+        let now = Date().timeIntervalSince1970
+        var timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
+        // Deduplicate: skip if last event was within 5 minutes
+        if let last = timestamps.last, now - last < 300 { return }
+        timestamps.append(now)
+        // Prune older than 30 days
+        let cutoff = now - 30 * 86400
+        timestamps = timestamps.filter { $0 >= cutoff }
+        UserDefaults.standard.set(timestamps, forKey: UserDefaultsKeys.throttleTimestamps)
+    }
+
+    /// Count throttle events within a given number of days.
+    static func throttleCount(days: Int) -> Int {
+        let timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
+        let cutoff = Date().timeIntervalSince1970 - Double(days) * 86400
+        return timestamps.filter { $0 >= cutoff }.count
     }
 
     private func startPolling() {

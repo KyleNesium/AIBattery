@@ -578,6 +578,7 @@ private struct ActivityChartGate: View {
             ActivityChartView(
                 dailyActivity: snapshot.dailyActivity,
                 hourCounts: snapshot.hourCounts,
+                todayHourCounts: snapshot.todayHourCounts,
                 snapshot: snapshot
             )
             Divider()

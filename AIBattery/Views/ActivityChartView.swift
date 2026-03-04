@@ -34,6 +34,7 @@ private struct MonthlyPoint: Identifiable {
 struct ActivityChartView: View {
     let dailyActivity: [DailyActivity]
     let hourCounts: [String: Int]
+    let todayHourCounts: [String: Int]
     var snapshot: UsageSnapshot?
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
@@ -64,12 +65,13 @@ struct ActivityChartView: View {
 
     private var hourlyData: [HourlyPoint] {
         (0..<24).map { hour in
-            HourlyPoint(id: hour, hour: hour, count: hourCounts[String(hour)] ?? 0)
+            HourlyPoint(id: hour, hour: hour, count: todayHourCounts[String(hour)] ?? 0)
         }
     }
 
     private var monthlyData: [MonthlyPoint] {
         let cal = Calendar.current
+        let now = Date()
 
         // Build lookup: aggregate daily data into month buckets
         var lookup: [String: Int] = [:]
@@ -82,15 +84,28 @@ struct ActivityChartView: View {
         }
 
         // Generate all 12 months (11 months ago through this month)
-        let nowComps = cal.dateComponents([.year, .month], from: Date())
+        let nowComps = cal.dateComponents([.year, .month], from: now)
         guard let thisMonth = cal.date(from: nowComps) else { return [] }
+        let thisMonthKey = String(format: "%04d-%02d", nowComps.year!, nowComps.month!)
 
         return (0..<12).compactMap { offset in
             guard let date = cal.date(byAdding: .month, value: -(11 - offset), to: thisMonth) else { return nil }
             let comps = cal.dateComponents([.year, .month], from: date)
             guard let y = comps.year, let m = comps.month else { return nil }
             let key = String(format: "%04d-%02d", y, m)
-            return MonthlyPoint(id: key, date: date, count: lookup[key] ?? 0)
+            let total = lookup[key] ?? 0
+
+            // Project current month to full-month pace so it's comparable
+            let count: Int
+            if key == thisMonthKey, total > 0,
+               let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count {
+                let dayOfMonth = cal.component(.day, from: now)
+                count = dayOfMonth > 0 ? total * daysInMonth / dayOfMonth : total
+            } else {
+                count = total
+            }
+
+            return MonthlyPoint(id: key, date: date, count: count)
         }
     }
 
@@ -98,7 +113,7 @@ struct ActivityChartView: View {
     private var isEmpty: Bool {
         switch mode {
         case .daily: return dailyActivity.allSatisfy { $0.messageCount == 0 }
-        case .hourly: return hourCounts.values.allSatisfy { $0 == 0 }
+        case .hourly: return todayHourCounts.values.allSatisfy { $0 == 0 }
         case .monthly: return dailyActivity.allSatisfy { $0.messageCount == 0 }
         }
     }
@@ -209,7 +224,19 @@ struct ActivityChartView: View {
                 }
             }
         }
-        .chartYAxis(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+                AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                AxisValueLabel {
+                    if let v = value.as(Int.self) {
+                        Text(Self.compactCount(v))
+                            .font(.system(size: 8))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                    }
+                }
+            }
+        }
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
@@ -262,7 +289,19 @@ struct ActivityChartView: View {
             }
         }
         .chartXScale(domain: 0...23)
-        .chartYAxis(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+                AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                AxisValueLabel {
+                    if let v = value.as(Int.self) {
+                        Text(Self.compactCount(v))
+                            .font(.system(size: 8))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                    }
+                }
+            }
+        }
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
@@ -322,7 +361,19 @@ struct ActivityChartView: View {
                 }
             }
         }
-        .chartYAxis(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+                AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                AxisValueLabel {
+                    if let v = value.as(Int.self) {
+                        Text(Self.compactCount(v))
+                            .font(.system(size: 8))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                    }
+                }
+            }
+        }
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
@@ -332,41 +383,136 @@ struct ActivityChartView: View {
     // MARK: - Trend
 
     private func trendSummary(_ snapshot: UsageSnapshot) -> some View {
-        HStack(spacing: 6) {
-            // Trend arrow
-            Text(snapshot.trendDirection.symbol)
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundStyle(ThemeColors.trendColor(snapshot.trendDirection))
-
-            // Change vs yesterday
-            if let change = changeVsYesterday(snapshot) {
-                Text(change.label)
-                    .font(.system(.caption, design: .monospaced, weight: .medium))
-                    .foregroundStyle(change.color)
-            }
-
-            if snapshot.dailyAverage > 0 {
-                Text("\u{00B7}")
-                    .foregroundStyle(.secondary)
-                Text("\(snapshot.dailyAverage) avg/day")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-            }
-
-            Spacer()
-
-            if let busiest = snapshot.busiestDayOfWeek {
-                Text("Peak on \(busiest.name)s")
-                    .font(.caption)
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
+        VStack(spacing: 4) {
+            switch mode {
+            case .hourly:
+                trendRow24H(snapshot)
+            case .daily:
+                trendRow7D(snapshot)
+            case .monthly:
+                trendRow12M(snapshot)
             }
         }
         .padding(.top, 4)
-        .help("Weekly trend: this week vs last week")
-        .accessibilityLabel("Trend \(snapshot.trendDirection.accessibilityLabel)")
     }
 
+    // MARK: - 24H trend
+
+    private func trendRow24H(_ snapshot: UsageSnapshot) -> some View {
+        Group {
+            HStack(spacing: 6) {
+                if let change = changeVsYesterday(snapshot) {
+                    Text(change.symbol)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(change.color)
+                    Text(change.label)
+                        .font(.system(.caption, design: .monospaced, weight: .medium))
+                        .foregroundStyle(change.color)
+                }
+                Spacer()
+                Text("\(snapshot.todayMessages) msgs today")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(ThemeColors.secondaryLabel)
+            }
+            HStack(spacing: 6) {
+                throttleLabel(days: 1, period: "today")
+                Spacer()
+                if let peak = snapshot.peakHour {
+                    Text("Peak at \(Self.formatHourLabel(peak))")
+                        .font(.caption)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                }
+            }
+        }
+    }
+
+    // MARK: - 7D trend
+
+    private func trendRow7D(_ snapshot: UsageSnapshot) -> some View {
+        Group {
+            HStack(spacing: 6) {
+                Text(snapshot.trendDirection.symbol)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(ThemeColors.trendColor(snapshot.trendDirection))
+                if let change = changeVsYesterday(snapshot) {
+                    Text(change.label)
+                        .font(.system(.caption, design: .monospaced, weight: .medium))
+                        .foregroundStyle(change.color)
+                }
+                Spacer()
+                if snapshot.dailyAverage > 0 {
+                    Text("\(snapshot.dailyAverage) avg/day")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(ThemeColors.secondaryLabel)
+                }
+            }
+            HStack(spacing: 6) {
+                throttleLabel(days: 7, period: "this week")
+                Spacer()
+                if let busiest = snapshot.busiestDayOfWeek {
+                    Text("Peak on \(busiest.name)s")
+                        .font(.caption)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                }
+            }
+        }
+    }
+
+    // MARK: - 12M trend
+
+    private func trendRow12M(_ snapshot: UsageSnapshot) -> some View {
+        let change = changeVsLastMonth(snapshot)
+        return Group {
+            HStack(spacing: 6) {
+                if let change {
+                    Text(change.symbol)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(change.color)
+                    Text(change.label)
+                        .font(.system(.caption, design: .monospaced, weight: .medium))
+                        .foregroundStyle(change.color)
+                }
+                Spacer()
+                let thisMonth = monthTotal(snapshot, offset: 0)
+                if thisMonth > 0 {
+                    Text("\(Self.compactCount(thisMonth)) this month")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(ThemeColors.secondaryLabel)
+                }
+            }
+            HStack(spacing: 6) {
+                throttleLabel(days: 30, period: "this month")
+                Spacer()
+                let busiest = busiestMonth(snapshot)
+                if let busiest {
+                    Text("Peak in \(busiest)")
+                        .font(.caption)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                }
+            }
+        }
+    }
+
+    // MARK: - Shared helpers
+
+    @ViewBuilder
+    private func throttleLabel(days: Int, period: String) -> some View {
+        let count = UsageViewModel.throttleCount(days: days)
+        if count > 0 {
+            Text("\(count)× throttled \(period)")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(ThemeColors.trendColor(.down))
+        } else {
+            Text("0 throttles \(period)")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(ThemeColors.secondaryLabel)
+        }
+    }
+
+
+
     private struct ChangeInfo {
+        let symbol: String
         let label: String
         let color: Color
     }
@@ -383,12 +529,63 @@ struct ActivityChartView: View {
         let diff = snapshot.todayMessages - yesterday.messageCount
 
         if diff > 0 {
-            return ChangeInfo(label: "+\(diff) msgs", color: ThemeColors.trendColor(.up))
+            return ChangeInfo(symbol: "↑", label: "+\(diff) vs yesterday", color: ThemeColors.trendColor(.up))
         } else if diff < 0 {
-            return ChangeInfo(label: "\(diff) msgs", color: ThemeColors.trendColor(.down))
+            return ChangeInfo(symbol: "↓", label: "\(diff) vs yesterday", color: ThemeColors.trendColor(.down))
         } else {
-            return ChangeInfo(label: "same", color: .secondary)
+            return ChangeInfo(symbol: "→", label: "same as yesterday", color: .secondary)
         }
+    }
+
+    private func changeVsLastMonth(_ snapshot: UsageSnapshot) -> ChangeInfo? {
+        let thisMonth = monthTotal(snapshot, offset: 0)
+        let lastMonth = monthTotal(snapshot, offset: -1)
+        guard lastMonth > 0 else { return nil }
+
+        // Project current month to compare fairly
+        let cal = Calendar.current
+        let now = Date()
+        let dayOfMonth = cal.component(.day, from: now)
+        guard dayOfMonth > 0,
+              let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count else { return nil }
+        let projected = thisMonth * daysInMonth / dayOfMonth
+        let diff = projected - lastMonth
+        let pct = lastMonth > 0 ? Int(round(Double(diff) / Double(lastMonth) * 100)) : 0
+
+        if pct > 10 {
+            return ChangeInfo(symbol: "↑", label: "+\(pct)% vs last month", color: ThemeColors.trendColor(.up))
+        } else if pct < -10 {
+            return ChangeInfo(symbol: "↓", label: "\(pct)% vs last month", color: ThemeColors.trendColor(.down))
+        } else {
+            return ChangeInfo(symbol: "→", label: "~same as last month", color: .secondary)
+        }
+    }
+
+    private func monthTotal(_ snapshot: UsageSnapshot, offset: Int) -> Int {
+        let cal = Calendar.current
+        let now = Date()
+        guard let target = cal.date(byAdding: .month, value: offset, to: now) else { return 0 }
+        let comps = cal.dateComponents([.year, .month], from: target)
+        guard let y = comps.year, let m = comps.month else { return 0 }
+        let prefix = String(format: "%04d-%02d", y, m)
+        return snapshot.dailyActivity
+            .filter { $0.date.hasPrefix(prefix) }
+            .reduce(0) { $0 + $1.messageCount }
+    }
+
+    private func busiestMonth(_ snapshot: UsageSnapshot) -> String? {
+        let cal = Calendar.current
+        var monthTotals: [String: Int] = [:]
+        for day in snapshot.dailyActivity {
+            guard let date = day.parsedDate else { continue }
+            let comps = cal.dateComponents([.year, .month], from: date)
+            guard let y = comps.year, let m = comps.month else { continue }
+            let key = String(format: "%04d-%02d", y, m)
+            monthTotals[key, default: 0] += day.messageCount
+        }
+        guard let peak = monthTotals.max(by: { $0.value < $1.value }),
+              let date = DateFormatters.dateKey.date(from: peak.key + "-01") else { return nil }
+        return Self.monthAbbrev(date)
     }
 
     // MARK: - Formatters
@@ -401,6 +598,12 @@ struct ActivityChartView: View {
 
     static func monthAbbrev(_ date: Date) -> String {
         DateFormatters.shortMonth.string(from: date)
+    }
+
+    private static func compactCount(_ value: Int) -> String {
+        if value >= 1_000_000 { return String(format: "%.1fM", Double(value) / 1_000_000) }
+        if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
+        return "\(value)"
     }
 
     private static let hourLabels: [String] = (0..<24).map { String(format: "%02d", $0) }

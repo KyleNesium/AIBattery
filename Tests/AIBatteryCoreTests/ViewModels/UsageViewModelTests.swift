@@ -83,4 +83,89 @@ struct UsageViewModelTests {
     @Test func hasDataChanged_bothChanged_returnsTrue() {
         #expect(UsageViewModel.hasDataChanged(previousTotal: 10, previousToday: 5, newTotal: 20, newToday: 15))
     }
+
+    // MARK: - recordThrottleEvent
+
+    @Test func recordThrottleEvent_nilRateLimits_noOp() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        UsageViewModel.recordThrottleEvent(nil)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.isEmpty)
+    }
+
+    @Test func recordThrottleEvent_notThrottled_noOp() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        UsageViewModel.recordThrottleEvent(rl)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.isEmpty)
+    }
+
+    @Test func recordThrottleEvent_throttled_recordsTimestamp() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: nil,
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        UsageViewModel.recordThrottleEvent(rl)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.count == 1)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    @Test func recordThrottleEvent_deduplicatesWithin5Minutes() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        let now = Date().timeIntervalSince1970
+        UserDefaults.standard.set([now], forKey: key)
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: nil,
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        UsageViewModel.recordThrottleEvent(rl)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.count == 1)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    // MARK: - throttleCount
+
+    @Test func throttleCount_noData_returnsZero() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7) == 0)
+    }
+
+    @Test func throttleCount_filtersOldEvents() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        let now = Date().timeIntervalSince1970
+        let old = now - 8 * 86400 // 8 days ago
+        UserDefaults.standard.set([old, now], forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7) == 1)
+        #expect(UsageViewModel.throttleCount(days: 30) == 2)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 }

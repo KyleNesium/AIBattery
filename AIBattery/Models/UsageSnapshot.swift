@@ -124,8 +124,11 @@ struct UsageSnapshot {
         return (weekdaySymbols[index], avg)
     }
 
-    // Hourly message distribution (hour "0"-"23" → count, from stats-cache)
+    // Hourly message distribution (hour "0"-"23" → count, all-time merged)
     let hourCounts: [String: Int]
+
+    // Today's hourly breakdown (hour "0"-"23" → count, from JSONL only)
+    let todayHourCounts: [String: Int]
 
     // Token health for the most recent session (last JSONL entry's session)
     let tokenHealth: TokenHealthStatus?
