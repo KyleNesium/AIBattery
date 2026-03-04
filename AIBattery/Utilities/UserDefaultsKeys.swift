@@ -4,8 +4,7 @@ import Foundation
 enum UserDefaultsKeys {
     static let metricMode = "aibattery_metricMode"
     static let refreshInterval = "aibattery_refreshInterval"
-    static let alertClaudeAI = "aibattery_alertClaudeAI"
-    static let alertClaudeCode = "aibattery_alertClaudeCode"
+    static let tokenWindowDays = "aibattery_tokenWindowDays"
     static let chartMode = "aibattery_chartMode"
     static let plan = "aibattery_plan"
     static let accounts = "aibattery_accounts"

@@ -1,8 +1,21 @@
 import Foundation
 import os
 
+/// A status page component with its alert configuration.
+struct StatusComponent {
+    let id: String
+    let name: String
+    let alertKey: String
+
+    /// UserDefaults key for this component's alert toggle.
+    var defaultsKey: String { "aibattery_alert_\(alertKey)" }
+
+    /// Deduplication key for NotificationManager's hasFired set.
+    var fireKey: String { alertKey }
+}
+
 /// Fetches Claude system status from the public Statuspage API.
-/// Checks Claude API + Claude Code component status.
+/// Checks all known status page components.
 @MainActor
 final class StatusChecker {
     static let shared = StatusChecker()
@@ -12,13 +25,13 @@ final class StatusChecker {
     /// Base URL for the public status page.
     nonisolated static let statusPageBaseURL = "https://status.claude.com"
 
-    /// Statuspage component IDs for services we track.
-    nonisolated static let claudeAPIComponentID = "k8w3r06qmzrp"
-    nonisolated static let claudeCodeComponentID = "yyzkbfz2thpt"
-
-    private let relevantComponents: Set<String> = [
-        claudeAPIComponentID,
-        claudeCodeComponentID,
+    /// All status page components the app can alert on.
+    nonisolated static let knownComponents: [StatusComponent] = [
+        StatusComponent(id: "rwppv331jlwc", name: "claude.ai", alertKey: "claudeAI"),
+        StatusComponent(id: "0qbwn08sd68x", name: "Console", alertKey: "console"),
+        StatusComponent(id: "k8w3r06qmzrp", name: "Claude API", alertKey: "claudeAPI"),
+        StatusComponent(id: "yyzkbfz2thpt", name: "Claude Code", alertKey: "claudeCode"),
+        StatusComponent(id: "0scnb50nvy53", name: "Claude for Gov", alertKey: "claudeForGov"),
     ]
 
     private static let jsonDecoder = JSONDecoder()
@@ -77,8 +90,7 @@ final class StatusChecker {
     }
 
     private func parseStatus(_ summary: StatusPageSummary) -> ClaudeSystemStatus {
-        // Find the worst status among relevant components
-        let components = summary.components.filter { relevantComponents.contains($0.id) }
+        let components = summary.components
         guard !components.isEmpty else {
             // Fallback to overall status
             return ClaudeSystemStatus(
@@ -129,19 +141,18 @@ final class StatusChecker {
             description = "\(names): \(worstComponent.status.replacingOccurrences(of: "_", with: " "))"
         }
 
-        // Per-component statuses
-        let apiStatus = components.first(where: { $0.id == Self.claudeAPIComponentID })
-            .map { StatusIndicator.from($0.status) } ?? .unknown
-        let codeStatus = components.first(where: { $0.id == Self.claudeCodeComponentID })
-            .map { StatusIndicator.from($0.status) } ?? .unknown
+        // Per-component statuses dictionary (keyed by component ID)
+        var componentStatuses: [String: StatusIndicator] = [:]
+        for component in components {
+            componentStatuses[component.id] = StatusIndicator.from(component.status)
+        }
 
         return ClaudeSystemStatus(
             indicator: worstIndicator,
             description: description,
             incidentNames: activeIncidents.map(\.name),
             statusPageURL: StatusChecker.statusPageBaseURL,
-            claudeAPIStatus: apiStatus,
-            claudeCodeStatus: codeStatus
+            componentStatuses: componentStatuses
         )
     }
 }
@@ -153,9 +164,8 @@ struct ClaudeSystemStatus {
     let description: String
     let incidentNames: [String]
     let statusPageURL: String
-    /// Per-component status: Claude API (claude.ai) and Claude Code.
-    var claudeAPIStatus: StatusIndicator = .unknown
-    var claudeCodeStatus: StatusIndicator = .unknown
+    /// Per-component statuses keyed by Statuspage component ID.
+    var componentStatuses: [String: StatusIndicator] = [:]
 
     /// Convenience for single-incident access.
     var incidentName: String? { incidentNames.first }

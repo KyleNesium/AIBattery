@@ -62,9 +62,10 @@ UsagePopoverView (275px, VStack)
 ├── Divider
 ├── SettingsRow (if showSettings — toggled by gear icon)
 │   ├── Account name rows (depend on accountStore — stay in parent)
-│   ├── RefreshSettingsSection — owns refreshInterval, launchAtLogin
+│   ├── RefreshSettingsSection — owns refreshInterval
 │   ├── DisplaySettingsSection — owns idleSessionMinutes, showTokens, showActivity, colorblindMode, showCostEstimate
-│   └── AlertSettingsSection — owns alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold
+│   ├── AlertSettingsSection — owns per-component toggles (dynamic keys via StatusChecker.knownComponents), alertRateLimit, rateLimitThreshold
+│   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
 ├── metricToggle (auto "A" circle button left + segmented picker: 5-Hour | 7-Day | Context)
 ├── Divider
@@ -112,12 +113,10 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 
 **Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body.
 
-**`RefreshSettingsSection`** (owns `refreshInterval`, `launchAtLogin`):
+**`RefreshSettingsSection`** (owns `refreshInterval`):
 - **Refresh**: Slider (10–60s, step 5) → `aibattery_refreshInterval`
   - Calls `viewModel.updatePollingInterval()` on change
   - Hint: `"~3 tokens per poll"` (.caption2, .tertiary)
-- **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
-  - Syncs with `SMAppService.mainApp.status` on appear
 
 **`DisplaySettingsSection`** (owns `idleSessionMinutes`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
 - **Idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never)
@@ -129,15 +128,21 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
   - "Colorblind" → `aibattery_colorblindMode`; "Cost*" → `aibattery_showCostEstimate`
   - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
 
-**`AlertSettingsSection`** (owns `alertClaudeAI`, `alertClaudeCode`, `alertRateLimit`, `rateLimitThreshold`):
-- **Alerts**: Two checkboxes (`.checkbox` toggle style)
-  - `Claude.ai` → `aibattery_alertClaudeAI` (Bool, default false)
-  - `Claude Code` → `aibattery_alertClaudeCode` (Bool, default false)
+**`AlertSettingsSection`** (owns per-component toggles via `StatusChecker.knownComponents`, `alertRateLimit`, `rateLimitThreshold`):
+- **Alerts**: 5 component checkboxes in 2-column grid (3 rows), each a `ComponentAlertToggle` helper view
+  - Row 1: "Alerts" label + claude.ai + Console
+  - Row 2: Claude API + Claude Code
+  - Row 3: Claude for Gov + Test button (when any enabled)
+  - Each toggle uses `@State` + `UserDefaults` (dynamic key from `component.defaultsKey`)
   - **Test button**: "Test" (.caption2, .blue, `.plain` style) — visible when at least one toggle is on
   - Hint: `"Notify when service is down"` (.caption2, .tertiary)
 - **Rate Limit**: Toggle + threshold slider (50–95%, step 5, default 80%)
   - Hint: `"Notify when rate limit usage exceeds threshold"` (.caption2, .tertiary)
   - Slider + tick marks shown only when toggle is on
+
+**`LaunchAtLoginSection`** (owns `launchAtLogin`):
+- **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
+  - Syncs with `SMAppService.mainApp.status` on appear
 
 **`sliderMarks()`**: `fileprivate` file-level helper for generating slider tick marks (shared by sections).
 

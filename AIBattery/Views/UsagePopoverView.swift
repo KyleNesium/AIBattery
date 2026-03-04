@@ -625,6 +625,7 @@ private struct SettingsRow: View {
             RefreshSettingsSection(viewModel: viewModel)
             DisplaySettingsSection()
             AlertSettingsSection()
+            LaunchAtLoginSection()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -676,14 +677,12 @@ private struct SettingsRow: View {
     }
 }
 
-/// Refresh interval slider + launch-at-login toggle.
+/// Refresh interval slider.
 private struct RefreshSettingsSection: View {
     let viewModel: UsageViewModel
     @AppStorage(UserDefaultsKeys.refreshInterval) private var refreshInterval: Double = 60
-    @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
 
     var body: some View {
-        // Refresh interval
         VStack(spacing: 2) {
             HStack(spacing: 8) {
                 Text("Refresh")
@@ -705,27 +704,6 @@ private struct RefreshSettingsSection: View {
                 .font(.caption2)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, 58)
-        }
-
-        // Launch at Login
-        HStack(spacing: 8) {
-            Text("Startup")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 50, alignment: .trailing)
-            Toggle("Launch at Login", isOn: $launchAtLogin)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-                .onAppear {
-                    if #available(macOS 13.0, *) {
-                        launchAtLogin = LaunchAtLoginManager.isEnabled
-                    }
-                }
-                .onChange(of: launchAtLogin) { newValue in
-                    if #available(macOS 13.0, *) {
-                        LaunchAtLoginManager.setEnabled(newValue)
-                    }
-                }
         }
     }
 }
@@ -820,59 +798,71 @@ private struct DisplaySettingsSection: View {
     }
 }
 
-/// Status alerts + rate limit alerts.
+/// Per-component status alerts + rate limit alerts.
 private struct AlertSettingsSection: View {
-    @AppStorage(UserDefaultsKeys.alertClaudeAI) private var alertClaudeAI: Bool = false
-    @AppStorage(UserDefaultsKeys.alertClaudeCode) private var alertClaudeCode: Bool = false
     @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
     @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
+    @State private var anyComponentEnabled = false
 
     var body: some View {
-        // Status alerts
-        HStack(spacing: 8) {
-            Text("Alerts")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 50, alignment: .trailing)
-            Toggle("Claude.ai", isOn: $alertClaudeAI)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-                .onChange(of: alertClaudeAI) { on in
-                    if on { NotificationManager.shared.requestPermission() }
+        componentAlertRows
+        rateLimitSection
+    }
+
+    private var componentAlertRows: some View {
+        VStack(spacing: 4) {
+            // Row 1: claude.ai + Console
+            alertRow(label: "Alerts", components: Array(StatusChecker.knownComponents.prefix(2)))
+            // Row 2: Claude API + Claude Code
+            alertRow(label: nil, components: Array(StatusChecker.knownComponents.dropFirst(2).prefix(2)))
+            // Row 3: Claude for Gov + Test button
+            HStack(spacing: 8) {
+                Spacer().frame(width: 50)
+                ComponentAlertToggle(component: StatusChecker.knownComponents[4], onToggle: refreshAnyEnabled)
+                if anyComponentEnabled {
+                    Button("Test") {
+                        NotificationManager.shared.testAlerts()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
                 }
-            Toggle("Claude Code", isOn: $alertClaudeCode)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-                .onChange(of: alertClaudeCode) { on in
-                    if on { NotificationManager.shared.requestPermission() }
-                }
-            if alertClaudeAI || alertClaudeCode {
-                Button("Test") {
-                    NotificationManager.shared.testAlerts()
-                }
-                .buttonStyle(.plain)
+            }
+            Text("Notify when service is down")
                 .font(.caption2)
-                .foregroundStyle(.blue)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+                .padding(.leading, 58)
+        }
+        .onAppear { refreshAnyEnabled() }
+    }
+
+    private func alertRow(label: String?, components: [StatusComponent]) -> some View {
+        HStack(spacing: 8) {
+            if let label {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+            } else {
+                Spacer().frame(width: 50)
+            }
+            ForEach(components, id: \.alertKey) { component in
+                ComponentAlertToggle(component: component, onToggle: refreshAnyEnabled)
             }
         }
-        Text("Notify when service is down")
-            .font(.caption2)
-            .foregroundStyle(ThemeColors.tertiaryLabel)
-            .padding(.leading, 58)
+    }
 
-        // Rate limit alerts
+    private var rateLimitSection: some View {
         VStack(spacing: 2) {
             HStack(spacing: 8) {
-                Spacer()
-                    .frame(width: 50)
+                Spacer().frame(width: 50)
                 Toggle("Rate Limit Notify", isOn: $alertRateLimit)
                     .toggleStyle(.checkbox)
                     .font(.caption)
             }
             if alertRateLimit {
                 HStack(spacing: 8) {
-                    Spacer()
-                        .frame(width: 50)
+                    Spacer().frame(width: 50)
                     Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
                         .accessibilityLabel("Rate limit alert threshold")
                         .accessibilityValue("\(Int(rateLimitThreshold)) percent")
@@ -886,6 +876,64 @@ private struct AlertSettingsSection: View {
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .padding(.leading, 58)
             }
+        }
+    }
+
+    private func refreshAnyEnabled() {
+        anyComponentEnabled = StatusChecker.knownComponents.contains {
+            UserDefaults.standard.bool(forKey: $0.defaultsKey)
+        }
+    }
+}
+
+/// Toggle for a single status component alert. Uses dynamic @AppStorage key.
+private struct ComponentAlertToggle: View {
+    let component: StatusComponent
+    let onToggle: () -> Void
+
+    @State private var isEnabled: Bool
+
+    init(component: StatusComponent, onToggle: @escaping () -> Void) {
+        self.component = component
+        self.onToggle = onToggle
+        _isEnabled = State(initialValue: UserDefaults.standard.bool(forKey: component.defaultsKey))
+    }
+
+    var body: some View {
+        Toggle(component.name, isOn: $isEnabled)
+            .toggleStyle(.checkbox)
+            .font(.caption)
+            .onChange(of: isEnabled) { on in
+                UserDefaults.standard.set(on, forKey: component.defaultsKey)
+                if on { NotificationManager.shared.requestPermission() }
+                onToggle()
+            }
+    }
+}
+
+/// Launch at Login toggle.
+private struct LaunchAtLoginSection: View {
+    @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("Startup")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 50, alignment: .trailing)
+            Toggle("Launch at Login", isOn: $launchAtLogin)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .onAppear {
+                    if #available(macOS 13.0, *) {
+                        launchAtLogin = LaunchAtLoginManager.isEnabled
+                    }
+                }
+                .onChange(of: launchAtLogin) { newValue in
+                    if #available(macOS 13.0, *) {
+                        LaunchAtLoginManager.setEnabled(newValue)
+                    }
+                }
         }
     }
 }
