@@ -129,10 +129,9 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
   - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
-- **Alerts**: "Status" checkbox → `aibattery_alertStatus` + "Test" button (when enabled)
-  - When on, notifies on any of the 5 tracked status page components
-- **Rate Limit**: "Rate Limit" checkbox + threshold slider (50–95%, step 5, default 80%)
-  - Slider + tick marks shown only when toggle is on
+- **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)
+  - Status: notifies on any of the 5 tracked status page components
+  - Rate Limit: threshold slider (50–95%, step 5, default 80%) appears below when enabled
 
 **`LaunchAtLoginSection`** (owns `launchAtLogin`):
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`

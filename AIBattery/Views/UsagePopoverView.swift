@@ -723,22 +723,18 @@ private struct DisplaySettingsSection: View {
         // Idle session cutoff (slider 1–6; positions map to 30m/1h/2h/4h/8h/Never)
         VStack(spacing: 2) {
             HStack(spacing: 8) {
-                Text("Idle")
+                Text("Hide idle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
                 Slider(value: idleSliderBinding, in: 1...6, step: 1)
-                    .accessibilityLabel("Idle session cutoff")
+                    .accessibilityLabel("Hide idle sessions")
                     .accessibilityValue(idleLabel)
                 Text(idleLabel)
                     .font(.system(.caption, design: .monospaced))
                     .frame(width: 28, alignment: .trailing)
             }
             sliderMarks(labels: ["30m", "1h", "2h", "4h", "8h", "\u{221E}"], leadingPad: 50)
-            Text("Hide idle sessions from context health")
-                .font(.caption2)
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-                .padding(.leading, 58)
         }
 
         // Display toggles
@@ -816,6 +812,12 @@ private struct AlertSettingsSection: View {
                 .onChange(of: alertStatus) { on in
                     if on { NotificationManager.shared.requestPermission() }
                 }
+            Toggle("Rate Limit", isOn: $alertRateLimit)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .onChange(of: alertRateLimit) { on in
+                    if on { NotificationManager.shared.requestPermission() }
+                }
             if alertStatus {
                 Button("Test") {
                     NotificationManager.shared.testAlerts()
@@ -825,17 +827,8 @@ private struct AlertSettingsSection: View {
                 .foregroundStyle(.blue)
             }
         }
-        VStack(spacing: 2) {
-            HStack(spacing: 8) {
-                Spacer().frame(width: 50)
-                Toggle("Rate Limit", isOn: $alertRateLimit)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                    .onChange(of: alertRateLimit) { on in
-                        if on { NotificationManager.shared.requestPermission() }
-                    }
-            }
-            if alertRateLimit {
+        if alertRateLimit {
+            VStack(spacing: 2) {
                 HStack(spacing: 8) {
                     Spacer().frame(width: 50)
                     Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
