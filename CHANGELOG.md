@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.4] — 2026-03-04
+
+### Changed
+- **Simplified alerts** — replaced 5 per-component status toggles with a single Status on/off. When enabled, notifies on any component outage (claude.ai, Console, API, Code, Gov).
+- **Idle session filter** — replaced "Models" time window (1–7d) with "Hide idle" session cutoff (30m–8h or Never). Hides stale sessions from context health instead of filtering token history.
+- **Settings layout** — Status and Rate Limit alerts on same row. Launch at Login moved below alerts.
+
+### Fixed
+- **Thread safety** — added `@MainActor` to `FileWatcher`, `SessionLogReader`, `StatsCacheReader`, `UsageAggregator`. Fixed nested lock in `ModelPricing` (could deadlock with `ModelNameMapper`). Inlined `FileWatcher.deinit` cleanup (nonisolated deinit can't call actor methods).
+- **ThemeColors** — changed `secondaryLabel`/`tertiaryLabel`/`trackFill`/`badgeFill` from computed to `static let` (dynamic `NSColor` adapts at draw time, no need for recomputation).
+
+### Improved
+- **UsageViewModel** — extracted 3 static helpers (`clampedRefreshInterval`, `refreshErrorMessage`, `hasDataChanged`) for testability. Removed dead code (`metricMode`, `menuBarPercent`, `hasData`).
+- **Alert migration** — one-time migration consolidates all legacy per-component keys into unified `alertStatus` toggle.
+
+### Added
+- 22 new tests: ViewModel helpers (15), migration (4), status component catalog (3) — 458 total across 35 files
+
 ## [1.6.3] — 2026-03-04
 
 ### Fixed
