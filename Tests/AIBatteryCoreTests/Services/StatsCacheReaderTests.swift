@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("StatsCacheReader")
+@MainActor
 struct StatsCacheReaderTests {
 
     private func tempURL() -> URL {
