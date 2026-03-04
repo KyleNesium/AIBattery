@@ -174,15 +174,16 @@ Pricing per million tokens:
 | Entitlement | `com.apple.security.cs.disable-library-validation` — required for ad-hoc signed builds to load Sparkle.framework |
 | CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
-## Token Window
+## Idle Session Cutoff
 
 | Constant | Value |
 |----------|-------|
-| Window | User-configurable 0–7 days (slider, 0 = all time) |
-| Default | `0` (all time) |
-| AppStorage key | `aibattery_tokenWindowDays` |
-| Mode when >0 | Computes tokens from JSONL entries within window |
-| Mode when 0 | Uses stats-cache modelUsage (all-time) + uncached JSONL |
+| Cutoff | User-configurable: 30m, 1h, 2h, 4h, 8h, or Never (slider) |
+| Default | `0` (Never — uses 24h performance bound) |
+| AppStorage key | `aibattery_idleSessionMinutes` |
+| Stored values | `30`, `60`, `120`, `240`, `480` (minutes), `0` (never) |
+| Effect | Hides sessions idle longer than cutoff from context health view |
+| When 0 (Never) | Uses 24h cutoff (performance bound, existing behavior) |
 
 ## UI Layout
 
