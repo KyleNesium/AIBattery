@@ -11,11 +11,15 @@ final class TokenHealthMonitor {
     }
 
     /// Single-pass assessment: groups entries once, returns current session health + top N recent sessions.
-    func assessSessions(entries: [AssistantUsageEntry], topLimit: Int = 5) -> (current: TokenHealthStatus?, top: [TokenHealthStatus]) {
+    /// - Parameter idleCutoffMinutes: Hide sessions idle longer than this. 0 = never hide (uses 24h performance bound).
+    func assessSessions(entries: [AssistantUsageEntry], topLimit: Int = 5, idleCutoffMinutes: Int = 0) -> (current: TokenHealthStatus?, top: [TokenHealthStatus]) {
         guard let latestEntry = entries.last else { return (nil, []) }
 
         let now = Date()
-        let cutoff = now.addingTimeInterval(-24 * 60 * 60)
+        let cutoffSeconds: TimeInterval = idleCutoffMinutes > 0
+            ? TimeInterval(idleCutoffMinutes * 60)
+            : 24 * 60 * 60
+        let cutoff = now.addingTimeInterval(-cutoffSeconds)
         let currentSessionId = latestEntry.sessionId
 
         // Pre-filter to sessions with recent activity (or the current session) before

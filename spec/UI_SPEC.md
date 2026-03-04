@@ -15,7 +15,7 @@
 │  Account: [________] (×)            │
 │  + Add Account                      │
 │  Refresh: [slider 10-60s]           │
-│  Models: [slider 1d-7d-All]         │
+│  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
 ├──────────────────────────────────────┤
 │ (A) [5-Hour|7-Day|Context]           │  ← Metric toggle + auto
@@ -63,7 +63,7 @@ UsagePopoverView (275px, VStack)
 ├── SettingsRow (if showSettings — toggled by gear icon)
 │   ├── Account name rows (depend on accountStore — stay in parent)
 │   ├── RefreshSettingsSection — owns refreshInterval, launchAtLogin
-│   ├── DisplaySettingsSection — owns tokenWindowDays, showTokens, showActivity, colorblindMode, showCostEstimate
+│   ├── DisplaySettingsSection — owns idleSessionMinutes, showTokens, showActivity, colorblindMode, showCostEstimate
 │   └── AlertSettingsSection — owns alertClaudeAI, alertClaudeCode, alertRateLimit, rateLimitThreshold
 ├── Divider
 ├── metricToggle (auto "A" circle button left + segmented picker: 5-Hour | 7-Day | Context)
@@ -119,11 +119,11 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
   - Syncs with `SMAppService.mainApp.status` on appear
 
-**`DisplaySettingsSection`** (owns `tokenWindowDays`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
-- **Models**: Slider (1–8, step 1) → `aibattery_tokenWindowDays` (1–7 = days, 8 maps to 0 = All time)
-  - Display: `"All"` when stored value is 0, `"{value}d"` when 1–7
-  - Slider positions: 1d, 2d, 3d, 4d, 5d, 6d, 7d, All (left to right)
-  - Hint: `"Only show models used within period"` (.caption2, .tertiary)
+**`DisplaySettingsSection`** (owns `idleSessionMinutes`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
+- **Idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never)
+  - Display: `"30m"`, `"1h"`, `"2h"`, `"4h"`, `"8h"`, or `"∞"` (Never)
+  - Slider positions: 30m, 1h, 2h, 4h, 8h, ∞ (left to right)
+  - Hint: `"Hide idle sessions from context health"` (.caption2, .tertiary)
 - **Display**: Checkboxes
   - "Tokens" → `aibattery_showTokens`; "Activity" → `aibattery_showActivity`
   - "Colorblind" → `aibattery_colorblindMode`; "Cost*" → `aibattery_showCostEstimate`

@@ -730,30 +730,34 @@ private struct RefreshSettingsSection: View {
     }
 }
 
-/// Display toggles + models time window slider.
+/// Display toggles + idle session cutoff slider.
 private struct DisplaySettingsSection: View {
-    @AppStorage(UserDefaultsKeys.tokenWindowDays) private var tokenWindowDays: Double = 0
+    @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
     @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
     @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
+
+    /// Slider positions (1–6) mapped to minutes: 30, 60, 120, 240, 480, 0 (never).
+    private static let idleSteps: [Double] = [30, 60, 120, 240, 480, 0]
+
     var body: some View {
-        // Models window (slider 1–8; 1–7 = days, 8 = all time stored as 0)
+        // Idle session cutoff (slider 1–6; positions map to 30m/1h/2h/4h/8h/Never)
         VStack(spacing: 2) {
             HStack(spacing: 8) {
-                Text("Models")
+                Text("Idle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
-                Slider(value: modelsSliderBinding, in: 1...8, step: 1)
-                    .accessibilityLabel("Models time window")
-                    .accessibilityValue(tokenWindowDays > 0 ? "\(Int(tokenWindowDays)) days" : "All time")
-                Text(tokenWindowDays > 0 ? "\(Int(tokenWindowDays))d" : "All")
+                Slider(value: idleSliderBinding, in: 1...6, step: 1)
+                    .accessibilityLabel("Idle session cutoff")
+                    .accessibilityValue(idleLabel)
+                Text(idleLabel)
                     .font(.system(.caption, design: .monospaced))
                     .frame(width: 28, alignment: .trailing)
             }
-            sliderMarks(labels: ["1d", "2d", "3d", "4d", "5d", "6d", "7d", "All"], leadingPad: 50)
-            Text("Only show models used within period")
+            sliderMarks(labels: ["30m", "1h", "2h", "4h", "8h", "\u{221E}"], leadingPad: 50)
+            Text("Hide idle sessions from context health")
                 .font(.caption2)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, 58)
@@ -790,12 +794,29 @@ private struct DisplaySettingsSection: View {
         }
     }
 
-    /// Maps slider position (1–8) ↔ stored value (1–7 days, 0 = all time).
-    private var modelsSliderBinding: Binding<Double> {
+    /// Maps slider position (1–6) ↔ stored minutes (30/60/120/240/480/0).
+    private var idleSliderBinding: Binding<Double> {
         Binding(
-            get: { tokenWindowDays > 0 ? tokenWindowDays : 8 },
-            set: { tokenWindowDays = $0 >= 8 ? 0 : $0 }
+            get: {
+                if let idx = Self.idleSteps.firstIndex(of: idleSessionMinutes) {
+                    return Double(idx + 1)
+                }
+                return 6 // default to "Never"
+            },
+            set: { idleSessionMinutes = Self.idleSteps[max(0, min(Int($0) - 1, Self.idleSteps.count - 1))] }
         )
+    }
+
+    /// Display label for the current idle cutoff.
+    private var idleLabel: String {
+        switch Int(idleSessionMinutes) {
+        case 30: return "30m"
+        case 60: return "1h"
+        case 120: return "2h"
+        case 240: return "4h"
+        case 480: return "8h"
+        default: return "\u{221E}"
+        }
     }
 }
 

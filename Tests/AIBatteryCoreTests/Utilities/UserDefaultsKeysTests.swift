@@ -25,7 +25,6 @@ struct UserDefaultsKeysTests {
         [
             UserDefaultsKeys.metricMode,
             UserDefaultsKeys.refreshInterval,
-            UserDefaultsKeys.tokenWindowDays,
             UserDefaultsKeys.alertClaudeAI,
             UserDefaultsKeys.alertClaudeCode,
             UserDefaultsKeys.chartMode,
@@ -44,6 +43,7 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.autoMetricMode,
             UserDefaultsKeys.colorblindMode,
             UserDefaultsKeys.hasSeenTutorial,
+            UserDefaultsKeys.idleSessionMinutes,
             UserDefaultsKeys.tokenExpiresAtPrefix,
         ]
     }
