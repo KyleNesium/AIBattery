@@ -601,8 +601,14 @@ struct ActivityChartView: View {
     }
 
     private static func compactCount(_ value: Int) -> String {
-        if value >= 1_000_000 { return String(format: "%.1fM", Double(value) / 1_000_000) }
-        if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
+        if value >= 1_000_000 {
+            let m = Double(value) / 1_000_000
+            return m == m.rounded() ? "\(Int(m))M" : String(format: "%.1fM", m)
+        }
+        if value >= 1_000 {
+            let k = Double(value) / 1_000
+            return k == k.rounded() ? "\(Int(k))K" : String(format: "%.0fK", k)
+        }
         return "\(value)"
     }
 
