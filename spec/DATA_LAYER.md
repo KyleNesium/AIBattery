@@ -288,7 +288,7 @@ Pricing table (per million tokens):
 - **Backoff**: exponential backoff with jitter on failure — base 60s doubles per failure, capped at 5 min, ±20% jitter to prevent thundering herd; stored once per failure increment (not re-randomized on every check); resets on success
 
 ### StatsCacheReader (`Services/StatsCacheReader.swift`)
-- Singleton: `.shared`
+- `@MainActor`, Singleton: `.shared`
 - `read() -> StatsCache?`
 - Reads and JSON-decodes `~/.claude/stats-cache.json`
 - **Static decoder**: `private static let jsonDecoder = JSONDecoder()` — shared instance avoids per-read allocation
@@ -297,7 +297,7 @@ Pricing table (per million tokens):
 - `lastModificationDate: Date?` — exposes cached file modification date (read-only). Used by `UsageAggregator` as a fingerprint component for redundant aggregation skip.
 
 ### SessionLogReader (`Services/SessionLogReader.swift`)
-- Singleton: `.shared`
+- `@MainActor`, Singleton: `.shared`
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
 - FileHandle streaming: 64KB buffer, line-by-line, 1MB max line size safety cap (discards oversized lines)
@@ -316,7 +316,7 @@ Pricing table (per million tokens):
 - **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each call (before cache check) to avoid stale values on cache hits
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
-- Created per-ViewModel (not singleton)
+- `@MainActor`, created per-ViewModel (not singleton)
 - **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
 - `aggregate(rateLimits:) -> UsageSnapshot`
 - **Redundant aggregation skip**: tracks a lightweight fingerprint (JSONL entry count, stats-cache modification date, rate limits via `Equatable`, token window days setting). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods.
@@ -349,7 +349,7 @@ Pricing table (per million tokens):
 - **Session metadata**: extracts projectName from cwd (last path component), gitBranch, sessionStart, sessionDuration. Uses **first** entry with cwd for project name (session identity), **latest** entry for git branch (current state).
 
 ### FileWatcher (`Services/FileWatcher.swift`)
-- Created per-ViewModel
+- `@MainActor`, created per-ViewModel
 - Dual watch: DispatchSource on `stats-cache.json` + FSEventStream on `~/.claude/projects/`
 - DispatchSource monitors: write, rename, delete events
 - FSEventStream flags: `kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes`
@@ -419,12 +419,12 @@ Pricing table (per million tokens):
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
 - Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
-- Computed: `metricMode: MetricMode` (from UserDefaults `aibattery_metricMode`, or auto-resolved if `aibattery_autoMetricMode` is true — picks highest percentage across 5h/7d/context), `menuBarPercent: Double` (delegates to `snapshot.percent(for:)`), `hasData: Bool`
+- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:totalMessages:)` (error string or nil), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
 - `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
-- Deinit: invalidates timer, stops file watcher
+- Deinit: invalidates polling timer, removes sleep/wake observers (FileWatcher's own deinit handles its cleanup)
 - **Adaptive polling**: delegates to `AdaptivePollingState` struct. Compares `totalMessages`/`todayMessages` before and after refresh. After 3 unchanged cycles, doubles polling interval (up to 5 min max). Any data change or file watcher trigger resets to configured interval.
 - **Sleep/wake lifecycle**: `setupSleepWakeObservers()` subscribes to `NSWorkspace.willSleepNotification` (pauses timer) and `didWakeNotification` (resets adaptive polling, triggers immediate refresh + restarts timer).
 - **Network awareness**: skips network calls when `NetworkMonitor.shared.isConnected` is false — aggregates local data with cached rate limits. `NetworkMonitor.start()` called in init.

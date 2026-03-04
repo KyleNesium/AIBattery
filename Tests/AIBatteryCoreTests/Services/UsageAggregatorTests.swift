@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("UsageAggregator", .serialized)
+@MainActor
 struct UsageAggregatorTests {
 
     // MARK: - Helpers

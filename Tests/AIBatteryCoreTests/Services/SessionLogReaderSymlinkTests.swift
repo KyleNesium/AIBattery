@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("SessionLogReader — Symlink Boundary Check")
+@MainActor
 struct SessionLogReaderSymlinkTests {
 
     /// Files that resolve inside the projects directory should be kept.

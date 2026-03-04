@@ -131,27 +131,22 @@ public final class UsageViewModel: ObservableObject {
     }
 
     private func updateSnapshot(_ result: UsageSnapshot, api: APIFetchResult) {
-        if api.rateLimits == nil && api.profile == nil {
-            if result.totalMessages == 0 {
-                errorMessage = "No usage data yet. Start a Claude Code session to see your stats."
-            } else {
-                errorMessage = "Unable to reach Anthropic API. Check your internet connection and try again."
-            }
-        } else {
-            errorMessage = nil
-        }
-
+        errorMessage = Self.refreshErrorMessage(
+            hasRateLimits: api.rateLimits != nil,
+            hasProfile: api.profile != nil,
+            totalMessages: result.totalMessages
+        )
         snapshot = result
         isLoading = false
     }
 
     private func updateAdaptivePolling(_ result: UsageSnapshot) {
-        let previousTotal = snapshot?.totalMessages ?? -1
-        let previousToday = snapshot?.todayMessages ?? -1
-        let dataChanged = previousTotal < 0
-            || result.totalMessages != previousTotal
-            || result.todayMessages != previousToday
-
+        let dataChanged = Self.hasDataChanged(
+            previousTotal: snapshot?.totalMessages ?? -1,
+            previousToday: snapshot?.todayMessages ?? -1,
+            newTotal: result.totalMessages,
+            newToday: result.todayMessages
+        )
         let interval = adaptivePolling.evaluate(
             dataChanged: dataChanged,
             baseInterval: refreshInterval
@@ -181,21 +176,6 @@ public final class UsageViewModel: ObservableObject {
         OAuthManager.shared.objectWillChange.send()
         Task { await refresh() }
     }
-
-    // MARK: - Menu bar
-
-    /// The currently selected metric mode, stored in UserDefaults.
-    var metricMode: MetricMode {
-        let raw = UserDefaults.standard.string(forKey: UserDefaultsKeys.metricMode) ?? "5h"
-        return MetricMode(rawValue: raw) ?? .fiveHour
-    }
-
-    /// Percentage for the menu bar, driven by the selected metric mode.
-    var menuBarPercent: Double {
-        snapshot?.percent(for: metricMode) ?? 0
-    }
-
-    var hasData: Bool { snapshot != nil }
 
     // MARK: - Private
 
@@ -239,9 +219,31 @@ public final class UsageViewModel: ObservableObject {
     }
 
     private var refreshInterval: TimeInterval {
-        let stored = UserDefaults.standard.double(forKey: UserDefaultsKeys.refreshInterval)
+        Self.clampedRefreshInterval(UserDefaults.standard.double(forKey: UserDefaultsKeys.refreshInterval))
+    }
+
+    // MARK: - Testable static helpers
+
+    /// Clamp a stored refresh interval to the valid range [10, 60]. Zero/negative → 60 (default).
+    nonisolated static func clampedRefreshInterval(_ stored: Double) -> TimeInterval {
         let interval = stored > 0 ? stored : 60
         return min(max(interval, 10), 60)
+    }
+
+    /// Determine the error message to show after a refresh where the API returned no data.
+    /// Returns nil when the API did return data (no error to show).
+    nonisolated static func refreshErrorMessage(hasRateLimits: Bool, hasProfile: Bool, totalMessages: Int) -> String? {
+        guard !hasRateLimits && !hasProfile else { return nil }
+        if totalMessages == 0 {
+            return "No usage data yet. Start a Claude Code session to see your stats."
+        }
+        return "Unable to reach Anthropic API. Check your internet connection and try again."
+    }
+
+    /// Whether snapshot data has changed compared to previous values. Used by adaptive polling.
+    /// Returns true on first load (previousTotal < 0) or when totals differ.
+    nonisolated static func hasDataChanged(previousTotal: Int, previousToday: Int, newTotal: Int, newToday: Int) -> Bool {
+        previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
     }
 
     private func startPolling() {
@@ -267,7 +269,7 @@ public final class UsageViewModel: ObservableObject {
 
     deinit {
         pollingTimer?.invalidate()
-        fileWatcher?.stopWatching()
+        // FileWatcher.deinit handles its own cleanup (cancels sources, streams, timers)
         for observer in [wakeObserver, sleepObserver].compactMap({ $0 }) {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
