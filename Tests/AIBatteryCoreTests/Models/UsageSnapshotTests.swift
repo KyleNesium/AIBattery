@@ -33,6 +33,7 @@ struct UsageSnapshotTests {
             trendDirection: UsageSnapshot.computeTrendDirection(dailyActivity),
             busiestDayOfWeek: UsageSnapshot.computeBusiestDay(dailyActivity),
             hourCounts: [:],
+            todayHourCounts: [:],
             tokenHealth: tokenHealth,
             topSessionHealths: topSessionHealths
         )
