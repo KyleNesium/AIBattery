@@ -379,7 +379,7 @@ public struct UsagePopoverView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 190)
-            .opacity(autoMetricMode ? 0.4 : 1.0)
+            .opacity(autoMetricMode ? 0.55 : 1.0)
             .disabled(autoMetricMode)
             .accessibilityLabel("Metric mode")
             .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
