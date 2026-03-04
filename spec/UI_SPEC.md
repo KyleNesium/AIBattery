@@ -270,7 +270,7 @@ Chart styling (all modes):
   - AreaMark: orange gradient (0.3 → 0.1 opacity, top → bottom)
   - PointMark: `.orange`, symbolSize 12 (daily + monthly only; hourly skips — 24 dots too dense)
   - `.chartPlotStyle { $0.background(.clear) }` (fixes white background)
-  - Y-axis: `AxisMarks(position: .trailing, values: .automatic(desiredCount: 3))` with compact labels (`compactCount`: "1.2K", "3.2M") and `AxisTick` (0.5pt, tertiaryLabel)
+  - Y-axis: `AxisMarks(position: .trailing, values: .automatic(desiredCount: 3))` with compact labels (`compactCount`: "2K", "3.2M") and `AxisTick` (0.5pt, tertiaryLabel)
   - Height: 50pt
 
 X-axis per mode:

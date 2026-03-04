@@ -10,12 +10,12 @@
 
 ### Added
 - **Mode-aware trend summary** — Activity chart trend stats change per selected mode: 24H shows vs-yesterday + peak hour; 7D shows weekly trend + avg/day + busiest day; 12M shows vs-last-month (projected) + busiest month.
-- **Throttle tracking** — records rate limit events with 5-minute dedup and 30-day retention. Trend summary shows "0 throttles today/this week/this month" or "N× throttled" per chart mode.
+- **Throttle tracking** — records rate limit events on each not-throttled→throttled transition (one count per throttle session). 30-day retention. Trend summary shows "0 throttles today/this week/this month" or "N× throttled" per chart mode.
 - **12M current month projection** — current month extrapolated to full-month pace (`total × daysInMonth / dayOfMonth`) for fair comparison with completed months.
-- **Y-axis labels** — all three chart modes now show 3 trailing Y-axis marks with compact labels ("1.2K", "3.2M") and tick marks.
+- **Y-axis labels** — all three chart modes now show 3 trailing Y-axis marks with compact labels ("2K", "3M") and tick marks.
 - **Menu bar icon glow** — star icon now has a subtle glow effect behind the fill (usage-colored, 0.35 alpha, 2.5pt blur).
 - **Auth view app icon** — sign-in screen displays the real app icon instead of a text sparkle.
-- 8 new tests: throttle recording/counting (6), all-dates daily merge (1), todayHourCounts separation (1) — 471 total across 35 files
+- 13 new tests: throttle recording/counting (6), aggregator accuracy (7) — 471 total across 35 files
 
 ## [1.6.4] — 2026-03-04
 

@@ -33,7 +33,6 @@ private struct MonthlyPoint: Identifiable {
 
 struct ActivityChartView: View {
     let dailyActivity: [DailyActivity]
-    let hourCounts: [String: Int]
     let todayHourCounts: [String: Int]
     var snapshot: UsageSnapshot?
 
