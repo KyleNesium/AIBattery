@@ -135,39 +135,31 @@ enum ThemeColors {
     // MARK: - Text label colors
 
     /// Secondary-level text — darker than system `.secondary` in light mode for readability.
-    static var secondaryLabel: Color {
-        adaptive(
-            light: NSColor(white: 0.0, alpha: 0.7),
-            dark: NSColor(white: 1.0, alpha: 0.55)
-        )
-    }
+    static let secondaryLabel: Color = adaptive(
+        light: NSColor(white: 0.0, alpha: 0.7),
+        dark: NSColor(white: 1.0, alpha: 0.55)
+    )
 
     /// Tertiary-level text — much darker than system `.tertiary` in light mode.
     /// Replaces `.tertiary` / `.quaternary` foregroundStyle for readability on light backgrounds.
-    static var tertiaryLabel: Color {
-        adaptive(
-            light: NSColor(white: 0.0, alpha: 0.55),
-            dark: NSColor(white: 1.0, alpha: 0.35)
-        )
-    }
+    static let tertiaryLabel: Color = adaptive(
+        light: NSColor(white: 0.0, alpha: 0.55),
+        dark: NSColor(white: 1.0, alpha: 0.35)
+    )
 
     // MARK: - Track & background colors
 
     /// Background for bar gauge tracks. Slightly higher contrast in light mode.
-    static var trackFill: Color {
-        adaptive(
-            light: NSColor(white: 0.0, alpha: 0.14),
-            dark: NSColor(white: 1.0, alpha: 0.1)
-        )
-    }
+    static let trackFill: Color = adaptive(
+        light: NSColor(white: 0.0, alpha: 0.14),
+        dark: NSColor(white: 1.0, alpha: 0.1)
+    )
 
     /// Subtle badge background (e.g., "binding" label).
-    static var badgeFill: Color {
-        adaptive(
-            light: NSColor(white: 0.0, alpha: 0.09),
-            dark: NSColor(white: 1.0, alpha: 0.06)
-        )
-    }
+    static let badgeFill: Color = adaptive(
+        light: NSColor(white: 0.0, alpha: 0.09),
+        dark: NSColor(white: 1.0, alpha: 0.06)
+    )
 
     /// NSColor variant for menu bar icon.
     static func barNSColor(percent: Double) -> NSColor {

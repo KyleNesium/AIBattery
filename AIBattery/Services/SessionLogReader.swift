@@ -1,6 +1,7 @@
 import Foundation
 import os
 
+@MainActor
 final class SessionLogReader {
     static let shared = SessionLogReader()
 
@@ -24,7 +25,7 @@ final class SessionLogReader {
     /// Parent directory mod dates used to invalidate discovery cache.
     private var discoveryDirModDates: [String: Date] = [:]
 
-    private static let isoFormatter = DateFormatters.iso8601
+    private nonisolated(unsafe) static let isoFormatter = DateFormatters.iso8601
 
     /// Pre-computed byte markers for fast JSONL pre-filtering (avoids re-allocating per file).
     private static let assistantMarkers: [Data] = [
@@ -269,7 +270,7 @@ final class SessionLogReader {
     }
 
     /// Build an `AssistantUsageEntry` from a decoded session entry, or nil if it's not an assistant message with usage.
-    static func makeUsageEntry(from entry: SessionEntry) -> AssistantUsageEntry? {
+    nonisolated static func makeUsageEntry(from entry: SessionEntry) -> AssistantUsageEntry? {
         guard entry.type == "assistant",
               let message = entry.message,
               let usage = message.usage,
