@@ -19,6 +19,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx | OAuthManager |
 | Token endpoint timeout | 15 sec | OAuthManager |
 | Adaptive polling threshold | 3 unchanged cycles | AdaptivePollingState |
+| Adaptive polling escalation | Progressive doubling: base × 2^(cycles past threshold) | AdaptivePollingState |
 | Adaptive polling max | 300 sec (5 min) | AdaptivePollingState |
 | Notification batch delay | 500 ms | NotificationManager |
 | Identity timeout | 3600 sec (1 hour) — pending account identity | UsageViewModel |

@@ -139,6 +139,18 @@ struct TokenHealthMonitorTests {
 
     // MARK: - topSessions filtering/sorting
 
+    @Test func assessSessions_currentSessionAlwaysInTop() {
+        // Current session is idle past cutoff but should still appear in top
+        let oldTime = Date().addingTimeInterval(-48 * 3600) // 48h ago
+        let entries = [
+            makeEntry(sessionId: "current", input: 50_000, output: 1_000, timestamp: oldTime),
+        ]
+        let results = monitor.assessSessions(entries: entries, topLimit: 5)
+        // Current session (most recent by default) should be in top despite being old
+        #expect(results.current != nil)
+        #expect(results.top.contains { $0.id == "current" })
+    }
+
     @Test func topSessions_excludesOldSessions() {
         let recentTime = Date()
         let oldTime = Date().addingTimeInterval(-48 * 3600) // 48h ago
