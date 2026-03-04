@@ -313,14 +313,9 @@ struct ActivityChartView: View {
     private var monthlyChart: some View {
         let data = monthlyData
         let dates = data.map(\.date)
-        let total = data.reduce(0) { $0 + $1.count }
-        let peak = data.max(by: { $0.count < $1.count })
-        let a11yLabel: String = {
-            if let peak, peak.count > 0 {
-                return "12-month activity chart. \(total) messages total. Highest: \(Self.monthAbbrev(peak.date)) with \(peak.count)"
-            }
-            return "12-month activity chart. \(total) messages total"
-        }()
+        // Use actual (non-projected) total for accessibility — projected data is only for visual comparison
+        let actualTotal = dailyActivity.reduce(0) { $0 + $1.messageCount }
+        let a11yLabel = "12-month activity chart. \(actualTotal) messages total"
 
         return Chart(data) { point in
             AreaMark(

@@ -93,7 +93,7 @@ public enum SingleInstanceGuard {
             It may be silently terminated by Gatekeeper.
 
             To fix, run this in Terminal:
-            xattr -cr \(path)
+            xattr -cr "\(path)"
 
             Then relaunch the app.
             """
