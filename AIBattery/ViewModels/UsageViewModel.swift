@@ -225,14 +225,14 @@ public final class UsageViewModel: ObservableObject {
     // MARK: - Testable static helpers
 
     /// Clamp a stored refresh interval to the valid range [10, 60]. Zero/negative → 60 (default).
-    static func clampedRefreshInterval(_ stored: Double) -> TimeInterval {
+    nonisolated static func clampedRefreshInterval(_ stored: Double) -> TimeInterval {
         let interval = stored > 0 ? stored : 60
         return min(max(interval, 10), 60)
     }
 
     /// Determine the error message to show after a refresh where the API returned no data.
     /// Returns nil when the API did return data (no error to show).
-    static func refreshErrorMessage(hasRateLimits: Bool, hasProfile: Bool, totalMessages: Int) -> String? {
+    nonisolated static func refreshErrorMessage(hasRateLimits: Bool, hasProfile: Bool, totalMessages: Int) -> String? {
         guard !hasRateLimits && !hasProfile else { return nil }
         if totalMessages == 0 {
             return "No usage data yet. Start a Claude Code session to see your stats."
@@ -242,7 +242,7 @@ public final class UsageViewModel: ObservableObject {
 
     /// Whether snapshot data has changed compared to previous values. Used by adaptive polling.
     /// Returns true on first load (previousTotal < 0) or when totals differ.
-    static func hasDataChanged(previousTotal: Int, previousToday: Int, newTotal: Int, newToday: Int) -> Bool {
+    nonisolated static func hasDataChanged(previousTotal: Int, previousToday: Int, newTotal: Int, newToday: Int) -> Bool {
         previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
     }
 
