@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("UsageViewModel")
+@MainActor
 struct UsageViewModelTests {
 
     // MARK: - clampedRefreshInterval
