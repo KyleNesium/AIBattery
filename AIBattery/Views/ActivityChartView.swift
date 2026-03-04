@@ -591,9 +591,7 @@ struct ActivityChartView: View {
     // MARK: - Formatters
 
     static func dayShortLabel(_ date: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(date) { return "Today" }
-        return DateFormatters.shortDay.string(from: date)
+        DateFormatters.shortDay.string(from: date)
     }
 
     static func monthAbbrev(_ date: Date) -> String {
