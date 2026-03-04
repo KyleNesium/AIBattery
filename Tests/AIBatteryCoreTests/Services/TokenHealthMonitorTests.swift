@@ -155,12 +155,13 @@ struct TokenHealthMonitorTests {
         let recentTime = Date()
         let oldTime = Date().addingTimeInterval(-48 * 3600) // 48h ago
 
+        // Entries sorted by timestamp ascending (as SessionLogReader delivers them)
         let entries = [
-            makeEntry(sessionId: "recent", input: 1000, output: 100, timestamp: recentTime),
             makeEntry(sessionId: "old", input: 2000, output: 200, timestamp: oldTime),
+            makeEntry(sessionId: "recent", input: 1000, output: 100, timestamp: recentTime),
         ]
         let top = monitor.topSessions(entries: entries, limit: 5)
-        // Only recent session should be included (24h cutoff)
+        // "recent" is current (entries.last) so always included; "old" excluded by 24h cutoff
         #expect(top.count == 1)
         #expect(top.first?.id == "recent")
     }
