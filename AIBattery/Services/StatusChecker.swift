@@ -6,7 +6,6 @@ struct StatusComponent {
     let id: String
     let name: String
     let alertKey: String
-
 }
 
 /// Fetches Claude system status from the public Statuspage API.
