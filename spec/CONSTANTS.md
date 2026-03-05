@@ -340,6 +340,18 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | `ENABLE_VERSION_CHECKER` | Defined (all 3 SPM targets) | Guards `VersionChecker`, update banner UI, and version check button. Remove for App Store (guideline 3.1.1). |
 | `APP_SANDBOX` | NOT defined | Enables `SandboxAccessManager` (security-scoped bookmark for `~/.claude/` access). Only set for App Store builds. |
 
+## Build Environment Variables
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `SPARKLE_EDDSA_KEY` | (unset) | Sparkle EdDSA private key for signing zip artifacts |
+| `SPARKLE_EDDSA_PUBLIC_KEY` | (unset) | Sparkle EdDSA public key injected into Info.plist |
+| `APP_STORE_BUILD` | (unset) | Strips SUFeedURL from Info.plist; selects `AIBattery-AppStore.entitlements` |
+| `CODE_SIGN_IDENTITY` | `-` (ad-hoc) | Signing identity for `codesign --sign`. Set to `"Developer ID Application: ..."` for notarization |
+| `APPLE_ID` | (unset) | Apple ID email for `notarytool` submission (notarization skipped when unset) |
+| `APPLE_TEAM_ID` | (unset) | Apple Developer team ID for `notarytool` |
+| `APPLE_APP_PASSWORD` | (unset) | App-specific password for `notarytool` authentication |
+
 ## Sandbox Access (App Store only)
 
 | Constant | Value |

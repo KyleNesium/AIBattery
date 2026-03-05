@@ -2,6 +2,8 @@
 # Build AI Battery.app bundle from source
 set -euo pipefail
 
+SIGN_IDENTITY="${CODE_SIGN_IDENTITY:--}"
+
 cd "$(dirname "$0")/.."
 
 echo "Building release binary..."
@@ -82,15 +84,21 @@ if [ -d "$APP_DIR/Contents/Frameworks" ]; then
   for item in "$APP_DIR/Contents/Frameworks"/*.framework; do
     [ -e "$item" ] || continue
     echo "  Signing: $(basename "$item")"
-    codesign --sign - --force --deep \
+    codesign --sign "$SIGN_IDENTITY" --force --deep \
       --options runtime \
       "$item"
   done
 fi
 
-# Ad-hoc codesign the outer bundle — gives the app a stable identity for Keychain ACL
-codesign --sign - --deep --force \
-  --entitlements AIBattery/AIBattery.entitlements \
+# Select entitlements file (App Store builds use sandboxed entitlements)
+ENTITLEMENTS="AIBattery/AIBattery.entitlements"
+if [ -n "${APP_STORE_BUILD:-}" ]; then
+  ENTITLEMENTS="AIBattery/AIBattery-AppStore.entitlements"
+fi
+
+# Codesign the outer bundle — gives the app a stable identity for Keychain ACL
+codesign --sign "$SIGN_IDENTITY" --deep --force \
+  --entitlements "$ENTITLEMENTS" \
   --identifier com.KyleNesium.AIBattery \
   --options runtime \
   "$APP_DIR"
@@ -166,8 +174,36 @@ APPLESCRIPT
   hdiutil detach "$MOUNT_DIR" -quiet
 fi
 
-hdiutil convert "$DMG_RW" -format UDZO -o .build/AIBattery.dmg
+hdiutil convert "$DMG_RW" -format UDZO -ov -o .build/AIBattery.dmg
 rm -f "$DMG_RW"
+
+# Optional notarization (requires Apple Developer credentials)
+if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+  echo "Submitting for notarization..."
+  xcrun notarytool submit .build/AIBattery.zip \
+    --apple-id "$APPLE_ID" \
+    --team-id "$APPLE_TEAM_ID" \
+    --password "${APPLE_APP_PASSWORD}" \
+    --wait
+  xcrun stapler staple "$APP_DIR"
+
+  # Re-package after stapling
+  rm -f .build/AIBattery.zip .build/AIBattery.dmg
+  ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" .build/AIBattery.zip
+
+  # Re-create DMG with stapled app
+  DMG_DIR=".build/dmg"
+  DMG_RW=".build/AIBattery-rw.dmg"
+  rm -rf "$DMG_DIR" "$DMG_RW"
+  mkdir -p "$DMG_DIR"
+  cp -R "$APP_DIR" "$DMG_DIR/"
+  ln -s /Applications "$DMG_DIR/Applications"
+  cp .build/AppIcon.icns "$DMG_DIR/.VolumeIcon.icns"
+  SetFile -a C "$DMG_DIR" 2>/dev/null || true
+  hdiutil create -volname "AI Battery" -srcfolder "$DMG_DIR" -ov -format UDZO .build/AIBattery.dmg
+  rm -rf "$DMG_DIR"
+  echo "Notarization + stapling complete."
+fi
 
 echo ""
 echo "Artifacts:"
