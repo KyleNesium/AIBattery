@@ -111,6 +111,7 @@ AIBattery/
     ActivityChartView.swift        — 12H/7D/12M activity chart (Swift Charts, rolling windows)
     CopyableText.swift            — ViewModifier for click-to-copy with clipboard icon feedback
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
+    SandboxOnboardingView.swift   — Folder access prompt for App Sandbox (APP_SANDBOX flag)
   Utilities/
     TokenFormatter.swift          — Format tokens ("18.9M")
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"
@@ -164,7 +165,9 @@ Tests/AIBatteryCoreTests/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)
 scripts/
-  build-app.sh                    — Build release binary + .app bundle + zip/dmg
+  build-app.sh                    — Build release binary + .app bundle + zip/dmg (direct download)
+  build-appstore.sh               — XcodeGen + xcodebuild archive for App Store submission
+  ExportOptions-AppStore.plist    — Export options for App Store Connect upload
   update-homebrew.sh              — Auto-update KyleNesium/homebrew-tap cask (version + SHA256)
   generate-appcast.sh            — Generate appcast.xml for Sparkle update feed
   generate-icon.swift             — Generate AppIcon.icns (sparkle star, all macOS sizes)
@@ -178,8 +181,8 @@ CHANGELOG.md                      — Release notes per version
 - **SPM**: swift-tools-version 5.9, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests)
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
-- **Codesigning**: Ad-hoc by default (`codesign --sign -`), parameterized via `CODE_SIGN_IDENTITY` env var for Developer ID signing. Hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting. Entitlements file selected automatically (`AIBattery-AppStore.entitlements` when `APP_STORE_BUILD` is set)
-- **Notarization**: Optional — when `APPLE_ID` + `APPLE_TEAM_ID` + `APPLE_APP_PASSWORD` env vars are set, `build-app.sh` submits to `notarytool`, staples the ticket, and re-packages zip/DMG. Skipped when unset (current default)
+- **Codesigning**: Developer ID Application certificate via CI (ad-hoc fallback for local dev). Hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable signing identity for Keychain ACL (no prompts after Sparkle updates). Entitlements file selected automatically (`AIBattery-AppStore.entitlements` when `APP_STORE_BUILD` is set)
+- **Notarization**: Both `.zip` and `.dmg` submitted to `notarytool`, tickets stapled for offline Gatekeeper verification. Skipped when `APPLE_ID`/`APPLE_TEAM_ID` env vars are unset (local dev)
 - **App icon**: Generated at build time via `scripts/generate-icon.swift` (sparkle star, all macOS sizes). Embedded in `Contents/Resources/AppIcon.icns` and used as DMG volume icon.
 - **Dock icon**: None (LSUIElement = true)
 - **Dependencies**: Sparkle 2 (SPM, auto-update framework) — all other dependencies are Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
@@ -195,7 +198,9 @@ CHANGELOG.md                      — Release notes per version
 3. `scripts/generate-appcast.sh` generates `appcast.xml` with EdDSA signature, pushes to `gh-pages` branch (requires `SPARKLE_EDDSA_KEY` repo secret)
 4. `scripts/update-homebrew.sh` auto-updates `KyleNesium/homebrew-tap` — downloads the zip, computes SHA256, commits updated cask formula
 5. Requires `HOMEBREW_TAP_TOKEN` and `SPARKLE_EDDSA_KEY` repo secrets (GitHub PAT with `repo` scope for the homebrew-tap repo; Sparkle EdDSA private key for appcast signing)
-6. Optional: `CODE_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` secrets enable Developer ID signing + notarization (no-op when unset)
+6. `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD` — Developer ID `.p12` for CI signing
+7. `CODE_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` — signing identity + notarization credentials
+8. Optional App Store: `APPLE_DISTRIBUTION_CERT_BASE64`, `APPLE_DISTRIBUTION_CERT_PASSWORD`, `APP_STORE_PROVISION_PROFILE_BASE64`, `APP_STORE_CONNECT_KEY`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID` + `ENABLE_APPSTORE_BUILD` repository variable
 
 **Important**: Every release must update the Homebrew cask. The automation handles this when the secret is configured.
 
@@ -216,9 +221,9 @@ CHANGELOG.md                      — Release notes per version
 4. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
 5. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data
 
-## App Store Distribution (Future — Blockers)
+## Distribution
 
-Not currently planned, but documented here for reference. These are the architectural changes required before an App Store submission would be possible.
+Two parallel distribution channels from the same codebase:
 
 | Blocker | Impact | Status |
 |---------|--------|--------|
@@ -231,4 +236,31 @@ Not currently planned, but documented here for reference. These are the architec
 | LSApplicationCategoryType | Required App Store metadata | Set to `public.app-category.developer-tools` in Info.plist |
 | Apple Developer certificate | App Store requires signed builds ($99/yr) | Enroll in Apple Developer Program |
 
-Remaining blockers are non-trivial and should be addressed as a dedicated effort, not mixed into routine code changes.
+### Direct Download (GitHub / Homebrew / Sparkle)
+
+- **Signing**: Developer ID Application certificate — eliminates Gatekeeper warnings
+- **Notarization**: Both `.zip` and `.dmg` submitted to `notarytool`, tickets stapled for offline verification
+- **Updates**: Sparkle 2 auto-update via appcast on gh-pages
+- **Homebrew**: `brew install --cask kylenesium/tap/aibattery` — auto-updated on release
+- **Entitlements**: `AIBattery.entitlements` — sandbox disabled, `disable-library-validation` for Sparkle
+- **Compiler flags**: `ENABLE_SPARKLE`, `ENABLE_VERSION_CHECKER`
+
+### App Store
+
+- **Signing**: Apple Distribution certificate + Mac App Store provisioning profile
+- **Build**: XcodeGen → `xcodebuild archive` with `AppStore` configuration (no SPM `swift build`)
+- **Entitlements**: `AIBattery-AppStore.entitlements` — sandbox enabled, `network.client`, `user-selected.read-only`, `bookmarks.app-scope`
+- **Compiler flags**: `APP_SANDBOX` only (no Sparkle, no VersionChecker — App Store guideline 3.1.1)
+- **Sandbox flow**: `SandboxAccessManager` prompts user for `~/.claude/` access via NSOpenPanel, persists security-scoped bookmark. `ClaudePaths` uses `getpwuid` to resolve real home (not container). `SandboxOnboardingView` shown before auth screen when no bookmark exists
+- **Upload**: CI job uploads to App Store Connect via API key (gated behind `ENABLE_APPSTORE_BUILD` variable)
+- **Scripts**: `scripts/build-appstore.sh` + `scripts/ExportOptions-AppStore.plist`
+
+### Shared Infrastructure
+
+| Item | Direct Download | App Store |
+|------|----------------|-----------|
+| Bundle ID | `com.KyleNesium.AIBattery` | Same |
+| Privacy manifest | `PrivacyInfo.xcprivacy` | Same |
+| Category | `public.app-category.developer-tools` | Same |
+| CI | `release.yml` → `release` job | `release.yml` → `appstore` job |
+| Build script | `scripts/build-app.sh` | `scripts/build-appstore.sh` |

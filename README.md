@@ -76,16 +76,25 @@ curl -sL https://github.com/KyleNesium/AIBattery/releases/latest/download/AIBatt
 </details>
 
 <details>
+<summary>🍎 <strong>Mac App Store</strong></summary>
+
+<!-- TODO: Uncomment when App Store listing is live
+[![Download on the Mac App Store](https://developer.apple.com/assets/elements/badges/download-on-the-mac-app-store.svg)](https://apps.apple.com/app/ai-battery/idXXXXXXXXXX)
+-->
+
+Coming soon.
+
+</details>
+
+<details>
 <summary>💿 <strong>DMG download</strong></summary>
 
 Download from [Releases](https://github.com/KyleNesium/AIBattery/releases/latest):
 
 1. Open `AIBattery.dmg` and drag **AI Battery** to **Applications**
-2. Launch from Applications — macOS will block it on first run
-3. Open **System Settings → Privacy & Security** → scroll down → click **Open Anyway**
+2. Launch from Applications
 
-> [!TIP]
-> If macOS says the app is damaged, run `xattr -cr /Applications/AIBattery.app` then relaunch.
+The app is signed with a Developer ID certificate and notarized by Apple — no Gatekeeper warnings.
 
 </details>
 
