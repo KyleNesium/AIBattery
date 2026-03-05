@@ -244,6 +244,22 @@ struct StatsCacheReaderTests {
         #expect(reader.read() == nil)
     }
 
+    @Test func read_symlinkPrefixAttack_returnsNil() throws {
+        // Simulate a path like ~/.claude-evil/ that shares a prefix with ~/.claude/
+        // but is a different directory. The boundary check should reject it.
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let evilDir = home.appendingPathComponent(".claude-evil-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: evilDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: evilDir) }
+
+        let target = evilDir.appendingPathComponent("stats-cache.json")
+        try Data(Self.minimalJSON.utf8).write(to: target)
+
+        // checkBoundary: true enforces the ~/.claude/ boundary
+        let reader = StatsCacheReader(fileURL: target, checkBoundary: true)
+        #expect(reader.read() == nil)
+    }
+
     // MARK: - Test JSON
 
     private static let minimalJSON = """

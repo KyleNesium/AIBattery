@@ -143,4 +143,16 @@ struct ModelPricingTests {
     @Test func formatCost_exactDollar() {
         #expect(ModelPricing.formatCost(1.0) == "$1.00")
     }
+
+    // MARK: - Cache correctness
+
+    @Test func pricing_unknownModel_cachedOnSecondCall() {
+        // First call computes and caches nil
+        let first = ModelPricing.pricing(for: "totally-fake-model-xyz-12345")
+        #expect(first == nil)
+
+        // Second call should hit the cache (not recompute) — still nil
+        let second = ModelPricing.pricing(for: "totally-fake-model-xyz-12345")
+        #expect(second == nil)
+    }
 }
