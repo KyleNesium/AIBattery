@@ -24,8 +24,8 @@ struct SandboxOnboardingView: View {
                 .padding(.horizontal, 20)
 
             Button("Grant Access") {
-                if let url = SandboxAccessManager.shared.requestAccess() {
-                    _ = url.startAccessingSecurityScopedResource()
+                if SandboxAccessManager.shared.requestAccess() != nil,
+                   SandboxAccessManager.shared.startAccessing() {
                     onAccessGranted()
                 }
             }

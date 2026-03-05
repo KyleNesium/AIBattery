@@ -6,9 +6,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let viewModel = UsageViewModel()
     let oauthManager = OAuthManager.shared
     let statusBarManager = StatusBarManager()
-    #if APP_SANDBOX
-    var needsSandboxOnboarding = false
-    #endif
 
     nonisolated func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
@@ -19,9 +16,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             _ = SparkleUpdateService.shared
             #endif
             #if APP_SANDBOX
-            if !SandboxAccessManager.shared.startAccessing() {
-                needsSandboxOnboarding = true
-            }
+            _ = SandboxAccessManager.shared.startAccessing()
             #endif
             statusBarManager.setup(viewModel: viewModel, oauthManager: oauthManager)
         }
@@ -29,7 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     #if APP_SANDBOX
     nonisolated func applicationWillTerminate(_ notification: Notification) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             SandboxAccessManager.shared.stopAccessing()
         }
     }
