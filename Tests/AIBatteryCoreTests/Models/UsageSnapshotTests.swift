@@ -270,6 +270,39 @@ struct UsageSnapshotTests {
         #expect(snapshot.autoResolvedMode == .contextHealth)
     }
 
+    @Test func autoResolvedMode_throttled_overridesEvenFullContext() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: Date().addingTimeInterval(300),
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.30,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 100.0, band: .red)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+    @Test func autoResolvedMode_nearExhaustion_bothWindowsHigh_picksHigher() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.92,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.95,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 70.0, band: .orange)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        // 7d (95%) > 5h (92%), both above threshold, both above context (70%)
+        #expect(snapshot.autoResolvedMode == .sevenDay)
+    }
+
     @Test func autoResolvedMode_belowThreshold_normalBehavior() {
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
