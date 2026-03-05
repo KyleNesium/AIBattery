@@ -237,7 +237,10 @@ Pricing per million tokens:
 | Constant | Value | File |
 |----------|-------|------|
 | Max API response size | 2,000,000 bytes (2 MB) — drops oversized responses | SecureNetworking |
+| Resource timeout | 30 sec — caps total transfer time (slow-drip defense) | SecureNetworking |
 | Max stats-cache file size | 10,000,000 bytes (10 MB) — rejects before read | StatsCacheReader |
+| Org ID max length | 128 chars — caps organization ID from API headers | APIProfile |
+| Org ID allowed chars | ASCII alphanumeric, hyphens, underscores only | APIProfile |
 
 ## JSONL Processing
 

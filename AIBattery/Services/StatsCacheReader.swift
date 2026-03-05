@@ -10,9 +10,13 @@ final class StatsCacheReader {
     /// anything larger suggests a symlink to a large file or a runaway writer.
     static let maxFileSize: UInt64 = 10_000_000
     private let fileURL: URL
+    private let checkBoundary: Bool
 
-    init(fileURL: URL? = nil) {
+    init(fileURL: URL? = nil, checkBoundary: Bool? = nil) {
         self.fileURL = fileURL ?? ClaudePaths.statsCache
+        // Default: enforce boundary for the default path only. Custom URLs
+        // (used in tests with temp dirs) skip it unless explicitly requested.
+        self.checkBoundary = checkBoundary ?? (fileURL == nil)
     }
 
     /// Cached decode result — avoids re-reading and decoding on every refresh.
@@ -41,6 +45,23 @@ final class StatsCacheReader {
         }
         let modDate = attrs[.modificationDate] as? Date
         let fileSize = attrs[.size] as? UInt64
+
+        // File type guard — reject pipes, devices, etc.
+        guard attrs[.type] as? FileAttributeType == .typeRegular else {
+            AppLogger.files.warning("StatsCacheReader: not a regular file, skipping")
+            return nil
+        }
+
+        // Symlink boundary check — reject files resolving outside ~/.claude/
+        if checkBoundary {
+            let resolvedPath = fileURL.resolvingSymlinksInPath().path
+            let claudeDir = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".claude").resolvingSymlinksInPath().path
+            guard resolvedPath.hasPrefix(claudeDir) else {
+                AppLogger.files.warning("StatsCacheReader: file resolves outside ~/.claude/, skipping")
+                return nil
+            }
+        }
 
         // Size guard
         if let fileSize, fileSize > Self.maxFileSize {

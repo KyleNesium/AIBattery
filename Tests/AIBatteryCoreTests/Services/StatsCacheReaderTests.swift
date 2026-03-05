@@ -224,6 +224,26 @@ struct StatsCacheReaderTests {
         #expect(result == nil)
     }
 
+    // MARK: - Symlink boundary check
+
+    @Test func read_symlinkOutsideClaude_returnsNil() throws {
+        // Write valid JSON to /tmp
+        let target = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-stats-target-\(UUID().uuidString).json")
+        try Data(Self.minimalJSON.utf8).write(to: target)
+        defer { try? FileManager.default.removeItem(at: target) }
+
+        // Create a symlink pointing to the /tmp file
+        let symlink = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-stats-symlink-\(UUID().uuidString).json")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: target)
+        defer { try? FileManager.default.removeItem(at: symlink) }
+
+        // The symlink resolves outside ~/.claude/ — should be rejected
+        let reader = StatsCacheReader(fileURL: symlink, checkBoundary: true)
+        #expect(reader.read() == nil)
+    }
+
     // MARK: - Test JSON
 
     private static let minimalJSON = """
