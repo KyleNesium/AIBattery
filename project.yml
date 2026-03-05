@@ -53,10 +53,6 @@ targets:
           CODE_SIGN_IDENTITY: "Apple Distribution"
           CODE_SIGN_ENTITLEMENTS: AIBattery/AIBattery-AppStore.entitlements
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "APP_SANDBOX"
-    dependencies:
-      - sdk: Sparkle.framework
-        embed: true
-        link: true
     entitlements:
       path: AIBattery/AIBattery.entitlements
       properties:

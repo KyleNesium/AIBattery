@@ -7,6 +7,9 @@ cd "$(dirname "$0")/.."
 echo "Generating Xcode project..."
 xcodegen generate
 
+# Strip Sparkle feed URL — App Store rejects apps with third-party update mechanisms
+/usr/libexec/PlistBuddy -c "Delete :SUFeedURL" AIBattery/Info.plist 2>/dev/null || true
+
 # Inject version from git tag if available
 GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || true)
 VERSION_OVERRIDE=""
