@@ -44,10 +44,16 @@ struct StatsCacheTests {
         #expect(session.durationFormatted == "5m")
     }
 
-    @Test func longestSession_durationFormatted_zeroMinutes() {
+    @Test func longestSession_durationFormatted_shortDuration() {
         let session = LongestSession(sessionId: "s1", duration: 30_000, messageCount: 1, timestamp: "2025-01-01T00:00:00Z")
-        // 30 seconds → 0m
-        #expect(session.durationFormatted == "0m")
+        // 30 seconds → DurationFormatter.compact rounds up to 1m
+        #expect(session.durationFormatted == "1m")
+    }
+
+    @Test func longestSession_durationFormatted_zeroDuration() {
+        let session = LongestSession(sessionId: "s1", duration: 0, messageCount: 1, timestamp: "2025-01-01T00:00:00Z")
+        // 0ms → DurationFormatter.compact(0) = "soon"
+        #expect(session.durationFormatted == "soon")
     }
 
     @Test func longestSession_durationFormatted_exactHour() {

@@ -380,9 +380,7 @@ public struct UsagePopoverView: View {
 
     /// Returns all metric modes with the selected one first.
     private var orderedModes: [MetricMode] {
-        var modes = MetricMode.allCases
-        modes.removeAll { $0 == metricMode }
-        return [metricMode] + modes
+        [metricMode] + MetricMode.allCases.filter { $0 != metricMode }
     }
 
     @State private var autoGlowing = false

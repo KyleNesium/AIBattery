@@ -49,12 +49,6 @@ struct LongestSession: Codable {
     let timestamp: String
 
     var durationFormatted: String {
-        let seconds = duration / 1000
-        let minutes = seconds / 60
-        let hours = minutes / 60
-        if hours > 0 {
-            return "\(hours)h \(minutes % 60)m"
-        }
-        return "\(minutes)m"
+        DurationFormatter.compact(TimeInterval(duration) / 1000)
     }
 }

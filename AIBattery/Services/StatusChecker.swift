@@ -7,8 +7,6 @@ struct StatusComponent {
     let name: String
     let alertKey: String
 
-    /// Deduplication key for NotificationManager's hasFired set.
-    var fireKey: String { alertKey }
 }
 
 /// Fetches Claude system status from the public Statuspage API.

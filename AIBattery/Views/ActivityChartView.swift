@@ -85,7 +85,8 @@ struct ActivityChartView: View {
         // Generate all 12 months (11 months ago through this month)
         let nowComps = cal.dateComponents([.year, .month], from: now)
         guard let thisMonth = cal.date(from: nowComps) else { return [] }
-        let thisMonthKey = String(format: "%04d-%02d", nowComps.year!, nowComps.month!)
+        guard let nowYear = nowComps.year, let nowMonth = nowComps.month else { return [] }
+        let thisMonthKey = String(format: "%04d-%02d", nowYear, nowMonth)
 
         return (0..<12).compactMap { offset in
             guard let date = cal.date(byAdding: .month, value: -(11 - offset), to: thisMonth) else { return nil }

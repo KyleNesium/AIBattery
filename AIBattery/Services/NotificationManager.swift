@@ -26,8 +26,8 @@ public final class NotificationManager {
     /// Fire test notifications for all components (verifies delivery works).
     func testAlerts() {
         for component in StatusChecker.knownComponents {
-            hasFired.remove(component.fireKey)
-            checkComponentStatus(key: component.fireKey, label: component.name, indicator: .majorOutage)
+            hasFired.remove(component.alertKey)
+            checkComponentStatus(key: component.alertKey, label: component.name, indicator: .majorOutage)
         }
     }
 
@@ -36,7 +36,7 @@ public final class NotificationManager {
         guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertStatus) else { return }
         for component in StatusChecker.knownComponents {
             let indicator = status.componentStatuses[component.id] ?? .unknown
-            checkComponentStatus(key: component.fireKey, label: component.name, indicator: indicator)
+            checkComponentStatus(key: component.alertKey, label: component.name, indicator: indicator)
         }
     }
 
