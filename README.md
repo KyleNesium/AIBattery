@@ -10,7 +10,7 @@ Rate limits, context health, and token usage — always visible in your macOS me
 [![macOS](https://img.shields.io/badge/macOS-13%2B-blue?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/KyleNesium/AIBattery/actions/workflows/ci.yml/badge.svg)](https://github.com/KyleNesium/AIBattery/actions/workflows/ci.yml)
-[![GitHub stars](https://img.shields.io/github/stars/KyleNesium/AIBattery?style=social)](https://github.com/KyleNesium/AIBattery/stargazers)
+[![GitHub stars](https://img.shields.io/github/stars/KyleNesium/AIBattery?style=social&cacheSeconds=3600)](https://github.com/KyleNesium/AIBattery/stargazers)
 [![Downloads](https://img.shields.io/github/downloads/KyleNesium/AIBattery/total?logo=github&label=Downloads)](https://github.com/KyleNesium/AIBattery/releases)
 
 <br/>
