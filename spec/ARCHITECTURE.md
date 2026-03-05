@@ -114,7 +114,7 @@ AIBattery/
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
-    SecureNetworking.swift        — Ephemeral URLSession + response size guard (2 MB limit)
+    SecureNetworking.swift        — Ephemeral URLSession + response size guard (2 MB limit) + resource timeout (30s)
     DurationFormatter.swift       — Compact time duration formatting ("2h 5m", "1d 1h", "soon")
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
 Tests/AIBatteryCoreTests/

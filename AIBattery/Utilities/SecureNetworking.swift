@@ -13,6 +13,7 @@ enum SecureNetworking {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieAcceptPolicy = .never
         config.httpShouldSetCookies = false
+        config.timeoutIntervalForResource = 30
         return URLSession(configuration: config)
     }()
 

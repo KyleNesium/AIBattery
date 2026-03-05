@@ -43,4 +43,34 @@ struct APIProfileTests {
         ]
         #expect(APIProfile.parse(headers: headers) == nil)
     }
+
+    @Test func parse_empty_returnsNil() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-organization-id": "",
+        ]
+        #expect(APIProfile.parse(headers: headers) == nil)
+    }
+
+    @Test func parse_tooLong_returnsNil() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-organization-id": String(repeating: "a", count: 129),
+        ]
+        #expect(APIProfile.parse(headers: headers) == nil)
+    }
+
+    @Test func parse_specialChars_returnsNil() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-organization-id": "org/123;DROP TABLE",
+        ]
+        #expect(APIProfile.parse(headers: headers) == nil)
+    }
+
+    @Test func parse_validWithHyphensUnderscores() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-organization-id": "my-org_123",
+        ]
+        let profile = APIProfile.parse(headers: headers)
+        #expect(profile != nil)
+        #expect(profile?.organizationId == "my-org_123")
+    }
 }

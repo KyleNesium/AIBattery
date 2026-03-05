@@ -172,6 +172,11 @@ final class SessionLogReader {
         let resolvedBase = projectsURL.resolvingSymlinksInPath().path
         jsonlFiles = jsonlFiles.filter { $0.resolvingSymlinksInPath().path.hasPrefix(resolvedBase) }
 
+        // Regular file filter — skip pipes, devices, sockets
+        jsonlFiles = jsonlFiles.filter {
+            (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+        }
+
         discoveredFiles = jsonlFiles
         discoveryDirModDates = newDirModDates
         return jsonlFiles

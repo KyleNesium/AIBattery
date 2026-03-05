@@ -386,11 +386,11 @@ public final class OAuthManager: ObservableObject {
                 // Retry on rate limit (429) and transient server errors (5xx)
                 if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
                     AppLogger.oauth.warning("Token endpoint returned \(http.statusCode), attempt \(attempt + 1)/\(Self.maxRetries + 1)")
-                    // Honor Retry-After header on 429 if present
+                    // Honor Retry-After header on 429 if present (capped at 30s via RateLimitFetcher)
                     if http.statusCode == 429,
-                       let retryAfter = http.value(forHTTPHeaderField: "Retry-After"),
-                       let seconds = Double(retryAfter), seconds > 0, seconds <= 60 {
-                        try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                       let delay = RateLimitFetcher.parseRetryAfter(
+                           http.value(forHTTPHeaderField: "Retry-After")) {
+                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     }
                     lastError = .serverError(http.statusCode)
                     continue

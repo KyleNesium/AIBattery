@@ -42,6 +42,21 @@ final class StatsCacheReader {
         let modDate = attrs[.modificationDate] as? Date
         let fileSize = attrs[.size] as? UInt64
 
+        // File type guard — reject pipes, devices, etc.
+        guard attrs[.type] as? FileAttributeType == .typeRegular else {
+            AppLogger.files.warning("StatsCacheReader: not a regular file, skipping")
+            return nil
+        }
+
+        // Symlink boundary check — reject files resolving outside ~/.claude/
+        let resolvedPath = fileURL.resolvingSymlinksInPath().path
+        let claudeDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude").resolvingSymlinksInPath().path
+        guard resolvedPath.hasPrefix(claudeDir) else {
+            AppLogger.files.warning("StatsCacheReader: file resolves outside ~/.claude/, skipping")
+            return nil
+        }
+
         // Size guard
         if let fileSize, fileSize > Self.maxFileSize {
             AppLogger.files.warning("StatsCacheReader: file too large (\(fileSize) bytes), skipping")

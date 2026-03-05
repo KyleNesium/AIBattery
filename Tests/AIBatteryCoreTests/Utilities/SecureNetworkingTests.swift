@@ -26,4 +26,9 @@ struct SecureNetworkingTests {
         #expect(config.httpCookieAcceptPolicy == .never)
         #expect(config.httpShouldSetCookies == false)
     }
+
+    @Test func session_hasResourceTimeout() {
+        let config = SecureNetworking.session.configuration
+        #expect(config.timeoutIntervalForResource == 30)
+    }
 }
