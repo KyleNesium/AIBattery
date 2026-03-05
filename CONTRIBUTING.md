@@ -1,6 +1,6 @@
 # Contributing to AI Battery
 
-Thanks for your interest in contributing! Here's how to get started.
+Thanks for your interest in contributing! Visit [aibattery.dev](https://aibattery.dev) to learn more about the project. Here's how to get started.
 
 ## Requirements
 
