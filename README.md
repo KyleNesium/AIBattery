@@ -1,6 +1,8 @@
 <div align="center">
 
-# ✦ AI Battery
+<img src="screenshots/icon.png" width="128" alt="AI Battery icon" />
+
+# AI Battery
 
 **A battery meter for Claude Code.**
 
