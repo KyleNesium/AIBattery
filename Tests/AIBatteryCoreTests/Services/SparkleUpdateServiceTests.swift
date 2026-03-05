@@ -1,3 +1,4 @@
+#if ENABLE_SPARKLE
 import Foundation
 import Testing
 import Sparkle
@@ -60,3 +61,4 @@ struct SparkleUpdateServiceTests {
         #expect(service.updater.automaticallyDownloadsUpdates == false)
     }
 }
+#endif

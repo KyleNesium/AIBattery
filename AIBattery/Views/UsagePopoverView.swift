@@ -207,11 +207,17 @@ public struct UsagePopoverView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Version \(update.version) release notes")
                     Button(action: {
+                        #if ENABLE_SPARKLE
                         if SparkleUpdateService.shared.canCheckForUpdates {
                             SparkleUpdateService.shared.checkForUpdates()
                         } else if let url = URL(string: update.url) {
                             NSWorkspace.shared.open(url)
                         }
+                        #else
+                        if let url = URL(string: update.url) {
+                            NSWorkspace.shared.open(url)
+                        }
+                        #endif
                     }) {
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.down.circle")

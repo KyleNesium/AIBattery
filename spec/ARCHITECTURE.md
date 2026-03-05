@@ -60,7 +60,9 @@ AIBatteryApp/
   AIBatteryApp.swift              — @main, imports AIBatteryCore, AppDelegate + Settings { EmptyView() }, initializes StatusBarManager
 AIBattery/
   Info.plist                      — LSUIElement = YES (no Dock icon)
-  AIBattery.entitlements          — App sandbox disabled
+  AIBattery.entitlements          — Direct-download entitlements (sandbox disabled)
+  AIBattery-AppStore.entitlements — App Store entitlements (sandbox + network.client + .claude/ read)
+  PrivacyInfo.xcprivacy           — Privacy manifest (UserDefaults + FileTimestamp API declarations)
   Models/
     AccountRecord.swift           — Per-account identity record (Codable, Identifiable)
     APIFetchResult.swift          — Combined result from a single Messages API call
@@ -174,6 +176,8 @@ CHANGELOG.md                      — Release notes per version
 - **App icon**: Generated at build time via `scripts/generate-icon.swift` (sparkle star, all macOS sizes). Embedded in `Contents/Resources/AppIcon.icns` and used as DMG volume icon.
 - **Dock icon**: None (LSUIElement = true)
 - **Dependencies**: Sparkle 2 (SPM, auto-update framework) — all other dependencies are Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
+- **Compiler flag**: `ENABLE_SPARKLE` — defined in all 3 SPM targets via `swiftSettings`. Guards all Sparkle imports/usage. Remove the define to build without Sparkle (App Store variant)
+- **Privacy manifest**: `PrivacyInfo.xcprivacy` bundled as SPM resource, also copied to `Contents/Resources/` by build script
 
 ## Release Pipeline
 
@@ -206,12 +210,12 @@ CHANGELOG.md                      — Release notes per version
 
 Not currently planned, but documented here for reference. These are the architectural changes required before an App Store submission would be possible.
 
-| Blocker | Impact | Resolution Path |
-|---------|--------|-----------------|
-| App Sandbox | Can't read `~/.claude/` — App Store requires sandbox | XPC helper process or File Provider extension with bookmark access |
-| Sparkle framework | App Store rejects third-party update mechanisms | Remove Sparkle; use App Store's built-in update system |
-| `disable-library-validation` entitlement | Rejected by App Store review (only needed for Sparkle's dynamic loading) | Remove once Sparkle is gone |
+| Blocker | Impact | Status |
+|---------|--------|--------|
+| App Sandbox | Can't read `~/.claude/` — App Store requires sandbox | `AIBattery-AppStore.entitlements` prepared with `files.home-relative-path.read-only` for `.claude/` |
+| Sparkle framework | App Store rejects third-party update mechanisms | `ENABLE_SPARKLE` flag gates all Sparkle code; remove define for App Store build |
+| `disable-library-validation` entitlement | Rejected by App Store review (only needed for Sparkle's dynamic loading) | Not in `AIBattery-AppStore.entitlements` — resolved when Sparkle is disabled |
+| Privacy manifest | Required for App Store submission | `PrivacyInfo.xcprivacy` added (UserDefaults + FileTimestamp) |
 | Apple Developer certificate | App Store requires signed builds ($99/yr) | Enroll in Apple Developer Program |
-| Info.plist privacy descriptions | Missing usage descriptions required by App Store review | Add `NSDesktopFolderUsageDescription` etc. |
 
-Each blocker is non-trivial and should be addressed as a dedicated effort, not mixed into routine code changes.
+Remaining blockers are non-trivial and should be addressed as a dedicated effort, not mixed into routine code changes.

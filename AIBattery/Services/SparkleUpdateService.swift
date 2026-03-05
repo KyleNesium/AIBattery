@@ -1,3 +1,4 @@
+#if ENABLE_SPARKLE
 import AppKit
 import Sparkle
 
@@ -53,3 +54,4 @@ public final class SparkleUpdateService {
         updaterController.updater
     }
 }
+#endif
