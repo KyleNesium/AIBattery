@@ -173,7 +173,8 @@ CHANGELOG.md                      — Release notes per version
 - **SPM**: swift-tools-version 5.9, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests)
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
-- **Codesigning**: Ad-hoc (`codesign --sign -`) with hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting without requiring an Apple Developer account
+- **Codesigning**: Ad-hoc by default (`codesign --sign -`), parameterized via `CODE_SIGN_IDENTITY` env var for Developer ID signing. Hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting. Entitlements file selected automatically (`AIBattery-AppStore.entitlements` when `APP_STORE_BUILD` is set)
+- **Notarization**: Optional — when `APPLE_ID` + `APPLE_TEAM_ID` + `APPLE_APP_PASSWORD` env vars are set, `build-app.sh` submits to `notarytool`, staples the ticket, and re-packages zip/DMG. Skipped when unset (current default)
 - **App icon**: Generated at build time via `scripts/generate-icon.swift` (sparkle star, all macOS sizes). Embedded in `Contents/Resources/AppIcon.icns` and used as DMG volume icon.
 - **Dock icon**: None (LSUIElement = true)
 - **Dependencies**: Sparkle 2 (SPM, auto-update framework) — all other dependencies are Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
@@ -189,6 +190,7 @@ CHANGELOG.md                      — Release notes per version
 3. `scripts/generate-appcast.sh` generates `appcast.xml` with EdDSA signature, pushes to `gh-pages` branch (requires `SPARKLE_EDDSA_KEY` repo secret)
 4. `scripts/update-homebrew.sh` auto-updates `KyleNesium/homebrew-tap` — downloads the zip, computes SHA256, commits updated cask formula
 5. Requires `HOMEBREW_TAP_TOKEN` and `SPARKLE_EDDSA_KEY` repo secrets (GitHub PAT with `repo` scope for the homebrew-tap repo; Sparkle EdDSA private key for appcast signing)
+6. Optional: `CODE_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` secrets enable Developer ID signing + notarization (no-op when unset)
 
 **Important**: Every release must update the Homebrew cask. The automation handles this when the secret is configured.
 
