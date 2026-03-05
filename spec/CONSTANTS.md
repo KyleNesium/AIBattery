@@ -337,6 +337,16 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Flag | Default | Effect |
 |------|---------|--------|
 | `ENABLE_SPARKLE` | Defined (all 3 SPM targets) | Guards Sparkle imports, `SparkleUpdateService`, and Sparkle-dependent UI. Remove to build App Store variant without Sparkle. |
+| `ENABLE_VERSION_CHECKER` | Defined (all 3 SPM targets) | Guards `VersionChecker`, update banner UI, and version check button. Remove for App Store (guideline 3.1.1). |
+| `APP_SANDBOX` | NOT defined | Enables `SandboxAccessManager` (security-scoped bookmark for `~/.claude/` access). Only set for App Store builds. |
+
+## Sandbox Access (App Store only)
+
+| Constant | Value |
+|----------|-------|
+| Bookmark key | `aibattery_claudeDirBookmark` (Data, security-scoped bookmark for `~/.claude/`) |
+| Active when | `APP_SANDBOX` compiler flag is defined |
+| User flow | NSOpenPanel prompts for `~/.claude/` directory; bookmark persisted to UserDefaults |
 
 ## Predictive Rate Limit
 

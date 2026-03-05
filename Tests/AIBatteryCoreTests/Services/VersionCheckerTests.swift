@@ -1,3 +1,4 @@
+#if ENABLE_VERSION_CHECKER
 import Foundation
 import Testing
 @testable import AIBatteryCore
@@ -218,3 +219,4 @@ struct VersionCheckerTests {
         #expect(UserDefaultsKeys.lastUpdateURL.hasPrefix("aibattery_"))
     }
 }
+#endif

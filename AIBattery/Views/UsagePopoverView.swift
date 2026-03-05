@@ -7,9 +7,11 @@ public struct UsagePopoverView: View {
     @State private var isAddingAccount = false
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
+    #if ENABLE_VERSION_CHECKER
     @State private var updateCheckMessage: String?
     @State private var updateCheckDismissTask: Task<Void, Never>?
     @State private var updateBannerDismissed = false
+    #endif
     @State private var accountCountAtAddStart = 0
 
     public init(viewModel: UsageViewModel) {
@@ -117,9 +119,11 @@ public struct UsagePopoverView: View {
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
         }
+        #if ENABLE_VERSION_CHECKER
         .onDisappear {
             updateCheckDismissTask?.cancel()
         }
+        #endif
     }
 
     private var accounts: [AccountRecord] {
@@ -138,6 +142,7 @@ public struct UsagePopoverView: View {
                         .scaleEffect(0.6)
                         .frame(width: 16, height: 16)
                 }
+                #if ENABLE_VERSION_CHECKER
                 Text("v\(VersionChecker.currentAppVersion)")
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
@@ -173,6 +178,11 @@ public struct UsagePopoverView: View {
                 )
                 .help(viewModel.availableUpdate.map { "v\($0.version) available" } ?? "Check for updates")
                 .accessibilityLabel(viewModel.availableUpdate.map { "Version \($0.version) available" } ?? "Check for updates")
+                #else
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                #endif
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() } }) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 11, weight: .medium))
@@ -184,6 +194,7 @@ public struct UsagePopoverView: View {
                 .accessibilityHint(showSettings ? "Close settings" : "Open settings")
             }
 
+            #if ENABLE_VERSION_CHECKER
             // Update status message (appears/disappears below header row)
             if let update = viewModel.availableUpdate, !updateBannerDismissed {
                 HStack(spacing: 6) {
@@ -261,6 +272,7 @@ public struct UsagePopoverView: View {
                 }
                 .transition(.opacity)
             }
+            #endif
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
