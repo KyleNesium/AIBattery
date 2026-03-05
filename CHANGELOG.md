@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.7] — 2026-03-05
+
+### Changed
+- **Lock file location** — moved from `~/.claude/` to `~/Library/Application Support/AIBattery/` (sandbox-writable path, App Store ready)
+- **Appearance tracking** — replaced private `DistributedNotificationCenter` API with KVO on `NSApp.effectiveAppearance` (documented API)
+
+### Removed
+- **Quarantine detection** — removed `checkQuarantine()` alert (irrelevant for App Store; Sparkle handles direct-download codesigning)
+
+### Added
+- **Network entitlement** — `com.apple.security.network.client` (required when sandbox is enabled, no effect while off)
+- **Marketing icon** — 1024×1024 PNG for App Store Connect (`screenshots/icon-1024.png`)
+- **README app icon** — logo in header, updated tagline, sponsor section, badge cache fixes
+
 ## [1.6.6] — 2026-03-05
 
 ### Fixed
