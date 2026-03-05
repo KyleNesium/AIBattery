@@ -94,15 +94,6 @@ struct StatusCheckerParsingTests {
         }
     }
 
-    // MARK: - StatusComponent fireKey
-
-    @Test func fireKey_matchesAlertKey() {
-        for component in StatusChecker.knownComponents {
-            #expect(component.fireKey == component.alertKey,
-                    "\(component.name) fireKey should match alertKey")
-        }
-    }
-
     // MARK: - Display names
 
     @Test func allIndicators_haveNonEmptyDisplayNames() {

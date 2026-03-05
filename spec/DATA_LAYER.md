@@ -220,7 +220,7 @@ Pricing table (per million tokens):
 
 `ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentNames: [String]`, `statusPageURL: String`, `componentStatuses: [String: StatusIndicator]` (keyed by Statuspage component ID, default empty). Computed: `incidentName: String?` (first incident, convenience accessor).
 
-`StatusComponent`: `id: String`, `name: String`, `alertKey: String`. Computed: `fireKey` (same as `alertKey`, used for deduplication). Catalog: `StatusChecker.knownComponents` (5 entries: claude.ai, Console, Claude API, Claude Code, Claude for Gov).
+`StatusComponent`: `id: String`, `name: String`, `alertKey: String`. Catalog: `StatusChecker.knownComponents` (5 entries: claude.ai, Console, Claude API, Claude Code, Claude for Gov).
 
 `StatusIndicator`: enum with cases `.operational`, `.degradedPerformance`, `.partialOutage`, `.majorOutage`, `.maintenance`, `.unknown`. Has `severity: Int` for comparison (higher = worse). `from(_:)` maps Statuspage API strings to cases — notably `"elevated"` maps to `.degradedPerformance` (yellow). Also used to parse incident impact strings (`"none"`, `"minor"`, `"major"`, `"critical"`).
 

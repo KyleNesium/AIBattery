@@ -52,7 +52,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 
 ## Statuspage Component IDs
 
-Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` structs with `id`, `name`, `alertKey`, computed `defaultsKey` (`aibattery_alert_{alertKey}`), and `fireKey`.
+Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` structs with `id`, `name`, `alertKey`.
 
 | Component | ID | Alert Key |
 |-----------|-----|-----------|

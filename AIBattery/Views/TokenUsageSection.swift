@@ -36,15 +36,17 @@ struct TokenUsageSection: View {
                     .help("Total tokens used across all models")
                 if showCost {
                     let total = ModelPricing.totalCost(for: snapshot.modelTokens)
-                    Text(ModelPricing.formatCost(total))
+                    let costText = ModelPricing.formatCost(total)
+                    Text(costText)
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.secondary)
-                        .copyable(ModelPricing.formatCost(total))
+                        .copyable(costText)
                 }
                 Spacer()
-                Text(TokenFormatter.format(snapshot.totalTokens))
+                let totalTokensText = TokenFormatter.format(snapshot.totalTokens)
+                Text(totalTokensText)
                     .font(.system(.subheadline, design: .monospaced, weight: .semibold))
-                    .copyable(TokenFormatter.format(snapshot.totalTokens))
+                    .copyable(totalTokensText)
             }
 
             // Per-model breakdown with token types underneath
@@ -79,16 +81,18 @@ struct TokenUsageSection: View {
                                     cacheRead: model.cacheReadTokens,
                                     cacheWrite: model.cacheWriteTokens
                                 )
-                                Text(ModelPricing.formatCost(modelCost))
+                                let modelCostText = ModelPricing.formatCost(modelCost)
+                                Text(modelCostText)
                                     .font(.system(.caption2, design: .monospaced))
                                     .foregroundStyle(ThemeColors.tertiaryLabel)
-                                    .copyable(ModelPricing.formatCost(modelCost))
+                                    .copyable(modelCostText)
                             }
 
-                            Text(TokenFormatter.format(model.totalTokens))
+                            let modelTokensText = TokenFormatter.format(model.totalTokens)
+                            Text(modelTokensText)
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
-                                .copyable(TokenFormatter.format(model.totalTokens))
+                                .copyable(modelTokensText)
                         }
 
                         // Token type breakdown for this model

@@ -78,10 +78,11 @@ struct TokenHealthSection: View {
 
             // Detail row
             HStack {
-                Text("~\(remainingText) of \(usableText) usable")
+                let detailText = "~\(remainingText) of \(usableText) usable"
+                Text(detailText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .copyable("~\(remainingText) of \(usableText) usable")
+                    .copyable(detailText)
                 Spacer()
                 Text("\(health.turnCount) turns · \(modelDisplay)")
                     .font(.caption2)

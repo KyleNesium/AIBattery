@@ -31,7 +31,11 @@ public enum SingleInstanceGuard {
     private static func acquireLockOrExit() {
         // Ensure parent directory exists
         let dir = (lockPath as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        } catch {
+            AppLogger.general.warning("SingleInstanceGuard: failed to create directory: \(error.localizedDescription, privacy: .public)")
+        }
 
         lockFD = open(lockPath, O_CREAT | O_RDWR, 0o644)
         guard lockFD >= 0 else {

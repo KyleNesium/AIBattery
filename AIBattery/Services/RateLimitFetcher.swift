@@ -121,7 +121,11 @@ final class RateLimitFetcher {
             "messages": [["role": "user", "content": "."]],
             "max_tokens": 1
         ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
+            AppLogger.network.warning("RateLimitFetcher: failed to serialize request body")
+            return .networkError
+        }
+        request.httpBody = bodyData
 
         // Cache lookup once — used as fallback when parsed headers are partial
         let cached = cachedResults[accountId]
