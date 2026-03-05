@@ -211,6 +211,8 @@ Each session displays: **project name** · **git branch** · **duration** · **l
 
 Percentages are relative to the **usable window** — 80% of the model's raw context window. At 100%, Claude Code auto-compacts.
 
+**Think of context as Claude's short-term memory.** Every message, file read, tool call, and response accumulates in a 200K-token window. Nothing is discarded between turns. When the window fills up (100% of usable), Claude Code auto-compacts — it summarizes the session into a few paragraphs and clears the rest. That summary is lossy: file contents, specific instructions, and nuanced decisions get compressed. Claude keeps working, but from a recap instead of the real conversation. Quality degrades even before that point — a packed window means Claude is scanning thousands of stale tokens every turn, making responses slower and less accurate. Keep at least 20–40% free for best results.
+
 | Color | Range | Meaning |
 |---|---|---|
 | 🟢 Green | < 60% | Plenty of room |
