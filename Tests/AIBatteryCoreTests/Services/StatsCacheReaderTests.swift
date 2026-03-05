@@ -240,7 +240,7 @@ struct StatsCacheReaderTests {
         defer { try? FileManager.default.removeItem(at: symlink) }
 
         // The symlink resolves outside ~/.claude/ — should be rejected
-        let reader = StatsCacheReader(fileURL: symlink)
+        let reader = StatsCacheReader(fileURL: symlink, checkBoundary: true)
         #expect(reader.read() == nil)
     }
 
