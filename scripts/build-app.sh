@@ -174,7 +174,7 @@ APPLESCRIPT
   hdiutil detach "$MOUNT_DIR" -quiet
 fi
 
-hdiutil convert "$DMG_RW" -format UDZO -o .build/AIBattery.dmg
+hdiutil convert "$DMG_RW" -format UDZO -ov -o .build/AIBattery.dmg
 rm -f "$DMG_RW"
 
 # Optional notarization (requires Apple Developer credentials)
