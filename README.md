@@ -1,6 +1,8 @@
 <div align="center">
 
-# ✦ AI Battery
+<img src="screenshots/icon.png" width="128" alt="AI Battery icon" />
+
+# AI Battery
 
 **Get the most out of your Claude subscription.**
 
