@@ -292,7 +292,7 @@ Pricing uses Anthropic's published rates for input, output, cache read, and cach
 <details open>
 <summary><strong>App appears in the menu bar then disappears</strong></summary>
 
-**On first launch:** macOS Gatekeeper may silently kill the app because it's not notarized. AI Battery will show an alert if it detects quarantine, but sometimes macOS kills the process before the alert appears.
+**On first launch:** macOS Gatekeeper may silently kill the app because it's not notarized.
 
 ```bash
 xattr -cr /Applications/AIBattery.app
