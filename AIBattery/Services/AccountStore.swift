@@ -104,7 +104,10 @@ public final class AccountStore: ObservableObject {
     // MARK: - Persistence
 
     private func save() {
-        guard let data = try? Self.jsonEncoder.encode(accounts) else { return }
+        guard let data = try? Self.jsonEncoder.encode(accounts) else {
+            AppLogger.general.warning("AccountStore: failed to encode accounts for persistence")
+            return
+        }
         UserDefaults.standard.set(data, forKey: UserDefaultsKeys.accounts)
         UserDefaults.standard.set(activeAccountId, forKey: UserDefaultsKeys.activeAccountId)
     }

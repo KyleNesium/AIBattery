@@ -99,7 +99,7 @@ struct UsageBar: View {
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.danger)
                 } else if let estimate = estimatedTimeToLimit {
-                    Text("~\(formatDuration(estimate)) to limit")
+                    Text("~\(DurationFormatter.compact(estimate)) to limit")
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.caution)
                 } else {
@@ -115,10 +115,6 @@ struct UsageBar: View {
                 }
             }
         }
-    }
-
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        DurationFormatter.compact(seconds)
     }
 
     private func resetTimeString(_ date: Date) -> String {
