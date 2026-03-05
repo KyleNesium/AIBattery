@@ -93,6 +93,7 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 | Rapid consumption seconds | 60 sec | `config.rapidConsumptionSeconds` |
 | Rapid consumption tokens | 50,000 | `config.rapidConsumptionTokens` |
 | Velocity min duration | 60 sec | `config.velocityMinDuration` |
+| Auto mode near-exhaustion | 90% | Rate limit ≥ threshold supersedes lower context health in `autoResolvedMode` |
 
 ## Rate Limit Alerts
 

@@ -163,7 +163,7 @@ HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, cente
 - **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse via scoped `.animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)` on stroke/shadow views only (never `withAnimation` — leaks global repeating transaction).
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Picker dims to 0.4 opacity and is disabled when auto mode is active.
-- **Behavior**: auto mode picks whichever metric (5h/7d/context) has the highest percentage via `snapshot.autoResolvedMode` (computed property on `UsageSnapshot`). Applied in both popover and menu bar label.
+- **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (≥90%) → rate limit if higher than context; normal → highest metric wins (context breaks ties). Applied in both popover and menu bar label.
 
 Padding: H 16, V 10
 
