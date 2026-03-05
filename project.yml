@@ -6,12 +6,23 @@ options:
   xcodeVersion: "16.0"
   createIntermediateGroups: true
 
+configFiles:
+  Debug: ""
+  Release: ""
+  AppStore: ""
+
+configs:
+  Debug: debug
+  Release: release
+  AppStore: release
+
 targets:
   AIBattery:
     type: application
     platform: macOS
     sources:
       - path: AIBattery
+      - path: AIBatteryApp
     info:
       path: AIBattery/Info.plist
       properties:
@@ -21,14 +32,44 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.KyleNesium.AIBattery
-        MARKETING_VERSION: "1.4.1"
-        CURRENT_PROJECT_VERSION: "13"
+        MARKETING_VERSION: "1.6.8"
+        CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
-        CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: "-"
         INFOPLIST_KEY_LSUIElement: true
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGN_ENTITLEMENTS: AIBattery/AIBattery.entitlements
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG ENABLE_SPARKLE ENABLE_VERSION_CHECKER"
+        Release:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGN_ENTITLEMENTS: AIBattery/AIBattery.entitlements
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "ENABLE_SPARKLE ENABLE_VERSION_CHECKER"
+        AppStore:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          CODE_SIGN_ENTITLEMENTS: AIBattery/AIBattery-AppStore.entitlements
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "APP_SANDBOX"
+    dependencies:
+      - sdk: Sparkle.framework
+        embed: true
+        link: true
     entitlements:
       path: AIBattery/AIBattery.entitlements
       properties:
         com.apple.security.app-sandbox: false
+
+  AIBatteryCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/AIBatteryCoreTests
+    dependencies:
+      - target: AIBattery
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "ENABLE_SPARKLE ENABLE_VERSION_CHECKER"
