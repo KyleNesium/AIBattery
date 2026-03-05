@@ -28,5 +28,7 @@
 	<true/>
 	<key>SUFeedURL</key>
 	<string>https://kylenesium.github.io/AIBattery/appcast.xml</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025 KyleNesium. All rights reserved.</string>
 </dict>
 </plist>

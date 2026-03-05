@@ -12,7 +12,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             SingleInstanceGuard.ensureSingleInstance()
             SingleInstanceGuard.installSignalHandlers()
             _ = NotificationManager.shared
+            #if ENABLE_SPARKLE
             _ = SparkleUpdateService.shared
+            #endif
             statusBarManager.setup(viewModel: viewModel, oauthManager: oauthManager)
         }
     }

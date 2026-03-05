@@ -332,6 +332,12 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 
 **Incident escalation**: When components report `operational` but active incidents exist, the incident `impact` field (`none`, `minor`, `major`, `critical`) is factored in. If impact is `none` but incidents are active, the status escalates to at least Degraded Performance (yellow).
 
+## Compiler Flags
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `ENABLE_SPARKLE` | Defined (all 3 SPM targets) | Guards Sparkle imports, `SparkleUpdateService`, and Sparkle-dependent UI. Remove to build App Store variant without Sparkle. |
+
 ## Predictive Rate Limit
 
 | Constant | Value |

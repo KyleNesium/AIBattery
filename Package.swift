@@ -17,17 +17,21 @@ let package = Package(
             name: "AIBatteryCore",
             dependencies: ["Sparkle"],
             path: "AIBattery",
-            exclude: ["Info.plist", "AIBattery.entitlements"]
+            exclude: ["Info.plist", "AIBattery.entitlements", "AIBattery-AppStore.entitlements"],
+            resources: [.copy("PrivacyInfo.xcprivacy")],
+            swiftSettings: [.define("ENABLE_SPARKLE")]
         ),
         .executableTarget(
             name: "AIBattery",
             dependencies: ["AIBatteryCore"],
-            path: "AIBatteryApp"
+            path: "AIBatteryApp",
+            swiftSettings: [.define("ENABLE_SPARKLE")]
         ),
         .testTarget(
             name: "AIBatteryCoreTests",
             dependencies: ["AIBatteryCore"],
-            path: "Tests/AIBatteryCoreTests"
+            path: "Tests/AIBatteryCoreTests",
+            swiftSettings: [.define("ENABLE_SPARKLE")]
         )
     ]
 )
