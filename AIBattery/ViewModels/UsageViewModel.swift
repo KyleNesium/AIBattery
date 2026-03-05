@@ -11,8 +11,10 @@ public final class UsageViewModel: ObservableObject {
     @Published var lastFreshFetch: Date?
     /// Whether the most recent API result was served from cache.
     @Published var isShowingCachedData = false
+    #if ENABLE_VERSION_CHECKER
     /// Available update from GitHub Releases (nil if up-to-date or not checked).
     @Published var availableUpdate: VersionChecker.UpdateInfo?
+    #endif
 
     private let aggregator = UsageAggregator()
     private var fileWatcher: FileWatcher?
@@ -162,9 +164,11 @@ public final class UsageViewModel: ObservableObject {
             NotificationManager.shared.checkRateLimitAlerts(rateLimits: limits)
         }
 
+        #if ENABLE_VERSION_CHECKER
         if availableUpdate == nil {
             availableUpdate = await VersionChecker.shared.checkForUpdate()
         }
+        #endif
     }
 
     /// Switch to a different account and refresh data.

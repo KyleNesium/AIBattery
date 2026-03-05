@@ -45,6 +45,12 @@ if [ -n "$GIT_TAG" ]; then
   echo "Injected version ${VERSION} from tag ${GIT_TAG}"
 fi
 
+# Strip Sparkle feed URL for App Store builds
+if [ -n "${APP_STORE_BUILD:-}" ]; then
+  /usr/libexec/PlistBuddy -c "Delete :SUFeedURL" "$APP_DIR/Contents/Info.plist" 2>/dev/null || true
+  echo "Stripped SUFeedURL for App Store build"
+fi
+
 # Inject Sparkle EdDSA public key (required for signature verification)
 if [ -n "${SPARKLE_EDDSA_PUBLIC_KEY:-}" ]; then
   /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string ${SPARKLE_EDDSA_PUBLIC_KEY}" "$APP_DIR/Contents/Info.plist"

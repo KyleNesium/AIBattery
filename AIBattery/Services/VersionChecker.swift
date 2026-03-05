@@ -1,3 +1,4 @@
+#if ENABLE_VERSION_CHECKER
 import Foundation
 
 /// Checks GitHub Releases for new versions. Fetches once per 24 hours.
@@ -153,3 +154,4 @@ public final class VersionChecker {
         }
     }
 }
+#endif

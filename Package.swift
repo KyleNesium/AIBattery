@@ -19,19 +19,19 @@ let package = Package(
             path: "AIBattery",
             exclude: ["Info.plist", "AIBattery.entitlements", "AIBattery-AppStore.entitlements"],
             resources: [.copy("PrivacyInfo.xcprivacy")],
-            swiftSettings: [.define("ENABLE_SPARKLE")]
+            swiftSettings: [.define("ENABLE_SPARKLE"), .define("ENABLE_VERSION_CHECKER")]
         ),
         .executableTarget(
             name: "AIBattery",
             dependencies: ["AIBatteryCore"],
             path: "AIBatteryApp",
-            swiftSettings: [.define("ENABLE_SPARKLE")]
+            swiftSettings: [.define("ENABLE_SPARKLE"), .define("ENABLE_VERSION_CHECKER")]
         ),
         .testTarget(
             name: "AIBatteryCoreTests",
             dependencies: ["AIBatteryCore"],
             path: "Tests/AIBatteryCoreTests",
-            swiftSettings: [.define("ENABLE_SPARKLE")]
+            swiftSettings: [.define("ENABLE_SPARKLE"), .define("ENABLE_VERSION_CHECKER")]
         )
     ]
 )
