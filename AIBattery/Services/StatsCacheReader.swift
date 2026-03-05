@@ -57,7 +57,7 @@ final class StatsCacheReader {
             let resolvedPath = fileURL.resolvingSymlinksInPath().path
             let claudeDir = FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".claude").resolvingSymlinksInPath().path
-            guard resolvedPath.hasPrefix(claudeDir) else {
+            guard resolvedPath == claudeDir || resolvedPath.hasPrefix(claudeDir + "/") else {
                 AppLogger.files.warning("StatsCacheReader: file resolves outside ~/.claude/, skipping")
                 return nil
             }

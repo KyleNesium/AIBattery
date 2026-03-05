@@ -170,7 +170,11 @@ final class SessionLogReader {
         // within the projects directory. Prevents a symlink inside ~/.claude/projects/
         // pointing to an arbitrary file outside that directory.
         let resolvedBase = projectsURL.resolvingSymlinksInPath().path
-        jsonlFiles = jsonlFiles.filter { $0.resolvingSymlinksInPath().path.hasPrefix(resolvedBase) }
+        let resolvedBaseSlash = resolvedBase + "/"
+        jsonlFiles = jsonlFiles.filter {
+            let resolved = $0.resolvingSymlinksInPath().path
+            return resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash)
+        }
 
         // Regular file filter — skip pipes, devices, sockets
         jsonlFiles = jsonlFiles.filter {

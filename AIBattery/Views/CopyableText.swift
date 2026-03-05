@@ -6,6 +6,8 @@ struct CopyableModifier: ViewModifier {
     let value: String
     @State private var copied = false
     @State private var isHovered = false
+    /// Whether we have an active cursor push on the stack.
+    @State private var cursorPushed = false
     /// Tracks the active feedback task so rapid taps restart the timer.
     @State private var feedbackTask: Task<Void, Never>?
 
@@ -29,14 +31,21 @@ struct CopyableModifier: ViewModifier {
             .onHover { hovering in
                 isHovered = hovering
                 if hovering {
-                    NSCursor.pointingHand.push()
+                    if !cursorPushed {
+                        NSCursor.pointingHand.push()
+                        cursorPushed = true
+                    }
                 } else {
-                    NSCursor.pop()
+                    if cursorPushed {
+                        NSCursor.pop()
+                        cursorPushed = false
+                    }
                 }
             }
             .onDisappear {
-                if isHovered {
+                if cursorPushed {
                     NSCursor.pop()
+                    cursorPushed = false
                 }
             }
             .help("Click to copy: \(value)")

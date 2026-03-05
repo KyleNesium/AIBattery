@@ -31,16 +31,22 @@ struct ModelPricing {
 
     /// Lookup cache — avoids repeated displayName + linear scan per model ID.
     /// Lock-protected for thread safety (Swift Testing runs tests concurrently).
+    /// Uses `Optional<ModelPricing>` values; key presence means "already looked up",
+    /// nil value means "looked up but no match found".
     private static var pricingCache: [String: ModelPricing?] = [:]
     private static let cacheLock = NSLock()
 
     /// Look up pricing by model ID. Uses `ModelNameMapper.displayName` for matching.
     /// Results are cached per model ID since the pricing table is static.
     static func pricing(for modelId: String) -> ModelPricing? {
-        // Check cache first (fast path)
-        if let cached = cacheLock.withLock({ pricingCache[modelId] }) {
-            return cached
+        // Check cache first (fast path) — key presence means we've already looked up
+        let hit: (found: Bool, value: ModelPricing?) = cacheLock.withLock {
+            if let entry = pricingCache.index(forKey: modelId) {
+                return (true, pricingCache[entry].value)
+            }
+            return (false, nil)
         }
+        if hit.found { return hit.value }
 
         // Compute outside the lock — avoids nested lock with ModelNameMapper
         let display = ModelNameMapper.displayName(for: modelId).lowercased()
@@ -52,7 +58,7 @@ struct ModelPricing {
             }
         }
 
-        // Store in cache
+        // Store in cache (including nil for unknown models)
         cacheLock.withLock { pricingCache[modelId] = result }
         return result
     }
