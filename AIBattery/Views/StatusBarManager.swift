@@ -400,14 +400,29 @@ private struct PopoverContentView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject var oauthManager: OAuthManager
     @Environment(\.colorScheme) private var colorScheme
+    #if APP_SANDBOX
+    @State private var sandboxAccessGranted = SandboxAccessManager.shared.hasAccess
+    #endif
 
     var body: some View {
         Group {
+            #if APP_SANDBOX
+            if !sandboxAccessGranted {
+                SandboxOnboardingView {
+                    sandboxAccessGranted = true
+                }
+            } else if oauthManager.isAuthenticated {
+                UsagePopoverView(viewModel: viewModel)
+            } else {
+                AuthView(oauthManager: oauthManager)
+            }
+            #else
             if oauthManager.isAuthenticated {
                 UsagePopoverView(viewModel: viewModel)
             } else {
                 AuthView(oauthManager: oauthManager)
             }
+            #endif
         }
         .frame(width: 275)
         .background(colorScheme == .light ? Color(nsColor: .windowBackgroundColor) : Color.clear)
