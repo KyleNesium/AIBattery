@@ -204,6 +204,88 @@ struct UsageSnapshotTests {
         #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
+    // MARK: - autoResolvedMode priority tiers
+
+    @Test func autoResolvedMode_throttled_alwaysShowsRateLimit() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: Date().addingTimeInterval(300),
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.30,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 50.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+    @Test func autoResolvedMode_throttled_7day_showsSevenDay() {
+        let limits = RateLimitUsage(
+            representativeClaim: "seven_day",
+            fiveHourUtilization: 0.50,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 1.0,
+            sevenDayReset: Date().addingTimeInterval(3600),
+            sevenDayStatus: "throttled",
+            overallStatus: "throttled"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 80.0, band: .red)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .sevenDay)
+    }
+
+    @Test func autoResolvedMode_nearExhaustion_prioritizesRateLimit() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.92,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 70.0, band: .orange)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+    @Test func autoResolvedMode_nearExhaustion_contextStillWinsIfHigher() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.92,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 95.0, band: .red)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .contextHealth)
+    }
+
+    @Test func autoResolvedMode_belowThreshold_normalBehavior() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.85,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 88.0, band: .red)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .contextHealth)
+    }
+
     // MARK: - dailyAverage
 
     @Test func dailyAverage_emptyActivity() {
