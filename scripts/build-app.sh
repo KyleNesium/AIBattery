@@ -202,6 +202,14 @@ if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
   SetFile -a C "$DMG_DIR" 2>/dev/null || true
   hdiutil create -volname "AI Battery" -srcfolder "$DMG_DIR" -ov -format UDZO .build/AIBattery.dmg
   rm -rf "$DMG_DIR"
+
+  # Notarize and staple the DMG itself (allows offline Gatekeeper verification of the .dmg)
+  xcrun notarytool submit .build/AIBattery.dmg \
+    --apple-id "$APPLE_ID" \
+    --team-id "$APPLE_TEAM_ID" \
+    --password "${APPLE_APP_PASSWORD}" \
+    --wait
+  xcrun stapler staple .build/AIBattery.dmg
   echo "Notarization + stapling complete."
 fi
 
