@@ -118,7 +118,8 @@ fi
 
 echo "Packaging DMG..."
 DMG_DIR=".build/dmg"
-rm -rf "$DMG_DIR"
+DMG_RW=".build/AIBattery-rw.dmg"
+rm -rf "$DMG_DIR" "$DMG_RW"
 mkdir -p "$DMG_DIR"
 cp -R "$APP_DIR" "$DMG_DIR/"
 ln -s /Applications "$DMG_DIR/Applications"
@@ -127,8 +128,40 @@ ln -s /Applications "$DMG_DIR/Applications"
 cp .build/AppIcon.icns "$DMG_DIR/.VolumeIcon.icns"
 SetFile -a C "$DMG_DIR" 2>/dev/null || true
 
-hdiutil create -volname "AI Battery" -srcfolder "$DMG_DIR" -ov -format UDZO .build/AIBattery.dmg
+# Create read-write DMG, configure Finder layout, then convert to compressed
+hdiutil create -volname "AI Battery" -srcfolder "$DMG_DIR" -ov -format UDRW "$DMG_RW"
 rm -rf "$DMG_DIR"
+
+# Mount the read-write DMG and configure Finder window layout
+MOUNT_DIR=$(hdiutil attach "$DMG_RW" -readwrite -noverify | grep '/Volumes/' | tail -1 | awk -F'\t' '{print $NF}')
+if [ -n "$MOUNT_DIR" ]; then
+  # AppleScript configures icon view with drag-to-Applications layout.
+  # May fail in headless CI (no Finder) — tolerate failure gracefully.
+  osascript <<APPLESCRIPT || true
+tell application "Finder"
+  tell disk "AI Battery"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set bounds of container window to {100, 100, 540, 380}
+    set opts to icon view options of container window
+    set icon size of opts to 80
+    set arrangement of opts to not arranged
+    set position of item "AIBattery.app" of container window to {110, 140}
+    set position of item "Applications" of container window to {330, 140}
+    close
+  end tell
+end tell
+APPLESCRIPT
+  # Let Finder write .DS_Store
+  sync
+  sleep 1
+  hdiutil detach "$MOUNT_DIR" -quiet
+fi
+
+hdiutil convert "$DMG_RW" -format UDZO -o .build/AIBattery.dmg
+rm -f "$DMG_RW"
 
 echo ""
 echo "Artifacts:"
