@@ -2,16 +2,16 @@
 
 # ✦ AI Battery
 
-**A battery meter for Claude Code.**
+**Get the most out of your Claude subscription.**
 
-Rate limits, context health, and token usage — always visible in your macOS menu bar.
+Monitor rate limits, context health, and token usage — always visible in your macOS menu bar. Know exactly when to pace yourself, when to start a fresh session, and how much runway you have left.
 
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift&logoColor=white)](https://swift.org)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-blue?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![CI](https://github.com/KyleNesium/AIBattery/actions/workflows/ci.yml/badge.svg)](https://github.com/KyleNesium/AIBattery/actions/workflows/ci.yml)
 [![GitHub stars](https://img.shields.io/github/stars/KyleNesium/AIBattery?style=social&cacheSeconds=3600)](https://github.com/KyleNesium/AIBattery/stargazers)
-[![Downloads](https://img.shields.io/github/downloads/KyleNesium/AIBattery/total?logo=github&label=Downloads)](https://github.com/KyleNesium/AIBattery/releases)
+[![Downloads](https://img.shields.io/github/downloads/KyleNesium/AIBattery/total?logo=github&label=Downloads&cacheSeconds=3600)](https://github.com/KyleNesium/AIBattery/releases)
 
 <br/>
 
@@ -41,6 +41,7 @@ Rate limits, context health, and token usage — always visible in your macOS me
 - [Accessibility](#-accessibility)
 - [Uninstall](#-uninstall)
 - [Contributing](#-contributing)
+- [Support](#-support)
 - [License](#-license)
 
 </details>
@@ -448,6 +449,18 @@ AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) i
 ## 🤝 Contributing
 
 Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) first. See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+---
+
+## 💛 Support
+
+AI Battery is **free and open source** — always will be.
+
+If it saves you time or helps you get more out of your Claude subscription, consider [sponsoring the project](https://github.com/sponsors/KyleNesium). It helps cover development time and keeps the project going.
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/KyleNesium)
+
+---
 
 ## 🧪 Test Coverage
 
