@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.6.8] — 2026-03-05
+
+### Improved
+- **Duration formatting** — `LongestSession.durationFormatted` now uses shared `DurationFormatter.compact` (0ms shows "soon", sub-minute shows "1m", durations ≥24h get "Xd Yh")
+- **Defensive coding** — replaced force-unwraps in monthly chart data with guard-let early return; guarded request body serialization in `RateLimitFetcher` with log + error return
+- **Error logging** — `AccountStore` and `SingleInstanceGuard` now log warnings on previously silent failures (JSON encode, directory creation)
+- **View performance** — eliminated duplicate `TokenFormatter.format` / `ModelPricing.formatCost` calls in `TokenUsageSection` and `TokenHealthSection` (stored in `let` bindings)
+
+### Removed
+- **Dead code** — removed `StatusComponent.fireKey` alias (was identical to `alertKey`), removed trivial `formatDuration` passthrough wrapper in `UsageBar`
+
 ## [1.6.7] — 2026-03-05
 
 ### Changed
