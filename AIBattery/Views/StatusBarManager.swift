@@ -16,7 +16,7 @@ public final class StatusBarManager: NSObject {
     /// Tracks intended panel visibility — used to re-show panel after app deactivation.
     private var isPanelShowing = false
     private var deactivationObserver: Any?
-    private var appearanceObserver: Any?
+    private var appearanceObserver: NSKeyValueObservation?
 
     public override init() {
         super.init()
@@ -120,10 +120,7 @@ public final class StatusBarManager: NSObject {
         }
 
         // Track system appearance changes so the panel follows light/dark mode
-        appearanceObserver = DistributedNotificationCenter.default().addObserver(
-            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
-            object: nil, queue: .main
-        ) { [weak panel] _ in
+        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak panel] _, _ in
             panel?.appearance = NSApp.effectiveAppearance
         }
 
@@ -154,9 +151,7 @@ public final class StatusBarManager: NSObject {
         if let observer = deactivationObserver {
             NotificationCenter.default.removeObserver(observer)
         }
-        if let observer = appearanceObserver {
-            DistributedNotificationCenter.default().removeObserver(observer)
-        }
+        appearanceObserver?.invalidate()
     }
 
     // MARK: - Button update

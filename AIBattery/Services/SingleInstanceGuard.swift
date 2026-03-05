@@ -11,10 +11,10 @@ import AppKit
 /// a crash or force-quit (preventing RBSRequestErrorDomain Code=5).
 public enum SingleInstanceGuard {
 
-    private static let lockPath = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".claude/aibattery.lock")
-        .path
+    private static let lockPath: String = {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return appSupport.appendingPathComponent("AIBattery/aibattery.lock").path
+    }()
 
     /// File descriptor for the lock file — kept open for the process lifetime.
     private static var lockFD: Int32 = -1
@@ -72,39 +72,6 @@ public enum SingleInstanceGuard {
                     app.forceTerminate()
                 }
             }
-        }
-    }
-
-    /// Checks if the app bundle has macOS quarantine attributes and shows an alert
-    /// with fix instructions. Quarantined apps can be silently killed by Gatekeeper.
-    public static func checkQuarantine() {
-        guard let bundlePath = Bundle.main.bundlePath as NSString? else { return }
-        let path = bundlePath as String
-
-        // Check for com.apple.quarantine extended attribute
-        let size = getxattr(path, "com.apple.quarantine", nil, 0, 0, XATTR_NOFOLLOW)
-        guard size > 0 else { return }
-
-        // Quarantine detected — show alert
-        let alert = NSAlert()
-        alert.messageText = "AI Battery is quarantined"
-        alert.informativeText = """
-            macOS has flagged this app as downloaded from the internet. \
-            It may be silently terminated by Gatekeeper.
-
-            To fix, run this in Terminal:
-            xattr -cr "\(path)"
-
-            Then relaunch the app.
-            """
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Copy Fix Command")
-        alert.addButton(withTitle: "Continue Anyway")
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString("xattr -cr \"\(path)\"", forType: .string)
         }
     }
 

@@ -11,7 +11,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             SingleInstanceGuard.ensureSingleInstance()
             SingleInstanceGuard.installSignalHandlers()
-            SingleInstanceGuard.checkQuarantine()
             _ = NotificationManager.shared
             _ = SparkleUpdateService.shared
             statusBarManager.setup(viewModel: viewModel, oauthManager: oauthManager)

@@ -402,7 +402,7 @@ Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` �
 
 See `spec/CONSTANTS.md` for all color threshold tables.
 
-**Popover background**: solid opaque `windowBackgroundColor` in light mode (no desktop bleed-through); translucent `.popover` vibrancy material with `.behindWindow` blending in dark mode. Panel tracks system appearance changes via `AppleInterfaceThemeChangedNotification`.
+**Popover background**: solid opaque `windowBackgroundColor` in light mode (no desktop bleed-through); translucent `.popover` vibrancy material with `.behindWindow` blending in dark mode. Panel tracks system appearance changes via KVO on `NSApp.effectiveAppearance`.
 
 **Light/dark mode**: Bar and accent colors use system palette in both modes — the opaque light-mode background provides sufficient contrast for `.systemYellow`, `.systemOrange`, etc. Only text labels and fills use `ThemeColors.adaptive(light:dark:)` for distinct per-appearance values:
 - **Orange** (caution, 80–94% bars, orange band): `.systemOrange` both modes

@@ -83,7 +83,7 @@ AIBattery/
     TokenHealthMonitor.swift      — Analyzes session tokens → health status (single + top N sessions)
     NetworkMonitor.swift          — NWPathMonitor connectivity observer (triggers refresh on recovery)
     StatusChecker.swift           — Fetches status.claude.com system status
-    SingleInstanceGuard.swift     — POSIX flock single-instance guard, quarantine detection, SIGTERM handler
+    SingleInstanceGuard.swift     — POSIX flock single-instance guard, SIGTERM handler
     NotificationManager.swift     — Status outage + rate limit alerts via UNUserNotificationCenter
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
     VersionChecker.swift          — GitHub Releases update checker (24h cadence)
