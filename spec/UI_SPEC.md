@@ -338,7 +338,13 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 - `button.imagePosition = .imageLeading` for icon-then-text layout
 - `button.font` = `.monospacedDigitSystemFont(ofSize: 0, weight: .regular)` — matches macOS battery indicator style
 
-**Throttle countdown**: when `rateLimits.isThrottled == true`, title shows countdown to binding reset (e.g., "2h 15m", "45m", "3d 2h", "soon") instead of percentage. Overrides the selected metric mode entirely — being rate-limited is a hard blocker that makes other metrics irrelevant. Updates on each polling cycle.
+**Countdown display**: title shows countdown to reset instead of percentage when any of these conditions are met:
+- `rateLimits.isThrottled == true` → shows binding reset countdown
+- `fiveHourPercent >= 100` → shows 5-hour window reset countdown
+- `sevenDayPercent >= 100` → shows 7-day window reset countdown
+- Both windows exhausted → shows earliest reset
+
+This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when capacity is exhausted. Overrides the selected metric mode entirely. Updates on each polling cycle.
 
 **Normal mode**: shows `"{percent}%"` driven by selected metric mode (reads `UserDefaults` directly since `@AppStorage` requires SwiftUI View context).
 
@@ -360,12 +366,37 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 - 16×16 NSImage, custom drawing
 - 4-pointed star: 8 vertices alternating outer (6.5pt) / inner (2.0pt) radius
 - Centered at (8, 8), rotation offset -π/2 (starts from top)
-- Glow: `NSShadow` with usage color at 0.35 alpha, blur radius 2.5pt (rendered behind fill)
 - Fill: solid color based on requestsPercent
 - Stroke: high-contrast → black 0.8 / 1.0pt; light mode → black 0.3 / 0.75pt; dark mode → color 0.6 / 0.5pt
 - `isTemplate = false`
-- **Band-based caching**: `colorBand` maps percentage to 4 discrete bands (0: <50%, 1: <80%, 2: <95%, 3: >=95%). Static `iconCache: [Int: NSImage]` stores up to 8 entries (4 bands × 2 colorblind modes). Icon only re-rendered when band changes — not on every percentage tick.
-- **`statusBarImage(for:)`**: public static method exposing the cached NSImage for StatusBarManager's native AppKit button.
+
+**Dynamic glow scaling**: `NSShadow` behind the star with intensity that scales with usage percentage:
+
+| Percent | Blur radius | Glow alpha | Visual |
+|---------|-------------|------------|--------|
+| 0–30%   | 1.0pt       | 0.15       | Subtle, barely visible halo |
+| 30–60%  | 1.5pt       | 0.25       | Soft glow, noticeable |
+| 60–80%  | 2.5pt       | 0.35       | Medium glow |
+| 80–95%  | 3.5pt       | 0.45       | Strong glow, draws attention |
+| 95–100% | 4.5pt       | 0.55       | Intense glow, hot |
+
+Glow color matches the star's band color (green/yellow/orange/red at 50/80/95 thresholds).
+
+**Broken star (throttled)**: when `isThrottled == true`, the star fractures into 4 triangular fragments:
+- Each point of the 4-pointed star is a triangle (outer tip + two adjacent inner vertices)
+- Each triangle offset outward from center by ~1.5pt along its radial direction
+- Visible gaps between fragments — the star appears "shattered"
+- Color: always red/critical band
+
+**Pulsing animation (throttled)**: `StatusBarManager` runs a repeating timer (~150ms, ~1.5s full cycle) that modulates the broken star's glow:
+- Glow alpha oscillates 0.25–0.65 (sine wave)
+- Glow blur oscillates 2.5–5.0pt
+- 8 discrete pulse steps (quantized for caching)
+- Timer stops when no longer throttled
+
+**Quantized caching**: cache key uses `quantizedPercent` (every 5%, 21 buckets) + `isBroken` flag + `pulseStep` (0–7 when pulsing). Max entries: 21 normal + 8 broken = 29. Cache invalidates on colorblind/appearance/contrast change.
+
+- **`statusBarImage(for:isBroken:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
 
 ## Accessibility
 

@@ -18,6 +18,11 @@ public final class StatusBarManager: NSObject {
     private var deactivationObserver: Any?
     private var appearanceObserver: NSKeyValueObservation?
 
+    // Pulse animation state for throttled/broken star
+    private var pulseTimer: Timer?
+    private var pulsePhase: CGFloat = 0
+    private var currentPulseStep: Int = 0
+
     public override init() {
         super.init()
     }
@@ -152,6 +157,7 @@ public final class StatusBarManager: NSObject {
             NotificationCenter.default.removeObserver(observer)
         }
         appearanceObserver?.invalidate()
+        pulseTimer?.invalidate()
     }
 
     // MARK: - Button update
@@ -168,13 +174,26 @@ public final class StatusBarManager: NSObject {
         }
 
         let percent = viewModel.snapshot?.percent(for: metricMode) ?? 0
-        button.image = MenuBarIcon.statusBarImage(for: percent)
+        let rateLimits = viewModel.snapshot?.rateLimits
+        let isThrottled = rateLimits?.isThrottled ?? false
 
-        // Throttle countdown overrides normal percentage display
+        // Manage pulse timer for throttled state
+        if isThrottled {
+            startPulseTimerIfNeeded(button: button, percent: percent)
+        } else {
+            stopPulseTimer()
+        }
+
+        // Update icon — broken star when throttled, normal with glow scaling otherwise
+        button.image = MenuBarIcon.statusBarImage(
+            for: percent,
+            isBroken: isThrottled,
+            pulseStep: isThrottled ? currentPulseStep : 0
+        )
+
+        // Countdown overrides normal percentage when throttled or any window at 100%
         let displayText: String
-        if let rateLimits = viewModel.snapshot?.rateLimits,
-           rateLimits.isThrottled,
-           let resetDate = rateLimits.bindingReset {
+        if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
             displayText = RateLimitUsage.countdownText(to: resetDate)
         } else {
             displayText = "\(Int(percent))%"
@@ -189,6 +208,59 @@ public final class StatusBarManager: NSObject {
             isStale = false
         }
         button.appearsDisabled = isStale
+    }
+
+    /// Returns the reset date for countdown display when throttled or any window hits 100%.
+    /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
+    private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
+        if rateLimits.isThrottled {
+            return rateLimits.bindingReset
+        }
+
+        let fiveExhausted = rateLimits.fiveHourPercent >= 100
+        let sevenExhausted = rateLimits.sevenDayPercent >= 100
+
+        if fiveExhausted && sevenExhausted {
+            // Both exhausted — show earliest reset
+            if let f = rateLimits.fiveHourReset, let s = rateLimits.sevenDayReset {
+                return min(f, s)
+            }
+            return rateLimits.fiveHourReset ?? rateLimits.sevenDayReset
+        } else if fiveExhausted {
+            return rateLimits.fiveHourReset
+        } else if sevenExhausted {
+            return rateLimits.sevenDayReset
+        }
+
+        return nil
+    }
+
+    // MARK: - Pulse timer
+
+    private func startPulseTimerIfNeeded(button: NSStatusBarButton, percent: Double) {
+        guard pulseTimer == nil else { return }
+        pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.pulsePhase += 0.15 / 1.5 // ~1.5s full cycle
+                if self.pulsePhase >= 1.0 { self.pulsePhase -= 1.0 }
+                self.currentPulseStep = Int(self.pulsePhase * 8) % 8
+
+                guard let button = self.statusItem?.button else { return }
+                button.image = MenuBarIcon.statusBarImage(
+                    for: percent,
+                    isBroken: true,
+                    pulseStep: self.currentPulseStep
+                )
+            }
+        }
+    }
+
+    private func stopPulseTimer() {
+        pulseTimer?.invalidate()
+        pulseTimer = nil
+        pulsePhase = 0
+        currentPulseStep = 0
     }
 
     // MARK: - Panel toggle
