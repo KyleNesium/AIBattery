@@ -11,6 +11,9 @@ jobs:
   release:
     name: Build & Publish
     runs-on: macos-15
+    env:
+      DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+      DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -19,9 +22,6 @@ jobs:
 
       - name: Import Developer ID certificate
         if: env.DEVELOPER_ID_CERT_BASE64 != ''
-        env:
-          DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
-          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
         run: |
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
