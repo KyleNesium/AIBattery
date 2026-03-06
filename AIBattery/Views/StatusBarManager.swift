@@ -18,6 +18,16 @@ public final class StatusBarManager: NSObject {
     private var deactivationObserver: Any?
     private var appearanceObserver: NSKeyValueObservation?
 
+    // Breathing glow animation state
+    private var breathTimer: Timer?
+    private var currentPulseStep: Int = 0
+    // Snapshot of current render state for the breath timer callback
+    private var currentPercent: Double = 0
+    private var currentColor: NSColor = .systemGreen
+    private var currentIsThrottled: Bool = false
+    private var screenSleepObserver: Any?
+    private var screenWakeObserver: Any?
+
     public override init() {
         super.init()
     }
@@ -27,7 +37,7 @@ public final class StatusBarManager: NSObject {
 
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
         if let button = item.button {
-            button.image = MenuBarIcon.statusBarImage(for: 0)
+            button.image = MenuBarIcon.statusBarImage(for: 0, color: ThemeColors.barNSColor(percent: 0))
             button.imagePosition = .imageLeading
             button.title = "—"
             // Match macOS battery indicator: system font with monospaced digits
@@ -151,6 +161,9 @@ public final class StatusBarManager: NSObject {
             NotificationCenter.default.removeObserver(observer)
         }
         appearanceObserver?.invalidate()
+        breathTimer?.invalidate()
+        if let obs = screenSleepObserver { NotificationCenter.default.removeObserver(obs) }
+        if let obs = screenWakeObserver { NotificationCenter.default.removeObserver(obs) }
     }
 
     // MARK: - Button update
@@ -167,13 +180,38 @@ public final class StatusBarManager: NSObject {
         }
 
         let percent = viewModel.snapshot?.percent(for: metricMode) ?? 0
-        button.image = MenuBarIcon.statusBarImage(for: percent)
+        let rateLimits = viewModel.snapshot?.rateLimits
+        let isThrottled = rateLimits?.isThrottled ?? false
 
-        // Throttle countdown overrides normal percentage display
+        // Pick star color matching the active metric's thresholds
+        let starColor: NSColor
+        if isThrottled {
+            starColor = ThemeColors.barNSColor(percent: 100)
+        } else if metricMode == .contextHealth {
+            starColor = ThemeColors.contextHealthNSColor(percent: percent)
+        } else {
+            starColor = ThemeColors.barNSColor(percent: percent)
+        }
+
+        // Store render state for the breath timer callback
+        currentPercent = percent
+        currentColor = starColor
+        currentIsThrottled = isThrottled
+
+        // Always animate: sparkle effect < 30%, breathing >= 30%, dramatic pulse when throttled
+        startBreathTimerIfNeeded()
+
+        // Update icon with current breath step
+        button.image = MenuBarIcon.statusBarImage(
+            for: percent,
+            color: starColor,
+            isBroken: isThrottled,
+            pulseStep: currentPulseStep
+        )
+
+        // Countdown overrides normal percentage when throttled or any window at 100%
         let displayText: String
-        if let rateLimits = viewModel.snapshot?.rateLimits,
-           rateLimits.isThrottled,
-           let resetDate = rateLimits.bindingReset {
+        if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
             displayText = RateLimitUsage.countdownText(to: resetDate)
         } else {
             displayText = "\(Int(percent))%"
@@ -188,6 +226,75 @@ public final class StatusBarManager: NSObject {
             isStale = false
         }
         button.appearsDisabled = isStale
+    }
+
+    /// Returns the reset date for countdown display when throttled or any window hits 100%.
+    /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
+    private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
+        if rateLimits.isThrottled {
+            return rateLimits.bindingReset
+        }
+
+        let fiveExhausted = rateLimits.fiveHourPercent >= 100
+        let sevenExhausted = rateLimits.sevenDayPercent >= 100
+
+        if fiveExhausted && sevenExhausted {
+            // Both exhausted — show earliest reset
+            if let f = rateLimits.fiveHourReset, let s = rateLimits.sevenDayReset {
+                return min(f, s)
+            }
+            return rateLimits.fiveHourReset ?? rateLimits.sevenDayReset
+        } else if fiveExhausted {
+            return rateLimits.fiveHourReset
+        } else if sevenExhausted {
+            return rateLimits.sevenDayReset
+        }
+
+        return nil
+    }
+
+    // MARK: - Breath timer
+
+    /// Breathing cycle: 4s per full cycle, 16 discrete steps (250ms per tick).
+    /// Always runs. Pauses on screen sleep.
+    private func startBreathTimerIfNeeded() {
+        guard breathTimer == nil else { return }
+
+        // Observe screen sleep/wake to pause animation when display is off
+        if screenSleepObserver == nil {
+            screenSleepObserver = NotificationCenter.default.addObserver(
+                forName: NSWorkspace.screensDidSleepNotification,
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.stopBreathTimer() }
+            }
+            screenWakeObserver = NotificationCenter.default.addObserver(
+                forName: NSWorkspace.screensDidWakeNotification,
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.startBreathTimerIfNeeded() }
+            }
+        }
+
+        let interval: TimeInterval = 4.0 / Double(MenuBarIcon.pulseSteps)
+        breathTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let button = self.statusItem?.button else { return }
+                self.currentPulseStep = (self.currentPulseStep + 1) % MenuBarIcon.pulseSteps
+                button.image = MenuBarIcon.statusBarImage(
+                    for: self.currentPercent,
+                    color: self.currentColor,
+                    isBroken: self.currentIsThrottled,
+                    pulseStep: self.currentPulseStep
+                )
+            }
+        }
+    }
+
+    private func stopBreathTimer() {
+        breathTimer?.invalidate()
+        breathTimer = nil
+        currentPulseStep = 0
     }
 
     // MARK: - Panel toggle

@@ -161,7 +161,7 @@ enum ThemeColors {
         dark: NSColor(white: 1.0, alpha: 0.06)
     )
 
-    /// NSColor variant for menu bar icon.
+    /// NSColor variant for menu bar icon — rate limit thresholds (50/80/95).
     static func barNSColor(percent: Double) -> NSColor {
         if isColorblind {
             switch percent {
@@ -175,6 +175,23 @@ enum ThemeColors {
         case 0..<50: return .systemGreen
         case 50..<80: return .systemYellow
         case 80..<95: return .systemOrange
+        default: return .systemRed
+        }
+    }
+
+    /// NSColor for context health — matches HealthBand thresholds (60/80).
+    /// Green < 60%, orange 60–80%, red >= 80%.
+    static func contextHealthNSColor(percent: Double) -> NSColor {
+        if isColorblind {
+            switch percent {
+            case 0..<60: return .systemBlue
+            case 60..<80: return NSColor(red: 1.0, green: 0.75, blue: 0.0, alpha: 1.0)
+            default: return .systemPurple
+            }
+        }
+        switch percent {
+        case 0..<60: return .systemGreen
+        case 60..<80: return .systemOrange
         default: return .systemRed
         }
     }
