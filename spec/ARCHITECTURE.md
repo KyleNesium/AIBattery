@@ -75,7 +75,7 @@ AIBattery/
     TokenHealthStatus.swift       — HealthBand, HealthWarning, TokenHealthStatus (Identifiable by sessionId)
     ModelPricing.swift            — Per-model pricing lookup + cost calculation
   Services/
-    AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 2)
+    AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, token storage, auto-refresh
     RateLimitFetcher.swift        — POST /v1/messages, parse unified headers + org profile
     StatsCacheReader.swift        — Reads + decodes stats-cache.json

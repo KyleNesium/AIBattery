@@ -234,8 +234,8 @@ Pricing table (per million tokens):
 - Auth URL: `https://claude.ai/oauth/authorize`
 - Token URL: `https://console.anthropic.com/v1/oauth/token`
 - Scopes: `org:create_api_key user:profile user:inference`
-- **Multi-account**: supports up to 2 accounts (separate Claude orgs). Each account's refresh token stored in Keychain (`refreshToken_{accountId}`); access token held in memory only (re-derived from refresh on launch); expiry timestamp in UserDefaults (`aibattery_expiresAt_{accountId}`). `AccountStore` tracks known accounts; `activeAccountId` drives which one polls. New accounts get a temporary `"pending-<UUID>"` ID until the first API call returns the real `anthropic-organization-id`.
-- `startAuthFlow(addingAccount:)` → opens browser with PKCE challenge. `addingAccount` flag tracks whether this is a second-account flow. Generates a separate random `state` parameter (never reuses the PKCE verifier).
+- **Multi-account**: supports up to 3 accounts (separate Claude orgs). Each account's refresh token stored in Keychain (`refreshToken_{accountId}`); access token held in memory only (re-derived from refresh on launch); expiry timestamp in UserDefaults (`aibattery_expiresAt_{accountId}`). `AccountStore` tracks known accounts; `activeAccountId` drives which one polls. New accounts get a temporary `"pending-<UUID>"` ID until the first API call returns the real `anthropic-organization-id`.
+- `startAuthFlow(addingAccount:)` → opens browser with PKCE challenge. `addingAccount` flag tracks whether this is an additional-account flow. Generates a separate random `state` parameter (never reuses the PKCE verifier).
 - `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens. Creates `AccountRecord` with pending ID, stores refresh token in Keychain and expiry in UserDefaults (access token stays in memory). Validates state parameter (CSRF protection). Only clears PKCE state on success.
 - `getAccessToken()` → returns active account's valid token, refreshes 5 minutes before expiry. `getAccessToken(for:)` for specific account. Serializes concurrent refresh attempts per account via `refreshTasks` dictionary.
 - `resolveAccountIdentity(tempId:realOrgId:billingType:)` → called after first API call returns real org ID. Moves `refreshToken_{tempId}` → `refreshToken_{realOrgId}` in Keychain and `aibattery_expiresAt_` key in UserDefaults. Updates AccountStore. Idempotent. Handles duplicate detection (same org authed twice → merge, keep newer tokens).
@@ -259,7 +259,7 @@ Pricing table (per million tokens):
 - `update(oldId:with:)` — replaces account record, handles identity resolution (pending → real org ID). Detects and merges duplicates (same org authed twice): preserves earliest `addedAt`, keeps existing `displayName`/`billingType` when new record has nil. Handles index ordering correctly when removing the old entry.
 - Persistence: JSON-encoded `[AccountRecord]` to `UserDefaults(aibattery_accounts)` + `activeAccountId` string to `UserDefaults(aibattery_activeAccountId)`
 - Load on init: fixes dangling `activeAccountId` pointing at removed accounts
-- `nonisolated static let maxAccounts = 2`
+- `nonisolated static let maxAccounts = 3`
 
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`

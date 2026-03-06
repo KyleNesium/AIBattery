@@ -404,9 +404,9 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
 - Throttled: always red/critical band
 
-**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–15) for normal, `10_100 + pulseStep` for broken. Max entries: 21×16 + 16 = 352. Cache invalidates on colorblind/appearance/contrast change.
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–15) for normal, `10_100 + pulseStep` for broken, `10_200 + pulseStep` for sparkle. Max entries: 21×16 + 16 + 16 = 368. Cache invalidates on colorblind/appearance/contrast change.
 
-- **`statusBarImage(for:color:isBroken:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
+- **`statusBarImage(for:color:isBroken:isSparkle:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
 
 ## Accessibility
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.7.0] — 2026-03-06
+
+### Added
+- **Animated menu bar star** — 3 render modes: breathing glow (scales with usage), broken star (throttled), and recovery sparkle (30s celebration when throttle clears)
+- **Context health color** — star color matches health band thresholds (green/orange/red at 60/80%) when in context health mode
+- **Countdown at 100%** — menu bar shows time until capacity returns when any rate limit window is exhausted (not just when throttled)
+- **Trailing 12-hour activity chart** — chart now shows last 12 hours instead of fixed 24-hour window
+- **3-account support** — monitor up to 3 Claude orgs simultaneously (was 2)
+
+### Improved
+- **Smoother animation** — 16-step breathing cycle (250ms ticks) with sine-wave easing; `MainActor.assumeIsolated` eliminates async dispatch overhead
+- **Code quality** — extracted settings sections into dedicated views, removed dead code, cleaned up imports
+- **Keychain consolidation** — deduplicated Keychain logic, fixed task leak in iteration helpers
+
+### Fixed
+- **Cache key collision** — broken and normal star icons at 100% no longer share cache keys
+- **Test stability** — fixed timezone-dependent activity stats test, flexible elementCount assertions for macOS 15.5
+
 ## [1.6.8] — 2026-03-05
 
 ### Improved
