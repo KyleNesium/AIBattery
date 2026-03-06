@@ -95,12 +95,25 @@ final class StatusChecker {
             )
         }
 
-        guard let worstComponent = components.max(by: { a, b in
-            StatusIndicator.from(a.status).severity < StatusIndicator.from(b.status).severity
-        }) else {
-            return .unknown
+        // Single pass: build per-component statuses, track worst component, collect affected names
+        var componentStatuses: [String: StatusIndicator] = [:]
+        var worstComponent: StatusPageComponent?
+        var worstComponentSeverity = -1
+        var affectedNames: [String] = []
+
+        for component in components {
+            let indicator = StatusIndicator.from(component.status)
+            componentStatuses[component.id] = indicator
+            if indicator.severity > worstComponentSeverity {
+                worstComponent = component
+                worstComponentSeverity = indicator.severity
+            }
+            if indicator != .operational {
+                affectedNames.append(component.name)
+            }
         }
 
+        guard let worstComponent else { return .unknown }
         var worstIndicator = StatusIndicator.from(worstComponent.status)
 
         // Check for active incidents
@@ -130,15 +143,8 @@ final class StatusChecker {
         } else if let incident = activeIncident {
             description = incident.name
         } else {
-            let affected = components.filter { StatusIndicator.from($0.status) != .operational }
-            let names = affected.map(\.name).joined(separator: ", ")
+            let names = affectedNames.joined(separator: ", ")
             description = "\(names): \(worstComponent.status.replacingOccurrences(of: "_", with: " "))"
-        }
-
-        // Per-component statuses dictionary (keyed by component ID)
-        var componentStatuses: [String: StatusIndicator] = [:]
-        for component in components {
-            componentStatuses[component.id] = StatusIndicator.from(component.status)
         }
 
         return ClaudeSystemStatus(
