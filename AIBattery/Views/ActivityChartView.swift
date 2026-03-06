@@ -507,8 +507,6 @@ struct ActivityChartView: View {
         }
     }
 
-
-
     private struct ChangeInfo {
         let symbol: String
         let label: String
