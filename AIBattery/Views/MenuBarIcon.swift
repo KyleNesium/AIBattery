@@ -154,11 +154,11 @@ struct MenuBarIcon: View {
                 innerRadius: innerRadius * starScale
             )
             ctx.setFillColor(color.cgColor)
-            ctx.addPath(path.cgPath)
+            ctx.addPath(path.asCGPath)
             ctx.fillPath()
 
             // Outline
-            drawStroke(ctx: ctx, path: path.cgPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+            drawStroke(ctx: ctx, path: path.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
 
             return true
         }
@@ -198,7 +198,7 @@ struct MenuBarIcon: View {
             )
 
             for fragment in fragments {
-                let cgPath = fragment.cgPath
+                let cgPath = fragment.asCGPath
                 ctx.setFillColor(color.cgColor)
                 ctx.addPath(cgPath)
                 ctx.fillPath()
@@ -247,9 +247,9 @@ struct MenuBarIcon: View {
             // Draw the star at normal size (no breathing — green is calm)
             let path = starPath(center: center, outerRadius: outerRadius, innerRadius: innerRadius)
             ctx.setFillColor(color.cgColor)
-            ctx.addPath(path.cgPath)
+            ctx.addPath(path.asCGPath)
             ctx.fillPath()
-            drawStroke(ctx: ctx, path: path.cgPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+            drawStroke(ctx: ctx, path: path.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
 
             // Draw sparkles — small cross shapes that twinkle around the star
             let activeIndices = sparkleFrames[pulseStep % sparkleFrames.count]
@@ -358,7 +358,11 @@ struct MenuBarIcon: View {
 
 extension NSBezierPath {
     /// Converts an NSBezierPath to a CGPath for use with CGContext drawing.
-    var cgPath: CGPath {
+    /// macOS 14+ has a native `.cgPath` — this provides the same for macOS 13.
+    var asCGPath: CGPath {
+        if #available(macOS 14.0, *) {
+            return cgPath
+        }
         let path = CGMutablePath()
         var points = [CGPoint](repeating: .zero, count: 3)
         for i in 0..<elementCount {

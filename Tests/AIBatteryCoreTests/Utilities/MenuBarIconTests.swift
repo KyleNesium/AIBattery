@@ -114,13 +114,13 @@ struct MenuBarIconTests {
 
     // MARK: - NSBezierPath CGPath conversion
 
-    @Test func cgPath_convertsCorrectly() {
+    @Test func asCGPath_convertsCorrectly() {
         let bezier = NSBezierPath()
         bezier.move(to: NSPoint(x: 0, y: 0))
         bezier.line(to: NSPoint(x: 10, y: 0))
         bezier.line(to: NSPoint(x: 5, y: 10))
         bezier.close()
-        let cg = bezier.cgPath
+        let cg = bezier.asCGPath
         #expect(!cg.isEmpty)
         #expect(cg.boundingBox.width > 0)
     }
