@@ -114,9 +114,13 @@ final class UsageAggregator {
         // Merge JSONL daily counts into dailyActivity so charts reflect usage
         // for days after the last stats-cache rebuild.
         var activity = statsCache?.dailyActivity ?? []
+        // Dictionary index for O(1) lookup instead of O(n) firstIndex(where:)
+        var activityIndex: [String: Int] = Dictionary(
+            uniqueKeysWithValues: activity.enumerated().map { ($1.date, $0) }
+        )
         for (date, bucket) in entriesByDate {
             let toolCalls = (date == todayDate) ? todayToolCalls : 0
-            if let idx = activity.firstIndex(where: { $0.date == date }) {
+            if let idx = activityIndex[date] {
                 // Update existing entry if JSONL has more messages
                 if bucket.messages > activity[idx].messageCount {
                     activity[idx] = DailyActivity(
@@ -127,6 +131,7 @@ final class UsageAggregator {
                     )
                 }
             } else {
+                activityIndex[date] = activity.count
                 activity.append(DailyActivity(
                     date: date,
                     messageCount: bucket.messages,

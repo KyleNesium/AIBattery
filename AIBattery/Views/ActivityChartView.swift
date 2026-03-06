@@ -73,16 +73,7 @@ struct ActivityChartView: View {
     private var monthlyData: [MonthlyPoint] {
         let cal = Calendar.current
         let now = Date()
-
-        // Build lookup: aggregate daily data into month buckets
-        var lookup: [String: Int] = [:]
-        for day in dailyActivity {
-            guard let date = day.parsedDate else { continue }
-            let comps = cal.dateComponents([.year, .month], from: date)
-            guard let year = comps.year, let month = comps.month else { continue }
-            let key = String(format: "%04d-%02d", year, month)
-            lookup[key, default: 0] += day.messageCount
-        }
+        let lookup = monthTotals
 
         // Generate all 12 months (11 months ago through this month)
         let nowComps = cal.dateComponents([.year, .month], from: now)
@@ -459,7 +450,7 @@ struct ActivityChartView: View {
     // MARK: - 12M trend
 
     private func trendRow12M(_ snapshot: UsageSnapshot) -> some View {
-        let totals = monthTotals(snapshot)
+        let totals = monthTotals
         let cal = Calendar.current
         let now = Date()
         let nowComps = cal.dateComponents([.year, .month], from: now)
@@ -549,10 +540,11 @@ struct ActivityChartView: View {
     }
 
     /// Single-pass aggregation of daily activity into month-keyed totals (e.g. "2026-03" → 142).
-    private func monthTotals(_ snapshot: UsageSnapshot) -> [String: Int] {
+    /// Shared by `monthlyData` (chart rendering) and `trendRow12M` (trend summary).
+    private var monthTotals: [String: Int] {
         let cal = Calendar.current
         var result: [String: Int] = [:]
-        for day in snapshot.dailyActivity {
+        for day in dailyActivity {
             guard let date = day.parsedDate else { continue }
             let comps = cal.dateComponents([.year, .month], from: date)
             guard let y = comps.year, let m = comps.month else { continue }
