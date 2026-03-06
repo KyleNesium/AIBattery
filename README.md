@@ -127,7 +127,7 @@ brew upgrade --cask aibattery
 
 ## 🔐 Authentication
 
-OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **2 accounts** (separate Claude orgs).
+OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **3 accounts** (separate Claude orgs).
 
 | Step | Action |
 |:---:|---|
@@ -259,7 +259,7 @@ Click ⚙️ in the header to configure:
 
 | Setting | What it does |
 |---|---|
-| ➕ **Add Account** | Connect a second Claude account (up to 2) |
+| ➕ **Add Account** | Connect another Claude account (up to 3) |
 | ✏️ **Account names** | Custom label per account (shown in picker + menu bar) |
 | 🔁 **Auto mode** | Always show the highest metric (pulsing blue button on metric toggle) |
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |

@@ -18,6 +18,9 @@
 - **Keychain consolidation** — deduplicated Keychain logic, fixed task leak in iteration helpers
 
 ### Fixed
+- **Throttled bar visibility** — usage bars at 100% now show "Rate limited" state when overall throttled, even if per-window status header doesn't say "throttled"
+- **Recovery sparkle visibility** — boosted sparkle alpha (0.7), arm length (1.6pt), and 2-3 sparkles per frame for a more visible celebration effect
+- **"Throttled" vs countdown** — menu bar shows countdown only for non-throttled 100% windows; throttled state shows "soon" when reset date has passed
 - **Cache key collision** — broken and normal star icons at 100% no longer share cache keys
 - **Test stability** — fixed timezone-dependent activity stats test, flexible elementCount assertions for macOS 15.5
 

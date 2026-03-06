@@ -94,7 +94,7 @@ AIBattery/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, NSVisualEffectView, Combine-driven updates
-    MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color, band-based NSImage cache)
+    MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     Settings/
       SettingsRow.swift           — Inline settings container: account names + sub-sections

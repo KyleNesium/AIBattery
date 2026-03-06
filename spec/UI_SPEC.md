@@ -193,7 +193,7 @@ Each bar:
 - **Detail row**: left status + `"Resets in Xh Ym"` (.caption2, .tertiary) always visible on right
   - Normal: `"X% remaining"` (.caption2, .secondary)
   - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 50%, estimate before reset)
-  - Throttled: `"Rate limited"` (.caption2, .danger)
+  - Throttled: `"Rate limited"` (.caption2, .danger) — shown when per-window status is `"throttled"` OR overall `isThrottled` and window is at 100%
 
 Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `<1h` → "in Xm", expired → "soon"
 
@@ -387,8 +387,8 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 3. **Recovery sparkle (throttle → green transition)**: 30s celebration effect after throttle clears
    - Star drawn at normal size, surrounded by subtle twinkling cross sparkles
    - 8 pre-defined sparkle positions evenly spaced around the star (8–9pt from center)
-   - Each frame shows 1-2 sparkles (rotating subset), frames change every 500ms (half pulse rate)
-   - Each sparkle is a + cross shape (1.4pt arm, 0.6pt stroke width, 0.5 alpha)
+   - Each frame shows 2-3 sparkles (rotating subset), frames change every 500ms (half pulse rate)
+   - Each sparkle is a + cross shape (1.6pt arm, 0.7pt stroke width, 0.7 alpha)
    - Triggered by `StatusBarManager` detecting `isThrottled` going from true → false
    - Automatically stops after 30 seconds, returning to normal breathing mode
 
