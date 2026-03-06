@@ -372,27 +372,29 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 
 **Three render modes** based on state:
 
-1. **Sparkle mode (< 30%)**: star drawn at normal size, surrounded by twinkling cross sparkles
-   - 8 pre-defined sparkle positions evenly spaced around the star (8–9pt from center)
-   - Each pulse step shows 2-3 sparkles (rotating subset) → flickering/shimmering effect
-   - Each sparkle is a + cross shape (1.8pt arm, 0.75pt stroke width)
-   - Sparkle alpha: 0.85 of star color
-   - Conveys "everything is healthy and running smoothly"
-
-2. **Breathing mode (≥ 30%)**: star itself scales up and down with a soft circular halo behind it
-   - Star scale range grows with usage: 1.0–1.06x at 30%, up to 1.0–1.14x at 95%+
-   - Halo alpha range grows with usage: 0–0.08 at low, 0.12–0.32 at high
+1. **Breathing mode (normal)**: star itself scales up and down with a soft circular halo behind it
+   - Star scale range grows with usage: 1.0–1.08x at <60%, up to 1.0–1.14x at 95%+
+   - Halo alpha range grows with usage: 0–0.12 at low, 0.12–0.32 at high
    - Halo radius: star outer radius × scale × 1.15
    - Sine-wave breathing factor from discrete pulse step
 
-3. **Broken mode (throttled)**: star fractures into 4 triangular fragments with dramatic pulse
+2. **Broken mode (throttled)**: star fractures into 4 triangular fragments with dramatic pulse
    - Each point of the 4-pointed star is a triangle (outer tip + two adjacent inner vertices)
    - Each triangle offset outward from center by ~1.5pt along its radial direction
    - Fragment scale breathes 1.0–1.14x, halo alpha 0.15–0.45
    - Visible gaps between fragments — the star appears "shattered"
 
+3. **Recovery sparkle (throttle → green transition)**: 30s celebration effect after throttle clears
+   - Star drawn at normal size, surrounded by subtle twinkling cross sparkles
+   - 8 pre-defined sparkle positions evenly spaced around the star (8–9pt from center)
+   - Each frame shows 1-2 sparkles (rotating subset), frames change every 500ms (half pulse rate)
+   - Each sparkle is a + cross shape (1.4pt arm, 0.6pt stroke width, 0.5 alpha)
+   - Triggered by `StatusBarManager` detecting `isThrottled` going from true → false
+   - Automatically stops after 30 seconds, returning to normal breathing mode
+
 **Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 16 discrete steps, 250ms per tick).
-- Always active — sparkle at low usage, breathing at medium/high, dramatic pulse when throttled
+- Always active — breathing at all usage levels, dramatic pulse when throttled
+- Recovery sparkle overlaid for 30s after throttle clears
 - Pauses on screen sleep, resumes on wake
 - Timer callback uses `MainActor.assumeIsolated` (no async dispatch overhead)
 - Timer stopped only when app terminates

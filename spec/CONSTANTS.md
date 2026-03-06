@@ -207,8 +207,11 @@ Pricing per million tokens:
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
 | Broken star fragment offset | 1.5pt |
-| Sparkle arm length | 1.8pt |
-| Sparkle stroke width | 0.75pt |
+| Recovery sparkle arm length | 1.4pt |
+| Recovery sparkle stroke width | 0.6pt |
+| Recovery sparkle alpha | 0.5 |
+| Recovery sparkle frame rate | 500ms (every 2nd pulse step) |
+| Recovery sparkle duration | 30 sec |
 | Pulse steps per cycle | 16 |
 | Pulse cycle duration | 4.0 sec |
 | Pulse tick interval | 250ms (4s ÷ 16) |

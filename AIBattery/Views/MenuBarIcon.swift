@@ -17,6 +17,7 @@ struct MenuBarIcon: View {
             for: requestsPercent,
             color: ThemeColors.barNSColor(percent: requestsPercent),
             isBroken: isBroken,
+            isSparkle: false,
             pulseStep: pulseStep
         ))
     }
@@ -70,10 +71,14 @@ struct MenuBarIcon: View {
     }
 
     /// Composite cache key: quantized percent × 100 + pulseStep for normal,
-    /// 10_100 + pulseStep for broken. Max entries: 21×16 + 16 = 352.
-    static func cacheKey(quantizedPercent: Int, isBroken: Bool, pulseStep: Int) -> Int {
+    /// 10_100 + pulseStep for broken, 10_200 + pulseStep for sparkle.
+    /// Max entries: 21×16 + 16 + 16 = 368.
+    static func cacheKey(quantizedPercent: Int, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> Int {
         if isBroken {
             return 10_100 + pulseStep
+        }
+        if isSparkle {
+            return 10_200 + pulseStep
         }
         return quantizedPercent * 100 + pulseStep
     }
@@ -87,11 +92,12 @@ struct MenuBarIcon: View {
 
     /// Returns the cached status bar NSImage. Color is provided by the caller so it can
     /// match the active metric mode (rate limit thresholds vs context health thresholds).
-    static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, pulseStep: Int = 0) -> NSImage {
-        cachedIcon(for: percent, color: color, isBroken: isBroken, pulseStep: pulseStep)
+    /// `isSparkle` triggers the recovery sparkle effect (30s after throttle clears).
+    static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, isSparkle: Bool = false, pulseStep: Int = 0) -> NSImage {
+        cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
     }
 
-    static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, pulseStep: Int) -> NSImage {
+    static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> NSImage {
         let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let currentAppearance = NSApp?.effectiveAppearance
         let appearanceName = currentAppearance?.name.rawValue ?? ""
@@ -106,14 +112,14 @@ struct MenuBarIcon: View {
         }
 
         let qPercent = quantizedPercent(percent)
-        let key = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, pulseStep: pulseStep)
+        let key = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
         if let cached = iconCache[key] { return cached }
 
         let isDarkMode = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let icon: NSImage
         if isBroken {
             icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
-        } else if percent < 30 {
+        } else if isSparkle {
             icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
         } else {
             icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)

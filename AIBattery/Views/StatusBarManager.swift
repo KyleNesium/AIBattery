@@ -28,6 +28,12 @@ public final class StatusBarManager: NSObject {
     private var screenSleepObserver: Any?
     private var screenWakeObserver: Any?
 
+    // Recovery sparkle: 30s celebration after throttle clears
+    private var isSparkleActive: Bool = false
+    private var sparkleTimer: Timer?
+    /// Duration of the recovery sparkle effect after throttle clears.
+    static let sparkleDuration: TimeInterval = 30
+
     public override init() {
         super.init()
     }
@@ -162,6 +168,7 @@ public final class StatusBarManager: NSObject {
         }
         appearanceObserver?.invalidate()
         breathTimer?.invalidate()
+        sparkleTimer?.invalidate()
         if let obs = screenSleepObserver { NotificationCenter.default.removeObserver(obs) }
         if let obs = screenWakeObserver { NotificationCenter.default.removeObserver(obs) }
     }
@@ -193,12 +200,21 @@ public final class StatusBarManager: NSObject {
             starColor = ThemeColors.barNSColor(percent: percent)
         }
 
+        // Detect throttle → green transition: start recovery sparkle
+        if currentIsThrottled && !isThrottled {
+            startRecoverySparkle()
+        }
+        // If throttled again, cancel any active sparkle
+        if isThrottled {
+            stopRecoverySparkle()
+        }
+
         // Store render state for the breath timer callback
         currentPercent = percent
         currentColor = starColor
         currentIsThrottled = isThrottled
 
-        // Always animate: sparkle effect < 30%, breathing >= 30%, dramatic pulse when throttled
+        // Always animate: breathing star, dramatic pulse when throttled, sparkle on recovery
         startBreathTimerIfNeeded()
 
         // Update icon with current breath step
@@ -206,6 +222,7 @@ public final class StatusBarManager: NSObject {
             for: percent,
             color: starColor,
             isBroken: isThrottled,
+            isSparkle: isSparkleActive,
             pulseStep: currentPulseStep
         )
 
@@ -285,6 +302,7 @@ public final class StatusBarManager: NSObject {
                     for: self.currentPercent,
                     color: self.currentColor,
                     isBroken: self.currentIsThrottled,
+                    isSparkle: self.isSparkleActive,
                     pulseStep: self.currentPulseStep
                 )
             }
@@ -295,6 +313,24 @@ public final class StatusBarManager: NSObject {
         breathTimer?.invalidate()
         breathTimer = nil
         currentPulseStep = 0
+    }
+
+    // MARK: - Recovery sparkle (throttle → green transition)
+
+    private func startRecoverySparkle() {
+        isSparkleActive = true
+        sparkleTimer?.invalidate()
+        sparkleTimer = Timer.scheduledTimer(withTimeInterval: Self.sparkleDuration, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.stopRecoverySparkle()
+            }
+        }
+    }
+
+    private func stopRecoverySparkle() {
+        isSparkleActive = false
+        sparkleTimer?.invalidate()
+        sparkleTimer = nil
     }
 
     // MARK: - Panel toggle
