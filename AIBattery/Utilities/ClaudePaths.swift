@@ -6,12 +6,14 @@ enum ClaudePaths {
     #if APP_SANDBOX
     /// Under App Sandbox, `FileManager.homeDirectoryForCurrentUser` returns the container path.
     /// Use POSIX `getpwuid` to resolve the real home directory where `~/.claude/` lives.
-    private static let home: URL = {
-        let pw = getpwuid(getuid())!
+    static let home: URL = {
+        guard let pw = getpwuid(getuid()) else {
+            return FileManager.default.homeDirectoryForCurrentUser
+        }
         return URL(fileURLWithPath: String(cString: pw.pointee.pw_dir))
     }()
     #else
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    static let home = FileManager.default.homeDirectoryForCurrentUser
     #endif
 
     /// `~/.claude/stats-cache.json` — historical usage aggregates

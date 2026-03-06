@@ -11,12 +11,6 @@ public final class SandboxAccessManager {
     private let bookmarkKey = "aibattery_claudeDirBookmark"
     private var accessedURL: URL?
 
-    /// Real user home directory (not the sandbox container).
-    private static let realHome: URL = {
-        let pw = getpwuid(getuid())!
-        return URL(fileURLWithPath: String(cString: pw.pointee.pw_dir))
-    }()
-
     /// Whether we have a valid bookmark for ~/.claude/.
     var hasAccess: Bool { resolveBookmark() != nil }
 
@@ -29,7 +23,7 @@ public final class SandboxAccessManager {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.directoryURL = Self.realHome.appendingPathComponent(".claude")
+        panel.directoryURL = ClaudePaths.home.appendingPathComponent(".claude")
 
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
 
