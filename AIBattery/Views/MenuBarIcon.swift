@@ -13,31 +13,51 @@ struct MenuBarIcon: View {
     }
 
     var body: some View {
-        Image(nsImage: Self.cachedIcon(for: requestsPercent, isBroken: isBroken, pulseStep: pulseStep))
+        Image(nsImage: Self.cachedIcon(
+            for: requestsPercent,
+            color: ThemeColors.barNSColor(percent: requestsPercent),
+            isBroken: isBroken,
+            pulseStep: pulseStep
+        ))
     }
 
-    // MARK: - Glow parameters
+    // MARK: - Constants
 
-    /// Glow blur radius interpolated from usage percentage.
-    static func glowBlur(for percent: Double) -> CGFloat {
+    /// Icon canvas size — larger than the star to give the glow room to breathe.
+    static let iconSize: CGFloat = 22
+
+    /// Number of discrete pulse steps per breathing cycle.
+    static let pulseSteps = 8
+
+    // MARK: - Glow breath parameters
+
+    /// Star scale range (min, max) for the breathing animation.
+    /// The star itself grows and shrinks. Higher usage = bigger breath.
+    static func starScaleRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
         switch percent {
-        case ..<30: return 1.0
-        case ..<60: return 1.5
-        case ..<80: return 2.5
-        case ..<95: return 3.5
-        default: return 4.5
+        case ..<30:  return (1.00, 1.06)
+        case ..<60:  return (1.00, 1.08)
+        case ..<80:  return (1.00, 1.10)
+        case ..<95:  return (1.00, 1.12)
+        default:     return (1.00, 1.14)
         }
     }
 
-    /// Glow alpha interpolated from usage percentage.
-    static func glowAlpha(for percent: Double) -> CGFloat {
+    /// Glow halo alpha range (min, max) for the soft aura behind the star.
+    static func glowAlphaRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
         switch percent {
-        case ..<30: return 0.15
-        case ..<60: return 0.25
-        case ..<80: return 0.35
-        case ..<95: return 0.45
-        default: return 0.55
+        case ..<30:  return (0.0, 0.08)
+        case ..<60:  return (0.0, 0.12)
+        case ..<80:  return (0.05, 0.18)
+        case ..<95:  return (0.08, 0.25)
+        default:     return (0.12, 0.32)
         }
+    }
+
+    /// Sine-wave breath factor (0.0–1.0) from a discrete pulse step.
+    static func breathFactor(for step: Int) -> CGFloat {
+        let phase = CGFloat(step) / CGFloat(pulseSteps)
+        return (sin(phase * 2 * .pi - .pi / 2) + 1) / 2
     }
 
     // MARK: - Cache key
@@ -48,14 +68,13 @@ struct MenuBarIcon: View {
         return Int((clamped / 5).rounded(.down)) * 5
     }
 
-    /// Composite cache key encoding quantized percent, broken flag, and pulse step.
-    /// Normal: 21 entries (0, 5, 10, ..., 100). Broken: 8 pulse steps × 1 = 8 entries.
-    /// Total max: 29 entries per accessibility/appearance state.
+    /// Composite cache key: quantized percent × pulseSteps + pulseStep for normal,
+    /// 1000 + pulseStep for broken. Max entries: 21×8 + 8 = 176.
     static func cacheKey(quantizedPercent: Int, isBroken: Bool, pulseStep: Int) -> Int {
         if isBroken {
-            return 1000 + pulseStep  // 1000–1007
+            return 1000 + pulseStep
         }
-        return quantizedPercent  // 0–100 in steps of 5
+        return quantizedPercent * 10 + pulseStep
     }
 
     // MARK: - Icon cache
@@ -65,18 +84,17 @@ struct MenuBarIcon: View {
     private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
     private static var cachedAppearanceName: String = NSApp.effectiveAppearance.name.rawValue
 
-    /// Returns the cached status bar NSImage for a given percentage.
-    /// Used by StatusBarManager for native AppKit button rendering.
-    static func statusBarImage(for percent: Double, isBroken: Bool = false, pulseStep: Int = 0) -> NSImage {
-        cachedIcon(for: percent, isBroken: isBroken, pulseStep: pulseStep)
+    /// Returns the cached status bar NSImage. Color is provided by the caller so it can
+    /// match the active metric mode (rate limit thresholds vs context health thresholds).
+    static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, pulseStep: Int = 0) -> NSImage {
+        cachedIcon(for: percent, color: color, isBroken: isBroken, pulseStep: pulseStep)
     }
 
-    static func cachedIcon(for percent: Double, isBroken: Bool, pulseStep: Int) -> NSImage {
+    static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, pulseStep: Int) -> NSImage {
         let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let currentAppearance = NSApp.effectiveAppearance
         let appearanceName = currentAppearance.name.rawValue
 
-        // Invalidate cache if accessibility or appearance state changed
         if cachedColorblindFlag != ThemeColors.isColorblind
             || cachedHighContrastFlag != highContrast
             || cachedAppearanceName != appearanceName {
@@ -93,9 +111,11 @@ struct MenuBarIcon: View {
         let isDarkMode = currentAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let icon: NSImage
         if isBroken {
-            icon = renderBrokenIcon(pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+            icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+        } else if percent < 30 {
+            icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
         } else {
-            icon = renderIcon(percent: percent, highContrast: highContrast, isDarkMode: isDarkMode)
+            icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
         }
         iconCache[key] = icon
         return icon
@@ -103,38 +123,41 @@ struct MenuBarIcon: View {
 
     // MARK: - Normal star rendering
 
-    static func renderIcon(percent: Double, highContrast: Bool, isDarkMode: Bool) -> NSImage {
-        let size: CGFloat = 16
-        let color = ThemeColors.barNSColor(percent: percent)
-        let blur = glowBlur(for: percent)
-        let alpha = glowAlpha(for: percent)
+    static func renderIcon(percent: Double, color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
+        let size = iconSize
+        let breath = breathFactor(for: pulseStep)
+        let scaleRange = starScaleRange(for: percent)
+        let alphaRange = glowAlphaRange(for: percent)
+
+        let starScale = scaleRange.min + (scaleRange.max - scaleRange.min) * breath
+        let haloAlpha = alphaRange.min + (alphaRange.max - alphaRange.min) * breath
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             let center = NSPoint(x: size / 2, y: size / 2)
             let outerRadius: CGFloat = 6.5
             let innerRadius: CGFloat = 2.0
 
-            let path = starPath(center: center, outerRadius: outerRadius, innerRadius: innerRadius)
+            // Soft halo — faint circle just behind the star tips
+            if haloAlpha > 0.01 {
+                let haloR = outerRadius * starScale * 1.15
+                let rect = CGRect(x: center.x - haloR, y: center.y - haloR, width: haloR * 2, height: haloR * 2)
+                ctx.setFillColor(color.withAlphaComponent(haloAlpha).cgColor)
+                ctx.fillEllipse(in: rect)
+            }
 
-            // Glow behind the star — intensity scales with usage
-            let glowColor = color.withAlphaComponent(alpha)
-            let shadow = NSShadow()
-            shadow.shadowColor = glowColor
-            shadow.shadowBlurRadius = blur
-            shadow.shadowOffset = .zero
+            // Breathing star — the star itself scales up and down
+            let path = starPath(
+                center: center,
+                outerRadius: outerRadius * starScale,
+                innerRadius: innerRadius * starScale
+            )
+            ctx.setFillColor(color.cgColor)
+            ctx.addPath(path.cgPath)
+            ctx.fillPath()
 
-            NSGraphicsContext.saveGraphicsState()
-            shadow.set()
-            color.setFill()
-            path.fill()
-            NSGraphicsContext.restoreGraphicsState()
-
-            // Fill the star with the usage color (crisp, on top of glow)
-            color.setFill()
-            path.fill()
-
-            // Outline for definition
-            drawStroke(path: path, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+            // Outline
+            drawStroke(ctx: ctx, path: path.cgPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
 
             return true
         }
@@ -144,47 +167,109 @@ struct MenuBarIcon: View {
 
     // MARK: - Broken star rendering (throttled)
 
-    static func renderBrokenIcon(pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
-        let size: CGFloat = 16
-        let color = ThemeColors.barNSColor(percent: 100) // Always red/critical band
+    static func renderBrokenIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
+        let size = iconSize
+        let breath = breathFactor(for: pulseStep)
 
-        // Pulse modulation from step (0–7 → 0.0–1.0 sine wave)
-        let phase = CGFloat(pulseStep) / 8.0
-        let sine = (sin(phase * 2 * .pi - .pi / 2) + 1) / 2 // 0.0–1.0
-        let pulseAlpha: CGFloat = 0.25 + sine * 0.40    // 0.25–0.65
-        let pulseBlur: CGFloat = 2.5 + sine * 2.5       // 2.5–5.0
+        // Broken star breathes more dramatically
+        let fragmentScale: CGFloat = 1.0 + breath * 0.14  // 1.0–1.14
+        let haloAlpha: CGFloat = 0.15 + breath * 0.30     // 0.15–0.45
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             let center = NSPoint(x: size / 2, y: size / 2)
             let outerRadius: CGFloat = 6.5
             let innerRadius: CGFloat = 2.0
             let fragmentOffset: CGFloat = 1.5
 
+            // Soft halo behind fragments
+            let haloR = outerRadius * fragmentScale * 1.15
+            let rect = CGRect(x: center.x - haloR, y: center.y - haloR, width: haloR * 2, height: haloR * 2)
+            ctx.setFillColor(color.withAlphaComponent(haloAlpha).cgColor)
+            ctx.fillEllipse(in: rect)
+
+            // Broken fragments on top — also breathe
             let fragments = brokenStarFragments(
                 center: center,
-                outerRadius: outerRadius,
-                innerRadius: innerRadius,
+                outerRadius: outerRadius * fragmentScale,
+                innerRadius: innerRadius * fragmentScale,
                 offset: fragmentOffset
             )
 
-            // Draw each fragment with pulsing glow
-            let glowColor = color.withAlphaComponent(pulseAlpha)
-            let shadow = NSShadow()
-            shadow.shadowColor = glowColor
-            shadow.shadowBlurRadius = pulseBlur
-            shadow.shadowOffset = .zero
-
             for fragment in fragments {
-                NSGraphicsContext.saveGraphicsState()
-                shadow.set()
-                color.setFill()
-                fragment.fill()
-                NSGraphicsContext.restoreGraphicsState()
+                let cgPath = fragment.cgPath
+                ctx.setFillColor(color.cgColor)
+                ctx.addPath(cgPath)
+                ctx.fillPath()
+                drawStroke(ctx: ctx, path: cgPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+            }
 
-                color.setFill()
-                fragment.fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
 
-                drawStroke(path: fragment, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+    // MARK: - Sparkle star rendering (green / healthy)
+
+    /// Pre-computed sparkle positions: angle (radians) and distance from center.
+    /// 6 sparkles arranged around the star at varying distances.
+    private static let sparklePositions: [(angle: CGFloat, dist: CGFloat)] = [
+        (0.3,  8.5),   // upper right
+        (1.8,  9.0),   // upper left
+        (3.5,  8.0),   // lower left
+        (5.0,  9.5),   // lower right
+        (1.0,  7.5),   // top
+        (4.2,  8.5),   // bottom
+    ]
+
+    /// Each pulse step shows a different subset of sparkles (indices into sparklePositions).
+    /// Rotates through so 2-3 sparkles are visible per frame → twinkling effect.
+    private static let sparkleFrames: [[Int]] = [
+        [0, 3],
+        [1, 4],
+        [2, 5],
+        [0, 2, 4],
+        [1, 3],
+        [2, 5],
+        [0, 4],
+        [1, 3, 5],
+    ]
+
+    static func renderSparkleIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
+        let size = iconSize
+
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            let center = NSPoint(x: size / 2, y: size / 2)
+            let outerRadius: CGFloat = 6.5
+            let innerRadius: CGFloat = 2.0
+
+            // Draw the star at normal size (no breathing — green is calm)
+            let path = starPath(center: center, outerRadius: outerRadius, innerRadius: innerRadius)
+            ctx.setFillColor(color.cgColor)
+            ctx.addPath(path.cgPath)
+            ctx.fillPath()
+            drawStroke(ctx: ctx, path: path.cgPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+
+            // Draw sparkles — tiny 4-pointed stars that twinkle
+            let activeIndices = sparkleFrames[pulseStep % sparkleFrames.count]
+            let sparkleColor = color.withAlphaComponent(0.7)
+
+            for idx in activeIndices {
+                let pos = sparklePositions[idx]
+                let sx = center.x + pos.dist * cos(pos.angle)
+                let sy = center.y + pos.dist * sin(pos.angle)
+                let sparkleCenter = NSPoint(x: sx, y: sy)
+
+                let sparklePath = starPath(
+                    center: sparkleCenter,
+                    outerRadius: 1.4,
+                    innerRadius: 0.5
+                )
+                ctx.setFillColor(sparkleColor.cgColor)
+                ctx.addPath(sparklePath.cgPath)
+                ctx.fillPath()
             }
 
             return true
@@ -216,15 +301,12 @@ struct MenuBarIcon: View {
     }
 
     /// 4 triangular fragments of the star, each offset outward from center.
-    /// Each point of the 4-pointed star forms a triangle: the outer tip + the two adjacent inner vertices.
     static func brokenStarFragments(
         center: NSPoint,
         outerRadius: CGFloat,
         innerRadius: CGFloat,
         offset: CGFloat
     ) -> [NSBezierPath] {
-        // Star has 4 outer points at indices 0, 2, 4, 6 (angles: -π/2, 0, π/2, π)
-        // and 4 inner points at indices 1, 3, 5, 7
         var vertices: [NSPoint] = []
         for i in 0..<8 {
             let angle = (CGFloat(i) * .pi / 4) - (.pi / 2)
@@ -236,13 +318,11 @@ struct MenuBarIcon: View {
         }
 
         var fragments: [NSBezierPath] = []
-        // Each fragment: outer vertex at index 2*k, inner vertices at 2*k-1 and 2*k+1
         for k in 0..<4 {
             let outerIdx = k * 2
-            let prevInner = (outerIdx + 7) % 8 // wraps around
+            let prevInner = (outerIdx + 7) % 8
             let nextInner = (outerIdx + 1) % 8
 
-            // Direction from center to outer point — offset along this
             let outerAngle = (CGFloat(outerIdx) * .pi / 4) - (.pi / 2)
             let dx = offset * cos(outerAngle)
             let dy = offset * sin(outerAngle)
@@ -258,19 +338,43 @@ struct MenuBarIcon: View {
         return fragments
     }
 
-    /// Shared stroke drawing for consistent outline across normal and broken states.
-    private static func drawStroke(path: NSBezierPath, color: NSColor, highContrast: Bool, isDarkMode: Bool) {
+    /// Shared stroke drawing via CGContext.
+    private static func drawStroke(ctx: CGContext, path: CGPath, color: NSColor, highContrast: Bool, isDarkMode: Bool) {
         if highContrast {
-            NSColor.black.withAlphaComponent(0.8).setStroke()
-            path.lineWidth = 1.0
+            ctx.setStrokeColor(NSColor.black.withAlphaComponent(0.8).cgColor)
+            ctx.setLineWidth(1.0)
         } else if !isDarkMode {
-            NSColor.black.withAlphaComponent(0.3).setStroke()
-            path.lineWidth = 0.75
+            ctx.setStrokeColor(NSColor.black.withAlphaComponent(0.3).cgColor)
+            ctx.setLineWidth(0.75)
         } else {
-            color.withAlphaComponent(0.6).setStroke()
-            path.lineWidth = 0.5
+            ctx.setStrokeColor(color.withAlphaComponent(0.6).cgColor)
+            ctx.setLineWidth(0.5)
         }
-        path.stroke()
+        ctx.addPath(path)
+        ctx.strokePath()
     }
 
+}
+
+// MARK: - NSBezierPath → CGPath
+
+extension NSBezierPath {
+    /// Converts an NSBezierPath to a CGPath for use with CGContext drawing.
+    var cgPath: CGPath {
+        let path = CGMutablePath()
+        var points = [CGPoint](repeating: .zero, count: 3)
+        for i in 0..<elementCount {
+            let type = element(at: i, associatedPoints: &points)
+            switch type {
+            case .moveTo: path.move(to: points[0])
+            case .lineTo: path.addLine(to: points[0])
+            case .curveTo: path.addCurve(to: points[2], control1: points[0], control2: points[1])
+            case .closePath: path.closeSubpath()
+            case .cubicCurveTo: path.addCurve(to: points[2], control1: points[0], control2: points[1])
+            case .quadraticCurveTo: path.addQuadCurve(to: points[1], control: points[0])
+            @unknown default: break
+            }
+        }
+        return path
+    }
 }

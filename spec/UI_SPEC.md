@@ -363,40 +363,47 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
 
-- 16×16 NSImage, custom drawing
+- 22×22 NSImage canvas (extra room for glow/sparkles), CGContext-based drawing
 - 4-pointed star: 8 vertices alternating outer (6.5pt) / inner (2.0pt) radius
-- Centered at (8, 8), rotation offset -π/2 (starts from top)
-- Fill: solid color based on requestsPercent
+- Centered at (11, 11), rotation offset -π/2 (starts from top)
+- Fill: solid color from caller (matches active metric mode — rate limit or context health thresholds)
 - Stroke: high-contrast → black 0.8 / 1.0pt; light mode → black 0.3 / 0.75pt; dark mode → color 0.6 / 0.5pt
 - `isTemplate = false`
 
-**Dynamic glow scaling**: `NSShadow` behind the star with intensity that scales with usage percentage:
+**Three render modes** based on state:
 
-| Percent | Blur radius | Glow alpha | Visual |
-|---------|-------------|------------|--------|
-| 0–30%   | 1.0pt       | 0.15       | Subtle, barely visible halo |
-| 30–60%  | 1.5pt       | 0.25       | Soft glow, noticeable |
-| 60–80%  | 2.5pt       | 0.35       | Medium glow |
-| 80–95%  | 3.5pt       | 0.45       | Strong glow, draws attention |
-| 95–100% | 4.5pt       | 0.55       | Intense glow, hot |
+1. **Sparkle mode (< 30%)**: star drawn at normal size, surrounded by twinkling sparkle particles
+   - 6 pre-defined sparkle positions at varying angles/distances around the star
+   - Each pulse step shows 2-3 sparkles (rotating subset) → flickering/shimmering effect
+   - Each sparkle is a tiny 4-pointed star (1.4pt outer, 0.5pt inner radius)
+   - Sparkle alpha: 0.7 of star color
+   - Conveys "everything is healthy and running smoothly"
 
-Glow color matches the star's band color (green/yellow/orange/red at 50/80/95 thresholds).
+2. **Breathing mode (≥ 30%)**: star itself scales up and down with a soft circular halo behind it
+   - Star scale range grows with usage: 1.0–1.06x at 30%, up to 1.0–1.14x at 95%+
+   - Halo alpha range grows with usage: 0–0.08 at low, 0.12–0.32 at high
+   - Halo radius: star outer radius × scale × 1.15
+   - Sine-wave breathing factor from discrete pulse step
 
-**Broken star (throttled)**: when `isThrottled == true`, the star fractures into 4 triangular fragments:
-- Each point of the 4-pointed star is a triangle (outer tip + two adjacent inner vertices)
-- Each triangle offset outward from center by ~1.5pt along its radial direction
-- Visible gaps between fragments — the star appears "shattered"
-- Color: always red/critical band
+3. **Broken mode (throttled)**: star fractures into 4 triangular fragments with dramatic pulse
+   - Each point of the 4-pointed star is a triangle (outer tip + two adjacent inner vertices)
+   - Each triangle offset outward from center by ~1.5pt along its radial direction
+   - Fragment scale breathes 1.0–1.14x, halo alpha 0.15–0.45
+   - Visible gaps between fragments — the star appears "shattered"
 
-**Pulsing animation (throttled)**: `StatusBarManager` runs a repeating timer (~150ms, ~1.5s full cycle) that modulates the broken star's glow:
-- Glow alpha oscillates 0.25–0.65 (sine wave)
-- Glow blur oscillates 2.5–5.0pt
-- 8 discrete pulse steps (quantized for caching)
-- Timer stops when no longer throttled
+**Animation**: `StatusBarManager` runs a repeating timer (3.5s full cycle, 8 discrete steps, ~437ms per tick).
+- Always active — sparkle at low usage, breathing at medium/high, dramatic pulse when throttled
+- Pauses on screen sleep, resumes on wake
+- Timer stopped only when app terminates
 
-**Quantized caching**: cache key uses `quantizedPercent` (every 5%, 21 buckets) + `isBroken` flag + `pulseStep` (0–7 when pulsing). Max entries: 21 normal + 8 broken = 29. Cache invalidates on colorblind/appearance/contrast change.
+**Star color selection** (by `StatusBarManager`):
+- Rate limit modes: `ThemeColors.barNSColor` (green < 50%, yellow 50–80%, orange 80–95%, red ≥ 95%)
+- Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
+- Throttled: always red/critical band
 
-- **`statusBarImage(for:isBroken:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 10 + `pulseStep` (0–7) for normal, `1000 + pulseStep` for broken. Max entries: 21×8 + 8 = 176. Cache invalidates on colorblind/appearance/contrast change.
+
+- **`statusBarImage(for:color:isBroken:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
 
 ## Accessibility
 

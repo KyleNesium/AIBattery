@@ -5,28 +5,31 @@ import AppKit
 @Suite("MenuBarIcon")
 struct MenuBarIconTests {
 
-    // MARK: - Glow parameters
+    private let testColor: NSColor = .systemGreen
 
-    @Test func glowBlur_scalesWithPercent() {
-        #expect(MenuBarIcon.glowBlur(for: 0) == 1.0)
-        #expect(MenuBarIcon.glowBlur(for: 29) == 1.0)
-        #expect(MenuBarIcon.glowBlur(for: 30) == 1.5)
-        #expect(MenuBarIcon.glowBlur(for: 59) == 1.5)
-        #expect(MenuBarIcon.glowBlur(for: 60) == 2.5)
-        #expect(MenuBarIcon.glowBlur(for: 79) == 2.5)
-        #expect(MenuBarIcon.glowBlur(for: 80) == 3.5)
-        #expect(MenuBarIcon.glowBlur(for: 94) == 3.5)
-        #expect(MenuBarIcon.glowBlur(for: 95) == 4.5)
-        #expect(MenuBarIcon.glowBlur(for: 100) == 4.5)
+    // MARK: - Breath parameters
+
+    @Test func breathFactor_rangeIsZeroToOne() {
+        for step in 0..<MenuBarIcon.pulseSteps {
+            let factor = MenuBarIcon.breathFactor(for: step)
+            #expect(factor >= 0.0)
+            #expect(factor <= 1.0)
+        }
     }
 
-    @Test func glowAlpha_scalesWithPercent() {
-        #expect(MenuBarIcon.glowAlpha(for: 0) == 0.15)
-        #expect(MenuBarIcon.glowAlpha(for: 29) == 0.15)
-        #expect(MenuBarIcon.glowAlpha(for: 30) == 0.25)
-        #expect(MenuBarIcon.glowAlpha(for: 60) == 0.35)
-        #expect(MenuBarIcon.glowAlpha(for: 80) == 0.45)
-        #expect(MenuBarIcon.glowAlpha(for: 95) == 0.55)
+    @Test func starScaleRange_increasesWithPercent() {
+        let low = MenuBarIcon.starScaleRange(for: 10)
+        let high = MenuBarIcon.starScaleRange(for: 99)
+        // Min is always 1.0 (base size), max grows with usage
+        #expect(low.min == 1.0)
+        #expect(high.max > low.max)
+    }
+
+    @Test func glowAlphaRange_increasesWithPercent() {
+        let low = MenuBarIcon.glowAlphaRange(for: 10)
+        let high = MenuBarIcon.glowAlphaRange(for: 99)
+        #expect(high.min > low.min)
+        #expect(high.max > low.max)
     }
 
     // MARK: - Quantized percent
@@ -54,13 +57,16 @@ struct MenuBarIconTests {
         #expect(normalKey != brokenKey)
     }
 
-    @Test func cacheKey_normalUsesQuantizedPercent() {
+    @Test func cacheKey_normalEncodesPulseStep() {
+        let step0 = MenuBarIcon.cacheKey(quantizedPercent: 50, isBroken: false, pulseStep: 0)
+        let step3 = MenuBarIcon.cacheKey(quantizedPercent: 50, isBroken: false, pulseStep: 3)
+        #expect(step0 != step3)
+    }
+
+    @Test func cacheKey_differentPercentsAreDistinct() {
         let key0 = MenuBarIcon.cacheKey(quantizedPercent: 0, isBroken: false, pulseStep: 0)
         let key50 = MenuBarIcon.cacheKey(quantizedPercent: 50, isBroken: false, pulseStep: 0)
-        let key100 = MenuBarIcon.cacheKey(quantizedPercent: 100, isBroken: false, pulseStep: 0)
-        #expect(key0 == 0)
-        #expect(key50 == 50)
-        #expect(key100 == 100)
+        #expect(key0 != key50)
     }
 
     @Test func cacheKey_brokenPulseStepsAreDistinct() {
@@ -92,44 +98,76 @@ struct MenuBarIconTests {
             offset: 1.5
         )
         #expect(fragments.count == 4)
-        // Each fragment is a triangle: move + 2 lines + close = 4 elements
         for fragment in fragments {
-            #expect(fragment.elementCount == 4)
+            #expect(fragment.elementCount == 4) // move + 2 lines + close
         }
+    }
+
+    // MARK: - NSBezierPath CGPath conversion
+
+    @Test func cgPath_convertsCorrectly() {
+        let bezier = NSBezierPath()
+        bezier.move(to: NSPoint(x: 0, y: 0))
+        bezier.line(to: NSPoint(x: 10, y: 0))
+        bezier.line(to: NSPoint(x: 5, y: 10))
+        bezier.close()
+        let cg = bezier.cgPath
+        #expect(!cg.isEmpty)
+        #expect(cg.boundingBox.width > 0)
     }
 
     // MARK: - Rendered icon properties
 
-    @Test func normalIcon_is16x16NonTemplate() {
-        let icon = MenuBarIcon.statusBarImage(for: 50)
-        #expect(icon.size.width == 16)
-        #expect(icon.size.height == 16)
+    @Test func normalIcon_isCorrectSizeNonTemplate() {
+        let icon = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 0)
+        #expect(icon.size.width == MenuBarIcon.iconSize)
+        #expect(icon.size.height == MenuBarIcon.iconSize)
         #expect(icon.isTemplate == false)
     }
 
-    @Test func brokenIcon_is16x16NonTemplate() {
-        let icon = MenuBarIcon.statusBarImage(for: 100, isBroken: true, pulseStep: 0)
-        #expect(icon.size.width == 16)
-        #expect(icon.size.height == 16)
+    @Test func brokenIcon_isCorrectSizeNonTemplate() {
+        let icon = MenuBarIcon.statusBarImage(for: 100, color: .systemRed, isBroken: true, pulseStep: 0)
+        #expect(icon.size.width == MenuBarIcon.iconSize)
+        #expect(icon.size.height == MenuBarIcon.iconSize)
         #expect(icon.isTemplate == false)
-    }
-
-    @Test func differentPercents_produceDifferentCachedIcons() {
-        let low = MenuBarIcon.statusBarImage(for: 10)
-        let high = MenuBarIcon.statusBarImage(for: 90)
-        // Different quantized percents should produce different instances
-        #expect(low !== high)
-    }
-
-    @Test func samePulseStep_returnsSameCachedInstance() {
-        let first = MenuBarIcon.statusBarImage(for: 100, isBroken: true, pulseStep: 3)
-        let second = MenuBarIcon.statusBarImage(for: 100, isBroken: true, pulseStep: 3)
-        #expect(first === second)
     }
 
     @Test func differentPulseSteps_produceDifferentInstances() {
-        let step0 = MenuBarIcon.statusBarImage(for: 100, isBroken: true, pulseStep: 0)
-        let step4 = MenuBarIcon.statusBarImage(for: 100, isBroken: true, pulseStep: 4)
+        let step0 = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 0)
+        let step4 = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 4)
         #expect(step0 !== step4)
+    }
+
+    @Test func samePulseStep_returnsSameCachedInstance() {
+        let first = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 2)
+        let second = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 2)
+        #expect(first === second)
+    }
+
+    // MARK: - Sparkle icon (green / healthy)
+
+    @Test func sparkleIcon_isCorrectSizeNonTemplate() {
+        let icon = MenuBarIcon.statusBarImage(for: 10, color: .systemGreen, pulseStep: 0)
+        #expect(icon.size.width == MenuBarIcon.iconSize)
+        #expect(icon.size.height == MenuBarIcon.iconSize)
+        #expect(icon.isTemplate == false)
+    }
+
+    @Test func sparkleIcon_differentStepsProduceDifferentInstances() {
+        let step0 = MenuBarIcon.statusBarImage(for: 10, color: .systemGreen, pulseStep: 0)
+        let step3 = MenuBarIcon.statusBarImage(for: 10, color: .systemGreen, pulseStep: 3)
+        #expect(step0 !== step3)
+    }
+
+    // MARK: - Context health color
+
+    @Test func contextHealthColor_matchesHealthBandThresholds() {
+        let green = ThemeColors.contextHealthNSColor(percent: 50)
+        let orange = ThemeColors.contextHealthNSColor(percent: 70)
+        let red = ThemeColors.contextHealthNSColor(percent: 85)
+        #expect(green != orange)
+        #expect(orange != red)
+        #expect(green == .systemGreen)
+        #expect(red == .systemRed)
     }
 }

@@ -18,10 +18,15 @@ public final class StatusBarManager: NSObject {
     private var deactivationObserver: Any?
     private var appearanceObserver: NSKeyValueObservation?
 
-    // Pulse animation state for throttled/broken star
-    private var pulseTimer: Timer?
-    private var pulsePhase: CGFloat = 0
+    // Breathing glow animation state
+    private var breathTimer: Timer?
     private var currentPulseStep: Int = 0
+    // Snapshot of current render state for the breath timer callback
+    private var currentPercent: Double = 0
+    private var currentColor: NSColor = .systemGreen
+    private var currentIsThrottled: Bool = false
+    private var screenSleepObserver: Any?
+    private var screenWakeObserver: Any?
 
     public override init() {
         super.init()
@@ -32,7 +37,7 @@ public final class StatusBarManager: NSObject {
 
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
         if let button = item.button {
-            button.image = MenuBarIcon.statusBarImage(for: 0)
+            button.image = MenuBarIcon.statusBarImage(for: 0, color: ThemeColors.barNSColor(percent: 0))
             button.imagePosition = .imageLeading
             button.title = "—"
             // Match macOS battery indicator: system font with monospaced digits
@@ -157,7 +162,9 @@ public final class StatusBarManager: NSObject {
             NotificationCenter.default.removeObserver(observer)
         }
         appearanceObserver?.invalidate()
-        pulseTimer?.invalidate()
+        breathTimer?.invalidate()
+        if let obs = screenSleepObserver { NotificationCenter.default.removeObserver(obs) }
+        if let obs = screenWakeObserver { NotificationCenter.default.removeObserver(obs) }
     }
 
     // MARK: - Button update
@@ -177,18 +184,30 @@ public final class StatusBarManager: NSObject {
         let rateLimits = viewModel.snapshot?.rateLimits
         let isThrottled = rateLimits?.isThrottled ?? false
 
-        // Manage pulse timer for throttled state
+        // Pick star color matching the active metric's thresholds
+        let starColor: NSColor
         if isThrottled {
-            startPulseTimerIfNeeded(button: button, percent: percent)
+            starColor = ThemeColors.barNSColor(percent: 100)
+        } else if metricMode == .contextHealth {
+            starColor = ThemeColors.contextHealthNSColor(percent: percent)
         } else {
-            stopPulseTimer()
+            starColor = ThemeColors.barNSColor(percent: percent)
         }
 
-        // Update icon — broken star when throttled, normal with glow scaling otherwise
+        // Store render state for the breath timer callback
+        currentPercent = percent
+        currentColor = starColor
+        currentIsThrottled = isThrottled
+
+        // Always animate: sparkle effect < 30%, breathing >= 30%, dramatic pulse when throttled
+        startBreathTimerIfNeeded()
+
+        // Update icon with current breath step
         button.image = MenuBarIcon.statusBarImage(
             for: percent,
+            color: starColor,
             isBroken: isThrottled,
-            pulseStep: isThrottled ? currentPulseStep : 0
+            pulseStep: currentPulseStep
         )
 
         // Countdown overrides normal percentage when throttled or any window at 100%
@@ -235,31 +254,50 @@ public final class StatusBarManager: NSObject {
         return nil
     }
 
-    // MARK: - Pulse timer
+    // MARK: - Breath timer
 
-    private func startPulseTimerIfNeeded(button: NSStatusBarButton, percent: Double) {
-        guard pulseTimer == nil else { return }
-        pulseTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+    /// Breathing cycle: ~3.5s per full cycle, 8 discrete steps (~437ms per tick).
+    /// Only runs when percent >= 30% or throttled. Pauses on screen sleep.
+    private func startBreathTimerIfNeeded() {
+        guard breathTimer == nil else { return }
+
+        // Observe screen sleep/wake to pause animation when display is off
+        if screenSleepObserver == nil {
+            screenSleepObserver = NotificationCenter.default.addObserver(
+                forName: NSWorkspace.screensDidSleepNotification,
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.stopBreathTimer() }
+            }
+            screenWakeObserver = NotificationCenter.default.addObserver(
+                forName: NSWorkspace.screensDidWakeNotification,
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.startBreathTimerIfNeeded()
+                }
+            }
+        }
+
+        let interval: TimeInterval = 3.5 / Double(MenuBarIcon.pulseSteps)
+        breathTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.pulsePhase += 0.15 / 1.5 // ~1.5s full cycle
-                if self.pulsePhase >= 1.0 { self.pulsePhase -= 1.0 }
-                self.currentPulseStep = Int(self.pulsePhase * 8) % 8
-
-                guard let button = self.statusItem?.button else { return }
+                guard let self, let button = self.statusItem?.button else { return }
+                self.currentPulseStep = (self.currentPulseStep + 1) % MenuBarIcon.pulseSteps
                 button.image = MenuBarIcon.statusBarImage(
-                    for: percent,
-                    isBroken: true,
+                    for: self.currentPercent,
+                    color: self.currentColor,
+                    isBroken: self.currentIsThrottled,
                     pulseStep: self.currentPulseStep
                 )
             }
         }
     }
 
-    private func stopPulseTimer() {
-        pulseTimer?.invalidate()
-        pulseTimer = nil
-        pulsePhase = 0
+    private func stopBreathTimer() {
+        breathTimer?.invalidate()
+        breathTimer = nil
         currentPulseStep = 0
     }
 
