@@ -5,9 +5,12 @@
 ### Fixed
 - **Throttle event tracking** — throttle counter now detects per-window throttle status, not just overall. Previously, a window-level throttle (e.g. 5h "throttled") could go unrecorded if the overall status hadn't updated yet
 - **Token exchange resilience** — malformed 200 responses from the token endpoint now retry instead of hard-failing
+- **Crash on corrupt stats-cache** — duplicate dates in `dailyActivity` no longer crash the aggregator (was using `Dictionary(uniqueKeysWithValues:)` which fatally traps on duplicates)
+- **Missing model in context windows** — added `claude-haiku-3-5-20241022` alias to prevent fallback to default if context windows ever diverge
 
 ### Improved
-- **12M chart performance** — replaced 4× full scans of daily activity with single-pass month aggregation
+- **12M chart performance** — replaced 4× full scans of daily activity with single-pass month aggregation shared between chart and trend summary
+- **Activity merge** — daily activity merge and delta computation consolidated into a single pass, eliminating a redundant dictionary and second loop
 - **Keychain code** — extracted shared base query to reduce duplication across set/get/delete
 - **Status parsing** — consolidated 3-pass component parsing into single pass
 - **CI reliability** — retry logic for flaky macOS runner crashes (signal 11)
