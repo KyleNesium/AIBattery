@@ -384,7 +384,7 @@ struct ActivityChartView: View {
         VStack(spacing: 4) {
             switch mode {
             case .hourly:
-                trendRow24H(snapshot)
+                trendRow12H(snapshot)
             case .daily:
                 trendRow7D(snapshot)
             case .monthly:
@@ -394,9 +394,9 @@ struct ActivityChartView: View {
         .padding(.top, 4)
     }
 
-    // MARK: - 24H trend
+    // MARK: - 12H trend
 
-    private func trendRow24H(_ snapshot: UsageSnapshot) -> some View {
+    private func trendRow12H(_ snapshot: UsageSnapshot) -> some View {
         Group {
             HStack(spacing: 6) {
                 if let change = changeVsYesterday(snapshot) {

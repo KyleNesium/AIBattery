@@ -180,7 +180,7 @@ Click the ✦ icon to open the dashboard:
 | 🧠 **Context Health** | 5 most recent sessions with `< 1/5 >` chevron + swipe navigation |
 | 🔤 **Tokens** | Per-model breakdown with input/output/cache read/cache write · optional API cost |
 | 📈 **Insights** | Today's stats with trend arrow + projection, all-time stats with busiest day |
-| 📉 **Activity** | Sparkline chart — 24H · 7D · 12M toggle |
+| 📉 **Activity** | Sparkline chart — 12H · 7D · 12M toggle |
 
 ---
 

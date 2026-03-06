@@ -136,7 +136,7 @@ final class UsageAggregator {
             }
         }
 
-        // Build today's hourly breakdown from JSONL (for 24H chart).
+        // Build today's hourly breakdown from JSONL (for 12H chart).
         var todayHourCounts: [String: Int] = [:]
         for entry in todayEntries {
             let hour = String(calendar.component(.hour, from: entry.timestamp))
