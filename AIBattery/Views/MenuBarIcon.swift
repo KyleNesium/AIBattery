@@ -227,12 +227,11 @@ struct MenuBarIcon: View {
     ]
 
     /// Each pulse step shows a different subset of sparkles (indices into sparklePositions).
-    /// 16 frames with 2-3 sparkles each, rotating through for a twinkling effect.
+    /// 8 unique frames with 1-2 sparkles each — subtle, slow twinkling.
+    /// Pulse steps are halved (16→8) so each frame lasts 500ms.
     private static let sparkleFrames: [[Int]] = [
-        [0, 4],     [1, 5],     [2, 6],     [3, 7],
-        [0, 3, 6],  [1, 4, 7],  [2, 5],     [0, 6],
-        [3, 7],     [1, 4],     [2, 5, 0],  [3, 6],
-        [4, 7, 1],  [0, 5],     [2, 7],     [1, 3, 6],
+        [0],     [5],     [2],     [7],
+        [0, 4],  [3],     [6],     [1, 5],
     ]
 
     static func renderSparkleIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
@@ -251,8 +250,9 @@ struct MenuBarIcon: View {
             ctx.fillPath()
             drawStroke(ctx: ctx, path: path.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
 
-            // Draw sparkles — small cross shapes that twinkle around the star
-            let activeIndices = sparkleFrames[pulseStep % sparkleFrames.count]
+            // Draw sparkles — subtle cross shapes that slowly twinkle around the star
+            let frameIndex = (pulseStep / 2) % sparkleFrames.count
+            let activeIndices = sparkleFrames[frameIndex]
 
             for idx in activeIndices {
                 let pos = sparklePositions[idx]
@@ -260,9 +260,9 @@ struct MenuBarIcon: View {
                 let sy = center.y + pos.dist * sin(pos.angle)
 
                 // Draw a simple + cross (2 perpendicular lines) — renders crisply at small sizes
-                let arm: CGFloat = 1.8
-                ctx.setStrokeColor(color.withAlphaComponent(0.85).cgColor)
-                ctx.setLineWidth(0.75)
+                let arm: CGFloat = 1.4
+                ctx.setStrokeColor(color.withAlphaComponent(0.5).cgColor)
+                ctx.setLineWidth(0.6)
                 ctx.move(to: CGPoint(x: sx - arm, y: sy))
                 ctx.addLine(to: CGPoint(x: sx + arm, y: sy))
                 ctx.move(to: CGPoint(x: sx, y: sy - arm))

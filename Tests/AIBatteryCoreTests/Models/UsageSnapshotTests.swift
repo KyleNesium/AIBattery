@@ -449,10 +449,11 @@ struct UsageSnapshotTests {
     }
 
     @Test func activityStats_matchesSnapshotProperties() {
-        // Verify computeActivityStats produces same results as snapshot pre-computation
+        // Verify computeActivityStats produces same results as snapshot pre-computation.
+        // Use asymmetric counts so one weekday is clearly the busiest (avoids tie-breaking nondeterminism).
         let activity = makeDailyActivity(daysBack: 14, messages: [
             10, 10, 10, 10, 10, 10, 10,
-            50, 50, 50, 50, 50, 50, 50,
+            50, 50, 50, 50, 50, 50, 99,
         ])
         let snapshot = makeSnapshot(dailyActivity: activity)
         let stats = UsageSnapshot.computeActivityStats(activity)
