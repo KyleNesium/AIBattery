@@ -37,6 +37,9 @@ xcodebuild -exportArchive \
   -exportOptionsPlist scripts/ExportOptions-AppStore.plist \
   -quiet
 
+# Restore source Info.plist (avoid leaving modified working tree)
+git checkout -- AIBattery/Info.plist 2>/dev/null || true
+
 echo ""
 echo "App Store build ready at: .build/appstore/"
 echo "Upload with: xcrun altool --upload-app -f .build/appstore/AIBattery.pkg -t macos --apiKey \$KEY_ID --apiIssuer \$ISSUER_ID"
