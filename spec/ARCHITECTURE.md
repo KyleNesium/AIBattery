@@ -103,7 +103,7 @@ AIBattery/
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
     InsightsSection.swift         — Today stats, all-time stats
-    ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows)
+    ActivityChartView.swift        — 12H/7D/12M activity chart (Swift Charts, rolling windows)
     CopyableText.swift            — ViewModifier for click-to-copy with clipboard icon feedback
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
   Utilities/

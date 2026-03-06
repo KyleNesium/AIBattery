@@ -328,7 +328,7 @@ Pricing table (per million tokens):
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
 - **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending
 - **All-dates daily activity merge**: groups all JSONL entries by date via `entriesByDate` dictionary, then merges every date into `dailyActivity` (not just today). This fills gaps between a stale stats-cache rebuild date and the present. If JSONL has more messages for a date than the cache entry, replaces it; if no entry exists, appends one. Preserves the higher of JSONL or cache tool-call counts.
-- **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 24H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
+- **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 12H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
 - **totalMessages/totalSessions dedup**: iterates all `entriesByDate` keys and computes `max(jsonlCount - cachedCount, 0)` per date, summing across all dates. Prevents inflation when stats-cache already includes recent data.
 - Tool calls from stats cache only (not parsed from JSONL)
 - **Idle session cutoff**: reads `aibattery_idleSessionMinutes` from UserDefaults (0 = never hide), passes to `TokenHealthMonitor.assessSessions(idleCutoffMinutes:)` to filter stale sessions from context health

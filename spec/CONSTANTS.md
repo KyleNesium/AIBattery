@@ -214,7 +214,7 @@ Pricing per million tokens:
 | Chevron icon size | 9pt (bold weight) |
 | Chevron corner radius | 4pt |
 | Chart height | 50pt |
-| Chart modes | 24H (hourly), 7D (daily rolling), 12M (monthly rolling) |
+| Chart modes | 12H (hourly trailing), 7D (daily rolling), 12M (monthly rolling) |
 
 ## Animations
 
@@ -259,7 +259,7 @@ Pricing per million tokens:
 | Constant | Value |
 |----------|-------|
 | AppStorage key | `aibattery_chartMode` |
-| Default mode | `"24H"` (hourly) |
+| Default mode | `"12H"` (hourly) |
 | Persists across sessions | Yes (via `@AppStorage`) |
 
 ## File Paths
