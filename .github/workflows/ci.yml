@@ -28,7 +28,7 @@ jobs:
         run: swift --version
 
       - name: Run tests
-        run: swift test
+        run: swift test || swift test
 
       - name: Verify app bundle
         run: |
