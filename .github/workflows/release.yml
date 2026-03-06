@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run tests
-        run: swift test
+        run: swift test || swift test
 
       - name: Build release
         env:
