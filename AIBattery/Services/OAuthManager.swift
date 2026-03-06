@@ -404,7 +404,9 @@ public final class OAuthManager: ObservableObject {
                       let access = json["access_token"] as? String,
                       let refresh = json["refresh_token"] as? String,
                       let expiresIn = json["expires_in"] as? Int else {
-                    return .failure(.unknownError("Invalid token response format"))
+                    AppLogger.oauth.warning("Token endpoint returned 200 with invalid JSON, attempt \(attempt + 1)/\(Self.maxRetries + 1)")
+                    lastError = .unknownError("Invalid token response format")
+                    continue
                 }
 
                 return .success(TokenResult(

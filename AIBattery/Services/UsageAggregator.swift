@@ -111,14 +111,26 @@ final class UsageAggregator {
         let tokenHealth = healthResult.current
         let topSessionHealths = healthResult.top
 
-        // Merge JSONL daily counts into dailyActivity so charts reflect usage
-        // for days after the last stats-cache rebuild.
+        // Merge JSONL daily counts into dailyActivity and compute additional
+        // messages/sessions beyond stats-cache in a single pass.
         var activity = statsCache?.dailyActivity ?? []
+        // Dictionary index for O(1) lookup instead of O(n) firstIndex(where:).
+        // Uses uniquingKeysWith to handle corrupt stats-cache with duplicate dates
+        // (Dictionary(uniqueKeysWithValues:) would fatally trap on duplicates).
+        var activityIndex: [String: Int] = Dictionary(
+            activity.enumerated().map { ($1.date, $0) },
+            uniquingKeysWith: { _, last in last }
+        )
+        var additionalMessages = 0
+        var additionalSessions = 0
         for (date, bucket) in entriesByDate {
             let toolCalls = (date == todayDate) ? todayToolCalls : 0
-            if let idx = activity.firstIndex(where: { $0.date == date }) {
+            if let idx = activityIndex[date] {
+                // Capture original stats-cache values before potential mutation
+                let cachedMessages = activity[idx].messageCount
+                let cachedSessions = activity[idx].sessionCount
                 // Update existing entry if JSONL has more messages
-                if bucket.messages > activity[idx].messageCount {
+                if bucket.messages > cachedMessages {
                     activity[idx] = DailyActivity(
                         date: date,
                         messageCount: bucket.messages,
@@ -126,13 +138,18 @@ final class UsageAggregator {
                         toolCallCount: max(toolCalls, activity[idx].toolCallCount)
                     )
                 }
+                additionalMessages += max(bucket.messages - cachedMessages, 0)
+                additionalSessions += max(bucket.sessions.count - cachedSessions, 0)
             } else {
+                activityIndex[date] = activity.count
                 activity.append(DailyActivity(
                     date: date,
                     messageCount: bucket.messages,
                     sessionCount: bucket.sessions.count,
                     toolCallCount: toolCalls
                 ))
+                additionalMessages += bucket.messages
+                additionalSessions += bucket.sessions.count
             }
         }
 
@@ -153,19 +170,6 @@ final class UsageAggregator {
         let peakEntry = hourCounts.max(by: { $0.value < $1.value })
         let peakHour = peakEntry.flatMap { Int($0.key) }
         let peakHourCount = peakEntry?.value ?? 0
-
-        // Count additional messages/sessions beyond what stats-cache already
-        // includes, across all dates, to avoid double-counting.
-        let cachedActivityLookup = Dictionary(
-            uniqueKeysWithValues: (statsCache?.dailyActivity ?? []).map { ($0.date, $0) }
-        )
-        var additionalMessages = 0
-        var additionalSessions = 0
-        for (date, bucket) in entriesByDate {
-            let cached = cachedActivityLookup[date]
-            additionalMessages += max(bucket.messages - (cached?.messageCount ?? 0), 0)
-            additionalSessions += max(bucket.sessions.count - (cached?.sessionCount ?? 0), 0)
-        }
 
         let activityStats = UsageSnapshot.computeActivityStats(activity)
 

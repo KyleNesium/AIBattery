@@ -118,7 +118,7 @@ Parsed from Anthropic's unified rate limit headers (`anthropic-ratelimit-unified
 | `sevenDayStatus` | `String` |
 | `overallStatus` | `String` — `"allowed"` or `"throttled"` |
 
-Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled`, `estimatedTimeToLimit(for window: String) -> TimeInterval?` (burn rate = utilization / elapsed, projects when 100% reached; returns nil if utilization ≤ 50%, elapsed < 60s, or estimate exceeds reset time)
+Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled` (true if `overallStatus`, `fiveHourStatus`, or `sevenDayStatus` is `"throttled"`), `estimatedTimeToLimit(for window: String) -> TimeInterval?` (burn rate = utilization / elapsed, projects when 100% reached; returns nil if utilization ≤ 50%, elapsed < 60s, or estimate exceeds reset time)
 
 Static: `countdownText(to date: Date, from now: Date = .now) -> String` — compact countdown for menu bar display. Pure function with injectable `now` for testing. Delegates to `DurationFormatter.compact()`. Used by `StatusBarManager` when throttled.
 
