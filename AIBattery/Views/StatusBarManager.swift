@@ -83,7 +83,6 @@ public final class StatusBarManager: NSObject {
         // React to snapshot or staleness changes — single subscription avoids double updates
         viewModel.$snapshot
             .combineLatest(viewModel.$lastFreshFetch)
-            .receive(on: DispatchQueue.main)
             .sink { [weak self, weak item, weak viewModel] _, _ in
                 guard let self, let button = item?.button, let viewModel else { return }
                 self.updateButton(button, viewModel: viewModel)

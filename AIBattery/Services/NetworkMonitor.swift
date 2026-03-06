@@ -1,10 +1,9 @@
-import Combine
 import Network
 
 @MainActor
-final class NetworkMonitor: ObservableObject {
+final class NetworkMonitor {
     static let shared = NetworkMonitor()
-    @Published private(set) var isConnected = true
+    private(set) var isConnected = true
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "NetworkMonitor")
 
@@ -14,4 +13,6 @@ final class NetworkMonitor: ObservableObject {
         }
         monitor.start(queue: queue)
     }
+
+    deinit { monitor.cancel() }
 }
