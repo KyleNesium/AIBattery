@@ -230,11 +230,9 @@ public final class StatusBarManager: NSObject {
             pulseStep: currentPulseStep
         )
 
-        // Throttled → "Throttled"; countdown when any window at 100%; normal → percent
+        // Countdown overrides normal percentage when throttled or any window at 100%
         let displayText: String
-        if isThrottled {
-            displayText = "Throttled"
-        } else if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
+        if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
             displayText = RateLimitUsage.countdownText(to: resetDate)
         } else {
             displayText = "\(Int(percent))%"
@@ -251,9 +249,13 @@ public final class StatusBarManager: NSObject {
         button.appearsDisabled = isStale
     }
 
-    /// Returns the reset date for countdown display when any window hits 100% (not throttled — that's handled separately).
-    /// Returns earliest reset of any exhausted window.
+    /// Returns the reset date for countdown display when throttled or any window hits 100%.
+    /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
     private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
+        if rateLimits.isThrottled {
+            return rateLimits.bindingReset
+        }
+
         let fiveExhausted = rateLimits.fiveHourPercent >= 100
         let sevenExhausted = rateLimits.sevenDayPercent >= 100
 
