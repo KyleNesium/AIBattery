@@ -89,58 +89,89 @@ struct UsageSnapshot {
     /// Pre-computed at construction to avoid iterating all dailyActivity on every view render.
     let busiestDayOfWeek: (name: String, averageCount: Int)?
 
-    /// Compute daily average from activity data.
-    static func computeDailyAverage(_ dailyActivity: [DailyActivity]) -> Int {
-        let recent = dailyActivity.suffix(7)
-        guard !recent.isEmpty else { return 0 }
-        let total = recent.reduce(0) { $0 + $1.messageCount }
-        return total / recent.count
-    }
+    /// Compute daily average, trend direction, and busiest day in a single pass.
+    static func computeActivityStats(_ dailyActivity: [DailyActivity])
+        -> (average: Int, trend: TrendDirection, busiestDay: (name: String, averageCount: Int)?) {
+        guard !dailyActivity.isEmpty else { return (0, .flat, nil) }
 
-    /// Compute trend direction from activity data.
-    static func computeTrendDirection(_ dailyActivity: [DailyActivity]) -> TrendDirection {
         let count = dailyActivity.count
-        guard count >= 14 else { return .flat }
-
-        let thisWeek = dailyActivity.suffix(7)
-        let lastWeek = dailyActivity.dropLast(7).suffix(7)
-        guard !lastWeek.isEmpty else { return .flat }
-
-        let thisAvg = Double(thisWeek.reduce(0) { $0 + $1.messageCount }) / Double(thisWeek.count)
-        let lastAvg = Double(lastWeek.reduce(0) { $0 + $1.messageCount }) / Double(lastWeek.count)
-
-        guard lastAvg > 0 else { return thisAvg > 0 ? .up : .flat }
-        let change = (thisAvg - lastAvg) / lastAvg
-        if change > 0.10 { return .up }
-        if change < -0.10 { return .down }
-        return .flat
-    }
-
-    /// Compute the busiest day of the week from daily activity.
-    static func computeBusiestDay(_ dailyActivity: [DailyActivity]) -> (name: String, averageCount: Int)? {
         let calendar = Calendar.current
-        var totals = [Int: Int]()
-        var counts = [Int: Int]()
 
-        for day in dailyActivity {
-            guard let date = day.parsedDate else { continue }
-            let weekday = calendar.component(.weekday, from: date)
-            totals[weekday, default: 0] += day.messageCount
-            counts[weekday, default: 0] += 1
+        // Accumulators for all three metrics
+        var recentTotal = 0
+        var thisWeekTotal = 0
+        var lastWeekTotal = 0
+        var weekdayTotals = [Int: Int]()
+        var weekdayCounts = [Int: Int]()
+
+        let recentStart = max(0, count - 7)
+        let thisWeekStart = max(0, count - 7)
+        let lastWeekStart = max(0, count - 14)
+        let lastWeekEnd = max(0, count - 7)
+
+        for (i, day) in dailyActivity.enumerated() {
+            // Daily average (last 7)
+            if i >= recentStart {
+                recentTotal += day.messageCount
+            }
+            // Trend: this week vs last week (need >= 14 days)
+            if count >= 14 {
+                if i >= thisWeekStart {
+                    thisWeekTotal += day.messageCount
+                } else if i >= lastWeekStart && i < lastWeekEnd {
+                    lastWeekTotal += day.messageCount
+                }
+            }
+            // Busiest day
+            if let date = day.parsedDate {
+                let weekday = calendar.component(.weekday, from: date)
+                weekdayTotals[weekday, default: 0] += day.messageCount
+                weekdayCounts[weekday, default: 0] += 1
+            }
         }
 
-        guard let (weekday, total) = totals.max(by: { a, b in
-            let avgA = Double(a.value) / Double(counts[a.key] ?? 1)
-            let avgB = Double(b.value) / Double(counts[b.key] ?? 1)
+        // Average
+        let recentCount = count - recentStart
+        let average = recentCount > 0 ? recentTotal / recentCount : 0
+
+        // Trend
+        let trend: TrendDirection
+        if count < 14 {
+            trend = .flat
+        } else {
+            let thisWeekDays = count - thisWeekStart
+            let lastWeekDays = lastWeekEnd - lastWeekStart
+            let thisAvg = Double(thisWeekTotal) / Double(thisWeekDays)
+            let lastAvg = Double(lastWeekTotal) / Double(max(lastWeekDays, 1))
+            if lastAvg <= 0 {
+                trend = thisAvg > 0 ? .up : .flat
+            } else {
+                let change = (thisAvg - lastAvg) / lastAvg
+                if change > 0.10 { trend = .up }
+                else if change < -0.10 { trend = .down }
+                else { trend = .flat }
+            }
+        }
+
+        // Busiest day
+        let busiestDay: (name: String, averageCount: Int)?
+        if let (weekday, total) = weekdayTotals.max(by: { a, b in
+            let avgA = Double(a.value) / Double(weekdayCounts[a.key] ?? 1)
+            let avgB = Double(b.value) / Double(weekdayCounts[b.key] ?? 1)
             return avgA < avgB
-        }) else { return nil }
+        }) {
+            let avg = total / max(weekdayCounts[weekday] ?? 1, 1)
+            let index = weekday - 1
+            if avg > 0, index >= 0, index < weekdaySymbols.count {
+                busiestDay = (weekdaySymbols[index], avg)
+            } else {
+                busiestDay = nil
+            }
+        } else {
+            busiestDay = nil
+        }
 
-        let avg = total / max(counts[weekday] ?? 1, 1)
-        guard avg > 0 else { return nil }
-
-        let index = weekday - 1
-        guard index >= 0, index < weekdaySymbols.count else { return nil }
-        return (weekdaySymbols[index], avg)
+        return (average, trend, busiestDay)
     }
 
     // Hourly message distribution (hour "0"-"23" → count, all-time merged)

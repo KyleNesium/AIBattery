@@ -13,7 +13,8 @@ struct UsageSnapshotTests {
         todayMessages: Int = 0,
         dailyActivity: [DailyActivity] = []
     ) -> UsageSnapshot {
-        UsageSnapshot(
+        let activityStats = UsageSnapshot.computeActivityStats(dailyActivity)
+        return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
             firstSessionDate: nil,
@@ -29,9 +30,9 @@ struct UsageSnapshotTests {
             modelTokens: modelTokens,
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
             dailyActivity: dailyActivity,
-            dailyAverage: UsageSnapshot.computeDailyAverage(dailyActivity),
-            trendDirection: UsageSnapshot.computeTrendDirection(dailyActivity),
-            busiestDayOfWeek: UsageSnapshot.computeBusiestDay(dailyActivity),
+            dailyAverage: activityStats.average,
+            trendDirection: activityStats.trend,
+            busiestDayOfWeek: activityStats.busiestDay,
             hourCounts: [:],
             todayHourCounts: [:],
             tokenHealth: tokenHealth,
@@ -406,5 +407,59 @@ struct UsageSnapshotTests {
         #expect(!TrendDirection.down.symbol.isEmpty)
         #expect(!TrendDirection.flat.symbol.isEmpty)
         #expect(TrendDirection.up.symbol != TrendDirection.down.symbol)
+    }
+
+    // MARK: - computeActivityStats (single-pass)
+
+    @Test func activityStats_emptyActivity() {
+        let stats = UsageSnapshot.computeActivityStats([])
+        #expect(stats.average == 0)
+        #expect(stats.trend == .flat)
+        #expect(stats.busiestDay == nil)
+    }
+
+    @Test func activityStats_singleWeek() {
+        let activity = makeDailyActivity(daysBack: 7, messages: [10, 20, 30, 40, 50, 60, 70])
+        let stats = UsageSnapshot.computeActivityStats(activity)
+        #expect(stats.average == 40) // 280 / 7
+        #expect(stats.trend == .flat) // < 14 days
+        #expect(stats.busiestDay != nil)
+        #expect(stats.busiestDay!.averageCount > 0)
+    }
+
+    @Test func activityStats_multiWeek_trendUp() {
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            10, 10, 10, 10, 10, 10, 10,  // last week
+            50, 50, 50, 50, 50, 50, 50,  // this week
+        ])
+        let stats = UsageSnapshot.computeActivityStats(activity)
+        #expect(stats.average == 50) // last 7: all 50
+        #expect(stats.trend == .up)
+        #expect(stats.busiestDay != nil)
+    }
+
+    @Test func activityStats_multiWeek_trendDown() {
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            50, 50, 50, 50, 50, 50, 50,
+            10, 10, 10, 10, 10, 10, 10,
+        ])
+        let stats = UsageSnapshot.computeActivityStats(activity)
+        #expect(stats.average == 10)
+        #expect(stats.trend == .down)
+    }
+
+    @Test func activityStats_matchesSnapshotProperties() {
+        // Verify computeActivityStats produces same results as snapshot pre-computation
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            10, 10, 10, 10, 10, 10, 10,
+            50, 50, 50, 50, 50, 50, 50,
+        ])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        let stats = UsageSnapshot.computeActivityStats(activity)
+        #expect(snapshot.dailyAverage == stats.average)
+        #expect(snapshot.trendDirection == stats.trend)
+        // Busiest day name should match (both non-nil)
+        #expect(snapshot.busiestDayOfWeek?.name == stats.busiestDay?.name)
+        #expect(snapshot.busiestDayOfWeek?.averageCount == stats.busiestDay?.averageCount)
     }
 }

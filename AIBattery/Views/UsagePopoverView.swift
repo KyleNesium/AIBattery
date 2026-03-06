@@ -126,10 +126,6 @@ public struct UsagePopoverView: View {
         #endif
     }
 
-    private var accounts: [AccountRecord] {
-        accountStore.accounts
-    }
-
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
@@ -282,7 +278,7 @@ public struct UsagePopoverView: View {
     private var accountPicker: some View {
         Menu {
             let activeId = accountStore.activeAccountId
-            ForEach(Array(accounts.enumerated()), id: \.element.id) { index, account in
+            ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         viewModel.switchAccount(to: account.id)
@@ -306,8 +302,8 @@ public struct UsagePopoverView: View {
                 }
             }
         } label: {
-            if let activeIndex = accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
-                Text(accountLabel(accounts[activeIndex], index: activeIndex))
+            if let activeIndex = accountStore.accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
+                Text(accountLabel(accountStore.accounts[activeIndex], index: activeIndex))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
