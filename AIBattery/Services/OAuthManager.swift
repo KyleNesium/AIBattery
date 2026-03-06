@@ -12,7 +12,7 @@ import os
 /// 5. Auto-refreshes when expired using refresh token
 ///
 /// Multi-account:
-/// - Supports up to 2 accounts (separate Claude orgs)
+/// - Supports up to 3 accounts (separate Claude orgs)
 /// - Each account's tokens stored under prefixed Keychain entries
 /// - `AccountStore` tracks known accounts; `activeAccountId` drives which one polls
 /// - New accounts get a temporary `"pending-<UUID>"` ID until the first API call
