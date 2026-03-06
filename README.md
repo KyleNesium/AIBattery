@@ -470,7 +470,7 @@ If it saves you time or helps you get more out of your Claude subscription, cons
 
 ## 🧪 Test Coverage
 
-**509 tests** across 36 test files.
+**510 tests** across 36 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|

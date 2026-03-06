@@ -18,7 +18,7 @@ struct MenuBarIconTests {
     }
 
     @Test func starScaleRange_increasesWithPercent() {
-        let low = MenuBarIcon.starScaleRange(for: 10)
+        let low = MenuBarIcon.starScaleRange(for: 35)
         let high = MenuBarIcon.starScaleRange(for: 99)
         // Min is always 1.0 (base size), max grows with usage
         #expect(low.min == 1.0)
@@ -26,7 +26,7 @@ struct MenuBarIconTests {
     }
 
     @Test func glowAlphaRange_increasesWithPercent() {
-        let low = MenuBarIcon.glowAlphaRange(for: 10)
+        let low = MenuBarIcon.glowAlphaRange(for: 35)
         let high = MenuBarIcon.glowAlphaRange(for: 99)
         #expect(high.min > low.min)
         #expect(high.max > low.max)
@@ -75,8 +75,17 @@ struct MenuBarIconTests {
         let step7 = MenuBarIcon.cacheKey(quantizedPercent: 0, isBroken: true, pulseStep: 7)
         #expect(step0 != step4)
         #expect(step4 != step7)
-        #expect(step0 == 1000)
-        #expect(step7 == 1007)
+        #expect(step0 == 10_100)
+        #expect(step7 == 10_107)
+    }
+
+    @Test func cacheKey_noCollisionAt100Percent() {
+        // 100% normal and broken must not collide (was a bug with *10 + 1000 base)
+        for step in 0..<MenuBarIcon.pulseSteps {
+            let normalKey = MenuBarIcon.cacheKey(quantizedPercent: 100, isBroken: false, pulseStep: step)
+            let brokenKey = MenuBarIcon.cacheKey(quantizedPercent: 100, isBroken: true, pulseStep: step)
+            #expect(normalKey != brokenKey)
+        }
     }
 
     // MARK: - Star geometry

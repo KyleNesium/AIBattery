@@ -27,15 +27,16 @@ struct MenuBarIcon: View {
     static let iconSize: CGFloat = 22
 
     /// Number of discrete pulse steps per breathing cycle.
-    static let pulseSteps = 8
+    /// 16 steps at 4s cycle = 250ms per tick — smooth enough to appear fluid.
+    static let pulseSteps = 16
 
     // MARK: - Glow breath parameters
 
     /// Star scale range (min, max) for the breathing animation.
     /// The star itself grows and shrinks. Higher usage = bigger breath.
+    /// Only called for percent >= 30 (below that, sparkle mode is used instead).
     static func starScaleRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
         switch percent {
-        case ..<30:  return (1.00, 1.06)
         case ..<60:  return (1.00, 1.08)
         case ..<80:  return (1.00, 1.10)
         case ..<95:  return (1.00, 1.12)
@@ -44,9 +45,9 @@ struct MenuBarIcon: View {
     }
 
     /// Glow halo alpha range (min, max) for the soft aura behind the star.
+    /// Only called for percent >= 30 (below that, sparkle mode is used instead).
     static func glowAlphaRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
         switch percent {
-        case ..<30:  return (0.0, 0.08)
         case ..<60:  return (0.0, 0.12)
         case ..<80:  return (0.05, 0.18)
         case ..<95:  return (0.08, 0.25)
@@ -68,13 +69,13 @@ struct MenuBarIcon: View {
         return Int((clamped / 5).rounded(.down)) * 5
     }
 
-    /// Composite cache key: quantized percent × pulseSteps + pulseStep for normal,
-    /// 1000 + pulseStep for broken. Max entries: 21×8 + 8 = 176.
+    /// Composite cache key: quantized percent × 100 + pulseStep for normal,
+    /// 10_100 + pulseStep for broken. Max entries: 21×16 + 16 = 352.
     static func cacheKey(quantizedPercent: Int, isBroken: Bool, pulseStep: Int) -> Int {
         if isBroken {
-            return 1000 + pulseStep
+            return 10_100 + pulseStep
         }
-        return quantizedPercent * 10 + pulseStep
+        return quantizedPercent * 100 + pulseStep
     }
 
     // MARK: - Icon cache
@@ -213,27 +214,25 @@ struct MenuBarIcon: View {
     // MARK: - Sparkle star rendering (green / healthy)
 
     /// Pre-computed sparkle positions: angle (radians) and distance from center.
-    /// 6 sparkles arranged around the star at varying distances.
+    /// 8 sparkles arranged around the star — close enough to be visible at menu bar size.
     private static let sparklePositions: [(angle: CGFloat, dist: CGFloat)] = [
-        (0.3,  8.5),   // upper right
-        (1.8,  9.0),   // upper left
-        (3.5,  8.0),   // lower left
-        (5.0,  9.5),   // lower right
-        (1.0,  7.5),   // top
-        (4.2,  8.5),   // bottom
+        (0.0,   8.2),   // right
+        (0.8,   8.8),   // upper right
+        (1.57,  8.0),   // top
+        (2.4,   8.6),   // upper left
+        (3.14,  8.2),   // left
+        (3.9,   8.8),   // lower left
+        (4.71,  8.0),   // bottom
+        (5.5,   8.6),   // lower right
     ]
 
     /// Each pulse step shows a different subset of sparkles (indices into sparklePositions).
-    /// Rotates through so 2-3 sparkles are visible per frame → twinkling effect.
+    /// 16 frames with 2-3 sparkles each, rotating through for a twinkling effect.
     private static let sparkleFrames: [[Int]] = [
-        [0, 3],
-        [1, 4],
-        [2, 5],
-        [0, 2, 4],
-        [1, 3],
-        [2, 5],
-        [0, 4],
-        [1, 3, 5],
+        [0, 4],     [1, 5],     [2, 6],     [3, 7],
+        [0, 3, 6],  [1, 4, 7],  [2, 5],     [0, 6],
+        [3, 7],     [1, 4],     [2, 5, 0],  [3, 6],
+        [4, 7, 1],  [0, 5],     [2, 7],     [1, 3, 6],
     ]
 
     static func renderSparkleIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
@@ -252,24 +251,23 @@ struct MenuBarIcon: View {
             ctx.fillPath()
             drawStroke(ctx: ctx, path: path.cgPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
 
-            // Draw sparkles — tiny 4-pointed stars that twinkle
+            // Draw sparkles — small cross shapes that twinkle around the star
             let activeIndices = sparkleFrames[pulseStep % sparkleFrames.count]
-            let sparkleColor = color.withAlphaComponent(0.7)
 
             for idx in activeIndices {
                 let pos = sparklePositions[idx]
                 let sx = center.x + pos.dist * cos(pos.angle)
                 let sy = center.y + pos.dist * sin(pos.angle)
-                let sparkleCenter = NSPoint(x: sx, y: sy)
 
-                let sparklePath = starPath(
-                    center: sparkleCenter,
-                    outerRadius: 1.4,
-                    innerRadius: 0.5
-                )
-                ctx.setFillColor(sparkleColor.cgColor)
-                ctx.addPath(sparklePath.cgPath)
-                ctx.fillPath()
+                // Draw a simple + cross (2 perpendicular lines) — renders crisply at small sizes
+                let arm: CGFloat = 1.8
+                ctx.setStrokeColor(color.withAlphaComponent(0.85).cgColor)
+                ctx.setLineWidth(0.75)
+                ctx.move(to: CGPoint(x: sx - arm, y: sy))
+                ctx.addLine(to: CGPoint(x: sx + arm, y: sy))
+                ctx.move(to: CGPoint(x: sx, y: sy - arm))
+                ctx.addLine(to: CGPoint(x: sx, y: sy + arm))
+                ctx.strokePath()
             }
 
             return true

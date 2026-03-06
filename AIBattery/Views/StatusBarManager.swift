@@ -256,8 +256,8 @@ public final class StatusBarManager: NSObject {
 
     // MARK: - Breath timer
 
-    /// Breathing cycle: ~3.5s per full cycle, 8 discrete steps (~437ms per tick).
-    /// Only runs when percent >= 30% or throttled. Pauses on screen sleep.
+    /// Breathing cycle: 4s per full cycle, 16 discrete steps (250ms per tick).
+    /// Always runs. Pauses on screen sleep.
     private func startBreathTimerIfNeeded() {
         guard breathTimer == nil else { return }
 
@@ -267,22 +267,19 @@ public final class StatusBarManager: NSObject {
                 forName: NSWorkspace.screensDidSleepNotification,
                 object: nil, queue: .main
             ) { [weak self] _ in
-                Task { @MainActor in self?.stopBreathTimer() }
+                MainActor.assumeIsolated { self?.stopBreathTimer() }
             }
             screenWakeObserver = NotificationCenter.default.addObserver(
                 forName: NSWorkspace.screensDidWakeNotification,
                 object: nil, queue: .main
             ) { [weak self] _ in
-                Task { @MainActor in
-                    guard let self else { return }
-                    self.startBreathTimerIfNeeded()
-                }
+                MainActor.assumeIsolated { self?.startBreathTimerIfNeeded() }
             }
         }
 
-        let interval: TimeInterval = 3.5 / Double(MenuBarIcon.pulseSteps)
+        let interval: TimeInterval = 4.0 / Double(MenuBarIcon.pulseSteps)
         breathTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
+            MainActor.assumeIsolated {
                 guard let self, let button = self.statusItem?.button else { return }
                 self.currentPulseStep = (self.currentPulseStep + 1) % MenuBarIcon.pulseSteps
                 button.image = MenuBarIcon.statusBarImage(

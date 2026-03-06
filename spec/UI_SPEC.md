@@ -372,11 +372,11 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 
 **Three render modes** based on state:
 
-1. **Sparkle mode (< 30%)**: star drawn at normal size, surrounded by twinkling sparkle particles
-   - 6 pre-defined sparkle positions at varying angles/distances around the star
+1. **Sparkle mode (< 30%)**: star drawn at normal size, surrounded by twinkling cross sparkles
+   - 8 pre-defined sparkle positions evenly spaced around the star (8–9pt from center)
    - Each pulse step shows 2-3 sparkles (rotating subset) → flickering/shimmering effect
-   - Each sparkle is a tiny 4-pointed star (1.4pt outer, 0.5pt inner radius)
-   - Sparkle alpha: 0.7 of star color
+   - Each sparkle is a + cross shape (1.8pt arm, 0.75pt stroke width)
+   - Sparkle alpha: 0.85 of star color
    - Conveys "everything is healthy and running smoothly"
 
 2. **Breathing mode (≥ 30%)**: star itself scales up and down with a soft circular halo behind it
@@ -391,9 +391,10 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
    - Fragment scale breathes 1.0–1.14x, halo alpha 0.15–0.45
    - Visible gaps between fragments — the star appears "shattered"
 
-**Animation**: `StatusBarManager` runs a repeating timer (3.5s full cycle, 8 discrete steps, ~437ms per tick).
+**Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 16 discrete steps, 250ms per tick).
 - Always active — sparkle at low usage, breathing at medium/high, dramatic pulse when throttled
 - Pauses on screen sleep, resumes on wake
+- Timer callback uses `MainActor.assumeIsolated` (no async dispatch overhead)
 - Timer stopped only when app terminates
 
 **Star color selection** (by `StatusBarManager`):
@@ -401,7 +402,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
 - Throttled: always red/critical band
 
-**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 10 + `pulseStep` (0–7) for normal, `1000 + pulseStep` for broken. Max entries: 21×8 + 8 = 176. Cache invalidates on colorblind/appearance/contrast change.
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–15) for normal, `10_100 + pulseStep` for broken. Max entries: 21×16 + 16 = 352. Cache invalidates on colorblind/appearance/contrast change.
 
 - **`statusBarImage(for:color:isBroken:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
 
