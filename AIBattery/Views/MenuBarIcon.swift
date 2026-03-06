@@ -233,11 +233,11 @@ struct MenuBarIcon: View {
     ]
 
     /// Each pulse step shows a different subset of sparkles (indices into sparklePositions).
-    /// 8 unique frames with 1-2 sparkles each — subtle, slow twinkling.
+    /// 8 unique frames with 2-3 sparkles each — celebratory twinkling for recovery.
     /// Pulse steps are halved (16→8) so each frame lasts 500ms.
     private static let sparkleFrames: [[Int]] = [
-        [0],     [5],     [2],     [7],
-        [0, 4],  [3],     [6],     [1, 5],
+        [0, 4],     [1, 5],     [2, 6],     [3, 7],
+        [0, 3, 6],  [1, 5],     [2, 4, 7],  [0, 6],
     ]
 
     static func renderSparkleIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
@@ -266,9 +266,9 @@ struct MenuBarIcon: View {
                 let sy = center.y + pos.dist * sin(pos.angle)
 
                 // Draw a simple + cross (2 perpendicular lines) — renders crisply at small sizes
-                let arm: CGFloat = 1.4
-                ctx.setStrokeColor(color.withAlphaComponent(0.5).cgColor)
-                ctx.setLineWidth(0.6)
+                let arm: CGFloat = 1.6
+                ctx.setStrokeColor(color.withAlphaComponent(0.7).cgColor)
+                ctx.setLineWidth(0.7)
                 ctx.move(to: CGPoint(x: sx - arm, y: sy))
                 ctx.addLine(to: CGPoint(x: sx + arm, y: sy))
                 ctx.move(to: CGPoint(x: sx, y: sy - arm))

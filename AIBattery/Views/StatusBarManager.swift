@@ -25,6 +25,8 @@ public final class StatusBarManager: NSObject {
     private var currentPercent: Double = 0
     private var currentColor: NSColor = .systemGreen
     private var currentIsThrottled: Bool = false
+    /// Whether we've received at least one update (so we can detect real transitions vs initial state).
+    private var hasReceivedFirstUpdate: Bool = false
     private var screenSleepObserver: Any?
     private var screenWakeObserver: Any?
 
@@ -201,7 +203,8 @@ public final class StatusBarManager: NSObject {
         }
 
         // Detect throttle → green transition: start recovery sparkle
-        if currentIsThrottled && !isThrottled {
+        // Only trigger after we've seen at least one throttled state (not on first update)
+        if hasReceivedFirstUpdate && currentIsThrottled && !isThrottled {
             startRecoverySparkle()
         }
         // If throttled again, cancel any active sparkle
@@ -213,6 +216,7 @@ public final class StatusBarManager: NSObject {
         currentPercent = percent
         currentColor = starColor
         currentIsThrottled = isThrottled
+        hasReceivedFirstUpdate = true
 
         // Always animate: breathing star, dramatic pulse when throttled, sparkle on recovery
         startBreathTimerIfNeeded()
@@ -226,9 +230,11 @@ public final class StatusBarManager: NSObject {
             pulseStep: currentPulseStep
         )
 
-        // Countdown overrides normal percentage when throttled or any window at 100%
+        // Throttled → "Throttled"; countdown when any window at 100%; normal → percent
         let displayText: String
-        if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
+        if isThrottled {
+            displayText = "Throttled"
+        } else if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
             displayText = RateLimitUsage.countdownText(to: resetDate)
         } else {
             displayText = "\(Int(percent))%"
@@ -245,13 +251,9 @@ public final class StatusBarManager: NSObject {
         button.appearsDisabled = isStale
     }
 
-    /// Returns the reset date for countdown display when throttled or any window hits 100%.
-    /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
+    /// Returns the reset date for countdown display when any window hits 100% (not throttled — that's handled separately).
+    /// Returns earliest reset of any exhausted window.
     private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
-        if rateLimits.isThrottled {
-            return rateLimits.bindingReset
-        }
-
         let fiveExhausted = rateLimits.fiveHourPercent >= 100
         let sevenExhausted = rateLimits.sevenDayPercent >= 100
 
