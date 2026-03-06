@@ -203,9 +203,15 @@ Pricing per million tokens:
 | Section padding V | 12pt |
 | Header padding V | 10pt |
 | Footer padding V | 10pt |
-| Menu bar icon size | 16×16 |
+| Menu bar icon canvas | 22×22pt |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
+| Broken star fragment offset | 1.5pt |
+| Sparkle arm length | 1.8pt |
+| Sparkle stroke width | 0.75pt |
+| Pulse steps per cycle | 16 |
+| Pulse cycle duration | 4.0 sec |
+| Pulse tick interval | 250ms (4s ÷ 16) |
 | Health dot size | 8pt |
 | Status dot size | 6pt |
 | Model dot size | 8pt |
@@ -284,6 +290,14 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 | 50–79% | Yellow |
 | 80–94% | Orange |
 | 95–100% | Red |
+
+### Context health icon (different thresholds)
+
+| Range | Color |
+|-------|-------|
+| 0–59% | Green |
+| 60–79% | Orange |
+| 80–100% | Red |
 
 ### Colorblind mode palette
 
