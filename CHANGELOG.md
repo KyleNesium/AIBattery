@@ -9,6 +9,9 @@
 - **Trailing 12-hour activity chart** — chart now shows last 12 hours instead of fixed 24-hour window
 - **3-account support** — monitor up to 3 Claude orgs simultaneously (was 2)
 
+### Changed
+- **Auto mode priority** — rate limits at ≥95% now unconditionally beat context health (was ≥90% and only when higher than context)
+
 ### Improved
 - **Smoother animation** — 16-step breathing cycle (250ms ticks) with sine-wave easing; `MainActor.assumeIsolated` eliminates async dispatch overhead
 - **Code quality** — extracted settings sections into dedicated views, removed dead code, cleaned up imports
