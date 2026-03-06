@@ -40,9 +40,9 @@
 │   ⚡ Sonnet 4.5           6.6M      │
 │      ↑ 2K  ↓ 15K  📄 4.3M   ✎ 300K │
 ├──────────────────────────────────────┤
-│ Activity      [24H] [7D] [12M]      │  ← ❺ Chart
+│ Activity      [12H] [7D] [12M]      │  ← ❺ Chart
 │ ~~~ area chart ~~~                   │
-│ 0   3   6   9   12  15  18  21      │
+│ HH  HH  HH  HH  HH (trailing 12h)  │
 ├──────────────────────────────────────┤
 │ Today   42 msgs · 3 sessions · 128  │  ← ❻ Insights
 │ All Time  1,247 msgs · 89 sessions  │
@@ -261,31 +261,31 @@ Padding: H 16, V 12
 Compact chart with mode toggle. Positioned below Tokens section.
 
 - Header row: `"Activity"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
-- Toggle modes: `"24H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
+- Toggle modes: `"12H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
 - **Mode persistence**: `@AppStorage("aibattery_chartMode")` — persists across popover close/reopen
 - Empty state: centered VStack with `chart.line.flattrend.xyaxis` icon (14pt, .quaternary) + `"No activity data"` (.caption2, .tertiary), 50pt height
 
 Chart styling (all modes):
   - LineMark: `.orange`, 1.5pt stroke, catmullRom interpolation
   - AreaMark: orange gradient (0.3 → 0.1 opacity, top → bottom)
-  - PointMark: `.orange`, symbolSize 12 (daily + monthly only; hourly skips — 24 dots too dense)
+  - PointMark: `.orange`, symbolSize 12 (daily + monthly only; hourly skips for cleaner look)
   - `.chartPlotStyle { $0.background(.clear) }` (fixes white background)
   - Y-axis: `AxisMarks(position: .trailing, values: .automatic(desiredCount: 3))` with compact labels (`compactCount`: "2K", "3.2M") and `AxisTick` (0.5pt, tertiaryLabel)
   - Height: 50pt
 
 X-axis per mode:
-  - **24H**: Every 3 hours (0, 3, 6, ..., 21) → zero-padded labels "00", "03", "06", ..., "21". Domain 0...23. Font: `.system(size: 8)`
+  - **12H**: Trailing 12-hour window ending at current hour. X-axis uses offset 0–11; labels at offsets [0, 3, 6, 9, 11] show actual clock hours (zero-padded). Domain 0...11. Font: `.system(size: 8)`. At midnight wrap (e.g. 2 AM), hours 15–23 show 0 (only today's data exists).
   - **7D**: Rolling 7-day window. Day abbreviation (`.system(size: 9)`) for all days including today
   - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `.system(size: 9)`
 
 Data per mode:
-  - **24H**: `todayHourCounts` (hour "0"-"23" → today's JSONL count only)
+  - **12H**: `todayHourCounts` trailing 12 hours (`(currentHour - 11)` through `currentHour`, wrapping via `% 24`)
   - **7D**: `dailyActivity` last 7 days (rolling window) → daily message counts
   - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
 
 **Trend summary** (below chart, mode-aware, two rows of two stats each):
 
-- **24H** — Row 1: vs-yesterday change (↑/↓/→ + delta, colored) + msgs today. Row 2: throttle count today + peak hour.
+- **12H** — Row 1: vs-yesterday change (↑/↓/→ + delta, colored) + msgs today. Row 2: throttle count today + peak hour.
 - **7D** — Row 1: weekly trend arrow + vs-yesterday change + avg/day. Row 2: throttle count this week + busiest day.
 - **12M** — Row 1: vs-last-month change (projected, ±10% threshold) + this month total (compactCount). Row 2: throttle count this month + busiest month.
 

@@ -4,7 +4,7 @@ import Charts
 // MARK: - Chart Mode
 
 enum ActivityChartMode: String, CaseIterable {
-    case hourly = "24H"
+    case hourly = "12H"
     case daily = "7D"
     case monthly = "12M"
 }
@@ -63,8 +63,10 @@ struct ActivityChartView: View {
     }
 
     private var hourlyData: [HourlyPoint] {
-        (0..<24).map { hour in
-            HourlyPoint(id: hour, hour: hour, count: todayHourCounts[String(hour)] ?? 0)
+        let currentHour = Calendar.current.component(.hour, from: Date())
+        return (0..<12).map { offset in
+            let hour = (currentHour - 11 + offset + 24) % 24
+            return HourlyPoint(id: offset, hour: hour, count: todayHourCounts[String(hour)] ?? 0)
         }
     }
 
@@ -137,7 +139,7 @@ struct ActivityChartView: View {
                 .frame(width: 120)
                 .scaleEffect(0.8, anchor: .trailing)
                 .accessibilityLabel("Activity time range")
-                .accessibilityHint("Switch between 24 hour, 7 day, and 12 month views")
+                .accessibilityHint("Switch between 12 hour, 7 day, and 12 month views")
                 .help("Switch activity chart time range")
             }
 
@@ -244,7 +246,7 @@ struct ActivityChartView: View {
         .accessibilityLabel(a11yLabel)
     }
 
-    // MARK: - Hourly Chart (24H)
+    // MARK: - Hourly Chart (12H)
 
     private var hourlyChart: some View {
         let data = hourlyData
@@ -252,14 +254,14 @@ struct ActivityChartView: View {
         let peak = data.max(by: { $0.count < $1.count })
         let a11yLabel: String = {
             if let peak, peak.count > 0 {
-                return "24-hour activity chart. \(total) messages today. Peak hour: \(Self.formatHourLabel(peak.hour)) with \(peak.count) messages"
+                return "12-hour activity chart. \(total) messages in trailing window. Peak hour: \(Self.formatHourLabel(peak.hour)) with \(peak.count) messages"
             }
-            return "24-hour activity chart. \(total) messages today"
+            return "12-hour activity chart. \(total) messages in trailing window"
         }()
 
         return Chart(data) { point in
             AreaMark(
-                x: .value("Hour", point.hour),
+                x: .value("Hour", point.id),
                 y: .value("Messages", point.count)
             )
             .foregroundStyle(
@@ -272,7 +274,7 @@ struct ActivityChartView: View {
             .interpolationMethod(.catmullRom)
 
             LineMark(
-                x: .value("Hour", point.hour),
+                x: .value("Hour", point.id),
                 y: .value("Messages", point.count)
             )
             .foregroundStyle(ThemeColors.chartAccent)
@@ -280,16 +282,16 @@ struct ActivityChartView: View {
             .interpolationMethod(.catmullRom)
         }
         .chartXAxis {
-            AxisMarks(values: Array(stride(from: 0, through: 21, by: 3))) { value in
+            AxisMarks(values: [0, 3, 6, 9, 11]) { value in
                 AxisValueLabel {
-                    if let hour = value.as(Int.self) {
-                        Text(Self.formatHourLabel(hour))
+                    if let offset = value.as(Int.self), offset < data.count {
+                        Text(Self.formatHourLabel(data[offset].hour))
                             .font(.system(size: 8))
                     }
                 }
             }
         }
-        .chartXScale(domain: 0...23)
+        .chartXScale(domain: 0...11)
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
                 AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
