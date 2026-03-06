@@ -360,11 +360,14 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 - 16×16 NSImage, custom drawing
 - 4-pointed star: 8 vertices alternating outer (6.5pt) / inner (2.0pt) radius
 - Centered at (8, 8), rotation offset -π/2 (starts from top)
-- Glow: `NSShadow` with usage color at 0.35 alpha, blur radius 2.5pt (rendered behind fill)
-- Fill: solid color based on requestsPercent
+- **Fill-level gauge**: star fills from bottom-up proportional to usage percentage, like a liquid gauge. Three redundant information channels: fill level + color + text.
+  - **Track**: dim star fill always visible (dark mode: white 15%; light mode: black 10%) showing the "empty" portion
+  - **Fill**: band-colored rect clipped to star path, height = `starBottom + range × (percent / 100)`. Vertical extent: y 1.5 (bottom tip) to y 14.5 (top tip), 13pt range.
+  - **Glow**: `NSShadow` with usage color at 0.35 alpha, blur radius 2.5pt (rendered behind fill, within clip)
+  - At 0%: outline-only track star (low usage, no attention needed). At 100%: fully filled star (urgent).
 - Stroke: high-contrast → black 0.8 / 1.0pt; light mode → black 0.3 / 0.75pt; dark mode → color 0.6 / 0.5pt
 - `isTemplate = false`
-- **Band-based caching**: `colorBand` maps percentage to 4 discrete bands (0: <50%, 1: <80%, 2: <95%, 3: >=95%). Static `iconCache: [Int: NSImage]` stores up to 8 entries (4 bands × 2 colorblind modes). Icon only re-rendered when band changes — not on every percentage tick.
+- **Quantized caching**: percent rounded to nearest 5% as cache key (21 entries max). Static `iconCache: [Int: NSImage]` invalidated on colorblind/appearance/high-contrast change.
 - **`statusBarImage(for:)`**: public static method exposing the cached NSImage for StatusBarManager's native AppKit button.
 
 ## Accessibility

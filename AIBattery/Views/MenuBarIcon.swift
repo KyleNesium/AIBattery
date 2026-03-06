@@ -4,24 +4,13 @@ import AppKit
 struct MenuBarIcon: View {
     let requestsPercent: Double
 
-    /// Cache key: which color band the percentage falls into.
-    /// Only re-renders the icon when the band changes (4 bands total).
-    private var colorBand: Int {
-        switch requestsPercent {
-        case ..<50: return 0
-        case ..<80: return 1
-        case ..<95: return 2
-        default: return 3
-        }
-    }
-
     var body: some View {
-        Image(nsImage: Self.cachedIcon(for: requestsPercent, band: colorBand))
+        Image(nsImage: Self.cachedIcon(for: requestsPercent))
     }
 
     // MARK: - Icon cache
 
-    /// Cached icons keyed by (band, colorblindMode, highContrast, appearance) — bounded.
+    /// Cached icons keyed by quantized percent (every 5%, 21 entries max per appearance state).
     private static var iconCache: [Int: NSImage] = [:]
     private static var cachedColorblindFlag: Bool = ThemeColors.isColorblind
     private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
@@ -30,17 +19,15 @@ struct MenuBarIcon: View {
     /// Returns the cached status bar NSImage for a given percentage.
     /// Used by StatusBarManager for native AppKit button rendering.
     static func statusBarImage(for percent: Double) -> NSImage {
-        let band: Int
-        switch percent {
-        case ..<50: band = 0
-        case ..<80: band = 1
-        case ..<95: band = 2
-        default: band = 3
-        }
-        return cachedIcon(for: percent, band: band)
+        cachedIcon(for: percent)
     }
 
-    private static func cachedIcon(for percent: Double, band: Int) -> NSImage {
+    /// Quantize percent to nearest 5% for cache key (0, 5, 10, ... 100).
+    static func quantizedPercent(for percent: Double) -> Int {
+        min(Int((percent / 5).rounded()) * 5, 100)
+    }
+
+    private static func cachedIcon(for percent: Double) -> NSImage {
         let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let currentAppearance = NSApp.effectiveAppearance
         let appearanceName = currentAppearance.name.rawValue
@@ -54,10 +41,11 @@ struct MenuBarIcon: View {
             cachedHighContrastFlag = highContrast
             cachedAppearanceName = appearanceName
         }
-        if let cached = iconCache[band] { return cached }
+        let key = quantizedPercent(for: percent)
+        if let cached = iconCache[key] { return cached }
         let isDarkMode = currentAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let icon = renderIcon(percent: percent, highContrast: highContrast, isDarkMode: isDarkMode)
-        iconCache[band] = icon
+        iconCache[key] = icon
         return icon
     }
 
@@ -66,7 +54,6 @@ struct MenuBarIcon: View {
         let color = ThemeColors.barNSColor(percent: percent)
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
-            // Draw a small AI sparkle/star icon — 4-pointed star
             let center = NSPoint(x: size / 2, y: size / 2)
             let outerRadius: CGFloat = 6.5
             let innerRadius: CGFloat = 2.0
@@ -89,25 +76,47 @@ struct MenuBarIcon: View {
             }
             path.close()
 
-            // Subtle glow behind the star
-            let glowColor = color.withAlphaComponent(0.35)
-            let shadow = NSShadow()
-            shadow.shadowColor = glowColor
-            shadow.shadowBlurRadius = 2.5
-            shadow.shadowOffset = .zero
+            // Fill height: maps percentage to star's vertical extent.
+            // In flipped=false coordinates, y increases upward.
+            let starBottom: CGFloat = center.y - outerRadius  // 1.5
+            let starTop: CGFloat = center.y + outerRadius      // 14.5
+            let fillY = starBottom + (starTop - starBottom) * CGFloat(min(max(percent, 0), 100) / 100)
 
-            NSGraphicsContext.saveGraphicsState()
-            shadow.set()
-            color.setFill()
-            path.fill()
-            NSGraphicsContext.restoreGraphicsState()
-
-            // Fill the star with the usage color (crisp, on top of glow)
-            color.setFill()
+            // 1. Track star — dim outline showing the "empty" portion
+            let trackColor: NSColor = isDarkMode
+                ? NSColor.white.withAlphaComponent(0.15)
+                : NSColor.black.withAlphaComponent(0.10)
+            trackColor.setFill()
             path.fill()
 
-            // Outline for definition — stronger in high contrast or light mode
-            // to ensure the colored icon remains visible against any menu bar background.
+            // 2. Clipped fill — liquid gauge rising from bottom
+            if percent > 0 {
+                NSGraphicsContext.saveGraphicsState()
+                path.addClip()
+
+                // Glow behind the filled portion
+                let glowColor = color.withAlphaComponent(0.35)
+                let shadow = NSShadow()
+                shadow.shadowColor = glowColor
+                shadow.shadowBlurRadius = 2.5
+                shadow.shadowOffset = .zero
+                shadow.set()
+
+                let fillRect = NSRect(x: 0, y: 0, width: size, height: fillY)
+                color.setFill()
+                fillRect.fill()
+
+                NSGraphicsContext.restoreGraphicsState()
+
+                // Crisp fill on top (no shadow, within clip)
+                NSGraphicsContext.saveGraphicsState()
+                path.addClip()
+                color.setFill()
+                fillRect.fill()
+                NSGraphicsContext.restoreGraphicsState()
+            }
+
+            // 3. Outline stroke for definition
             if highContrast {
                 NSColor.black.withAlphaComponent(0.8).setStroke()
                 path.lineWidth = 1.0
