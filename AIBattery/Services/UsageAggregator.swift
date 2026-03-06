@@ -114,9 +114,12 @@ final class UsageAggregator {
         // Merge JSONL daily counts into dailyActivity and compute additional
         // messages/sessions beyond stats-cache in a single pass.
         var activity = statsCache?.dailyActivity ?? []
-        // Dictionary index for O(1) lookup instead of O(n) firstIndex(where:)
+        // Dictionary index for O(1) lookup instead of O(n) firstIndex(where:).
+        // Uses uniquingKeysWith to handle corrupt stats-cache with duplicate dates
+        // (Dictionary(uniqueKeysWithValues:) would fatally trap on duplicates).
         var activityIndex: [String: Int] = Dictionary(
-            uniqueKeysWithValues: activity.enumerated().map { ($1.date, $0) }
+            activity.enumerated().map { ($1.date, $0) },
+            uniquingKeysWith: { _, last in last }
         )
         var additionalMessages = 0
         var additionalSessions = 0
