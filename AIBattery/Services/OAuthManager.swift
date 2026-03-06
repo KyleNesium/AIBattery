@@ -579,15 +579,19 @@ public final class OAuthManager: ObservableObject {
 
     // MARK: - Keychain Helpers
 
-    private func keychainSet(account: String, value: String) {
-        let data = Data(value.utf8)
-
-        // Try to update existing item first
-        let searchQuery: [String: Any] = [
+    private func baseKeychainQuery(account: String) -> [String: Any] {
+        [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
             kSecAttrAccount as String: account,
         ]
+    }
+
+    private func keychainSet(account: String, value: String) {
+        let data = Data(value.utf8)
+
+        // Try to update existing item first
+        let searchQuery = baseKeychainQuery(account: account)
         let updateAttrs: [String: Any] = [
             kSecValueData as String: data,
         ]
@@ -614,13 +618,9 @@ public final class OAuthManager: ObservableObject {
     }
 
     private func keychainGet(account: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
+        var query = baseKeychainQuery(account: account)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status != errSecSuccess && status != errSecItemNotFound {
@@ -631,12 +631,7 @@ public final class OAuthManager: ObservableObject {
     }
 
     private func keychainDelete(account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(baseKeychainQuery(account: account) as CFDictionary)
     }
 }
 

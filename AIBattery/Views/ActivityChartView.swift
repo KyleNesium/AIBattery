@@ -459,7 +459,24 @@ struct ActivityChartView: View {
     // MARK: - 12M trend
 
     private func trendRow12M(_ snapshot: UsageSnapshot) -> some View {
-        let change = changeVsLastMonth(snapshot)
+        let totals = monthTotals(snapshot)
+        let cal = Calendar.current
+        let now = Date()
+        let nowComps = cal.dateComponents([.year, .month], from: now)
+        let thisMonthKey = nowComps.year.flatMap { y in nowComps.month.map { m in String(format: "%04d-%02d", y, m) } }
+        let lastMonthKey: String? = cal.date(byAdding: .month, value: -1, to: now).flatMap { d in
+            let c = cal.dateComponents([.year, .month], from: d)
+            return c.year.flatMap { y in c.month.map { m in String(format: "%04d-%02d", y, m) } }
+        }
+        let thisMonth = thisMonthKey.flatMap { totals[$0] } ?? 0
+        let lastMonth = lastMonthKey.flatMap { totals[$0] } ?? 0
+        let change = monthChangeInfo(thisMonth: thisMonth, lastMonth: lastMonth)
+        let busiestLabel: String? = {
+            guard let peak = totals.max(by: { $0.value < $1.value }),
+                  let date = DateFormatters.dateKey.date(from: peak.key + "-01") else { return nil }
+            return Self.monthAbbrev(date)
+        }()
+
         return Group {
             HStack(spacing: 6) {
                 if let change {
@@ -471,7 +488,6 @@ struct ActivityChartView: View {
                         .foregroundStyle(change.color)
                 }
                 Spacer()
-                let thisMonth = monthTotal(snapshot, offset: 0)
                 if thisMonth > 0 {
                     Text("\(Self.compactCount(thisMonth)) this month")
                         .font(.system(.caption, design: .monospaced))
@@ -481,9 +497,8 @@ struct ActivityChartView: View {
             HStack(spacing: 6) {
                 throttleLabel(days: 30, period: "this month")
                 Spacer()
-                let busiest = busiestMonth(snapshot)
-                if let busiest {
-                    Text("Peak in \(busiest)")
+                if let busiestLabel {
+                    Text("Peak in \(busiestLabel)")
                         .font(.caption)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
@@ -533,12 +548,23 @@ struct ActivityChartView: View {
         }
     }
 
-    private func changeVsLastMonth(_ snapshot: UsageSnapshot) -> ChangeInfo? {
-        let thisMonth = monthTotal(snapshot, offset: 0)
-        let lastMonth = monthTotal(snapshot, offset: -1)
+    /// Single-pass aggregation of daily activity into month-keyed totals (e.g. "2026-03" → 142).
+    private func monthTotals(_ snapshot: UsageSnapshot) -> [String: Int] {
+        let cal = Calendar.current
+        var result: [String: Int] = [:]
+        for day in snapshot.dailyActivity {
+            guard let date = day.parsedDate else { continue }
+            let comps = cal.dateComponents([.year, .month], from: date)
+            guard let y = comps.year, let m = comps.month else { continue }
+            let key = String(format: "%04d-%02d", y, m)
+            result[key, default: 0] += day.messageCount
+        }
+        return result
+    }
+
+    private func monthChangeInfo(thisMonth: Int, lastMonth: Int) -> ChangeInfo? {
         guard lastMonth > 0 else { return nil }
 
-        // Project current month to compare fairly
         let cal = Calendar.current
         let now = Date()
         let dayOfMonth = cal.component(.day, from: now)
@@ -546,7 +572,7 @@ struct ActivityChartView: View {
               let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count else { return nil }
         let projected = thisMonth * daysInMonth / dayOfMonth
         let diff = projected - lastMonth
-        let pct = lastMonth > 0 ? Int(round(Double(diff) / Double(lastMonth) * 100)) : 0
+        let pct = Int(round(Double(diff) / Double(lastMonth) * 100))
 
         if pct > 10 {
             return ChangeInfo(symbol: "↑", label: "+\(pct)% vs last month", color: ThemeColors.trendColor(.up))
@@ -555,33 +581,6 @@ struct ActivityChartView: View {
         } else {
             return ChangeInfo(symbol: "→", label: "~same as last month", color: .secondary)
         }
-    }
-
-    private func monthTotal(_ snapshot: UsageSnapshot, offset: Int) -> Int {
-        let cal = Calendar.current
-        let now = Date()
-        guard let target = cal.date(byAdding: .month, value: offset, to: now) else { return 0 }
-        let comps = cal.dateComponents([.year, .month], from: target)
-        guard let y = comps.year, let m = comps.month else { return 0 }
-        let prefix = String(format: "%04d-%02d", y, m)
-        return snapshot.dailyActivity
-            .filter { $0.date.hasPrefix(prefix) }
-            .reduce(0) { $0 + $1.messageCount }
-    }
-
-    private func busiestMonth(_ snapshot: UsageSnapshot) -> String? {
-        let cal = Calendar.current
-        var monthTotals: [String: Int] = [:]
-        for day in snapshot.dailyActivity {
-            guard let date = day.parsedDate else { continue }
-            let comps = cal.dateComponents([.year, .month], from: date)
-            guard let y = comps.year, let m = comps.month else { continue }
-            let key = String(format: "%04d-%02d", y, m)
-            monthTotals[key, default: 0] += day.messageCount
-        }
-        guard let peak = monthTotals.max(by: { $0.value < $1.value }),
-              let date = DateFormatters.dateKey.date(from: peak.key + "-01") else { return nil }
-        return Self.monthAbbrev(date)
     }
 
     // MARK: - Formatters
@@ -594,6 +593,8 @@ struct ActivityChartView: View {
         DateFormatters.shortMonth.string(from: date)
     }
 
+    /// Compact integer counts for chart axes (e.g. 1500 → "2K").
+    /// Differs from TokenFormatter which formats fractional token values (e.g. 1500 → "1.5K").
     private static func compactCount(_ value: Int) -> String {
         if value >= 1_000_000 {
             let m = Double(value) / 1_000_000
