@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.1] — 2026-03-06
+
+### Fixed
+- **Throttle event tracking** — throttle counter now detects per-window throttle status, not just overall. Previously, a window-level throttle (e.g. 5h "throttled") could go unrecorded if the overall status hadn't updated yet
+- **Token exchange resilience** — malformed 200 responses from the token endpoint now retry instead of hard-failing
+
+### Improved
+- **12M chart performance** — replaced 4× full scans of daily activity with single-pass month aggregation
+- **Keychain code** — extracted shared base query to reduce duplication across set/get/delete
+- **Status parsing** — consolidated 3-pass component parsing into single pass
+- **CI reliability** — retry logic for flaky macOS runner crashes (signal 11)
+
 ## [1.7.0] — 2026-03-06
 
 ### Added

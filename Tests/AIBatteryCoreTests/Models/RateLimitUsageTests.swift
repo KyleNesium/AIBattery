@@ -121,9 +121,35 @@ struct RateLimitUsageTests {
         #expect(makeUsage(claim: "seven_day").bindingWindowLabel == "7-day")
     }
 
-    @Test func isThrottled() {
+    @Test func isThrottled_overallStatus() {
         #expect(makeUsage(status: "throttled").isThrottled == true)
         #expect(makeUsage(status: "allowed").isThrottled == false)
+    }
+
+    @Test func isThrottled_perWindowStatus() {
+        // 5h window throttled, overall still "allowed"
+        let fiveHourThrottled = makeUsage(
+            fiveHourStatus: "throttled",
+            sevenDayStatus: "allowed",
+            status: "allowed"
+        )
+        #expect(fiveHourThrottled.isThrottled == true)
+
+        // 7d window throttled, overall still "allowed"
+        let sevenDayThrottled = makeUsage(
+            fiveHourStatus: "allowed",
+            sevenDayStatus: "throttled",
+            status: "allowed"
+        )
+        #expect(sevenDayThrottled.isThrottled == true)
+
+        // All allowed
+        let noneThrottled = makeUsage(
+            fiveHourStatus: "allowed",
+            sevenDayStatus: "allowed",
+            status: "allowed"
+        )
+        #expect(noneThrottled.isThrottled == false)
     }
 
     // MARK: - Predictive estimate
@@ -256,16 +282,18 @@ struct RateLimitUsageTests {
         sevenDayUtil: Double = 0,
         fiveHourReset: Date? = nil,
         sevenDayReset: Date? = nil,
+        fiveHourStatus: String? = nil,
+        sevenDayStatus: String? = nil,
         status: String = "allowed"
     ) -> RateLimitUsage {
         RateLimitUsage(
             representativeClaim: claim,
             fiveHourUtilization: fiveHourUtil,
             fiveHourReset: fiveHourReset,
-            fiveHourStatus: status,
+            fiveHourStatus: fiveHourStatus ?? status,
             sevenDayUtilization: sevenDayUtil,
             sevenDayReset: sevenDayReset,
-            sevenDayStatus: status,
+            sevenDayStatus: sevenDayStatus ?? status,
             overallStatus: status
         )
     }

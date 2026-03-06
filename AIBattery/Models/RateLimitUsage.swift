@@ -61,7 +61,13 @@ struct RateLimitUsage: Equatable {
     }
 
     /// Whether the user is currently throttled.
-    var isThrottled: Bool { overallStatus == "throttled" }
+    /// Checks overall status and per-window statuses — the API may report
+    /// a window as "throttled" before the overall status reflects it.
+    var isThrottled: Bool {
+        overallStatus == "throttled"
+            || fiveHourStatus == "throttled"
+            || sevenDayStatus == "throttled"
+    }
 
     // MARK: - Countdown formatter
 
