@@ -90,13 +90,18 @@ AIBattery/
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
     VersionChecker.swift          — GitHub Releases update checker (24h cadence)
     SparkleUpdateService.swift     — Sparkle 2 wrapper for user-initiated auto-update
-    SandboxAccessManager.swift    — Security-scoped bookmark for ~/.claude/ (dormant, APP_SANDBOX flag)
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, NSVisualEffectView, Combine-driven updates
     MenuBarIcon.swift             — 4-pointed star NSImage (dynamic color, band-based NSImage cache)
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
+    Settings/
+      SettingsRow.swift           — Inline settings container: account names + sub-sections
+      RefreshSettingsSection.swift — Refresh interval slider + sliderMarks() helper
+      DisplaySettingsSection.swift — Display toggles + idle session cutoff slider
+      AlertSettingsSection.swift  — Status alerts + rate limit alerts
+      LaunchAtLoginSection.swift  — Launch at Login toggle
     AuthView.swift                 — OAuth login/paste-code screen
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
@@ -180,7 +185,7 @@ CHANGELOG.md                      — Release notes per version
 - **Dependencies**: Sparkle 2 (SPM, auto-update framework) — all other dependencies are Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
 - **Compiler flag**: `ENABLE_SPARKLE` — defined in all 3 SPM targets via `swiftSettings`. Guards all Sparkle imports/usage. Remove the define to build without Sparkle (App Store variant)
 - **Compiler flag**: `ENABLE_VERSION_CHECKER` — defined in all 3 SPM targets. Guards VersionChecker + update UI. Remove to build App Store variant (guideline 3.1.1)
-- **Compiler flag**: `APP_SANDBOX` — NOT defined by default. Enables SandboxAccessManager for security-scoped bookmark flow. Only set for App Store builds
+- **Compiler flag**: `APP_SANDBOX` — NOT defined by default. Reserved for future App Store sandbox support. Only set for App Store builds
 - **Privacy manifest**: `PrivacyInfo.xcprivacy` bundled as SPM resource, also copied to `Contents/Resources/` by build script
 
 ## Release Pipeline
@@ -217,7 +222,7 @@ Not currently planned, but documented here for reference. These are the architec
 
 | Blocker | Impact | Status |
 |---------|--------|--------|
-| App Sandbox | Can't read `~/.claude/` — App Store requires sandbox | `AIBattery-AppStore.entitlements` has `user-selected.read-only` + `bookmarks.app-scope`; `SandboxAccessManager` handles NSOpenPanel + bookmark persistence (dormant behind `APP_SANDBOX` flag) |
+| App Sandbox | Can't read `~/.claude/` — App Store requires sandbox | `AIBattery-AppStore.entitlements` has `user-selected.read-only` + `bookmarks.app-scope`; needs NSOpenPanel + bookmark persistence implementation (behind `APP_SANDBOX` flag) |
 | Sparkle framework | App Store rejects third-party update mechanisms | `ENABLE_SPARKLE` flag gates all Sparkle code; remove define for App Store build |
 | Version checker | App Store rejects apps that check for updates outside the store (guideline 3.1.1) | `ENABLE_VERSION_CHECKER` flag gates VersionChecker + update UI; remove define for App Store build |
 | `disable-library-validation` entitlement | Rejected by App Store review (only needed for Sparkle's dynamic loading) | Not in `AIBattery-AppStore.entitlements` — resolved when Sparkle is disabled |
