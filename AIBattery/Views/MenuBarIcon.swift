@@ -83,7 +83,7 @@ struct MenuBarIcon: View {
     private static var iconCache: [Int: NSImage] = [:]
     private static var cachedColorblindFlag: Bool = ThemeColors.isColorblind
     private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-    private static var cachedAppearanceName: String = NSApp.effectiveAppearance.name.rawValue
+    private static var cachedAppearanceName: String = NSApp?.effectiveAppearance.name.rawValue ?? ""
 
     /// Returns the cached status bar NSImage. Color is provided by the caller so it can
     /// match the active metric mode (rate limit thresholds vs context health thresholds).
@@ -93,8 +93,8 @@ struct MenuBarIcon: View {
 
     static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, pulseStep: Int) -> NSImage {
         let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        let currentAppearance = NSApp.effectiveAppearance
-        let appearanceName = currentAppearance.name.rawValue
+        let currentAppearance = NSApp?.effectiveAppearance
+        let appearanceName = currentAppearance?.name.rawValue ?? ""
 
         if cachedColorblindFlag != ThemeColors.isColorblind
             || cachedHighContrastFlag != highContrast
@@ -109,7 +109,7 @@ struct MenuBarIcon: View {
         let key = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, pulseStep: pulseStep)
         if let cached = iconCache[key] { return cached }
 
-        let isDarkMode = currentAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let isDarkMode = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let icon: NSImage
         if isBroken {
             icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
