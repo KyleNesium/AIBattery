@@ -240,9 +240,10 @@ struct UsageSnapshotTests {
     }
 
     @Test func autoResolvedMode_nearExhaustion_prioritizesRateLimit() {
+        // Rate limit ≥95% always beats context health, even at 100%
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 0.92,
+            fiveHourUtilization: 0.96,
             fiveHourReset: nil,
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.10,
@@ -250,12 +251,13 @@ struct UsageSnapshotTests {
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
-        let session = makeHealth(id: "s1", usagePercentage: 70.0, band: .orange)
+        let session = makeHealth(id: "s1", usagePercentage: 100.0, band: .red)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
         #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
-    @Test func autoResolvedMode_nearExhaustion_contextStillWinsIfHigher() {
+    @Test func autoResolvedMode_belowNearExhaustion_contextWinsIfHigher() {
+        // Below 95% threshold, context health can still win via Tier 3
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 0.92,
@@ -290,17 +292,17 @@ struct UsageSnapshotTests {
     @Test func autoResolvedMode_nearExhaustion_bothWindowsHigh_picksHigher() {
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 0.92,
+            fiveHourUtilization: 0.96,
             fiveHourReset: nil,
             fiveHourStatus: "allowed",
-            sevenDayUtilization: 0.95,
+            sevenDayUtilization: 0.98,
             sevenDayReset: nil,
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
-        let session = makeHealth(id: "s1", usagePercentage: 70.0, band: .orange)
+        let session = makeHealth(id: "s1", usagePercentage: 100.0, band: .red)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
-        // 7d (95%) > 5h (92%), both above threshold, both above context (70%)
+        // 7d (98%) > 5h (96%), both ≥95% threshold, beats even 100% context
         #expect(snapshot.autoResolvedMode == .sevenDay)
     }
 

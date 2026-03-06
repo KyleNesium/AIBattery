@@ -44,11 +44,12 @@ struct UsageSnapshot {
     }
 
     /// Rate limit percentage at or above which Tier 2 (near-exhaustion) kicks in.
-    static let nearExhaustionThreshold = 90.0
+    /// At this level, rate limits always take priority over context health.
+    static let nearExhaustionThreshold = 95.0
 
     /// Auto mode: three-tier priority — throttling > near-exhaustion > highest metric.
     /// Rate limit exhaustion is a harder constraint than context health (no tokens = no work),
-    /// so it supersedes context health when approaching or hitting the cap.
+    /// so it unconditionally supersedes context health at ≥95%.
     var autoResolvedMode: MetricMode {
         // Tier 1: Throttled — hard constraint, tokens are prerequisite for any work
         if let rl = rateLimits, rl.isThrottled {
@@ -60,9 +61,9 @@ struct UsageSnapshot {
         let sevenDay = percent(for: .sevenDay)
         let context = percent(for: .contextHealth)
 
-        // Tier 2: Near-exhaustion — approaching hard cap is more urgent than context
+        // Tier 2: Near-exhaustion — rate limits ≥95% always beat context health
         let maxRate = max(fiveHour, sevenDay)
-        if maxRate >= Self.nearExhaustionThreshold && maxRate > context {
+        if maxRate >= Self.nearExhaustionThreshold {
             return sevenDay >= fiveHour ? .sevenDay : .fiveHour
         }
 
