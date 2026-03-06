@@ -31,9 +31,9 @@ Main aggregated data struct consumed by all views.
 
 Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (requires 14+ days of activity for a symmetric 7-vs-7 comparison; ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
-Static factory methods: `computeDailyAverage(_:)`, `computeTrendDirection(_:)`, `computeBusiestDay(_:)` — called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
+Static factory method: `computeActivityStats(_:)` — single-pass computation of all three metrics (average, trend, busiest day), called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
 
-Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover — context health uses `topSessionHealths.first?.usagePercentage` as primary, falls back to `tokenHealth?.usagePercentage`, so auto mode reflects the most critical session, not just the most recent), `autoResolvedMode: MetricMode` (three-tier priority: **Tier 1** — if throttled, always shows the binding rate limit window; **Tier 2** — if either rate limit ≥ 90% and higher than context health, shows that rate limit window (approaching hard cap is more urgent than context); **Tier 3** — normal highest-metric-wins with context breaking ties. Used by popover and menu bar when auto mode is on).
+Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover — context health uses `topSessionHealths.first?.usagePercentage` as primary, falls back to `tokenHealth?.usagePercentage`, so auto mode reflects the most critical session, not just the most recent), `autoResolvedMode: MetricMode` (three-tier priority: **Tier 1** — if throttled, always shows the binding rate limit window; **Tier 2** — if either rate limit ≥ 95%, unconditionally shows that rate limit window (approaching hard cap is more urgent than context); **Tier 3** — normal highest-metric-wins with context breaking ties. Used by popover and menu bar when auto mode is on).
 
 ### ModelTokenSummary
 
@@ -234,8 +234,8 @@ Pricing table (per million tokens):
 - Auth URL: `https://claude.ai/oauth/authorize`
 - Token URL: `https://console.anthropic.com/v1/oauth/token`
 - Scopes: `org:create_api_key user:profile user:inference`
-- **Multi-account**: supports up to 2 accounts (separate Claude orgs). Each account's refresh token stored in Keychain (`refreshToken_{accountId}`); access token held in memory only (re-derived from refresh on launch); expiry timestamp in UserDefaults (`aibattery_expiresAt_{accountId}`). `AccountStore` tracks known accounts; `activeAccountId` drives which one polls. New accounts get a temporary `"pending-<UUID>"` ID until the first API call returns the real `anthropic-organization-id`.
-- `startAuthFlow(addingAccount:)` → opens browser with PKCE challenge. `addingAccount` flag tracks whether this is a second-account flow. Generates a separate random `state` parameter (never reuses the PKCE verifier).
+- **Multi-account**: supports up to 3 accounts (separate Claude orgs). Each account's refresh token stored in Keychain (`refreshToken_{accountId}`); access token held in memory only (re-derived from refresh on launch); expiry timestamp in UserDefaults (`aibattery_expiresAt_{accountId}`). `AccountStore` tracks known accounts; `activeAccountId` drives which one polls. New accounts get a temporary `"pending-<UUID>"` ID until the first API call returns the real `anthropic-organization-id`.
+- `startAuthFlow(addingAccount:)` → opens browser with PKCE challenge. `addingAccount` flag tracks whether this is an additional-account flow. Generates a separate random `state` parameter (never reuses the PKCE verifier).
 - `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens. Creates `AccountRecord` with pending ID, stores refresh token in Keychain and expiry in UserDefaults (access token stays in memory). Validates state parameter (CSRF protection). Only clears PKCE state on success.
 - `getAccessToken()` → returns active account's valid token, refreshes 5 minutes before expiry. `getAccessToken(for:)` for specific account. Serializes concurrent refresh attempts per account via `refreshTasks` dictionary.
 - `resolveAccountIdentity(tempId:realOrgId:billingType:)` → called after first API call returns real org ID. Moves `refreshToken_{tempId}` → `refreshToken_{realOrgId}` in Keychain and `aibattery_expiresAt_` key in UserDefaults. Updates AccountStore. Idempotent. Handles duplicate detection (same org authed twice → merge, keep newer tokens).
@@ -259,7 +259,7 @@ Pricing table (per million tokens):
 - `update(oldId:with:)` — replaces account record, handles identity resolution (pending → real org ID). Detects and merges duplicates (same org authed twice): preserves earliest `addedAt`, keeps existing `displayName`/`billingType` when new record has nil. Handles index ordering correctly when removing the old entry.
 - Persistence: JSON-encoded `[AccountRecord]` to `UserDefaults(aibattery_accounts)` + `activeAccountId` string to `UserDefaults(aibattery_activeAccountId)`
 - Load on init: fixes dangling `activeAccountId` pointing at removed accounts
-- `nonisolated static let maxAccounts = 2`
+- `nonisolated static let maxAccounts = 3`
 
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`
@@ -328,7 +328,7 @@ Pricing table (per million tokens):
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
 - **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending
 - **All-dates daily activity merge**: groups all JSONL entries by date via `entriesByDate` dictionary, then merges every date into `dailyActivity` (not just today). This fills gaps between a stale stats-cache rebuild date and the present. If JSONL has more messages for a date than the cache entry, replaces it; if no entry exists, appends one. Preserves the higher of JSONL or cache tool-call counts.
-- **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 24H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
+- **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 12H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
 - **totalMessages/totalSessions dedup**: iterates all `entriesByDate` keys and computes `max(jsonlCount - cachedCount, 0)` per date, summing across all dates. Prevents inflation when stats-cache already includes recent data.
 - Tool calls from stats cache only (not parsed from JSONL)
 - **Idle session cutoff**: reads `aibattery_idleSessionMinutes` from UserDefaults (0 = never hide), passes to `TokenHealthMonitor.assessSessions(idleCutoffMinutes:)` to filter stale sessions from context health

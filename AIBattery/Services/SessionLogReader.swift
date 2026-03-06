@@ -166,19 +166,14 @@ final class SessionLogReader {
             }
         }
 
-        // Symlink boundary check: resolve symlinks and verify each file stays
-        // within the projects directory. Prevents a symlink inside ~/.claude/projects/
-        // pointing to an arbitrary file outside that directory.
+        // Symlink boundary + regular file check in a single pass.
+        // Rejects symlinks escaping the projects directory and non-regular files (pipes, devices, sockets).
         let resolvedBase = projectsURL.resolvingSymlinksInPath().path
         let resolvedBaseSlash = resolvedBase + "/"
         jsonlFiles = jsonlFiles.filter {
             let resolved = $0.resolvingSymlinksInPath().path
-            return resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash)
-        }
-
-        // Regular file filter — skip pipes, devices, sockets
-        jsonlFiles = jsonlFiles.filter {
-            (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+            guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { return false }
+            return (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
         }
 
         discoveredFiles = jsonlFiles

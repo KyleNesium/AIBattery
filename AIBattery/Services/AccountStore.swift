@@ -8,7 +8,7 @@ import os
 @MainActor
 public final class AccountStore: ObservableObject {
     /// Maximum number of accounts supported.
-    nonisolated static let maxAccounts = 2
+    nonisolated static let maxAccounts = 3
 
     @Published public private(set) var accounts: [AccountRecord] = []
     private static let jsonEncoder = JSONEncoder()

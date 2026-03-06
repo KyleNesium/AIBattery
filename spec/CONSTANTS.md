@@ -49,6 +49,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Probe max_tokens | `1` |
 | User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
 | Keychain service (OAuth) | `"AIBattery"` |
+| Max accounts | 3 |
 
 ## Statuspage Component IDs
 
@@ -93,7 +94,7 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 | Rapid consumption seconds | 60 sec | `config.rapidConsumptionSeconds` |
 | Rapid consumption tokens | 50,000 | `config.rapidConsumptionTokens` |
 | Velocity min duration | 60 sec | `config.velocityMinDuration` |
-| Auto mode near-exhaustion | 90% | Rate limit ≥ threshold supersedes lower context health in `autoResolvedMode` |
+| Auto mode near-exhaustion | 95% | Rate limit ≥ threshold unconditionally supersedes context health in `autoResolvedMode` |
 
 ## Rate Limit Alerts
 
@@ -203,9 +204,18 @@ Pricing per million tokens:
 | Section padding V | 12pt |
 | Header padding V | 10pt |
 | Footer padding V | 10pt |
-| Menu bar icon size | 16×16 |
+| Menu bar icon canvas | 22×22pt |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
+| Broken star fragment offset | 1.5pt |
+| Recovery sparkle arm length | 1.6pt |
+| Recovery sparkle stroke width | 0.7pt |
+| Recovery sparkle alpha | 0.7 |
+| Recovery sparkle frame rate | 500ms (every 2nd pulse step) |
+| Recovery sparkle duration | 30 sec |
+| Pulse steps per cycle | 16 |
+| Pulse cycle duration | 4.0 sec |
+| Pulse tick interval | 250ms (4s ÷ 16) |
 | Health dot size | 8pt |
 | Status dot size | 6pt |
 | Model dot size | 8pt |
@@ -214,7 +224,7 @@ Pricing per million tokens:
 | Chevron icon size | 9pt (bold weight) |
 | Chevron corner radius | 4pt |
 | Chart height | 50pt |
-| Chart modes | 24H (hourly), 7D (daily rolling), 12M (monthly rolling) |
+| Chart modes | 12H (hourly trailing), 7D (daily rolling), 12M (monthly rolling) |
 
 ## Animations
 
@@ -259,7 +269,7 @@ Pricing per million tokens:
 | Constant | Value |
 |----------|-------|
 | AppStorage key | `aibattery_chartMode` |
-| Default mode | `"24H"` (hourly) |
+| Default mode | `"12H"` (hourly) |
 | Persists across sessions | Yes (via `@AppStorage`) |
 
 ## File Paths
@@ -284,6 +294,14 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 | 50–79% | Yellow |
 | 80–94% | Orange |
 | 95–100% | Red |
+
+### Context health icon (different thresholds)
+
+| Range | Color |
+|-------|-------|
+| 0–59% | Green |
+| 60–79% | Orange |
+| 80–100% | Red |
 
 ### Colorblind mode palette
 
@@ -342,7 +360,7 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 |------|---------|--------|
 | `ENABLE_SPARKLE` | Defined (all 3 SPM targets) | Guards Sparkle imports, `SparkleUpdateService`, and Sparkle-dependent UI. Remove to build App Store variant without Sparkle. |
 | `ENABLE_VERSION_CHECKER` | Defined (all 3 SPM targets) | Guards `VersionChecker`, update banner UI, and version check button. Remove for App Store (guideline 3.1.1). |
-| `APP_SANDBOX` | NOT defined | Enables `SandboxAccessManager` (security-scoped bookmark for `~/.claude/` access). Only set for App Store builds. |
+| `APP_SANDBOX` | NOT defined | Reserved for future App Store sandbox support (security-scoped bookmark for `~/.claude/` access). Only set for App Store builds. |
 
 ## Build Environment Variables
 

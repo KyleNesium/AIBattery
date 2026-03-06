@@ -12,7 +12,7 @@ import os
 /// 5. Auto-refreshes when expired using refresh token
 ///
 /// Multi-account:
-/// - Supports up to 2 accounts (separate Claude orgs)
+/// - Supports up to 3 accounts (separate Claude orgs)
 /// - Each account's tokens stored under prefixed Keychain entries
 /// - `AccountStore` tracks known accounts; `activeAccountId` drives which one polls
 /// - New accounts get a temporary `"pending-<UUID>"` ID until the first API call
@@ -594,25 +594,22 @@ public final class OAuthManager: ObservableObject {
         let updateStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
 
         if updateStatus == errSecItemNotFound {
-            // Item doesn't exist yet — add it
-            var addQuery = searchQuery
-            addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            if addStatus != errSecSuccess {
-                AppLogger.oauth.error("Keychain add failed for \(account, privacy: .public): \(addStatus)")
-            }
+            keychainAdd(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain")
         } else if updateStatus != errSecSuccess {
             AppLogger.oauth.error("Keychain update failed for \(account, privacy: .public): \(updateStatus)")
             // Fallback: delete and re-add
             SecItemDelete(searchQuery as CFDictionary)
-            var addQuery = searchQuery
-            addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-            if addStatus != errSecSuccess {
-                AppLogger.oauth.error("Keychain fallback add failed for \(account, privacy: .public): \(addStatus)")
-            }
+            keychainAdd(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain fallback")
+        }
+    }
+
+    private func keychainAdd(searchQuery: [String: Any], data: Data, account: String, logPrefix: String) {
+        var addQuery = searchQuery
+        addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        if status != errSecSuccess {
+            AppLogger.oauth.error("\(logPrefix, privacy: .public) add failed for \(account, privacy: .public): \(status)")
         }
     }
 

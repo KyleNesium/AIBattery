@@ -136,7 +136,7 @@ final class UsageAggregator {
             }
         }
 
-        // Build today's hourly breakdown from JSONL (for 24H chart).
+        // Build today's hourly breakdown from JSONL (for 12H chart).
         var todayHourCounts: [String: Int] = [:]
         for entry in todayEntries {
             let hour = String(calendar.component(.hour, from: entry.timestamp))
@@ -167,6 +167,8 @@ final class UsageAggregator {
             additionalSessions += max(bucket.sessions.count - (cached?.sessionCount ?? 0), 0)
         }
 
+        let activityStats = UsageSnapshot.computeActivityStats(activity)
+
         let snapshot = UsageSnapshot(
             lastUpdated: now,
             rateLimits: rateLimits,
@@ -183,9 +185,9 @@ final class UsageAggregator {
             modelTokens: modelTokens,
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
             dailyActivity: activity,
-            dailyAverage: UsageSnapshot.computeDailyAverage(activity),
-            trendDirection: UsageSnapshot.computeTrendDirection(activity),
-            busiestDayOfWeek: UsageSnapshot.computeBusiestDay(activity),
+            dailyAverage: activityStats.average,
+            trendDirection: activityStats.trend,
+            busiestDayOfWeek: activityStats.busiestDay,
             hourCounts: hourCounts,
             todayHourCounts: todayHourCounts,
             tokenHealth: tokenHealth,

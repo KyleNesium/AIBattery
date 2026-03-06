@@ -43,7 +43,7 @@ public struct AuthView: View {
                 // Step 1: Start auth
                 VStack(spacing: 8) {
                     Text(isAddingAccount
-                        ? "Connect a second Claude account to monitor both from AI Battery."
+                        ? "Connect another Claude account to monitor multiple orgs from AI Battery."
                         : "Connect your Anthropic account to see your usage, rate limits, and plan details.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

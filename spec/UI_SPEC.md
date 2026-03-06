@@ -40,9 +40,9 @@
 │   ⚡ Sonnet 4.5           6.6M      │
 │      ↑ 2K  ↓ 15K  📄 4.3M   ✎ 300K │
 ├──────────────────────────────────────┤
-│ Activity      [24H] [7D] [12M]      │  ← ❺ Chart
+│ Activity      [12H] [7D] [12M]      │  ← ❺ Chart
 │ ~~~ area chart ~~~                   │
-│ 0   3   6   9   12  15  18  21      │
+│ HH  HH  HH  HH  HH (trailing 12h)  │
 ├──────────────────────────────────────┤
 │ Today   42 msgs · 3 sessions · 128  │  ← ❻ Insights
 │ All Time  1,247 msgs · 89 sessions  │
@@ -163,7 +163,7 @@ HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, cente
 - **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse via scoped `.animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)` on stroke/shadow views only (never `withAnimation` — leaks global repeating transaction).
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Picker dims to 0.4 opacity and is disabled when auto mode is active.
-- **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (≥90%) → rate limit if higher than context; normal → highest metric wins (context breaks ties). Applied in both popover and menu bar label.
+- **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (≥95%) → rate limit unconditionally beats context health; normal → highest metric wins (context breaks ties). Applied in both popover and menu bar label.
 
 Padding: H 16, V 10
 
@@ -193,7 +193,7 @@ Each bar:
 - **Detail row**: left status + `"Resets in Xh Ym"` (.caption2, .tertiary) always visible on right
   - Normal: `"X% remaining"` (.caption2, .secondary)
   - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 50%, estimate before reset)
-  - Throttled: `"Rate limited"` (.caption2, .danger)
+  - Throttled: `"Rate limited"` (.caption2, .danger) — shown when per-window status is `"throttled"` OR overall `isThrottled` and window is at 100%
 
 Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `<1h` → "in Xm", expired → "soon"
 
@@ -261,31 +261,31 @@ Padding: H 16, V 12
 Compact chart with mode toggle. Positioned below Tokens section.
 
 - Header row: `"Activity"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
-- Toggle modes: `"24H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
+- Toggle modes: `"12H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
 - **Mode persistence**: `@AppStorage("aibattery_chartMode")` — persists across popover close/reopen
 - Empty state: centered VStack with `chart.line.flattrend.xyaxis` icon (14pt, .quaternary) + `"No activity data"` (.caption2, .tertiary), 50pt height
 
 Chart styling (all modes):
   - LineMark: `.orange`, 1.5pt stroke, catmullRom interpolation
   - AreaMark: orange gradient (0.3 → 0.1 opacity, top → bottom)
-  - PointMark: `.orange`, symbolSize 12 (daily + monthly only; hourly skips — 24 dots too dense)
+  - PointMark: `.orange`, symbolSize 12 (daily + monthly only; hourly skips for cleaner look)
   - `.chartPlotStyle { $0.background(.clear) }` (fixes white background)
   - Y-axis: `AxisMarks(position: .trailing, values: .automatic(desiredCount: 3))` with compact labels (`compactCount`: "2K", "3.2M") and `AxisTick` (0.5pt, tertiaryLabel)
   - Height: 50pt
 
 X-axis per mode:
-  - **24H**: Every 3 hours (0, 3, 6, ..., 21) → zero-padded labels "00", "03", "06", ..., "21". Domain 0...23. Font: `.system(size: 8)`
+  - **12H**: Trailing 12-hour window ending at current hour. X-axis uses offset 0–11; labels at offsets [0, 3, 6, 9, 11] show actual clock hours (zero-padded). Domain 0...11. Font: `.system(size: 8)`. At midnight wrap (e.g. 2 AM), hours 15–23 show 0 (only today's data exists).
   - **7D**: Rolling 7-day window. Day abbreviation (`.system(size: 9)`) for all days including today
   - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `.system(size: 9)`
 
 Data per mode:
-  - **24H**: `todayHourCounts` (hour "0"-"23" → today's JSONL count only)
+  - **12H**: `todayHourCounts` trailing 12 hours (`(currentHour - 11)` through `currentHour`, wrapping via `% 24`)
   - **7D**: `dailyActivity` last 7 days (rolling window) → daily message counts
   - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
 
 **Trend summary** (below chart, mode-aware, two rows of two stats each):
 
-- **24H** — Row 1: vs-yesterday change (↑/↓/→ + delta, colored) + msgs today. Row 2: throttle count today + peak hour.
+- **12H** — Row 1: vs-yesterday change (↑/↓/→ + delta, colored) + msgs today. Row 2: throttle count today + peak hour.
 - **7D** — Row 1: weekly trend arrow + vs-yesterday change + avg/day. Row 2: throttle count this week + busiest day.
 - **12M** — Row 1: vs-last-month change (projected, ±10% threshold) + this month total (compactCount). Row 2: throttle count this month + busiest month.
 
@@ -338,7 +338,13 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 - `button.imagePosition = .imageLeading` for icon-then-text layout
 - `button.font` = `.monospacedDigitSystemFont(ofSize: 0, weight: .regular)` — matches macOS battery indicator style
 
-**Throttle countdown**: when `rateLimits.isThrottled == true`, title shows countdown to binding reset (e.g., "2h 15m", "45m", "3d 2h", "soon") instead of percentage. Overrides the selected metric mode entirely — being rate-limited is a hard blocker that makes other metrics irrelevant. Updates on each polling cycle.
+**Countdown display**: title shows countdown to reset instead of percentage when any of these conditions are met:
+- `rateLimits.isThrottled == true` → shows binding reset countdown
+- `fiveHourPercent >= 100` → shows 5-hour window reset countdown
+- `sevenDayPercent >= 100` → shows 7-day window reset countdown
+- Both windows exhausted → shows earliest reset
+
+This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when capacity is exhausted. Overrides the selected metric mode entirely. Updates on each polling cycle.
 
 **Normal mode**: shows `"{percent}%"` driven by selected metric mode (reads `UserDefaults` directly since `@AppStorage` requires SwiftUI View context).
 
@@ -357,15 +363,50 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
 
-- 16×16 NSImage, custom drawing
+- 22×22 NSImage canvas (extra room for glow/sparkles), CGContext-based drawing
 - 4-pointed star: 8 vertices alternating outer (6.5pt) / inner (2.0pt) radius
-- Centered at (8, 8), rotation offset -π/2 (starts from top)
-- Glow: `NSShadow` with usage color at 0.35 alpha, blur radius 2.5pt (rendered behind fill)
-- Fill: solid color based on requestsPercent
+- Centered at (11, 11), rotation offset -π/2 (starts from top)
+- Fill: solid color from caller (matches active metric mode — rate limit or context health thresholds)
 - Stroke: high-contrast → black 0.8 / 1.0pt; light mode → black 0.3 / 0.75pt; dark mode → color 0.6 / 0.5pt
 - `isTemplate = false`
-- **Band-based caching**: `colorBand` maps percentage to 4 discrete bands (0: <50%, 1: <80%, 2: <95%, 3: >=95%). Static `iconCache: [Int: NSImage]` stores up to 8 entries (4 bands × 2 colorblind modes). Icon only re-rendered when band changes — not on every percentage tick.
-- **`statusBarImage(for:)`**: public static method exposing the cached NSImage for StatusBarManager's native AppKit button.
+
+**Three render modes** based on state:
+
+1. **Breathing mode (normal)**: star itself scales up and down with a soft circular halo behind it
+   - Star scale range grows with usage: 1.0–1.08x at <60%, up to 1.0–1.14x at 95%+
+   - Halo alpha range grows with usage: 0–0.12 at low, 0.12–0.32 at high
+   - Halo radius: star outer radius × scale × 1.15
+   - Sine-wave breathing factor from discrete pulse step
+
+2. **Broken mode (throttled)**: star fractures into 4 triangular fragments with dramatic pulse
+   - Each point of the 4-pointed star is a triangle (outer tip + two adjacent inner vertices)
+   - Each triangle offset outward from center by ~1.5pt along its radial direction
+   - Fragment scale breathes 1.0–1.14x, halo alpha 0.15–0.45
+   - Visible gaps between fragments — the star appears "shattered"
+
+3. **Recovery sparkle (throttle → green transition)**: 30s celebration effect after throttle clears
+   - Star drawn at normal size, surrounded by subtle twinkling cross sparkles
+   - 8 pre-defined sparkle positions evenly spaced around the star (8–9pt from center)
+   - Each frame shows 2-3 sparkles (rotating subset), frames change every 500ms (half pulse rate)
+   - Each sparkle is a + cross shape (1.6pt arm, 0.7pt stroke width, 0.7 alpha)
+   - Triggered by `StatusBarManager` detecting `isThrottled` going from true → false
+   - Automatically stops after 30 seconds, returning to normal breathing mode
+
+**Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 16 discrete steps, 250ms per tick).
+- Always active — breathing at all usage levels, dramatic pulse when throttled
+- Recovery sparkle overlaid for 30s after throttle clears
+- Pauses on screen sleep, resumes on wake
+- Timer callback uses `MainActor.assumeIsolated` (no async dispatch overhead)
+- Timer stopped only when app terminates
+
+**Star color selection** (by `StatusBarManager`):
+- Rate limit modes: `ThemeColors.barNSColor` (green < 50%, yellow 50–80%, orange 80–95%, red ≥ 95%)
+- Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
+- Throttled: always red/critical band
+
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–15) for normal, `10_100 + pulseStep` for broken, `10_200 + pulseStep` for sparkle. Max entries: 21×16 + 16 + 16 = 368. Cache invalidates on colorblind/appearance/contrast change.
+
+- **`statusBarImage(for:color:isBroken:isSparkle:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
 
 ## Accessibility
 

@@ -43,6 +43,7 @@ struct CopyableModifier: ViewModifier {
                 }
             }
             .onDisappear {
+                feedbackTask?.cancel()
                 if cursorPushed {
                     NSCursor.pop()
                     cursorPushed = false

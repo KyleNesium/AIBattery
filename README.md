@@ -127,7 +127,7 @@ brew upgrade --cask aibattery
 
 ## 🔐 Authentication
 
-OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **2 accounts** (separate Claude orgs).
+OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **3 accounts** (separate Claude orgs).
 
 | Step | Action |
 |:---:|---|
@@ -180,7 +180,7 @@ Click the ✦ icon to open the dashboard:
 | 🧠 **Context Health** | 5 most recent sessions with `< 1/5 >` chevron + swipe navigation |
 | 🔤 **Tokens** | Per-model breakdown with input/output/cache read/cache write · optional API cost |
 | 📈 **Insights** | Today's stats with trend arrow + projection, all-time stats with busiest day |
-| 📉 **Activity** | Sparkline chart — 24H · 7D · 12M toggle |
+| 📉 **Activity** | Sparkline chart — 12H · 7D · 12M toggle |
 
 ---
 
@@ -259,7 +259,7 @@ Click ⚙️ in the header to configure:
 
 | Setting | What it does |
 |---|---|
-| ➕ **Add Account** | Connect a second Claude account (up to 2) |
+| ➕ **Add Account** | Connect another Claude account (up to 3) |
 | ✏️ **Account names** | Custom label per account (shown in picker + menu bar) |
 | 🔁 **Auto mode** | Always show the highest metric (pulsing blue button on metric toggle) |
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
@@ -470,14 +470,14 @@ If it saves you time or helps you get more out of your Claude subscription, cons
 
 ## 🧪 Test Coverage
 
-**490 tests** across 35 test files.
+**516 tests** across 36 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 152 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults, countdown formatter, throttled header parsing), health status, metric modes, API profiles (org ID validation: empty, too long, special chars, hyphens/underscores), session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode with priority tiers, context health fallback chain), model pricing (cache correctness for unknown models), health config |
+| Models | 157 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults, countdown formatter, throttled header parsing), health status, metric modes, API profiles (org ID validation: empty, too long, special chars, hyphens/underscores), session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode with priority tiers, context health fallback chain, single-pass activity stats), model pricing (cache correctness for unknown models), health config |
 | Services | 222 | Version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, alert key migration), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config, idle session inclusion), status checker (severity ordering, incident escalation, known components catalog, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry, symlink boundary check), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload, file size guard, symlink boundary check, prefix traversal attack), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, deduplication, stats+JSONL merge, all-time mode, redundant aggregation skip, hourly merge, peak hour update, totalMessages dedup, old model visibility, all-dates daily merge, todayHourCounts separation), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
 | ViewModels | 23 | UsageViewModel static helpers (refresh interval clamping, error message logic, adaptive polling data-change detection, throttle event recording with dedup, throttle count filtering) |
-| Utilities | 93 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping, result cache), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, progressive doubling, caps, reset), secure networking (ephemeral session config, singleton, size limit, cookie policy, resource timeout), duration formatter (compact format, boundaries, 24h edge case, days/hours/minutes) |
+| Utilities | 112 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping, result cache), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, progressive doubling, caps, reset), secure networking (ephemeral session config, singleton, size limit, cookie policy, resource timeout), duration formatter (compact format, boundaries, 24h edge case, days/hours/minutes), menu bar icon (breathing animation, recovery sparkle effect, quantized caching, broken star fragments, pulse steps, cache identity, sparkle/broken/normal key isolation, context health colors) |
 
 ## 📄 License
 

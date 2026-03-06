@@ -13,7 +13,8 @@ struct UsageSnapshotTests {
         todayMessages: Int = 0,
         dailyActivity: [DailyActivity] = []
     ) -> UsageSnapshot {
-        UsageSnapshot(
+        let activityStats = UsageSnapshot.computeActivityStats(dailyActivity)
+        return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
             firstSessionDate: nil,
@@ -29,9 +30,9 @@ struct UsageSnapshotTests {
             modelTokens: modelTokens,
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
             dailyActivity: dailyActivity,
-            dailyAverage: UsageSnapshot.computeDailyAverage(dailyActivity),
-            trendDirection: UsageSnapshot.computeTrendDirection(dailyActivity),
-            busiestDayOfWeek: UsageSnapshot.computeBusiestDay(dailyActivity),
+            dailyAverage: activityStats.average,
+            trendDirection: activityStats.trend,
+            busiestDayOfWeek: activityStats.busiestDay,
             hourCounts: [:],
             todayHourCounts: [:],
             tokenHealth: tokenHealth,
@@ -239,9 +240,10 @@ struct UsageSnapshotTests {
     }
 
     @Test func autoResolvedMode_nearExhaustion_prioritizesRateLimit() {
+        // Rate limit ≥95% always beats context health, even at 100%
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 0.92,
+            fiveHourUtilization: 0.96,
             fiveHourReset: nil,
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.10,
@@ -249,12 +251,13 @@ struct UsageSnapshotTests {
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
-        let session = makeHealth(id: "s1", usagePercentage: 70.0, band: .orange)
+        let session = makeHealth(id: "s1", usagePercentage: 100.0, band: .red)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
         #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
-    @Test func autoResolvedMode_nearExhaustion_contextStillWinsIfHigher() {
+    @Test func autoResolvedMode_belowNearExhaustion_contextWinsIfHigher() {
+        // Below 95% threshold, context health can still win via Tier 3
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 0.92,
@@ -289,17 +292,17 @@ struct UsageSnapshotTests {
     @Test func autoResolvedMode_nearExhaustion_bothWindowsHigh_picksHigher() {
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 0.92,
+            fiveHourUtilization: 0.96,
             fiveHourReset: nil,
             fiveHourStatus: "allowed",
-            sevenDayUtilization: 0.95,
+            sevenDayUtilization: 0.98,
             sevenDayReset: nil,
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
-        let session = makeHealth(id: "s1", usagePercentage: 70.0, band: .orange)
+        let session = makeHealth(id: "s1", usagePercentage: 100.0, band: .red)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
-        // 7d (95%) > 5h (92%), both above threshold, both above context (70%)
+        // 7d (98%) > 5h (96%), both ≥95% threshold, beats even 100% context
         #expect(snapshot.autoResolvedMode == .sevenDay)
     }
 
@@ -406,5 +409,60 @@ struct UsageSnapshotTests {
         #expect(!TrendDirection.down.symbol.isEmpty)
         #expect(!TrendDirection.flat.symbol.isEmpty)
         #expect(TrendDirection.up.symbol != TrendDirection.down.symbol)
+    }
+
+    // MARK: - computeActivityStats (single-pass)
+
+    @Test func activityStats_emptyActivity() {
+        let stats = UsageSnapshot.computeActivityStats([])
+        #expect(stats.average == 0)
+        #expect(stats.trend == .flat)
+        #expect(stats.busiestDay == nil)
+    }
+
+    @Test func activityStats_singleWeek() {
+        let activity = makeDailyActivity(daysBack: 7, messages: [10, 20, 30, 40, 50, 60, 70])
+        let stats = UsageSnapshot.computeActivityStats(activity)
+        #expect(stats.average == 40) // 280 / 7
+        #expect(stats.trend == .flat) // < 14 days
+        #expect(stats.busiestDay != nil)
+        #expect(stats.busiestDay!.averageCount > 0)
+    }
+
+    @Test func activityStats_multiWeek_trendUp() {
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            10, 10, 10, 10, 10, 10, 10,  // last week
+            50, 50, 50, 50, 50, 50, 50,  // this week
+        ])
+        let stats = UsageSnapshot.computeActivityStats(activity)
+        #expect(stats.average == 50) // last 7: all 50
+        #expect(stats.trend == .up)
+        #expect(stats.busiestDay != nil)
+    }
+
+    @Test func activityStats_multiWeek_trendDown() {
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            50, 50, 50, 50, 50, 50, 50,
+            10, 10, 10, 10, 10, 10, 10,
+        ])
+        let stats = UsageSnapshot.computeActivityStats(activity)
+        #expect(stats.average == 10)
+        #expect(stats.trend == .down)
+    }
+
+    @Test func activityStats_matchesSnapshotProperties() {
+        // Verify computeActivityStats produces same results as snapshot pre-computation.
+        // Use asymmetric counts so one weekday is clearly the busiest (avoids tie-breaking nondeterminism).
+        let activity = makeDailyActivity(daysBack: 14, messages: [
+            10, 10, 10, 10, 10, 10, 10,
+            50, 50, 50, 50, 50, 50, 99,
+        ])
+        let snapshot = makeSnapshot(dailyActivity: activity)
+        let stats = UsageSnapshot.computeActivityStats(activity)
+        #expect(snapshot.dailyAverage == stats.average)
+        #expect(snapshot.trendDirection == stats.trend)
+        // Busiest day name should match (both non-nil)
+        #expect(snapshot.busiestDayOfWeek?.name == stats.busiestDay?.name)
+        #expect(snapshot.busiestDayOfWeek?.averageCount == stats.busiestDay?.averageCount)
     }
 }
