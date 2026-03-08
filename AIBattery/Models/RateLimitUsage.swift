@@ -136,10 +136,10 @@ struct RateLimitUsage: Equatable {
 
         return RateLimitUsage(
             representativeClaim: stringHeader("anthropic-ratelimit-unified-representative-claim") ?? fiveHourWindow,
-            fiveHourUtilization: doubleHeader("anthropic-ratelimit-unified-5h-utilization"),
+            fiveHourUtilization: min(max(doubleHeader("anthropic-ratelimit-unified-5h-utilization"), 0), 1),
             fiveHourReset: dateFromUnix("anthropic-ratelimit-unified-5h-reset"),
             fiveHourStatus: stringHeader("anthropic-ratelimit-unified-5h-status") ?? status,
-            sevenDayUtilization: doubleHeader("anthropic-ratelimit-unified-7d-utilization"),
+            sevenDayUtilization: min(max(doubleHeader("anthropic-ratelimit-unified-7d-utilization"), 0), 1),
             sevenDayReset: dateFromUnix("anthropic-ratelimit-unified-7d-reset"),
             sevenDayStatus: stringHeader("anthropic-ratelimit-unified-7d-status") ?? status,
             overallStatus: status

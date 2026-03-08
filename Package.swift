@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "AIBatteryCore", targets: ["AIBatteryCore"])
     ],
     dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0")
+        .package(url: "https://github.com/sparkle-project/Sparkle", "2.6.0"..<"3.0.0")
     ],
     targets: [
         .target(

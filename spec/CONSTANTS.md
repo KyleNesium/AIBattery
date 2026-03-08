@@ -44,12 +44,27 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Constant | Value |
 |----------|-------|
 | Anthropic version header | `2023-06-01` |
-| Probe models (fallback order) | `claude-sonnet-4-6-20250929`, `claude-sonnet-4-5-20250929`, `claude-haiku-3-5-20241022` (remembers last working model per account) |
+| Probe models (fallback order) | Date-stamped IDs; see `RateLimitFetcher.probeModels` for current values (remembers last working model per account) |
 | Probe content | `"."` |
 | Probe max_tokens | `1` |
 | User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
 | Keychain service (OAuth) | `"AIBattery"` |
 | Max accounts | 3 |
+
+## Rate Limit Headers
+
+Headers parsed from `/v1/messages` responses (only endpoint that returns them):
+
+| Header | Type | Notes |
+|--------|------|-------|
+| `anthropic-ratelimit-unified-status` | String | `"allowed"` or `"throttled"` — overall status |
+| `anthropic-ratelimit-unified-representative-claim` | String | `"five_hour"` or `"seven_day"` — binding constraint |
+| `anthropic-ratelimit-unified-5h-utilization` | Double | 0.0–1.0 (clamped on parse) |
+| `anthropic-ratelimit-unified-5h-reset` | Unix timestamp | Seconds since epoch |
+| `anthropic-ratelimit-unified-5h-status` | String | `"allowed"` or `"throttled"` |
+| `anthropic-ratelimit-unified-7d-utilization` | Double | 0.0–1.0 (clamped on parse) |
+| `anthropic-ratelimit-unified-7d-reset` | Unix timestamp | Seconds since epoch |
+| `anthropic-ratelimit-unified-7d-status` | String | `"allowed"` or `"throttled"` |
 
 ## Statuspage Component IDs
 

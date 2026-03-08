@@ -52,6 +52,7 @@ public final class StatusBarManager: NSObject {
             button.font = .monospacedDigitSystemFont(ofSize: 0, weight: .regular)
             button.action = #selector(statusItemClicked)
             button.target = self
+            button.setAccessibilityLabel("AI Battery")
         }
 
         // Floating panel — not NSPopover, so macOS can't auto-hide it
@@ -238,6 +239,7 @@ public final class StatusBarManager: NSObject {
             displayText = "\(Int(percent))%"
         }
         button.title = displayText
+        button.setAccessibilityValue(displayText)
 
         // Staleness dimming: dim when last fresh fetch > 5 minutes ago
         let isStale: Bool
