@@ -9,26 +9,6 @@ enum ActivityChartMode: String, CaseIterable {
     case monthly = "12M"
 }
 
-// MARK: - Data Points
-
-private struct DailyPoint: Identifiable {
-    let id: String
-    let date: Date
-    let count: Int
-}
-
-private struct HourlyPoint: Identifiable {
-    let id: Int
-    let hour: Int
-    let count: Int
-}
-
-private struct MonthlyPoint: Identifiable {
-    let id: String
-    let date: Date
-    let count: Int
-}
-
 // MARK: - View
 
 struct ActivityChartView: View {
@@ -44,22 +24,16 @@ struct ActivityChartView: View {
 
     // MARK: - Data transforms (delegated to ActivityChartData for testability)
 
-    private var dailyData: [DailyPoint] {
-        ActivityChartData.dailyData(from: dailyActivity).map {
-            DailyPoint(id: $0.key, date: $0.date, count: $0.count)
-        }
+    private var dailyData: [ActivityChartData.DailyPoint] {
+        ActivityChartData.dailyData(from: dailyActivity)
     }
 
-    private var hourlyData: [HourlyPoint] {
-        ActivityChartData.hourlyData(from: todayHourCounts).map {
-            HourlyPoint(id: $0.offset, hour: $0.hour, count: $0.count)
-        }
+    private var hourlyData: [ActivityChartData.HourlyPoint] {
+        ActivityChartData.hourlyData(from: todayHourCounts)
     }
 
-    private var monthlyData: [MonthlyPoint] {
-        ActivityChartData.monthlyData(from: dailyActivity).map {
-            MonthlyPoint(id: $0.key, date: $0.date, count: $0.count)
-        }
+    private var monthlyData: [ActivityChartData.MonthlyPoint] {
+        ActivityChartData.monthlyData(from: dailyActivity)
     }
 
     /// Check source data directly — avoids recomputing dailyData/monthlyData just for an emptiness check.
@@ -234,7 +208,7 @@ struct ActivityChartView: View {
         .chartXAxis {
             AxisMarks(values: [0, 3, 6, 9, 11]) { value in
                 AxisValueLabel {
-                    if let offset = value.as(Int.self), offset < data.count {
+                    if let offset = value.as(Int.self), offset >= 0, offset < data.count {
                         Text(Self.formatHourLabel(data[offset].hour))
                             .font(.system(size: 8))
                     }

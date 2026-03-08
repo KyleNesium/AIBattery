@@ -3,19 +3,22 @@ import Foundation
 /// Pure data transformations for activity charts — extracted from ActivityChartView for testability.
 enum ActivityChartData {
 
-    struct DailyPoint {
+    struct DailyPoint: Identifiable {
+        var id: String { key }
         let key: String
         let date: Date
         let count: Int
     }
 
-    struct HourlyPoint {
+    struct HourlyPoint: Identifiable {
+        var id: Int { offset }
         let offset: Int
         let hour: Int
         let count: Int
     }
 
-    struct MonthlyPoint {
+    struct MonthlyPoint: Identifiable {
+        var id: String { key }
         let key: String
         let date: Date
         let count: Int
