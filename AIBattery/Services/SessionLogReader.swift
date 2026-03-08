@@ -96,15 +96,13 @@ final class SessionLogReader {
         return entries
     }
 
-    /// Evict oldest cache entries (by mod date) to stay under the limit.
-    /// Batch-sorts once to avoid O(n²) from repeated min-find.
+    /// Evict the single oldest cache entry (by mod date) to stay at the limit.
+    /// Overflow is always 1 (one entry added before check), so O(n) min-find
+    /// is cheaper than O(n log n) sort.
     private func evictCache() {
-        let overflow = cache.count - maxCacheEntries
-        guard overflow > 0 else { return }
-        let toRemove = cache.sorted { $0.value.0 < $1.value.0 }.prefix(overflow)
-        for entry in toRemove {
-            cache.removeValue(forKey: entry.key)
-        }
+        guard cache.count > maxCacheEntries,
+              let oldest = cache.min(by: { $0.value.0 < $1.value.0 }) else { return }
+        cache.removeValue(forKey: oldest.key)
     }
 
     /// Exposes discovery for testing the symlink boundary check.
