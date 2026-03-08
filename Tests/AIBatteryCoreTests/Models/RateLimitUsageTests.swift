@@ -82,6 +82,28 @@ struct RateLimitUsageTests {
         #expect(usage?.fiveHourStatus == "throttled")
     }
 
+    @Test func parse_clampsUtilizationAboveOne() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "allowed",
+            "anthropic-ratelimit-unified-5h-utilization": "1.5",
+            "anthropic-ratelimit-unified-7d-utilization": "2.0",
+        ]
+        let usage = RateLimitUsage.parse(headers: headers)!
+        #expect(usage.fiveHourUtilization == 1.0)
+        #expect(usage.sevenDayUtilization == 1.0)
+    }
+
+    @Test func parse_clampsNegativeUtilizationToZero() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "allowed",
+            "anthropic-ratelimit-unified-5h-utilization": "-0.5",
+            "anthropic-ratelimit-unified-7d-utilization": "-1.0",
+        ]
+        let usage = RateLimitUsage.parse(headers: headers)!
+        #expect(usage.fiveHourUtilization == 0.0)
+        #expect(usage.sevenDayUtilization == 0.0)
+    }
+
     // MARK: - Computed properties
 
     @Test func fiveHourPercent() {

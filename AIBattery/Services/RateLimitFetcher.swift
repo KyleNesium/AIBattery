@@ -81,7 +81,7 @@ final class RateLimitFetcher {
                 )
             }
             // Cache too old — discard it
-            cachedResults[accountId] = nil
+            cachedResults.removeValue(forKey: accountId)
         }
         return APIFetchResult(rateLimits: nil, profile: nil)
     }

@@ -9,26 +9,6 @@ enum ActivityChartMode: String, CaseIterable {
     case monthly = "12M"
 }
 
-// MARK: - Data Points
-
-private struct DailyPoint: Identifiable {
-    let id: String
-    let date: Date
-    let count: Int
-}
-
-private struct HourlyPoint: Identifiable {
-    let id: Int
-    let hour: Int
-    let count: Int
-}
-
-private struct MonthlyPoint: Identifiable {
-    let id: String
-    let date: Date
-    let count: Int
-}
-
 // MARK: - View
 
 struct ActivityChartView: View {
@@ -42,65 +22,18 @@ struct ActivityChartView: View {
         ActivityChartMode(rawValue: modeRaw) ?? .hourly
     }
 
-    // MARK: - Data transforms
+    // MARK: - Data transforms (delegated to ActivityChartData for testability)
 
-    private var dailyData: [DailyPoint] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-
-        // Build lookup from existing data
-        var lookup: [String: Int] = [:]
-        for day in dailyActivity {
-            lookup[day.date] = day.messageCount
-        }
-
-        // Generate all 7 days (6 days ago through today)
-        return (0..<7).compactMap { offset in
-            guard let date = cal.date(byAdding: .day, value: -(6 - offset), to: today) else { return nil }
-            let key = DateFormatters.dateKey.string(from: date)
-            return DailyPoint(id: key, date: date, count: lookup[key] ?? 0)
-        }
+    private var dailyData: [ActivityChartData.DailyPoint] {
+        ActivityChartData.dailyData(from: dailyActivity)
     }
 
-    private var hourlyData: [HourlyPoint] {
-        let currentHour = Calendar.current.component(.hour, from: Date())
-        return (0..<12).map { offset in
-            let hour = (currentHour - 11 + offset + 24) % 24
-            return HourlyPoint(id: offset, hour: hour, count: todayHourCounts[String(hour)] ?? 0)
-        }
+    private var hourlyData: [ActivityChartData.HourlyPoint] {
+        ActivityChartData.hourlyData(from: todayHourCounts)
     }
 
-    private var monthlyData: [MonthlyPoint] {
-        let cal = Calendar.current
-        let now = Date()
-        let lookup = monthTotals
-
-        // Generate all 12 months (11 months ago through this month)
-        let nowComps = cal.dateComponents([.year, .month], from: now)
-        guard let thisMonth = cal.date(from: nowComps) else { return [] }
-        guard let nowYear = nowComps.year, let nowMonth = nowComps.month else { return [] }
-        let thisMonthKey = String(format: "%04d-%02d", nowYear, nowMonth)
-
-        return (0..<12).compactMap { offset in
-            guard let date = cal.date(byAdding: .month, value: -(11 - offset), to: thisMonth) else { return nil }
-            let comps = cal.dateComponents([.year, .month], from: date)
-            guard let y = comps.year, let m = comps.month else { return nil }
-            let key = String(format: "%04d-%02d", y, m)
-            let total = lookup[key] ?? 0
-
-            // Project current month to full-month pace so it's comparable.
-            // Skip projection in the first 3 days — too few data points to extrapolate.
-            let count: Int
-            if key == thisMonthKey, total > 0,
-               let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count {
-                let dayOfMonth = cal.component(.day, from: now)
-                count = dayOfMonth >= 4 ? total * daysInMonth / dayOfMonth : total
-            } else {
-                count = total
-            }
-
-            return MonthlyPoint(id: key, date: date, count: count)
-        }
+    private var monthlyData: [ActivityChartData.MonthlyPoint] {
+        ActivityChartData.monthlyData(from: dailyActivity)
     }
 
     /// Check source data directly — avoids recomputing dailyData/monthlyData just for an emptiness check.
@@ -275,7 +208,7 @@ struct ActivityChartView: View {
         .chartXAxis {
             AxisMarks(values: [0, 3, 6, 9, 11]) { value in
                 AxisValueLabel {
-                    if let offset = value.as(Int.self), offset < data.count {
+                    if let offset = value.as(Int.self), offset >= 0, offset < data.count {
                         Text(Self.formatHourLabel(data[offset].hour))
                             .font(.system(size: 8))
                     }
@@ -542,16 +475,7 @@ struct ActivityChartView: View {
     /// Single-pass aggregation of daily activity into month-keyed totals (e.g. "2026-03" → 142).
     /// Shared by `monthlyData` (chart rendering) and `trendRow12M` (trend summary).
     private var monthTotals: [String: Int] {
-        let cal = Calendar.current
-        var result: [String: Int] = [:]
-        for day in dailyActivity {
-            guard let date = day.parsedDate else { continue }
-            let comps = cal.dateComponents([.year, .month], from: date)
-            guard let y = comps.year, let m = comps.month else { continue }
-            let key = String(format: "%04d-%02d", y, m)
-            result[key, default: 0] += day.messageCount
-        }
-        return result
+        ActivityChartData.monthTotals(from: dailyActivity)
     }
 
     private func monthChangeInfo(thisMonth: Int, lastMonth: Int) -> ChangeInfo? {

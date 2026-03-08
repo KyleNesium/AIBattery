@@ -55,7 +55,8 @@ fi
 
 # Inject Sparkle EdDSA public key (required for signature verification)
 if [ -n "${SPARKLE_EDDSA_PUBLIC_KEY:-}" ]; then
-  /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string ${SPARKLE_EDDSA_PUBLIC_KEY}" "$APP_DIR/Contents/Info.plist"
+  /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey ${SPARKLE_EDDSA_PUBLIC_KEY}" "$APP_DIR/Contents/Info.plist" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string ${SPARKLE_EDDSA_PUBLIC_KEY}" "$APP_DIR/Contents/Info.plist"
   echo "Injected Sparkle EdDSA public key"
 fi
 
@@ -180,11 +181,18 @@ rm -f "$DMG_RW"
 # Optional notarization (requires Apple Developer credentials)
 if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
   echo "Submitting for notarization..."
-  xcrun notarytool submit .build/AIBattery.zip \
-    --apple-id "$APPLE_ID" \
-    --team-id "$APPLE_TEAM_ID" \
-    --password "${APPLE_APP_PASSWORD}" \
-    --wait
+  for attempt in 1 2 3; do
+    echo "Notarization attempt $attempt..."
+    if xcrun notarytool submit .build/AIBattery.zip \
+      --apple-id "$APPLE_ID" \
+      --team-id "$APPLE_TEAM_ID" \
+      --password "${APPLE_APP_PASSWORD}" \
+      --wait; then
+      break
+    fi
+    [ "$attempt" -lt 3 ] && sleep 30
+    [ "$attempt" -eq 3 ] && { echo "Notarization failed after 3 attempts"; exit 1; }
+  done
   xcrun stapler staple "$APP_DIR"
 
   # Re-package after stapling
