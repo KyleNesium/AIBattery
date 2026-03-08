@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.2] — 2026-03-08
+
+### Improved
+- **Defensive rate limit parsing** — utilization values clamped to [0.0, 1.0] on parse, preventing >100% or negative UI percentages from unexpected API responses
+- **Build reliability** — PlistBuddy key injection is now idempotent (Set with Add fallback), notarization retries 3× with 30s backoff
+- **Sparkle version pin** — dependency constrained to 2.x to prevent breaking major-version upgrades
+- **Menu bar accessibility** — VoiceOver now reads "AI Battery" with current percentage on the status bar button
+- **Chart data testability** — extracted daily/hourly/monthly transformations from view into pure static functions with 14 new tests
+- **Hourly chart safety** — added missing lower bounds check in axis label rendering
+- **Cache eviction** — `SessionLogReader` uses O(n) min-find instead of O(n log n) sort for single-entry eviction
+- **Spec updates** — documented all rate limit header names in CONSTANTS.md
+
 ## [1.7.1] — 2026-03-06
 
 ### Fixed
