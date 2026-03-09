@@ -199,6 +199,8 @@ public final class StatusBarManager: NSObject {
             starColor = ThemeColors.barNSColor(percent: 100)
         } else if metricMode == .contextHealth {
             starColor = ThemeColors.contextHealthNSColor(percent: percent)
+        } else if metricMode == .dailyPace {
+            starColor = ThemeColors.dailyPaceNSColor(percent: percent)
         } else {
             starColor = ThemeColors.barNSColor(percent: percent)
         }

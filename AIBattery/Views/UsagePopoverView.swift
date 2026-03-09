@@ -67,7 +67,7 @@ public struct UsagePopoverView: View {
                 metricToggle
                 Divider()
 
-                // Sections reordered: selected metric first, then the other two.
+                // Sections reordered: selected metric first, then the others.
                 // Animation scoped here — only metric sections animate on mode change.
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
@@ -91,6 +91,11 @@ public struct UsagePopoverView: View {
                             TokenHealthSection(health: health, onRefresh: {
                                 Task { await viewModel.refresh() }
                             })
+                            Divider()
+                        }
+                    case .dailyPace:
+                        if snapshot.dailyAverage > 0 {
+                            DailyPaceSection(snapshot: snapshot)
                             Divider()
                         }
                     }
@@ -382,23 +387,40 @@ public struct UsagePopoverView: View {
     @State private var autoGlowing = false
 
     private var metricToggle: some View {
-        HStack(spacing: 0) {
-            autoModeButton
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                autoModeButton
 
-            Spacer()
-            Picker("", selection: $metricModeRaw) {
-                ForEach(MetricMode.allCases, id: \.rawValue) { mode in
-                    Text(mode.label).tag(mode.rawValue)
+                Spacer()
+                Picker("", selection: $metricModeRaw) {
+                    ForEach(MetricMode.allCases, id: \.rawValue) { mode in
+                        Text(mode.shortLabel).tag(mode.rawValue)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 190)
+                .opacity(autoMetricMode ? 0.55 : 1.0)
+                .disabled(autoMetricMode)
+                .accessibilityLabel("Metric mode")
+                .accessibilityHint("Switch between 5-hour, 7-day, context health, and daily pace views")
+                .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
+                Spacer()
             }
-            .pickerStyle(.segmented)
-            .frame(width: 190)
-            .opacity(autoMetricMode ? 0.55 : 1.0)
-            .disabled(autoMetricMode)
-            .accessibilityLabel("Metric mode")
-            .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
-            .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
-            Spacer()
+
+            // Auto mode indicator: shows which mode was auto-selected
+            if autoMetricMode, let snapshot = viewModel.snapshot {
+                HStack(spacing: 4) {
+                    Spacer()
+                    Text("\u{2726}")
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                    Text("Showing \(snapshot.autoResolvedMode.label)")
+                        .font(.caption2)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                    Spacer()
+                }
+                .padding(.top, 4)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

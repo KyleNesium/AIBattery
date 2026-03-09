@@ -40,6 +40,9 @@ struct UsageSnapshot {
             return topSessionHealths.first?.usagePercentage
                 ?? tokenHealth?.usagePercentage
                 ?? 0
+        case .dailyPace:
+            guard dailyAverage > 0 else { return 0 }
+            return min(Double(todayMessages) / Double(dailyAverage) * 100, 300)
         }
     }
 
@@ -47,7 +50,7 @@ struct UsageSnapshot {
     /// At this level, rate limits always take priority over context health.
     static let nearExhaustionThreshold = 95.0
 
-    /// Auto mode: three-tier priority — throttling > near-exhaustion > highest metric.
+    /// Auto mode: three-tier priority — throttling > near-exhaustion > urgency-normalized.
     /// Rate limit exhaustion is a harder constraint than context health (no tokens = no work),
     /// so it unconditionally supersedes context health at ≥95%.
     var autoResolvedMode: MetricMode {
@@ -59,18 +62,59 @@ struct UsageSnapshot {
 
         let fiveHour = percent(for: .fiveHour)
         let sevenDay = percent(for: .sevenDay)
-        let context = percent(for: .contextHealth)
 
-        // Tier 2: Near-exhaustion — rate limits ≥95% always beat context health
+        // Tier 2: Near-exhaustion — rate limits ≥95% always beat everything
         let maxRate = max(fiveHour, sevenDay)
         if maxRate >= Self.nearExhaustionThreshold {
             return sevenDay >= fiveHour ? .sevenDay : .fiveHour
         }
 
-        // Tier 3: Normal — highest metric wins, context breaks ties
-        if context >= fiveHour && context >= sevenDay { return .contextHealth }
-        if sevenDay >= fiveHour { return .sevenDay }
-        return .fiveHour
+        // Tier 3: Urgency-normalized — each mode's thresholds map to a shared 0–1 scale.
+        // Ties broken by actionability: context > 5h > 7d > pace.
+        let scored: [(MetricMode, Double)] = MetricMode.allCases.map { mode in
+            (mode, Self.urgencyScore(percent: percent(for: mode), mode: mode))
+        }
+        let maxUrgency = scored.map(\.1).max() ?? 0
+        // Among tied modes, prefer context > 5h > 7d > pace (most actionable first)
+        let tiePriority: [MetricMode] = [.contextHealth, .fiveHour, .sevenDay, .dailyPace]
+        return scored
+            .filter { $0.1 == maxUrgency }
+            .min { tiePriority.firstIndex(of: $0.0)! < tiePriority.firstIndex(of: $1.0)! }!
+            .0
+    }
+
+    // MARK: - Urgency scoring
+
+    /// Maps a raw percentage to a normalized 0.0–1.0 urgency score using mode-specific
+    /// piecewise-linear interpolation. This ensures "first warning" aligns at 0.25 across
+    /// all modes despite different threshold scales.
+    static func urgencyScore(percent: Double, mode: MetricMode) -> Double {
+        let anchors: [(Double, Double)]
+        switch mode {
+        case .fiveHour, .sevenDay:
+            anchors = [(0, 0), (50, 0.25), (80, 0.50), (95, 0.75), (100, 1.0)]
+        case .contextHealth:
+            anchors = [(0, 0), (60, 0.25), (80, 0.50), (100, 1.0)]
+        case .dailyPace:
+            anchors = [(0, 0), (100, 0.25), (150, 0.50), (200, 0.75), (300, 1.0)]
+        }
+        return interpolate(percent, anchors: anchors)
+    }
+
+    /// Piecewise-linear interpolation. Values below first anchor clamp to 0, above last to 1.
+    private static func interpolate(_ value: Double, anchors: [(Double, Double)]) -> Double {
+        guard !anchors.isEmpty else { return 0 }
+        if value <= anchors.first!.0 { return anchors.first!.1 }
+        if value >= anchors.last!.0 { return anchors.last!.1 }
+        for i in 0..<(anchors.count - 1) {
+            let (x0, y0) = anchors[i]
+            let (x1, y1) = anchors[i + 1]
+            if value >= x0 && value <= x1 {
+                let t = (value - x0) / (x1 - x0)
+                return y0 + t * (y1 - y0)
+            }
+        }
+        return anchors.last!.1
     }
 
     // Daily activity for chart
@@ -207,15 +251,26 @@ enum MetricMode: String, CaseIterable {
     case fiveHour = "5h"
     case sevenDay = "7d"
     case contextHealth = "context"
+    case dailyPace = "pace"
 
     var label: String {
         switch self {
         case .fiveHour: return "5-Hour"
         case .sevenDay: return "7-Day"
         case .contextHealth: return "Context"
+        case .dailyPace: return "Daily Pace"
         }
     }
 
+    /// Abbreviated label for the 4-segment picker where space is tight.
+    var shortLabel: String {
+        switch self {
+        case .fiveHour: return "5h"
+        case .sevenDay: return "7d"
+        case .contextHealth: return "Ctx"
+        case .dailyPace: return "Pace"
+        }
+    }
 }
 
 /// Usage trend direction (this week vs last week).

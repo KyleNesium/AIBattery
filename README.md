@@ -193,7 +193,8 @@ The segmented toggle picks which metric drives the ✦ icon color:
 | ⏱ **5-Hour** | Burst rate limit | Knowing when you'll get throttled |
 | 📅 **7-Day** | Sustained rate limit | Pacing usage across the week |
 | 🧠 **Context** | Session context fullness | Knowing when to start fresh |
-| **(A) Auto** | Highest of the three | Always seeing the most critical metric |
+| 📊 **Pace** | Today's messages vs. 7-day average | Gauging daily burn rate |
+| **(A) Auto** | Highest urgency metric | Always seeing the most critical metric |
 
 Selected metric moves to the top. The other two stay visible below.
 
@@ -265,7 +266,7 @@ Click ⚙️ in the header to configure:
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | ⏳ **Idle** | Hide sessions idle longer than cutoff from context health: 30m–8h or Never |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
-| 💲 **Cost*** | Show equivalent API token rates |
+| 💲 **Cost** | Show equivalent API token rates |
 | 🔔 **Alerts** | Notify on status page outages (all components) |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
 | 🚀 **Launch at Login** | Start automatically when you log in |
@@ -286,7 +287,7 @@ The header shows an **update indicator** when a new version is available — the
 
 ## 💰 API Cost
 
-Enable in **Settings → Display → Cost*** to see dollar amounts in the Tokens section.
+Enable in **Settings → Display → Cost** to see dollar amounts in the Tokens section.
 
 This shows what your token usage **would cost at Anthropic's published API per-token rates** — it's not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token. The estimate is useful for understanding the value of your usage and comparing the economics of subscription vs. API billing.
 
@@ -470,15 +471,15 @@ If it saves you time or helps you get more out of your Claude subscription, cons
 
 ## 🧪 Test Coverage
 
-**533 tests** across 37 test files.
+**552 tests** across 37 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 160 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults, countdown formatter, throttled header parsing, per-window throttle detection, utilization clamping), health status, metric modes, API profiles (org ID validation: empty, too long, special chars, hyphens/underscores), session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode with priority tiers, context health fallback chain, single-pass activity stats), model pricing (cache correctness for unknown models), health config |
+| Models | 175 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults, countdown formatter, throttled header parsing, per-window throttle detection, utilization clamping), health status, metric modes (shortLabel, dailyPace), API profiles (org ID validation: empty, too long, special chars, hyphens/underscores), session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode with priority tiers, urgency score piecewise interpolation, daily pace percent computation, context health fallback chain, single-pass activity stats), model pricing (cache correctness for unknown models), health config |
 | Services | 222 | Version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, alert key migration), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config, idle session inclusion), status checker (severity ordering, incident escalation, known components catalog, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry, symlink boundary check), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload, file size guard, symlink boundary check, prefix traversal attack), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, deduplication, stats+JSONL merge, all-time mode, redundant aggregation skip, hourly merge, peak hour update, totalMessages dedup, old model visibility, all-dates daily merge, todayHourCounts separation), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
 | Views | 14 | Activity chart data transformations (daily 7-day generation, gap filling, chronological ordering, hourly 12-hour window, midnight wraparound, month totals aggregation, invalid date handling, monthly 12-month generation, current-month projection, early-month projection skip, past-month no projection) |
 | ViewModels | 23 | UsageViewModel static helpers (refresh interval clamping, error message logic, adaptive polling data-change detection, throttle event recording with dedup, throttle count filtering) |
-| Utilities | 112 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping, result cache), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, progressive doubling, caps, reset), secure networking (ephemeral session config, singleton, size limit, cookie policy, resource timeout), duration formatter (compact format, boundaries, 24h edge case, days/hours/minutes), menu bar icon (breathing animation, recovery sparkle effect, quantized caching, broken star fragments, pulse steps, cache identity, sparkle/broken/normal key isolation, context health colors) |
+| Utilities | 118 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping, result cache), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger, daily pace color thresholds), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, progressive doubling, caps, reset), secure networking (ephemeral session config, singleton, size limit, cookie policy, resource timeout), duration formatter (compact format, boundaries, 24h edge case, days/hours/minutes), menu bar icon (breathing animation, recovery sparkle effect, quantized caching, broken star fragments, pulse steps, cache identity, sparkle/broken/normal key isolation, context health colors) |
 
 ## 📄 License
 
