@@ -391,6 +391,61 @@ struct UsageSnapshotTests {
         #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
+    // MARK: - autoResolvedMode edge cases
+
+    @Test func autoResolvedMode_allZeros_defaultsToContextHealth() {
+        // All metrics at 0 → equal urgency, tie-breaking picks contextHealth
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        #expect(snapshot.autoResolvedMode == .contextHealth)
+    }
+
+    @Test func autoResolvedMode_exactly95_triggersNearExhaustion() {
+        // Exactly at the threshold (95%) — should activate Tier 2
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.95,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 100.0, band: .red)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+    @Test func autoResolvedMode_noRateLimits_contextHealthDefault() {
+        // No rate limits at all → context health is the only mode with data
+        let session = makeHealth(id: "s1", usagePercentage: 30.0)
+        let snapshot = makeSnapshot(topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .contextHealth)
+    }
+
+    // MARK: - Urgency scoring edge cases
+
+    @Test func urgencyScore_negativePercent_clampsToZero() {
+        #expect(UsageSnapshot.urgencyScore(percent: -10, mode: .fiveHour) == 0)
+    }
+
+    @Test func urgencyScore_sevenDayMatchesFiveHour() {
+        // Both rate limit modes use the same anchor table
+        let fiveHourScore = UsageSnapshot.urgencyScore(percent: 70, mode: .fiveHour)
+        let sevenDayScore = UsageSnapshot.urgencyScore(percent: 70, mode: .sevenDay)
+        #expect(fiveHourScore == sevenDayScore)
+    }
+
     // MARK: - dailyAverage
 
     @Test func dailyAverage_emptyActivity() {

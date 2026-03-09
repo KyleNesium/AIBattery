@@ -90,6 +90,37 @@ struct MenuBarIcon: View {
     private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
     private static var cachedAppearanceName: String = NSApp?.effectiveAppearance.name.rawValue ?? ""
 
+    /// Observe accessibility and appearance changes instead of polling every frame.
+    /// The observer is registered lazily on first icon render.
+    private static var accessibilityObserverRegistered = false
+
+    private static func registerAccessibilityObserverIfNeeded() {
+        guard !accessibilityObserverRegistered else { return }
+        accessibilityObserverRegistered = true
+
+        let ws = NSWorkspace.shared
+        let nc = ws.notificationCenter
+        nc.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil, queue: .main
+        ) { _ in
+            cachedHighContrastFlag = ws.accessibilityDisplayShouldIncreaseContrast
+            iconCache.removeAll()
+        }
+
+        // Appearance changes (light/dark mode switch)
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { _ in
+            let name = NSApp?.effectiveAppearance.name.rawValue ?? ""
+            if cachedAppearanceName != name {
+                cachedAppearanceName = name
+                iconCache.removeAll()
+            }
+        }
+    }
+
     /// Returns the cached status bar NSImage. Color is provided by the caller so it can
     /// match the active metric mode (rate limit thresholds vs context health thresholds).
     /// `isSparkle` triggers the recovery sparkle effect (30s after throttle clears).
@@ -98,16 +129,15 @@ struct MenuBarIcon: View {
     }
 
     static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> NSImage {
-        let highContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        registerAccessibilityObserverIfNeeded()
+
         let currentAppearance = NSApp?.effectiveAppearance
         let appearanceName = currentAppearance?.name.rawValue ?? ""
 
         if cachedColorblindFlag != ThemeColors.isColorblind
-            || cachedHighContrastFlag != highContrast
             || cachedAppearanceName != appearanceName {
             iconCache.removeAll()
             cachedColorblindFlag = ThemeColors.isColorblind
-            cachedHighContrastFlag = highContrast
             cachedAppearanceName = appearanceName
         }
 
@@ -115,6 +145,7 @@ struct MenuBarIcon: View {
         let key = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
         if let cached = iconCache[key] { return cached }
 
+        let highContrast = cachedHighContrastFlag
         let isDarkMode = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let icon: NSImage
         if isBroken {

@@ -70,7 +70,10 @@ AIBattery/
     RateLimitUsage.swift          — Unified rate limit header parsing (5h/7d windows)
     StatsCache.swift              — Codable for stats-cache.json
     SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry
-    UsageSnapshot.swift           — UsageSnapshot, ModelTokenSummary, MetricMode
+    UsageSnapshot.swift           — UsageSnapshot, ModelTokenSummary
+    MetricMode.swift              — MetricMode enum (5h / 7d / context)
+    TrendDirection.swift          — TrendDirection enum (up / down / flat)
+    ClaudeSystemStatus.swift      — ClaudeSystemStatus, StatusIndicator, StatusComponent
     TokenHealthConfig.swift       — Health thresholds + context window lookup
     TokenHealthStatus.swift       — HealthBand, HealthWarning, TokenHealthStatus (Identifiable by sessionId)
     ModelPricing.swift            — Per-model pricing lookup + cost calculation

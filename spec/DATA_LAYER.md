@@ -50,7 +50,7 @@ Static: `urgencyScore(percent:mode:) -> Double` — maps a raw percentage to a 0
 
 Computed: `totalTokens` = sum of all four token types
 
-### MetricMode (`Models/UsageSnapshot.swift`)
+### MetricMode (`Models/MetricMode.swift`)
 
 Which metric drives the menu bar icon percentage and color.
 
@@ -62,7 +62,7 @@ Which metric drives the menu bar icon percentage and color.
 
 `shortLabel` is a computed property used by the 3-segment picker.
 
-### TrendDirection (`Models/UsageSnapshot.swift`)
+### TrendDirection (`Models/TrendDirection.swift`)
 
 | Case | Symbol |
 |------|--------|
@@ -220,7 +220,7 @@ Pricing table (per million tokens):
 | Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
 | Opus 3 | $15 | $75 | $1.875 | $1.50 |
 
-### ClaudeSystemStatus + StatusIndicator (`Services/StatusChecker.swift`)
+### ClaudeSystemStatus + StatusIndicator (`Models/ClaudeSystemStatus.swift`)
 
 `ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentNames: [String]`, `statusPageURL: String`, `componentStatuses: [String: StatusIndicator]` (keyed by Statuspage component ID, default empty). Computed: `incidentName: String?` (first incident, convenience accessor).
 
