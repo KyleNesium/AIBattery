@@ -8,6 +8,11 @@ struct DailyPaceSection: View {
         snapshot.percent(for: .dailyPace)
     }
 
+    /// Fill fraction for the progress bar (0–200% scale mapped to 0–1).
+    private var fillFraction: Double {
+        min(pacePercent / 200.0, 1.0)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             // Header row
@@ -27,8 +32,7 @@ struct DailyPaceSection: View {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(ThemeColors.trackFill)
 
-                    // Fill (capped at bar width, scale is 0–200%)
-                    let fillFraction = min(pacePercent / 200.0, 1.0)
+                    // Fill (capped at bar width)
                     RoundedRectangle(cornerRadius: 3)
                         .fill(ThemeColors.dailyPaceColor(percent: pacePercent))
                         .frame(width: geo.size.width * fillFraction)
@@ -36,8 +40,8 @@ struct DailyPaceSection: View {
                     // 100% midpoint marker
                     Rectangle()
                         .fill(ThemeColors.tertiaryLabel)
-                        .frame(width: 1)
-                        .offset(x: geo.size.width * 0.5)
+                        .frame(width: 1, height: geo.size.height)
+                        .position(x: geo.size.width * 0.5, y: geo.size.height / 2)
                 }
             }
             .frame(height: 6)

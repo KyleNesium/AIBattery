@@ -94,8 +94,10 @@ public struct UsagePopoverView: View {
                             Divider()
                         }
                     case .dailyPace:
-                        DailyPaceSection(snapshot: snapshot)
-                        Divider()
+                        if snapshot.dailyAverage > 0 {
+                            DailyPaceSection(snapshot: snapshot)
+                            Divider()
+                        }
                     }
                 }
                 .animation(.easeInOut(duration: 0.15), value: metricModeRaw)

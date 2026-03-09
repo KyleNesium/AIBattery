@@ -311,14 +311,14 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
 ## Urgency Anchors (Auto Mode Tier 3)
 
-Piecewise-linear interpolation for `urgencyScore(percent:mode:)`. Maps raw percentage to a normalized 0–100 urgency scale so different metrics with different threshold ranges can be compared fairly.
+Piecewise-linear interpolation for `urgencyScore(percent:mode:)`. Maps raw percentage to a normalized 0.0–1.0 urgency scale so different metrics with different threshold ranges can be compared fairly.
 
 | Mode | Anchor points (percent → urgency) |
 |------|-----------------------------------|
-| `.fiveHour` | 0→0, 50→25, 80→50, 95→85, 100→100 |
-| `.sevenDay` | 0→0, 50→25, 80→50, 95→85, 100→100 |
-| `.contextHealth` | 0→0, 60→25, 80→60, 95→85, 100→100 |
-| `.dailyPace` | 0→0, 100→25, 150→50, 200→85, 300→100 |
+| `.fiveHour` | 0→0, 50→0.25, 80→0.50, 95→0.75, 100→1.0 |
+| `.sevenDay` | 0→0, 50→0.25, 80→0.50, 95→0.75, 100→1.0 |
+| `.contextHealth` | 0→0, 60→0.25, 80→0.50, 100→1.0 |
+| `.dailyPace` | 0→0, 100→0.25, 150→0.50, 200→0.75, 300→1.0 |
 
 ## Color Thresholds
 
