@@ -322,6 +322,134 @@ struct UsageSnapshotTests {
         #expect(snapshot.autoResolvedMode == .contextHealth)
     }
 
+    // MARK: - Urgency scoring
+
+    @Test func urgencyScore_rateLimitGreen() {
+        // 30% rate limit is well below first warning (50%) → low urgency
+        let score = UsageSnapshot.urgencyScore(percent: 30, mode: .fiveHour)
+        #expect(score > 0 && score < 0.25)
+    }
+
+    @Test func urgencyScore_rateLimitYellow() {
+        // 55% rate limit just past first warning → ~0.29
+        let score = UsageSnapshot.urgencyScore(percent: 55, mode: .fiveHour)
+        #expect(score > 0.25 && score < 0.35)
+    }
+
+    @Test func urgencyScore_contextGreen() {
+        // 55% context health is still below first warning (60%) → ~0.23
+        let score = UsageSnapshot.urgencyScore(percent: 55, mode: .contextHealth)
+        #expect(score > 0 && score < 0.25)
+    }
+
+    @Test func urgencyScore_rateLimitHigherThanContextAtSamePercent() {
+        // 55% RL vs 55% context: RL should have higher urgency
+        let rlScore = UsageSnapshot.urgencyScore(percent: 55, mode: .fiveHour)
+        let ctxScore = UsageSnapshot.urgencyScore(percent: 55, mode: .contextHealth)
+        #expect(rlScore > ctxScore)
+    }
+
+    @Test func urgencyScore_rateLimitOrange() {
+        // 85% rate limit is in orange band → ~0.58
+        let score = UsageSnapshot.urgencyScore(percent: 85, mode: .fiveHour)
+        #expect(score > 0.50 && score < 0.70)
+    }
+
+    @Test func urgencyScore_exactThresholds() {
+        // At exact anchor points, score should match exactly
+        #expect(UsageSnapshot.urgencyScore(percent: 0, mode: .fiveHour) == 0)
+        #expect(UsageSnapshot.urgencyScore(percent: 50, mode: .fiveHour) == 0.25)
+        #expect(UsageSnapshot.urgencyScore(percent: 80, mode: .fiveHour) == 0.50)
+        #expect(UsageSnapshot.urgencyScore(percent: 95, mode: .fiveHour) == 0.75)
+        #expect(UsageSnapshot.urgencyScore(percent: 100, mode: .fiveHour) == 1.0)
+
+        #expect(UsageSnapshot.urgencyScore(percent: 0, mode: .contextHealth) == 0)
+        #expect(UsageSnapshot.urgencyScore(percent: 60, mode: .contextHealth) == 0.25)
+        #expect(UsageSnapshot.urgencyScore(percent: 80, mode: .contextHealth) == 0.50)
+        #expect(UsageSnapshot.urgencyScore(percent: 100, mode: .contextHealth) == 1.0)
+    }
+
+    @Test func urgencyScore_clampAboveMax() {
+        // Above 100% for rate limit → clamped to 1.0
+        #expect(UsageSnapshot.urgencyScore(percent: 150, mode: .fiveHour) == 1.0)
+    }
+
+    @Test func urgencyScore_dailyPace_belowAvg() {
+        // 50% pace (below average) → low urgency
+        let score = UsageSnapshot.urgencyScore(percent: 50, mode: .dailyPace)
+        #expect(score > 0 && score < 0.25)
+    }
+
+    @Test func urgencyScore_dailyPace_aboveAvg() {
+        // 180% pace (well above average) → high urgency
+        let score = UsageSnapshot.urgencyScore(percent: 180, mode: .dailyPace)
+        #expect(score > 0.50 && score < 0.75)
+    }
+
+    @Test func urgencyScore_dailyPace_exactThresholds() {
+        #expect(UsageSnapshot.urgencyScore(percent: 100, mode: .dailyPace) == 0.25)
+        #expect(UsageSnapshot.urgencyScore(percent: 150, mode: .dailyPace) == 0.50)
+        #expect(UsageSnapshot.urgencyScore(percent: 200, mode: .dailyPace) == 0.75)
+        #expect(UsageSnapshot.urgencyScore(percent: 300, mode: .dailyPace) == 1.0)
+    }
+
+    @Test func autoResolvedMode_urgencyNormalized_rateLimitBeatsContextAtSamePercent() {
+        // 55% RL vs 55% context: RL is in yellow band, context is in green → RL wins
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.55,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let session = makeHealth(id: "s1", usagePercentage: 55.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+    // MARK: - Daily Pace percent
+
+    @Test func percent_dailyPace_normal() {
+        let activity = makeDailyActivity(daysBack: 7, messages: [20, 20, 20, 20, 20, 20, 20])
+        let snapshot = makeSnapshot(todayMessages: 10, dailyActivity: activity)
+        // 10 today / 20 avg = 50%
+        #expect(snapshot.percent(for: .dailyPace) == 50)
+    }
+
+    @Test func percent_dailyPace_noAverage() {
+        let snapshot = makeSnapshot(todayMessages: 10)
+        // dailyAverage=0 → returns 0
+        #expect(snapshot.percent(for: .dailyPace) == 0)
+    }
+
+    @Test func percent_dailyPace_capsAt300() {
+        let activity = makeDailyActivity(daysBack: 7, messages: [10, 10, 10, 10, 10, 10, 10])
+        let snapshot = makeSnapshot(todayMessages: 100, dailyActivity: activity)
+        // 100 today / 10 avg = 1000% → capped at 300%
+        #expect(snapshot.percent(for: .dailyPace) == 300)
+    }
+
+    // MARK: - MetricMode properties
+
+    @Test func metricMode_allCases_includesDailyPace() {
+        #expect(MetricMode.allCases.contains(.dailyPace))
+        #expect(MetricMode.allCases.count == 4)
+    }
+
+    @Test func metricMode_dailyPace_rawValue() {
+        #expect(MetricMode.dailyPace.rawValue == "pace")
+    }
+
+    @Test func metricMode_shortLabels() {
+        #expect(MetricMode.fiveHour.shortLabel == "5h")
+        #expect(MetricMode.sevenDay.shortLabel == "7d")
+        #expect(MetricMode.contextHealth.shortLabel == "Ctx")
+        #expect(MetricMode.dailyPace.shortLabel == "Pace")
+    }
+
     // MARK: - dailyAverage
 
     @Test func dailyAverage_emptyActivity() {

@@ -167,6 +167,63 @@ struct ThemeColorsTests {
         #expect(ThemeColors.danger != ThemeColors.caution)
     }
 
+    // MARK: - Daily Pace colors
+
+    @Test func dailyPaceColor_allRanges_returnDistinctColors() {
+        setColorblind(false)
+
+        let below = ThemeColors.dailyPaceColor(percent: 50)
+        let atAvg = ThemeColors.dailyPaceColor(percent: 120)
+        let above = ThemeColors.dailyPaceColor(percent: 170)
+        let high = ThemeColors.dailyPaceColor(percent: 250)
+
+        #expect(below != atAvg)
+        #expect(atAvg != above)
+        #expect(above != high)
+    }
+
+    @Test func dailyPaceColor_colorblind_returnDistinctColors() {
+        setColorblind(true)
+        defer { setColorblind(false) }
+
+        let below = ThemeColors.dailyPaceColor(percent: 50)
+        let atAvg = ThemeColors.dailyPaceColor(percent: 120)
+        let above = ThemeColors.dailyPaceColor(percent: 170)
+        let high = ThemeColors.dailyPaceColor(percent: 250)
+
+        #expect(below != atAvg)
+        #expect(atAvg != above)
+        #expect(above != high)
+    }
+
+    @Test func dailyPaceNSColor_allRanges_returnDistinctColors() {
+        setColorblind(false)
+
+        let below = ThemeColors.dailyPaceNSColor(percent: 50)
+        let atAvg = ThemeColors.dailyPaceNSColor(percent: 120)
+        let above = ThemeColors.dailyPaceNSColor(percent: 170)
+        let high = ThemeColors.dailyPaceNSColor(percent: 250)
+
+        #expect(below != atAvg)
+        #expect(atAvg != above)
+        #expect(above != high)
+    }
+
+    @Test func dailyPaceColor_boundaries() {
+        setColorblind(false)
+        // Just below and at each threshold
+        let at99 = ThemeColors.dailyPaceColor(percent: 99)
+        let at100 = ThemeColors.dailyPaceColor(percent: 100)
+        let at149 = ThemeColors.dailyPaceColor(percent: 149)
+        let at150 = ThemeColors.dailyPaceColor(percent: 150)
+        let at199 = ThemeColors.dailyPaceColor(percent: 199)
+        let at200 = ThemeColors.dailyPaceColor(percent: 200)
+
+        #expect(at99 != at100)
+        #expect(at149 != at150)
+        #expect(at199 != at200)
+    }
+
     // MARK: - Boundary values
 
     @Test func barColor_exactBoundaries() {

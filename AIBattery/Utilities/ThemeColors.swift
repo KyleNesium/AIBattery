@@ -179,6 +179,44 @@ enum ThemeColors {
         }
     }
 
+    /// Color for daily pace percentage (0–300%).
+    /// Green (<100%), yellow (100–149%), orange (150–199%), red (≥200%).
+    static func dailyPaceColor(percent: Double) -> Color {
+        if isColorblind {
+            switch percent {
+            case ..<100: return .blue
+            case 100..<150: return .cyan
+            case 150..<200: return amber
+            default: return .purple
+            }
+        }
+        switch percent {
+        case ..<100: return .green
+        case 100..<150: return gold
+        case 150..<200: return deepOrange
+        default: return .red
+        }
+    }
+
+    /// NSColor for daily pace — menu bar icon variant.
+    /// Green (<100%), yellow (100–149%), orange (150–199%), red (≥200%).
+    static func dailyPaceNSColor(percent: Double) -> NSColor {
+        if isColorblind {
+            switch percent {
+            case ..<100: return .systemBlue
+            case 100..<150: return .systemTeal
+            case 150..<200: return NSColor(red: 1.0, green: 0.75, blue: 0.0, alpha: 1.0)
+            default: return .systemPurple
+            }
+        }
+        switch percent {
+        case ..<100: return .systemGreen
+        case 100..<150: return .systemYellow
+        case 150..<200: return .systemOrange
+        default: return .systemRed
+        }
+    }
+
     /// NSColor for context health — matches HealthBand thresholds (60/80).
     /// Green < 60%, orange 60–80%, red >= 80%.
     static func contextHealthNSColor(percent: Double) -> NSColor {

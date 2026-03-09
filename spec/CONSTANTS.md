@@ -299,6 +299,27 @@ Pricing per million tokens:
 
 All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
+## Daily Pace Thresholds
+
+| Constant | Value |
+|----------|-------|
+| Green ceiling | 100% (below = on track) |
+| Yellow ceiling | 150% (100–149% = elevated) |
+| Orange ceiling | 200% (150–199% = high) |
+| Red floor | 200% (≥200% = excessive) |
+| Display cap | 300% (clamped for display) |
+
+## Urgency Anchors (Auto Mode Tier 3)
+
+Piecewise-linear interpolation for `urgencyScore(percent:mode:)`. Maps raw percentage to a normalized 0–100 urgency scale so different metrics with different threshold ranges can be compared fairly.
+
+| Mode | Anchor points (percent → urgency) |
+|------|-----------------------------------|
+| `.fiveHour` | 0→0, 50→25, 80→50, 95→85, 100→100 |
+| `.sevenDay` | 0→0, 50→25, 80→50, 95→85, 100→100 |
+| `.contextHealth` | 0→0, 60→25, 80→60, 95→85, 100→100 |
+| `.dailyPace` | 0→0, 100→25, 150→50, 200→85, 300→100 |
+
 ## Color Thresholds
 
 ### Menu bar icon + Usage bars
@@ -327,7 +348,16 @@ All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 | Orange | Amber (RGB 1.0, 0.75, 0.0) |
 | Red | Purple |
 
-Applied via `ThemeColors` to: usage bars, context health bands, system status dots, menu bar icon.
+### Daily pace
+
+| Range | Color |
+|-------|-------|
+| 0–99% | Green |
+| 100–149% | Yellow |
+| 150–199% | Orange |
+| 200–300% | Red |
+
+Applied via `ThemeColors` to: usage bars, context health bands, daily pace, system status dots, menu bar icon.
 
 ### Colors (light/dark mode)
 
