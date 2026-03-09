@@ -219,8 +219,14 @@ public final class StatusBarManager: NSObject {
         currentIsThrottled = isThrottled
         hasReceivedFirstUpdate = true
 
-        // Always animate: breathing star, dramatic pulse when throttled, sparkle on recovery
-        startBreathTimerIfNeeded()
+        // Animate only when visually impactful: throttled, sparkle, or high usage (≥80%).
+        // Below 80%, the breathing effect is barely perceptible (1.00-1.08 scale, 0-0.12 halo)
+        // and stopping the timer saves 4 wake-ups/second during normal (majority) usage.
+        if isThrottled || isSparkleActive || percent >= 80 {
+            startBreathTimerIfNeeded()
+        } else {
+            stopBreathTimer()
+        }
 
         // Update icon with current breath step
         button.image = MenuBarIcon.statusBarImage(

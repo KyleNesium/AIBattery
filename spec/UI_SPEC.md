@@ -120,13 +120,12 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
   - Calls `viewModel.updatePollingInterval()` on change
   - Hint: `"~3 tokens per poll"` (.caption2, .tertiary)
 
-**`DisplaySettingsSection`** (owns `idleSessionMinutes`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
+**`DisplaySettingsSection`** (owns `idleSessionMinutes`, `colorblindMode`, `showCostEstimate`):
 - **Idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never)
   - Display: `"30m"`, `"1h"`, `"2h"`, `"4h"`, `"8h"`, or `"∞"` (Never)
   - Slider positions: 30m, 1h, 2h, 4h, 8h, ∞ (left to right)
   - Hint: `"Hide idle sessions from context health"` (.caption2, .tertiary)
 - **Display**: Checkboxes
-  - "Tokens" → `aibattery_showTokens`; "Activity" → `aibattery_showActivity`
   - "Colorblind" → `aibattery_colorblindMode`; "Cost" → `aibattery_showCostEstimate`
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):

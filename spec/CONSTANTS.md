@@ -232,6 +232,7 @@ Pricing per million tokens:
 | Pulse steps per cycle | 16 |
 | Pulse cycle duration | 4.0 sec |
 | Pulse tick interval | 250ms (4s ÷ 16) |
+| Breath timer threshold | ≥80% usage, throttled, or sparkle active (static icon below 80%) |
 | Health dot size | 8pt |
 | Status dot size | 6pt |
 | Model dot size | 8pt |

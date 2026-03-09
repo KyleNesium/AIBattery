@@ -68,6 +68,7 @@ struct ActivityChartView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
+                .help("Message activity over time")
                 if collapsed, let snapshot, let change = changeVsYesterday(snapshot) {
                     Text(change.symbol)
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
