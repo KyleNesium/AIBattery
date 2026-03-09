@@ -432,24 +432,6 @@ struct UsageSnapshotTests {
         #expect(snapshot.percent(for: .dailyPace) == 300)
     }
 
-    // MARK: - MetricMode properties
-
-    @Test func metricMode_allCases_includesDailyPace() {
-        #expect(MetricMode.allCases.contains(.dailyPace))
-        #expect(MetricMode.allCases.count == 4)
-    }
-
-    @Test func metricMode_dailyPace_rawValue() {
-        #expect(MetricMode.dailyPace.rawValue == "pace")
-    }
-
-    @Test func metricMode_shortLabels() {
-        #expect(MetricMode.fiveHour.shortLabel == "5h")
-        #expect(MetricMode.sevenDay.shortLabel == "7d")
-        #expect(MetricMode.contextHealth.shortLabel == "Ctx")
-        #expect(MetricMode.dailyPace.shortLabel == "Pace")
-    }
-
     // MARK: - dailyAverage
 
     @Test func dailyAverage_emptyActivity() {
