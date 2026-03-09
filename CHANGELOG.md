@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.1] — 2026-03-09
+
+### Improved
+- **Instant panel open** — removed utility window fade-in animation and reordered app activation before panel display, eliminating perceived delay when clicking the menu bar icon
+- **Code organization** — extracted `MetricMode`, `TrendDirection`, and `ClaudeSystemStatus` types into dedicated model files (were inlined in service/aggregate files)
+- **Y-axis deduplication** — consolidated identical Y-axis configuration across 3 chart modes into shared `sharedYAxis` computed property
+- **MenuBarIcon accessibility** — replaced per-frame `accessibilityDisplayShouldIncreaseContrast` polling with notification-based observer (updates only when system settings change)
+
+### Added
+- 7 new edge case tests: auto mode tie-breaking, 95% threshold boundary, nil rate limits, negative percentage clamping, urgency score consistency, reset-in-past, exact-threshold — 549 total
+
 ## [1.8.0] — 2026-03-09
 
 ### Added
