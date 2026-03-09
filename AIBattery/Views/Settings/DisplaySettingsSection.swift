@@ -48,15 +48,9 @@ struct DisplaySettingsSection: View {
                 .toggleStyle(.checkbox)
                 .font(.caption)
                 .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
-            Toggle("Cost*", isOn: $showCostEstimate)
+            Toggle("Cost", isOn: $showCostEstimate)
                 .toggleStyle(.checkbox)
                 .font(.caption)
-        }
-        HStack(spacing: 8) {
-            Spacer().frame(width: 50)
-            Text("Cost* = equivalent API token rates")
-                .font(.caption2)
-                .foregroundStyle(ThemeColors.tertiaryLabel)
         }
     }
 

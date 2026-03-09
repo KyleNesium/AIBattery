@@ -128,8 +128,7 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
   - Hint: `"Hide idle sessions from context health"` (.caption2, .tertiary)
 - **Display**: Checkboxes
   - "Tokens" → `aibattery_showTokens`; "Activity" → `aibattery_showActivity`
-  - "Colorblind" → `aibattery_colorblindMode`; "Cost*" → `aibattery_showCostEstimate`
-  - Hint: `"Cost* = equivalent API token rates"` (.caption2, .tertiary)
+  - "Colorblind" → `aibattery_colorblindMode`; "Cost" → `aibattery_showCostEstimate`
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
 - **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)

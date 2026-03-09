@@ -266,7 +266,7 @@ Click ⚙️ in the header to configure:
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | ⏳ **Idle** | Hide sessions idle longer than cutoff from context health: 30m–8h or Never |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
-| 💲 **Cost*** | Show equivalent API token rates |
+| 💲 **Cost** | Show equivalent API token rates |
 | 🔔 **Alerts** | Notify on status page outages (all components) |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
 | 🚀 **Launch at Login** | Start automatically when you log in |
@@ -287,7 +287,7 @@ The header shows an **update indicator** when a new version is available — the
 
 ## 💰 API Cost
 
-Enable in **Settings → Display → Cost*** to see dollar amounts in the Tokens section.
+Enable in **Settings → Display → Cost** to see dollar amounts in the Tokens section.
 
 This shows what your token usage **would cost at Anthropic's published API per-token rates** — it's not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token. The estimate is useful for understanding the value of your usage and comparing the economics of subscription vs. API billing.
 
