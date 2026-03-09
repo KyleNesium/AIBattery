@@ -93,11 +93,6 @@ public struct UsagePopoverView: View {
                             })
                             Divider()
                         }
-                    case .dailyPace:
-                        if snapshot.dailyAverage > 0 {
-                            DailyPaceSection(snapshot: snapshot)
-                            Divider()
-                        }
                     }
                 }
                 .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
@@ -402,7 +397,7 @@ public struct UsagePopoverView: View {
                 .opacity(autoMetricMode ? 0.55 : 1.0)
                 .disabled(autoMetricMode)
                 .accessibilityLabel("Metric mode")
-                .accessibilityHint("Switch between 5-hour, 7-day, context health, and daily pace views")
+                .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
                 .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
                 Spacer()
             }

@@ -33,9 +33,9 @@ Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelToke
 
 Static factory method: `computeActivityStats(_:)` — single-pass computation of all three metrics (average, trend, busiest day), called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
 
-Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover — context health uses `topSessionHealths.first?.usagePercentage` as primary, falls back to `tokenHealth?.usagePercentage`, so auto mode reflects the most critical session, not just the most recent; daily pace computes `min(todayMessages / dailyAverage * 100, 300)` inline, returning 0 when `dailyAverage == 0`), `autoResolvedMode: MetricMode` (three-tier priority: **Tier 1** — if throttled, always shows the binding rate limit window; **Tier 2** — if either rate limit ≥ 95%, unconditionally shows that rate limit window (approaching hard cap is more urgent than context); **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` using piecewise-linear interpolation between mode-specific anchor points (see CONSTANTS.md); highest urgency score wins, context breaks ties. Used by popover and menu bar when auto mode is on).
+Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover — context health uses `topSessionHealths.first?.usagePercentage` as primary, falls back to `tokenHealth?.usagePercentage`, so auto mode reflects the most critical session, not just the most recent), `autoResolvedMode: MetricMode` (three-tier priority: **Tier 1** — if throttled, always shows the binding rate limit window; **Tier 2** — if either rate limit ≥ 95%, unconditionally shows that rate limit window (approaching hard cap is more urgent than context); **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` using piecewise-linear interpolation between mode-specific anchor points (see CONSTANTS.md); highest urgency score wins, context breaks ties. Used by popover and menu bar when auto mode is on).
 
-Static: `urgencyScore(percent:mode:) -> Double` — maps a raw percentage to a 0.0–1.0 urgency scale using piecewise-linear interpolation between anchor points specific to each `MetricMode`. Each mode has different anchors reflecting its unique threshold ranges (e.g., daily pace 100% = low urgency since it means "on track", while rate limit 100% = maximum urgency). Anchor points defined in CONSTANTS.md. Interpolation: for a given percent, finds the surrounding anchor pair and linearly interpolates between them.
+Static: `urgencyScore(percent:mode:) -> Double` — maps a raw percentage to a 0.0–1.0 urgency scale using piecewise-linear interpolation between anchor points specific to each `MetricMode`. Each mode has different anchors reflecting its unique threshold ranges (e.g., rate limit 100% = maximum urgency, while context 60% = first warning). Anchor points defined in CONSTANTS.md. Interpolation: for a given percent, finds the surrounding anchor pair and linearly interpolates between them.
 
 ### ModelTokenSummary
 
@@ -59,9 +59,8 @@ Which metric drives the menu bar icon percentage and color.
 | `.fiveHour` | `"5h"` | `"5-Hour"` | `"5h"` |
 | `.sevenDay` | `"7d"` | `"7-Day"` | `"7d"` |
 | `.contextHealth` | `"context"` | `"Context"` | `"Ctx"` |
-| `.dailyPace` | `"pace"` | `"Daily Pace"` | `"Pace"` |
 
-`shortLabel` is a computed property used by the 4-segment picker to fit all modes.
+`shortLabel` is a computed property used by the 3-segment picker.
 
 ### TrendDirection (`Models/UsageSnapshot.swift`)
 
@@ -505,9 +504,7 @@ Pricing table (per million tokens):
 - Reads `UserDefaultsKeys.colorblindMode` to switch palettes
 - `barColor(percent:) -> Color` — usage bar fill color
 - `bandColor(_: HealthBand) -> Color` — context health band color
-- `dailyPaceColor(percent:) -> Color` — daily pace fill color (green <100%, yellow 100–149%, orange 150–199%, red ≥200%)
 - `statusColor(_: StatusIndicator) -> Color` — system status dot color
 - `barNSColor(percent:) -> NSColor` — menu bar icon fill color
-- `dailyPaceNSColor(percent:) -> NSColor` — daily pace menu bar icon fill color
 - Standard palette: green → yellow → orange → red
 - Colorblind palette: blue → cyan → amber → purple (deuteranopia/protanopia safe)

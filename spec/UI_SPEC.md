@@ -18,7 +18,7 @@
 │  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
 ├──────────────────────────────────────┤
-│ (A) [5h|7d|Ctx|Pace]                  │  ← Metric toggle + auto
+│ (A) [5h|7d|Ctx]                       │  ← Metric toggle + auto
 │ ✦ Showing 5-Hour                      │     (auto indicator)
 ├──────────────────────────────────────┤
 │ 5-Hour                         12%  │
@@ -68,13 +68,12 @@ UsagePopoverView (275px, VStack)
 │   ├── AlertSettingsSection — owns alertStatus, alertRateLimit, rateLimitThreshold
 │   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
-├── metricToggle (auto "A" circle button left + segmented picker: 5h | 7d | Ctx | Pace)
+├── metricToggle (auto "A" circle button left + segmented picker: 5h | 7d | Ctx)
 │   └── autoIndicator ("✦ Showing [Mode]" when auto mode active)
 ├── Divider
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
-│   ├── TokenHealthSection (if topSessionHealths or tokenHealth)
-│   └── DailyPaceSection (if dailyPacePercent available)
+│   └── TokenHealthSection (if topSessionHealths or tokenHealth)
 │   └── .animation(.easeInOut(duration: 0.15), value: metricModeRaw) ← scoped to ForEach only
 ├── TokenUsageGate (owns showTokens @AppStorage, conditionally renders TokenUsageSection)
 ├── ActivityChartGate (owns showActivity @AppStorage, conditionally renders ActivityChartView)
@@ -161,7 +160,7 @@ Each gate view owns a single `@AppStorage` toggle and conditionally renders its 
 
 HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
 
-**Segmented picker**: 4 segments using `MetricMode.shortLabel` — `"5h"`, `"7d"`, `"Ctx"`, `"Pace"`.
+**Segmented picker**: 3 segments using `MetricMode.shortLabel` — `"5h"`, `"7d"`, `"Ctx"`.
 
 **Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
 - **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse via scoped `.animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)` on stroke/shadow views only (never `withAnimation` — leaks global repeating transaction).
@@ -171,18 +170,6 @@ HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, cente
 - **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (≥95%) → rate limit unconditionally beats context health; **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` with piecewise-linear interpolation (see CONSTANTS.md for anchor points); highest urgency wins, context breaks ties. Applied in both popover and menu bar label.
 
 Padding: H 16, V 10
-
-### Daily Pace (`Views/DailyPaceSection.swift`)
-
-Shows today's message count as a percentage of the 7-day daily average. Helps users gauge whether they're on track to stay within typical daily usage.
-
-- **Header row**: `"Daily Pace"` (.subheadline.bold) + percentage (.title3, monospaced, semibold, colored by pace thresholds)
-- **Progress bar**: same style as usage bars (8pt height, 3pt corner radius). Fill color by daily pace thresholds (green <100%, yellow 100–149%, orange 150–199%, red ≥200%). Width capped at 100% of bar (percent can exceed 100% but bar doesn't overflow).
-- **Detail row**: `"X msgs today · avg Y/day"` (.caption2, .secondary)
-- Percent capped at 300% for display.
-- Hidden when no daily activity data available (dailyAverage == 0).
-
-Padding: H 16, V 12
 
 ### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
 

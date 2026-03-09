@@ -374,25 +374,6 @@ struct UsageSnapshotTests {
         #expect(UsageSnapshot.urgencyScore(percent: 150, mode: .fiveHour) == 1.0)
     }
 
-    @Test func urgencyScore_dailyPace_belowAvg() {
-        // 50% pace (below average) → low urgency
-        let score = UsageSnapshot.urgencyScore(percent: 50, mode: .dailyPace)
-        #expect(score > 0 && score < 0.25)
-    }
-
-    @Test func urgencyScore_dailyPace_aboveAvg() {
-        // 180% pace (well above average) → high urgency
-        let score = UsageSnapshot.urgencyScore(percent: 180, mode: .dailyPace)
-        #expect(score > 0.50 && score < 0.75)
-    }
-
-    @Test func urgencyScore_dailyPace_exactThresholds() {
-        #expect(UsageSnapshot.urgencyScore(percent: 100, mode: .dailyPace) == 0.25)
-        #expect(UsageSnapshot.urgencyScore(percent: 150, mode: .dailyPace) == 0.50)
-        #expect(UsageSnapshot.urgencyScore(percent: 200, mode: .dailyPace) == 0.75)
-        #expect(UsageSnapshot.urgencyScore(percent: 300, mode: .dailyPace) == 1.0)
-    }
-
     @Test func autoResolvedMode_urgencyNormalized_rateLimitBeatsContextAtSamePercent() {
         // 55% RL vs 55% context: RL is in yellow band, context is in green → RL wins
         let limits = RateLimitUsage(
@@ -408,28 +389,6 @@ struct UsageSnapshotTests {
         let session = makeHealth(id: "s1", usagePercentage: 55.0)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
         #expect(snapshot.autoResolvedMode == .fiveHour)
-    }
-
-    // MARK: - Daily Pace percent
-
-    @Test func percent_dailyPace_normal() {
-        let activity = makeDailyActivity(daysBack: 7, messages: [20, 20, 20, 20, 20, 20, 20])
-        let snapshot = makeSnapshot(todayMessages: 10, dailyActivity: activity)
-        // 10 today / 20 avg = 50%
-        #expect(snapshot.percent(for: .dailyPace) == 50)
-    }
-
-    @Test func percent_dailyPace_noAverage() {
-        let snapshot = makeSnapshot(todayMessages: 10)
-        // dailyAverage=0 → returns 0
-        #expect(snapshot.percent(for: .dailyPace) == 0)
-    }
-
-    @Test func percent_dailyPace_capsAt300() {
-        let activity = makeDailyActivity(daysBack: 7, messages: [10, 10, 10, 10, 10, 10, 10])
-        let snapshot = makeSnapshot(todayMessages: 100, dailyActivity: activity)
-        // 100 today / 10 avg = 1000% → capped at 300%
-        #expect(snapshot.percent(for: .dailyPace) == 300)
     }
 
     // MARK: - dailyAverage

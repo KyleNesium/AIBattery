@@ -40,9 +40,6 @@ struct UsageSnapshot {
             return topSessionHealths.first?.usagePercentage
                 ?? tokenHealth?.usagePercentage
                 ?? 0
-        case .dailyPace:
-            guard dailyAverage > 0 else { return 0 }
-            return min(Double(todayMessages) / Double(dailyAverage) * 100, 300)
         }
     }
 
@@ -70,13 +67,13 @@ struct UsageSnapshot {
         }
 
         // Tier 3: Urgency-normalized — each mode's thresholds map to a shared 0–1 scale.
-        // Ties broken by actionability: context > 5h > 7d > pace.
+        // Ties broken by actionability: context > 5h > 7d.
         let scored: [(MetricMode, Double)] = MetricMode.allCases.map { mode in
             (mode, Self.urgencyScore(percent: percent(for: mode), mode: mode))
         }
         let maxUrgency = scored.map(\.1).max() ?? 0
-        // Among tied modes, prefer context > 5h > 7d > pace (most actionable first)
-        let tiePriority: [MetricMode] = [.contextHealth, .fiveHour, .sevenDay, .dailyPace]
+        // Among tied modes, prefer context > 5h > 7d (most actionable first)
+        let tiePriority: [MetricMode] = [.contextHealth, .fiveHour, .sevenDay]
         return scored
             .filter { $0.1 == maxUrgency }
             .min { tiePriority.firstIndex(of: $0.0)! < tiePriority.firstIndex(of: $1.0)! }!
@@ -95,8 +92,6 @@ struct UsageSnapshot {
             anchors = [(0, 0), (50, 0.25), (80, 0.50), (95, 0.75), (100, 1.0)]
         case .contextHealth:
             anchors = [(0, 0), (60, 0.25), (80, 0.50), (100, 1.0)]
-        case .dailyPace:
-            anchors = [(0, 0), (100, 0.25), (150, 0.50), (200, 0.75), (300, 1.0)]
         }
         return interpolate(percent, anchors: anchors)
     }
@@ -251,24 +246,21 @@ enum MetricMode: String, CaseIterable {
     case fiveHour = "5h"
     case sevenDay = "7d"
     case contextHealth = "context"
-    case dailyPace = "pace"
 
     var label: String {
         switch self {
         case .fiveHour: return "5-Hour"
         case .sevenDay: return "7-Day"
         case .contextHealth: return "Context"
-        case .dailyPace: return "Daily Pace"
         }
     }
 
-    /// Abbreviated label for the 4-segment picker where space is tight.
+    /// Abbreviated label for the 3-segment picker.
     var shortLabel: String {
         switch self {
         case .fiveHour: return "5h"
         case .sevenDay: return "7d"
         case .contextHealth: return "Ctx"
-        case .dailyPace: return "Pace"
         }
     }
 }
