@@ -67,7 +67,7 @@ public struct UsagePopoverView: View {
                 metricToggle
                 Divider()
 
-                // Sections reordered: selected metric first, then the other two.
+                // Sections reordered: selected metric first, then the others.
                 // Animation scoped here — only metric sections animate on mode change.
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
