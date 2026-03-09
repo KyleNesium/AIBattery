@@ -15,6 +15,7 @@ struct ActivityChartView: View {
     let dailyActivity: [DailyActivity]
     let todayHourCounts: [String: Int]
     var snapshot: UsageSnapshot?
+    @AppStorage(UserDefaultsKeys.activityCollapsed) private var collapsed: Bool = false
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
 
@@ -51,23 +52,50 @@ struct ActivityChartView: View {
         VStack(alignment: .leading, spacing: 8) {
             // Header with toggle
             HStack {
-                Text("Activity")
-                    .font(.subheadline.bold())
-                Spacer()
-                Picker("", selection: $modeRaw) {
-                    ForEach(ActivityChartMode.allCases, id: \.rawValue) { m in
-                        Text(m.rawValue).tag(m.rawValue)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { collapsed.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .rotationEffect(.degrees(collapsed ? 0 : 90))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                        Text("Activity")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.primary)
                     }
+                    .contentShape(Rectangle())
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 120)
-                .scaleEffect(0.8, anchor: .trailing)
-                .accessibilityLabel("Activity time range")
-                .accessibilityHint("Switch between 12 hour, 7 day, and 12 month views")
-                .help("Switch activity chart time range")
+                .buttonStyle(.plain)
+                .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
+                .help("Message activity over time")
+                if collapsed, let snapshot, let change = changeVsYesterday(snapshot) {
+                    Text(change.symbol)
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(change.color)
+                    Text(change.label)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(change.color)
+                }
+                Spacer()
+                if !collapsed {
+                    Picker("", selection: $modeRaw) {
+                        ForEach(ActivityChartMode.allCases, id: \.rawValue) { m in
+                            Text(m.rawValue).tag(m.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 120)
+                    .scaleEffect(0.8, anchor: .trailing)
+                    .accessibilityLabel("Activity time range")
+                    .accessibilityHint("Switch between 12 hour, 7 day, and 12 month views")
+                    .help("Switch activity chart time range")
+                }
             }
 
-            if isEmpty {
+            if collapsed {
+                // show nothing below header
+            } else if isEmpty {
                 VStack(spacing: 4) {
                     Image(systemName: "chart.line.flattrend.xyaxis")
                         .font(.system(size: 14))
@@ -90,7 +118,7 @@ struct ActivityChartView: View {
             }
 
             // Trend summary
-            if let snapshot {
+            if !collapsed, let snapshot {
                 trendSummary(snapshot)
             }
         }

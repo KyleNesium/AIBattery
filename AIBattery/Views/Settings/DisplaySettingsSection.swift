@@ -3,8 +3,6 @@ import SwiftUI
 /// Display toggles + idle session cutoff slider.
 struct DisplaySettingsSection: View {
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
-    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens: Bool = true
-    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity: Bool = true
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
     @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
 
@@ -35,15 +33,6 @@ struct DisplaySettingsSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .trailing)
-            Toggle("Tokens", isOn: $showTokens)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-            Toggle("Activity", isOn: $showActivity)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-        }
-        HStack(spacing: 8) {
-            Spacer().frame(width: 50)
             Toggle("Colorblind", isOn: $colorblindMode)
                 .toggleStyle(.checkbox)
                 .font(.caption)

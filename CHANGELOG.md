@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0] — 2026-03-09
+
+### Added
+- **Collapsible sections** — Context Health, Tokens, and Activity sections now collapse/expand with a rotating chevron; state persists across restarts
+- **Activity collapsed summary** — collapsed Activity header shows "vs yesterday" change at a glance
+
+### Removed
+- **Daily Pace metric** — removed the Pace metric mode; picker reduced from 4 to 3 segments (5h / 7d / Ctx)
+- **Show/hide settings toggles** — replaced by inline collapse on each section header
+
+### Improved
+- **Menu bar performance** — breathing animation timer now only runs at ≥80% usage, throttled, or sparkle active; saves 4 wake-ups/sec during normal operation
+- **Dead code cleanup** — removed orphaned `showTokens`/`showActivity` UserDefaults keys
+
 ## [1.7.2] — 2026-03-08
 
 ### Improved

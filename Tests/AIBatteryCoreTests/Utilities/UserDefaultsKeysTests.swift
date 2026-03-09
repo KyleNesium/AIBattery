@@ -34,8 +34,6 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.alertRateLimit,
             UserDefaultsKeys.rateLimitThreshold,
             UserDefaultsKeys.showCostEstimate,
-            UserDefaultsKeys.showTokens,
-            UserDefaultsKeys.showActivity,
             UserDefaultsKeys.lastUpdateCheck,
             UserDefaultsKeys.lastUpdateVersion,
             UserDefaultsKeys.lastUpdateURL,
@@ -43,6 +41,10 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.colorblindMode,
             UserDefaultsKeys.hasSeenTutorial,
             UserDefaultsKeys.idleSessionMinutes,
+            UserDefaultsKeys.throttleTimestamps,
+            UserDefaultsKeys.contextCollapsed,
+            UserDefaultsKeys.tokensCollapsed,
+            UserDefaultsKeys.activityCollapsed,
             UserDefaultsKeys.tokenExpiresAtPrefix,
         ]
     }

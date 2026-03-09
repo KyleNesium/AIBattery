@@ -138,9 +138,10 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 
 | Constant | Value |
 |----------|-------|
-| Show tokens | `aibattery_showTokens` (Bool, default true) |
-| Show activity | `aibattery_showActivity` (Bool, default true) |
 | Show cost | `aibattery_showCostEstimate` (Bool, default false) |
+| Context collapsed | `aibattery_contextCollapsed` (Bool, default false) |
+| Tokens collapsed | `aibattery_tokensCollapsed` (Bool, default false) |
+| Activity collapsed | `aibattery_activityCollapsed` (Bool, default false) |
 | Format | `"$X.XX"` or `"<$0.01"` for sub-penny amounts |
 | Note | Shows what the same token usage would cost at API rates — Pro/Max/Teams subscribers aren't billed per-token |
 
@@ -231,6 +232,7 @@ Pricing per million tokens:
 | Pulse steps per cycle | 16 |
 | Pulse cycle duration | 4.0 sec |
 | Pulse tick interval | 250ms (4s ÷ 16) |
+| Breath timer threshold | ≥80% usage, throttled, or sparkle active (static icon below 80%) |
 | Health dot size | 8pt |
 | Status dot size | 6pt |
 | Model dot size | 8pt |
@@ -299,16 +301,6 @@ Pricing per million tokens:
 
 All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
-## Daily Pace Thresholds
-
-| Constant | Value |
-|----------|-------|
-| Green ceiling | 100% (below = on track) |
-| Yellow ceiling | 150% (100–149% = elevated) |
-| Orange ceiling | 200% (150–199% = high) |
-| Red floor | 200% (≥200% = excessive) |
-| Display cap | 300% (clamped for display) |
-
 ## Urgency Anchors (Auto Mode Tier 3)
 
 Piecewise-linear interpolation for `urgencyScore(percent:mode:)`. Maps raw percentage to a normalized 0.0–1.0 urgency scale so different metrics with different threshold ranges can be compared fairly.
@@ -318,7 +310,6 @@ Piecewise-linear interpolation for `urgencyScore(percent:mode:)`. Maps raw perce
 | `.fiveHour` | 0→0, 50→0.25, 80→0.50, 95→0.75, 100→1.0 |
 | `.sevenDay` | 0→0, 50→0.25, 80→0.50, 95→0.75, 100→1.0 |
 | `.contextHealth` | 0→0, 60→0.25, 80→0.50, 100→1.0 |
-| `.dailyPace` | 0→0, 100→0.25, 150→0.50, 200→0.75, 300→1.0 |
 
 ## Color Thresholds
 
@@ -348,16 +339,7 @@ Piecewise-linear interpolation for `urgencyScore(percent:mode:)`. Maps raw perce
 | Orange | Amber (RGB 1.0, 0.75, 0.0) |
 | Red | Purple |
 
-### Daily pace
-
-| Range | Color |
-|-------|-------|
-| 0–99% | Green |
-| 100–149% | Yellow |
-| 150–199% | Orange |
-| 200–300% | Red |
-
-Applied via `ThemeColors` to: usage bars, context health bands, daily pace, system status dots, menu bar icon.
+Applied via `ThemeColors` to: usage bars, context health bands, system status dots, menu bar icon.
 
 ### Colors (light/dark mode)
 

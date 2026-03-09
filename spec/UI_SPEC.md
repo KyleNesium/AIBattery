@@ -18,7 +18,7 @@
 │  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
 ├──────────────────────────────────────┤
-│ (A) [5h|7d|Ctx|Pace]                  │  ← Metric toggle + auto
+│ (A) [5h|7d|Ctx]                       │  ← Metric toggle + auto
 │ ✦ Showing 5-Hour                      │     (auto indicator)
 ├──────────────────────────────────────┤
 │ 5-Hour                         12%  │
@@ -64,20 +64,19 @@ UsagePopoverView (275px, VStack)
 ├── SettingsRow (if showSettings — toggled by gear icon)
 │   ├── Account name rows (depend on accountStore — stay in parent)
 │   ├── RefreshSettingsSection — owns refreshInterval
-│   ├── DisplaySettingsSection — owns idleSessionMinutes, showTokens, showActivity, colorblindMode, showCostEstimate
+│   ├── DisplaySettingsSection — owns idleSessionMinutes, colorblindMode, showCostEstimate
 │   ├── AlertSettingsSection — owns alertStatus, alertRateLimit, rateLimitThreshold
 │   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
-├── metricToggle (auto "A" circle button left + segmented picker: 5h | 7d | Ctx | Pace)
+├── metricToggle (auto "A" circle button left + segmented picker: 5h | 7d | Ctx)
 │   └── autoIndicator ("✦ Showing [Mode]" when auto mode active)
 ├── Divider
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
-│   ├── TokenHealthSection (if topSessionHealths or tokenHealth)
-│   └── DailyPaceSection (if dailyPacePercent available)
+│   └── TokenHealthSection — collapsible (if topSessionHealths or tokenHealth)
 │   └── .animation(.easeInOut(duration: 0.15), value: metricModeRaw) ← scoped to ForEach only
-├── TokenUsageGate (owns showTokens @AppStorage, conditionally renders TokenUsageSection)
-├── ActivityChartGate (owns showActivity @AppStorage, conditionally renders ActivityChartView)
+├── TokenUsageGate (data check, TokenUsageSection owns collapsed @AppStorage)
+├── ActivityChartGate (data check, ActivityChartView owns collapsed @AppStorage)
 ├── InsightsSection (Today + All Time stats)
 ├── Divider
 ├── footerSection
@@ -121,13 +120,12 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
   - Calls `viewModel.updatePollingInterval()` on change
   - Hint: `"~3 tokens per poll"` (.caption2, .tertiary)
 
-**`DisplaySettingsSection`** (owns `idleSessionMinutes`, `showTokens`, `showActivity`, `colorblindMode`, `showCostEstimate`):
+**`DisplaySettingsSection`** (owns `idleSessionMinutes`, `colorblindMode`, `showCostEstimate`):
 - **Idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never)
   - Display: `"30m"`, `"1h"`, `"2h"`, `"4h"`, `"8h"`, or `"∞"` (Never)
   - Slider positions: 30m, 1h, 2h, 4h, 8h, ∞ (left to right)
   - Hint: `"Hide idle sessions from context health"` (.caption2, .tertiary)
 - **Display**: Checkboxes
-  - "Tokens" → `aibattery_showTokens`; "Activity" → `aibattery_showActivity`
   - "Colorblind" → `aibattery_colorblindMode`; "Cost" → `aibattery_showCostEstimate`
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
@@ -150,18 +148,22 @@ Values propagate to header + menu bar immediately via `@AppStorage` (settings) a
 
 Padding: H 16, V 10
 
+### Collapsible Sections
+
+Context Health, Tokens, and Activity sections have collapsible headers. Each section header is a button with a rotating chevron (`chevron.right`, 8pt bold). Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `activityCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
+
 ### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
 
-Each gate view owns a single `@AppStorage` toggle and conditionally renders its content section. This isolates toggle-flip redraws from the parent view.
+Gate views check data availability and render the section + divider. Sections own their own collapsed `@AppStorage`.
 
-- **`TokenUsageGate`**: owns `showTokens`. Renders `TokenUsageSection` + `Divider` when `showTokens && snapshot.totalTokens > 0`.
-- **`ActivityChartGate`**: owns `showActivity`. Renders `ActivityChartView` + `Divider` when `showActivity` and activity data is available.
+- **`TokenUsageGate`**: renders `TokenUsageSection` + `Divider` when `snapshot.totalTokens > 0`.
+- **`ActivityChartGate`**: renders `ActivityChartView` + `Divider` when activity data is available.
 
 ### Metric Toggle (`UsagePopoverView.metricToggle`)
 
 HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
 
-**Segmented picker**: 4 segments using `MetricMode.shortLabel` — `"5h"`, `"7d"`, `"Ctx"`, `"Pace"`.
+**Segmented picker**: 3 segments using `MetricMode.shortLabel` — `"5h"`, `"7d"`, `"Ctx"`.
 
 **Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
 - **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse via scoped `.animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)` on stroke/shadow views only (never `withAnimation` — leaks global repeating transaction).
@@ -172,24 +174,12 @@ HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, cente
 
 Padding: H 16, V 10
 
-### Daily Pace (`Views/DailyPaceSection.swift`)
-
-Shows today's message count as a percentage of the 7-day daily average. Helps users gauge whether they're on track to stay within typical daily usage.
-
-- **Header row**: `"Daily Pace"` (.subheadline.bold) + percentage (.title3, monospaced, semibold, colored by pace thresholds)
-- **Progress bar**: same style as usage bars (8pt height, 3pt corner radius). Fill color by daily pace thresholds (green <100%, yellow 100–149%, orange 150–199%, red ≥200%). Width capped at 100% of bar (percent can exceed 100% but bar doesn't overflow).
-- **Detail row**: `"X msgs today · avg Y/day"` (.caption2, .secondary)
-- Percent capped at 300% for display.
-- Hidden when no daily activity data available (dailyAverage == 0).
-
-Padding: H 16, V 12
-
 ### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
 
-Each gate view owns a single `@AppStorage` toggle and conditionally renders its content section. This isolates toggle-flip redraws from the parent view.
+Gate views check data availability and render the section + divider. Sections own their own collapsed `@AppStorage`.
 
-- **`TokenUsageGate`**: owns `showTokens`. Renders `TokenUsageSection` + `Divider` when `showTokens && snapshot.totalTokens > 0`.
-- **`ActivityChartGate`**: owns `showActivity`. Renders `ActivityChartView` + `Divider` when `showActivity` and activity data is available.
+- **`TokenUsageGate`**: renders `TokenUsageSection` + `Divider` when `snapshot.totalTokens > 0`.
+- **`ActivityChartGate`**: renders `ActivityChartView` + `Divider` when activity data is available.
 
 ### MarqueeText (`Views/MarqueeText.swift`)
 
