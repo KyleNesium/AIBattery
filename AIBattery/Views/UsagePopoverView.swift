@@ -119,6 +119,9 @@ public struct UsagePopoverView: View {
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSettings)) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() }
+        }
         #if ENABLE_VERSION_CHECKER
         .onDisappear {
             updateCheckDismissTask?.cancel()

@@ -162,6 +162,30 @@ Pricing per million tokens:
 | Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
 | Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
+| Global hotkey | `aibattery_globalHotkey` (String, default `"⌥⇧B"`) |
+
+## Keyboard Shortcuts
+
+| Key | Action | Context |
+|-----|--------|---------|
+| `⌥⇧B` | Toggle popover | Global (any app) |
+| `R` | Refresh | Popover open |
+| `1` | 5-Hour mode | Popover open |
+| `2` | 7-Day mode | Popover open |
+| `3` | Context mode | Popover open |
+| `A` | Toggle auto mode | Popover open |
+| `S` | Toggle settings | Popover open |
+| `Q` | Quit | Popover open |
+| `Escape` | Close popover | Popover open |
+
+## Context Burn Prediction
+
+| Constant | Value |
+|----------|-------|
+| Minimum usage to show | 30% (`usagePercentage > 30`) |
+| Calculation | `(thresholdTokens - totalUsed) / avgTokensPerTurn` |
+| Thresholds | Green→orange (60%), orange→red (80%) of usable window |
+| Display | `"~N turns until caution/critical"` in TokenHealthSection |
 
 ## Launch at Login
 

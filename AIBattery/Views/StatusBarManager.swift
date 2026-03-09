@@ -36,11 +36,16 @@ public final class StatusBarManager: NSObject {
     /// Duration of the recovery sparkle effect after throttle clears.
     static let sparkleDuration: TimeInterval = 30
 
+    // Global hotkey + keyboard navigation
+    private let hotkeyManager = GlobalHotkeyManager()
+    private weak var viewModelRef: UsageViewModel?
+
     public override init() {
         super.init()
     }
 
     public func setup(viewModel: UsageViewModel, oauthManager: OAuthManager) {
+        self.viewModelRef = viewModel
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
@@ -51,6 +56,7 @@ public final class StatusBarManager: NSObject {
             // Match macOS battery indicator: system font with monospaced digits
             button.font = .monospacedDigitSystemFont(ofSize: 0, weight: .regular)
             button.action = #selector(statusItemClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.target = self
             button.setAccessibilityLabel("AI Battery")
         }
@@ -118,14 +124,30 @@ public final class StatusBarManager: NSObject {
             }
             .store(in: &cancellables)
 
-        // Close panel on Escape key
+        // Keyboard navigation when popover is open
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53, let self, self.isPanelShowing {
-                self.panel?.orderOut(nil)
-                self.isPanelShowing = false
+            guard let self, self.isPanelShowing else { return event }
+            // Don't intercept keys when a text field has focus
+            if let responder = NSApp.keyWindow?.firstResponder,
+               responder is NSTextView || responder is NSTextField {
+                // Still handle Escape to close panel even from text fields
+                if event.keyCode == 53 {
+                    self.panel?.orderOut(nil)
+                    self.isPanelShowing = false
+                    return nil
+                }
+                return event
+            }
+            if let action = Self.keyAction(for: event) {
+                self.handleKeyAction(action)
                 return nil
             }
             return event
+        }
+
+        // Global hotkey: ⌥⇧B toggles popover from any app
+        hotkeyManager.start { [weak self] in
+            self?.togglePanel()
         }
 
         // Close panel when clicking outside (global mouse events from other apps)
@@ -160,6 +182,7 @@ public final class StatusBarManager: NSObject {
     }
 
     deinit {
+        // hotkeyManager cleans up its own monitors in its deinit
         if let monitor = escapeMonitor {
             NSEvent.removeMonitor(monitor)
         }
@@ -339,9 +362,69 @@ public final class StatusBarManager: NSObject {
         sparkleTimer = nil
     }
 
+    // MARK: - Keyboard navigation
+
+    /// Actions triggered by keyboard shortcuts when popover is open.
+    enum KeyAction: Equatable {
+        case close
+        case refresh
+        case switchMode(MetricMode)
+        case toggleAuto
+        case toggleSettings
+        case quit
+    }
+
+    /// Pure function: maps a key event to an action (or nil if unrecognized).
+    static func keyAction(for event: NSEvent) -> KeyAction? {
+        switch event.keyCode {
+        case 53: return .close                      // Escape
+        case 15: return .refresh                    // R
+        case 18: return .switchMode(.fiveHour)      // 1
+        case 19: return .switchMode(.sevenDay)      // 2
+        case 20: return .switchMode(.contextHealth) // 3
+        case 0:  return .toggleAuto                 // A
+        case 1:  return .toggleSettings             // S
+        case 12: return .quit                       // Q
+        default: return nil
+        }
+    }
+
+    private func handleKeyAction(_ action: KeyAction) {
+        switch action {
+        case .close:
+            panel?.orderOut(nil)
+            isPanelShowing = false
+        case .refresh:
+            if let vm = viewModelRef {
+                Task { await vm.refresh() }
+            }
+        case .switchMode(let mode):
+            UserDefaults.standard.set(false, forKey: UserDefaultsKeys.autoMetricMode)
+            UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.metricMode)
+        case .toggleAuto:
+            let current = UserDefaults.standard.bool(forKey: UserDefaultsKeys.autoMetricMode)
+            UserDefaults.standard.set(!current, forKey: UserDefaultsKeys.autoMetricMode)
+        case .toggleSettings:
+            // Post notification for UsagePopoverView to toggle settings
+            NotificationCenter.default.post(name: .toggleSettings, object: nil)
+        case .quit:
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
     // MARK: - Panel toggle
 
     @objc private func statusItemClicked() {
+        guard let button = statusItem?.button else { return }
+        // Right-click: show context menu
+        if let event = NSApp.currentEvent, event.type == .rightMouseUp {
+            showContextMenu(for: button)
+            return
+        }
+        togglePanel()
+    }
+
+    private func togglePanel() {
         guard let panel, let button = statusItem?.button else { return }
         if isPanelShowing {
             panel.orderOut(nil)
@@ -352,6 +435,73 @@ public final class StatusBarManager: NSObject {
             NSApp.activate(ignoringOtherApps: true)
             isPanelShowing = true
         }
+    }
+
+    // MARK: - Right-click context menu
+
+    private func showContextMenu(for button: NSStatusBarButton) {
+        let menu = NSMenu()
+
+        let refreshItem = NSMenuItem(title: "Refresh Now", action: #selector(contextMenuRefresh), keyEquivalent: "r")
+        refreshItem.target = self
+        menu.addItem(refreshItem)
+
+        menu.addItem(.separator())
+
+        let settingsItem = NSMenuItem(title: "Settings", action: #selector(contextMenuSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        menu.addItem(.separator())
+
+        let usageItem = NSMenuItem(title: "Usage Dashboard", action: #selector(contextMenuUsageDashboard), keyEquivalent: "")
+        usageItem.target = self
+        menu.addItem(usageItem)
+
+        let statusItem = NSMenuItem(title: "Status Page", action: #selector(contextMenuStatusPage), keyEquivalent: "")
+        statusItem.target = self
+        menu.addItem(statusItem)
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(title: "Quit AI Battery", action: #selector(contextMenuQuit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        self.statusItem?.menu = menu
+        self.statusItem?.button?.performClick(nil)
+        // Clear menu so left-click resumes normal toggle behavior
+        self.statusItem?.menu = nil
+    }
+
+    @objc private func contextMenuRefresh() {
+        if let vm = viewModelRef {
+            Task { await vm.refresh() }
+        }
+    }
+
+    @objc private func contextMenuSettings() {
+        // Open popover with settings visible
+        if !isPanelShowing {
+            togglePanel()
+        }
+        NotificationCenter.default.post(name: .toggleSettings, object: nil)
+    }
+
+    @objc private func contextMenuUsageDashboard() {
+        if let url = URL(string: "https://platform.claude.com/usage") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func contextMenuStatusPage() {
+        if let url = URL(string: StatusChecker.statusPageBaseURL) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func contextMenuQuit() {
+        NSApplication.shared.terminate(nil)
     }
 
     private func positionPanel(relativeTo button: NSStatusBarButton) {
@@ -372,6 +522,12 @@ public final class StatusBarManager: NSObject {
 
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
+}
+
+// MARK: - Notification names
+
+extension Notification.Name {
+    static let toggleSettings = Notification.Name("AIBattery.toggleSettings")
 }
 
 // MARK: - Panel subclass

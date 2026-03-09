@@ -53,6 +53,35 @@ struct TokenHealthStatus: Identifiable {
         sessionStart: nil, sessionDuration: nil, lastActivity: nil
     )
 
+    /// Estimated turns remaining before reaching a given usage threshold.
+    /// Returns `nil` when the estimate is unreliable (< 5 messages, already past threshold,
+    /// zero average tokens per turn, or session has no meaningful data).
+    static func estimatedTurnsToThreshold(
+        currentUsagePercent: Double,
+        totalUsed: Int,
+        usableWindow: Int,
+        turnCount: Int,
+        thresholdPercent: Double
+    ) -> Int? {
+        // Need enough data for a meaningful average
+        guard turnCount >= 5 else { return nil }
+        // Already at or past the threshold
+        guard currentUsagePercent < thresholdPercent else { return nil }
+        // Avoid division by zero
+        guard totalUsed > 0 else { return nil }
+
+        let thresholdTokens = Double(usableWindow) * thresholdPercent / 100.0
+        let tokensRemaining = thresholdTokens - Double(totalUsed)
+        guard tokensRemaining > 0 else { return nil }
+
+        let avgTokensPerTurn = Double(totalUsed) / Double(turnCount)
+        guard avgTokensPerTurn > 0 else { return nil }
+
+        let turns = Int(tokensRemaining / avgTokensPerTurn)
+        // Only show if at least 1 turn away (0 would be confusing)
+        return turns > 0 ? turns : nil
+    }
+
     var suggestedAction: String? {
         switch band {
         case .orange:

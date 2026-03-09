@@ -224,6 +224,7 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
   - Percentage and remaining are relative to usable window (80% of raw context window)
   - 100% = Claude Code is about to auto-compact
 - **Safe minimum hint** (orange/red only): `"(keep above ~{20% of usable} for best quality)"` (.caption2, .tertiary)
+- **Burn prediction** (when `usagePercentage > 30%`): `"~N turns until caution"` or `"~N turns until critical"` (.caption2, .tertiary) — uses `TokenHealthStatus.estimatedTurnsToThreshold()` to project turns remaining before the next health band boundary
 - **Warnings**: triangle icon + message. Strong = filled triangle, red. Mild = outline triangle, orange.
 - **Suggested action**: (.caption2, red or orange based on band)
 
@@ -325,6 +326,44 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 - **Loading**: centered spinner (0.8 scale) + "Loading...", 80pt height
 - **Error**: orange triangle + message + blue "Retry" button, 100pt height
 - **Empty**: "No Claude Code data found" + "Start a Claude Code session to populate usage data.\nData appears automatically once Claude Code is running.", 80pt height
+
+## Keyboard Shortcuts
+
+### Global Hotkey (⌥⇧B)
+
+`GlobalHotkeyManager` registers a system-wide hotkey via `NSEvent` monitors. Toggles the popover open/closed from anywhere.
+
+- Default combo: `⌥⇧B` (Option-Shift-B)
+- Stored in `UserDefaultsKeys.globalHotkey`
+- Display-only row in `SettingsRow` (shows current combo, not editable)
+
+### Popover Keyboard Navigation
+
+When the popover is open, single-key shortcuts are handled by a pure `keyAction(for:)` static function on `StatusBarManager`:
+
+| Key | Action |
+|-----|--------|
+| `R` | Refresh |
+| `1` | Switch to 5-Hour mode |
+| `2` | Switch to 7-Day mode |
+| `3` | Switch to Context mode |
+| `A` | Toggle auto mode |
+| `S` | Toggle settings |
+| `Q` | Quit |
+| `Escape` | Close popover |
+
+### Right-Click Context Menu
+
+`NSMenu` attached to the status item's right-click action:
+
+| Item | Action |
+|------|--------|
+| Refresh Now | Triggers immediate refresh |
+| Settings | Opens popover with settings panel expanded |
+| Usage Dashboard | Opens `platform.claude.com/usage` |
+| Status Page | Opens `status.claude.com` |
+| _(separator)_ | |
+| Quit | Terminates app |
 
 ## Menu Bar
 

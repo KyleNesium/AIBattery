@@ -38,6 +38,28 @@ struct SettingsRow: View {
             DisplaySettingsSection()
             AlertSettingsSection()
             LaunchAtLoginSection()
+
+            // Global hotkey display
+            HStack(spacing: 8) {
+                Text("Hotkey")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 50, alignment: .trailing)
+                Text("⌥⇧B")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.primary.opacity(0.06))
+                    )
+                Text("Toggle popover")
+                    .font(.caption2)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                Spacer()
+            }
+            .accessibilityLabel("Global hotkey: Option Shift B to toggle popover")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

@@ -23,6 +23,7 @@ enum UserDefaultsKeys {
     static let hasSeenTutorial = "aibattery_hasSeenTutorial"
     static let idleSessionMinutes = "aibattery_idleSessionMinutes"
     static let throttleTimestamps = "aibattery_throttleTimestamps"
+    static let globalHotkey = "aibattery_globalHotkey"
     /// Prefix for per-account token expiry timestamps (append account ID).
     static let tokenExpiresAtPrefix = "aibattery_expiresAt_"
 }

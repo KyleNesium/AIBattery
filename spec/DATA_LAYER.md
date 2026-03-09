@@ -151,6 +151,8 @@ Static: `countdownText(to date: Date, from now: Date = .now) -> String` — comp
 
 Static: `empty` — zero-value placeholder for defensive code paths (empty sessions guard in `TokenHealthSection`).
 
+Static: `estimatedTurnsToThreshold(currentUsagePercent:totalUsed:usableWindow:turnCount:thresholdPercent:) -> Int?` — pure function that projects how many turns remain before the next health band boundary (green→orange or orange→red). Uses average tokens per turn (`totalUsed / turnCount`). Returns nil when turnCount < 5, already at/past threshold, zero totalUsed, or result ≤ 0. `TokenHealthSection` calls it when `usagePercentage > 30%` and displays `"~N turns until caution/critical"`.
+
 Computed: `suggestedAction` — nil for green/unknown, recommendation text for orange/red.
 
 ### HealthWarning
@@ -404,6 +406,13 @@ Pricing table (per million tokens):
 - Feed URL: `https://kylenesium.github.io/AIBattery/appcast.xml`
 - EdDSA verification: Sparkle verifies download signature against `SUPublicEDKey` before installing
 
+### GlobalHotkeyManager (`Services/GlobalHotkeyManager.swift`)
+- Owned by `StatusBarManager` (not a singleton)
+- Registers system-wide hotkey (default `⌥⇧B`) via `NSEvent.addGlobalMonitorForEvents` + `addLocalMonitorForEvents`
+- `start(onToggle:)` begins monitoring, `stop()` removes monitors
+- Static `matches(event:keyCode:modifiers:)` — pure function for key combo matching (testable)
+- `nonisolated(unsafe)` monitor storage for safe deinit cleanup
+
 ### NetworkMonitor (`Services/NetworkMonitor.swift`)
 - Singleton: `.shared`, `@MainActor ObservableObject`
 - Published: `isConnected: Bool` (default true)
@@ -471,7 +480,7 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertStatus`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`, `throttleTimestamps` (array of Unix epoch doubles for rate limit events)
+- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertStatus`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `showTokens`, `showActivity`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`, `throttleTimestamps` (array of Unix epoch doubles for rate limit events), `globalHotkey` (String, default `"⌥⇧B"`)
 
 ### SecureNetworking (`Utilities/SecureNetworking.swift`)
 - Enum (no instances) — centralized networking layer

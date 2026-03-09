@@ -92,6 +92,11 @@ struct TokenHealthSection: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
 
+            // Burn prediction: estimated turns until orange/red
+            if health.usagePercentage > 30 {
+                burnPredictionView
+            }
+
             // Recommended minimum context hint
             if health.band == .orange || health.band == .red {
                 let safeMin = health.usableWindow / 5 // 20% of usable window
@@ -358,6 +363,49 @@ struct TokenHealthSection: View {
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.4), value: Int(health.usagePercentage))
                 .copyable("\(Int(health.usagePercentage))%")
+        }
+    }
+
+    @ViewBuilder
+    private var burnPredictionView: some View {
+        let config = TokenHealthConfig.default
+        // Show turns-to-orange if still green, turns-to-red if orange
+        if health.band == .green {
+            if let turns = TokenHealthStatus.estimatedTurnsToThreshold(
+                currentUsagePercent: health.usagePercentage,
+                totalUsed: health.totalUsed,
+                usableWindow: health.usableWindow,
+                turnCount: health.turnCount,
+                thresholdPercent: config.greenThreshold
+            ) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.forward.circle")
+                        .font(.caption2)
+                        .foregroundStyle(ThemeColors.caution)
+                    Text("~\(turns) turns until caution")
+                        .font(.caption2)
+                        .foregroundStyle(ThemeColors.caution)
+                }
+                .accessibilityLabel("Approximately \(turns) turns until caution threshold")
+            }
+        } else if health.band == .orange {
+            if let turns = TokenHealthStatus.estimatedTurnsToThreshold(
+                currentUsagePercent: health.usagePercentage,
+                totalUsed: health.totalUsed,
+                usableWindow: health.usableWindow,
+                turnCount: health.turnCount,
+                thresholdPercent: config.redThreshold
+            ) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.forward.circle")
+                        .font(.caption2)
+                        .foregroundStyle(ThemeColors.danger)
+                    Text("~\(turns) turns until critical")
+                        .font(.caption2)
+                        .foregroundStyle(ThemeColors.danger)
+                }
+                .accessibilityLabel("Approximately \(turns) turns until critical threshold")
+            }
         }
     }
 
