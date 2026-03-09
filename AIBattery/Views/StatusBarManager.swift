@@ -69,7 +69,7 @@ public final class StatusBarManager: NSObject {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.isMovableByWindowBackground = false
-        panel.animationBehavior = .utilityWindow
+        panel.animationBehavior = .none
 
         // Follow system light/dark appearance so the popover material matches the OS theme
         panel.appearance = NSApp.effectiveAppearance
@@ -354,8 +354,8 @@ public final class StatusBarManager: NSObject {
             isPanelShowing = false
         } else {
             positionPanel(relativeTo: button)
-            panel.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            panel.makeKeyAndOrderFront(nil)
             isPanelShowing = true
         }
     }

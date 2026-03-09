@@ -231,6 +231,24 @@ struct RateLimitUsageTests {
         }
     }
 
+    @Test func estimatedTimeToLimit_resetInPast_returnsNil() {
+        // Reset date already passed — remaining time is negative
+        let usage = makeUsage(
+            fiveHourUtil: 0.80,
+            fiveHourReset: Date().addingTimeInterval(-60)
+        )
+        #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
+    }
+
+    @Test func estimatedTimeToLimit_exactlyAtThreshold_returnsNil() {
+        // Utilization at exactly 0.50 — threshold is > 0.50, so should return nil
+        let usage = makeUsage(
+            fiveHourUtil: 0.50,
+            fiveHourReset: Date().addingTimeInterval(2 * 3600)
+        )
+        #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
+    }
+
     @Test func estimatedTimeToLimit_freshWindow_returnsNil() {
         // Window just started (< 60s elapsed) — not enough data for meaningful rate
         // 5h window = 18000s, reset in 17950s → only 50s elapsed

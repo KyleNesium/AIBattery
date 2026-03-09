@@ -126,6 +126,23 @@ struct ActivityChartView: View {
         .padding(.vertical, 12)
     }
 
+    // MARK: - Shared chart styling
+
+    /// Standard Y-axis for all chart modes: trailing position, 3 ticks, compact count labels.
+    private var sharedYAxis: some AxisContent {
+        AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+            AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+            AxisValueLabel {
+                if let v = value.as(Int.self) {
+                    Text(Self.compactCount(v))
+                        .font(.system(size: 8))
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                }
+            }
+        }
+    }
+
     // MARK: - Daily Chart (7D)
 
     private var dailyChart: some View {
@@ -179,19 +196,7 @@ struct ActivityChartView: View {
                 }
             }
         }
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                AxisValueLabel {
-                    if let v = value.as(Int.self) {
-                        Text(Self.compactCount(v))
-                            .font(.system(size: 8))
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
-                    }
-                }
-            }
-        }
+        .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
@@ -244,19 +249,7 @@ struct ActivityChartView: View {
             }
         }
         .chartXScale(domain: 0...11)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                AxisValueLabel {
-                    if let v = value.as(Int.self) {
-                        Text(Self.compactCount(v))
-                            .font(.system(size: 8))
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
-                    }
-                }
-            }
-        }
+        .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
@@ -311,19 +304,7 @@ struct ActivityChartView: View {
                 }
             }
         }
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                AxisValueLabel {
-                    if let v = value.as(Int.self) {
-                        Text(Self.compactCount(v))
-                            .font(.system(size: 8))
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
-                    }
-                }
-            }
-        }
+        .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
