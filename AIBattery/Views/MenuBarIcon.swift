@@ -90,8 +90,9 @@ struct MenuBarIcon: View {
     private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
     private static var cachedAppearanceName: String = NSApp?.effectiveAppearance.name.rawValue ?? ""
 
-    /// Observe accessibility and appearance changes instead of polling every frame.
-    /// The observer is registered lazily on first icon render.
+    /// Observe accessibility changes instead of polling every frame.
+    /// Registered lazily on first icon render. Appearance (light/dark) is already
+    /// checked per-call via `cachedAppearanceName` (cheap string compare).
     private static var accessibilityObserverRegistered = false
 
     private static func registerAccessibilityObserverIfNeeded() {
@@ -99,25 +100,12 @@ struct MenuBarIcon: View {
         accessibilityObserverRegistered = true
 
         let ws = NSWorkspace.shared
-        let nc = ws.notificationCenter
-        nc.addObserver(
+        ws.notificationCenter.addObserver(
             forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
             object: nil, queue: .main
         ) { _ in
             cachedHighContrastFlag = ws.accessibilityDisplayShouldIncreaseContrast
             iconCache.removeAll()
-        }
-
-        // Appearance changes (light/dark mode switch)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main
-        ) { _ in
-            let name = NSApp?.effectiveAppearance.name.rawValue ?? ""
-            if cachedAppearanceName != name {
-                cachedAppearanceName = name
-                iconCache.removeAll()
-            }
         }
     }
 
