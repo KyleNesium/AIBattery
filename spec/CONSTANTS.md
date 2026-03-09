@@ -138,9 +138,10 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 
 | Constant | Value |
 |----------|-------|
-| Show tokens | `aibattery_showTokens` (Bool, default true) |
-| Show activity | `aibattery_showActivity` (Bool, default true) |
 | Show cost | `aibattery_showCostEstimate` (Bool, default false) |
+| Context collapsed | `aibattery_contextCollapsed` (Bool, default false) |
+| Tokens collapsed | `aibattery_tokensCollapsed` (Bool, default false) |
+| Activity collapsed | `aibattery_activityCollapsed` (Bool, default false) |
 | Format | `"$X.XX"` or `"<$0.01"` for sub-penny amounts |
 | Note | Shows what the same token usage would cost at API rates — Pro/Max/Teams subscribers aren't billed per-token |
 

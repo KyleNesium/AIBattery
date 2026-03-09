@@ -64,7 +64,7 @@ UsagePopoverView (275px, VStack)
 ├── SettingsRow (if showSettings — toggled by gear icon)
 │   ├── Account name rows (depend on accountStore — stay in parent)
 │   ├── RefreshSettingsSection — owns refreshInterval
-│   ├── DisplaySettingsSection — owns idleSessionMinutes, showTokens, showActivity, colorblindMode, showCostEstimate
+│   ├── DisplaySettingsSection — owns idleSessionMinutes, colorblindMode, showCostEstimate
 │   ├── AlertSettingsSection — owns alertStatus, alertRateLimit, rateLimitThreshold
 │   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
@@ -73,10 +73,10 @@ UsagePopoverView (275px, VStack)
 ├── Divider
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
-│   └── TokenHealthSection (if topSessionHealths or tokenHealth)
+│   └── TokenHealthSection — collapsible (if topSessionHealths or tokenHealth)
 │   └── .animation(.easeInOut(duration: 0.15), value: metricModeRaw) ← scoped to ForEach only
-├── TokenUsageGate (owns showTokens @AppStorage, conditionally renders TokenUsageSection)
-├── ActivityChartGate (owns showActivity @AppStorage, conditionally renders ActivityChartView)
+├── TokenUsageGate (data check, TokenUsageSection owns collapsed @AppStorage)
+├── ActivityChartGate (data check, ActivityChartView owns collapsed @AppStorage)
 ├── InsightsSection (Today + All Time stats)
 ├── Divider
 ├── footerSection
@@ -149,12 +149,16 @@ Values propagate to header + menu bar immediately via `@AppStorage` (settings) a
 
 Padding: H 16, V 10
 
+### Collapsible Sections
+
+Context Health, Tokens, and Activity sections have collapsible headers. Each section header is a button with a rotating chevron (`chevron.right`, 8pt bold). Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `activityCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
+
 ### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
 
-Each gate view owns a single `@AppStorage` toggle and conditionally renders its content section. This isolates toggle-flip redraws from the parent view.
+Gate views check data availability and render the section + divider. Sections own their own collapsed `@AppStorage`.
 
-- **`TokenUsageGate`**: owns `showTokens`. Renders `TokenUsageSection` + `Divider` when `showTokens && snapshot.totalTokens > 0`.
-- **`ActivityChartGate`**: owns `showActivity`. Renders `ActivityChartView` + `Divider` when `showActivity` and activity data is available.
+- **`TokenUsageGate`**: renders `TokenUsageSection` + `Divider` when `snapshot.totalTokens > 0`.
+- **`ActivityChartGate`**: renders `ActivityChartView` + `Divider` when activity data is available.
 
 ### Metric Toggle (`UsagePopoverView.metricToggle`)
 
@@ -173,10 +177,10 @@ Padding: H 16, V 10
 
 ### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
 
-Each gate view owns a single `@AppStorage` toggle and conditionally renders its content section. This isolates toggle-flip redraws from the parent view.
+Gate views check data availability and render the section + divider. Sections own their own collapsed `@AppStorage`.
 
-- **`TokenUsageGate`**: owns `showTokens`. Renders `TokenUsageSection` + `Divider` when `showTokens && snapshot.totalTokens > 0`.
-- **`ActivityChartGate`**: owns `showActivity`. Renders `ActivityChartView` + `Divider` when `showActivity` and activity data is available.
+- **`TokenUsageGate`**: renders `TokenUsageSection` + `Divider` when `snapshot.totalTokens > 0`.
+- **`ActivityChartGate`**: renders `ActivityChartView` + `Divider` when activity data is available.
 
 ### MarqueeText (`Views/MarqueeText.swift`)
 

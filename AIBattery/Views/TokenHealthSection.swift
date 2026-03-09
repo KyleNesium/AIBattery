@@ -4,6 +4,7 @@ struct TokenHealthSection: View {
     let sessions: [TokenHealthStatus]
     var onRefresh: (() -> Void)? = nil
     @State private var selectedIndex: Int = 0
+    @AppStorage(UserDefaultsKeys.contextCollapsed) private var collapsed: Bool = false
 
     /// Convenience init for single session (backward compat)
     init(health: TokenHealthStatus, onRefresh: (() -> Void)? = nil) {
@@ -33,16 +34,30 @@ struct TokenHealthSection: View {
         VStack(alignment: .leading, spacing: 8) {
             // Header with session toggle
             HStack {
-                Text("Context Health")
-                    .font(.subheadline.bold())
-                    .help("Percentage of usable context window consumed")
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { collapsed.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .rotationEffect(.degrees(collapsed ? 0 : 90))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                        Text("Context Health")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.primary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Percentage of usable context window consumed")
+                .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
                 Spacer()
 
-                if sessions.count > 1 {
+                if !collapsed && sessions.count > 1 {
                     sessionToggle
                 }
 
-                if let onRefresh {
+                if !collapsed, let onRefresh {
                     Button(action: onRefresh) {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 10))
@@ -54,72 +69,74 @@ struct TokenHealthSection: View {
                 healthBadge
             }
 
-            // Session info on its own line for full width
-            sessionInfoLabel
-                .id(selectedIndex)
+            if !collapsed {
+                // Session info on its own line for full width
+                sessionInfoLabel
+                    .id(selectedIndex)
 
-            // Gauge bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(ThemeColors.trackFill)
-                        .frame(height: 8)
+                // Gauge bar
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(ThemeColors.trackFill)
+                            .frame(height: 8)
 
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(bandColor)
-                        .frame(width: geometry.size.width * min(CGFloat(health.usagePercentage) / 100.0, 1.0), height: 8)
-                        .animation(.easeInOut(duration: 0.4), value: health.usagePercentage)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(bandColor)
+                            .frame(width: geometry.size.width * min(CGFloat(health.usagePercentage) / 100.0, 1.0), height: 8)
+                            .animation(.easeInOut(duration: 0.4), value: health.usagePercentage)
+                    }
                 }
-            }
-            .frame(height: 8)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
-            .accessibilityValue("\(remainingText) tokens remaining")
+                .frame(height: 8)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
+                .accessibilityValue("\(remainingText) tokens remaining")
 
-            // Detail row
-            HStack {
-                let detailText = "~\(remainingText) of \(usableText) usable"
-                Text(detailText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .copyable(detailText)
-                Spacer()
-                Text("\(health.turnCount) turns · \(modelDisplay)")
-                    .font(.caption2)
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .help("Conversation turns in this session")
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
-
-            // Recommended minimum context hint
-            if health.band == .orange || health.band == .red {
-                let safeMin = health.usableWindow / 5 // 20% of usable window
-                Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
-                    .font(.caption2)
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .help("Recommended minimum tokens to maintain response quality")
-            }
-
-            // Warnings
-            ForEach(health.warnings) { warning in
-                HStack(spacing: 4) {
-                    Image(systemName: warning.severity == .strong ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
+                // Detail row
+                HStack {
+                    let detailText = "~\(remainingText) of \(usableText) usable"
+                    Text(detailText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .copyable(detailText)
+                    Spacer()
+                    Text("\(health.turnCount) turns · \(modelDisplay)")
                         .font(.caption2)
-                        .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
-                    Text(warning.message)
-                        .font(.caption2)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                        .help("Conversation turns in this session")
                 }
-            }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
 
-            // Suggested action
-            if let action = health.suggestedAction {
-                Text(action)
-                    .font(.caption2)
-                    .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
+                // Recommended minimum context hint
+                if health.band == .orange || health.band == .red {
+                    let safeMin = health.usableWindow / 5 // 20% of usable window
+                    Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
+                        .font(.caption2)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                        .help("Recommended minimum tokens to maintain response quality")
+                }
+
+                // Warnings
+                ForEach(health.warnings) { warning in
+                    HStack(spacing: 4) {
+                        Image(systemName: warning.severity == .strong ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
+                            .font(.caption2)
+                            .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
+                        Text(warning.message)
+                            .font(.caption2)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                    }
+                }
+
+                // Suggested action
+                if let action = health.suggestedAction {
+                    Text(action)
+                        .font(.caption2)
+                        .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
+                }
             }
         }
         .padding(.horizontal, 16)

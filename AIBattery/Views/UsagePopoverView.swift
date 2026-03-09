@@ -581,15 +581,14 @@ public struct UsagePopoverView: View {
     }
 }
 
-// MARK: - Gate views (own their @AppStorage to avoid parent redraws)
+// MARK: - Gate views (check data availability, sections own their collapsed state)
 
-/// Shows token usage section only when the "Tokens" toggle is on.
+/// Shows token usage section when token data exists.
 private struct TokenUsageGate: View {
-    @AppStorage(UserDefaultsKeys.showTokens) private var showTokens = true
     let snapshot: UsageSnapshot
 
     var body: some View {
-        if showTokens && snapshot.totalTokens > 0 {
+        if snapshot.totalTokens > 0 {
             TokenUsageSection(
                 snapshot: snapshot,
                 activeModelId: snapshot.tokenHealth?.model
@@ -599,13 +598,12 @@ private struct TokenUsageGate: View {
     }
 }
 
-/// Shows activity chart only when the "Activity" toggle is on.
+/// Shows activity chart when activity data exists.
 private struct ActivityChartGate: View {
-    @AppStorage(UserDefaultsKeys.showActivity) private var showActivity = true
     let snapshot: UsageSnapshot
 
     var body: some View {
-        if showActivity && (!snapshot.dailyActivity.isEmpty || !snapshot.todayHourCounts.isEmpty) {
+        if !snapshot.dailyActivity.isEmpty || !snapshot.todayHourCounts.isEmpty {
             ActivityChartView(
                 dailyActivity: snapshot.dailyActivity,
                 todayHourCounts: snapshot.todayHourCounts,

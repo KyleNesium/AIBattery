@@ -4,6 +4,7 @@ struct TokenUsageSection: View {
     let snapshot: UsageSnapshot
     var activeModelId: String?
     @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCost: Bool = false
+    @AppStorage(UserDefaultsKeys.tokensCollapsed) private var collapsed: Bool = false
 
     private let modelIcons = [
         "cpu", "bolt", "sparkles", "cube", "wand.and.stars"
@@ -31,9 +32,23 @@ struct TokenUsageSection: View {
         VStack(alignment: .leading, spacing: 8) {
             // Header: total tokens + optional cost
             HStack {
-                Text("Tokens")
-                    .font(.subheadline.bold())
-                    .help("Total tokens used across all models")
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { collapsed.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .rotationEffect(.degrees(collapsed ? 0 : 90))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                        Text("Tokens")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.primary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Total tokens used across all models")
+                .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
                 if showCost {
                     let total = ModelPricing.totalCost(for: snapshot.modelTokens)
                     let costText = ModelPricing.formatCost(total)
@@ -50,7 +65,7 @@ struct TokenUsageSection: View {
             }
 
             // Per-model breakdown with token types underneath
-            if !snapshot.modelTokens.isEmpty {
+            if !collapsed && !snapshot.modelTokens.isEmpty {
                 ForEach(Array(sortedTokens.enumerated()), id: \.element.id) { index, model in
                     VStack(alignment: .leading, spacing: 4) {
                         // Model row
