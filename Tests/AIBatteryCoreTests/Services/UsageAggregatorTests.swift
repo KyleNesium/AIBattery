@@ -368,8 +368,9 @@ struct UsageAggregatorTests {
         let first = aggregator.aggregate(rateLimits: nil)
         #expect(first.todayMessages == 1)
 
-        // Add a new entry — invalidate and re-read
+        // Add a new entry — invalidate both reader cache and aggregator fingerprint
         logReader.invalidate()
+        aggregator.invalidate()
         try writeJSONL(
             [
                 makeAssistantLine(input: 100, output: 50, messageId: "new-msg-1", timestamp: now),

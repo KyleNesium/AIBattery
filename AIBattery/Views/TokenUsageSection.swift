@@ -54,8 +54,6 @@ struct TokenUsageSection: View {
     private var headerRow: some View {
         let totalTokensText = TokenFormatter.format(snapshot.totalTokens)
         let costText: String? = showCost ? ModelPricing.formatCost(ModelPricing.totalCost(for: snapshot.modelTokens)) : nil
-        let copyText = [costText, totalTokensText].compactMap { $0 }.joined(separator: " · ")
-
         return HStack {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) { collapsed.toggle() }
@@ -103,8 +101,6 @@ struct TokenUsageSection: View {
             )
             return ModelPricing.formatCost(cost)
         }()
-        let copyText = ([model.displayName, modelCostText, modelTokensText].compactMap { $0 }).joined(separator: " · ")
-
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: modelIcons[index % modelIcons.count])

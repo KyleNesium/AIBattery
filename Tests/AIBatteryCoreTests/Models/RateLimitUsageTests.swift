@@ -305,7 +305,7 @@ struct RateLimitUsageTests {
     @Test func countdownText_lessThanOneMinute() {
         let now = Date()
         let future = now.addingTimeInterval(30) // 30 seconds
-        #expect(RateLimitUsage.countdownText(to: future, from: now) == "1m")
+        #expect(RateLimitUsage.countdownText(to: future, from: now) == "30s")
     }
 
     @Test func countdownText_exactlyOneHour() {
