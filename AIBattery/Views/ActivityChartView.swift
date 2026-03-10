@@ -398,8 +398,8 @@ struct ActivityChartView: View {
                 Spacer()
                 if let peak = snapshot.peakHour {
                     Text("Peak: \(Self.formatHourLabel(peak)):00")
-                        .font(.caption)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                 }
             }
         }
@@ -430,8 +430,8 @@ struct ActivityChartView: View {
                 Spacer()
                 if let busiest = snapshot.busiestDayOfWeek {
                     Text("Peak: \(busiest.name)s")
-                        .font(.caption)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                 }
             }
         }
@@ -480,8 +480,8 @@ struct ActivityChartView: View {
                 Spacer()
                 if let busiestLabel {
                     Text("Peak: \(busiestLabel)")
-                        .font(.caption)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                 }
             }
         }
