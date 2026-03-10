@@ -338,7 +338,7 @@ struct ActivityChartView: View {
             }
             lines.append("\(snapshot.todayMessages) msgs today")
             let throttles = UsageViewModel.throttleCount(days: 1)
-            lines.append("Caps: \(throttles > 0 ? "\(throttles)×" : "0")")
+            lines.append("Throttled: \(throttles > 0 ? "\(throttles)×" : "0")")
             if let peak = snapshot.peakHour {
                 lines.append("Peak: \(Self.formatHourLabel(peak)):00")
             }
@@ -351,7 +351,7 @@ struct ActivityChartView: View {
                 lines.append("\(snapshot.dailyAverage) avg/day")
             }
             let throttles = UsageViewModel.throttleCount(days: 7)
-            lines.append("Caps: \(throttles > 0 ? "\(throttles)×" : "0")")
+            lines.append("Throttled: \(throttles > 0 ? "\(throttles)×" : "0")")
             if let busiest = snapshot.busiestDayOfWeek {
                 lines.append("Peak: \(busiest.name)s")
             }
@@ -366,7 +366,7 @@ struct ActivityChartView: View {
                 lines.append("\(Self.compactCount(thisMonth)) this month")
             }
             let throttles = UsageViewModel.throttleCount(days: 30)
-            lines.append("Caps: \(throttles > 0 ? "\(throttles)×" : "0")")
+            lines.append("Throttled: \(throttles > 0 ? "\(throttles)×" : "0")")
             if let peak = totals.max(by: { $0.value < $1.value }),
                let date = DateFormatters.dateKey.date(from: peak.key + "-01") {
                 lines.append("Peak: \(Self.monthAbbrev(date))")
@@ -493,11 +493,11 @@ struct ActivityChartView: View {
     private func throttleLabel(days: Int) -> some View {
         let count = UsageViewModel.throttleCount(days: days)
         if count > 0 {
-            Text("Caps: \(count)×")
+            Text("Throttled: \(count)×")
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(ThemeColors.caution)
         } else {
-            Text("Caps: 0")
+            Text("Throttled: 0")
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(ThemeColors.secondaryLabel)
         }
