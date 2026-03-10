@@ -98,8 +98,10 @@ struct MenuBarIcon: View {
     private static var accessibilityObserverRegistered = false
 
     private static func registerAccessibilityObserverIfNeeded() {
-        guard !accessibilityObserverRegistered else { return }
-        accessibilityObserverRegistered = true
+        cacheLock.withLock {
+            guard !accessibilityObserverRegistered else { return }
+            accessibilityObserverRegistered = true
+        }
 
         let ws = NSWorkspace.shared
         ws.notificationCenter.addObserver(
@@ -125,32 +127,39 @@ struct MenuBarIcon: View {
 
         let currentAppearance = NSApp?.effectiveAppearance
         let appearanceName = currentAppearance?.name.rawValue ?? ""
+        let currentColorblind = ThemeColors.isColorblind
 
-        return cacheLock.withLock {
-            if cachedColorblindFlag != ThemeColors.isColorblind
+        // Check cache under lock; render outside lock to avoid holding it during image creation
+        let (key, cached, highContrast, isDarkMode): (Int, NSImage?, Bool, Bool) = cacheLock.withLock {
+            if cachedColorblindFlag != currentColorblind
                 || cachedAppearanceName != appearanceName {
                 iconCache.removeAll()
-                cachedColorblindFlag = ThemeColors.isColorblind
+                cachedColorblindFlag = currentColorblind
                 cachedAppearanceName = appearanceName
             }
 
             let qPercent = quantizedPercent(percent)
-            let key = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
-            if let cached = iconCache[key] { return cached }
-
-            let highContrast = cachedHighContrastFlag
-            let isDarkMode = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            let icon: NSImage
-            if isBroken {
-                icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
-            } else if isSparkle {
-                icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
-            } else {
-                icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
-            }
-            iconCache[key] = icon
-            return icon
+            let k = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
+            let hc = cachedHighContrastFlag
+            let dm = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return (k, iconCache[k], hc, dm)
         }
+
+        if let cached { return cached }
+
+        // Render without holding the lock — NSImage creation is thread-safe
+        // but can be slow; no need to serialize rendering across threads.
+        let icon: NSImage
+        if isBroken {
+            icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+        } else if isSparkle {
+            icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+        } else {
+            icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+        }
+
+        cacheLock.withLock { iconCache[key] = icon }
+        return icon
     }
 
     // MARK: - Normal star rendering
