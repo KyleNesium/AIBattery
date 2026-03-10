@@ -240,16 +240,16 @@ Padding: H 16, V 12
 
 - Header: `"Tokens"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
 - Per-model breakdown via `ForEach` over sorted models (active first via prefix matching, then by totalTokens descending)
-- Model icons: SF Symbols cycle (`cpu`, `bolt`, `sparkles`, `cube`, `wand.and.stars`) at 10pt, .secondary, 14pt frame
-- Per model row: icon + display name (.caption) + `"▶"` badge if active (.caption2, green) + total tokens (.caption monospaced, .secondary)
+- Model icons: SF Symbols cycle (`cpu`, `bolt`, `sparkles`, `cube`, `wand.and.stars`) at 10pt, ThemeColors.secondaryLabel, 14pt frame
+- Per model row: icon + display name (.caption) + `"▶"` badge if active (.caption2, green) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
 - Token type breakdown per model (row below model name): `TokenTag` components with directional icons
   - Input: `arrow.up`, Output: `arrow.down`, Cache Read: `doc.on.doc`, Cache Write: `square.and.pencil`
-  - Each tag: icon (8pt, .tertiary) + value (.caption2 monospaced, .tertiary)
+  - Each tag: icon (8pt, ThemeColors.tertiaryLabel) + value (.caption2 monospaced, ThemeColors.tertiaryLabel)
   - Aligned with 14pt leading spacer to match model icon width
   - Each `TokenTag` has `accessibilityName` for VoiceOver
 - **Cost estimation** (when `aibattery_showCostEstimate` is true):
-  - Header: total cost next to "Tokens" label (.caption monospaced, .secondary)
-  - Per-model: cost inline before token total (.caption2 monospaced, .tertiary)
+  - Header: total cost next to "Tokens" label (.caption monospaced, ThemeColors.secondaryLabel)
+  - Per-model: cost inline before token total (.caption2 monospaced, ThemeColors.secondaryLabel)
   - All cost values have `.copyable()` modifier
 
 Padding: H 16, V 12
@@ -296,7 +296,9 @@ Data per mode:
 - **7D** — Row 1: weekly trend arrow + vs-yesterday change + avg/day. Row 2: throttle count this week + busiest day.
 - **12M** — Row 1: vs-last-month change (projected, ±10% threshold) + this month total (compactCount). Row 2: throttle count this month + busiest month.
 
-Throttle label: "0 throttles today/this week/this month" (secondary) or "N× throttled period" (red). Reads `UsageViewModel.throttleCount(days:)`.
+Throttle label: `"Throttled: 0"` (ThemeColors.secondaryLabel) or `"Throttled: N×"` (ThemeColors.caution). Reads `UsageViewModel.throttleCount(days:)`.
+
+All trend stats use `.caption` monospaced font with `ThemeColors.secondaryLabel`. Change indicators use accent colors. Entire trend block is `.copyable()` — builds a plain-text summary via `trendCopyText()` with bullet separators.
 
 `.padding(.top, 4)`
 

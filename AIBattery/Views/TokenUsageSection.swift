@@ -72,7 +72,7 @@ struct TokenUsageSection: View {
                         HStack(spacing: 6) {
                             Image(systemName: modelIcons[index % modelIcons.count])
                                 .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ThemeColors.secondaryLabel)
                                 .frame(width: 14)
 
                             Text(model.displayName)

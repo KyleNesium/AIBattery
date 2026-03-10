@@ -525,7 +525,7 @@ struct ActivityChartView: View {
         } else if diff < 0 {
             return ChangeInfo(symbol: "↓", label: "\(diff) vs yesterday", color: ThemeColors.trendColor(.down))
         } else {
-            return ChangeInfo(symbol: "→", label: "same as yesterday", color: .secondary)
+            return ChangeInfo(symbol: "→", label: "same as yesterday", color: ThemeColors.secondaryLabel)
         }
     }
 
@@ -552,7 +552,7 @@ struct ActivityChartView: View {
         } else if pct < -10 {
             return ChangeInfo(symbol: "↓", label: "\(pct)% vs last month", color: ThemeColors.trendColor(.down))
         } else {
-            return ChangeInfo(symbol: "→", label: "~same as last month", color: .secondary)
+            return ChangeInfo(symbol: "→", label: "~same as last month", color: ThemeColors.secondaryLabel)
         }
     }
 
