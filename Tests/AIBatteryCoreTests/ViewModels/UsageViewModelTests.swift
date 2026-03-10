@@ -211,6 +211,15 @@ struct UsageViewModelTests {
         #expect(UsageViewModel.throttleCount(days: 7) == 0)
     }
 
+    @Test func throttleCount_stringTimestamps_parsedCorrectly() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        let now = Date().timeIntervalSince1970
+        // Simulate legacy string-typed timestamps (the actual bug that caused 0 counts)
+        UserDefaults.standard.set([String(now), String(now - 86400)], forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7) == 2)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
     @Test func throttleCount_filtersOldEvents() {
         let key = UserDefaultsKeys.throttleTimestamps
         let now = Date().timeIntervalSince1970

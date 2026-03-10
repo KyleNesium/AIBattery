@@ -356,8 +356,21 @@ struct ActivityChartView: View {
                 lines.append("Peak: \(busiest.name)s")
             }
         case .monthly:
+            let totals = monthTotals
+            let cal = Calendar.current
+            let now = Date()
+            let comps = cal.dateComponents([.year, .month], from: now)
+            let key = comps.year.flatMap { y in comps.month.map { m in String(format: "%04d-%02d", y, m) } }
+            let thisMonth = key.flatMap { totals[$0] } ?? 0
+            if thisMonth > 0 {
+                lines.append("\(Self.compactCount(thisMonth)) this month")
+            }
             let throttles = UsageViewModel.throttleCount(days: 30)
             lines.append("Caps: \(throttles > 0 ? "\(throttles)×" : "0")")
+            if let peak = totals.max(by: { $0.value < $1.value }),
+               let date = DateFormatters.dateKey.date(from: peak.key + "-01") {
+                lines.append("Peak: \(Self.monthAbbrev(date))")
+            }
         }
         return lines.joined(separator: " · ")
     }
