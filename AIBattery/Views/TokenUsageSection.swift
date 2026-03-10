@@ -54,7 +54,7 @@ struct TokenUsageSection: View {
                     let costText = ModelPricing.formatCost(total)
                     Text(costText)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                         .copyable(costText)
                 }
                 Spacer()
@@ -99,14 +99,14 @@ struct TokenUsageSection: View {
                                 let modelCostText = ModelPricing.formatCost(modelCost)
                                 Text(modelCostText)
                                     .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                                    .foregroundStyle(ThemeColors.secondaryLabel)
                                     .copyable(modelCostText)
                             }
 
                             let modelTokensText = TokenFormatter.format(model.totalTokens)
                             Text(modelTokensText)
                                 .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ThemeColors.secondaryLabel)
                                 .copyable(modelTokensText)
                         }
 
