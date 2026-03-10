@@ -338,9 +338,9 @@ struct ActivityChartView: View {
             }
             lines.append("\(snapshot.todayMessages) msgs today")
             let throttles = UsageViewModel.throttleCount(days: 1)
-            lines.append(throttles > 0 ? "\(throttles)× throttled today" : "0 throttles today")
+            lines.append("Caps: \(throttles > 0 ? "\(throttles)×" : "0")")
             if let peak = snapshot.peakHour {
-                lines.append("Peak at \(Self.formatHourLabel(peak)):00")
+                lines.append("Peak: \(Self.formatHourLabel(peak)):00")
             }
         case .daily:
             lines.append("\(snapshot.trendDirection.symbol) weekly trend")
@@ -351,13 +351,13 @@ struct ActivityChartView: View {
                 lines.append("\(snapshot.dailyAverage) avg/day")
             }
             let throttles = UsageViewModel.throttleCount(days: 7)
-            lines.append(throttles > 0 ? "\(throttles)× throttled this week" : "0 throttles this week")
+            lines.append("Caps: \(throttles > 0 ? "\(throttles)×" : "0")")
             if let busiest = snapshot.busiestDayOfWeek {
-                lines.append("Peak on \(busiest.name)s")
+                lines.append("Peak: \(busiest.name)s")
             }
         case .monthly:
             let throttles = UsageViewModel.throttleCount(days: 30)
-            lines.append(throttles > 0 ? "\(throttles)× throttled this month" : "0 throttles this month")
+            lines.append("Caps: \(throttles > 0 ? "\(throttles)×" : "0")")
         }
         return lines.joined(separator: " · ")
     }
@@ -381,10 +381,10 @@ struct ActivityChartView: View {
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
             HStack(spacing: 6) {
-                throttleLabel(days: 1, period: "today")
+                throttleLabel(days: 1)
                 Spacer()
                 if let peak = snapshot.peakHour {
-                    Text("Peak at \(Self.formatHourLabel(peak)):00")
+                    Text("Peak: \(Self.formatHourLabel(peak)):00")
                         .font(.caption)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
@@ -413,10 +413,10 @@ struct ActivityChartView: View {
                 }
             }
             HStack(spacing: 6) {
-                throttleLabel(days: 7, period: "this week")
+                throttleLabel(days: 7)
                 Spacer()
                 if let busiest = snapshot.busiestDayOfWeek {
-                    Text("Peak on \(busiest.name)s")
+                    Text("Peak: \(busiest.name)s")
                         .font(.caption)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
@@ -463,10 +463,10 @@ struct ActivityChartView: View {
                 }
             }
             HStack(spacing: 6) {
-                throttleLabel(days: 30, period: "this month")
+                throttleLabel(days: 30)
                 Spacer()
                 if let busiestLabel {
-                    Text("Peak in \(busiestLabel)")
+                    Text("Peak: \(busiestLabel)")
                         .font(.caption)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
@@ -477,14 +477,14 @@ struct ActivityChartView: View {
     // MARK: - Shared helpers
 
     @ViewBuilder
-    private func throttleLabel(days: Int, period: String) -> some View {
+    private func throttleLabel(days: Int) -> some View {
         let count = UsageViewModel.throttleCount(days: days)
         if count > 0 {
-            Text("\(count)× throttled \(period)")
+            Text("Caps: \(count)×")
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(ThemeColors.caution)
         } else {
-            Text("0 throttles \(period)")
+            Text("Caps: 0")
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(ThemeColors.secondaryLabel)
         }
