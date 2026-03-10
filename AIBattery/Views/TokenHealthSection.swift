@@ -31,7 +31,7 @@ struct TokenHealthSection: View {
     private var modelDisplay: String { health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             // Header with session toggle
             HStack {
                 Button {
@@ -52,6 +52,14 @@ struct TokenHealthSection: View {
                 .help("Percentage of usable context window consumed")
                 .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
                 Spacer()
+
+                if collapsed, let hash = sessionIdPrefix {
+                    Text(hash)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                        .copyable(health.id)
+                        .padding(.trailing, 4)
+                }
 
                 if !collapsed && sessions.count > 1 {
                     sessionToggle
@@ -140,7 +148,7 @@ struct TokenHealthSection: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
         .gesture(
             sessions.count > 1 ?

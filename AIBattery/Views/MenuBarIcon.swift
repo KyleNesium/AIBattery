@@ -28,8 +28,9 @@ struct MenuBarIcon: View {
     static let iconSize: CGFloat = 22
 
     /// Number of discrete pulse steps per breathing cycle.
-    /// 16 steps at 4s cycle = 250ms per tick — smooth enough to appear fluid.
-    static let pulseSteps = 16
+    /// 8 steps at 4s cycle = 500ms per tick — smooth enough to appear fluid
+    /// while halving CPU usage from timer wakeups and image generation.
+    static let pulseSteps = 8
 
     // MARK: - Glow breath parameters
 
@@ -72,7 +73,7 @@ struct MenuBarIcon: View {
 
     /// Composite cache key: quantized percent × 100 + pulseStep for normal,
     /// 10_100 + pulseStep for broken, 10_200 + pulseStep for sparkle.
-    /// Max entries: 21×16 + 16 + 16 = 368.
+    /// Max entries: 21×8 + 8 + 8 = 184.
     static func cacheKey(quantizedPercent: Int, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> Int {
         if isBroken {
             return 10_100 + pulseStep
@@ -253,7 +254,7 @@ struct MenuBarIcon: View {
 
     /// Each pulse step shows a different subset of sparkles (indices into sparklePositions).
     /// 8 unique frames with 2-3 sparkles each — celebratory twinkling for recovery.
-    /// Pulse steps are halved (16→8) so each frame lasts 500ms.
+    /// 8 frames with 2-3 sparkles each — celebratory twinkling for recovery.
     private static let sparkleFrames: [[Int]] = [
         [0, 4],     [1, 5],     [2, 6],     [3, 7],
         [0, 3, 6],  [1, 5],     [2, 4, 7],  [0, 6],

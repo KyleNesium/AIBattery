@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.8.2] — 2026-03-10
+
+### Added
+- **Persistent token ledger** — token totals now survive Claude Code stats-cache rebuilds via a high-water-mark ledger at `~/Library/Application Support/AIBattery/token-ledger.json`; per-model, per-account, per-token-type maximums are preserved forever
+- **Seconds countdown** — rate limit reset timers now count down in seconds below 60s (e.g. "42s", "3s") instead of showing "1m"
+- **Reset celebration** — green sparkle "Reset" indicator when a rate limit window resets after being exhausted; "Resets soon" fallback when timer expires but API hasn't confirmed
+- **Session hash on collapse** — collapsed Context Health shows the 8-char session ID (copyable) next to the health badge
+- **Observer session filter** — MCP observer sessions (hidden path components) are now excluded from context health display
+- 9 new TokenLedger tests, 3 new DurationFormatter tests — 564 total
+
+### Improved
+- **Compact layout** — reduced section padding (12→8pt), header/footer padding (10→6pt), and VStack spacing (8→6pt) across all sections
+- **Metric picker** — labels changed from "5h/7d/Ctx" to "5 Hour/7 Day/Context"; auto mode now highlights the selected segment; removed "Showing X" subtitle
+- **Performance** — consolidated trend data computation (single Date/Calendar/throttleCount per render instead of duplicated); single Date() call per rate limit bar; cached chart transforms; fingerprint-first aggregation; async ViewModel init; reduced animation fps (16→8 pulse steps)
+- **Week-over-week comparison** — now compares same days (Mon vs Mon, Mon–Tue vs Mon–Tue) instead of requiring Wednesday for a full-week comparison
+- **Token section** — individual values copyable instead of whole rows
+- **Auto mode** — picker selection syncs to auto-resolved mode via read-only binding
+
+### Fixed
+- **7-day stats hidden** — reset celebration/soon states no longer incorrectly trigger on normal low-usage windows where the rolling reset timestamp is in the past
+
 ## [1.8.1] — 2026-03-09
 
 ### Improved

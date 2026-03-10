@@ -217,9 +217,10 @@ Pricing per million tokens:
 | Progress bar height | 8pt |
 | Bar corner radius | 3pt |
 | Section padding H | 16pt |
-| Section padding V | 12pt |
-| Header padding V | 10pt |
-| Footer padding V | 10pt |
+| Section padding V | 8pt |
+| Section VStack spacing | 6pt |
+| Header padding V | 6pt |
+| Footer padding V | 6pt |
 | Menu bar icon canvas | 22×22pt |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
@@ -227,11 +228,11 @@ Pricing per million tokens:
 | Recovery sparkle arm length | 1.6pt |
 | Recovery sparkle stroke width | 0.7pt |
 | Recovery sparkle alpha | 0.7 |
-| Recovery sparkle frame rate | 500ms (every 2nd pulse step) |
+| Recovery sparkle frame rate | 500ms (every pulse step) |
 | Recovery sparkle duration | 30 sec |
-| Pulse steps per cycle | 16 |
+| Pulse steps per cycle | 8 |
 | Pulse cycle duration | 4.0 sec |
-| Pulse tick interval | 250ms (4s ÷ 16) |
+| Pulse tick interval | 500ms (4s ÷ 8) |
 | Breath timer threshold | ≥80% usage, throttled, or sparkle active (static icon below 80%) |
 | Health dot size | 8pt |
 | Status dot size | 6pt |

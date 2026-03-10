@@ -20,29 +20,39 @@ final class UsageAggregator {
     // MARK: - Redundant aggregation skip
 
     private var cachedSnapshot: UsageSnapshot?
-    private var lastEntryCount = 0
     private var lastStatsCacheModDate: Date?
     private var lastRateLimits: RateLimitUsage?
     private var lastIdleSessionMinutes: Int = -1
+    private var lastAccountId: String?
 
-    func aggregate(rateLimits: RateLimitUsage?) -> UsageSnapshot {
+    /// Clear cached snapshot so the next aggregate() re-computes from scratch.
+    /// Called by FileWatcher when JSONL or stats-cache files change.
+    func invalidate() {
+        cachedSnapshot = nil
+    }
+
+    func aggregate(rateLimits: RateLimitUsage?, accountId: String? = nil) -> UsageSnapshot {
+        // Idle session cutoff for context health (0 = never hide)
+        let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
+
+        // Check cheap fingerprints BEFORE expensive JSONL scan.
+        // Only rate limits and settings can change without a file change;
+        // SessionLogReader's cache is invalidated by FileWatcher, so entry count
+        // only changes after invalidation (which clears our cached snapshot via
+        // the file watcher callback resetting the ViewModel).
+        let statsCacheModDate = statsCacheReader.lastModificationDate
+        if let cached = cachedSnapshot,
+           statsCacheModDate == lastStatsCacheModDate,
+           rateLimits == lastRateLimits,
+           idleSessionMinutes == lastIdleSessionMinutes,
+           accountId == lastAccountId {
+            return cached
+        }
+
         let statsCache = statsCacheReader.read()
 
         // Single JSONL scan — entries are already cached by SessionLogReader.
         let allEntries = sessionLogReader.readAllUsageEntries()
-
-        // Idle session cutoff for context health (0 = never hide)
-        let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
-
-        // Check fingerprint: skip re-aggregation if inputs haven't changed
-        let statsCacheModDate = statsCacheReader.lastModificationDate
-        if let cached = cachedSnapshot,
-           allEntries.count == lastEntryCount,
-           statsCacheModDate == lastStatsCacheModDate,
-           rateLimits == lastRateLimits,
-           idleSessionMinutes == lastIdleSessionMinutes {
-            return cached
-        }
 
         // Single-pass grouping: bucket all entries by date, collect today's separately.
         let now = Date()
@@ -100,7 +110,15 @@ final class UsageAggregator {
             )
         }
 
-        let modelTokens = Self.buildModelTokens(from: modelTokensMap)
+        let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
+
+        // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
+        let modelTokens: [ModelTokenSummary]
+        if let accountId {
+            modelTokens = TokenLedger.shared.merge(rawModelTokens, accountId: accountId)
+        } else {
+            modelTokens = rawModelTokens
+        }
 
         // First session date
         let firstSessionDate = statsCache?.firstSessionDate
@@ -200,10 +218,10 @@ final class UsageAggregator {
 
         // Cache the result and fingerprint
         cachedSnapshot = snapshot
-        lastEntryCount = allEntries.count
         lastStatsCacheModDate = statsCacheModDate
         lastRateLimits = rateLimits
         lastIdleSessionMinutes = idleSessionMinutes
+        lastAccountId = accountId
 
         return snapshot
     }

@@ -7,7 +7,7 @@ struct SettingsRow: View {
     let onAddAccount: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Settings")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -40,7 +40,7 @@ struct SettingsRow: View {
             LaunchAtLoginSection()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
     }
 
     /// Editable name row for a single account.

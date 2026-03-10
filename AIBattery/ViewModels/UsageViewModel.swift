@@ -30,18 +30,10 @@ public final class UsageViewModel: ObservableObject {
         ThemeColors.registerObserver()
         NetworkMonitor.shared.start()
 
-        // Show local data immediately so the menu bar icon appears fast,
-        // then fetch network data in the background.
-        let aggregator = self.aggregator
-        let localSnapshot = aggregator.aggregate(rateLimits: nil)
-        if localSnapshot.totalMessages > 0 {
-            snapshot = localSnapshot
-            isLoading = false
-        }
-
         setupFileWatcher()
         setupSleepWakeObservers()
         startPolling()
+        // Aggregate local data asynchronously — avoids blocking app launch.
         Task { await refresh() }
     }
 
@@ -67,6 +59,8 @@ public final class UsageViewModel: ObservableObject {
 
         let wasEmpty = snapshot == nil
         if wasEmpty { isLoading = true }
+        // Yield to let SwiftUI render the loading state before blocking on network + aggregation.
+        await Task.yield()
 
         let accountId = oauthManager.accountStore.activeAccountId
         let (api, status) = await fetchAPIData(oauthManager: oauthManager, accountId: accountId)
@@ -82,7 +76,7 @@ public final class UsageViewModel: ObservableObject {
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits)
 
-        let result = aggregator.aggregate(rateLimits: api.rateLimits)
+        let result = aggregator.aggregate(rateLimits: api.rateLimits, accountId: accountId)
         logCorruptionMetrics()
         updateAdaptivePolling(result)
         updateSnapshot(result, api: api)
@@ -187,6 +181,7 @@ public final class UsageViewModel: ObservableObject {
     private func setupFileWatcher() {
         fileWatcher = FileWatcher { [weak self] in
             Task { @MainActor [weak self] in
+                self?.aggregator.invalidate()
                 self?.adaptivePolling.unchangedCycles = 0
                 self?.restartPolling(interval: self?.refreshInterval ?? 60)
                 await self?.refresh()

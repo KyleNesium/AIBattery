@@ -292,6 +292,21 @@ This shows what your token usage **would cost at Anthropic's published API per-t
 
 Pricing uses Anthropic's published rates for input, output, cache read, and cache write tokens per model.
 
+### How Token Tracking Works
+
+The **Tokens** section shows cumulative per-model token usage (input, output, cache read, cache write) with totals and optional cost estimates.
+
+**Where the data comes from:** Claude Code writes session logs (JSONL files) to `~/.claude/projects/` and periodically aggregates them into `~/.claude/stats-cache.json`. AI Battery reads both — it never writes to Claude Code's files or reads message content, only token counts.
+
+**The problem:** Claude Code can rebuild `stats-cache.json` at any time, and when it does, it may include fewer historical logs than before (e.g. if old session logs were cleaned up). This causes token totals to suddenly drop, even though your actual usage hasn't changed.
+
+**How AI Battery solves it:** AI Battery maintains a **persistent ledger** at `~/Library/Application Support/AIBattery/token-ledger.json`. Every time it reads token data, it compares each model's per-type totals (input, output, cache read, cache write) against the ledger and keeps whichever value is higher. This means:
+
+- Token totals **never decrease**, even if Claude Code rebuilds its cache
+- Models that disappear from `stats-cache.json` are **restored from the ledger**
+- Each account has its **own independent ledger** — switching accounts shows the correct totals
+- The ledger file is tiny (a few KB), read once at launch, and only written when values increase (background write, non-blocking)
+
 ---
 
 ## 🔧 Troubleshooting
@@ -470,15 +485,15 @@ If it saves you time or helps you get more out of your Claude subscription, cons
 
 ## 🧪 Test Coverage
 
-**552 tests** across 37 test files.
+**564 tests** across 38 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 176 | Token summaries, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults, countdown formatter, throttled header parsing, per-window throttle detection, utilization clamping, past reset guard, threshold boundary), health status, metric modes, API profiles (org ID validation: empty, too long, special chars, hyphens/underscores), session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode with priority tiers and edge cases, urgency score piecewise interpolation with clamping, context health fallback chain, single-pass activity stats), model pricing (cache correctness for unknown models), health config |
-| Services | 222 | Version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, alert key migration), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config, idle session inclusion), status checker (severity ordering, incident escalation, known components catalog, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry, symlink boundary check), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload, file size guard, symlink boundary check, prefix traversal attack), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, deduplication, stats+JSONL merge, all-time mode, redundant aggregation skip, hourly merge, peak hour update, totalMessages dedup, old model visibility, all-dates daily merge, todayHourCounts separation), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
+| Services | 231 | Token ledger (high-water-mark merge, historical model restoration, per-account isolation, persistence, sort order, all token types, file size guard), version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, alert key migration), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config, idle session inclusion), status checker (severity ordering, incident escalation, known components catalog, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry, symlink boundary check), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload, file size guard, symlink boundary check, prefix traversal attack), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, deduplication, stats+JSONL merge, all-time mode, redundant aggregation skip, hourly merge, peak hour update, totalMessages dedup, old model visibility, all-dates daily merge, todayHourCounts separation), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
 | Views | 14 | Activity chart data transformations (daily 7-day generation, gap filling, chronological ordering, hourly 12-hour window, midnight wraparound, month totals aggregation, invalid date handling, monthly 12-month generation, current-month projection, early-month projection skip, past-month no projection) |
 | ViewModels | 26 | UsageViewModel static helpers (refresh interval clamping, error message logic, adaptive polling data-change detection, throttle event recording with dedup + exhaustion detection, throttle count filtering + string timestamp parsing) |
-| Utilities | 114 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping, result cache), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, progressive doubling, caps, reset), secure networking (ephemeral session config, singleton, size limit, cookie policy, resource timeout), duration formatter (compact format, boundaries, 24h edge case, days/hours/minutes), menu bar icon (breathing animation, recovery sparkle effect, quantized caching, broken star fragments, pulse steps, cache identity, sparkle/broken/normal key isolation, context health colors) |
+| Utilities | 117 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping, result cache), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning), adaptive polling state (threshold behavior, progressive doubling, caps, reset), secure networking (ephemeral session config, singleton, size limit, cookie policy, resource timeout), duration formatter (compact format, boundaries, 24h edge case, days/hours/minutes/seconds), menu bar icon (breathing animation, recovery sparkle effect, quantized caching, broken star fragments, pulse steps, cache identity, sparkle/broken/normal key isolation, context health colors) |
 
 ## 📄 License
 

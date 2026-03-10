@@ -18,8 +18,8 @@
 │  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
 ├──────────────────────────────────────┤
-│ (A) [5h|7d|Ctx]                       │  ← Metric toggle + auto
-│ ✦ Showing 5-Hour                      │     (auto indicator)
+│ (A) [5 Hour|7 Day|Context]             │  ← Metric toggle + auto
+│                                        │
 ├──────────────────────────────────────┤
 │ 5-Hour                         12%  │
 │ [████████████░░░░░░░░░░░] binding   │  ← ❷ Rate Limits
@@ -69,7 +69,7 @@ UsagePopoverView (275px, VStack)
 │   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
 ├── metricToggle (auto "A" circle button left + segmented picker: 5h | 7d | Ctx)
-│   └── autoIndicator ("✦ Showing [Mode]" when auto mode active)
+│   (auto mode highlights selected segment via read-only binding)
 ├── Divider
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
@@ -107,7 +107,7 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
   - **"↓ Install Update"** (.caption2, .blue) — tries Sparkle in-app update; falls back to opening GitHub release if Sparkle not ready
   - **"✕"** dismiss button (xmark.circle.fill, 14pt, .secondary) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
   - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
-- Padding: H 16, V 10
+- Padding: H 16, V 8
 
 ### ❶b Settings (`SettingsRow` — private struct, decomposed into sub-views)
 
@@ -146,7 +146,7 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 
 Values propagate to header + menu bar immediately via `@AppStorage` (settings) and `@Published` (account names).
 
-Padding: H 16, V 10
+Padding: H 16, V 8
 
 ### Collapsible Sections
 
@@ -163,16 +163,16 @@ Gate views check data availability and render the section + divider. Sections ow
 
 HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
 
-**Segmented picker**: 3 segments using `MetricMode.shortLabel` — `"5h"`, `"7d"`, `"Ctx"`.
+**Segmented picker**: 3 segments using `MetricMode.shortLabel` — `"5 Hour"`, `"7 Day"`, `"Context"`. Auto mode syncs picker selection to the auto-resolved mode via a read-only binding.
 
 **Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
 - **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse via scoped `.animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)` on stroke/shadow views only (never `withAnimation` — leaks global repeating transaction).
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Picker dims to 0.4 opacity and is disabled when auto mode is active.
-- **Auto indicator**: when auto mode is active, a line below the picker shows `"✦ Showing [Mode label]"` (.caption2, .secondary) indicating which mode auto selected.
+- **Auto highlight**: when auto mode is active, the picker selection syncs to the auto-resolved mode via a read-only binding, visually highlighting which segment was chosen. The picker is dimmed (0.55 opacity) and disabled.
 - **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (≥95%) → rate limit unconditionally beats context health; **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` with piecewise-linear interpolation (see CONSTANTS.md for anchor points); highest urgency wins, context breaks ties. Applied in both popover and menu bar label.
 
-Padding: H 16, V 10
+Padding: H 16, V 8
 
 ### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
 
@@ -197,14 +197,16 @@ News-ticker style scrolling text view. Supports single or multiple texts.
 Each bar:
 - **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.title3, monospaced, semibold)
 - **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
-- **Detail row**: left status + `"Resets in Xh Ym"` (.caption2, .tertiary) always visible on right
-  - Normal: `"X% remaining"` (.caption2, ThemeColors.secondaryLabel)
+- **Detail row**: left status + reset countdown on right
+  - Normal: `"X% remaining"` (.caption2, secondaryLabel) + `"Resets in Xh Ym"` (.caption2, .tertiary)
   - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 50%, estimate before reset)
   - Throttled: `"Rate limited"` (.caption2, .danger) — shown when per-window status is `"throttled"` OR overall `isThrottled` and window is at 100%
+  - **Reset expired, API still shows usage** (percent ≥ 1): `"Resets soon"` (.caption2, .caution) — waiting for API confirmation
+  - **Reset confirmed** (expired + percent < 1): sparkles icon + `"Reset"` (.caption2, .green) — celebration state
 
-Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `<1h` → "in Xm", expired → "soon"
+Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `1-59m` → "in Xm", `<60s` → "in Xs" (seconds countdown), expired → "soon" or green "Reset"
 
-Padding: H 16, V 12
+Padding: H 16, V 8
 
 ### ❸ Context Health (`Views/TokenHealthSection.swift`)
 
@@ -325,7 +327,7 @@ Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links r
 
 Active incident banner (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity)
 
-All text: .caption2, .secondary. Padding: H 16, V 10.
+All text: .caption2, .secondary. Padding: H 16, V 8.
 
 Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray
 
@@ -401,7 +403,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
    - Triggered by `StatusBarManager` detecting `isThrottled` going from true → false
    - Automatically stops after 30 seconds, returning to normal breathing mode
 
-**Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 16 discrete steps, 250ms per tick).
+**Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 8 discrete steps, 500ms per tick).
 - Always active — breathing at all usage levels, dramatic pulse when throttled
 - Recovery sparkle overlaid for 30s after throttle clears
 - Pauses on screen sleep, resumes on wake
@@ -413,7 +415,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
 - Throttled: always red/critical band
 
-**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–15) for normal, `10_100 + pulseStep` for broken, `10_200 + pulseStep` for sparkle. Max entries: 21×16 + 16 + 16 = 368. Cache invalidates on colorblind/appearance/contrast change.
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–7) for normal, `10_100 + pulseStep` for broken, `10_200 + pulseStep` for sparkle. Max entries: 21×8 + 8 + 8 = 184. Cache invalidates on colorblind/appearance/contrast change.
 
 - **`statusBarImage(for:color:isBroken:isSparkle:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
 
