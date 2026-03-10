@@ -268,6 +268,7 @@ Click ⚙️ in the header to configure:
 | 💲 **Cost** | Show equivalent API token rates |
 | 🔔 **Alerts** | Notify on status page outages (all components) |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
+| 🧠 **Context** | Notify when a session enters the orange or red context health band |
 | 🚀 **Launch at Login** | Start automatically when you log in |
 
 </td>
@@ -433,7 +434,7 @@ AIBattery/
 
 ## ♿ Accessibility
 
-- **VoiceOver** — all interactive elements include accessibility labels and hints
+- **VoiceOver** — all interactive elements include accessibility labels and hints; collapsible sections announce state; copy actions announce confirmation
 - **Keyboard navigation** — fully navigable without a mouse
 - **Colorblind mode** — Settings → Display → Colorblind switches to a blue/cyan/amber/purple palette
 - **First-launch tutorial** — 3-step walkthrough on first use

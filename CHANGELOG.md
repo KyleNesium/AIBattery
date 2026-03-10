@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.3] — 2026-03-10
+
+### Added
+- **Context health alerts** — optional notification when a session enters the orange or red band (Settings → Alerts → Context)
+- **Idle-filtered empty state** — shows "No active sessions" when all sessions are filtered out by the idle cutoff setting
+- **Relative timestamps** — context health sessions show "just now", "5m ago" etc. instead of absolute times for recent activity
+
+### Improved
+- **VoiceOver** — collapsible sections (Tokens, Activity, Context Health) now announce expanded/collapsed state; copy actions announce confirmation
+- **Lazy chart computation** — chart data is only computed for the active mode; other modes load on first switch (reduces initial render work)
+- **Token ledger resilience** — save failures now log warnings instead of silently failing
+- **Panel height** — increased to accommodate expanded content without scrolling
+
+### Removed
+- **Copy JSON button** — removed from Insights section (all values are already click-to-copy via `.copyable()`)
+
 ## [1.8.2] — 2026-03-10
 
 ### Added
