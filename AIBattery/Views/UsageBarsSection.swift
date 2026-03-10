@@ -107,7 +107,7 @@ struct UsageBar: View {
                 } else {
                     Text("\(max(0, Int(100 - percent)))% remaining")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                 }
                 Spacer()
                 if let resetsAt {

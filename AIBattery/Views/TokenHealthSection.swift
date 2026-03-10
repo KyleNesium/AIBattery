@@ -97,7 +97,7 @@ struct TokenHealthSection: View {
                     let detailText = "~\(remainingText) of \(usableText) usable"
                     Text(detailText)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                         .copyable(detailText)
                     Spacer()
                     Text("\(health.turnCount) turns · \(modelDisplay)")
@@ -267,7 +267,7 @@ struct TokenHealthSection: View {
             if !bottomParts.isEmpty {
                 Text(bottomParts.joined(separator: " · "))
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .lineLimit(1)
             }
         }

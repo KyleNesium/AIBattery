@@ -12,7 +12,7 @@ struct InsightsSection: View {
             HStack {
                 Text("Today")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .frame(width: labelWidth, alignment: .leading)
                     .help("Activity since midnight")
                 Spacer()
@@ -28,7 +28,7 @@ struct InsightsSection: View {
             HStack {
                 Text("All Time")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .frame(width: labelWidth, alignment: .leading)
                     .help("Cumulative activity across all sessions")
                 Spacer()

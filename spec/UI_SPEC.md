@@ -198,7 +198,7 @@ Each bar:
 - **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.title3, monospaced, semibold)
 - **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
 - **Detail row**: left status + `"Resets in Xh Ym"` (.caption2, .tertiary) always visible on right
-  - Normal: `"X% remaining"` (.caption2, .secondary)
+  - Normal: `"X% remaining"` (.caption2, ThemeColors.secondaryLabel)
   - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 50%, estimate before reset)
   - Throttled: `"Rate limited"` (.caption2, .danger) — shown when per-window status is `"throttled"` OR overall `isThrottled` and window is at 100%
 
@@ -227,7 +227,7 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 - **Refresh button**: `arrow.clockwise` 10pt, .secondary
 - **Health badge**: 8pt colored circle + percentage in monospaced subheadline semibold
 - **Gauge bar**: same style as usage bars (8pt, 3pt radius), width proportional to usagePercentage
-- **Detail row**: `"~{remaining} of {usableWindow} usable"` (.caption, .secondary) + `"{turnCount} turns · {modelName}"` (.caption2, .tertiary)
+- **Detail row**: `"~{remaining} of {usableWindow} usable"` (.caption, ThemeColors.secondaryLabel) + `"{turnCount} turns · {modelName}"` (.caption2, ThemeColors.tertiaryLabel)
   - Percentage and remaining are relative to usable window (80% of raw context window)
   - 100% = Claude Code is about to auto-compact
 - **Safe minimum hint** (orange/red only): `"(keep above ~{20% of usable} for best quality)"` (.caption2, .tertiary)
@@ -306,8 +306,8 @@ Padding: H 16, V 12
 
 ### ❻ Insights (`Views/InsightsSection.swift`)
 
-- Today: `"Today"` label (.caption, .secondary) + `"{msgs} msgs · {sessions} sess · {tools} calls"` (.caption, monospaced)
-- All Time: `"All Time"` label (.caption, .secondary) + `"{messages} msgs · {sessions} sessions"` (.caption, monospaced)
+- Today: `"Today"` label (.caption, ThemeColors.secondaryLabel) + `"{msgs} msgs · {sessions} sess · {tools} calls"` (.caption, monospaced)
+- All Time: `"All Time"` label (.caption, ThemeColors.secondaryLabel) + `"{messages} msgs · {sessions} sessions"` (.caption, monospaced)
 - Each row: label left, stats right (HStack with Spacer)
 
 Padding: H 16, V 12
