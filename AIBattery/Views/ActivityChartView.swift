@@ -325,6 +325,41 @@ struct ActivityChartView: View {
             }
         }
         .padding(.top, 4)
+        .copyable(trendCopyText(snapshot))
+    }
+
+    /// Build a plain-text summary of the current trend stats for clipboard.
+    private func trendCopyText(_ snapshot: UsageSnapshot) -> String {
+        var lines: [String] = []
+        switch mode {
+        case .hourly:
+            if let change = changeVsYesterday(snapshot) {
+                lines.append("\(change.symbol) \(change.label)")
+            }
+            lines.append("\(snapshot.todayMessages) msgs today")
+            let throttles = UsageViewModel.throttleCount(days: 1)
+            lines.append(throttles > 0 ? "\(throttles)× throttled today" : "0 throttles today")
+            if let peak = snapshot.peakHour {
+                lines.append("Peak at \(Self.formatHourLabel(peak)):00")
+            }
+        case .daily:
+            lines.append("\(snapshot.trendDirection.symbol) weekly trend")
+            if let change = changeVsYesterday(snapshot) {
+                lines.append(change.label)
+            }
+            if snapshot.dailyAverage > 0 {
+                lines.append("\(snapshot.dailyAverage) avg/day")
+            }
+            let throttles = UsageViewModel.throttleCount(days: 7)
+            lines.append(throttles > 0 ? "\(throttles)× throttled this week" : "0 throttles this week")
+            if let busiest = snapshot.busiestDayOfWeek {
+                lines.append("Peak on \(busiest.name)s")
+            }
+        case .monthly:
+            let throttles = UsageViewModel.throttleCount(days: 30)
+            lines.append(throttles > 0 ? "\(throttles)× throttled this month" : "0 throttles this month")
+        }
+        return lines.joined(separator: " · ")
     }
 
     // MARK: - 12H trend
