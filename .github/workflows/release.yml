@@ -11,11 +11,25 @@ jobs:
   release:
     name: Build & Publish
     runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_EDDSA_KEY != '' }}
+      HAS_HOMEBREW_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build
+        run: swift build
+
       - name: Run tests
-        run: swift test || swift test
+        run: swift test --skip-build
 
       - name: Build release
         env:
@@ -27,32 +41,44 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: ./scripts/build-app.sh
 
+      - name: Generate checksums
+        run: |
+          cd .build
+          shasum -a 256 AIBattery.zip AIBattery.dmg > checksums-sha256.txt
+          cat checksums-sha256.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             .build/AIBattery.zip
             .build/AIBattery.dmg
+            .build/checksums-sha256.txt
           generate_release_notes: true
 
-      - name: Generate and deploy appcast
-        if: env.SPARKLE_EDDSA_KEY != ''
+      - name: Generate appcast
+        if: env.HAS_SPARKLE_KEY == 'true'
         env:
           SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           ./scripts/generate-appcast.sh "$VERSION"
 
-          # Save appcast to temp before switching branches (branch switch loses .build/)
+      - name: Deploy appcast to gh-pages
+        if: env.HAS_SPARKLE_KEY == 'true'
+        env:
+          SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          # Save appcast before switching branches
           cp .build/appcast.xml /tmp/appcast.xml
 
-          # Deploy appcast.xml to gh-pages branch
           export GIT_AUTHOR_NAME="github-actions[bot]"
           export GIT_AUTHOR_EMAIL="github-actions[bot]@users.noreply.github.com"
           export GIT_COMMITTER_NAME="github-actions[bot]"
           export GIT_COMMITTER_EMAIL="github-actions[bot]@users.noreply.github.com"
 
-          # Fetch gh-pages if it exists, create orphan if not
           if git fetch origin gh-pages 2>/dev/null; then
             git checkout gh-pages
           else
@@ -66,13 +92,11 @@ jobs:
           git push origin gh-pages
 
       - name: Restore source checkout
-        if: env.SPARKLE_EDDSA_KEY != ''
-        env:
-          SPARKLE_EDDSA_KEY: ${{ secrets.SPARKLE_EDDSA_KEY }}
+        if: env.HAS_SPARKLE_KEY == 'true'
         run: git checkout "$GITHUB_REF_NAME"
 
       - name: Update Homebrew cask
-        if: env.HOMEBREW_TAP_TOKEN != ''
+        if: env.HAS_HOMEBREW_TOKEN == 'true'
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
