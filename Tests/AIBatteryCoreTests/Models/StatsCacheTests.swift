@@ -46,8 +46,8 @@ struct StatsCacheTests {
 
     @Test func longestSession_durationFormatted_shortDuration() {
         let session = LongestSession(sessionId: "s1", duration: 30_000, messageCount: 1, timestamp: "2025-01-01T00:00:00Z")
-        // 30 seconds → DurationFormatter.compact rounds up to 1m
-        #expect(session.durationFormatted == "1m")
+        // 30 seconds → DurationFormatter.compact now shows seconds below 60s
+        #expect(session.durationFormatted == "30s")
     }
 
     @Test func longestSession_durationFormatted_zeroDuration() {
