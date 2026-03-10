@@ -268,7 +268,6 @@ Click ⚙️ in the header to configure:
 | 💲 **Cost** | Show equivalent API token rates |
 | 🔔 **Alerts** | Notify on status page outages (all components) |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
-| 🧠 **Context** | Notify when a session enters the orange or red context health band |
 | 🚀 **Launch at Login** | Start automatically when you log in |
 
 </td>

@@ -63,25 +63,6 @@ public final class NotificationManager {
         )
     }
 
-    func checkContextHealthAlerts(sessions: [TokenHealthStatus]) {
-        let enabled = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertContextHealth)
-        guard enabled else { return }
-        for session in sessions {
-            let key = "contextHealth_\(session.id)"
-            let isHighUsage = session.band == .orange || session.band == .red
-            if isHighUsage && !hasFired.contains(key) {
-                hasFired.insert(key)
-                let project = session.projectName ?? "unknown project"
-                send(
-                    title: "AI Battery: Context at \(Int(session.usagePercentage))%",
-                    body: "Session in \(project) — consider starting fresh."
-                )
-            } else if !isHighUsage {
-                hasFired.remove(key)
-            }
-        }
-    }
-
     /// Pure function for testability: whether an alert should fire given the current state.
     nonisolated static func shouldAlert(percent: Double, threshold: Double, previouslyFired: Bool) -> Bool {
         percent >= threshold && !previouslyFired

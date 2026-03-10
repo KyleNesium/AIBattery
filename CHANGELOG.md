@@ -3,7 +3,6 @@
 ## [1.8.3] — 2026-03-10
 
 ### Added
-- **Context health alerts** — optional notification when a session enters the orange or red band (Settings → Alerts → Context)
 - **Idle-filtered empty state** — shows "No active sessions" when all sessions are filtered out by the idle cutoff setting
 - **Relative timestamps** — context health sessions show "just now", "5m ago" etc. instead of absolute times for recent activity
 
