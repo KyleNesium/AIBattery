@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -14,6 +14,7 @@ jobs:
   build-and-test:
     name: Build, Test & Verify
     runs-on: macos-15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +28,11 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
+      - name: Build
+        run: swift build
+
       - name: Run tests
-        run: swift test || swift test
+        run: swift test --skip-build || swift test --skip-build
 
       - name: Verify app bundle
         run: |
