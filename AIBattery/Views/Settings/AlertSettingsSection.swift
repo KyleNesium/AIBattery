@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Status alerts + rate limit alerts.
+/// Status alerts, rate limit alerts, and context health alerts.
 struct AlertSettingsSection: View {
     @AppStorage(UserDefaultsKeys.alertStatus) private var alertStatus: Bool = false
     @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
+    @AppStorage(UserDefaultsKeys.alertContextHealth) private var alertContextHealth: Bool = false
     @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
 
     var body: some View {
@@ -22,6 +23,12 @@ struct AlertSettingsSection: View {
                 .toggleStyle(.checkbox)
                 .font(.caption)
                 .onChange(of: alertRateLimit) { on in
+                    if on { NotificationManager.shared.requestPermission() }
+                }
+            Toggle("Context", isOn: $alertContextHealth)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .onChange(of: alertContextHealth) { on in
                     if on { NotificationManager.shared.requestPermission() }
                 }
             if alertStatus {

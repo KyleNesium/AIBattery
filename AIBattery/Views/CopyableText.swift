@@ -53,6 +53,7 @@ struct CopyableModifier: ViewModifier {
             .onTapGesture {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(value, forType: .string)
+                NSAccessibility.post(element: NSApp as Any, notification: .valueChanged)
 
                 // Cancel any previous feedback timer
                 feedbackTask?.cancel()

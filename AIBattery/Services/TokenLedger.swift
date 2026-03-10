@@ -103,7 +103,11 @@ final class TokenLedger {
         guard let encoded = try? JSONEncoder().encode(ledger) else { return }
         let url = fileURL
         Task.detached(priority: .utility) {
-            try? encoded.write(to: url, options: .atomic)
+            do {
+                try encoded.write(to: url, options: .atomic)
+            } catch {
+                AppLogger.general.warning("TokenLedger save failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

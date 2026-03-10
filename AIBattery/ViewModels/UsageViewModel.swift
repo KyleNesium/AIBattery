@@ -158,6 +158,10 @@ public final class UsageViewModel: ObservableObject {
             NotificationManager.shared.checkRateLimitAlerts(rateLimits: limits)
         }
 
+        if let sessions = snapshot?.topSessionHealths, !sessions.isEmpty {
+            NotificationManager.shared.checkContextHealthAlerts(sessions: sessions)
+        }
+
         #if ENABLE_VERSION_CHECKER
         if availableUpdate == nil {
             availableUpdate = await VersionChecker.shared.checkForUpdate()
