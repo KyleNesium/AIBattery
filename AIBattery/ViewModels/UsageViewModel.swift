@@ -268,7 +268,7 @@ public final class UsageViewModel: ObservableObject {
         defer { wasThrottled = effectivelyThrottled }
         guard effectivelyThrottled, !wasThrottled else { return }
         let now = Date().timeIntervalSince1970
-        var timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
+        var timestamps = parseThrottleTimestamps()
         timestamps.append(now)
         // Prune older than 30 days
         let cutoff = now - 30 * 86400
@@ -277,10 +277,24 @@ public final class UsageViewModel: ObservableObject {
     }
 
     /// Count throttle events within a given number of days.
+    /// Handles both Double and String timestamps (legacy data may be stored as strings).
     static func throttleCount(days: Int) -> Int {
-        let timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
+        let timestamps = parseThrottleTimestamps()
         let cutoff = Date().timeIntervalSince1970 - Double(days) * 86400
         return timestamps.filter { $0 >= cutoff }.count
+    }
+
+    /// Parse throttle timestamps from UserDefaults, handling both numeric and string storage.
+    private static func parseThrottleTimestamps() -> [Double] {
+        guard let raw = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) else {
+            return []
+        }
+        return raw.compactMap { element in
+            if let d = element as? Double { return d }
+            if let s = element as? String { return Double(s) }
+            if let i = element as? Int { return Double(i) }
+            return nil
+        }
     }
 
     private func startPolling() {
