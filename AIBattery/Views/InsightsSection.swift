@@ -39,6 +39,7 @@ struct InsightsSection: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
+
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -56,4 +57,5 @@ struct InsightsSection: View {
     private var allTimeStats: String {
         "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions"
     }
+
 }

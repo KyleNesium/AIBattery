@@ -97,7 +97,7 @@ public final class StatusBarManager: NSObject {
         ])
 
         panel.contentView = visualEffect
-        panel.setContentSize(NSSize(width: 275, height: 600))
+        panel.setContentSize(NSSize(width: 275, height: 700))
 
         // React to snapshot or staleness changes — single subscription avoids double updates
         viewModel.$snapshot

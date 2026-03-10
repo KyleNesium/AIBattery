@@ -100,6 +100,9 @@ public struct UsagePopoverView: View {
                                 Task { await viewModel.refresh() }
                             })
                             Divider()
+                        } else {
+                            idleFilteredEmptyState
+                            Divider()
                         }
                     }
                 }
@@ -380,6 +383,22 @@ public struct UsagePopoverView: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
         .frame(height: 80)
+    }
+
+    private var idleFilteredEmptyState: some View {
+        VStack(spacing: 4) {
+            Text("No active sessions")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            let idleMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
+            if idleMinutes > 0 {
+                Text("Idle cutoff: \(idleMinutes)m")
+                    .font(.caption2)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
     }
 
     /// Returns all metric modes with the selected one first.

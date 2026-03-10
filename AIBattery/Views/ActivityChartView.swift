@@ -32,12 +32,22 @@ struct ActivityChartView: View {
     @State private var cachedMonthly: [ActivityChartData.MonthlyPoint] = []
     @State private var cachedMonthTotals: [String: Int] = [:]
 
-    /// Recompute cached data when inputs change. Called from body via .onChange.
+    /// Recompute cached data for the active mode only. Called from body via .onChange.
     private func refreshCachedData() {
-        cachedDaily = ActivityChartData.dailyData(from: dailyActivity)
-        cachedHourly = ActivityChartData.hourlyData(from: todayHourCounts)
-        cachedMonthly = ActivityChartData.monthlyData(from: dailyActivity)
-        cachedMonthTotals = ActivityChartData.monthTotals(from: dailyActivity)
+        ensureCachedData(for: mode)
+    }
+
+    /// Lazily compute cached data only for the requested mode.
+    private func ensureCachedData(for chartMode: ActivityChartMode) {
+        switch chartMode {
+        case .hourly:
+            cachedHourly = ActivityChartData.hourlyData(from: todayHourCounts)
+        case .daily:
+            cachedDaily = ActivityChartData.dailyData(from: dailyActivity)
+        case .monthly:
+            cachedMonthly = ActivityChartData.monthlyData(from: dailyActivity)
+            cachedMonthTotals = ActivityChartData.monthTotals(from: dailyActivity)
+        }
     }
 
     /// Check source data directly — avoids recomputing chart data just for an emptiness check.
@@ -70,6 +80,7 @@ struct ActivityChartView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Activity, \(collapsed ? "collapsed" : "expanded")")
                 .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
                 .help("Message activity over time")
                 Spacer()
@@ -131,6 +142,7 @@ struct ActivityChartView: View {
         .onChange(of: dailyActivity.count) { _ in refreshCachedData() }
         .onChange(of: snapshot?.totalMessages) { _ in refreshCachedData() }
         .onChange(of: todayHourCounts.values.reduce(0, +)) { _ in refreshCachedData() }
+        .onChange(of: modeRaw) { _ in ensureCachedData(for: mode) }
     }
 
     // MARK: - Shared chart styling

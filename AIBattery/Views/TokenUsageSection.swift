@@ -71,6 +71,7 @@ struct TokenUsageSection: View {
             }
             .buttonStyle(.plain)
             .help("Total tokens used across all models")
+            .accessibilityLabel("Tokens, \(collapsed ? "collapsed" : "expanded")")
             .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
             Spacer()
             if let costText {

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Status alerts + rate limit alerts.
+/// Status alerts and rate limit alerts.
 struct AlertSettingsSection: View {
     @AppStorage(UserDefaultsKeys.alertStatus) private var alertStatus: Bool = false
     @AppStorage(UserDefaultsKeys.alertRateLimit) private var alertRateLimit: Bool = false
