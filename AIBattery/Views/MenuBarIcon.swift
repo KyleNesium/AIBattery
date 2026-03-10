@@ -86,6 +86,7 @@ struct MenuBarIcon: View {
 
     // MARK: - Icon cache
 
+    private static let cacheLock = NSLock()
     private static var iconCache: [Int: NSImage] = [:]
     private static var cachedColorblindFlag: Bool = ThemeColors.isColorblind
     private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
@@ -97,16 +98,20 @@ struct MenuBarIcon: View {
     private static var accessibilityObserverRegistered = false
 
     private static func registerAccessibilityObserverIfNeeded() {
-        guard !accessibilityObserverRegistered else { return }
-        accessibilityObserverRegistered = true
+        cacheLock.withLock {
+            guard !accessibilityObserverRegistered else { return }
+            accessibilityObserverRegistered = true
+        }
 
         let ws = NSWorkspace.shared
         ws.notificationCenter.addObserver(
             forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
             object: nil, queue: .main
         ) { _ in
-            cachedHighContrastFlag = ws.accessibilityDisplayShouldIncreaseContrast
-            iconCache.removeAll()
+            cacheLock.withLock {
+                cachedHighContrastFlag = ws.accessibilityDisplayShouldIncreaseContrast
+                iconCache.removeAll()
+            }
         }
     }
 
@@ -122,20 +127,28 @@ struct MenuBarIcon: View {
 
         let currentAppearance = NSApp?.effectiveAppearance
         let appearanceName = currentAppearance?.name.rawValue ?? ""
+        let currentColorblind = ThemeColors.isColorblind
 
-        if cachedColorblindFlag != ThemeColors.isColorblind
-            || cachedAppearanceName != appearanceName {
-            iconCache.removeAll()
-            cachedColorblindFlag = ThemeColors.isColorblind
-            cachedAppearanceName = appearanceName
+        // Check cache under lock; render outside lock to avoid holding it during image creation
+        let (key, cached, highContrast, isDarkMode): (Int, NSImage?, Bool, Bool) = cacheLock.withLock {
+            if cachedColorblindFlag != currentColorblind
+                || cachedAppearanceName != appearanceName {
+                iconCache.removeAll()
+                cachedColorblindFlag = currentColorblind
+                cachedAppearanceName = appearanceName
+            }
+
+            let qPercent = quantizedPercent(percent)
+            let k = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
+            let hc = cachedHighContrastFlag
+            let dm = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return (k, iconCache[k], hc, dm)
         }
 
-        let qPercent = quantizedPercent(percent)
-        let key = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
-        if let cached = iconCache[key] { return cached }
+        if let cached { return cached }
 
-        let highContrast = cachedHighContrastFlag
-        let isDarkMode = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        // Render without holding the lock — NSImage creation is thread-safe
+        // but can be slow; no need to serialize rendering across threads.
         let icon: NSImage
         if isBroken {
             icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
@@ -144,7 +157,8 @@ struct MenuBarIcon: View {
         } else {
             icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
         }
-        iconCache[key] = icon
+
+        cacheLock.withLock { iconCache[key] = icon }
         return icon
     }
 
