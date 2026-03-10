@@ -284,7 +284,7 @@ public final class StatusBarManager: NSObject {
 
     // MARK: - Breath timer
 
-    /// Breathing cycle: 4s per full cycle, 16 discrete steps (250ms per tick).
+    /// Breathing cycle: 4s per full cycle, 8 discrete steps (500ms per tick).
     /// Always runs. Pauses on screen sleep.
     private func startBreathTimerIfNeeded() {
         guard breathTimer == nil else { return }

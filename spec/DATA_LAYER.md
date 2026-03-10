@@ -56,9 +56,9 @@ Which metric drives the menu bar icon percentage and color.
 
 | Case | rawValue | label | shortLabel |
 |------|----------|-------|------------|
-| `.fiveHour` | `"5h"` | `"5-Hour"` | `"5h"` |
-| `.sevenDay` | `"7d"` | `"7-Day"` | `"7d"` |
-| `.contextHealth` | `"context"` | `"Context"` | `"Ctx"` |
+| `.fiveHour` | `"5h"` | `"5-Hour"` | `"5 Hour"` |
+| `.sevenDay` | `"7d"` | `"7-Day"` | `"7 Day"` |
+| `.contextHealth` | `"context"` | `"Context"` | `"Context"` |
 
 `shortLabel` is a computed property used by the 3-segment picker.
 
@@ -306,6 +306,7 @@ Pricing table (per million tokens):
 - `@MainActor`, Singleton: `.shared`
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
+- **Non-Claude-Code directory filter**: skips project directories whose encoded name contains `--` (indicates a hidden/dot-prefixed path component like `.claude-mem`). Filters out MCP observer sessions and other tools that write JSONL to `~/.claude/projects/`.
 - FileHandle streaming: 64KB buffer, line-by-line, 1MB max line size safety cap (discards oversized lines)
 - **Static members** (avoid per-file allocation): `isoFormatter: ISO8601DateFormatter`, `assistantMarkers: [Data]` (both `"type":"assistant"` and `"type": "assistant"` with space), `usageMarker: Data`, `jsonDecoder: JSONDecoder`
 - Pre-filter: byte search for either assistant marker variant AND `"usage"` before JSON decode
@@ -324,12 +325,13 @@ Pricing table (per million tokens):
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - `@MainActor`, created per-ViewModel (not singleton)
 - **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
-- `aggregate(rateLimits:) -> UsageSnapshot`
-- **Redundant aggregation skip**: tracks a lightweight fingerprint (JSONL entry count, stats-cache modification date, rate limits via `Equatable`, idle session minutes setting). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods.
+- `aggregate(rateLimits:accountId:) -> UsageSnapshot`
+- **Redundant aggregation skip**: tracks a lightweight fingerprint (stats-cache modification date, rate limits via `Equatable`, idle session minutes setting, account ID). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods.
 - **Single-pass filtering**: iterates all entries once to extract today's entries (avoids separate `.filter()` passes)
 - Reads: stats cache, all JSONL entries (single scan)
 - **Token aggregation**: always all-time mode — stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache. All models from `modelUsage` are shown (no recency filter) so totals match the Anthropic dashboard.
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
+- **Token ledger merge**: after `buildModelTokens`, merges with `TokenLedger.shared.merge()` when `accountId` is non-nil. Preserves high-water marks and restores historical models lost from stats-cache. Skipped when unauthenticated (nil account).
 - **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending
 - **All-dates daily activity merge**: groups all JSONL entries by date via `entriesByDate` dictionary, then merges every date into `dailyActivity` (not just today). This fills gaps between a stale stats-cache rebuild date and the present. If JSONL has more messages for a date than the cache entry, replaces it; if no entry exists, appends one. Preserves the higher of JSONL or cache tool-call counts.
 - **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 12H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
@@ -337,6 +339,15 @@ Pricing table (per million tokens):
 - Tool calls from stats cache only (not parsed from JSONL)
 - **Idle session cutoff**: reads `aibattery_idleSessionMinutes` from UserDefaults (0 = never hide), passes to `TokenHealthMonitor.assessSessions(idleCutoffMinutes:)` to filter stale sessions from context health
 - Token health via `TokenHealthMonitor.assessSessions` (single-pass: returns both current + top 5)
+
+### TokenLedger (`Services/TokenLedger.swift`)
+- Singleton: `.shared`, `@MainActor`
+- Persistent high-water-mark storage for per-model token totals per account
+- File: `~/Library/Application Support/AIBattery/token-ledger.json` (1MB size guard on load)
+- `merge(_ tokens: [ModelTokenSummary], accountId: String) -> [ModelTokenSummary]` — takes max of current vs stored for each token type (input, output, cacheRead, cacheWrite). Restores historical models no longer in current data. Returns sorted by totalTokens descending. Writes to disk only when values increase (background `Task.detached`, atomic write).
+- `LedgerData`: `{ accounts: { accountId: { modelId: ModelTokenRecord } } }` — per-account isolation
+- `ModelTokenRecord`: `Codable, Equatable` struct with 4 Int fields
+- Injectable `fileURL` for testing (defaults to Application Support path)
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)
 - Singleton: `.shared`
@@ -427,7 +438,7 @@ Pricing table (per million tokens):
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
 - Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
-- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:totalMessages:)` (error string or nil), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection), `recordThrottleEvent(_:)` (records on not-throttled→throttled transition only, 30-day prune), `throttleCount(days:)` (count throttle events within N days)
+- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:totalMessages:)` (error string or nil), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection), `recordThrottleEvent(_:)` (records on not-throttled→throttled/exhausted transition; detects both explicit throttle status AND 100% utilization on either window; uses `parseThrottleTimestamps()` for mixed-type storage; 30-day prune), `throttleCount(days:)` (count throttle events within N days, handles Double/String/Int timestamps via `parseThrottleTimestamps()`)
 - `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer

@@ -12,8 +12,20 @@ struct DurationFormatterTests {
         #expect(DurationFormatter.compact(-100) == "soon")
     }
 
-    @Test func compact_underOneMinute() {
-        #expect(DurationFormatter.compact(30) == "1m")
+    @Test func compact_underOneMinute_showsSeconds() {
+        #expect(DurationFormatter.compact(30) == "30s")
+    }
+
+    @Test func compact_oneSecond() {
+        #expect(DurationFormatter.compact(1) == "1s")
+    }
+
+    @Test func compact_almostOneMinute() {
+        #expect(DurationFormatter.compact(59) == "59s")
+    }
+
+    @Test func compact_fractionalSeconds_roundsDown() {
+        #expect(DurationFormatter.compact(0.5) == "1s")
     }
 
     @Test func compact_exactMinutes() {

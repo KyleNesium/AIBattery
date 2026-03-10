@@ -86,6 +86,7 @@ AIBattery/
     FileWatcher.swift             — DispatchSource + FSEventStream for live updates
     UsageAggregator.swift         — Merges all data sources → UsageSnapshot
     TokenHealthMonitor.swift      — Analyzes session tokens → health status (single + top N sessions)
+    TokenLedger.swift             — Persistent per-model token high-water marks (Application Support)
     NetworkMonitor.swift          — NWPathMonitor connectivity observer (triggers refresh on recovery)
     StatusChecker.swift           — Fetches status.claude.com system status
     SingleInstanceGuard.swift     — POSIX flock single-instance guard, SIGTERM handler
@@ -156,6 +157,7 @@ Tests/AIBatteryCoreTests/
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
     SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity, rapid consumption, custom config
+    TokenLedgerTests.swift        — high-water-mark merge, historical model restoration, per-account isolation, persistence, sort, file size guard
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
     VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence
     SparkleUpdateServiceTests.swift — Sparkle configuration verification (auto-check disabled, singleton)

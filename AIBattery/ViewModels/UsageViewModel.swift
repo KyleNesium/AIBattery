@@ -30,18 +30,10 @@ public final class UsageViewModel: ObservableObject {
         ThemeColors.registerObserver()
         NetworkMonitor.shared.start()
 
-        // Show local data immediately so the menu bar icon appears fast,
-        // then fetch network data in the background.
-        let aggregator = self.aggregator
-        let localSnapshot = aggregator.aggregate(rateLimits: nil)
-        if localSnapshot.totalMessages > 0 {
-            snapshot = localSnapshot
-            isLoading = false
-        }
-
         setupFileWatcher()
         setupSleepWakeObservers()
         startPolling()
+        // Aggregate local data asynchronously — avoids blocking app launch.
         Task { await refresh() }
     }
 
@@ -67,6 +59,8 @@ public final class UsageViewModel: ObservableObject {
 
         let wasEmpty = snapshot == nil
         if wasEmpty { isLoading = true }
+        // Yield to let SwiftUI render the loading state before blocking on network + aggregation.
+        await Task.yield()
 
         let accountId = oauthManager.accountStore.activeAccountId
         let (api, status) = await fetchAPIData(oauthManager: oauthManager, accountId: accountId)
@@ -82,7 +76,7 @@ public final class UsageViewModel: ObservableObject {
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits)
 
-        let result = aggregator.aggregate(rateLimits: api.rateLimits)
+        let result = aggregator.aggregate(rateLimits: api.rateLimits, accountId: accountId)
         logCorruptionMetrics()
         updateAdaptivePolling(result)
         updateSnapshot(result, api: api)
@@ -187,6 +181,7 @@ public final class UsageViewModel: ObservableObject {
     private func setupFileWatcher() {
         fileWatcher = FileWatcher { [weak self] in
             Task { @MainActor [weak self] in
+                self?.aggregator.invalidate()
                 self?.adaptivePolling.unchangedCycles = 0
                 self?.restartPolling(interval: self?.refreshInterval ?? 60)
                 await self?.refresh()
@@ -251,19 +246,24 @@ public final class UsageViewModel: ObservableObject {
         previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
     }
 
-    /// Track whether the previous poll saw a throttled state.
-    /// Used to detect the transition from not-throttled → throttled.
+    /// Track whether the previous poll saw a throttled/exhausted state.
+    /// Used to detect the transition into a throttled state.
     private static var wasThrottled = false
 
-    /// Record a throttle event only on the transition from not-throttled to throttled.
+    /// Record a throttle event on the transition from normal → throttled/exhausted.
+    /// Detects both explicit API throttle status AND 100% utilization (which means
+    /// the user hit their cap even if the polling window missed the "throttled" status).
     /// Each distinct throttle session counts as one event regardless of duration.
     /// Keeps only the last 30 days of timestamps to avoid unbounded growth.
     static func recordThrottleEvent(_ rateLimits: RateLimitUsage?) {
         let isThrottled = rateLimits?.isThrottled ?? false
-        defer { wasThrottled = isThrottled }
-        guard isThrottled, !wasThrottled else { return }
+        let isExhausted = (rateLimits?.fiveHourUtilization ?? 0) >= 1.0
+            || (rateLimits?.sevenDayUtilization ?? 0) >= 1.0
+        let effectivelyThrottled = isThrottled || isExhausted
+        defer { wasThrottled = effectivelyThrottled }
+        guard effectivelyThrottled, !wasThrottled else { return }
         let now = Date().timeIntervalSince1970
-        var timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
+        var timestamps = parseThrottleTimestamps()
         timestamps.append(now)
         // Prune older than 30 days
         let cutoff = now - 30 * 86400
@@ -272,10 +272,24 @@ public final class UsageViewModel: ObservableObject {
     }
 
     /// Count throttle events within a given number of days.
+    /// Handles both Double and String timestamps (legacy data may be stored as strings).
     static func throttleCount(days: Int) -> Int {
-        let timestamps = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) as? [Double] ?? []
+        let timestamps = parseThrottleTimestamps()
         let cutoff = Date().timeIntervalSince1970 - Double(days) * 86400
         return timestamps.filter { $0 >= cutoff }.count
+    }
+
+    /// Parse throttle timestamps from UserDefaults, handling both numeric and string storage.
+    private static func parseThrottleTimestamps() -> [Double] {
+        guard let raw = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) else {
+            return []
+        }
+        return raw.compactMap { element in
+            if let d = element as? Double { return d }
+            if let s = element as? String { return Double(s) }
+            if let i = element as? Int { return Double(i) }
+            return nil
+        }
     }
 
     private func startPolling() {

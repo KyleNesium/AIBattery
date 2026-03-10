@@ -26,6 +26,14 @@ public struct UsagePopoverView: View {
         return MetricMode(rawValue: metricModeRaw) ?? .fiveHour
     }
 
+    /// Read-only binding that reflects the auto-resolved mode in the segmented picker.
+    private var autoResolvedBinding: Binding<String> {
+        Binding(
+            get: { viewModel.snapshot?.autoResolvedMode.rawValue ?? metricModeRaw },
+            set: { _ in } // Picker is disabled in auto mode — no-op
+        )
+    }
+
     public var body: some View {
         if isAddingAccount {
             AuthView(
@@ -271,7 +279,7 @@ public struct UsagePopoverView: View {
             #endif
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
     }
 
     /// Account picker — shows display name if set, otherwise "Account N".
@@ -382,43 +390,23 @@ public struct UsagePopoverView: View {
     @State private var autoGlowing = false
 
     private var metricToggle: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                autoModeButton
+        HStack(spacing: 6) {
+            autoModeButton
 
-                Spacer()
-                Picker("", selection: $metricModeRaw) {
-                    ForEach(MetricMode.allCases, id: \.rawValue) { mode in
-                        Text(mode.shortLabel).tag(mode.rawValue)
-                    }
+            Picker("", selection: autoMetricMode ? autoResolvedBinding : $metricModeRaw) {
+                ForEach(MetricMode.allCases, id: \.rawValue) { mode in
+                    Text(mode.shortLabel).tag(mode.rawValue)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 190)
-                .opacity(autoMetricMode ? 0.55 : 1.0)
-                .disabled(autoMetricMode)
-                .accessibilityLabel("Metric mode")
-                .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
-                .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
-                Spacer()
             }
-
-            // Auto mode indicator: shows which mode was auto-selected
-            if autoMetricMode, let snapshot = viewModel.snapshot {
-                HStack(spacing: 4) {
-                    Spacer()
-                    Text("\u{2726}")
-                        .font(.caption2)
-                        .foregroundStyle(.blue)
-                    Text("Showing \(snapshot.autoResolvedMode.label)")
-                        .font(.caption2)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
-                    Spacer()
-                }
-                .padding(.top, 4)
-            }
+            .pickerStyle(.segmented)
+            .opacity(autoMetricMode ? 0.55 : 1.0)
+            .disabled(autoMetricMode)
+            .accessibilityLabel("Metric mode")
+            .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
+            .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
     }
 
     private var autoModeButton: some View {
@@ -557,7 +545,7 @@ public struct UsagePopoverView: View {
 
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
     }
 
     private var systemIndicator: StatusIndicator? {

@@ -7,12 +7,12 @@ struct InsightsSection: View {
     private let labelWidth: CGFloat = 55
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             // Today's activity
             HStack {
                 Text("Today")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .frame(width: labelWidth, alignment: .leading)
                     .help("Activity since midnight")
                 Spacer()
@@ -28,7 +28,7 @@ struct InsightsSection: View {
             HStack {
                 Text("All Time")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .frame(width: labelWidth, alignment: .leading)
                     .help("Cumulative activity across all sessions")
                 Spacer()
@@ -41,7 +41,7 @@ struct InsightsSection: View {
             .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Computed strings

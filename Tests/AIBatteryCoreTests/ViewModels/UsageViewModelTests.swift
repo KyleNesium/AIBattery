@@ -162,12 +162,62 @@ struct UsageViewModelTests {
         UserDefaults.standard.removeObject(forKey: key)
     }
 
+    @Test func recordThrottleEvent_exhaustedButNotThrottled_records() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        // 100% utilization but status still says "allowed" (polling caught it late)
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.3,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        UsageViewModel.recordThrottleEvent(nil)
+        UsageViewModel.recordThrottleEvent(rl)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.count == 1)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    @Test func recordThrottleEvent_sevenDayExhausted_records() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        let rl = RateLimitUsage(
+            representativeClaim: "seven_day",
+            fiveHourUtilization: 0.2,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 1.0,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        UsageViewModel.recordThrottleEvent(nil)
+        UsageViewModel.recordThrottleEvent(rl)
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.count == 1)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
     // MARK: - throttleCount
 
     @Test func throttleCount_noData_returnsZero() {
         let key = UserDefaultsKeys.throttleTimestamps
         UserDefaults.standard.removeObject(forKey: key)
         #expect(UsageViewModel.throttleCount(days: 7) == 0)
+    }
+
+    @Test func throttleCount_stringTimestamps_parsedCorrectly() {
+        let key = UserDefaultsKeys.throttleTimestamps
+        let now = Date().timeIntervalSince1970
+        // Simulate legacy string-typed timestamps (the actual bug that caused 0 counts)
+        UserDefaults.standard.set([String(now), String(now - 86400)], forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7) == 2)
+        UserDefaults.standard.removeObject(forKey: key)
     }
 
     @Test func throttleCount_filtersOldEvents() {

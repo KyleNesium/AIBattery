@@ -15,7 +15,7 @@ struct FiveHourBarSection: View {
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow)
         )
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
     }
 }
 
@@ -34,7 +34,7 @@ struct SevenDayBarSection: View {
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow)
         )
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
     }
 }
 
@@ -96,7 +96,20 @@ struct UsageBar: View {
             .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - percent))) percent remaining")
 
             HStack {
-                if isThrottled {
+                let resetDiff = resetsAt.map { $0.timeIntervalSince(Date()) }
+                let expired = (resetDiff ?? 1) <= 0
+
+                if wasExhausted && expired && percent < 1 {
+                    // Was at 100%+, timer hit 0, API confirmed reset — celebrate
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                        Text("Reset")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
+                } else if isThrottled {
                     Text("Rate limited")
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.danger)
@@ -107,21 +120,27 @@ struct UsageBar: View {
                 } else {
                     Text("\(max(0, Int(100 - percent)))% remaining")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                 }
                 Spacer()
-                if let resetsAt {
-                    Text("Resets \(resetTimeString(resetsAt))")
-                        .font(.caption2)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                if let diff = resetDiff {
+                    if diff <= 0 && wasExhausted && percent >= 1 {
+                        Text("Resets soon")
+                            .font(.caption2)
+                            .foregroundStyle(ThemeColors.caution)
+                    } else if diff > 0 {
+                        Text("Resets in \(DurationFormatter.compact(diff))")
+                            .font(.caption2)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                    }
                 }
             }
         }
     }
 
-    private func resetTimeString(_ date: Date) -> String {
-        let diff = date.timeIntervalSince(Date())
-        guard diff > 0 else { return "soon" }
-        return "in \(DurationFormatter.compact(diff))"
+    /// Whether the window was at or near exhaustion (throttled or 100%+).
+    /// Reset celebration/soon states only make sense after high usage.
+    private var wasExhausted: Bool {
+        isThrottled || percent >= 100
     }
 }

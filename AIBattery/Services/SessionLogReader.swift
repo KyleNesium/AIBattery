@@ -139,6 +139,12 @@ final class SessionLogReader {
         for dir in projectDirs {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
 
+            // Skip non-Claude-Code project directories (e.g. MCP observer sessions).
+            // Claude Code encodes the project's absolute path as the directory name,
+            // replacing "/" with "-". A "--" in the name means a path component started
+            // with "." (hidden directory), which real Claude Code projects never use.
+            if dir.lastPathComponent.contains("--") { continue }
+
             // Track each project dir mod date
             if let attrs = try? fm.attributesOfItem(atPath: dir.path),
                let modDate = attrs[.modificationDate] as? Date {
