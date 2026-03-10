@@ -86,6 +86,7 @@ struct MenuBarIcon: View {
 
     // MARK: - Icon cache
 
+    private static let cacheLock = NSLock()
     private static var iconCache: [Int: NSImage] = [:]
     private static var cachedColorblindFlag: Bool = ThemeColors.isColorblind
     private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
@@ -105,8 +106,10 @@ struct MenuBarIcon: View {
             forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
             object: nil, queue: .main
         ) { _ in
-            cachedHighContrastFlag = ws.accessibilityDisplayShouldIncreaseContrast
-            iconCache.removeAll()
+            cacheLock.withLock {
+                cachedHighContrastFlag = ws.accessibilityDisplayShouldIncreaseContrast
+                iconCache.removeAll()
+            }
         }
     }
 
@@ -123,29 +126,31 @@ struct MenuBarIcon: View {
         let currentAppearance = NSApp?.effectiveAppearance
         let appearanceName = currentAppearance?.name.rawValue ?? ""
 
-        if cachedColorblindFlag != ThemeColors.isColorblind
-            || cachedAppearanceName != appearanceName {
-            iconCache.removeAll()
-            cachedColorblindFlag = ThemeColors.isColorblind
-            cachedAppearanceName = appearanceName
-        }
+        return cacheLock.withLock {
+            if cachedColorblindFlag != ThemeColors.isColorblind
+                || cachedAppearanceName != appearanceName {
+                iconCache.removeAll()
+                cachedColorblindFlag = ThemeColors.isColorblind
+                cachedAppearanceName = appearanceName
+            }
 
-        let qPercent = quantizedPercent(percent)
-        let key = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
-        if let cached = iconCache[key] { return cached }
+            let qPercent = quantizedPercent(percent)
+            let key = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
+            if let cached = iconCache[key] { return cached }
 
-        let highContrast = cachedHighContrastFlag
-        let isDarkMode = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let icon: NSImage
-        if isBroken {
-            icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
-        } else if isSparkle {
-            icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
-        } else {
-            icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+            let highContrast = cachedHighContrastFlag
+            let isDarkMode = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let icon: NSImage
+            if isBroken {
+                icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+            } else if isSparkle {
+                icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+            } else {
+                icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+            }
+            iconCache[key] = icon
+            return icon
         }
-        iconCache[key] = icon
-        return icon
     }
 
     // MARK: - Normal star rendering
