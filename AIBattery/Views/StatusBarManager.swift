@@ -81,29 +81,17 @@ public final class StatusBarManager: NSObject {
         // Follow system light/dark appearance so the popover material matches the OS theme
         panel.appearance = NSApp.effectiveAppearance
 
-        // Background: translucent vibrancy in dark mode, solid opaque in light mode.
-        let visualEffect = NSVisualEffectView()
-        visualEffect.material = .popover
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.state = .active
-        visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = 10
-        visualEffect.layer?.masksToBounds = true
-
-        // SwiftUI content
+        // SwiftUI content — background color is set in PopoverContentView
+        // using the system's controlBackgroundColor which adapts to light/dark.
         let hosting = NSHostingView(
             rootView: PopoverContentView(viewModel: viewModel, oauthManager: oauthManager)
         )
         hosting.translatesAutoresizingMaskIntoConstraints = false
-        visualEffect.addSubview(hosting)
-        NSLayoutConstraint.activate([
-            hosting.topAnchor.constraint(equalTo: visualEffect.topAnchor),
-            hosting.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
-            hosting.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-            hosting.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
-        ])
+        hosting.wantsLayer = true
+        hosting.layer?.cornerRadius = 10
+        hosting.layer?.masksToBounds = true
 
-        panel.contentView = visualEffect
+        panel.contentView = hosting
         panel.setContentSize(NSSize(width: 275, height: 700))
 
         // Resize panel when SwiftUI content changes height
@@ -446,7 +434,6 @@ private class PopoverPanel: NSPanel {
 private struct PopoverContentView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject var oauthManager: OAuthManager
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
@@ -457,6 +444,6 @@ private struct PopoverContentView: View {
             }
         }
         .frame(width: 275)
-        .background(colorScheme == .light ? Color(nsColor: .windowBackgroundColor) : Color.clear)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 }

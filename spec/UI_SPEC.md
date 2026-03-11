@@ -377,7 +377,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 **Staleness**: `button.appearsDisabled = true` when last fresh fetch > 5 minutes ago (native dimming).
 
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
-- Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`, handles Cmd+Q) with `NSVisualEffectView` (`.popover` material, 10pt corner radius) + `NSHostingView` content
+- Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`, handles Cmd+Q) with `NSHostingView` content (10pt corner radius via layer)
 - **Dynamic height**: panel resizes to fit SwiftUI content (via `NSView.frameDidChangeNotification` on hosting view), max 700pt, grows downward from fixed top anchor (`panelTopY` set by `positionPanel`)
 - `hidesOnDeactivate = false`, `level = .floating`
 - Closes on: (1) clicking the status item again, (2) pressing Escape, or (3) clicking outside the panel / switching apps
@@ -472,7 +472,7 @@ Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` �
 
 See `spec/CONSTANTS.md` for all color threshold tables.
 
-**Popover background**: solid opaque `windowBackgroundColor` in light mode (no desktop bleed-through); translucent `.popover` vibrancy material with `.behindWindow` blending in dark mode. Panel tracks system appearance changes via KVO on `NSApp.effectiveAppearance`.
+**Popover background**: `controlBackgroundColor` — adapts to light/dark mode automatically. Very dark in dark mode (matches native macOS menus like Battery and Clipy), white in light mode. Panel tracks system appearance changes via KVO on `NSApp.effectiveAppearance`.
 
 **Light/dark mode**: Bar and accent colors use system palette in both modes — the opaque light-mode background provides sufficient contrast for `.systemYellow`, `.systemOrange`, etc. Only text labels and fills use `ThemeColors.adaptive(light:dark:)` for distinct per-appearance values:
 - **Orange** (caution, 80–94% bars, orange band): `.systemOrange` both modes
