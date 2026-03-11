@@ -74,6 +74,7 @@ struct TutorialOverlay: View {
                         .buttonStyle(.plain)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .keyboardShortcut(.cancelAction)
                         .accessibilityLabel("Skip tutorial")
                     }
 
@@ -88,6 +89,7 @@ struct TutorialOverlay: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .keyboardShortcut(.defaultAction)
                 }
             }
             .padding(24)

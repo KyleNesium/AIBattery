@@ -67,16 +67,34 @@ struct UsageSnapshot {
         }
 
         // Tier 3: Urgency-normalized — each mode's thresholds map to a shared 0–1 scale.
+        // Rate limit modes get a time-proximity boost when estimated time to limit is short:
+        // a window hitting its cap in minutes is more urgent than one with hours left.
         // Ties broken by actionability: context > 5h > 7d.
         let scored: [(MetricMode, Double)] = MetricMode.allCases.map { mode in
-            (mode, Self.urgencyScore(percent: percent(for: mode), mode: mode))
+            var score = Self.urgencyScore(percent: percent(for: mode), mode: mode)
+            if let rl = rateLimits {
+                let window = mode == .sevenDay ? RateLimitUsage.sevenDayWindow : RateLimitUsage.fiveHourWindow
+                if mode == .fiveHour || mode == .sevenDay,
+                   let ttl = rl.estimatedTimeToLimit(for: window) {
+                    // Boost: <30min → +0.20, <2h → +0.10, <6h → +0.05
+                    let boost: Double
+                    switch ttl {
+                    case ..<(30 * 60):    boost = 0.20
+                    case ..<(2 * 3600):   boost = 0.10
+                    case ..<(6 * 3600):   boost = 0.05
+                    default:              boost = 0.0
+                    }
+                    score += boost
+                }
+            }
+            return (mode, score)
         }
         let maxUrgency = scored.map(\.1).max() ?? 0
         // Among tied modes, prefer context > 5h > 7d (most actionable first)
         let tiePriority: [MetricMode] = [.contextHealth, .fiveHour, .sevenDay]
         return scored
             .filter { $0.1 == maxUrgency }
-            .min { tiePriority.firstIndex(of: $0.0)! < tiePriority.firstIndex(of: $1.0)! }!
+            .min { (tiePriority.firstIndex(of: $0.0) ?? .max) < (tiePriority.firstIndex(of: $1.0) ?? .max) }!
             .0
     }
 

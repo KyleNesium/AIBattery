@@ -15,12 +15,14 @@ struct AlertSettingsSection: View {
             Toggle("Status", isOn: $alertStatus)
                 .toggleStyle(.checkbox)
                 .font(.caption)
+                .help("Notify on Claude.ai outages and incidents")
                 .onChange(of: alertStatus) { on in
                     if on { NotificationManager.shared.requestPermission() }
                 }
             Toggle("Rate Limit", isOn: $alertRateLimit)
                 .toggleStyle(.checkbox)
                 .font(.caption)
+                .help("Notify when usage exceeds threshold")
                 .onChange(of: alertRateLimit) { on in
                     if on { NotificationManager.shared.requestPermission() }
                 }
@@ -31,6 +33,8 @@ struct AlertSettingsSection: View {
                 .buttonStyle(.plain)
                 .font(.caption2)
                 .foregroundStyle(.blue)
+                .help("Send a test notification")
+                .accessibilityLabel("Test alerts")
             }
         }
         if alertRateLimit {
@@ -40,6 +44,7 @@ struct AlertSettingsSection: View {
                     Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
                         .accessibilityLabel("Rate limit alert threshold")
                         .accessibilityValue("\(Int(rateLimitThreshold)) percent")
+                        .help("Alert when usage exceeds \(Int(rateLimitThreshold))%")
                     Text("\(Int(rateLimitThreshold))%")
                         .font(.system(.caption, design: .monospaced))
                         .frame(width: 28, alignment: .trailing)

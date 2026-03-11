@@ -52,6 +52,7 @@ struct UsageBar: View {
                 HStack(spacing: 4) {
                     Text(label)
                         .font(.subheadline.bold())
+                        .accessibilityAddTraits(.isHeader)
                     if isBinding {
                         Text("binding")
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
@@ -109,18 +110,24 @@ struct UsageBar: View {
                             .font(.caption2)
                             .foregroundStyle(.green)
                     }
+                    .transition(.opacity)
                 } else if isThrottled {
                     Text("Rate limited")
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.danger)
+                        .transition(.opacity)
                 } else if let estimate = estimatedTimeToLimit {
-                    Text("~\(DurationFormatter.compact(estimate)) to limit")
+                    let estimateText = "~\(DurationFormatter.compact(estimate)) to limit"
+                    Text(estimateText)
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.caution)
+                        .copyable(estimateText)
                 } else {
-                    Text("\(max(0, Int(100 - percent)))% remaining")
+                    let remainingText = "\(max(0, Int(100 - percent)))% remaining"
+                    Text(remainingText)
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.secondaryLabel)
+                        .copyable(remainingText)
                 }
                 Spacer()
                 if let diff = resetDiff {
@@ -128,10 +135,13 @@ struct UsageBar: View {
                         Text("Resets soon")
                             .font(.caption2)
                             .foregroundStyle(ThemeColors.caution)
+                            .help("Rate limit window is resetting")
                     } else if diff > 0 {
-                        Text("Resets in \(DurationFormatter.compact(diff))")
+                        let resetText = "Resets in \(DurationFormatter.compact(diff))"
+                        Text(resetText)
                             .font(.caption2)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .copyable(resetText)
                     }
                 }
             }

@@ -58,13 +58,13 @@ struct CopyableModifier: ViewModifier {
                 // Cancel any previous feedback timer
                 feedbackTask?.cancel()
 
-                withAnimation(.easeOut(duration: 0.12)) {
+                withAnimation(.easeOut(duration: 0.15)) {
                     copied = true
                 }
                 feedbackTask = Task {
-                    try? await Task.sleep(nanoseconds: 1_200_000_000)
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
                     guard !Task.isCancelled else { return }
-                    withAnimation(.easeIn(duration: 0.2)) {
+                    withAnimation(.easeIn(duration: 0.15)) {
                         copied = false
                     }
                 }

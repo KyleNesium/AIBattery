@@ -45,8 +45,12 @@
 │ ~~~ area chart ~~~                   │
 │ HH  HH  HH  HH  HH (trailing 12h)  │
 ├──────────────────────────────────────┤
-│ Today   42 msgs · 3 sessions · 128  │  ← ❻ Insights
-│ All Time  1,247 msgs · 89 sessions  │
+│ ▸ Insights     12 msgs · 3 sessions │  ← ❻ Insights
+│   Today   12 msgs · 3 sessions     │     (collapsible)
+│   All Time  1,247 msgs · 89 sess   │
+│   Longest  2h 15m · 42 msgs        │
+│   Tools    128 calls today          │
+│   Period   Nov 6 – Mar 10, 2026    │
 ├──────────────────────────────────────┤
 │ 📊Usage↗  ●Status↗   Logout  Quit │  ← ❼ Footer
 └──────────────────────────────────────┘
@@ -77,7 +81,7 @@ UsagePopoverView (275px, VStack)
 │   └── .animation(.easeInOut(duration: 0.15), value: metricModeRaw) ← scoped to ForEach only
 ├── TokenUsageGate (data check, TokenUsageSection owns collapsed @AppStorage)
 ├── ActivityChartGate (data check, ActivityChartView owns collapsed @AppStorage)
-├── InsightsSection (Today + All Time stats)
+├── InsightsSection (collapsible — Today, All Time, Longest, Tools, Period)
 ├── Divider
 ├── footerSection
 └── .overlay { TutorialOverlay(hasData:) } — self-managing visibility via own @AppStorage
@@ -107,13 +111,13 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
   - **"↓ Install Update"** (.caption2, .blue) — tries Sparkle in-app update; falls back to opening GitHub release if Sparkle not ready
   - **"✕"** dismiss button (xmark.circle.fill, 14pt, .secondary) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
   - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
-- Padding: H 16, V 8
+- Padding: H 16, V 6
 
 ### ❶b Settings (`SettingsRow` — private struct, decomposed into sub-views)
 
 Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppStorage` toggle only redraws its own section.
 
-**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body.
+**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body. Subtle dividers (`Divider().opacity(0.5)`) separate account names, refresh, display, alerts, and startup sub-sections.
 
 **`RefreshSettingsSection`** (owns `refreshInterval`):
 - **Refresh**: Slider (10–60s, step 5) → `aibattery_refreshInterval`
@@ -150,7 +154,7 @@ Padding: H 16, V 8
 
 ### Collapsible Sections
 
-Context Health, Tokens, and Activity sections have collapsible headers. Each section header is a button with a rotating chevron (`chevron.right`, 8pt bold). Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `activityCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
+Context Health, Tokens, Activity, and Insights sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `activityCollapsed`, `insightsCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
 
 ### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
 
@@ -173,13 +177,6 @@ HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, cente
 - **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (≥95%) → rate limit unconditionally beats context health; **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` with piecewise-linear interpolation (see CONSTANTS.md for anchor points); highest urgency wins, context breaks ties. Applied in both popover and menu bar label.
 
 Padding: H 16, V 8
-
-### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
-
-Gate views check data availability and render the section + divider. Sections own their own collapsed `@AppStorage`.
-
-- **`TokenUsageGate`**: renders `TokenUsageSection` + `Divider` when `snapshot.totalTokens > 0`.
-- **`ActivityChartGate`**: renders `ActivityChartView` + `Divider` when activity data is available.
 
 ### MarqueeText (`Views/MarqueeText.swift`)
 
@@ -236,7 +233,7 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 - **Warnings**: triangle icon + message. Strong = filled triangle, red. Mild = outline triangle, orange.
 - **Suggested action**: (.caption2, red or orange based on band)
 
-Padding: H 16, V 12
+Padding: H 16, V 8
 
 ### ❹ Tokens (`Views/TokenUsageSection.swift`)
 
@@ -254,7 +251,7 @@ Padding: H 16, V 12
   - Per-model: cost inline before token total (.caption2 monospaced, ThemeColors.secondaryLabel)
   - All cost values have `.copyable()` modifier
 
-Padding: H 16, V 12
+Padding: H 16, V 8
 
 ### Click-to-Copy Behavior (`Views/CopyableText.swift`)
 
@@ -272,7 +269,8 @@ Compact chart with mode toggle. Positioned below Tokens section.
 - Header row: `"Activity"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
 - Toggle modes: `"12H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
 - **Mode persistence**: `@AppStorage("aibattery_chartMode")` — persists across popover close/reopen
-- Empty state: centered VStack with `chart.line.flattrend.xyaxis` icon (14pt, .quaternary) + `"No activity data"` (.caption2, .tertiary), 50pt height
+- **Collapsed summary**: vs-yesterday change indicator (arrow + delta, colored) — inline right of header
+- Empty state: centered VStack with `chart.line.flattrend.xyaxis` icon (14pt, .tertiary) + `"No activity in {mode} window"` (.caption2, .tertiary), 50pt height
 
 Chart styling (all modes):
   - LineMark: `.orange`, 1.5pt stroke, catmullRom interpolation
@@ -298,21 +296,35 @@ Data per mode:
 - **7D** — Row 1: weekly trend arrow + vs-yesterday change + avg/day. Row 2: throttle count this week + busiest day.
 - **12M** — Row 1: vs-last-month change (projected, ±10% threshold) + this month total (compactCount). Row 2: throttle count this month + busiest month.
 
-Throttle label: `"Throttled: 0"` (ThemeColors.secondaryLabel) or `"Throttled: N×"` (ThemeColors.caution). Reads `UsageViewModel.throttleCount(days:)`.
+Throttle label: `"Throttled: 0×"` (ThemeColors.secondaryLabel) or `"Throttled: N×"` (ThemeColors.caution). Reads `UsageViewModel.throttleCount(days:)`.
 
 All trend stats use `.caption` monospaced font with `ThemeColors.secondaryLabel`. Change indicators use accent colors. Entire trend block is `.copyable()` — builds a plain-text summary via `trendCopyText()` with bullet separators.
 
 `.padding(.top, 4)`
 
-Padding: H 16, V 12
+Padding: H 16, V 8
 
 ### ❻ Insights (`Views/InsightsSection.swift`)
 
-- Today: `"Today"` label (.caption, ThemeColors.secondaryLabel) + `"{msgs} msgs · {sessions} sess · {tools} calls"` (.caption, monospaced)
-- All Time: `"All Time"` label (.caption, ThemeColors.secondaryLabel) + `"{messages} msgs · {sessions} sessions"` (.caption, monospaced)
-- Each row: label left, stats right (HStack with Spacer)
+Collapsible section with `CollapsibleSectionHeader`. Persists via `@AppStorage("aibattery_insightsCollapsed")`.
 
-Padding: H 16, V 12
+**Collapsed summary**: `"{todayMessages} msgs · {todaySessions} sessions"` (.caption2 monospaced, ThemeColors.secondaryLabel) — inline right of header.
+
+**Expanded rows** — each row uses `insightRow(label:value:tooltip:valueColor:)` helper:
+- Label left (55pt fixed width, .caption, ThemeColors.secondaryLabel) + value right (.caption monospaced, .primary)
+- Values have `.contentTransition(.numericText())` and `.copyable()` modifiers
+
+| Row | Label | Value | Condition |
+|-----|-------|-------|-----------|
+| Today | `"Today"` | `"{msgs} msgs · {sessions} sessions"` | Always |
+| All Time | `"All Time"` | `"{totalMessages} msgs · {totalSessions} sessions"` | Always |
+| Longest | `"Longest"` | `"{duration} · {messages} msgs"` | `longestSessionDuration` exists & messages > 0 |
+| Tools | `"Tools"` | `"{todayToolCalls} calls today"` | `todayToolCalls > 0` |
+| Period | `"Period"` | `"Nov 6 – Mar 10, 2026"` (date range) | `firstSessionDate` exists; valueColor: ThemeColors.secondaryLabel |
+
+Date range uses `DateFormatters.formatDateRange(from:to:)` — same year omits start year, cross-year includes both.
+
+Padding: H 16, V 8
 
 ### ❼ Footer (`UsagePopoverView.footerSection`)
 
@@ -320,14 +332,16 @@ Links row in HStack (spacing 10):
 1. **Usage**: chart.bar icon (9pt) + "Usage" + arrow.up.right (6pt) → opens `platform.claude.com/usage`
 2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (6pt) → opens `status.claude.com`
 3. _(Spacer)_
-4. **Logout**: rectangle.portrait.and.arrow.right icon (9pt) + "Logout" → clears OAuth tokens
-5. **Quit**: xmark.circle icon (9pt) + "Quit" → terminates app
+4. **Logout**: rectangle.portrait.and.arrow.right icon (9pt) + "Logout" → two-tap confirmation (first tap shows "Confirm?" in red, auto-reverts after 3s, second tap clears OAuth tokens)
+5. **Quit**: xmark.circle icon (9pt) + "Quit" → terminates app (also via Cmd+Q keyboard shortcut)
 
 Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links row spacing: 10pt.
 
-Active incident banner (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity)
+**Incident banner / timestamp** (mutually exclusive):
+- **Active incidents** (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity). Replaces timestamp.
+- **No incidents**: `"Updated {relative time}"` right-aligned (.system 9pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time.
 
-All text: .caption2, .secondary. Padding: H 16, V 8.
+All text: .caption2, .secondary. Padding: H 16, V 6.
 
 Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray
 
@@ -346,8 +360,9 @@ Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (p
 **Button rendering** (native AppKit, no NSHostingView):
 - `button.image` = `MenuBarIcon.statusBarImage(for: percent)` — star icon colored by usage band
 - `button.title` = percentage or countdown text
-- `button.imagePosition = .imageLeading` for icon-then-text layout
-- `button.font` = `.monospacedDigitSystemFont(ofSize: 0, weight: .regular)` — matches macOS battery indicator style
+- `button.imagePosition = .imageTrailing` — text left, icon right (matches macOS battery layout)
+- `button.imageHugsTitle = true` — tight spacing between text and icon
+- `button.font` = `.monospacedDigitSystemFont(ofSize: 12, weight: .regular)` — 12pt monospaced, matches macOS menu bar status items
 
 **Countdown display**: title shows countdown to reset instead of percentage when any of these conditions are met:
 - `rateLimits.isThrottled == true` → shows binding reset countdown
@@ -362,10 +377,11 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 **Staleness**: `button.appearsDisabled = true` when last fresh fetch > 5 minutes ago (native dimming).
 
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
-- Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`) with `NSVisualEffectView` (`.popover` material, 10pt corner radius) + `NSHostingView` content
+- Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`, handles Cmd+Q) with `NSVisualEffectView` (`.popover` material, 10pt corner radius) + `NSHostingView` content
+- **Dynamic height**: panel resizes to fit SwiftUI content (via `NSView.frameDidChangeNotification` on hosting view), max 700pt, grows downward from menu bar anchor
 - `hidesOnDeactivate = false`, `level = .floating`
 - Closes on: (1) clicking the status item again, (2) pressing Escape, or (3) clicking outside the panel / switching apps
-- Positioned below the status item, centered horizontally, clamped to the status item's screen edges (multi-monitor safe)
+- Positioned below the status item, left-aligned to the status item's left edge, clamped to screen edges (multi-monitor safe)
 - `NSApp.activate(ignoringOtherApps: true)` after showing ensures keyboard events reach it (LSUIElement app)
 - `NSEvent.addLocalMonitorForEvents(matching: .keyDown)` for Escape key dismissal
 - `NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown])` for click-outside dismissal
@@ -380,20 +396,22 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Fill: solid color from caller (matches active metric mode — rate limit or context health thresholds)
 - Stroke: high-contrast → black 0.8 / 1.0pt; light mode → black 0.3 / 0.75pt; dark mode → color 0.6 / 0.5pt
 - `isTemplate = false`
+- `alignmentRect` inset 3pt from left — pulls icon closer to percentage text for tighter macOS battery-style spacing
 
 **Three render modes** based on state:
 
-1. **Breathing mode (normal)**: star itself scales up and down with a soft circular halo behind it
-   - Star scale range grows with usage: 1.0–1.08x at <60%, up to 1.0–1.14x at 95%+
-   - Halo alpha range grows with usage: 0–0.12 at low, 0.12–0.32 at high
-   - Halo radius: star outer radius × scale × 1.15
+1. **Normal mode**: star appearance depends on usage band
+   - **Below 80%**: plain star, no glow, no animation (timer stopped)
+   - **Orange band (80–95%)**: static star-shaped glow (1.25× star size, 18% alpha) directly around the star. No breathing, no timer.
+   - **Red band (≥95%, not throttled)**: breathing star with 12-pointed star glow (spiky, aggressive). Star scale 1.0–1.14x, glow alpha 0.12–0.32. Timer active.
    - Sine-wave breathing factor from discrete pulse step
 
-2. **Broken mode (throttled)**: star fractures into 4 triangular fragments with dramatic pulse
+2. **Broken mode (throttled)**: star fractures into 4 triangular fragments with starburst rays
    - Each point of the 4-pointed star is a triangle (outer tip + two adjacent inner vertices)
    - Each triangle offset outward from center by ~1.5pt along its radial direction
-   - Fragment scale breathes 1.0–1.14x, halo alpha 0.15–0.45
-   - Visible gaps between fragments — the star appears "shattered"
+   - Fragment scale breathes 1.0–1.14x
+   - **Starburst glow**: 12 thin triangular rays radiating outward (replaces circular halo), alpha 0.15–0.45, ray tips extend ~1.3× past star tips and pulse with breath
+   - Visible gaps between fragments — the star appears "shattered" with an explosive burst behind it
 
 3. **Recovery sparkle (throttle → green transition)**: 30s celebration effect after throttle clears
    - Star drawn at normal size, surrounded by subtle twinkling cross sparkles
@@ -404,11 +422,10 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
    - Automatically stops after 30 seconds, returning to normal breathing mode
 
 **Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 8 discrete steps, 500ms per tick).
-- Always active — breathing at all usage levels, dramatic pulse when throttled
+- Active only when visually impactful: throttled (starburst rays), sparkle active, or critical usage (≥95%). Orange band (80–95%) uses static glow — no timer. Below 80%, breathing is imperceptible — timer stopped to save wake-ups.
 - Recovery sparkle overlaid for 30s after throttle clears
 - Pauses on screen sleep, resumes on wake
 - Timer callback uses `MainActor.assumeIsolated` (no async dispatch overhead)
-- Timer stopped only when app terminates
 
 **Star color selection** (by `StatusBarManager`):
 - Rate limit modes: `ThemeColors.barNSColor` (green < 50%, yellow 50–80%, orange 80–95%, red ≥ 95%)
@@ -421,7 +438,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 
 ## Accessibility
 
-- **InsightsSection**: `.accessibilityElement(children: .combine)` on both rows with full labels ("Today: N messages, N sessions, N tool calls")
+- **InsightsSection**: `.accessibilityElement(children: .combine)` on each row with full labels ("Today: N messages, N sessions"). Collapsible via `CollapsibleSectionHeader`.
 - **TokenUsageSection**: `TokenTag` has `accessibilityName` param (input/output/cache read/cache write), model VStack has combined label
 - **UsageBarsSection**: `"Binding constraint"` label on binding badge
 - **TokenHealthSection**: combined label on detail row with remaining tokens, turn count, model name
@@ -433,7 +450,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - **TokenUsageSection**: header ("Total tokens used across all models"), active indicator ("Active model in current session"), token type tags (input/output/cache read/cache write)
 - **TokenHealthSection**: context gauge ("Percentage of usable context window consumed"), turns label, safe minimum hint, expanded session details tooltip
 - **ActivityChartView**: mode picker ("Switch activity chart time range")
-- **InsightsSection**: today/all-time labels
+- **InsightsSection**: header ("Session and message statistics"), each row (Today/All Time/Longest/Tools/Period)
 - **UsagePopoverView**: metric mode picker, auto mode button
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)

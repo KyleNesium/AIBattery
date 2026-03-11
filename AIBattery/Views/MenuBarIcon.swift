@@ -47,11 +47,10 @@ struct MenuBarIcon: View {
     }
 
     /// Glow halo alpha range (min, max) for the soft aura behind the star.
-    /// Only called for percent >= 30 (below that, sparkle mode is used instead).
+    /// Below 80% no halo is drawn (timer is stopped, static icon only).
     static func glowAlphaRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
         switch percent {
-        case ..<60:  return (0.0, 0.12)
-        case ..<80:  return (0.05, 0.18)
+        case ..<80:  return (0.0, 0.0)
         case ..<95:  return (0.08, 0.25)
         default:     return (0.12, 0.32)
         }
@@ -118,8 +117,21 @@ struct MenuBarIcon: View {
     /// Returns the cached status bar NSImage. Color is provided by the caller so it can
     /// match the active metric mode (rate limit thresholds vs context health thresholds).
     /// `isSparkle` triggers the recovery sparkle effect (30s after throttle clears).
+    /// Inset to trim left-side canvas padding so the icon sits tight against the title text.
+    /// macOS battery has ~1pt between text and icon; our 22pt canvas has ~4pt whitespace on each side.
+    private static let iconAlignmentInsets = NSEdgeInsets(top: 0, left: 3, bottom: 0, right: 0)
+
     static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, isSparkle: Bool = false, pulseStep: Int = 0) -> NSImage {
-        cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
+        let cached = cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
+        // Copy to avoid mutating the cached image's alignmentRect
+        let image = cached.copy() as! NSImage
+        image.alignmentRect = NSRect(
+            x: iconAlignmentInsets.left,
+            y: iconAlignmentInsets.bottom,
+            width: image.size.width - iconAlignmentInsets.left - iconAlignmentInsets.right,
+            height: image.size.height - iconAlignmentInsets.top - iconAlignmentInsets.bottom
+        )
+        return image
     }
 
     static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> NSImage {
@@ -166,28 +178,55 @@ struct MenuBarIcon: View {
 
     static func renderIcon(percent: Double, color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
         let size = iconSize
-        let breath = breathFactor(for: pulseStep)
+        let outerRadius: CGFloat = 6.5
+        let innerRadius: CGFloat = 2.0
+
+        // Orange band (80–95%): static glow, no breathing animation.
+        // Red band (≥95%): breathing pulse continues.
+        let isOrangeBand = percent >= 80 && percent < 95
+        let breath = isOrangeBand ? CGFloat(0.5) : breathFactor(for: pulseStep)
         let scaleRange = starScaleRange(for: percent)
         let alphaRange = glowAlphaRange(for: percent)
 
-        let starScale = scaleRange.min + (scaleRange.max - scaleRange.min) * breath
+        let starScale = isOrangeBand ? CGFloat(1.0) : scaleRange.min + (scaleRange.max - scaleRange.min) * breath
         let haloAlpha = alphaRange.min + (alphaRange.max - alphaRange.min) * breath
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             let center = NSPoint(x: size / 2, y: size / 2)
-            let outerRadius: CGFloat = 6.5
-            let innerRadius: CGFloat = 2.0
 
-            // Soft halo — faint circle just behind the star tips
-            if haloAlpha > 0.01 {
+            // Glow behind the star — shape depends on severity
+            if isOrangeBand {
+                // Orange: star-shaped glow directly around the star (no separate halo)
+                let glowPath = starPath(
+                    center: center,
+                    outerRadius: outerRadius * 1.25,
+                    innerRadius: innerRadius * 1.25
+                )
+                ctx.setFillColor(color.withAlphaComponent(0.18).cgColor)
+                ctx.addPath(glowPath.asCGPath)
+                ctx.fillPath()
+            } else if haloAlpha > 0.01 {
                 let haloR = outerRadius * starScale * 1.15
-                let rect = CGRect(x: center.x - haloR, y: center.y - haloR, width: haloR * 2, height: haloR * 2)
                 ctx.setFillColor(color.withAlphaComponent(haloAlpha).cgColor)
-                ctx.fillEllipse(in: rect)
+                if percent >= 95 {
+                    // Red band: many-pointed star glow (spiky, aggressive)
+                    let glowPath = multiPointStarPath(
+                        center: center,
+                        outerRadius: haloR,
+                        innerRadius: haloR * 0.55,
+                        points: 12
+                    )
+                    ctx.addPath(glowPath.asCGPath)
+                    ctx.fillPath()
+                } else {
+                    // Normal: soft circular halo
+                    let rect = CGRect(x: center.x - haloR, y: center.y - haloR, width: haloR * 2, height: haloR * 2)
+                    ctx.fillEllipse(in: rect)
+                }
             }
 
-            // Breathing star — the star itself scales up and down
+            // Star — static for orange band, breathing for others
             let path = starPath(
                 center: center,
                 outerRadius: outerRadius * starScale,
@@ -208,13 +247,19 @@ struct MenuBarIcon: View {
 
     // MARK: - Broken star rendering (throttled)
 
+    /// Number of starburst rays behind the broken star.
+    private static let burstRayCount = 12
+    /// Half-angle width of each burst ray (radians). Smaller = thinner spikes.
+    private static let burstRayHalfAngle: CGFloat = 0.08
+
     static func renderBrokenIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
         let size = iconSize
         let breath = breathFactor(for: pulseStep)
 
         // Broken star breathes more dramatically
         let fragmentScale: CGFloat = 1.0 + breath * 0.14  // 1.0–1.14
-        let haloAlpha: CGFloat = 0.15 + breath * 0.30     // 0.15–0.45
+        let burstAlpha: CGFloat = 0.15 + breath * 0.30    // 0.15–0.45
+        let burstRadius: CGFloat = 6.5 * fragmentScale * 1.3 + breath * 1.0  // rays extend past star tips
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
@@ -223,11 +268,23 @@ struct MenuBarIcon: View {
             let innerRadius: CGFloat = 2.0
             let fragmentOffset: CGFloat = 1.5
 
-            // Soft halo behind fragments
-            let haloR = outerRadius * fragmentScale * 1.15
-            let rect = CGRect(x: center.x - haloR, y: center.y - haloR, width: haloR * 2, height: haloR * 2)
-            ctx.setFillColor(color.withAlphaComponent(haloAlpha).cgColor)
-            ctx.fillEllipse(in: rect)
+            // Starburst rays — thin triangular spikes radiating outward
+            let burstInnerR: CGFloat = outerRadius * fragmentScale * 0.5
+            ctx.setFillColor(color.withAlphaComponent(burstAlpha).cgColor)
+            for i in 0..<burstRayCount {
+                let angle = CGFloat(i) * (2 * .pi / CGFloat(burstRayCount))
+                let tipX = center.x + burstRadius * cos(angle)
+                let tipY = center.y + burstRadius * sin(angle)
+                let leftX = center.x + burstInnerR * cos(angle - burstRayHalfAngle)
+                let leftY = center.y + burstInnerR * sin(angle - burstRayHalfAngle)
+                let rightX = center.x + burstInnerR * cos(angle + burstRayHalfAngle)
+                let rightY = center.y + burstInnerR * sin(angle + burstRayHalfAngle)
+                ctx.move(to: CGPoint(x: leftX, y: leftY))
+                ctx.addLine(to: CGPoint(x: tipX, y: tipY))
+                ctx.addLine(to: CGPoint(x: rightX, y: rightY))
+                ctx.closePath()
+            }
+            ctx.fillPath()
 
             // Broken fragments on top — also breathe
             let fragments = brokenStarFragments(
@@ -317,6 +374,27 @@ struct MenuBarIcon: View {
     }
 
     // MARK: - Geometry helpers
+
+    /// N-pointed star path for glow effects: alternating outer/inner vertices.
+    static func multiPointStarPath(center: NSPoint, outerRadius: CGFloat, innerRadius: CGFloat, points: Int) -> NSBezierPath {
+        let path = NSBezierPath()
+        let totalVertices = points * 2
+        for i in 0..<totalVertices {
+            let angle = (CGFloat(i) * .pi / CGFloat(points)) - (.pi / 2)
+            let radius = i % 2 == 0 ? outerRadius : innerRadius
+            let point = NSPoint(
+                x: center.x + radius * cos(angle),
+                y: center.y + radius * sin(angle)
+            )
+            if i == 0 {
+                path.move(to: point)
+            } else {
+                path.line(to: point)
+            }
+        }
+        path.close()
+        return path
+    }
 
     /// 4-pointed star path: 8 vertices alternating outer/inner radius.
     static func starPath(center: NSPoint, outerRadius: CGFloat, innerRadius: CGFloat) -> NSBezierPath {

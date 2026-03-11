@@ -13,6 +13,8 @@ public struct UsagePopoverView: View {
     @State private var updateBannerDismissed = false
     #endif
     @State private var accountCountAtAddStart = 0
+    @State private var showLogoutConfirm = false
+    @State private var logoutRevertTask: Task<Void, Never>?
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -130,11 +132,12 @@ public struct UsagePopoverView: View {
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
         }
-        #if ENABLE_VERSION_CHECKER
         .onDisappear {
+            logoutRevertTask?.cancel()
+            #if ENABLE_VERSION_CHECKER
             updateCheckDismissTask?.cancel()
+            #endif
         }
-        #endif
     }
 
     private var headerSection: some View {
@@ -148,6 +151,8 @@ public struct UsagePopoverView: View {
                     ProgressView()
                         .scaleEffect(0.6)
                         .frame(width: 16, height: 16)
+                        .help("Refreshing usage data...")
+                        .accessibilityLabel("Loading")
                 }
                 #if ENABLE_VERSION_CHECKER
                 Text("v\(VersionChecker.currentAppVersion)")
@@ -328,6 +333,7 @@ public struct UsagePopoverView: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .accessibilityLabel("Switch account")
+        .accessibilityHint("Select which Claude account to display")
     }
 
     /// Label for an account: display name if set, otherwise "Account N".
@@ -337,20 +343,19 @@ public struct UsagePopoverView: View {
     }
 
     private var loadingView: some View {
-        HStack {
-            Spacer()
+        VStack(spacing: 8) {
             ProgressView()
                 .scaleEffect(0.8)
-            Text("Loading...")
+            Text("Fetching usage data...")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Spacer()
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 80)
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.title3)
                 .foregroundStyle(ThemeColors.caution)
@@ -359,11 +364,17 @@ public struct UsagePopoverView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
-            Button("Retry") { Task { await viewModel.refresh() } }
-                .font(.caption)
-                .buttonStyle(.plain)
-                .foregroundStyle(.blue)
-                .accessibilityHint("Retry loading usage data")
+            Button(action: { Task { await viewModel.refresh() } }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9))
+                    Text("Retry")
+                        .font(.caption)
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.blue)
+            .accessibilityHint("Retry loading usage data")
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
@@ -462,10 +473,19 @@ public struct UsagePopoverView: View {
         .help(autoMetricMode ? "Auto mode: showing highest metric" : "Enable auto mode")
         .onChange(of: autoMetricMode) { active in
             autoGlowing = active
+            announceAutoMode(active)
         }
         .onAppear {
             autoGlowing = autoMetricMode
         }
+    }
+
+    private func announceAutoMode(_ active: Bool) {
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [.announcement: "Auto mode \(active ? "on" : "off")"]
+        )
     }
 
     private var footerSection: some View {
@@ -473,66 +493,61 @@ public struct UsagePopoverView: View {
             // Links row
             HStack(spacing: 10) {
                 // Usage Dashboard
-                Button(action: {
+                FooterLink(
+                    icon: "chart.bar",
+                    label: "Usage",
+                    tooltip: "Open usage dashboard in browser"
+                ) {
                     if let url = URL(string: "https://platform.claude.com/usage") {
                         NSWorkspace.shared.open(url)
                     }
-                }) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "chart.bar")
-                            .font(.system(size: 9))
-                        Text("Usage")
-                            .font(.caption2)
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 6))
-                    }
-                    .fixedSize()
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Open usage dashboard in browser")
-                .accessibilityLabel("Open usage dashboard in browser")
 
                 // Status Page — colored dot acts as status indicator
-                Button(action: {
+                FooterLink(
+                    label: "Status",
+                    tooltip: statusTooltip,
+                    accessibilityLabel: "System status: \(statusTooltip)"
+                ) {
                     if let url = URL(string: StatusChecker.statusPageBaseURL) {
                         NSWorkspace.shared.open(url)
                     }
-                }) {
-                    HStack(spacing: 2) {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 6, height: 6)
-                        Text("Status")
-                            .font(.caption2)
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 6))
-                    }
-                    .fixedSize()
+                } leading: {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 6, height: 6)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help(statusTooltip)
-                .accessibilityLabel("System status: \(statusTooltip)")
-                .accessibilityHint("Open status page in browser")
 
                 Spacer()
 
-                // Logout (active account)
+                // Logout (active account) — two-tap confirmation
                 Button(action: {
-                    OAuthManager.shared.signOut()
+                    if showLogoutConfirm {
+                        logoutRevertTask?.cancel()
+                        OAuthManager.shared.signOut()
+                        showLogoutConfirm = false
+                    } else {
+                        showLogoutConfirm = true
+                        logoutRevertTask?.cancel()
+                        logoutRevertTask = Task {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            guard !Task.isCancelled else { return }
+                            showLogoutConfirm = false
+                        }
+                    }
                 }) {
                     HStack(spacing: 2) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                        Image(systemName: showLogoutConfirm ? "exclamationmark.triangle" : "rectangle.portrait.and.arrow.right")
                             .font(.system(size: 9))
-                        Text("Logout")
+                        Text(showLogoutConfirm ? "Confirm?" : "Logout")
                             .font(.caption2)
                     }
                     .fixedSize()
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Logout")
+                .foregroundStyle(showLogoutConfirm ? .red : .secondary)
+                .animation(.easeInOut(duration: 0.15), value: showLogoutConfirm)
+                .accessibilityLabel(showLogoutConfirm ? "Confirm logout" : "Logout")
                 .accessibilityHint("Sign out of active Claude account")
 
                 // Quit
@@ -549,16 +564,27 @@ public struct UsagePopoverView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                .help("Quit (⌘Q)")
                 .accessibilityLabel("Quit AI Battery")
             }
 
-            // Active incident banner (if any)
+            // Active incident banner replaces timestamp when visible
             if let names = viewModel.systemStatus?.incidentNames, !names.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.caption2)
                         .foregroundStyle(statusColor)
                     MarqueeText(texts: names, color: statusColor)
+                }
+            } else if let lastFetch = viewModel.lastFreshFetch {
+                TimelineView(.periodic(from: .now, by: 10)) { _ in
+                    HStack {
+                        Spacer()
+                        Text("Updated \(Self.relativeTime(lastFetch))")
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .help("Last fetched: \(Self.absoluteTime(lastFetch))")
+                    }
                 }
             }
 
@@ -574,6 +600,25 @@ public struct UsagePopoverView: View {
     private var statusColor: Color {
         guard let indicator = systemIndicator else { return .gray }
         return ThemeColors.statusColor(indicator)
+    }
+
+    private static func relativeTime(_ date: Date) -> String {
+        let elapsed = Date().timeIntervalSince(date)
+        if elapsed < 5 { return "just now" }
+        if elapsed < 60 { return "\(Int(elapsed))s ago" }
+        if elapsed < 3600 { return "\(Int(elapsed / 60))m ago" }
+        return "\(Int(elapsed / 3600))h ago"
+    }
+
+    private static let absoluteFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeStyle = .medium
+        f.dateStyle = .none
+        return f
+    }()
+
+    private static func absoluteTime(_ date: Date) -> String {
+        absoluteFormatter.string(from: date)
     }
 
     private var statusTooltip: String {

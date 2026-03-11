@@ -23,7 +23,7 @@ struct RefreshSettingsSection: View {
                     .frame(width: 28, alignment: .trailing)
             }
             sliderMarks(labels: ["10s", "20s", "30s", "40s", "50s", "60s"], leadingPad: 50)
-            Text("~3 tokens per poll")
+            Text("~3 tokens/poll to update menu bar")
                 .font(.caption2)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, 58)

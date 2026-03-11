@@ -97,9 +97,10 @@ public struct AuthView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    TextField("Paste authorization code...", text: $authCode)
+                    TextField("Paste code...", text: $authCode)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.caption, design: .monospaced))
+                        .onSubmit(submitCode)
                         .accessibilityLabel("Authorization code")
                         .accessibilityHint("Paste the code from the browser")
 
@@ -160,6 +161,7 @@ public struct AuthView: View {
                         .buttonStyle(.plain)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .keyboardShortcut("q", modifiers: .command)
                 }
                 Spacer()
             }
