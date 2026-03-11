@@ -34,24 +34,11 @@ struct TokenHealthSection: View {
         VStack(alignment: .leading, spacing: 6) {
             // Header with session toggle
             HStack {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { collapsed.toggle() }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8, weight: .bold))
-                            .rotationEffect(.degrees(collapsed ? 0 : 90))
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
-                        Text("Context Health")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.primary)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Percentage of usable context window consumed")
-                .accessibilityLabel("Context Health, \(collapsed ? "collapsed" : "expanded")")
-                .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
+                CollapsibleSectionHeader(
+                    title: "Context Health",
+                    collapsed: $collapsed,
+                    tooltip: "Percentage of usable context window consumed"
+                )
                 Spacer()
 
                 if collapsed, let hash = sessionIdPrefix {
@@ -67,13 +54,7 @@ struct TokenHealthSection: View {
                 }
 
                 if !collapsed, let onRefresh {
-                    Button(action: onRefresh) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 10))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("Refresh for latest session")
+                    RefreshButton(action: onRefresh)
                 }
                 healthBadge
             }
@@ -109,10 +90,12 @@ struct TokenHealthSection: View {
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .copyable(detailText)
                     Spacer()
-                    Text("\(health.turnCount) turns · \(modelDisplay)")
+                    let turnsModelText = "\(health.turnCount) turns · \(modelDisplay)"
+                    Text(turnsModelText)
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                         .help("Conversation turns in this session")
+                        .copyable(turnsModelText)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
@@ -274,10 +257,12 @@ struct TokenHealthSection: View {
             // Line 2: duration · last active · velocity
             let bottomParts = sessionBottomParts
             if !bottomParts.isEmpty {
-                Text(bottomParts.joined(separator: " · "))
+                let bottomText = bottomParts.joined(separator: " · ")
+                Text(bottomText)
                     .font(.caption2)
                     .foregroundStyle(ThemeColors.secondaryLabel)
                     .lineLimit(1)
+                    .copyable(bottomText)
             }
         }
         .help(sessionDetailTooltip)

@@ -50,6 +50,22 @@ struct DateFormattersTests {
         #expect(DateFormatters.shortMonth.string(from: date) == "Jan")
     }
 
+    // MARK: - formatDateRange
+
+    @Test func formatDateRange_sameYear_omitsStartYear() {
+        let start = makeDate(year: 2026, month: 1, day: 5)
+        let end = makeDate(year: 2026, month: 3, day: 10)
+        let result = DateFormatters.formatDateRange(from: start, to: end)
+        #expect(result == "Jan 5 – Mar 10, 2026")
+    }
+
+    @Test func formatDateRange_crossYear_includesBothYears() {
+        let start = makeDate(year: 2025, month: 12, day: 15)
+        let end = makeDate(year: 2026, month: 3, day: 10)
+        let result = DateFormatters.formatDateRange(from: start, to: end)
+        #expect(result == "Dec 15, 2025 – Mar 10, 2026")
+    }
+
     // MARK: - Locale pinning
 
     @Test func allFormatters_usePOSIXLocale() {

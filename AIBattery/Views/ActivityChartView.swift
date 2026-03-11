@@ -65,24 +65,11 @@ struct ActivityChartView: View {
         VStack(alignment: .leading, spacing: 6) {
             // Header with toggle
             HStack {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { collapsed.toggle() }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8, weight: .bold))
-                            .rotationEffect(.degrees(collapsed ? 0 : 90))
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
-                        Text("Activity")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.primary)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Activity, \(collapsed ? "collapsed" : "expanded")")
-                .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
-                .help("Message activity over time")
+                CollapsibleSectionHeader(
+                    title: "Activity",
+                    collapsed: $collapsed,
+                    tooltip: "Message activity over time"
+                )
                 Spacer()
                 if collapsed, let snapshot, let change = changeVsYesterday(snapshot) {
                     Text(change.symbol)
@@ -114,7 +101,7 @@ struct ActivityChartView: View {
                     Image(systemName: "chart.line.flattrend.xyaxis")
                         .font(.system(size: 14))
                         .foregroundStyle(ThemeColors.tertiaryLabel)
-                    Text("No activity data")
+                    Text("No activity in \(mode.rawValue) window")
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
@@ -134,6 +121,7 @@ struct ActivityChartView: View {
             // Trend summary
             if !collapsed, let snapshot {
                 trendSummary(snapshot)
+                    .accessibilityElement(children: .combine)
             }
         }
         .padding(.horizontal, 16)
@@ -438,7 +426,7 @@ struct ActivityChartView: View {
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(ThemeColors.caution)
             } else {
-                Text("Throttled: 0")
+                Text("Throttled: 0×")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }

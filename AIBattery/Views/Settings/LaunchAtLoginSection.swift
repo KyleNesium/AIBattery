@@ -13,6 +13,7 @@ struct LaunchAtLoginSection: View {
             Toggle("Launch at Login", isOn: $launchAtLogin)
                 .toggleStyle(.checkbox)
                 .font(.caption)
+                .help("Start AI Battery when you log in to macOS")
                 .onAppear {
                     launchAtLogin = LaunchAtLoginManager.isEnabled
                 }

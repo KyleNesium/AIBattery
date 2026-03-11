@@ -49,21 +49,28 @@ enum ThemeColors {
     /// the opaque light-mode background provides enough contrast.
     private static let deepOrange = Color(nsColor: .systemOrange)
 
+    /// System colors wrapped as SwiftUI Color — matches barNSColor exactly.
+    private static let sysGreen = Color(nsColor: .systemGreen)
+    private static let sysRed = Color(nsColor: .systemRed)
+    private static let sysBlue = Color(nsColor: .systemBlue)
+    private static let sysCyan = Color(nsColor: .systemTeal)
+    private static let sysPurple = Color(nsColor: .systemPurple)
+
     /// Color for a usage percentage (0–100).
     static func barColor(percent: Double) -> Color {
         if isColorblind {
             switch percent {
-            case 0..<50: return .blue
-            case 50..<80: return .cyan
+            case 0..<50: return sysBlue
+            case 50..<80: return sysCyan
             case 80..<95: return amber
-            default: return .purple
+            default: return sysPurple
             }
         }
         switch percent {
-        case 0..<50: return .green
+        case 0..<50: return sysGreen
         case 50..<80: return gold
         case 80..<95: return deepOrange
-        default: return .red
+        default: return sysRed
         }
     }
 

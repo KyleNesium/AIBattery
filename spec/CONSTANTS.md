@@ -142,6 +142,7 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 | Context collapsed | `aibattery_contextCollapsed` (Bool, default false) |
 | Tokens collapsed | `aibattery_tokensCollapsed` (Bool, default false) |
 | Activity collapsed | `aibattery_activityCollapsed` (Bool, default false) |
+| Insights collapsed | `aibattery_insightsCollapsed` (Bool, default false) |
 | Format | `"$X.XX"` or `"<$0.01"` for sub-penny amounts |
 | Note | Shows what the same token usage would cost at API rates — Pro/Max/Teams subscribers aren't billed per-token |
 
@@ -233,7 +234,9 @@ Pricing per million tokens:
 | Pulse steps per cycle | 8 |
 | Pulse cycle duration | 4.0 sec |
 | Pulse tick interval | 500ms (4s ÷ 8) |
-| Breath timer threshold | ≥80% usage, throttled, or sparkle active (static icon below 80%) |
+| Breath timer threshold | ≥95% usage, throttled, or sparkle active (orange 80–95% uses static glow, no timer) |
+| Burst ray count | 12 |
+| Burst ray half-angle | 0.08 radians |
 | Health dot size | 8pt |
 | Status dot size | 6pt |
 | Model dot size | 8pt |

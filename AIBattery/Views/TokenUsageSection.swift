@@ -55,24 +55,11 @@ struct TokenUsageSection: View {
         let totalTokensText = TokenFormatter.format(snapshot.totalTokens)
         let costText: String? = showCost ? ModelPricing.formatCost(ModelPricing.totalCost(for: snapshot.modelTokens)) : nil
         return HStack {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { collapsed.toggle() }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .bold))
-                        .rotationEffect(.degrees(collapsed ? 0 : 90))
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
-                    Text("Tokens")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.primary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Total tokens used across all models")
-            .accessibilityLabel("Tokens, \(collapsed ? "collapsed" : "expanded")")
-            .accessibilityHint(collapsed ? "Double-tap to expand" : "Double-tap to collapse")
+            CollapsibleSectionHeader(
+                title: "Tokens",
+                collapsed: $collapsed,
+                tooltip: "Total tokens used across all models"
+            )
             Spacer()
             if let costText {
                 Text(costText)
@@ -83,6 +70,8 @@ struct TokenUsageSection: View {
             }
             Text(totalTokensText)
                 .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.4), value: totalTokensText)
                 .frame(width: tokenColumnWidth, alignment: .trailing)
                 .copyable(totalTokensText)
         }
@@ -128,6 +117,7 @@ struct TokenUsageSection: View {
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .frame(width: costColumnWidth, alignment: .trailing)
+                        .copyable(modelCostText)
                 }
 
                 Text(modelTokensText)

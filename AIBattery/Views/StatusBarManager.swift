@@ -17,6 +17,7 @@ public final class StatusBarManager: NSObject {
     private var isPanelShowing = false
     private var deactivationObserver: Any?
     private var appearanceObserver: NSKeyValueObservation?
+    private var frameObserver: Any?
 
     // Breathing glow animation state
     private var breathTimer: Timer?
@@ -46,10 +47,13 @@ public final class StatusBarManager: NSObject {
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
         if let button = item.button {
             button.image = MenuBarIcon.statusBarImage(for: 0, color: ThemeColors.barNSColor(percent: 0))
-            button.imagePosition = .imageLeading
-            button.title = "—"
-            // Match macOS battery indicator: system font with monospaced digits
-            button.font = .monospacedDigitSystemFont(ofSize: 0, weight: .regular)
+            // Text left, icon right — matches macOS battery layout
+            button.imagePosition = .imageTrailing
+            button.imageHugsTitle = true
+            button.title = "..."
+            // Match macOS battery percentage text: monospaced digits at menu bar size.
+            // macOS menu bar uses ~12pt for status items; battery percentage matches this.
+            button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
             button.action = #selector(statusItemClicked)
             button.target = self
             button.setAccessibilityLabel("AI Battery")
@@ -98,6 +102,30 @@ public final class StatusBarManager: NSObject {
 
         panel.contentView = visualEffect
         panel.setContentSize(NSSize(width: 275, height: 700))
+
+        // Resize panel when SwiftUI content changes height
+        hosting.setContentHuggingPriority(.defaultHigh, for: .vertical)
+        hosting.postsFrameChangedNotifications = true
+        frameObserver = NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification,
+            object: hosting,
+            queue: .main
+        ) { [weak panel, weak hosting] _ in
+            guard let panel, let hosting else { return }
+            let fittingHeight = min(hosting.fittingSize.height, 700)
+            let currentFrame = panel.frame
+            let newHeight = max(fittingHeight, 100)
+            // Grow downward from top (menu bar anchor)
+            let newOrigin = NSPoint(
+                x: currentFrame.origin.x,
+                y: currentFrame.origin.y + currentFrame.height - newHeight
+            )
+            panel.setFrame(
+                NSRect(origin: newOrigin, size: NSSize(width: 275, height: newHeight)),
+                display: true,
+                animate: false
+            )
+        }
 
         // React to snapshot or staleness changes — single subscription avoids double updates
         viewModel.$snapshot
@@ -169,6 +197,7 @@ public final class StatusBarManager: NSObject {
         if let observer = deactivationObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let obs = frameObserver { NotificationCenter.default.removeObserver(obs) }
         appearanceObserver?.invalidate()
         breathTimer?.invalidate()
         sparkleTimer?.invalidate()
@@ -219,10 +248,10 @@ public final class StatusBarManager: NSObject {
         currentIsThrottled = isThrottled
         hasReceivedFirstUpdate = true
 
-        // Animate only when visually impactful: throttled, sparkle, or high usage (≥80%).
-        // Below 80%, the breathing effect is barely perceptible (1.00-1.08 scale, 0-0.12 halo)
-        // and stopping the timer saves 4 wake-ups/second during normal (majority) usage.
-        if isThrottled || isSparkleActive || percent >= 80 {
+        // Animate only when visually impactful: throttled (burst rays), sparkle, or critical (≥95%).
+        // Orange band (80–95%) uses a static glow — no timer needed.
+        // Below 80%, breathing is imperceptible — timer stopped to save wake-ups.
+        if isThrottled || isSparkleActive || percent >= 95 {
             startBreathTimerIfNeeded()
         } else {
             stopBreathTimer()
@@ -368,8 +397,8 @@ public final class StatusBarManager: NSObject {
         let panelWidth = panel.frame.width
         let panelHeight = panel.frame.height
 
-        // Center horizontally below the status item, clamp to screen edges
-        var x = screenRect.midX - panelWidth / 2
+        // Left-align panel to the status item's left edge
+        var x = screenRect.minX
         let y = screenRect.minY - panelHeight - 4
 
         if let screen = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame {
@@ -395,6 +424,8 @@ private class PopoverPanel: NSPanel {
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // Escape
             orderOut(nil)
+        } else if event.keyCode == 12 && event.modifierFlags.contains(.command) { // Cmd+Q
+            NSApplication.shared.terminate(nil)
         } else {
             super.keyDown(with: event)
         }

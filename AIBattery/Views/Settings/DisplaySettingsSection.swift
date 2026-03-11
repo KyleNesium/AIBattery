@@ -23,6 +23,7 @@ struct DisplaySettingsSection: View {
                 Text(idleLabel)
                     .font(.system(.caption, design: .monospaced))
                     .frame(width: 28, alignment: .trailing)
+                    .help(idleSessionMinutes == 0 ? "Show all sessions" : "Hide sessions idle > \(idleLabel)")
             }
             sliderMarks(labels: ["30m", "1h", "2h", "4h", "8h", "\u{221E}"], leadingPad: 50)
         }
@@ -40,6 +41,7 @@ struct DisplaySettingsSection: View {
             Toggle("Cost", isOn: $showCostEstimate)
                 .toggleStyle(.checkbox)
                 .font(.caption)
+                .help("Show estimated API cost per model")
         }
     }
 

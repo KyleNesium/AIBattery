@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.8.4] — 2026-03-11
+
+### Added
+- **Collapsible Insights** — Insights section now collapses like other sections, with 5 expanded rows: Today, All Time, Longest Session, Tools, and data Period (date range)
+- **Two-tap logout** — logout button requires confirmation tap (auto-reverts after 3s) to prevent accidental sign-out
+- **"Updated X ago" timestamp** — footer shows relative time since last fetch (refreshes every 10s); replaced by incident banner when active
+- **Star-shaped glow system** — menu bar icon uses severity-based visual effects: no glow below 80%, static star glow at 80–95%, breathing star glow at 95%+, starburst rays when throttled
+- **Time-proximity boost** — auto mode urgency scoring now factors in estimated time to rate limit, not just percentage
+- **Shared components** — extracted `CollapsibleSectionHeader`, `FooterLink`, and `RefreshButton` into reusable views
+- **Date range formatter** — `DateFormatters.formatDateRange` with same-year/cross-year handling + 2 tests
+- **Activity collapsed summary** — shows vs-yesterday change indicator inline with header
+- **Copyable estimates** — time-to-limit and reset countdown values are now click-to-copy
+
+### Improved
+- **Menu bar layout** — text-first icon layout (imageTrailing) with 12pt monospaced digits matching macOS battery indicator
+- **Panel behavior** — dynamic height resizing, Cmd+Q support, left-aligned to status item
+- **Loading/error states** — centered vertical layout with retry icon, clearer "Fetching usage data..." message
+- **Accessibility** — VoiceOver announcements for auto mode toggle, accessibility hints on account picker, loading spinner, and quit button
+- **CI workflow** — skip doc-only changes, skip draft PRs, added manual workflow_dispatch trigger
+- **Unified colors** — menu bar icon and in-app views now share the same ThemeColors palette
+- **Animation efficiency** — timer stopped below 80% usage (no visible effect), orange band uses static glow without timer
+
+### Fixed
+- **Insights abbreviation** — collapsed summary now shows "sessions" instead of unrecognizable "sess" abbreviation
+
 ## [1.8.3] — 2026-03-10
 
 ### Added

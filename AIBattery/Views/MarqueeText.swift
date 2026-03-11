@@ -67,6 +67,9 @@ struct MarqueeText: View {
         }
         .clipped()
         .frame(height: 14)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(texts.joined(separator: ", "))
+        .accessibilityHint(texts.count > 1 ? "Cycles through \(texts.count) items" : "")
         .onChange(of: texts) { _ in restart() }
         .onAppear { beginCycle() }
         .onDisappear { cancelAndStop() }

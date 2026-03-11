@@ -11,6 +11,7 @@ struct SettingsRow: View {
             Text("Settings")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .accessibilityAddTraits(.isHeader)
 
             // Per-account names
             ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
@@ -34,9 +35,13 @@ struct SettingsRow: View {
                 }
             }
 
+            Divider().opacity(0.5)
             RefreshSettingsSection(viewModel: viewModel)
+            Divider().opacity(0.5)
             DisplaySettingsSection()
+            Divider().opacity(0.5)
             AlertSettingsSection()
+            Divider().opacity(0.5)
             LaunchAtLoginSection()
         }
         .padding(.horizontal, 16)
@@ -57,6 +62,7 @@ struct SettingsRow: View {
             TextField("Account \(index + 1)", text: nameBinding(for: account.id))
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
+                .help("Display name for this account (max 30 chars)")
             if accountStore.accounts.count > 1 {
                 Button(action: {
                     OAuthManager.shared.signOut(accountId: account.id)

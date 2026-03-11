@@ -111,8 +111,11 @@ AIBattery/
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
-    InsightsSection.swift         — Today stats, all-time stats
+    InsightsSection.swift         — Collapsible insights: Today, All Time, Longest, Tools, Period (date range)
     ActivityChartView.swift        — 12H/7D/12M activity chart (Swift Charts, rolling windows)
+    CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 4 sections
+    FooterLink.swift              — Footer link button with hover underline and external arrow
+    RefreshButton.swift           — Refresh button with brief spin animation
     CopyableText.swift            — ViewModifier for click-to-copy with clipboard icon feedback
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
   Utilities/
