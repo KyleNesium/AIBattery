@@ -79,15 +79,24 @@ else
   echo "Warning: Sparkle.framework not found in build artifacts — update functionality requires it"
 fi
 
-# Codesign inner frameworks before signing the outer bundle
+# Codesign inside-out: XPC services → frameworks → app bundle.
+# Each layer must be signed before its parent. Avoid --deep on the outer
+# bundle — it would re-sign nested bundles with the app's identifier,
+# breaking Sparkle's XPC services (macOS requires codesign identifier to
+# match CFBundleIdentifier for XPC launch).
 echo "Codesigning..."
 if [ -d "$APP_DIR/Contents/Frameworks" ]; then
   for item in "$APP_DIR/Contents/Frameworks"/*.framework; do
     [ -e "$item" ] || continue
+    # Sign XPC services first (innermost)
+    for xpc in "$item"/Versions/Current/XPCServices/*.xpc; do
+      [ -e "$xpc" ] || continue
+      echo "  Signing XPC: $(basename "$xpc")"
+      codesign --sign "$SIGN_IDENTITY" --force --options runtime "$xpc"
+    done
+    # Sign framework (without --deep — XPCs already signed)
     echo "  Signing: $(basename "$item")"
-    codesign --sign "$SIGN_IDENTITY" --force --deep \
-      --options runtime \
-      "$item"
+    codesign --sign "$SIGN_IDENTITY" --force --options runtime "$item"
   done
 fi
 
@@ -97,12 +106,24 @@ if [ -n "${APP_STORE_BUILD:-}" ]; then
   ENTITLEMENTS="AIBattery/AIBattery-AppStore.entitlements"
 fi
 
-# Codesign the outer bundle — gives the app a stable identity for Keychain ACL
-codesign --sign "$SIGN_IDENTITY" --deep --force \
+# Codesign the outer bundle (without --deep — inner bundles already signed)
+codesign --sign "$SIGN_IDENTITY" --force \
   --entitlements "$ENTITLEMENTS" \
   --identifier com.KyleNesium.AIBattery \
   --options runtime \
   "$APP_DIR"
+
+# Verify XPC services retained their original bundle identifiers
+for xpc in "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/*.xpc; do
+  [ -e "$xpc" ] || continue
+  EXPECTED_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$xpc/Contents/Info.plist")
+  ACTUAL_ID=$(codesign -dv "$xpc" 2>&1 | grep "^Identifier=" | cut -d= -f2)
+  if [ "$EXPECTED_ID" != "$ACTUAL_ID" ]; then
+    echo "ERROR: $(basename "$xpc") identifier mismatch: expected=$EXPECTED_ID actual=$ACTUAL_ID"
+    exit 1
+  fi
+  echo "  Verified: $(basename "$xpc") → $ACTUAL_ID"
+done
 
 echo "Done! App bundle at: $APP_DIR"
 

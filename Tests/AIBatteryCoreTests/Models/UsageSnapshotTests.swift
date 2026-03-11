@@ -446,6 +446,27 @@ struct UsageSnapshotTests {
         #expect(fiveHourScore == sevenDayScore)
     }
 
+    @Test func urgencyScore_midpointInterpolation_rateLimit() {
+        // 65% is midpoint between anchors (50→0.25, 80→0.50)
+        // t = (65 - 50) / (80 - 50) = 0.5 → 0.25 + 0.5 * 0.25 = 0.375
+        let score = UsageSnapshot.urgencyScore(percent: 65, mode: .fiveHour)
+        #expect(score == 0.375)
+    }
+
+    @Test func urgencyScore_midpointInterpolation_contextHealth() {
+        // 70% is midpoint between anchors (60→0.25, 80→0.50)
+        // t = (70 - 60) / (80 - 60) = 0.5 → 0.25 + 0.5 * 0.25 = 0.375
+        let score = UsageSnapshot.urgencyScore(percent: 70, mode: .contextHealth)
+        #expect(score == 0.375)
+    }
+
+    @Test func urgencyScore_contextHealth_90percent() {
+        // 90% is midpoint between anchors (80→0.50, 100→1.0)
+        // t = (90 - 80) / (100 - 80) = 0.5 → 0.50 + 0.5 * 0.50 = 0.75
+        let score = UsageSnapshot.urgencyScore(percent: 90, mode: .contextHealth)
+        #expect(score == 0.75)
+    }
+
     // MARK: - dailyAverage
 
     @Test func dailyAverage_emptyActivity() {

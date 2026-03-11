@@ -52,3 +52,14 @@ jobs:
           ./scripts/build-app.sh
           codesign --verify --deep .build/AIBattery.app
           echo "Codesign OK"
+          # Verify Sparkle XPC identifiers match bundle IDs (prevents auto-update breakage)
+          for xpc in .build/AIBattery.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/*.xpc; do
+            [ -e "$xpc" ] || continue
+            expected=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$xpc/Contents/Info.plist")
+            actual=$(codesign -dv "$xpc" 2>&1 | grep "^Identifier=" | cut -d= -f2)
+            if [ "$expected" != "$actual" ]; then
+              echo "FAIL: $(basename "$xpc") id mismatch: expected=$expected actual=$actual"
+              exit 1
+            fi
+          done
+          echo "XPC identity check OK"
