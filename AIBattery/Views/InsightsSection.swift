@@ -34,6 +34,15 @@ struct InsightsSection: View {
                 )
                 .accessibilityLabel("Today: \(snapshot.todayMessages) messages, \(snapshot.todaySessions) sessions")
 
+                // Tool calls (today's detail)
+                if snapshot.todayToolCalls > 0 {
+                    insightRow(
+                        label: "Tools",
+                        value: "\(snapshot.todayToolCalls) calls today",
+                        tooltip: "Tool invocations today"
+                    )
+                }
+
                 // All time
                 insightRow(
                     label: "All Time",
@@ -42,7 +51,7 @@ struct InsightsSection: View {
                 )
                 .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
 
-                // Longest session
+                // Longest session (all-time detail)
                 if let duration = snapshot.longestSessionDuration, snapshot.longestSessionMessages > 0 {
                     let longestText = "\(duration) \u{00B7} \(snapshot.longestSessionMessages) msgs"
                     insightRow(
@@ -52,16 +61,7 @@ struct InsightsSection: View {
                     )
                 }
 
-                // Tool calls (if any)
-                if snapshot.todayToolCalls > 0 {
-                    insightRow(
-                        label: "Tools",
-                        value: "\(snapshot.todayToolCalls) calls today",
-                        tooltip: "Tool invocations today"
-                    )
-                }
-
-                // Date range
+                // Date range (metadata)
                 if let range = dataDateRange {
                     insightRow(
                         label: "Period",

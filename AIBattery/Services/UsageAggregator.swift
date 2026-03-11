@@ -203,6 +203,11 @@ final class UsageAggregator {
         let peakHour = peakEntry.flatMap { Int($0.key) }
         let peakHourCount = peakEntry?.value ?? 0
 
+        // Sort by date so dailyActivity.last is the most recent day.
+        // Stats-cache entries are pre-sorted, but JSONL-only days are appended
+        // in arbitrary dictionary iteration order.
+        activity.sort { $0.date < $1.date }
+
         let activityStats = UsageSnapshot.computeActivityStats(activity)
 
         let snapshot = UsageSnapshot(
