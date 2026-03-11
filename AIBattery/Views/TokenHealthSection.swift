@@ -368,7 +368,7 @@ struct TokenHealthSection: View {
                 .fill(bandColor)
                 .frame(width: 8, height: 8)
             Text("\(Int(health.usagePercentage))%")
-                .font(.system(.title3, design: .monospaced, weight: .semibold))
+                .font(.system(.headline, design: .monospaced, weight: .semibold))
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.4), value: Int(health.usagePercentage))
                 .copyable("\(Int(health.usagePercentage))%")

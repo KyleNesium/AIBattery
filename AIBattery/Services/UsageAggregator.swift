@@ -63,8 +63,22 @@ final class UsageAggregator {
         var todayEntries: [AssistantUsageEntry] = []
         var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
 
+        // Cache last date key — consecutive entries usually share the same day,
+        // avoiding 90%+ of DateFormatter.string(from:) calls (expensive: locale + calendar).
+        var lastDay: Date?
+        var lastDateKey: String = ""
+
         for entry in allEntries {
-            let dateKey = Self.dateFormatter.string(from: entry.timestamp)
+            let entryDay = calendar.startOfDay(for: entry.timestamp)
+            let dateKey: String
+            if entryDay == lastDay {
+                dateKey = lastDateKey
+            } else {
+                dateKey = Self.dateFormatter.string(from: entry.timestamp)
+                lastDay = entryDay
+                lastDateKey = dateKey
+            }
+
             var bucket = entriesByDate[dateKey] ?? (messages: 0, sessions: [])
             bucket.messages += 1
             bucket.sessions.insert(entry.sessionId)
@@ -188,6 +202,11 @@ final class UsageAggregator {
         let peakEntry = hourCounts.max(by: { $0.value < $1.value })
         let peakHour = peakEntry.flatMap { Int($0.key) }
         let peakHourCount = peakEntry?.value ?? 0
+
+        // Sort by date so dailyActivity.last is the most recent day.
+        // Stats-cache entries are pre-sorted, but JSONL-only days are appended
+        // in arbitrary dictionary iteration order.
+        activity.sort { $0.date < $1.date }
 
         let activityStats = UsageSnapshot.computeActivityStats(activity)
 

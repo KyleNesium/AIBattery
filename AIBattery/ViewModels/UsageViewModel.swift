@@ -246,50 +246,29 @@ public final class UsageViewModel: ObservableObject {
         previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
     }
 
-    /// Track whether the previous poll saw a throttled/exhausted state.
-    /// Used to detect the transition into a throttled state.
-    private static var wasThrottled = false
+    /// Throttle transition tracker — pure struct, side-effects handled here.
+    private static var throttleTracker = ThrottleTracker()
 
     /// Record a throttle event on the transition from normal → throttled/exhausted.
-    /// Detects both explicit API throttle status AND 100% utilization (which means
-    /// the user hit their cap even if the polling window missed the "throttled" status).
     /// Each distinct throttle session counts as one event regardless of duration.
-    /// Keeps only the last 30 days of timestamps to avoid unbounded growth.
     static func recordThrottleEvent(_ rateLimits: RateLimitUsage?) {
-        let isThrottled = rateLimits?.isThrottled ?? false
-        let isExhausted = (rateLimits?.fiveHourUtilization ?? 0) >= 1.0
-            || (rateLimits?.sevenDayUtilization ?? 0) >= 1.0
-        let effectivelyThrottled = isThrottled || isExhausted
-        defer { wasThrottled = effectivelyThrottled }
-        guard effectivelyThrottled, !wasThrottled else { return }
-        let now = Date().timeIntervalSince1970
-        var timestamps = parseThrottleTimestamps()
-        timestamps.append(now)
-        // Prune older than 30 days
-        let cutoff = now - 30 * 86400
-        timestamps = timestamps.filter { $0 >= cutoff }
-        UserDefaults.standard.set(timestamps, forKey: UserDefaultsKeys.throttleTimestamps)
+        let (next, timestamp) = throttleTracker.evaluate(rateLimits)
+        throttleTracker = next
+        if let timestamp {
+            let existing = ThrottleTracker.parseTimestamps(
+                UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps)
+            )
+            let updated = ThrottleTracker.appendAndPrune(timestamps: existing, newTimestamp: timestamp)
+            UserDefaults.standard.set(updated, forKey: UserDefaultsKeys.throttleTimestamps)
+        }
     }
 
     /// Count throttle events within a given number of days.
-    /// Handles both Double and String timestamps (legacy data may be stored as strings).
     static func throttleCount(days: Int) -> Int {
-        let timestamps = parseThrottleTimestamps()
-        let cutoff = Date().timeIntervalSince1970 - Double(days) * 86400
-        return timestamps.filter { $0 >= cutoff }.count
-    }
-
-    /// Parse throttle timestamps from UserDefaults, handling both numeric and string storage.
-    private static func parseThrottleTimestamps() -> [Double] {
-        guard let raw = UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps) else {
-            return []
-        }
-        return raw.compactMap { element in
-            if let d = element as? Double { return d }
-            if let s = element as? String { return Double(s) }
-            if let i = element as? Int { return Double(i) }
-            return nil
-        }
+        let timestamps = ThrottleTracker.parseTimestamps(
+            UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps)
+        )
+        return ThrottleTracker.count(timestamps: timestamps, days: days)
     }
 
     private func startPolling() {

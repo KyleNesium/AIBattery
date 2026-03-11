@@ -122,16 +122,7 @@ struct MenuBarIcon: View {
     private static let iconAlignmentInsets = NSEdgeInsets(top: 0, left: 3, bottom: 0, right: 0)
 
     static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, isSparkle: Bool = false, pulseStep: Int = 0) -> NSImage {
-        let cached = cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
-        // Copy to avoid mutating the cached image's alignmentRect
-        let image = cached.copy() as! NSImage
-        image.alignmentRect = NSRect(
-            x: iconAlignmentInsets.left,
-            y: iconAlignmentInsets.bottom,
-            width: image.size.width - iconAlignmentInsets.left - iconAlignmentInsets.right,
-            height: image.size.height - iconAlignmentInsets.top - iconAlignmentInsets.bottom
-        )
-        return image
+        cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
     }
 
     static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> NSImage {
@@ -170,6 +161,14 @@ struct MenuBarIcon: View {
             icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
         }
 
+        // Bake alignment rect into the icon so statusBarImage can return
+        // the cached instance directly without copying on every call.
+        icon.alignmentRect = NSRect(
+            x: iconAlignmentInsets.left,
+            y: iconAlignmentInsets.bottom,
+            width: icon.size.width - iconAlignmentInsets.left - iconAlignmentInsets.right,
+            height: icon.size.height - iconAlignmentInsets.top - iconAlignmentInsets.bottom
+        )
         cacheLock.withLock { iconCache[key] = icon }
         return icon
     }
@@ -254,12 +253,12 @@ struct MenuBarIcon: View {
 
     static func renderBrokenIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
         let size = iconSize
-        let breath = breathFactor(for: pulseStep)
 
-        // Broken star breathes more dramatically
-        let fragmentScale: CGFloat = 1.0 + breath * 0.14  // 1.0–1.14
-        let burstAlpha: CGFloat = 0.15 + breath * 0.30    // 0.15–0.45
-        let burstRadius: CGFloat = 6.5 * fragmentScale * 1.3 + breath * 1.0  // rays extend past star tips
+        // Static broken star — frozen at peak intensity (no breathing).
+        // Saves timer wakeups + image renders while staying visually distinct.
+        let fragmentScale: CGFloat = 1.14
+        let burstAlpha: CGFloat = 0.45
+        let burstRadius: CGFloat = 6.5 * fragmentScale * 1.3 + 1.0
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }

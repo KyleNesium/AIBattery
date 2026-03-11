@@ -22,8 +22,29 @@ struct DailyActivity: Codable, Identifiable {
 
     var id: String { date }
 
-    var parsedDate: Date? {
-        DateFormatters.dateKey.date(from: date)
+    /// Cached parsed date — computed once at decode time instead of on every access.
+    /// `DateFormatter.date(from:)` is expensive (locale + calendar resolution per call).
+    let parsedDate: Date?
+
+    init(date: String, messageCount: Int, sessionCount: Int, toolCallCount: Int) {
+        self.date = date
+        self.messageCount = messageCount
+        self.sessionCount = sessionCount
+        self.toolCallCount = toolCallCount
+        self.parsedDate = DateFormatters.dateKey.date(from: date)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        date = try container.decode(String.self, forKey: .date)
+        messageCount = try container.decode(Int.self, forKey: .messageCount)
+        sessionCount = try container.decode(Int.self, forKey: .sessionCount)
+        toolCallCount = try container.decode(Int.self, forKey: .toolCallCount)
+        parsedDate = DateFormatters.dateKey.date(from: date)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case date, messageCount, sessionCount, toolCallCount
     }
 }
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.5] — 2026-03-12
+
+### Improved
+- **Native dark mode** — panel background uses `controlBackgroundColor` matching macOS Battery, Clipy, and other menu bar apps in both light and dark mode
+- **Static throttle icon** — broken star frozen at peak intensity when throttled (no breathing animation), saving CPU wake-ups and image renders
+- **Panel stability** — collapse/expand sections no longer causes panel to drift downward; resize observer uses fixed top anchor
+
+### Changed
+- **Removed NSVisualEffectView** — replaced with system `controlBackgroundColor` for reliable appearance across all macOS display modes (translucent, opaque, high contrast)
+
 ## [1.8.4] — 2026-03-11
 
 ### Added

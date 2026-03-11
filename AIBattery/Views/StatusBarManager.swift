@@ -18,6 +18,9 @@ public final class StatusBarManager: NSObject {
     private var deactivationObserver: Any?
     private var appearanceObserver: NSKeyValueObservation?
     private var frameObserver: Any?
+    /// Absolute Y coordinate of the panel's top edge (just below the menu bar).
+    /// Set by `positionPanel` and used by the resize observer to keep the top anchored.
+    private var panelTopY: CGFloat = 0
 
     // Breathing glow animation state
     private var breathTimer: Timer?
@@ -78,29 +81,17 @@ public final class StatusBarManager: NSObject {
         // Follow system light/dark appearance so the popover material matches the OS theme
         panel.appearance = NSApp.effectiveAppearance
 
-        // Background: translucent vibrancy in dark mode, solid opaque in light mode.
-        let visualEffect = NSVisualEffectView()
-        visualEffect.material = .popover
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.state = .active
-        visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = 10
-        visualEffect.layer?.masksToBounds = true
-
-        // SwiftUI content
+        // SwiftUI content — background color is set in PopoverContentView
+        // using the system's controlBackgroundColor which adapts to light/dark.
         let hosting = NSHostingView(
             rootView: PopoverContentView(viewModel: viewModel, oauthManager: oauthManager)
         )
         hosting.translatesAutoresizingMaskIntoConstraints = false
-        visualEffect.addSubview(hosting)
-        NSLayoutConstraint.activate([
-            hosting.topAnchor.constraint(equalTo: visualEffect.topAnchor),
-            hosting.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
-            hosting.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-            hosting.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
-        ])
+        hosting.wantsLayer = true
+        hosting.layer?.cornerRadius = 10
+        hosting.layer?.masksToBounds = true
 
-        panel.contentView = visualEffect
+        panel.contentView = hosting
         panel.setContentSize(NSSize(width: 275, height: 700))
 
         // Resize panel when SwiftUI content changes height
@@ -110,15 +101,14 @@ public final class StatusBarManager: NSObject {
             forName: NSView.frameDidChangeNotification,
             object: hosting,
             queue: .main
-        ) { [weak panel, weak hosting] _ in
-            guard let panel, let hosting else { return }
+        ) { [weak panel, weak hosting, weak self] _ in
+            guard let panel, let hosting, let self else { return }
             let fittingHeight = min(hosting.fittingSize.height, 700)
-            let currentFrame = panel.frame
             let newHeight = max(fittingHeight, 100)
-            // Grow downward from top (menu bar anchor)
+            // Grow downward from fixed top anchor (set by positionPanel)
             let newOrigin = NSPoint(
-                x: currentFrame.origin.x,
-                y: currentFrame.origin.y + currentFrame.height - newHeight
+                x: panel.frame.origin.x,
+                y: self.panelTopY - newHeight
             )
             panel.setFrame(
                 NSRect(origin: newOrigin, size: NSSize(width: 275, height: newHeight)),
@@ -248,10 +238,13 @@ public final class StatusBarManager: NSObject {
         currentIsThrottled = isThrottled
         hasReceivedFirstUpdate = true
 
-        // Animate only when visually impactful: throttled (burst rays), sparkle, or critical (≥95%).
+        // Animate only when visually impactful: sparkle or critical (≥95%).
+        // Throttled uses a static broken star — no timer needed.
         // Orange band (80–95%) uses a static glow — no timer needed.
         // Below 80%, breathing is imperceptible — timer stopped to save wake-ups.
-        if isThrottled || isSparkleActive || percent >= 95 {
+        if isThrottled {
+            stopBreathTimer()
+        } else if isSparkleActive || percent >= 95 {
             startBreathTimerIfNeeded()
         } else {
             stopBreathTimer()
@@ -405,6 +398,9 @@ public final class StatusBarManager: NSObject {
             x = max(screen.minX + 4, min(x, screen.maxX - panelWidth - 4))
         }
 
+        // Store absolute top anchor so the resize observer can keep top pinned
+        panelTopY = screenRect.minY - 4
+
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 }
@@ -438,7 +434,6 @@ private class PopoverPanel: NSPanel {
 private struct PopoverContentView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject var oauthManager: OAuthManager
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
@@ -449,6 +444,6 @@ private struct PopoverContentView: View {
             }
         }
         .frame(width: 275)
-        .background(colorScheme == .light ? Color(nsColor: .windowBackgroundColor) : Color.clear)
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 }
