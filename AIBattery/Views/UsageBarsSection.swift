@@ -73,7 +73,7 @@ struct UsageBar: View {
                 }
                 Spacer()
                 Text("\(Int(percent))%")
-                    .font(.system(.title3, design: .monospaced, weight: .semibold))
+                    .font(.system(.headline, design: .monospaced, weight: .semibold))
                     .contentTransition(.numericText())
                     .animation(.easeInOut(duration: 0.4), value: Int(percent))
                     .copyable("\(Int(percent))%")

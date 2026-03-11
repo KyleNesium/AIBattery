@@ -192,7 +192,7 @@ News-ticker style scrolling text view. Supports single or multiple texts.
 `FiveHourBarSection` + `SevenDayBarSection`, each wrapping a shared `UsageBar` view.
 
 Each bar:
-- **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.title3, monospaced, semibold)
+- **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.headline, monospaced, semibold)
 - **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
 - **Detail row**: left status + reset countdown on right
   - Normal: `"X% remaining"` (.caption2, secondaryLabel) + `"Resets in Xh Ym"` (.caption2, .tertiary)
