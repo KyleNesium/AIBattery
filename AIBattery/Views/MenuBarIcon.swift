@@ -253,12 +253,12 @@ struct MenuBarIcon: View {
 
     static func renderBrokenIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
         let size = iconSize
-        let breath = breathFactor(for: pulseStep)
 
-        // Broken star breathes more dramatically
-        let fragmentScale: CGFloat = 1.0 + breath * 0.14  // 1.0–1.14
-        let burstAlpha: CGFloat = 0.15 + breath * 0.30    // 0.15–0.45
-        let burstRadius: CGFloat = 6.5 * fragmentScale * 1.3 + breath * 1.0  // rays extend past star tips
+        // Static broken star — frozen at peak intensity (no breathing).
+        // Saves timer wakeups + image renders while staying visually distinct.
+        let fragmentScale: CGFloat = 1.14
+        let burstAlpha: CGFloat = 0.45
+        let burstRadius: CGFloat = 6.5 * fragmentScale * 1.3 + 1.0
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }

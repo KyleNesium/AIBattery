@@ -378,7 +378,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
 - Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`, handles Cmd+Q) with `NSVisualEffectView` (`.popover` material, 10pt corner radius) + `NSHostingView` content
-- **Dynamic height**: panel resizes to fit SwiftUI content (via `NSView.frameDidChangeNotification` on hosting view), max 700pt, grows downward from menu bar anchor
+- **Dynamic height**: panel resizes to fit SwiftUI content (via `NSView.frameDidChangeNotification` on hosting view), max 700pt, grows downward from fixed top anchor (`panelTopY` set by `positionPanel`)
 - `hidesOnDeactivate = false`, `level = .floating`
 - Closes on: (1) clicking the status item again, (2) pressing Escape, or (3) clicking outside the panel / switching apps
 - Positioned below the status item, left-aligned to the status item's left edge, clamped to screen edges (multi-monitor safe)
@@ -406,12 +406,13 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
    - **Red band (≥95%, not throttled)**: breathing star with 12-pointed star glow (spiky, aggressive). Star scale 1.0–1.14x, glow alpha 0.12–0.32. Timer active.
    - Sine-wave breathing factor from discrete pulse step
 
-2. **Broken mode (throttled)**: star fractures into 4 triangular fragments with starburst rays
+2. **Broken mode (throttled)**: star fractures into 4 triangular fragments with starburst rays — **static, no animation**
    - Each point of the 4-pointed star is a triangle (outer tip + two adjacent inner vertices)
    - Each triangle offset outward from center by ~1.5pt along its radial direction
-   - Fragment scale breathes 1.0–1.14x
-   - **Starburst glow**: 12 thin triangular rays radiating outward (replaces circular halo), alpha 0.15–0.45, ray tips extend ~1.3× past star tips and pulse with breath
+   - Fragment scale fixed at 1.14x (peak intensity)
+   - **Starburst glow**: 12 thin triangular rays radiating outward, alpha 0.45, ray tips extend ~1.3× past star tips
    - Visible gaps between fragments — the star appears "shattered" with an explosive burst behind it
+   - No timer needed — single cached image, zero CPU wake-ups
 
 3. **Recovery sparkle (throttle → green transition)**: 30s celebration effect after throttle clears
    - Star drawn at normal size, surrounded by subtle twinkling cross sparkles
@@ -422,7 +423,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
    - Automatically stops after 30 seconds, returning to normal breathing mode
 
 **Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 8 discrete steps, 500ms per tick).
-- Active only when visually impactful: throttled (starburst rays), sparkle active, or critical usage (≥95%). Orange band (80–95%) uses static glow — no timer. Below 80%, breathing is imperceptible — timer stopped to save wake-ups.
+- Active only when visually impactful: sparkle active or critical usage (≥95%). Throttled uses static broken star — no timer. Orange band (80–95%) uses static glow — no timer. Below 80%, breathing is imperceptible — timer stopped to save wake-ups.
 - Recovery sparkle overlaid for 30s after throttle clears
 - Pauses on screen sleep, resumes on wake
 - Timer callback uses `MainActor.assumeIsolated` (no async dispatch overhead)
@@ -432,7 +433,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
 - Throttled: always red/critical band
 
-**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–7) for normal, `10_100 + pulseStep` for broken, `10_200 + pulseStep` for sparkle. Max entries: 21×8 + 8 + 8 = 184. Cache invalidates on colorblind/appearance/contrast change.
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–7) for normal, `10_100 + pulseStep` for broken (static, always step 0 → 1 entry), `10_200 + pulseStep` for sparkle. Max entries: 21×8 + 1 + 8 = 177. Cache invalidates on colorblind/appearance/contrast change.
 
 - **`statusBarImage(for:color:isBroken:isSparkle:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
 
