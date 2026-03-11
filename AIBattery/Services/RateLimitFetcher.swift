@@ -158,6 +158,8 @@ final class RateLimitFetcher {
             if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
                 if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {
                     try? await Task.sleep(for: .seconds(delay))
+                    // Bail if the task was cancelled during sleep (account switch, app sleep, etc.)
+                    guard !Task.isCancelled else { return cached.map { .success($0) } ?? .networkError }
                     if let (_, retryResp) = try? await SecureNetworking.data(for: request),
                        let retryHttp = retryResp as? HTTPURLResponse,
                        retryHttp.statusCode == 200 || retryHttp.statusCode == 400 {

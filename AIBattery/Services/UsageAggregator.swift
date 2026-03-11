@@ -63,8 +63,22 @@ final class UsageAggregator {
         var todayEntries: [AssistantUsageEntry] = []
         var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
 
+        // Cache last date key — consecutive entries usually share the same day,
+        // avoiding 90%+ of DateFormatter.string(from:) calls (expensive: locale + calendar).
+        var lastDay: Date?
+        var lastDateKey: String = ""
+
         for entry in allEntries {
-            let dateKey = Self.dateFormatter.string(from: entry.timestamp)
+            let entryDay = calendar.startOfDay(for: entry.timestamp)
+            let dateKey: String
+            if entryDay == lastDay {
+                dateKey = lastDateKey
+            } else {
+                dateKey = Self.dateFormatter.string(from: entry.timestamp)
+                lastDay = entryDay
+                lastDateKey = dateKey
+            }
+
             var bucket = entriesByDate[dateKey] ?? (messages: 0, sessions: [])
             bucket.messages += 1
             bucket.sessions.insert(entry.sessionId)
