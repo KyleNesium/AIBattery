@@ -62,67 +62,72 @@ public struct UsagePopoverView: View {
 
             Divider()
 
-            if showSettings {
-                SettingsRow(
-                    viewModel: viewModel,
-                    accountStore: accountStore,
-                    onAddAccount: { isAddingAccount = true }
-                )
-                .transition(.opacity.combined(with: .move(edge: .top)))
-                Divider()
-            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if showSettings {
+                        SettingsRow(
+                            viewModel: viewModel,
+                            accountStore: accountStore,
+                            onAddAccount: { isAddingAccount = true }
+                        )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        Divider()
+                    }
 
-            if let snapshot = viewModel.snapshot {
-                // Metric mode toggle
-                metricToggle
-                Divider()
+                    if let snapshot = viewModel.snapshot {
+                        // Metric mode toggle
+                        metricToggle
+                        Divider()
 
-                // Sections reordered: selected metric first, then the others.
-                // Animation scoped here — only metric sections animate on mode change.
-                ForEach(orderedModes, id: \.rawValue) { mode in
-                    switch mode {
-                    case .fiveHour:
-                        if let limits = snapshot.rateLimits {
-                            FiveHourBarSection(limits: limits)
-                            Divider()
+                        // Sections reordered: selected metric first, then the others.
+                        // Animation scoped here — only metric sections animate on mode change.
+                        ForEach(orderedModes, id: \.rawValue) { mode in
+                            switch mode {
+                            case .fiveHour:
+                                if let limits = snapshot.rateLimits {
+                                    FiveHourBarSection(limits: limits)
+                                    Divider()
+                                }
+                            case .sevenDay:
+                                if let limits = snapshot.rateLimits {
+                                    SevenDayBarSection(limits: limits)
+                                    Divider()
+                                }
+                            case .contextHealth:
+                                if !snapshot.topSessionHealths.isEmpty {
+                                    TokenHealthSection(sessions: snapshot.topSessionHealths, onRefresh: {
+                                        Task { await viewModel.refresh() }
+                                    })
+                                    Divider()
+                                } else if let health = snapshot.tokenHealth {
+                                    TokenHealthSection(health: health, onRefresh: {
+                                        Task { await viewModel.refresh() }
+                                    })
+                                    Divider()
+                                } else {
+                                    idleFilteredEmptyState
+                                    Divider()
+                                }
+                            }
                         }
-                    case .sevenDay:
-                        if let limits = snapshot.rateLimits {
-                            SevenDayBarSection(limits: limits)
-                            Divider()
+                        .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
+
+                        TokenUsageGate(snapshot: snapshot)
+                        ActivityChartGate(snapshot: snapshot)
+
+                        if snapshot.totalMessages > 0 {
+                            InsightsSection(snapshot: snapshot)
                         }
-                    case .contextHealth:
-                        if !snapshot.topSessionHealths.isEmpty {
-                            TokenHealthSection(sessions: snapshot.topSessionHealths, onRefresh: {
-                                Task { await viewModel.refresh() }
-                            })
-                            Divider()
-                        } else if let health = snapshot.tokenHealth {
-                            TokenHealthSection(health: health, onRefresh: {
-                                Task { await viewModel.refresh() }
-                            })
-                            Divider()
-                        } else {
-                            idleFilteredEmptyState
-                            Divider()
-                        }
+                    } else if viewModel.isLoading {
+                        loadingView
+                    } else if let error = viewModel.errorMessage {
+                        errorView(error)
+                    } else {
+                        emptyView
                     }
                 }
-                .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
-
-                TokenUsageGate(snapshot: snapshot)
-                ActivityChartGate(snapshot: snapshot)
-
-                if snapshot.totalMessages > 0 {
-                    InsightsSection(snapshot: snapshot)
-                }
-            } else if viewModel.isLoading {
-                loadingView
-            } else if let error = viewModel.errorMessage {
-                errorView(error)
-            } else {
-                emptyView
             }
+            .scrollIndicators(.hidden)
 
             Divider()
             footerSection
