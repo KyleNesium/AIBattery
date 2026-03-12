@@ -70,17 +70,18 @@ struct MenuBarIcon: View {
         return Int((clamped / 5).rounded(.down)) * 5
     }
 
-    /// Composite cache key: quantized percent × 100 + pulseStep for normal,
-    /// 10_100 + pulseStep for broken, 10_200 + pulseStep for sparkle.
-    /// Max entries: 21×8 + 8 + 8 = 184.
-    static func cacheKey(quantizedPercent: Int, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> Int {
+    /// Composite cache key incorporating percent, color, state, and pulse step.
+    /// Color hash distinguishes the same percent across metric modes
+    /// (e.g. rate limit green vs context health yellow at 75%).
+    /// Max entries: 21×8 + 8 + 8 = 184 per color variant.
+    static func cacheKey(quantizedPercent: Int, colorHash: Int, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> Int {
         if isBroken {
-            return 10_100 + pulseStep
+            return 10_100 + pulseStep + colorHash &* 100_000
         }
         if isSparkle {
-            return 10_200 + pulseStep
+            return 10_200 + pulseStep + colorHash &* 100_000
         }
-        return quantizedPercent * 100 + pulseStep
+        return quantizedPercent * 100 + pulseStep + colorHash &* 100_000
     }
 
     // MARK: - Icon cache
@@ -133,6 +134,7 @@ struct MenuBarIcon: View {
         let currentColorblind = ThemeColors.isColorblind
 
         // Check cache under lock; render outside lock to avoid holding it during image creation
+        let colorHash = color.hash
         let (key, cached, highContrast, isDarkMode): (Int, NSImage?, Bool, Bool) = cacheLock.withLock {
             if cachedColorblindFlag != currentColorblind
                 || cachedAppearanceName != appearanceName {
@@ -142,7 +144,7 @@ struct MenuBarIcon: View {
             }
 
             let qPercent = quantizedPercent(percent)
-            let k = cacheKey(quantizedPercent: qPercent, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
+            let k = cacheKey(quantizedPercent: qPercent, colorHash: colorHash, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
             let hc = cachedHighContrastFlag
             let dm = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             return (k, iconCache[k], hc, dm)
