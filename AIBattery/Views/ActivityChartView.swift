@@ -23,6 +23,12 @@ struct ActivityChartView: View {
         ActivityChartMode(rawValue: modeRaw) ?? .hourly
     }
 
+    // MARK: - Hover selection state
+
+    @State private var selectedDailyId: String?
+    @State private var selectedHourlyOffset: Int?
+    @State private var selectedMonthlyId: String?
+
     // MARK: - Cached data transforms
 
     /// Cached chart data — recomputed only when source data or mode changes.
@@ -138,7 +144,12 @@ struct ActivityChartView: View {
         .padding(.vertical, 8)
         .onAppear { refreshCachedData() }
         .onChange(of: dataFingerprint) { _ in refreshCachedData() }
-        .onChange(of: modeRaw) { _ in ensureCachedData(for: mode) }
+        .onChange(of: modeRaw) { _ in
+            selectedDailyId = nil
+            selectedHourlyOffset = nil
+            selectedMonthlyId = nil
+            ensureCachedData(for: mode)
+        }
     }
 
     // MARK: - Shared chart styling
@@ -172,34 +183,46 @@ struct ActivityChartView: View {
             return "7-day activity chart. \(total) messages this week"
         }()
 
-        return Chart(data) { point in
-            AreaMark(
-                x: .value("Day", point.date, unit: .day),
-                y: .value("Messages", point.count)
-            )
-            .foregroundStyle(
-                .linearGradient(
-                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                    startPoint: .top,
-                    endPoint: .bottom
+        return Chart {
+            ForEach(data) { point in
+                AreaMark(
+                    x: .value("Day", point.date, unit: .day),
+                    y: .value("Messages", point.count)
                 )
-            )
-            .interpolationMethod(.catmullRom)
+                .foregroundStyle(
+                    .linearGradient(
+                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.catmullRom)
 
-            LineMark(
-                x: .value("Day", point.date, unit: .day),
-                y: .value("Messages", point.count)
-            )
-            .foregroundStyle(ThemeColors.chartAccent)
-            .lineStyle(StrokeStyle(lineWidth: 1.5))
-            .interpolationMethod(.catmullRom)
+                LineMark(
+                    x: .value("Day", point.date, unit: .day),
+                    y: .value("Messages", point.count)
+                )
+                .foregroundStyle(ThemeColors.chartAccent)
+                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .interpolationMethod(.catmullRom)
 
-            PointMark(
-                x: .value("Day", point.date, unit: .day),
-                y: .value("Messages", point.count)
-            )
-            .foregroundStyle(ThemeColors.chartAccent)
-            .symbolSize(12)
+                PointMark(
+                    x: .value("Day", point.date, unit: .day),
+                    y: .value("Messages", point.count)
+                )
+                .foregroundStyle(ThemeColors.chartAccent)
+                .symbolSize(12)
+            }
+
+            if let selectedId = selectedDailyId,
+               let point = data.first(where: { $0.id == selectedId }) {
+                RuleMark(x: .value("Selected", point.date, unit: .day))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .lineStyle(Self.selectionRuleStyle)
+                    .annotation(position: .top, spacing: 4) {
+                        tooltipLabel("\(point.count) msgs")
+                    }
+            }
         }
         .chartXAxis {
             AxisMarks(values: dates) { value in
@@ -213,6 +236,28 @@ struct ActivityChartView: View {
         }
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            let origin = geo[proxy.plotAreaFrame].origin
+                            let x = location.x - origin.x
+                            if let date: Date = proxy.value(atX: x) {
+                                let cal = Calendar.current
+                                selectedDailyId = data
+                                    .min(by: {
+                                        abs(cal.dateComponents([.hour], from: $0.date, to: date).hour ?? .max)
+                                        < abs(cal.dateComponents([.hour], from: $1.date, to: date).hour ?? .max)
+                                    })?.id
+                            }
+                        case .ended:
+                            selectedDailyId = nil
+                        }
+                    }
+            }
+        }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
@@ -231,27 +276,39 @@ struct ActivityChartView: View {
             return "12-hour activity chart. \(total) messages in trailing window"
         }()
 
-        return Chart(data) { point in
-            AreaMark(
-                x: .value("Hour", point.id),
-                y: .value("Messages", point.count)
-            )
-            .foregroundStyle(
-                .linearGradient(
-                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                    startPoint: .top,
-                    endPoint: .bottom
+        return Chart {
+            ForEach(data) { point in
+                AreaMark(
+                    x: .value("Hour", point.id),
+                    y: .value("Messages", point.count)
                 )
-            )
-            .interpolationMethod(.catmullRom)
+                .foregroundStyle(
+                    .linearGradient(
+                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.catmullRom)
 
-            LineMark(
-                x: .value("Hour", point.id),
-                y: .value("Messages", point.count)
-            )
-            .foregroundStyle(ThemeColors.chartAccent)
-            .lineStyle(StrokeStyle(lineWidth: 1.5))
-            .interpolationMethod(.catmullRom)
+                LineMark(
+                    x: .value("Hour", point.id),
+                    y: .value("Messages", point.count)
+                )
+                .foregroundStyle(ThemeColors.chartAccent)
+                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .interpolationMethod(.catmullRom)
+            }
+
+            if let selectedOffset = selectedHourlyOffset,
+               let point = data.first(where: { $0.id == selectedOffset }) {
+                RuleMark(x: .value("Selected", point.id))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .lineStyle(Self.selectionRuleStyle)
+                    .annotation(position: .top, spacing: 4) {
+                        tooltipLabel("\(Self.formatHourLabel(point.hour)):00 — \(point.count) msgs")
+                    }
+            }
         }
         .chartXAxis {
             AxisMarks(values: [0, 3, 6, 9, 11]) { value in
@@ -266,6 +323,23 @@ struct ActivityChartView: View {
         .chartXScale(domain: 0...11)
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            let origin = geo[proxy.plotAreaFrame].origin
+                            let x = location.x - origin.x
+                            if let value: Double = proxy.value(atX: x) {
+                                selectedHourlyOffset = max(0, min(11, Int(value.rounded())))
+                            }
+                        case .ended:
+                            selectedHourlyOffset = nil
+                        }
+                    }
+            }
+        }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
@@ -280,34 +354,46 @@ struct ActivityChartView: View {
         let actualTotal = dailyActivity.reduce(0) { $0 + $1.messageCount }
         let a11yLabel = "12-month activity chart. \(actualTotal) messages total"
 
-        return Chart(data) { point in
-            AreaMark(
-                x: .value("Month", point.date, unit: .month),
-                y: .value("Messages", point.count)
-            )
-            .foregroundStyle(
-                .linearGradient(
-                    colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                    startPoint: .top,
-                    endPoint: .bottom
+        return Chart {
+            ForEach(data) { point in
+                AreaMark(
+                    x: .value("Month", point.date, unit: .month),
+                    y: .value("Messages", point.count)
                 )
-            )
-            .interpolationMethod(.catmullRom)
+                .foregroundStyle(
+                    .linearGradient(
+                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .interpolationMethod(.catmullRom)
 
-            LineMark(
-                x: .value("Month", point.date, unit: .month),
-                y: .value("Messages", point.count)
-            )
-            .foregroundStyle(ThemeColors.chartAccent)
-            .lineStyle(StrokeStyle(lineWidth: 1.5))
-            .interpolationMethod(.catmullRom)
+                LineMark(
+                    x: .value("Month", point.date, unit: .month),
+                    y: .value("Messages", point.count)
+                )
+                .foregroundStyle(ThemeColors.chartAccent)
+                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .interpolationMethod(.catmullRom)
 
-            PointMark(
-                x: .value("Month", point.date, unit: .month),
-                y: .value("Messages", point.count)
-            )
-            .foregroundStyle(ThemeColors.chartAccent)
-            .symbolSize(12)
+                PointMark(
+                    x: .value("Month", point.date, unit: .month),
+                    y: .value("Messages", point.count)
+                )
+                .foregroundStyle(ThemeColors.chartAccent)
+                .symbolSize(12)
+            }
+
+            if let selectedId = selectedMonthlyId,
+               let point = data.first(where: { $0.id == selectedId }) {
+                RuleMark(x: .value("Selected", point.date, unit: .month))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .lineStyle(Self.selectionRuleStyle)
+                    .annotation(position: .top, spacing: 4) {
+                        tooltipLabel("\(Self.compactCount(point.count)) msgs")
+                    }
+            }
         }
         .chartXAxis {
             AxisMarks(values: dates) { value in
@@ -321,6 +407,28 @@ struct ActivityChartView: View {
         }
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
+        .chartOverlay { proxy in
+            GeometryReader { geo in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            let origin = geo[proxy.plotAreaFrame].origin
+                            let x = location.x - origin.x
+                            if let date: Date = proxy.value(atX: x) {
+                                let cal = Calendar.current
+                                selectedMonthlyId = data
+                                    .min(by: {
+                                        abs(cal.dateComponents([.day], from: $0.date, to: date).day ?? .max)
+                                        < abs(cal.dateComponents([.day], from: $1.date, to: date).day ?? .max)
+                                    })?.id
+                            }
+                        case .ended:
+                            selectedMonthlyId = nil
+                        }
+                    }
+            }
+        }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
@@ -529,6 +637,21 @@ struct ActivityChartView: View {
             return ChangeInfo(symbol: "→", label: "~same as last month", color: ThemeColors.secondaryLabel)
         }
     }
+
+    // MARK: - Tooltip annotation
+
+    /// Shared tooltip label styling used by all chart hover annotations.
+    private func tooltipLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.caption2, design: .monospaced))
+            .foregroundStyle(ThemeColors.secondaryLabel)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+    }
+
+    /// Shared RuleMark styling for hover selection indicators.
+    private static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
 
     // MARK: - Formatters
 
