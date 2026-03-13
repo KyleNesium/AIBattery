@@ -61,6 +61,10 @@ jobs:
             exit 1
           fi
           passed=$(grep -c '✔ Test' test-output.txt || true)
+          if [ "$passed" -eq 0 ]; then
+            echo "No tests passed — something is wrong"
+            exit 1
+          fi
           echo "All $passed tests passed (exit code was $exit_code)"
 
       - name: Verify app bundle
