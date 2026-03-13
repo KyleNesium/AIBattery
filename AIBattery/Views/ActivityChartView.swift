@@ -218,14 +218,9 @@ struct ActivityChartView: View {
                let point = data.first(where: { $0.id == selectedId }) {
                 RuleMark(x: .value("Selected", point.date, unit: .day))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .lineStyle(StrokeStyle(lineWidth: 0.5, dash: [3, 3]))
+                    .lineStyle(Self.selectionRuleStyle)
                     .annotation(position: .top, spacing: 4) {
-                        Text("\(point.count) msgs")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(ThemeColors.secondaryLabel)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        tooltipLabel("\(point.count) msgs")
                     }
             }
         }
@@ -309,14 +304,9 @@ struct ActivityChartView: View {
                let point = data.first(where: { $0.id == selectedOffset }) {
                 RuleMark(x: .value("Selected", point.id))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .lineStyle(StrokeStyle(lineWidth: 0.5, dash: [3, 3]))
+                    .lineStyle(Self.selectionRuleStyle)
                     .annotation(position: .top, spacing: 4) {
-                        Text("\(Self.formatHourLabel(point.hour)):00 — \(point.count) msgs")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(ThemeColors.secondaryLabel)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        tooltipLabel("\(Self.formatHourLabel(point.hour)):00 — \(point.count) msgs")
                     }
             }
         }
@@ -399,14 +389,9 @@ struct ActivityChartView: View {
                let point = data.first(where: { $0.id == selectedId }) {
                 RuleMark(x: .value("Selected", point.date, unit: .month))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .lineStyle(StrokeStyle(lineWidth: 0.5, dash: [3, 3]))
+                    .lineStyle(Self.selectionRuleStyle)
                     .annotation(position: .top, spacing: 4) {
-                        Text("\(Self.compactCount(point.count)) msgs")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(ThemeColors.secondaryLabel)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                        tooltipLabel("\(Self.compactCount(point.count)) msgs")
                     }
             }
         }
@@ -652,6 +637,21 @@ struct ActivityChartView: View {
             return ChangeInfo(symbol: "→", label: "~same as last month", color: ThemeColors.secondaryLabel)
         }
     }
+
+    // MARK: - Tooltip annotation
+
+    /// Shared tooltip label styling used by all chart hover annotations.
+    private func tooltipLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.caption2, design: .monospaced))
+            .foregroundStyle(ThemeColors.secondaryLabel)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+    }
+
+    /// Shared RuleMark styling for hover selection indicators.
+    private static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
 
     // MARK: - Formatters
 
