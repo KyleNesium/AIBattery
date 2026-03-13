@@ -63,11 +63,17 @@ public struct UsagePopoverView: View {
             Divider()
 
             if showSettings {
-                SettingsRow(
-                    viewModel: viewModel,
-                    accountStore: accountStore,
-                    onAddAccount: { isAddingAccount = true }
-                )
+                // Settings in its own ScrollView with capped height so it doesn't
+                // push main content off-screen when all sections are visible.
+                ScrollView {
+                    SettingsRow(
+                        viewModel: viewModel,
+                        accountStore: accountStore,
+                        onAddAccount: { isAddingAccount = true }
+                    )
+                }
+                .scrollIndicators(.automatic)
+                .frame(maxHeight: 350)
                 .transition(.opacity.combined(with: .move(edge: .top)))
                 Divider()
             }

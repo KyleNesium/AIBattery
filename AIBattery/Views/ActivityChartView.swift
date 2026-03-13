@@ -50,6 +50,16 @@ struct ActivityChartView: View {
         }
     }
 
+    /// Single fingerprint combining all data sources — collapses 3 onChange handlers into 1.
+    /// When any underlying data changes, the fingerprint changes, triggering one refresh.
+    private var dataFingerprint: Int {
+        var hasher = Hasher()
+        hasher.combine(dailyActivity.count)
+        hasher.combine(snapshot?.totalMessages)
+        hasher.combine(todayHourCounts.values.reduce(0, +))
+        return hasher.finalize()
+    }
+
     /// Check source data directly — avoids recomputing chart data just for an emptiness check.
     private var isEmpty: Bool {
         switch mode {
@@ -127,9 +137,7 @@ struct ActivityChartView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .onAppear { refreshCachedData() }
-        .onChange(of: dailyActivity.count) { _ in refreshCachedData() }
-        .onChange(of: snapshot?.totalMessages) { _ in refreshCachedData() }
-        .onChange(of: todayHourCounts.values.reduce(0, +)) { _ in refreshCachedData() }
+        .onChange(of: dataFingerprint) { _ in refreshCachedData() }
         .onChange(of: modeRaw) { _ in ensureCachedData(for: mode) }
     }
 
