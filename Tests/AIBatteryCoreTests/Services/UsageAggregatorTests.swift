@@ -41,15 +41,17 @@ struct UsageAggregatorTests {
         cacheWrite: Int = 0,
         sessionId: String = "session-1",
         messageId: String? = nil,
-        timestamp: Date? = nil
+        timestamp: Date? = nil,
+        cwd: String = "/test"
     ) -> String {
         let ts = timestamp ?? Date()
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let tsStr = formatter.string(from: ts)
         let msgId = messageId ?? UUID().uuidString
+        let cwdField = cwd.isEmpty ? "" : "\"cwd\":\"\(cwd)\","
         return """
-        {"type":"assistant","timestamp":"\(tsStr)","sessionId":"\(sessionId)","cwd":"/test","message":{"role":"assistant","model":"\(model)","id":"\(msgId)","usage":{"input_tokens":\(input),"output_tokens":\(output),"cache_read_input_tokens":\(cacheRead),"cache_creation_input_tokens":\(cacheWrite)}}}
+        {"type":"assistant","timestamp":"\(tsStr)","sessionId":"\(sessionId)",\(cwdField)"message":{"role":"assistant","model":"\(model)","id":"\(msgId)","usage":{"input_tokens":\(input),"output_tokens":\(output),"cache_read_input_tokens":\(cacheRead),"cache_creation_input_tokens":\(cacheWrite)}}}
         """
     }
 
@@ -669,6 +671,132 @@ struct UsageAggregatorTests {
         // hourCounts (all-time) should have both
         #expect(snapshot.hourCounts["10"] == 2)
         #expect(snapshot.hourCounts["14"] == 25)
+    }
+
+    // MARK: - Project tokens: grouping by cwd
+
+    @Test func projectTokens_groupsByCwd() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        let lines = [
+            makeAssistantLine(input: 100, output: 50, messageId: "proj-1", timestamp: now, cwd: "/Users/kyle/projects/alpha"),
+            makeAssistantLine(input: 200, output: 100, messageId: "proj-2", timestamp: now, cwd: "/Users/kyle/projects/beta"),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        #expect(snapshot.projectTokens.count == 2)
+        let alpha = snapshot.projectTokens.first(where: { $0.projectName == "alpha" })
+        let beta = snapshot.projectTokens.first(where: { $0.projectName == "beta" })
+        #expect(alpha?.totalTokens == 150)
+        #expect(beta?.totalTokens == 300)
+    }
+
+    @Test func projectTokens_nilCwdGroupedAsOther() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        let lines = [
+            makeAssistantLine(input: 100, output: 50, messageId: "no-cwd-1", timestamp: now, cwd: ""),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        let other = snapshot.projectTokens.first(where: { $0.projectName == "Other" })
+        #expect(other != nil)
+        #expect(other?.totalTokens == 150)
+    }
+
+    @Test func projectTokens_costPerEntry() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        // Two different models in the same project — costs should aggregate correctly
+        let lines = [
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 1_000_000, output: 0, messageId: "cost-1", timestamp: now, cwd: "/projects/myapp"),
+            makeAssistantLine(model: "claude-opus-4-20250514", input: 1_000_000, output: 0, messageId: "cost-2", timestamp: now, cwd: "/projects/myapp"),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        let myapp = snapshot.projectTokens.first(where: { $0.projectName == "myapp" })
+        #expect(myapp != nil)
+        // Sonnet input: $3/M * 1M = $3, Opus input: $15/M * 1M = $15 → total $18
+        #expect(myapp!.estimatedCost == 18.0)
+    }
+
+    @Test func projectTokens_emptyWhenNoEntries() {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        #expect(snapshot.projectTokens.isEmpty)
+    }
+
+    @Test func projectTokens_mergesSessions() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        // Same cwd across two sessions → should merge into one project
+        let lines1 = [
+            makeAssistantLine(input: 100, output: 50, sessionId: "sess-a", messageId: "merge-1", timestamp: now, cwd: "/workspace/myapp"),
+        ]
+        let lines2 = [
+            makeAssistantLine(input: 200, output: 100, sessionId: "sess-b", messageId: "merge-2", timestamp: now, cwd: "/workspace/myapp"),
+        ]
+        try writeJSONL(lines1, projectName: "proj-a", sessionId: "sess-a", to: projectsDir)
+        try writeJSONL(lines2, projectName: "proj-b", sessionId: "sess-b", to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        let myapp = snapshot.projectTokens.first(where: { $0.projectName == "myapp" })
+        #expect(myapp != nil)
+        #expect(myapp?.totalTokens == 450) // 300 + 150
+        #expect(snapshot.projectTokens.count == 1) // merged, not two separate entries
     }
 
     // MARK: - Test data

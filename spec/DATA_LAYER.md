@@ -25,6 +25,7 @@ Main aggregated data struct consumed by all views.
 | `hourCounts` | `[String: Int]` | All-time hourly distribution (stats-cache merged with today's JSONL, max per hour) |
 | `todayHourCounts` | `[String: Int]` | Today-only hourly breakdown from JSONL (hour "0"-"23" → message count) |
 | `modelTokens` | `[ModelTokenSummary]` | Merged stats-cache + JSONL |
+| `projectTokens` | `[ProjectTokenSummary]` | JSONL entries grouped by full cwd path |
 | `dailyActivity` | `[DailyActivity]` | stats-cache + all JSONL dates merged (fills gaps between stale cache rebuild and today) |
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by highest usagePercentage (descending) |
@@ -47,6 +48,22 @@ Static: `urgencyScore(percent:mode:) -> Double` — maps a raw percentage to a 0
 | `outputTokens` | `Int` |
 | `cacheReadTokens` | `Int` |
 | `cacheWriteTokens` | `Int` |
+
+Computed: `totalTokens` = sum of all four token types
+
+### ProjectTokenSummary (`Models/ProjectTokenSummary.swift`)
+
+Per-project token usage derived from JSONL `cwd` field. Cost is pre-computed per entry using model-specific pricing.
+
+| Field | Type |
+|-------|------|
+| `id` | `String` (full cwd path; `"Other"` for nil cwd) |
+| `projectName` | `String` |
+| `inputTokens` | `Int` |
+| `outputTokens` | `Int` |
+| `cacheReadTokens` | `Int` |
+| `cacheWriteTokens` | `Int` |
+| `estimatedCost` | `Double` (pre-computed from per-entry model pricing) |
 
 Computed: `totalTokens` = sum of all four token types
 
@@ -206,6 +223,7 @@ Per-model pricing for API cost equivalence. Shows what the same token usage woul
 Methods:
 - `cost(input:output:cacheRead:cacheWrite:) -> Double` — cost in dollars
 - `static formatCost(_ cost: Double) -> String` — "$12.35" or "<$0.01"
+- `static formatCompactCost(_ cost: Double) -> String` — "$12" (drops cents for >= $1), "$0.75" (keeps precision < $1), "$0" for zero
 - `static pricing(for modelId: String) -> ModelPricing?` — lookup via `ModelNameMapper.displayName`, cached in `private static var pricingCache: [String: ModelPricing?]` to avoid repeated lookups
 - `static totalCost(for models: [ModelTokenSummary]) -> Double` — aggregate across models
 
@@ -333,8 +351,9 @@ Pricing table (per million tokens):
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
 - **Token ledger merge**: after `buildModelTokens`, merges with `TokenLedger.shared.merge()` when `accountId` is non-nil. Preserves high-water marks and restores historical models lost from stats-cache. Skipped when unauthenticated (nil account).
 - **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending
+- **`buildProjectTokens` helper**: private static method that groups all JSONL entries by full `cwd` path (nil/empty → "Other"), accumulates 4 token types per project, computes cost per entry via `ModelPricing.pricing(for:)`, and returns `[ProjectTokenSummary]` sorted by `totalTokens` descending. Display name uses `lastPathComponent` of the cwd. Filters non-Claude models. Project data is JSONL-only (stats-cache lacks per-entry cwd).
 - **All-dates daily activity merge**: groups all JSONL entries by date via `entriesByDate` dictionary, then merges every date into `dailyActivity` (not just today). This fills gaps between a stale stats-cache rebuild date and the present. If JSONL has more messages for a date than the cache entry, replaces it; if no entry exists, appends one. Preserves the higher of JSONL or cache tool-call counts.
-- **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 12H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
+- **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 24H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
 - **totalMessages/totalSessions dedup**: iterates all `entriesByDate` keys and computes `max(jsonlCount - cachedCount, 0)` per date, summing across all dates. Prevents inflation when stats-cache already includes recent data.
 - Tool calls from stats cache only (not parsed from JSONL)
 - **Idle session cutoff**: reads `aibattery_idleSessionMinutes` from UserDefaults (0 = never hide), passes to `TokenHealthMonitor.assessSessions(idleCutoffMinutes:)` to filter stale sessions from context health
@@ -486,7 +505,7 @@ Pricing table (per million tokens):
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertStatus`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`, `throttleTimestamps` (array of Unix epoch doubles for rate limit events), `contextCollapsed`, `tokensCollapsed`, `activityCollapsed`
+- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertStatus`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`, `throttleTimestamps` (array of Unix epoch doubles for rate limit events), `contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`
 
 ### SecureNetworking (`Utilities/SecureNetworking.swift`)
 - Enum (no instances) — centralized networking layer

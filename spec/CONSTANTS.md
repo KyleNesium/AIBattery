@@ -141,8 +141,8 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 | Show cost | `aibattery_showCostEstimate` (Bool, default false) |
 | Context collapsed | `aibattery_contextCollapsed` (Bool, default false) |
 | Tokens collapsed | `aibattery_tokensCollapsed` (Bool, default false) |
+| Projects collapsed | `aibattery_projectsCollapsed` (Bool, default false) |
 | Activity collapsed | `aibattery_activityCollapsed` (Bool, default false) |
-| Insights collapsed | `aibattery_insightsCollapsed` (Bool, default false) |
 | Format | `"$X.XX"` or `"<$0.01"` for sub-penny amounts |
 | Note | Shows what the same token usage would cost at API rates — Pro/Max/Teams subscribers aren't billed per-token |
 
@@ -245,7 +245,7 @@ Pricing per million tokens:
 | Chevron icon size | 9pt (bold weight) |
 | Chevron corner radius | 4pt |
 | Chart height | 50pt |
-| Chart modes | 12H (hourly trailing), 7D (daily rolling), 12M (monthly rolling) |
+| Chart modes | 24H (hourly trailing), 7D (daily rolling), 12M (monthly rolling) |
 
 ## Animations
 
@@ -290,7 +290,7 @@ Pricing per million tokens:
 | Constant | Value |
 |----------|-------|
 | AppStorage key | `aibattery_chartMode` |
-| Default mode | `"12H"` (hourly) |
+| Default mode | `"24H"` (hourly) |
 | Persists across sessions | Yes (via `@AppStorage`) |
 
 ## File Paths

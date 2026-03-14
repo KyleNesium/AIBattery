@@ -35,24 +35,26 @@
 │ ~64K of 160K usable                  │
 │ 358 turns · Opus 4.6                 │
 ├──────────────────────────────────────┤
-│ Tokens                       18.9M   │  ← ❹ Tokens
+│ Token Usage                  18.9M   │  ← ❹ Token Usage
 │   ⚡ Opus 4.6  ▶ Active  12.3M      │   (per-model)
 │      ↑ 5K  ↓ 29K  📄 17.6M  ✎ 1.4M │
 │   ⚡ Sonnet 4.5           6.6M      │
 │      ↑ 2K  ↓ 15K  📄 4.3M   ✎ 300K │
 ├──────────────────────────────────────┤
-│ Activity      [12H] [7D] [12M]      │  ← ❺ Chart
-│ ~~~ area chart ~~~                   │
-│ HH  HH  HH  HH  HH (trailing 12h)  │
+│ Projects          ↕ by tokens 18.9M │  ← ❹b Projects
+│   📁 AIBattery    ~$12  8.1M      │   (per-project,
+│   🔨 my-webapp     ~$4  2.3M      │    6 shown, expand)
+│   ⌨ scripts        ~$1  1.2M      │
+│        ▾ Show all (8)              │
 ├──────────────────────────────────────┤
-│ ▸ Insights     12 msgs · 3 sessions │  ← ❻ Insights
-│   Today   12 msgs · 3 sessions     │     (collapsible)
-│   All Time  1,247 msgs · 89 sess   │
-│   Longest  2h 15m · 42 msgs        │
-│   Tools    128 calls today          │
+│ Activity      [24H] [7D] [12M]      │  ← ❺ Chart
+│ ~~~ area chart ~~~                   │
+│ HH  HH  HH  HH  HH (trailing 24h)  │
+│   All Time  1,247 msgs · 89 sess   │     (insight rows
+│   Longest  2h 15m · 42 msgs        │      below trend)
 │   Period   Nov 6 – Mar 10, 2026    │
 ├──────────────────────────────────────┤
-│ 📊Usage↗  ●Status↗   Logout  Quit │  ← ❼ Footer
+│ 📊Usage↗  ●Status↗   Logout  Quit │  ← ❻ Footer
 └──────────────────────────────────────┘
 ```
 
@@ -80,8 +82,8 @@ UsagePopoverView (275px, VStack)
 │   └── TokenHealthSection — collapsible (if topSessionHealths or tokenHealth)
 │   └── .animation(.easeInOut(duration: 0.15), value: metricModeRaw) ← scoped to ForEach only
 ├── TokenUsageGate (data check, TokenUsageSection owns collapsed @AppStorage)
+├── ProjectUsageGate (data check, ProjectUsageSection owns collapsed @AppStorage)
 ├── ActivityChartGate (data check, ActivityChartView owns collapsed @AppStorage)
-├── InsightsSection (collapsible — Today, All Time, Longest, Tools, Period)
 ├── Divider
 ├── footerSection
 └── .overlay { TutorialOverlay(hasData:) } — self-managing visibility via own @AppStorage
@@ -154,13 +156,14 @@ Padding: H 16, V 8
 
 ### Collapsible Sections
 
-Context Health, Tokens, Activity, and Insights sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `activityCollapsed`, `insightsCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
+Context Health, Tokens, Projects, and Activity sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
 
-### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
+### Gate Views (`TokenUsageGate`, `ProjectUsageGate`, `ActivityChartGate`)
 
 Gate views check data availability and render the section + divider. Sections own their own collapsed `@AppStorage`.
 
 - **`TokenUsageGate`**: renders `TokenUsageSection` + `Divider` when `snapshot.totalTokens > 0`.
+- **`ProjectUsageGate`**: renders `ProjectUsageSection` + `Divider` when `snapshot.projectTokens` is non-empty.
 - **`ActivityChartGate`**: renders `ActivityChartView` + `Divider` when activity data is available.
 
 ### Metric Toggle (`UsagePopoverView.metricToggle`)
@@ -235,9 +238,9 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 
 Padding: H 16, V 8
 
-### ❹ Tokens (`Views/TokenUsageSection.swift`)
+### ❹ Token Usage (`Views/TokenUsageSection.swift`)
 
-- Header: `"Tokens"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
+- Header: `"Token Usage"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
 - Per-model breakdown via `ForEach` over sorted models (active first via prefix matching, then by totalTokens descending)
 - Model icons: SF Symbols cycle (`cpu`, `bolt`, `sparkles`, `cube`, `wand.and.stars`) at 10pt, ThemeColors.secondaryLabel, 14pt frame
 - Per model row: icon + display name (.caption) + `"▶"` badge if active (.caption2, green) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
@@ -247,9 +250,28 @@ Padding: H 16, V 8
   - Aligned with 14pt leading spacer to match model icon width
   - Each `TokenTag` has `accessibilityName` for VoiceOver
 - **Cost estimation** (when `aibattery_showCostEstimate` is true):
-  - Header: total cost next to "Tokens" label (.caption monospaced, ThemeColors.secondaryLabel)
-  - Per-model: cost inline before token total (.caption2 monospaced, ThemeColors.secondaryLabel)
+  - All costs prefixed with `"~"` to indicate API-equivalent estimate (Pro/Max/Teams aren't billed per-token)
+  - Header: `"~$X.XX"` total cost next to "Token Usage" label (.caption monospaced, ThemeColors.secondaryLabel, 54pt width)
+  - Per-model: `"~$X.XX"` cost inline before token total (.caption2 monospaced, ThemeColors.secondaryLabel)
   - All cost values have `.copyable()` modifier
+
+Padding: H 16, V 8
+
+### ❹b Projects (`Views/ProjectUsageSection.swift`)
+
+Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Token Usage section but without per-token-type breakdown rows.
+
+- Header: `"Projects"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
+- **Sort toggle**: right-aligned button (`arrow.up.arrow.down` icon + "by tokens"/"by cost" label), toggles between totalTokens and estimatedCost sort. Only shown when 2+ projects.
+- Per-project row: icon + project name (.caption) + cost (optional) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
+- Project icons: SF Symbols cycle (`folder`, `hammer`, `terminal`, `doc.text`, `gearshape.2`) at 10pt, ThemeColors.secondaryLabel, 14pt frame
+- **Cost estimation**: same `aibattery_showCostEstimate` toggle as Token Usage section. Uses `formatCompactCost` (drops cents for >= $1, e.g. "$18"), prefixed with `"~"`. Cost column: 38pt width. Cost text uses ThemeColors.tertiaryLabel for visual separation from token values.
+- **6-project limit**: shows top 6 projects by default. "Show all (N)" button below list to expand. Collapses back with "Show less". State resets when section is collapsed.
+- **Search filter**: appears when expanded ("Show all" active) and > 6 projects. Filters projects by name. Magnifying glass icon + plain text field in subtle rounded background.
+- Collapsed state: `@AppStorage("aibattery_projectsCollapsed")`
+- Accessibility: combined label per row with project name and token total
+- Column widths: cost 38pt, tokens 42pt
+- Data source: JSONL entries only (stats-cache lacks per-entry cwd). Entries with nil/empty cwd grouped as "Other".
 
 Padding: H 16, V 8
 
@@ -267,7 +289,7 @@ Padding: H 16, V 8
 Compact chart with mode toggle. Positioned below Tokens section.
 
 - Header row: `"Activity"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
-- Toggle modes: `"12H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
+- Toggle modes: `"24H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
 - **Mode persistence**: `@AppStorage("aibattery_chartMode")` — persists across popover close/reopen
 - **Collapsed summary**: vs-yesterday change indicator (arrow + delta, colored) — inline right of header
 - Empty state: centered VStack with `chart.line.flattrend.xyaxis` icon (14pt, .tertiary) + `"No activity in {mode} window"` (.caption2, .tertiary), 50pt height
@@ -281,18 +303,18 @@ Chart styling (all modes):
   - Height: 50pt
 
 X-axis per mode:
-  - **12H**: Trailing 12-hour window ending at current hour. X-axis uses offset 0–11; labels at offsets [0, 3, 6, 9, 11] show actual clock hours (zero-padded). Domain 0...11. Font: `.system(size: 8)`. At midnight wrap (e.g. 2 AM), hours 15–23 show 0 (only today's data exists).
+  - **24H**: Trailing 24-hour window ending at current hour. X-axis uses offset 0–23; labels at offsets [0, 4, 8, 12, 16, 20, 23] show actual clock hours (zero-padded). Domain 0...23. Font: `.system(size: 8)`.
   - **7D**: Rolling 7-day window. Day abbreviation (`.system(size: 9)`) for all days including today
   - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `.system(size: 9)`
 
 Data per mode:
-  - **12H**: `todayHourCounts` trailing 12 hours (`(currentHour - 11)` through `currentHour`, wrapping via `% 24`)
+  - **24H**: `todayHourCounts` trailing 24 hours (`(currentHour - 23)` through `currentHour`, wrapping via `% 24`)
   - **7D**: `dailyActivity` last 7 days (rolling window) → daily message counts
   - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
 
 **Trend summary** (below chart, mode-aware, two rows of two stats each):
 
-- **12H** — Row 1: vs-yesterday change (↑/↓/→ + delta, colored) + msgs today. Row 2: throttle count today + peak hour.
+- **24H** — Row 1: vs-yesterday change (↑/↓/→ + delta, colored) + msgs today. Row 2: throttle count today + peak hour.
 - **7D** — Row 1: weekly trend arrow + vs-yesterday change + avg/day. Row 2: throttle count this week + busiest day.
 - **12M** — Row 1: vs-last-month change (projected, ±10% threshold) + this month total (compactCount). Row 2: throttle count this month + busiest month.
 
@@ -302,31 +324,23 @@ All trend stats use `.caption` monospaced font with `ThemeColors.secondaryLabel`
 
 `.padding(.top, 4)`
 
-Padding: H 16, V 8
+**Insight rows** (below trend, when not collapsed):
 
-### ❻ Insights (`Views/InsightsSection.swift`)
-
-Collapsible section with `CollapsibleSectionHeader`. Persists via `@AppStorage("aibattery_insightsCollapsed")`.
-
-**Collapsed summary**: `"{todayMessages} msgs · {todaySessions} sessions"` (.caption2 monospaced, ThemeColors.secondaryLabel) — inline right of header.
-
-**Expanded rows** — each row uses `insightRow(label:value:tooltip:valueColor:)` helper:
+Insight rows display cumulative stats using `insightRow(label:value:tooltip:valueColor:)` helper:
 - Label left (55pt fixed width, .caption, ThemeColors.secondaryLabel) + value right (.caption monospaced, .primary)
 - Values have `.contentTransition(.numericText())` and `.copyable()` modifiers
 
 | Row | Label | Value | Condition |
 |-----|-------|-------|-----------|
-| Today | `"Today"` | `"{msgs} msgs · {sessions} sessions"` | Always |
 | All Time | `"All Time"` | `"{totalMessages} msgs · {totalSessions} sessions"` | Always |
 | Longest | `"Longest"` | `"{duration} · {messages} msgs"` | `longestSessionDuration` exists & messages > 0 |
-| Tools | `"Tools"` | `"{todayToolCalls} calls today"` | `todayToolCalls > 0` |
 | Period | `"Period"` | `"Nov 6 – Mar 10, 2026"` (date range) | `firstSessionDate` exists; valueColor: ThemeColors.secondaryLabel |
 
 Date range uses `DateFormatters.formatDateRange(from:to:)` — same year omits start year, cross-year includes both.
 
 Padding: H 16, V 8
 
-### ❼ Footer (`UsagePopoverView.footerSection`)
+### ❻ Footer (`UsagePopoverView.footerSection`)
 
 Links row in HStack (spacing 10):
 1. **Usage**: chart.bar icon (9pt) + "Usage" + arrow.up.right (6pt) → opens `platform.claude.com/usage`
@@ -439,7 +453,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 
 ## Accessibility
 
-- **InsightsSection**: `.accessibilityElement(children: .combine)` on each row with full labels ("Today: N messages, N sessions"). Collapsible via `CollapsibleSectionHeader`.
+- **ActivityChartView insight rows**: `.accessibilityElement(children: .combine)` on each row with full labels ("All time: N messages, N sessions").
 - **TokenUsageSection**: `TokenTag` has `accessibilityName` param (input/output/cache read/cache write), model VStack has combined label
 - **UsageBarsSection**: `"Binding constraint"` label on binding badge
 - **TokenHealthSection**: combined label on detail row with remaining tokens, turn count, model name
@@ -451,7 +465,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - **TokenUsageSection**: header ("Total tokens used across all models"), active indicator ("Active model in current session"), token type tags (input/output/cache read/cache write)
 - **TokenHealthSection**: context gauge ("Percentage of usable context window consumed"), turns label, safe minimum hint, expanded session details tooltip
 - **ActivityChartView**: mode picker ("Switch activity chart time range")
-- **InsightsSection**: header ("Session and message statistics"), each row (Today/All Time/Longest/Tools/Period)
+- **ActivityChartView**: insight rows (All Time/Longest/Period)
 - **UsagePopoverView**: metric mode picker, auto mode button
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)
