@@ -98,6 +98,7 @@ AIBattery/
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
+    MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, brokenStarFragments, drawStroke) + NSBezierPath→CGPath
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     Settings/
       SettingsRow.swift           — Inline settings container: account names + sub-sections
@@ -109,9 +110,12 @@ AIBattery/
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
+    TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting
     TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
     InsightsSection.swift         — Collapsible insights: Today, All Time, Longest, Tools, Period (date range)
     ActivityChartView.swift        — 12H/7D/12M activity chart (Swift Charts, rolling windows)
+    ActivityChartData.swift       — Chart data transformation layer (daily/hourly/monthly points)
+    ActivityChartTrend.swift      — Trend computation: vs-yesterday/week/month comparisons + copy text
     CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 4 sections
     FooterLink.swift              — Footer link button with hover underline and external arrow
     RefreshButton.swift           — Refresh button with brief spin animation
