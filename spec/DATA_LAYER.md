@@ -25,7 +25,7 @@ Main aggregated data struct consumed by all views.
 | `hourCounts` | `[String: Int]` | All-time hourly distribution (stats-cache merged with today's JSONL, max per hour) |
 | `todayHourCounts` | `[String: Int]` | Today-only hourly breakdown from JSONL (hour "0"-"23" → message count) |
 | `modelTokens` | `[ModelTokenSummary]` | Merged stats-cache + JSONL |
-| `projectTokens` | `[ProjectTokenSummary]` | JSONL entries grouped by cwd last path component |
+| `projectTokens` | `[ProjectTokenSummary]` | JSONL entries grouped by full cwd path |
 | `dailyActivity` | `[DailyActivity]` | stats-cache + all JSONL dates merged (fills gaps between stale cache rebuild and today) |
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by highest usagePercentage (descending) |
@@ -57,7 +57,7 @@ Per-project token usage derived from JSONL `cwd` field. Cost is pre-computed per
 
 | Field | Type |
 |-------|------|
-| `id` | `String` (project name = cwd last path component) |
+| `id` | `String` (full cwd path; `"Other"` for nil cwd) |
 | `projectName` | `String` |
 | `inputTokens` | `Int` |
 | `outputTokens` | `Int` |
@@ -350,7 +350,7 @@ Pricing table (per million tokens):
 - **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
 - **Token ledger merge**: after `buildModelTokens`, merges with `TokenLedger.shared.merge()` when `accountId` is non-nil. Preserves high-water marks and restores historical models lost from stats-cache. Skipped when unauthenticated (nil account).
 - **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending
-- **`buildProjectTokens` helper**: private static method that groups all JSONL entries by `cwd` last path component (nil/empty → "Other"), accumulates 4 token types per project, computes cost per entry via `ModelPricing.pricing(for:)`, and returns `[ProjectTokenSummary]` sorted by `totalTokens` descending. Filters non-Claude models. Project data is JSONL-only (stats-cache lacks per-entry cwd).
+- **`buildProjectTokens` helper**: private static method that groups all JSONL entries by full `cwd` path (nil/empty → "Other"), accumulates 4 token types per project, computes cost per entry via `ModelPricing.pricing(for:)`, and returns `[ProjectTokenSummary]` sorted by `totalTokens` descending. Display name uses `lastPathComponent` of the cwd. Filters non-Claude models. Project data is JSONL-only (stats-cache lacks per-entry cwd).
 - **All-dates daily activity merge**: groups all JSONL entries by date via `entriesByDate` dictionary, then merges every date into `dailyActivity` (not just today). This fills gaps between a stale stats-cache rebuild date and the present. If JSONL has more messages for a date than the cache entry, replaces it; if no entry exists, appends one. Preserves the higher of JSONL or cache tool-call counts.
 - **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 12H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
 - **totalMessages/totalSessions dedup**: iterates all `entriesByDate` keys and computes `max(jsonlCount - cachedCount, 0)` per date, summing across all dates. Prevents inflation when stats-cache already includes recent data.

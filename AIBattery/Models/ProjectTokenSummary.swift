@@ -1,7 +1,7 @@
 import Foundation
 
 struct ProjectTokenSummary: Identifiable {
-    let id: String              // project name (cwd lastPathComponent)
+    let id: String              // full cwd path (unique key; "Other" for nil cwd)
     let projectName: String
     let inputTokens: Int
     let outputTokens: Int
