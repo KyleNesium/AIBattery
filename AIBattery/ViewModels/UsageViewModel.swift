@@ -172,6 +172,7 @@ public final class UsageViewModel: ObservableObject {
         isShowingCachedData = false
         lastFreshFetch = nil
         errorMessage = nil
+        isLoading = true
         OAuthManager.shared.objectWillChange.send()
         Task { await refresh() }
     }

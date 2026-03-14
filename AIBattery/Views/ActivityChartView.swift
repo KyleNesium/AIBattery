@@ -38,21 +38,35 @@ struct ActivityChartView: View {
     @State private var cachedMonthly: [ActivityChartData.MonthlyPoint] = []
     @State private var cachedMonthTotals: [String: Int] = [:]
 
+    /// Per-mode fingerprint to skip recomputation when toggling back to a mode
+    /// whose underlying data hasn't changed (e.g. 24H → 7D → 24H).
+    @State private var lastHourlyFingerprint: Int = 0
+    @State private var lastDailyFingerprint: Int = 0
+    @State private var lastMonthlyFingerprint: Int = 0
+
     /// Recompute cached data for the active mode only. Called from body via .onChange.
     private func refreshCachedData() {
-        ensureCachedData(for: mode)
+        ensureCachedData(for: mode, force: true)
     }
 
     /// Lazily compute cached data only for the requested mode.
-    private func ensureCachedData(for chartMode: ActivityChartMode) {
+    /// Skips recomputation if the underlying data fingerprint hasn't changed.
+    private func ensureCachedData(for chartMode: ActivityChartMode, force: Bool = false) {
+        let fp = dataFingerprint
         switch chartMode {
         case .hourly:
+            guard force || fp != lastHourlyFingerprint else { return }
             cachedHourly = ActivityChartData.hourlyData(from: todayHourCounts)
+            lastHourlyFingerprint = fp
         case .daily:
+            guard force || fp != lastDailyFingerprint else { return }
             cachedDaily = ActivityChartData.dailyData(from: dailyActivity)
+            lastDailyFingerprint = fp
         case .monthly:
+            guard force || fp != lastMonthlyFingerprint else { return }
             cachedMonthly = ActivityChartData.monthlyData(from: dailyActivity)
             cachedMonthTotals = ActivityChartData.monthTotals(from: dailyActivity)
+            lastMonthlyFingerprint = fp
         }
     }
 
