@@ -378,7 +378,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
 - Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`, handles Cmd+Q) with `NSHostingView` content (10pt corner radius via layer)
-- **Dynamic height**: panel resizes to fit SwiftUI content (via `NSView.frameDidChangeNotification` on hosting view), max 700pt, grows downward from fixed top anchor (`panelTopY` set by `positionPanel`)
+- **Dynamic height**: panel resizes to fit SwiftUI content (via `NSView.frameDidChangeNotification` on hosting view), max height is screen-relative (`screen.visibleFrame.height - 40pt`) so all sections fit on most displays, grows downward from fixed top anchor (`panelTopY` set by `positionPanel`)
 - `hidesOnDeactivate = false`, `level = .floating`
 - Closes on: (1) clicking the status item again, (2) pressing Escape, or (3) clicking outside the panel / switching apps
 - Positioned below the status item, left-aligned to the status item's left edge, clamped to screen edges (multi-monitor safe)
@@ -472,7 +472,7 @@ Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` �
 
 See `spec/CONSTANTS.md` for all color threshold tables.
 
-**Popover background**: `controlBackgroundColor` — adapts to light/dark mode automatically. Very dark in dark mode (matches native macOS menus like Battery and Clipy), white in light mode. Panel tracks system appearance changes via KVO on `NSApp.effectiveAppearance`.
+**Popover background**: `controlBackgroundColor` — opaque background that adapts to light/dark mode automatically. Very dark in dark mode (matches native macOS menus like Battery and Clipy), white in light mode. Panel tracks system appearance changes via KVO on `NSApp.effectiveAppearance`.
 
 **Light/dark mode**: Bar and accent colors use system palette in both modes — the opaque light-mode background provides sufficient contrast for `.systemYellow`, `.systemOrange`, etc. Only text labels and fills use `ThemeColors.adaptive(light:dark:)` for distinct per-appearance values:
 - **Orange** (caution, 80–94% bars, orange band): `.systemOrange` both modes

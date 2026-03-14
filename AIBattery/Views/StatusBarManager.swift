@@ -94,7 +94,8 @@ public final class StatusBarManager: NSObject {
         panel.contentView = hosting
         panel.setContentSize(NSSize(width: 275, height: 700))
 
-        // Resize panel when SwiftUI content changes height
+        // Resize panel when SwiftUI content changes height.
+        // Max height is screen-relative so all sections fit on most displays.
         hosting.setContentHuggingPriority(.defaultHigh, for: .vertical)
         hosting.postsFrameChangedNotifications = true
         frameObserver = NotificationCenter.default.addObserver(
@@ -103,7 +104,9 @@ public final class StatusBarManager: NSObject {
             queue: .main
         ) { [weak panel, weak hosting, weak self] _ in
             guard let panel, let hosting, let self else { return }
-            let fittingHeight = min(hosting.fittingSize.height, 700)
+            let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
+            let maxPanelHeight = screenMaxHeight - 40
+            let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
             let newHeight = max(fittingHeight, 100)
             // Grow downward from fixed top anchor (set by positionPanel)
             let newOrigin = NSPoint(

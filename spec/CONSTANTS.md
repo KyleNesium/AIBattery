@@ -362,7 +362,7 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Tertiary label | black 55% | white 35% |
 | Track fill | black 14% opacity | white 10% opacity |
 | Badge fill | black 9% opacity | white 6% opacity |
-| Popover background | solid `windowBackgroundColor` | translucent `.popover` vibrancy |
+| Popover background | `controlBackgroundColor` (opaque white) | `controlBackgroundColor` (opaque dark) |
 
 ### Context health bands
 
