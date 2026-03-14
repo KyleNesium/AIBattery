@@ -201,59 +201,16 @@ public final class StatusBarManager: NSObject {
     // MARK: - Button update
 
     private func updateButton(_ button: NSStatusBarButton, viewModel: UsageViewModel) {
-        let metricModeRaw = UserDefaults.standard.string(forKey: UserDefaultsKeys.metricMode) ?? "5h"
-        let autoMetricMode = UserDefaults.standard.bool(forKey: UserDefaultsKeys.autoMetricMode)
-
-        let metricMode: MetricMode
-        if autoMetricMode, let snapshot = viewModel.snapshot {
-            metricMode = snapshot.autoResolvedMode
-        } else {
-            metricMode = MetricMode(rawValue: metricModeRaw) ?? .fiveHour
-        }
-
+        let metricMode = resolveMetricMode(viewModel: viewModel)
         let percent = viewModel.snapshot?.percent(for: metricMode) ?? 0
         let rateLimits = viewModel.snapshot?.rateLimits
         let isThrottled = rateLimits?.isThrottled ?? false
+        let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isThrottled)
 
-        // Pick star color matching the active metric's thresholds
-        let starColor: NSColor
-        if isThrottled {
-            starColor = ThemeColors.barNSColor(percent: 100)
-        } else if metricMode == .contextHealth {
-            starColor = ThemeColors.contextHealthNSColor(percent: percent)
-        } else {
-            starColor = ThemeColors.barNSColor(percent: percent)
-        }
+        updateSparkleState(isThrottled: isThrottled)
+        updateRenderState(percent: percent, color: starColor, isThrottled: isThrottled)
+        updateBreathTimer(percent: percent, isThrottled: isThrottled)
 
-        // Detect throttle → green transition: start recovery sparkle
-        // Only trigger after we've seen at least one throttled state (not on first update)
-        if hasReceivedFirstUpdate && currentIsThrottled && !isThrottled {
-            startRecoverySparkle()
-        }
-        // If throttled again, cancel any active sparkle
-        if isThrottled {
-            stopRecoverySparkle()
-        }
-
-        // Store render state for the breath timer callback
-        currentPercent = percent
-        currentColor = starColor
-        currentIsThrottled = isThrottled
-        hasReceivedFirstUpdate = true
-
-        // Animate only when visually impactful: sparkle or critical (≥95%).
-        // Throttled uses a static broken star — no timer needed.
-        // Orange band (80–95%) uses a static glow — no timer needed.
-        // Below 80%, breathing is imperceptible — timer stopped to save wake-ups.
-        if isThrottled {
-            stopBreathTimer()
-        } else if isSparkleActive || percent >= 95 {
-            startBreathTimerIfNeeded()
-        } else {
-            stopBreathTimer()
-        }
-
-        // Update icon with current breath step
         button.image = MenuBarIcon.statusBarImage(
             for: percent,
             color: starColor,
@@ -262,24 +219,67 @@ public final class StatusBarManager: NSObject {
             pulseStep: currentPulseStep
         )
 
-        // Countdown overrides normal percentage when throttled or any window at 100%
-        let displayText: String
-        if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
-            displayText = RateLimitUsage.countdownText(to: resetDate)
-        } else {
-            displayText = "\(Int(percent))%"
-        }
+        let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
         button.title = displayText
         button.setAccessibilityValue(displayText)
+        button.appearsDisabled = isStale(lastFetch: viewModel.lastFreshFetch)
+    }
 
-        // Staleness dimming: dim when last fresh fetch > 5 minutes ago
-        let isStale: Bool
-        if let lastFetch = viewModel.lastFreshFetch {
-            isStale = Date().timeIntervalSince(lastFetch) > 300
-        } else {
-            isStale = false
+    private func resolveMetricMode(viewModel: UsageViewModel) -> MetricMode {
+        let autoMetricMode = UserDefaults.standard.bool(forKey: UserDefaultsKeys.autoMetricMode)
+        if autoMetricMode, let snapshot = viewModel.snapshot {
+            return snapshot.autoResolvedMode
         }
-        button.appearsDisabled = isStale
+        let raw = UserDefaults.standard.string(forKey: UserDefaultsKeys.metricMode) ?? "5h"
+        return MetricMode(rawValue: raw) ?? .fiveHour
+    }
+
+    private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool) -> NSColor {
+        if isThrottled {
+            return ThemeColors.barNSColor(percent: 100)
+        } else if metricMode == .contextHealth {
+            return ThemeColors.contextHealthNSColor(percent: percent)
+        } else {
+            return ThemeColors.barNSColor(percent: percent)
+        }
+    }
+
+    private func updateSparkleState(isThrottled: Bool) {
+        if hasReceivedFirstUpdate && currentIsThrottled && !isThrottled {
+            startRecoverySparkle()
+        }
+        if isThrottled {
+            stopRecoverySparkle()
+        }
+    }
+
+    private func updateRenderState(percent: Double, color: NSColor, isThrottled: Bool) {
+        currentPercent = percent
+        currentColor = color
+        currentIsThrottled = isThrottled
+        hasReceivedFirstUpdate = true
+    }
+
+    private func updateBreathTimer(percent: Double, isThrottled: Bool) {
+        if isThrottled {
+            stopBreathTimer()
+        } else if isSparkleActive || percent >= 95 {
+            startBreathTimerIfNeeded()
+        } else {
+            stopBreathTimer()
+        }
+    }
+
+    private func resolveDisplayText(rateLimits: RateLimitUsage?, percent: Double) -> String {
+        if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
+            return RateLimitUsage.countdownText(to: resetDate)
+        }
+        return "\(Int(percent))%"
+    }
+
+    private func isStale(lastFetch: Date?) -> Bool {
+        guard let lastFetch else { return false }
+        return Date().timeIntervalSince(lastFetch) > 300
     }
 
     /// Returns the reset date for countdown display when throttled or any window hits 100%.

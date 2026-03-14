@@ -87,7 +87,7 @@ struct ActivityChartView: View {
                     tooltip: "Message activity over time"
                 )
                 Spacer()
-                if collapsed, let snapshot, let change = changeVsYesterday(snapshot) {
+                if collapsed, let snapshot, let change = ActivityTrendComputation.changeVsYesterday(snapshot) {
                     Text(change.symbol)
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .foregroundStyle(change.color)
@@ -409,86 +409,19 @@ struct ActivityChartView: View {
 
     // MARK: - Trend
 
-    /// Precomputed trend data — avoids duplicate Date()/Calendar/throttleCount calls.
-    private struct TrendData {
-        let change: ChangeInfo?
-        let stat: String?
-        let throttleCount: Int
-        let peak: String?
-        let throttleDays: Int
-    }
-
     private func trendSummary(_ snapshot: UsageSnapshot) -> some View {
-        let data = computeTrendData(snapshot)
+        let data = ActivityTrendComputation.compute(mode: mode, snapshot: snapshot, monthTotals: cachedMonthTotals)
         return VStack(spacing: 4) {
             trendRowTop(change: data.change, stat: data.stat)
             trendRowBottom(throttleCount: data.throttleCount, peak: data.peak)
         }
         .padding(.top, 4)
-        .copyable(trendCopyText(data))
-    }
-
-    /// Compute all trend values once per render — shared by display and copy text.
-    private func computeTrendData(_ snapshot: UsageSnapshot) -> TrendData {
-        let cal = Calendar.current
-        let now = Date()
-
-        switch mode {
-        case .hourly:
-            return TrendData(
-                change: changeVsYesterday(snapshot, cal: cal, now: now),
-                stat: "\(snapshot.todayMessages) msgs today",
-                throttleCount: UsageViewModel.throttleCount(days: 1),
-                peak: snapshot.peakHour.map { "Peak: \(Self.formatHourLabel($0)):00" },
-                throttleDays: 1
-            )
-        case .daily:
-            return TrendData(
-                change: changeVsLastWeek(snapshot, cal: cal, now: now),
-                stat: snapshot.dailyAverage > 0 ? "\(snapshot.dailyAverage) avg/day" : nil,
-                throttleCount: UsageViewModel.throttleCount(days: 7),
-                peak: snapshot.busiestDayOfWeek.map { "Peak: \($0.name)s" },
-                throttleDays: 7
-            )
-        case .monthly:
-            let totals = cachedMonthTotals
-            let nowComps = cal.dateComponents([.year, .month], from: now)
-            let thisMonthKey = nowComps.year.flatMap { y in nowComps.month.map { m in String(format: "%04d-%02d", y, m) } }
-            let lastMonthKey: String? = cal.date(byAdding: .month, value: -1, to: now).flatMap { d in
-                let c = cal.dateComponents([.year, .month], from: d)
-                return c.year.flatMap { y in c.month.map { m in String(format: "%04d-%02d", y, m) } }
-            }
-            let thisMonth = thisMonthKey.flatMap { totals[$0] } ?? 0
-            let lastMonth = lastMonthKey.flatMap { totals[$0] } ?? 0
-            let busiestLabel: String? = {
-                guard let peak = totals.max(by: { $0.value < $1.value }),
-                      let date = DateFormatters.dateKey.date(from: peak.key + "-01") else { return nil }
-                return Self.monthAbbrev(date)
-            }()
-            return TrendData(
-                change: monthChangeInfo(thisMonth: thisMonth, lastMonth: lastMonth, cal: cal, now: now),
-                stat: thisMonth > 0 ? "\(Self.compactCount(thisMonth)) this month" : nil,
-                throttleCount: UsageViewModel.throttleCount(days: 30),
-                peak: busiestLabel.map { "Peak: \($0)" },
-                throttleDays: 30
-            )
-        }
-    }
-
-    /// Build copy text from precomputed trend data.
-    private func trendCopyText(_ data: TrendData) -> String {
-        var lines: [String] = []
-        if let change = data.change { lines.append("\(change.symbol) \(change.label)") }
-        if let stat = data.stat { lines.append(stat) }
-        lines.append("Throttled: \(data.throttleCount > 0 ? "\(data.throttleCount)×" : "0")")
-        if let peak = data.peak { lines.append(peak) }
-        return lines.joined(separator: " · ")
+        .copyable(ActivityTrendComputation.copyText(data))
     }
 
     // MARK: - Shared trend row builders
 
-    /// Row 1: change indicator (left) + summary stat (right).
-    private func trendRowTop(change: ChangeInfo?, stat: String?) -> some View {
+    private func trendRowTop(change: ActivityChangeInfo?, stat: String?) -> some View {
         HStack(spacing: 6) {
             if let change {
                 Text(change.symbol)
@@ -507,7 +440,6 @@ struct ActivityChartView: View {
         }
     }
 
-    /// Row 2: throttle count (left) + peak label (right).
     private func trendRowBottom(throttleCount: Int, peak: String?) -> some View {
         HStack(spacing: 6) {
             if throttleCount > 0 {
@@ -525,89 +457,6 @@ struct ActivityChartView: View {
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
-        }
-    }
-
-    private struct ChangeInfo {
-        let symbol: String
-        let label: String
-        let color: Color
-    }
-
-    private func changeVsYesterday(_ snapshot: UsageSnapshot, cal: Calendar = .current, now: Date = .init()) -> ChangeInfo? {
-        let yesterdayStr = DateFormatters.dateKey.string(
-            from: cal.date(byAdding: .day, value: -1, to: now) ?? now
-        )
-
-        guard let yesterday = snapshot.dailyActivity.first(where: { $0.date == yesterdayStr }) else {
-            return nil
-        }
-
-        let diff = snapshot.todayMessages - yesterday.messageCount
-
-        if diff > 0 {
-            return ChangeInfo(symbol: "↑", label: "+\(diff) vs yesterday", color: ThemeColors.trendColor(.up))
-        } else if diff < 0 {
-            return ChangeInfo(symbol: "↓", label: "\(diff) vs yesterday", color: ThemeColors.trendColor(.down))
-        } else {
-            return ChangeInfo(symbol: "→", label: "same as yesterday", color: ThemeColors.secondaryLabel)
-        }
-    }
-
-    /// Compare this week's messages vs the same days last week for a fair comparison.
-    /// e.g. on Tuesday, compares Mon–Tue this week vs Mon–Tue last week.
-    private func changeVsLastWeek(_ snapshot: UsageSnapshot, cal: Calendar = .current, now: Date = .init()) -> ChangeInfo? {
-        let today = cal.startOfDay(for: now)
-        let weekday = cal.component(.weekday, from: today)
-        // Days since Monday (weekday 2 = Monday in Gregorian), 0 = Monday
-        let daysSinceMonday = (weekday + 5) % 7
-        guard let thisWeekStart = cal.date(byAdding: .day, value: -daysSinceMonday, to: today),
-              let lastWeekStart = cal.date(byAdding: .day, value: -7, to: thisWeekStart),
-              // Compare same span: Mon–today this week vs Mon–same day last week
-              let lastWeekSameDay = cal.date(byAdding: .day, value: daysSinceMonday, to: lastWeekStart) else {
-            return nil
-        }
-
-        let thisWeekRange = DateFormatters.dateKey.string(from: thisWeekStart)...DateFormatters.dateKey.string(from: today)
-        let lastWeekRange = DateFormatters.dateKey.string(from: lastWeekStart)...DateFormatters.dateKey.string(from: lastWeekSameDay)
-
-        let thisWeekTotal = snapshot.dailyActivity
-            .filter { thisWeekRange.contains($0.date) }
-            .reduce(0) { $0 + $1.messageCount }
-        let lastWeekTotal = snapshot.dailyActivity
-            .filter { lastWeekRange.contains($0.date) }
-            .reduce(0) { $0 + $1.messageCount }
-
-        guard lastWeekTotal > 0 else { return nil }
-
-        let diff = thisWeekTotal - lastWeekTotal
-        let pct = Int(round(Double(diff) / Double(lastWeekTotal) * 100))
-
-        if pct > 10 {
-            return ChangeInfo(symbol: "↑", label: "+\(pct)% vs last week", color: ThemeColors.trendColor(.up))
-        } else if pct < -10 {
-            return ChangeInfo(symbol: "↓", label: "\(pct)% vs last week", color: ThemeColors.trendColor(.down))
-        } else {
-            return ChangeInfo(symbol: "→", label: "~same as last week", color: ThemeColors.secondaryLabel)
-        }
-    }
-
-    private func monthChangeInfo(thisMonth: Int, lastMonth: Int, cal: Calendar = .current, now: Date = .init()) -> ChangeInfo? {
-        guard lastMonth > 0 else { return nil }
-
-        let dayOfMonth = cal.component(.day, from: now)
-        guard dayOfMonth >= 4,
-              let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count else { return nil }
-        let projected = thisMonth * daysInMonth / dayOfMonth
-        let diff = projected - lastMonth
-        let pct = Int(round(Double(diff) / Double(lastMonth) * 100))
-
-        if pct > 10 {
-            return ChangeInfo(symbol: "↑", label: "+\(pct)% vs last month", color: ThemeColors.trendColor(.up))
-        } else if pct < -10 {
-            return ChangeInfo(symbol: "↓", label: "\(pct)% vs last month", color: ThemeColors.trendColor(.down))
-        } else {
-            return ChangeInfo(symbol: "→", label: "~same as last month", color: ThemeColors.secondaryLabel)
         }
     }
 
@@ -655,7 +504,7 @@ struct ActivityChartView: View {
 
     /// Compact integer counts for chart axes (e.g. 1500 → "2K").
     /// Differs from TokenFormatter which formats fractional token values (e.g. 1500 → "1.5K").
-    private static func compactCount(_ value: Int) -> String {
+    static func compactCount(_ value: Int) -> String {
         if value >= 1_000_000 {
             let m = Double(value) / 1_000_000
             return m == m.rounded() ? "\(Int(m))M" : String(format: "%.1fM", m)
@@ -670,7 +519,7 @@ struct ActivityChartView: View {
 
     private static let hourLabels: [String] = (0..<24).map { String(format: "%02d", $0) }
 
-    private static func formatHourLabel(_ hour: Int) -> String {
+    static func formatHourLabel(_ hour: Int) -> String {
         guard hour >= 0 && hour < 24 else { return String(format: "%02d", hour) }
         return hourLabels[hour]
     }
