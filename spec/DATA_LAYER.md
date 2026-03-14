@@ -392,7 +392,7 @@ Pricing table (per million tokens):
 - FSEventStream flags: `kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes`
 - WeakBox wrapper for C callback to prevent retain cycles
 - Debounce: 2 seconds via `DispatchWorkItem`
-- **Cache invalidation**: debounced handler calls `SessionLogReader.shared.invalidate()` and `StatsCacheReader.shared.invalidate()` before triggering refresh
+- **Selective cache invalidation**: stats-cache watcher only invalidates `StatsCacheReader`, JSONL watcher only invalidates `SessionLogReader` — avoids unnecessary cache rebuilds when only one data source changed. Fallback timer invalidates both (safe catch-all)
 - Fallback timer: 60 seconds — starts if either DispatchSource or FSEventStream fails (ensures changes are picked up even if one watcher is unavailable)
 - Calls `onChange` closure → triggers `viewModel.refresh()`
 - **Stats-cache retry**: if `stats-cache.json` doesn't exist on launch (normal before first `/stats` run), retries with exponential backoff (60s base, doubles each retry, capped at 300s, max 10 retries ~30 min). Counter resets on success or `stopWatching()`
