@@ -92,10 +92,10 @@ struct UsageSnapshot {
         let maxUrgency = scored.map(\.1).max() ?? 0
         // Among tied modes, prefer context > 5h > 7d (most actionable first)
         let tiePriority: [MetricMode] = [.contextHealth, .fiveHour, .sevenDay]
-        return scored
+        let winner = scored
             .filter { $0.1 == maxUrgency }
-            .min { (tiePriority.firstIndex(of: $0.0) ?? .max) < (tiePriority.firstIndex(of: $1.0) ?? .max) }!
-            .0
+            .min { (tiePriority.firstIndex(of: $0.0) ?? .max) < (tiePriority.firstIndex(of: $1.0) ?? .max) }
+        return winner?.0 ?? .fiveHour
     }
 
     // MARK: - Urgency scoring
@@ -114,11 +114,11 @@ struct UsageSnapshot {
         return interpolate(percent, anchors: anchors)
     }
 
-    /// Piecewise-linear interpolation. Values below first anchor clamp to 0, above last to 1.
+    /// Piecewise-linear interpolation. Values below first anchor clamp to first y, above last to last y.
     private static func interpolate(_ value: Double, anchors: [(Double, Double)]) -> Double {
-        guard !anchors.isEmpty else { return 0 }
-        if value <= anchors.first!.0 { return anchors.first!.1 }
-        if value >= anchors.last!.0 { return anchors.last!.1 }
+        guard let first = anchors.first, let last = anchors.last else { return 0 }
+        if value <= first.0 { return first.1 }
+        if value >= last.0 { return last.1 }
         for i in 0..<(anchors.count - 1) {
             let (x0, y0) = anchors[i]
             let (x1, y1) = anchors[i + 1]
@@ -127,7 +127,7 @@ struct UsageSnapshot {
                 return y0 + t * (y1 - y0)
             }
         }
-        return anchors.last!.1
+        return last.1
     }
 
     // Daily activity for chart

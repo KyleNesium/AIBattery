@@ -237,25 +237,16 @@ struct ActivityChartView: View {
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle().fill(.clear).contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let location):
-                            let origin = geo[proxy.plotAreaFrame].origin
-                            let x = location.x - origin.x
-                            if let date: Date = proxy.value(atX: x) {
-                                let cal = Calendar.current
-                                selectedDailyId = data
-                                    .min(by: {
-                                        abs(cal.dateComponents([.hour], from: $0.date, to: date).hour ?? .max)
-                                        < abs(cal.dateComponents([.hour], from: $1.date, to: date).hour ?? .max)
-                                    })?.id
-                            }
-                        case .ended:
-                            selectedDailyId = nil
-                        }
-                    }
+            chartHoverOverlay(proxy: proxy) { x in
+                guard let date: Date = proxy.value(atX: x) else { return }
+                let cal = Calendar.current
+                selectedDailyId = data
+                    .min(by: {
+                        abs(cal.dateComponents([.hour], from: $0.date, to: date).hour ?? .max)
+                        < abs(cal.dateComponents([.hour], from: $1.date, to: date).hour ?? .max)
+                    })?.id
+            } onEnd: {
+                selectedDailyId = nil
             }
         }
         .frame(height: 50)
@@ -324,20 +315,11 @@ struct ActivityChartView: View {
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle().fill(.clear).contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let location):
-                            let origin = geo[proxy.plotAreaFrame].origin
-                            let x = location.x - origin.x
-                            if let value: Double = proxy.value(atX: x) {
-                                selectedHourlyOffset = max(0, min(11, Int(value.rounded())))
-                            }
-                        case .ended:
-                            selectedHourlyOffset = nil
-                        }
-                    }
+            chartHoverOverlay(proxy: proxy) { x in
+                guard let value: Double = proxy.value(atX: x) else { return }
+                selectedHourlyOffset = max(0, min(11, Int(value.rounded())))
+            } onEnd: {
+                selectedHourlyOffset = nil
             }
         }
         .frame(height: 50)
@@ -408,25 +390,16 @@ struct ActivityChartView: View {
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle().fill(.clear).contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let location):
-                            let origin = geo[proxy.plotAreaFrame].origin
-                            let x = location.x - origin.x
-                            if let date: Date = proxy.value(atX: x) {
-                                let cal = Calendar.current
-                                selectedMonthlyId = data
-                                    .min(by: {
-                                        abs(cal.dateComponents([.day], from: $0.date, to: date).day ?? .max)
-                                        < abs(cal.dateComponents([.day], from: $1.date, to: date).day ?? .max)
-                                    })?.id
-                            }
-                        case .ended:
-                            selectedMonthlyId = nil
-                        }
-                    }
+            chartHoverOverlay(proxy: proxy) { x in
+                guard let date: Date = proxy.value(atX: x) else { return }
+                let cal = Calendar.current
+                selectedMonthlyId = data
+                    .min(by: {
+                        abs(cal.dateComponents([.day], from: $0.date, to: date).day ?? .max)
+                        < abs(cal.dateComponents([.day], from: $1.date, to: date).day ?? .max)
+                    })?.id
+            } onEnd: {
+                selectedMonthlyId = nil
             }
         }
         .frame(height: 50)
@@ -652,6 +625,23 @@ struct ActivityChartView: View {
 
     /// Shared RuleMark styling for hover selection indicators.
     private static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
+
+    /// Shared chart overlay that converts mouse location to plot-area X offset.
+    /// Eliminates the duplicated GeometryReader + Rectangle + onContinuousHover boilerplate.
+    private func chartHoverOverlay(proxy: ChartProxy, onHover: @escaping (CGFloat) -> Void, onEnd: @escaping () -> Void) -> some View {
+        GeometryReader { geo in
+            Rectangle().fill(.clear).contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let location):
+                        let origin = geo[proxy.plotAreaFrame].origin
+                        onHover(location.x - origin.x)
+                    case .ended:
+                        onEnd()
+                    }
+                }
+        }
+    }
 
     // MARK: - Formatters
 
