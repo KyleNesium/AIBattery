@@ -8,9 +8,8 @@
        └─ StatusBarManager.setup(viewModel:oauthManager:)
             ├─ NSStatusItem: native button.image + button.title (no NSHostingView)
             └─ PopoverPanel (floating NSPanel, borderless)
-                 └─ NSVisualEffectView (.popover material)
-                      └─ NSHostingView → PopoverContentView
-                           └─ Group { UsagePopoverView | AuthView }
+                 └─ NSHostingView → PopoverContentView (controlBackgroundColor background)
+                      └─ Group { UsagePopoverView | AuthView }
 ```
 
 `StatusBarManager` owns the `NSStatusItem` and a floating `NSPanel` directly, bypassing SwiftUI's `MenuBarExtra`. The panel uses `hidesOnDeactivate = false` and `.floating` level so it stays open regardless of focus changes — only closes on status item click or Escape.
@@ -97,7 +96,7 @@ AIBattery/
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
-    StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, NSVisualEffectView, Combine-driven updates
+    StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
     Settings/
