@@ -15,7 +15,7 @@ struct ProjectUsageSection: View {
     private var expandedLimit: Int {
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 900
         let rowHeight: CGFloat = 22
-        let reservedHeight: CGFloat = 300 // activity chart + insights + footer + dividers
+        let reservedHeight: CGFloat = 300 // activity chart + insight rows + footer + dividers
         let maxRows = Int((screenHeight - reservedHeight) / rowHeight)
         return max(maxRows, Self.collapsedLimit)
     }
@@ -273,7 +273,7 @@ private enum ProjectSortMode: CaseIterable {
 
     var next: ProjectSortMode {
         let all = Self.allCases
-        let idx = all.firstIndex(of: self)!
+        guard let idx = all.firstIndex(of: self) else { return .tokensDesc }
         return all[(idx + 1) % all.count]
     }
 }
