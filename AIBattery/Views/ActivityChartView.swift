@@ -4,7 +4,7 @@ import Charts
 // MARK: - Chart Mode
 
 enum ActivityChartMode: String, CaseIterable {
-    case hourly = "12H"
+    case hourly = "24H"
     case daily = "7D"
     case monthly = "12M"
 }
@@ -105,7 +105,7 @@ struct ActivityChartView: View {
                     .frame(width: 120)
                     .scaleEffect(0.8, anchor: .trailing)
                     .accessibilityLabel("Activity time range")
-                    .accessibilityHint("Switch between 12 hour, 7 day, and 12 month views")
+                    .accessibilityHint("Switch between 24 hour, 7 day, and 12 month views")
                     .help("Switch activity chart time range")
                 }
             }
@@ -134,10 +134,11 @@ struct ActivityChartView: View {
                 }
             }
 
-            // Trend summary
+            // Trend summary + insight rows
             if !collapsed, let snapshot {
                 trendSummary(snapshot)
                     .accessibilityElement(children: .combine)
+                insightRows(snapshot)
             }
         }
         .padding(.horizontal, 16)
@@ -254,7 +255,7 @@ struct ActivityChartView: View {
         .accessibilityLabel(a11yLabel)
     }
 
-    // MARK: - Hourly Chart (12H)
+    // MARK: - Hourly Chart (24H)
 
     private var hourlyChart: some View {
         let data = cachedHourly
@@ -262,9 +263,9 @@ struct ActivityChartView: View {
         let peak = data.max(by: { $0.count < $1.count })
         let a11yLabel: String = {
             if let peak, peak.count > 0 {
-                return "12-hour activity chart. \(total) messages in trailing window. Peak hour: \(Self.formatHourLabel(peak.hour)) with \(peak.count) messages"
+                return "24-hour activity chart. \(total) messages in trailing window. Peak hour: \(Self.formatHourLabel(peak.hour)) with \(peak.count) messages"
             }
-            return "12-hour activity chart. \(total) messages in trailing window"
+            return "24-hour activity chart. \(total) messages in trailing window"
         }()
 
         return Chart {
@@ -302,7 +303,7 @@ struct ActivityChartView: View {
             }
         }
         .chartXAxis {
-            AxisMarks(values: [0, 3, 6, 9, 11]) { value in
+            AxisMarks(values: [0, 4, 8, 12, 16, 20, 23]) { value in
                 AxisValueLabel {
                     if let offset = value.as(Int.self), offset >= 0, offset < data.count {
                         Text(Self.formatHourLabel(data[offset].hour))
@@ -311,13 +312,13 @@ struct ActivityChartView: View {
                 }
             }
         }
-        .chartXScale(domain: 0...11)
+        .chartXScale(domain: 0...23)
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
             chartHoverOverlay(proxy: proxy) { x in
                 guard let value: Double = proxy.value(atX: x) else { return }
-                selectedHourlyOffset = max(0, min(11, Int(value.rounded())))
+                selectedHourlyOffset = max(0, min(23, Int(value.rounded())))
             } onEnd: {
                 selectedHourlyOffset = nil
             }
@@ -458,6 +459,65 @@ struct ActivityChartView: View {
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
         }
+    }
+
+    // MARK: - Insight rows (merged from former Insights section)
+
+    private static let insightLabelWidth: CGFloat = 55
+
+    @ViewBuilder
+    private func insightRows(_ snapshot: UsageSnapshot) -> some View {
+        // All Time
+        insightRow(
+            label: "All Time",
+            value: "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions",
+            tooltip: "Cumulative activity across all sessions"
+        )
+        .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
+
+        // Longest session
+        if let duration = snapshot.longestSessionDuration, snapshot.longestSessionMessages > 0 {
+            insightRow(
+                label: "Longest",
+                value: "\(duration) \u{00B7} \(snapshot.longestSessionMessages) msgs",
+                tooltip: "Longest single session by duration"
+            )
+        }
+
+        // Date range
+        if let start = snapshot.firstSessionDate,
+           let lastDay = snapshot.dailyActivity.last?.date,
+           let end = DateFormatters.dateKey.date(from: lastDay) {
+            insightRow(
+                label: "Period",
+                value: DateFormatters.formatDateRange(from: start, to: end),
+                tooltip: "Date range of tracked data",
+                valueColor: ThemeColors.secondaryLabel
+            )
+        }
+    }
+
+    private func insightRow(
+        label: String,
+        value: String,
+        tooltip: String,
+        valueColor: Color = .primary
+    ) -> some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(ThemeColors.secondaryLabel)
+                .frame(width: Self.insightLabelWidth, alignment: .leading)
+                .help(tooltip)
+            Spacer()
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(valueColor)
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.4), value: value)
+                .copyable(value)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Tooltip annotation

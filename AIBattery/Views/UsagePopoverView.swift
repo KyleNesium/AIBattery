@@ -111,9 +111,6 @@ public struct UsagePopoverView: View {
                 ProjectUsageGate(snapshot: snapshot)
                 ActivityChartGate(snapshot: snapshot)
 
-                if snapshot.totalMessages > 0 {
-                    InsightsSection(snapshot: snapshot)
-                }
             } else if viewModel.isLoading {
                 loadingView
             } else if let error = viewModel.errorMessage {

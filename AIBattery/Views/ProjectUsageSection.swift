@@ -6,43 +6,60 @@ struct ProjectUsageSection: View {
     @AppStorage(UserDefaultsKeys.projectsCollapsed) private var collapsed: Bool = false
     @State private var showAll = false
     @State private var searchText = ""
-    @State private var sortByCost = false
+    @State private var sortMode: ProjectSortMode = .tokensDesc
 
-    private let projectIcons = [
-        "folder", "hammer", "terminal", "doc.text", "gearshape.2"
-    ]
+    /// Minimum projects shown when collapsed.
+    private static let collapsedLimit = 6
 
-    /// Maximum projects shown before "Show all" toggle.
-    private static let visibleLimit = 6
+    /// Expanded limit based on screen height so the panel doesn't overflow.
+    private var expandedLimit: Int {
+        let screenHeight = NSScreen.main?.visibleFrame.height ?? 900
+        let rowHeight: CGFloat = 22
+        let reservedHeight: CGFloat = 300 // activity chart + insights + footer + dividers
+        let maxRows = Int((screenHeight - reservedHeight) / rowHeight)
+        return max(maxRows, Self.collapsedLimit)
+    }
 
-    /// Column width for compact cost values (e.g. "$18").
+    /// Column width for compact cost values (e.g. "~$18").
     private let costColumnWidth: CGFloat = 38
     /// Column width for token values (e.g. "1.2M").
     private let tokenColumnWidth: CGFloat = 42
 
-    /// Projects sorted and filtered based on current state.
-    private var displayedProjects: [ProjectTokenSummary] {
-        let sorted: [ProjectTokenSummary]
-        if sortByCost {
-            sorted = snapshot.projectTokens.sorted { $0.estimatedCost > $1.estimatedCost }
-        } else {
-            sorted = snapshot.projectTokens // already sorted by totalTokens desc
+    private var sortedProjects: [ProjectTokenSummary] {
+        switch sortMode {
+        case .tokensDesc:
+            return snapshot.projectTokens // already sorted by totalTokens desc
+        case .costDesc:
+            return snapshot.projectTokens.sorted { $0.estimatedCost > $1.estimatedCost }
+        case .costAsc:
+            return snapshot.projectTokens.sorted { $0.estimatedCost < $1.estimatedCost }
+        case .name:
+            return snapshot.projectTokens.sorted { $0.projectName.localizedCaseInsensitiveCompare($1.projectName) == .orderedAscending }
         }
+    }
+
+    private var displayedProjects: [ProjectTokenSummary] {
+        let sorted = sortedProjects
 
         if showAll && !searchText.isEmpty {
             let query = searchText.lowercased()
             return sorted.filter { $0.projectName.lowercased().contains(query) }
         }
 
-        if !showAll {
-            return Array(sorted.prefix(Self.visibleLimit))
+        if showAll {
+            return Array(sorted.prefix(expandedLimit))
         }
 
-        return sorted
+        return Array(sorted.prefix(Self.collapsedLimit))
     }
 
     private var hasMore: Bool {
-        snapshot.projectTokens.count > Self.visibleLimit
+        snapshot.projectTokens.count > Self.collapsedLimit
+    }
+
+    /// Whether expanded view is capped below total project count.
+    private var isCapped: Bool {
+        snapshot.projectTokens.count > expandedLimit
     }
 
     var body: some View {
@@ -50,9 +67,14 @@ struct ProjectUsageSection: View {
             headerRow
 
             if !collapsed && !snapshot.projectTokens.isEmpty {
-                // Sort toggle (only when expanded and has multiple projects)
+                // Sort + controls row
                 if snapshot.projectTokens.count > 1 {
-                    sortToggle
+                    controlsRow
+                }
+
+                // Search field above list when expanded
+                if showAll && hasMore {
+                    searchField
                 }
 
                 ForEach(Array(displayedProjects.enumerated()), id: \.element.id) { index, project in
@@ -62,15 +84,20 @@ struct ProjectUsageSection: View {
                 if hasMore {
                     expandToggle
                 }
-
-                // Search field when expanded and has many projects
-                if showAll && snapshot.projectTokens.count > Self.visibleLimit {
-                    searchField
-                }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .onChange(of: collapsed) { isCollapsed in
+            if isCollapsed {
+                showAll = false
+                searchText = ""
+            }
+        }
+        .onDisappear {
+            showAll = false
+            searchText = ""
+        }
     }
 
     // MARK: - Header
@@ -103,23 +130,24 @@ struct ProjectUsageSection: View {
         }
     }
 
-    // MARK: - Sort toggle
+    // MARK: - Controls row (sort menu)
 
-    private var sortToggle: some View {
+    private var controlsRow: some View {
         HStack(spacing: 4) {
             Spacer()
-            Button(action: { sortByCost.toggle() }) {
+            Button(action: { sortMode = sortMode.next }) {
                 HStack(spacing: 3) {
-                    Image(systemName: "arrow.up.arrow.down")
+                    Image(systemName: sortMode.icon)
                         .font(.system(size: 8))
-                    Text(sortByCost ? "by cost" : "by tokens")
+                    Text(sortMode.label)
                         .font(.system(.caption2))
                 }
             }
             .buttonStyle(.plain)
+            .fixedSize()
             .foregroundStyle(ThemeColors.tertiaryLabel)
-            .help("Toggle sort order")
-            .accessibilityLabel("Sort \(sortByCost ? "by cost" : "by tokens")")
+            .help("Cycle sort: \(sortMode.next.label)")
+            .accessibilityLabel("Sort by \(sortMode.label), tap to switch to \(sortMode.next.label)")
         }
     }
 
@@ -129,10 +157,10 @@ struct ProjectUsageSection: View {
         let tokensText = TokenFormatter.format(project.totalTokens)
         let costText: String? = showCost ? "~\(ModelPricing.formatCompactCost(project.estimatedCost))" : nil
         return HStack(spacing: 6) {
-            Image(systemName: projectIcons[index % projectIcons.count])
-                .font(.system(size: 10))
-                .foregroundStyle(ThemeColors.secondaryLabel)
-                .frame(width: 14)
+            Text("\(index + 1)")
+                .font(.system(.caption2, design: .monospaced, weight: .medium))
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+                .frame(width: 14, alignment: .trailing)
 
             Text(project.projectName)
                 .font(.caption)
@@ -161,7 +189,11 @@ struct ProjectUsageSection: View {
     // MARK: - Expand / collapse toggle
 
     private var expandToggle: some View {
-        let hiddenCount = snapshot.projectTokens.count - Self.visibleLimit
+        let total = snapshot.projectTokens.count
+        let expandLabel: String = isCapped
+            ? "Show top \(expandedLimit)"
+            : "Show all (\(total))"
+        let collapseLabel = "Show less"
         return HStack {
             Spacer()
             Button(action: {
@@ -173,14 +205,14 @@ struct ProjectUsageSection: View {
                 HStack(spacing: 3) {
                     Image(systemName: showAll ? "chevron.up" : "chevron.down")
                         .font(.system(size: 8, weight: .bold))
-                    Text(showAll ? "Show less" : "Show all (\(snapshot.projectTokens.count))")
+                    Text(showAll ? collapseLabel : expandLabel)
                         .font(.caption2)
                 }
             }
             .buttonStyle(.plain)
             .foregroundStyle(ThemeColors.tertiaryLabel)
-            .help(showAll ? "Show top \(Self.visibleLimit)" : "\(hiddenCount) more project\(hiddenCount == 1 ? "" : "s")")
-            .accessibilityLabel(showAll ? "Show fewer projects" : "Show all \(snapshot.projectTokens.count) projects")
+            .help(showAll ? "Show top \(Self.collapsedLimit)" : "\(total - Self.collapsedLimit) more project\(total - Self.collapsedLimit == 1 ? "" : "s")")
+            .accessibilityLabel(showAll ? "Show fewer projects" : expandLabel)
             Spacer()
         }
     }
@@ -195,6 +227,14 @@ struct ProjectUsageSection: View {
             TextField("Filter projects", text: $searchText)
                 .font(.caption)
                 .textFieldStyle(.plain)
+            if !searchText.isEmpty {
+                Button(action: { searchText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
@@ -202,5 +242,38 @@ struct ProjectUsageSection: View {
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.primary.opacity(0.05))
         )
+    }
+}
+
+// MARK: - Sort mode
+
+private enum ProjectSortMode: CaseIterable {
+    case tokensDesc
+    case costDesc
+    case costAsc
+    case name
+
+    var label: String {
+        switch self {
+        case .tokensDesc: return "tokens"
+        case .costDesc: return "cost ↓"
+        case .costAsc: return "cost ↑"
+        case .name: return "name"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .tokensDesc: return "arrow.down"
+        case .costDesc: return "arrow.down"
+        case .costAsc: return "arrow.up"
+        case .name: return "textformat.abc"
+        }
+    }
+
+    var next: ProjectSortMode {
+        let all = Self.allCases
+        let idx = all.firstIndex(of: self)!
+        return all[(idx + 1) % all.count]
     }
 }

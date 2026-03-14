@@ -43,13 +43,13 @@ enum ActivityChartData {
         }
     }
 
-    // MARK: - Hourly (12H)
+    // MARK: - Hourly (24H)
 
-    /// Generates 12 hourly data points for the trailing 12-hour window.
+    /// Generates 24 hourly data points for the trailing 24-hour window.
     static func hourlyData(from hourCounts: [String: Int], now: Date = .now) -> [HourlyPoint] {
         let currentHour = Calendar.current.component(.hour, from: now)
-        return (0..<12).map { offset in
-            let hour = (currentHour - 11 + offset + 24) % 24
+        return (0..<24).map { offset in
+            let hour = (currentHour - 23 + offset + 24) % 24
             return HourlyPoint(offset: offset, hour: hour, count: hourCounts[String(hour)] ?? 0)
         }
     }

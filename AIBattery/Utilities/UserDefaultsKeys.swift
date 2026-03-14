@@ -25,7 +25,6 @@ enum UserDefaultsKeys {
     static let tokensCollapsed = "aibattery_tokensCollapsed"
     static let projectsCollapsed = "aibattery_projectsCollapsed"
     static let activityCollapsed = "aibattery_activityCollapsed"
-    static let insightsCollapsed = "aibattery_insightsCollapsed"
     /// Prefix for per-account token expiry timestamps (append account ID).
     static let tokenExpiresAtPrefix = "aibattery_expiresAt_"
 }

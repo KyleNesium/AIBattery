@@ -35,9 +35,9 @@ struct ActivityChartDataTests {
 
     // MARK: - Hourly data
 
-    @Test func hourlyData_returns12Points() {
+    @Test func hourlyData_returns24Points() {
         let data = ActivityChartData.hourlyData(from: [:])
-        #expect(data.count == 12)
+        #expect(data.count == 24)
     }
 
     @Test func hourlyData_looksUpCorrectHours() {
@@ -57,15 +57,17 @@ struct ActivityChartDataTests {
         #expect(hour3?.count == 5)
     }
 
-    @Test func hourlyData_wrapsAroundMidnight() {
+    @Test func hourlyData_coversFullDay() {
         let cal = Calendar.current
         let fixedDate = cal.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 2))!
         let data = ActivityChartData.hourlyData(from: [:], now: fixedDate)
 
-        // Should contain hours from 15 (yesterday) through 2 (today)
+        // 24-hour window: should contain hours from 3 (yesterday) through 2 (today)
         let hours = data.map(\.hour)
-        #expect(hours.first == 15) // 2 - 11 = -9 + 24 = 15
+        #expect(hours.first == 3) // 2 - 23 + 24 = 3
         #expect(hours.last == 2)
+        // All 24 hours should be represented
+        #expect(Set(hours).count == 24)
     }
 
     // MARK: - Month totals
