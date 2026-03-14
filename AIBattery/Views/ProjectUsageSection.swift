@@ -113,6 +113,12 @@ struct ProjectUsageSection: View {
                 collapsed: $collapsed,
                 tooltip: "Token usage grouped by project directory (recent sessions)"
             )
+            if collapsed, let topProject = snapshot.projectTokens.first {
+                Text("\(snapshot.projectTokens.count) · \(topProject.projectName)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .lineLimit(1)
+            }
             Spacer()
             if let costText {
                 Text(costText)

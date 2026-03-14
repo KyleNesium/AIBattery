@@ -156,7 +156,7 @@ Padding: H 16, V 8
 
 ### Collapsible Sections
 
-Context Health, Tokens, Projects, and Activity sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
+Context Health, Tokens, Projects, and Activity sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`). When collapsed, the header row shows with summary value on the right plus a contextual hint: Token Usage shows active model name, Projects shows count + top project name, Activity shows vs-yesterday trend. Collapse/expand animates with `.easeInOut(duration: 0.2)`.
 
 ### Gate Views (`TokenUsageGate`, `ProjectUsageGate`, `ActivityChartGate`)
 

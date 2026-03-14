@@ -38,6 +38,14 @@ struct TokenUsageSection: View {
         return activeId.hasPrefix(model.id) || model.id.hasPrefix(activeId)
     }
 
+    /// Active model display name for collapsed summary (e.g. "Opus 4.6").
+    private var activeModelName: String? {
+        guard let activeId = activeModelId, !activeId.isEmpty else { return nil }
+        return snapshot.modelTokens
+            .first(where: { activeId.hasPrefix($0.id) || $0.id.hasPrefix(activeId) })
+            .map(\.displayName)
+    }
+
     /// Column width for cost values (e.g. "~$12.31").
     private let costColumnWidth: CGFloat = 54
     /// Column width for token values (e.g. "1.2M").
@@ -71,6 +79,12 @@ struct TokenUsageSection: View {
                 collapsed: $collapsed,
                 tooltip: "Total tokens used across all models (cost is API-equivalent estimate)"
             )
+            if collapsed, let activeModel = activeModelName {
+                Text(activeModel)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .lineLimit(1)
+            }
             Spacer()
             if let costText {
                 Text(costText)
