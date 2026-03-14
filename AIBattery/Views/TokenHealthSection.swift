@@ -268,99 +268,13 @@ struct TokenHealthSection: View {
         .help(sessionDetailTooltip)
     }
 
-    /// Minutes idle if session is stale (>30 min with non-green band), otherwise nil.
-    private var staleIdleMinutes: Int? {
-        guard let lastActivity = health.lastActivity, health.band != .green else { return nil }
-        let idle = Date().timeIntervalSince(lastActivity)
-        guard idle > 30 * 60 else { return nil }
-        return Int(idle / 60)
-    }
+    // Session detail helpers delegated to SessionInfoFormatter (TokenHealthSessionInfo.swift)
 
-    /// Full session detail string for tooltip hover.
-    private var sessionDetailTooltip: String {
-        var parts: [String] = []
-        if !health.id.isEmpty { parts.append("Session: \(health.id)") }
-        if !health.model.isEmpty { parts.append("Model: \(ModelNameMapper.displayName(for: health.model))") }
-        parts.append("Context: \(TokenFormatter.format(health.totalUsed))/\(TokenFormatter.format(health.usableWindow))")
-        parts.append("Input: \(TokenFormatter.format(health.inputTokens)) · Output: \(TokenFormatter.format(health.outputTokens))")
-        if health.cacheReadTokens > 0 || health.cacheWriteTokens > 0 {
-            parts.append("Cache R: \(TokenFormatter.format(health.cacheReadTokens)) · W: \(TokenFormatter.format(health.cacheWriteTokens))")
-        }
-        parts.append("Turns: \(health.turnCount)")
-        if let start = health.sessionStart {
-            parts.append("Started: \(Self.formatSessionTime(start))")
-        }
-        if !health.warnings.isEmpty {
-            parts.append("Warnings: \(health.warnings.map(\.message).joined(separator: ", "))")
-        }
-        return parts.joined(separator: "\n")
-    }
-
-    /// Project name and branch for display (plain text).
-    private var sessionLabelParts: [String] {
-        var parts: [String] = []
-        if let name = health.projectName {
-            parts.append(name)
-        }
-        if let branch = health.gitBranch, branch != "HEAD", !branch.isEmpty {
-            parts.append(branch)
-        }
-        return parts
-    }
-
-    /// 8-char session ID prefix for cross-referencing with Claude Code.
-    private var sessionIdPrefix: String? {
-        guard !health.id.isEmpty else { return nil }
-        return String(health.id.prefix(8))
-    }
-
-    private var sessionBottomParts: [String] {
-        var parts: [String] = []
-        if let duration = health.sessionDuration {
-            parts.append(DurationFormatter.compact(duration))
-        }
-        if let lastActivity = health.lastActivity {
-            parts.append(Self.formatSessionTime(lastActivity))
-        } else if let start = health.sessionStart {
-            parts.append(Self.formatSessionTime(start))
-        }
-        if let velocity = health.tokensPerMinute, velocity > 0 {
-            parts.append("\(TokenFormatter.format(Int(velocity)))/min")
-        }
-        return parts
-    }
-
-    // MARK: - Static Formatters
-
-    private static let timeFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        f.dateStyle = .none
-        return f
-    }()
-
-    private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.setLocalizedDateFormatFromTemplate("MMMd")
-        return f
-    }()
-
-    /// Format a session timestamp: "Today 14:32", "Yesterday 09:15", or "Feb 10, 14:32"
-    private static func formatSessionTime(_ date: Date) -> String {
-        let elapsed = Date().timeIntervalSince(date)
-        if elapsed < 60 { return "just now" }
-        if elapsed < 3600 { return "\(Int(elapsed / 60))m ago" }
-        let calendar = Calendar.current
-        let time = timeFormatter.string(from: date)
-
-        if calendar.isDateInToday(date) {
-            return "Today \(time)"
-        } else if calendar.isDateInYesterday(date) {
-            return "Yesterday \(time)"
-        } else {
-            return "\(dayFormatter.string(from: date)), \(time)"
-        }
-    }
+    private var staleIdleMinutes: Int? { SessionInfoFormatter.staleIdleMinutes(for: health) }
+    private var sessionDetailTooltip: String { SessionInfoFormatter.detailTooltip(for: health) }
+    private var sessionLabelParts: [String] { SessionInfoFormatter.labelParts(for: health) }
+    private var sessionIdPrefix: String? { SessionInfoFormatter.idPrefix(for: health) }
+    private var sessionBottomParts: [String] { SessionInfoFormatter.bottomParts(for: health) }
 
     private var healthBadge: some View {
         HStack(spacing: 4) {
