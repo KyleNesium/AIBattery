@@ -141,6 +141,7 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 | Show cost | `aibattery_showCostEstimate` (Bool, default false) |
 | Context collapsed | `aibattery_contextCollapsed` (Bool, default false) |
 | Tokens collapsed | `aibattery_tokensCollapsed` (Bool, default false) |
+| Projects collapsed | `aibattery_projectsCollapsed` (Bool, default false) |
 | Activity collapsed | `aibattery_activityCollapsed` (Bool, default false) |
 | Insights collapsed | `aibattery_insightsCollapsed` (Bool, default false) |
 | Format | `"$X.XX"` or `"<$0.01"` for sub-penny amounts |

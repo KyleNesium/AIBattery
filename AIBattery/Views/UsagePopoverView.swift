@@ -108,6 +108,7 @@ public struct UsagePopoverView: View {
                 .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
 
                 TokenUsageGate(snapshot: snapshot)
+                ProjectUsageGate(snapshot: snapshot)
                 ActivityChartGate(snapshot: snapshot)
 
                 if snapshot.totalMessages > 0 {
@@ -642,6 +643,18 @@ private struct TokenUsageGate: View {
                 snapshot: snapshot,
                 activeModelId: snapshot.tokenHealth?.model
             )
+            Divider()
+        }
+    }
+}
+
+/// Shows project usage section when project data exists.
+private struct ProjectUsageGate: View {
+    let snapshot: UsageSnapshot
+
+    var body: some View {
+        if !snapshot.projectTokens.isEmpty {
+            ProjectUsageSection(snapshot: snapshot)
             Divider()
         }
     }

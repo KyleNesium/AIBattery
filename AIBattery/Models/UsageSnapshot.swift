@@ -26,6 +26,9 @@ struct UsageSnapshot {
     // Token breakdown per model
     let modelTokens: [ModelTokenSummary]
 
+    // Token breakdown per project (from JSONL cwd field)
+    let projectTokens: [ProjectTokenSummary]
+
     // Total tokens (pre-computed at construction to avoid per-render reduce)
     let totalTokens: Int
 

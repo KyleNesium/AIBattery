@@ -125,6 +125,7 @@ final class UsageAggregator {
         }
 
         let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
+        let projectTokens = Self.buildProjectTokens(from: allEntries)
 
         // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
         let modelTokens: [ModelTokenSummary]
@@ -224,6 +225,7 @@ final class UsageAggregator {
             todaySessions: todaySessions,
             todayToolCalls: todayToolCalls,
             modelTokens: modelTokens,
+            projectTokens: projectTokens,
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
             dailyActivity: activity,
             dailyAverage: activityStats.average,
@@ -243,6 +245,61 @@ final class UsageAggregator {
         lastAccountId = accountId
 
         return snapshot
+    }
+
+    /// Group JSONL entries by project (full cwd path as key), compute per-entry cost.
+    /// Entries without cwd are grouped under "Other". JSONL-only — stats-cache lacks per-entry cwd.
+    private static func buildProjectTokens(from entries: [AssistantUsageEntry]) -> [ProjectTokenSummary] {
+        struct Accumulator {
+            var displayName: String
+            var input: Int = 0
+            var output: Int = 0
+            var cacheRead: Int = 0
+            var cacheWrite: Int = 0
+            var cost: Double = 0
+        }
+
+        var byProject: [String: Accumulator] = [:]
+        for entry in entries {
+            guard entry.model.hasPrefix("claude-") else { continue }
+
+            let key: String
+            let displayName: String
+            if let cwd = entry.cwd, !cwd.isEmpty {
+                key = cwd
+                displayName = URL(fileURLWithPath: cwd).lastPathComponent
+            } else {
+                key = "Other"
+                displayName = "Other"
+            }
+
+            var acc = byProject[key] ?? Accumulator(displayName: displayName)
+            acc.input += entry.inputTokens
+            acc.output += entry.outputTokens
+            acc.cacheRead += entry.cacheReadTokens
+            acc.cacheWrite += entry.cacheWriteTokens
+            if let pricing = ModelPricing.pricing(for: entry.model) {
+                acc.cost += pricing.cost(
+                    input: entry.inputTokens,
+                    output: entry.outputTokens,
+                    cacheRead: entry.cacheReadTokens,
+                    cacheWrite: entry.cacheWriteTokens
+                )
+            }
+            byProject[key] = acc
+        }
+
+        return byProject.map { key, acc in
+            ProjectTokenSummary(
+                id: key,
+                projectName: acc.displayName,
+                inputTokens: acc.input,
+                outputTokens: acc.output,
+                cacheReadTokens: acc.cacheRead,
+                cacheWriteTokens: acc.cacheWrite,
+                estimatedCost: acc.cost
+            )
+        }.sorted { $0.totalTokens > $1.totalTokens }
     }
 
     /// Filter to Claude models, map to summaries, sort by total tokens descending.

@@ -70,6 +70,7 @@ AIBattery/
     StatsCache.swift              — Codable for stats-cache.json
     SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry
     UsageSnapshot.swift           — UsageSnapshot, ModelTokenSummary
+    ProjectTokenSummary.swift     — Per-project token totals + cost from JSONL cwd
     MetricMode.swift              — MetricMode enum (5h / 7d / context)
     TrendDirection.swift          — TrendDirection enum (up / down / flat)
     ClaudeSystemStatus.swift      — ClaudeSystemStatus, StatusIndicator, StatusComponent
@@ -112,6 +113,7 @@ AIBattery/
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting
     TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
+    ProjectUsageSection.swift     — Per-project token breakdown with optional cost
     InsightsSection.swift         — Collapsible insights: Today, All Time, Longest, Tools, Period (date range)
     ActivityChartView.swift        — 12H/7D/12M activity chart (Swift Charts, rolling windows)
     ActivityChartData.swift       — Chart data transformation layer (daily/hourly/monthly points)
@@ -152,6 +154,7 @@ Tests/AIBatteryCoreTests/
     TokenHealthConfigTests.swift  — contextWindow() exact/prefix/fallback; default thresholds
     StatsCacheTests.swift         — DailyActivity.parsedDate, LongestSession.durationFormatted, Codable round-trip
     ModelTokenSummaryTests.swift  — totalTokens sum
+    ProjectTokenSummaryTests.swift — totalTokens sum
     TokenHealthStatusTests.swift  — suggestedAction per band, HealthBand rawValues
     SessionEntryTests.swift       — Codable decode from real JSONL, minimal entry, round-trip
     UsageSnapshotTests.swift      — totalTokens, percent(for:), projections, trends, busiest day
@@ -169,7 +172,7 @@ Tests/AIBatteryCoreTests/
     SparkleUpdateServiceTests.swift — Sparkle configuration verification (auto-check disabled, singleton)
     RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation, Retry-After parsing
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload, file size guard
-    UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup
+    UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup, project grouping
     OAuthManagerTests.swift       — AuthError user messages, transient error classification
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)

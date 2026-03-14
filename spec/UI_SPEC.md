@@ -41,6 +41,10 @@
 │   ⚡ Sonnet 4.5           6.6M      │
 │      ↑ 2K  ↓ 15K  📄 4.3M   ✎ 300K │
 ├──────────────────────────────────────┤
+│ Projects                    18.9M   │  ← ❹b Projects
+│   📁 AIBattery         12.3M      │   (per-project)
+│   🔨 my-webapp          6.6M      │
+├──────────────────────────────────────┤
 │ Activity      [12H] [7D] [12M]      │  ← ❺ Chart
 │ ~~~ area chart ~~~                   │
 │ HH  HH  HH  HH  HH (trailing 12h)  │
@@ -80,6 +84,7 @@ UsagePopoverView (275px, VStack)
 │   └── TokenHealthSection — collapsible (if topSessionHealths or tokenHealth)
 │   └── .animation(.easeInOut(duration: 0.15), value: metricModeRaw) ← scoped to ForEach only
 ├── TokenUsageGate (data check, TokenUsageSection owns collapsed @AppStorage)
+├── ProjectUsageGate (data check, ProjectUsageSection owns collapsed @AppStorage)
 ├── ActivityChartGate (data check, ActivityChartView owns collapsed @AppStorage)
 ├── InsightsSection (collapsible — Today, All Time, Longest, Tools, Period)
 ├── Divider
@@ -154,13 +159,14 @@ Padding: H 16, V 8
 
 ### Collapsible Sections
 
-Context Health, Tokens, Activity, and Insights sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `activityCollapsed`, `insightsCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
+Context Health, Tokens, Projects, Activity, and Insights sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`, `insightsCollapsed`). When collapsed, only the header row shows (with summary value on the right). Collapse/expand animates with `.easeInOut(duration: 0.2)`.
 
-### Gate Views (`TokenUsageGate`, `ActivityChartGate`)
+### Gate Views (`TokenUsageGate`, `ProjectUsageGate`, `ActivityChartGate`)
 
 Gate views check data availability and render the section + divider. Sections own their own collapsed `@AppStorage`.
 
 - **`TokenUsageGate`**: renders `TokenUsageSection` + `Divider` when `snapshot.totalTokens > 0`.
+- **`ProjectUsageGate`**: renders `ProjectUsageSection` + `Divider` when `snapshot.projectTokens` is non-empty.
 - **`ActivityChartGate`**: renders `ActivityChartView` + `Divider` when activity data is available.
 
 ### Metric Toggle (`UsagePopoverView.metricToggle`)
@@ -250,6 +256,22 @@ Padding: H 16, V 8
   - Header: total cost next to "Tokens" label (.caption monospaced, ThemeColors.secondaryLabel)
   - Per-model: cost inline before token total (.caption2 monospaced, ThemeColors.secondaryLabel)
   - All cost values have `.copyable()` modifier
+
+Padding: H 16, V 8
+
+### ❹b Projects (`Views/ProjectUsageSection.swift`)
+
+Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Tokens section but without per-token-type breakdown rows.
+
+- Header: `"Projects"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
+- Per-project row: icon + project name (.caption) + cost (optional) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
+- Project icons: SF Symbols cycle (`folder`, `hammer`, `terminal`, `doc.text`, `gearshape.2`) at 10pt, ThemeColors.secondaryLabel, 14pt frame
+- Cost estimation: same `aibattery_showCostEstimate` toggle as Tokens section. Pre-computed per entry using model-specific pricing.
+- Collapsed state: `@AppStorage("aibattery_projectsCollapsed")`
+- Accessibility: combined label per row with project name and token total
+- Column widths: cost 48pt, tokens 42pt (match TokenUsageSection)
+- Data source: JSONL entries only (stats-cache lacks per-entry cwd). Entries with nil/empty cwd grouped as "Other".
+- Sort: by totalTokens descending
 
 Padding: H 16, V 8
 
