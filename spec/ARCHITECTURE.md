@@ -111,7 +111,7 @@ AIBattery/
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
-    TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting
+    TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting, clipboard export
     TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
     ProjectUsageSection.swift     — Per-project token breakdown with optional cost
     ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows) + insight rows (All Time, Longest, Period)

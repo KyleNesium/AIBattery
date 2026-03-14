@@ -226,6 +226,7 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 - **VoiceOver**: `.accessibilityAdjustableAction` on section — increment/decrement maps to next/previous session
 - **Stale session badge** (if lastActivity > 30 min and band != .green): amber dot (6pt) + `"Idle Xm"` (.caption2, .orange)
 - **Expanded tooltip**: `.help()` on session info label with full details — session ID, model, context window, all timestamps, all token counts, warnings
+- **Copy details button**: `doc.on.clipboard` 10pt, .secondary → green `doc.on.clipboard.fill` for 1.5s after click. Copies full session details (exact token counts, model, project, branch, warnings) to clipboard via `SessionInfoFormatter.copyableDetails(for:)`.
 - **Refresh button**: `arrow.clockwise` 10pt, .secondary
 - **Health badge**: 8pt colored circle + percentage in monospaced subheadline semibold
 - **Gauge bar**: same style as usage bars (8pt, 3pt radius), width proportional to usagePercentage

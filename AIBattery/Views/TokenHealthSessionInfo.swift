@@ -68,6 +68,47 @@ enum SessionInfoFormatter {
         return parts.joined(separator: "\n")
     }
 
+    /// Markdown-formatted session details for clipboard export.
+    /// Includes exact token counts (not abbreviated) and all visible metadata.
+    static func copyableDetails(for health: TokenHealthStatus) -> String {
+        var lines: [String] = []
+        lines.append("Context Health")
+        lines.append("─────────────")
+        if !health.id.isEmpty { lines.append("Session:  \(health.id)") }
+        if !health.model.isEmpty { lines.append("Model:    \(ModelNameMapper.displayName(for: health.model))") }
+        if let name = health.projectName { lines.append("Project:  \(name)") }
+        if let branch = health.gitBranch, branch != "HEAD", !branch.isEmpty {
+            lines.append("Branch:   \(branch)")
+        }
+        lines.append("Context:  \(health.totalUsed)/\(health.usableWindow) (\(Int(health.usagePercentage))%)")
+        lines.append("Input:    \(health.inputTokens)")
+        lines.append("Output:   \(health.outputTokens)")
+        if health.cacheReadTokens > 0 { lines.append("Cache R:  \(health.cacheReadTokens)") }
+        if health.cacheWriteTokens > 0 { lines.append("Cache W:  \(health.cacheWriteTokens)") }
+        lines.append("Turns:    \(health.turnCount)")
+        if let duration = health.sessionDuration {
+            lines.append("Duration: \(DurationFormatter.compact(duration))")
+        }
+        if let velocity = health.tokensPerMinute, velocity > 0 {
+            lines.append("Velocity: \(Int(velocity)) tok/min")
+        }
+        if let start = health.sessionStart {
+            lines.append("Started:  \(formatSessionTime(start))")
+        }
+        if let lastActivity = health.lastActivity {
+            lines.append("Last:     \(formatSessionTime(lastActivity))")
+        }
+        if !health.warnings.isEmpty {
+            for w in health.warnings {
+                lines.append("⚠ \(w.message)")
+            }
+        }
+        if let action = health.suggestedAction {
+            lines.append("→ \(action)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: - Time formatting
 
     private static let timeFormatter: DateFormatter = {
