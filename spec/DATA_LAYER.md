@@ -223,6 +223,7 @@ Per-model pricing for API cost equivalence. Shows what the same token usage woul
 Methods:
 - `cost(input:output:cacheRead:cacheWrite:) -> Double` — cost in dollars
 - `static formatCost(_ cost: Double) -> String` — "$12.35" or "<$0.01"
+- `static formatCompactCost(_ cost: Double) -> String` — "$12" (drops cents for >= $1), "$0.75" (keeps precision < $1), "$0" for zero
 - `static pricing(for modelId: String) -> ModelPricing?` — lookup via `ModelNameMapper.displayName`, cached in `private static var pricingCache: [String: ModelPricing?]` to avoid repeated lookups
 - `static totalCost(for models: [ModelTokenSummary]) -> Double` — aggregate across models
 

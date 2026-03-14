@@ -144,6 +144,28 @@ struct ModelPricingTests {
         #expect(ModelPricing.formatCost(1.0) == "$1.00")
     }
 
+    // MARK: - Compact cost format
+
+    @Test func formatCompactCost_zero() {
+        #expect(ModelPricing.formatCompactCost(0) == "$0")
+    }
+
+    @Test func formatCompactCost_subPenny() {
+        #expect(ModelPricing.formatCompactCost(0.005) == "<$0.01")
+    }
+
+    @Test func formatCompactCost_cents() {
+        #expect(ModelPricing.formatCompactCost(0.75) == "$0.75")
+    }
+
+    @Test func formatCompactCost_dollarDropsCents() {
+        #expect(ModelPricing.formatCompactCost(12.34) == "$12")
+    }
+
+    @Test func formatCompactCost_largeDollar() {
+        #expect(ModelPricing.formatCompactCost(150.99) == "$151")
+    }
+
     // MARK: - Cache correctness
 
     @Test func pricing_unknownModel_cachedOnSecondCall() {

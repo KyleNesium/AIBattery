@@ -35,15 +35,17 @@
 │ ~64K of 160K usable                  │
 │ 358 turns · Opus 4.6                 │
 ├──────────────────────────────────────┤
-│ Tokens                       18.9M   │  ← ❹ Tokens
+│ Token Usage                  18.9M   │  ← ❹ Token Usage
 │   ⚡ Opus 4.6  ▶ Active  12.3M      │   (per-model)
 │      ↑ 5K  ↓ 29K  📄 17.6M  ✎ 1.4M │
 │   ⚡ Sonnet 4.5           6.6M      │
 │      ↑ 2K  ↓ 15K  📄 4.3M   ✎ 300K │
 ├──────────────────────────────────────┤
-│ Projects                    18.9M   │  ← ❹b Projects
-│   📁 AIBattery         12.3M      │   (per-project)
-│   🔨 my-webapp          6.6M      │
+│ Projects          ↕ by tokens 18.9M │  ← ❹b Projects
+│   📁 AIBattery    ~$12  8.1M      │   (per-project,
+│   🔨 my-webapp     ~$4  2.3M      │    6 shown, expand)
+│   ⌨ scripts        ~$1  1.2M      │
+│        ▾ Show all (8)              │
 ├──────────────────────────────────────┤
 │ Activity      [12H] [7D] [12M]      │  ← ❺ Chart
 │ ~~~ area chart ~~~                   │
@@ -241,9 +243,9 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 
 Padding: H 16, V 8
 
-### ❹ Tokens (`Views/TokenUsageSection.swift`)
+### ❹ Token Usage (`Views/TokenUsageSection.swift`)
 
-- Header: `"Tokens"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
+- Header: `"Token Usage"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
 - Per-model breakdown via `ForEach` over sorted models (active first via prefix matching, then by totalTokens descending)
 - Model icons: SF Symbols cycle (`cpu`, `bolt`, `sparkles`, `cube`, `wand.and.stars`) at 10pt, ThemeColors.secondaryLabel, 14pt frame
 - Per model row: icon + display name (.caption) + `"▶"` badge if active (.caption2, green) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
@@ -253,25 +255,28 @@ Padding: H 16, V 8
   - Aligned with 14pt leading spacer to match model icon width
   - Each `TokenTag` has `accessibilityName` for VoiceOver
 - **Cost estimation** (when `aibattery_showCostEstimate` is true):
-  - Header: total cost next to "Tokens" label (.caption monospaced, ThemeColors.secondaryLabel)
-  - Per-model: cost inline before token total (.caption2 monospaced, ThemeColors.secondaryLabel)
+  - All costs prefixed with `"~"` to indicate API-equivalent estimate (Pro/Max/Teams aren't billed per-token)
+  - Header: `"~$X.XX"` total cost next to "Token Usage" label (.caption monospaced, ThemeColors.secondaryLabel, 54pt width)
+  - Per-model: `"~$X.XX"` cost inline before token total (.caption2 monospaced, ThemeColors.secondaryLabel)
   - All cost values have `.copyable()` modifier
 
 Padding: H 16, V 8
 
 ### ❹b Projects (`Views/ProjectUsageSection.swift`)
 
-Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Tokens section but without per-token-type breakdown rows.
+Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Token Usage section but without per-token-type breakdown rows.
 
 - Header: `"Projects"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
+- **Sort toggle**: right-aligned button (`arrow.up.arrow.down` icon + "by tokens"/"by cost" label), toggles between totalTokens and estimatedCost sort. Only shown when 2+ projects.
 - Per-project row: icon + project name (.caption) + cost (optional) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
 - Project icons: SF Symbols cycle (`folder`, `hammer`, `terminal`, `doc.text`, `gearshape.2`) at 10pt, ThemeColors.secondaryLabel, 14pt frame
-- Cost estimation: same `aibattery_showCostEstimate` toggle as Tokens section. Pre-computed per entry using model-specific pricing.
+- **Cost estimation**: same `aibattery_showCostEstimate` toggle as Token Usage section. Uses `formatCompactCost` (drops cents for >= $1, e.g. "$18"), prefixed with `"~"`. Cost column: 38pt width. Cost text uses ThemeColors.tertiaryLabel for visual separation from token values.
+- **6-project limit**: shows top 6 projects by default. "Show all (N)" button below list to expand. Collapses back with "Show less". State resets when section is collapsed.
+- **Search filter**: appears when expanded ("Show all" active) and > 6 projects. Filters projects by name. Magnifying glass icon + plain text field in subtle rounded background.
 - Collapsed state: `@AppStorage("aibattery_projectsCollapsed")`
 - Accessibility: combined label per row with project name and token total
-- Column widths: cost 48pt, tokens 42pt (match TokenUsageSection)
+- Column widths: cost 38pt, tokens 42pt
 - Data source: JSONL entries only (stats-cache lacks per-entry cwd). Entries with nil/empty cwd grouped as "Other".
-- Sort: by totalTokens descending
 
 Padding: H 16, V 8
 

@@ -38,8 +38,8 @@ struct TokenUsageSection: View {
         return activeId.hasPrefix(model.id) || model.id.hasPrefix(activeId)
     }
 
-    /// Column width for cost values (e.g. "$12.31").
-    private let costColumnWidth: CGFloat = 48
+    /// Column width for cost values (e.g. "~$12.31").
+    private let costColumnWidth: CGFloat = 54
     /// Column width for token values (e.g. "1.2M").
     private let tokenColumnWidth: CGFloat = 42
 
@@ -63,12 +63,13 @@ struct TokenUsageSection: View {
 
     private var headerRow: some View {
         let totalTokensText = TokenFormatter.format(snapshot.totalTokens)
-        let costText: String? = showCost ? ModelPricing.formatCost(ModelPricing.totalCost(for: snapshot.modelTokens)) : nil
+        let totalCost = ModelPricing.totalCost(for: snapshot.modelTokens)
+        let costText: String? = showCost ? "~\(ModelPricing.formatCost(totalCost))" : nil
         return HStack {
             CollapsibleSectionHeader(
-                title: "Tokens",
+                title: "Token Usage",
                 collapsed: $collapsed,
-                tooltip: "Total tokens used across all models"
+                tooltip: "Total tokens used across all models (cost is API-equivalent estimate)"
             )
             Spacer()
             if let costText {
@@ -99,7 +100,7 @@ struct TokenUsageSection: View {
                 cacheRead: model.cacheReadTokens,
                 cacheWrite: model.cacheWriteTokens
             )
-            return ModelPricing.formatCost(cost)
+            return "~\(ModelPricing.formatCost(cost))"
         }()
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {

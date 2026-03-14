@@ -29,6 +29,23 @@ struct ModelPricing {
         return String(format: "$%.2f", cost)
     }
 
+    /// Compact cost format — drops cents for >= $1 (e.g. "$18"), keeps precision for small amounts.
+    static func formatCompactCost(_ cost: Double) -> String {
+        if cost == 0 {
+            return "$0"
+        }
+        if cost < 0.01 {
+            return "<$0.01"
+        }
+        if cost < 1 {
+            return String(format: "$%.2f", cost)
+        }
+        if cost < 100 {
+            return String(format: "$%.0f", cost)
+        }
+        return String(format: "$%.0f", cost)
+    }
+
     /// Lookup cache — avoids repeated displayName + linear scan per model ID.
     /// Lock-protected for thread safety (Swift Testing runs tests concurrently).
     /// Uses `Optional<ModelPricing>` values; key presence means "already looked up",
