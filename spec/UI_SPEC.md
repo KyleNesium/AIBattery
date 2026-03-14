@@ -307,7 +307,7 @@ X-axis per mode:
   - **7D**: Rolling 7-day window. Day abbreviation (`.system(size: 9)`) for all days including today
   - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `.system(size: 9)`
 
-Data per mode:
+Data per mode (cached per-mode with fingerprint — toggling back to a mode skips recomputation if underlying data unchanged):
   - **24H**: `todayHourCounts` trailing 24 hours (`(currentHour - 23)` through `currentHour`, wrapping via `% 24`)
   - **7D**: `dailyActivity` last 7 days (rolling window) → daily message counts
   - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
@@ -436,7 +436,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
    - Triggered by `StatusBarManager` detecting `isThrottled` going from true → false
    - Automatically stops after 30 seconds, returning to normal breathing mode
 
-**Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 8 discrete steps, 500ms per tick).
+**Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 8 discrete steps). Sparkle mode ticks every 500ms (all 8 steps). Red band (≥95%) ticks every 1s (steps by 2) — halves CPU wakeups with imperceptible visual change. Timer restarts automatically when transitioning between sparkle and red band modes.
 - Active only when visually impactful: sparkle active or critical usage (≥95%). Throttled uses static broken star — no timer. Orange band (80–95%) uses static glow — no timer. Below 80%, breathing is imperceptible — timer stopped to save wake-ups.
 - Recovery sparkle overlaid for 30s after throttle clears
 - Pauses on screen sleep, resumes on wake

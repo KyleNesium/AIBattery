@@ -309,10 +309,21 @@ public final class StatusBarManager: NSObject {
 
     // MARK: - Breath timer
 
-    /// Breathing cycle: 4s per full cycle, 8 discrete steps (500ms per tick).
-    /// Always runs. Pauses on screen sleep.
+    /// Breathing cycle: 4s per full cycle, discrete steps.
+    /// Sparkle mode: 8 steps (500ms per tick) for smooth twinkling.
+    /// Red band (≥95%): 4 steps (1s per tick) — halves CPU wakeups with imperceptible visual change.
+    /// Pauses on screen sleep.
+    private var breathTimerStepSize: Int = 1
+
     private func startBreathTimerIfNeeded() {
+        // Red band uses every-other step (4 wakeups/cycle); sparkle uses every step (8 wakeups/cycle).
+        let newStepSize = isSparkleActive ? 1 : 2
+        // Restart timer if step size changed (e.g. sparkle → red transition)
+        if breathTimer != nil && breathTimerStepSize != newStepSize {
+            stopBreathTimer()
+        }
         guard breathTimer == nil else { return }
+        breathTimerStepSize = newStepSize
 
         // Observe screen sleep/wake to pause animation when display is off
         if screenSleepObserver == nil {
@@ -330,11 +341,11 @@ public final class StatusBarManager: NSObject {
             }
         }
 
-        let interval: TimeInterval = 4.0 / Double(MenuBarIcon.pulseSteps)
+        let interval: TimeInterval = 4.0 / Double(MenuBarIcon.pulseSteps) * Double(newStepSize)
         breathTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, let button = self.statusItem?.button else { return }
-                self.currentPulseStep = (self.currentPulseStep + 1) % MenuBarIcon.pulseSteps
+                self.currentPulseStep = (self.currentPulseStep + self.breathTimerStepSize) % MenuBarIcon.pulseSteps
                 button.image = MenuBarIcon.statusBarImage(
                     for: self.currentPercent,
                     color: self.currentColor,

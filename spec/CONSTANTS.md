@@ -233,8 +233,8 @@ Pricing per million tokens:
 | Recovery sparkle duration | 30 sec |
 | Pulse steps per cycle | 8 |
 | Pulse cycle duration | 4.0 sec |
-| Pulse tick interval | 500ms (4s ÷ 8) |
-| Breath timer threshold | ≥95% usage, throttled, or sparkle active (orange 80–95% uses static glow, no timer) |
+| Pulse tick interval | 500ms sparkle (4s ÷ 8), 1s red band (4s ÷ 8 × 2-step) |
+| Breath timer threshold | ≥95% usage or sparkle active (orange 80–95% uses static glow, no timer; throttled stops timer) |
 | Burst ray count | 12 |
 | Burst ray half-angle | 0.08 radians |
 | Health dot size | 8pt |
