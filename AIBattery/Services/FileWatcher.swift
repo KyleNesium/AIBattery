@@ -77,7 +77,7 @@ final class FileWatcher {
 
         source.setEventHandler { [weak self] in
             MainActor.assumeIsolated {
-                self?.debounceNotify()
+                self?.debounceNotify(invalidateStatsCache: true, invalidateSessionLog: false)
             }
         }
 
@@ -114,7 +114,7 @@ final class FileWatcher {
             let box = Unmanaged<WeakBox<FileWatcher>>.fromOpaque(info).takeUnretainedValue()
             guard let watcher = box.value else { return }
             MainActor.assumeIsolated {
-                watcher.debounceNotify()
+                watcher.debounceNotify(invalidateStatsCache: false, invalidateSessionLog: true)
             }
         }
 
@@ -163,15 +163,17 @@ final class FileWatcher {
         }
     }
 
-    private func debounceNotify() {
+    /// Selective invalidation — only clear the cache for the reader whose data actually changed.
+    /// Stats-cache changes don't require re-scanning JSONL files, and vice versa.
+    /// Fallback timer invalidates both (safe catch-all when FS events are unavailable).
+    private func debounceNotify(invalidateStatsCache: Bool = true, invalidateSessionLog: Bool = true) {
         guard !isStopped else { return }
         debounceWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, !self.isStopped else { return }
-                // Invalidate reader caches so the next refresh re-scans changed files
-                SessionLogReader.shared.invalidate()
-                StatsCacheReader.shared.invalidate()
+                if invalidateSessionLog { SessionLogReader.shared.invalidate() }
+                if invalidateStatsCache { StatsCacheReader.shared.invalidate() }
                 self.onChange()
             }
         }
