@@ -139,6 +139,49 @@ struct SessionInfoFormatterTests {
         #expect(result.hasPrefix("Today"))
     }
 
+    // MARK: - Copyable details
+
+    @Test func copyableDetails_includesHeader() {
+        let health = makeHealth()
+        let text = SessionInfoFormatter.copyableDetails(for: health)
+        #expect(text.contains("Context Health"))
+        #expect(text.contains("─────────────"))
+    }
+
+    @Test func copyableDetails_includesSessionId() {
+        let health = makeHealth(id: "abc-12345")
+        let text = SessionInfoFormatter.copyableDetails(for: health)
+        #expect(text.contains("Session:  abc-12345"))
+    }
+
+    @Test func copyableDetails_includesModel() {
+        let health = makeHealth(model: "claude-sonnet-4-5-20250929")
+        let text = SessionInfoFormatter.copyableDetails(for: health)
+        #expect(text.contains("Model:"))
+    }
+
+    @Test func copyableDetails_includesProjectAndBranch() {
+        let health = makeHealth(projectName: "MyApp", gitBranch: "feat/login")
+        let text = SessionInfoFormatter.copyableDetails(for: health)
+        #expect(text.contains("Project:  MyApp"))
+        #expect(text.contains("Branch:   feat/login"))
+    }
+
+    @Test func copyableDetails_includesExactTokenCounts() {
+        let health = makeHealth(totalUsed: 50000, usableWindow: 160000)
+        let text = SessionInfoFormatter.copyableDetails(for: health)
+        #expect(text.contains("Context:  50000/160000"))
+    }
+
+    @Test func copyableDetails_omitsEmptyFields() {
+        let health = makeHealth(id: "", model: "", projectName: nil, gitBranch: nil)
+        let text = SessionInfoFormatter.copyableDetails(for: health)
+        #expect(!text.contains("Session:"))
+        #expect(!text.contains("Model:"))
+        #expect(!text.contains("Project:"))
+        #expect(!text.contains("Branch:"))
+    }
+
     // MARK: - Helpers
 
     private func makeHealth(

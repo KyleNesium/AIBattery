@@ -53,6 +53,9 @@ struct TokenHealthSection: View {
                     sessionToggle
                 }
 
+                if !collapsed {
+                    copyDetailsButton
+                }
                 if !collapsed, let onRefresh {
                     RefreshButton(action: onRefresh)
                 }
@@ -275,6 +278,28 @@ struct TokenHealthSection: View {
     private var sessionLabelParts: [String] { SessionInfoFormatter.labelParts(for: health) }
     private var sessionIdPrefix: String? { SessionInfoFormatter.idPrefix(for: health) }
     private var sessionBottomParts: [String] { SessionInfoFormatter.bottomParts(for: health) }
+
+    @State private var detailsCopied = false
+
+    private var copyDetailsButton: some View {
+        Button(action: {
+            let text = SessionInfoFormatter.copyableDetails(for: health)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            detailsCopied = true
+            Task {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                detailsCopied = false
+            }
+        }) {
+            Image(systemName: detailsCopied ? "doc.on.clipboard.fill" : "doc.on.clipboard")
+                .font(.system(size: 10))
+                .foregroundStyle(detailsCopied ? .green : .secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Copy session details to clipboard")
+        .accessibilityLabel("Copy session details")
+    }
 
     private var healthBadge: some View {
         HStack(spacing: 4) {
