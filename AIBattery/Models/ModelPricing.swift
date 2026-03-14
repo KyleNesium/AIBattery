@@ -48,7 +48,8 @@ struct ModelPricing {
         }
         if hit.found { return hit.value }
 
-        // Compute outside the lock — avoids nested lock with ModelNameMapper
+        // Compute outside the lock — avoids nested lock with ModelNameMapper.
+        // Linear scan over 6 entries is fine — result is cached per modelId above.
         let display = ModelNameMapper.displayName(for: modelId).lowercased()
         var result: ModelPricing?
         for (key, pricing) in pricingTable {

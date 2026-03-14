@@ -10,17 +10,27 @@ struct TokenUsageSection: View {
         "cpu", "bolt", "sparkles", "cube", "wand.and.stars"
     ]
 
-    /// Sort: active model first, then by total tokens descending.
-    private var sortedTokens: [ModelTokenSummary] {
-        guard let activeId = activeModelId, !activeId.isEmpty else {
-            return snapshot.modelTokens
+    /// Index of the active model in snapshot.modelTokens, or nil if none active.
+    /// Used to display active model first without copying the array on every render.
+    private var activeModelIndex: Int? {
+        guard let activeId = activeModelId, !activeId.isEmpty else { return nil }
+        return snapshot.modelTokens.firstIndex(where: { activeId.hasPrefix($0.id) || $0.id.hasPrefix(activeId) })
+    }
+
+    /// Iteration order: active model first, then the rest in original order.
+    /// Returns (index, model) pairs without allocating a new array.
+    private var orderedTokens: [(offset: Int, element: ModelTokenSummary)] {
+        let tokens = snapshot.modelTokens
+        guard let activeIdx = activeModelIndex else {
+            return Array(tokens.enumerated())
         }
-        var sorted = snapshot.modelTokens
-        if let idx = sorted.firstIndex(where: { activeId.hasPrefix($0.id) || $0.id.hasPrefix(activeId) }) {
-            let active = sorted.remove(at: idx)
-            sorted.insert(active, at: 0)
+        var result = [(offset: Int, element: ModelTokenSummary)]()
+        result.reserveCapacity(tokens.count)
+        result.append((activeIdx, tokens[activeIdx]))
+        for (i, model) in tokens.enumerated() where i != activeIdx {
+            result.append((i, model))
         }
-        return sorted
+        return result
     }
 
     private func isActive(_ model: ModelTokenSummary) -> Bool {
@@ -40,7 +50,7 @@ struct TokenUsageSection: View {
 
             // Per-model breakdown with token types underneath
             if !collapsed && !snapshot.modelTokens.isEmpty {
-                ForEach(Array(sortedTokens.enumerated()), id: \.element.id) { index, model in
+                ForEach(orderedTokens, id: \.element.id) { index, model in
                     modelRow(model, index: index)
                 }
             }
