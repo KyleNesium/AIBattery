@@ -9,7 +9,7 @@ enum HealthBand: String {
 }
 
 /// A warning from cruft detection.
-struct HealthWarning: Identifiable {
+struct HealthWarning: Identifiable, Equatable {
     let id = UUID()
     let severity: WarningSeverity
     let message: String
@@ -18,10 +18,14 @@ struct HealthWarning: Identifiable {
     enum WarningSeverity {
         case mild, strong
     }
+
+    static func == (lhs: HealthWarning, rhs: HealthWarning) -> Bool {
+        lhs.severity == rhs.severity && lhs.message == rhs.message && lhs.suggestion == rhs.suggestion
+    }
 }
 
 /// Complete health assessment for a session.
-struct TokenHealthStatus: Identifiable {
+struct TokenHealthStatus: Identifiable, Equatable {
     let id: String  // sessionId
     let band: HealthBand
     let usagePercentage: Double

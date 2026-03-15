@@ -34,9 +34,6 @@ public final class OAuthManager: ObservableObject {
     private let redirectURI = "https://console.anthropic.com/oauth/code/callback"
     private let scopes = "org:create_api_key user:profile user:inference"
 
-    // Keychain storage (AIBattery's own entries, not Claude Code's)
-    private let keychainService = "AIBattery"
-
     // In-flight PKCE verifier and state (lives only during auth flow)
     private var pendingVerifier: String?
     private var pendingState: String?
@@ -461,7 +458,7 @@ public final class OAuthManager: ObservableObject {
         // number of Keychain items so Sparkle updates trigger at most 1 prompt
         // instead of 3.
         if let refresh = data.refreshToken {
-            keychainSet(account: "refreshToken_\(accountId)", value: refresh)
+            KeychainHelper.set(account: "refreshToken_\(accountId)", value: refresh)
         }
         if let expires = data.expiresAt {
             UserDefaults.standard.set(expires.timeIntervalSince1970,
@@ -471,7 +468,7 @@ public final class OAuthManager: ObservableObject {
 
     private func loadTokens(for accountId: String) -> AccountTokens {
         // Access token is not persisted — will be refreshed on first API call.
-        let refresh = keychainGet(account: "refreshToken_\(accountId)")
+        let refresh = KeychainHelper.get(account: "refreshToken_\(accountId)")
         var expires: Date?
         let interval = UserDefaults.standard.double(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
         if interval > 0 {
@@ -481,11 +478,11 @@ public final class OAuthManager: ObservableObject {
     }
 
     private func deleteTokens(for accountId: String) {
-        keychainDelete(account: "refreshToken_\(accountId)")
+        KeychainHelper.delete(account: "refreshToken_\(accountId)")
         UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
         // Clean up legacy accessToken/expiresAt Keychain entries if they exist
-        keychainDelete(account: "accessToken_\(accountId)")
-        keychainDelete(account: "expiresAt_\(accountId)")
+        KeychainHelper.delete(account: "accessToken_\(accountId)")
+        KeychainHelper.delete(account: "expiresAt_\(accountId)")
     }
 
     private func loadAllTokens() {
@@ -502,7 +499,7 @@ public final class OAuthManager: ObservableObject {
         guard accountStore.accounts.isEmpty else { return }
 
         // Check for legacy (unprefixed) Keychain entries
-        let legacyRefresh = keychainGet(account: "refreshToken")
+        let legacyRefresh = KeychainHelper.get(account: "refreshToken")
         guard legacyRefresh != nil else { return }
 
         AppLogger.oauth.info("Migrating legacy single-account Keychain entries")
@@ -516,18 +513,18 @@ public final class OAuthManager: ObservableObject {
         )
 
         // Only persist the refresh token (access token will be re-derived on launch)
-        if let value = keychainGet(account: "refreshToken") {
-            keychainSet(account: "refreshToken_\(tempId)", value: value)
+        if let value = KeychainHelper.get(account: "refreshToken") {
+            KeychainHelper.set(account: "refreshToken_\(tempId)", value: value)
         }
         // expiresAt goes to UserDefaults (not a secret)
-        if let expiresStr = keychainGet(account: "expiresAt"),
+        if let expiresStr = KeychainHelper.get(account: "expiresAt"),
            let interval = Double(expiresStr) {
             UserDefaults.standard.set(interval,
                                       forKey: UserDefaultsKeys.tokenExpiresAtPrefix + tempId)
         }
         // Clean up all legacy unprefixed entries
         for key in ["accessToken", "refreshToken", "expiresAt"] {
-            keychainDelete(account: key)
+            KeychainHelper.delete(account: key)
         }
 
         accountStore.add(record)
@@ -545,15 +542,15 @@ public final class OAuthManager: ObservableObject {
             // Move expiresAt from Keychain to UserDefaults if present
             let udKey = UserDefaultsKeys.tokenExpiresAtPrefix + accountId
             if UserDefaults.standard.double(forKey: udKey) == 0 {
-                if let expiresStr = keychainGet(account: "expiresAt_\(accountId)"),
+                if let expiresStr = KeychainHelper.get(account: "expiresAt_\(accountId)"),
                    let interval = Double(expiresStr) {
                     UserDefaults.standard.set(interval, forKey: udKey)
                 }
             }
 
             // Remove stale Keychain items (accessToken + expiresAt)
-            keychainDelete(account: "accessToken_\(accountId)")
-            keychainDelete(account: "expiresAt_\(accountId)")
+            KeychainHelper.delete(account: "accessToken_\(accountId)")
+            KeychainHelper.delete(account: "expiresAt_\(accountId)")
         }
     }
 
@@ -569,9 +566,9 @@ public final class OAuthManager: ObservableObject {
 
         for account in accountStore.accounts {
             let keychainAccount = "refreshToken_\(account.id)"
-            if let value = keychainGet(account: keychainAccount) {
-                keychainDelete(account: keychainAccount)
-                keychainSet(account: keychainAccount, value: value)
+            if let value = KeychainHelper.get(account: keychainAccount) {
+                KeychainHelper.delete(account: keychainAccount)
+                KeychainHelper.set(account: keychainAccount, value: value)
             }
         }
 
@@ -579,62 +576,6 @@ public final class OAuthManager: ObservableObject {
         AppLogger.oauth.info("Migrated Keychain items to ThisDeviceOnly accessibility")
     }
 
-    // MARK: - Keychain Helpers
-
-    private func baseKeychainQuery(account: String) -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: account,
-        ]
-    }
-
-    private func keychainSet(account: String, value: String) {
-        let data = Data(value.utf8)
-
-        // Try to update existing item first
-        let searchQuery = baseKeychainQuery(account: account)
-        let updateAttrs: [String: Any] = [
-            kSecValueData as String: data,
-        ]
-        let updateStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
-
-        if updateStatus == errSecItemNotFound {
-            keychainAdd(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain")
-        } else if updateStatus != errSecSuccess {
-            AppLogger.oauth.error("Keychain update failed for \(account, privacy: .public): \(updateStatus)")
-            // Fallback: delete and re-add
-            SecItemDelete(searchQuery as CFDictionary)
-            keychainAdd(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain fallback")
-        }
-    }
-
-    private func keychainAdd(searchQuery: [String: Any], data: Data, account: String, logPrefix: String) {
-        var addQuery = searchQuery
-        addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        if status != errSecSuccess {
-            AppLogger.oauth.error("\(logPrefix, privacy: .public) add failed for \(account, privacy: .public): \(status)")
-        }
-    }
-
-    private func keychainGet(account: String) -> String? {
-        var query = baseKeychainQuery(account: account)
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status != errSecSuccess && status != errSecItemNotFound {
-            AppLogger.oauth.error("Keychain read failed for \(account, privacy: .public): \(status)")
-        }
-        guard status == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    private func keychainDelete(account: String) {
-        SecItemDelete(baseKeychainQuery(account: account) as CFDictionary)
-    }
 }
 
 // MARK: - Base64URL encoding (RFC 7636)

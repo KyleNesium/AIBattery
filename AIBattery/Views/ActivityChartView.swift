@@ -64,8 +64,9 @@ struct ActivityChartView: View {
             lastDailyFingerprint = fp
         case .monthly:
             guard force || fp != lastMonthlyFingerprint else { return }
-            cachedMonthly = ActivityChartData.monthlyData(from: dailyActivity)
-            cachedMonthTotals = ActivityChartData.monthTotals(from: dailyActivity)
+            let totals = ActivityChartData.monthTotals(from: dailyActivity)
+            cachedMonthTotals = totals
+            cachedMonthly = ActivityChartData.monthlyData(from: dailyActivity, monthTotals: totals)
             lastMonthlyFingerprint = fp
         }
     }

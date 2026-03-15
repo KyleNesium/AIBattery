@@ -51,6 +51,8 @@ Static: `urgencyScore(percent:mode:) -> Double` — maps a raw percentage to a 0
 
 Computed: `totalTokens` = sum of all four token types
 
+Conforms to `Identifiable`, `Equatable`. Equatable enables SwiftUI to diff ForEach collections efficiently (skip re-rendering unchanged rows).
+
 ### ProjectTokenSummary (`Models/ProjectTokenSummary.swift`)
 
 Per-project token usage derived from JSONL `cwd` field. Cost is pre-computed per entry using model-specific pricing.
@@ -66,6 +68,8 @@ Per-project token usage derived from JSONL `cwd` field. Cost is pre-computed per
 | `estimatedCost` | `Double` (pre-computed from per-entry model pricing) |
 
 Computed: `totalTokens` = sum of all four token types
+
+Conforms to `Identifiable`, `Equatable`. Equatable enables SwiftUI to diff ForEach collections efficiently.
 
 ### MetricMode (`Models/MetricMode.swift`)
 

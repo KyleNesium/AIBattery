@@ -249,7 +249,7 @@ struct UsageSnapshot {
 
 }
 
-struct ModelTokenSummary: Identifiable {
+struct ModelTokenSummary: Identifiable, Equatable {
     let id: String // model ID
     let displayName: String
     let inputTokens: Int

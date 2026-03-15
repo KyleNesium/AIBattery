@@ -108,6 +108,8 @@ public final class StatusBarManager: NSObject {
             let maxPanelHeight = screenMaxHeight - 40
             let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
             let newHeight = max(fittingHeight, 100)
+            // Skip no-op frame updates to avoid layout feedback loops
+            guard abs(newHeight - panel.frame.height) > 0.5 else { return }
             // Grow downward from fixed top anchor (set by positionPanel)
             let newOrigin = NSPoint(
                 x: panel.frame.origin.x,

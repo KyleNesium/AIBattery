@@ -109,12 +109,16 @@ enum ActivityTrendComputation {
         let thisWeekRange = DateFormatters.dateKey.string(from: thisWeekStart)...DateFormatters.dateKey.string(from: today)
         let lastWeekRange = DateFormatters.dateKey.string(from: lastWeekStart)...DateFormatters.dateKey.string(from: lastWeekSameDay)
 
-        let thisWeekTotal = snapshot.dailyActivity
-            .filter { thisWeekRange.contains($0.date) }
-            .reduce(0) { $0 + $1.messageCount }
-        let lastWeekTotal = snapshot.dailyActivity
-            .filter { lastWeekRange.contains($0.date) }
-            .reduce(0) { $0 + $1.messageCount }
+        // Single pass: accumulate both week totals simultaneously
+        var thisWeekTotal = 0
+        var lastWeekTotal = 0
+        for day in snapshot.dailyActivity {
+            if thisWeekRange.contains(day.date) {
+                thisWeekTotal += day.messageCount
+            } else if lastWeekRange.contains(day.date) {
+                lastWeekTotal += day.messageCount
+            }
+        }
 
         guard lastWeekTotal > 0 else { return nil }
         return percentChangeInfo(current: thisWeekTotal, previous: lastWeekTotal, suffix: "vs last week")

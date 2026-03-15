@@ -267,7 +267,7 @@ final class UsageAggregator {
             let displayName: String
             if let cwd = entry.cwd, !cwd.isEmpty {
                 key = cwd
-                displayName = URL(fileURLWithPath: cwd).lastPathComponent
+                displayName = (cwd as NSString).lastPathComponent
             } else {
                 key = "Other"
                 displayName = "Other"

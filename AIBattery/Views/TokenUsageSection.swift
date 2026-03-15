@@ -162,6 +162,7 @@ struct TokenUsageSection: View {
                 TokenTag(icon: "square.and.pencil", label: TokenFormatter.format(model.cacheWriteTokens), accessibilityName: "cache write", tooltip: "Tokens written to prompt cache")
                 Spacer()
             }
+            .lightCopyable("\(TokenFormatter.format(model.inputTokens)) in · \(TokenFormatter.format(model.outputTokens)) out · \(TokenFormatter.format(model.cacheReadTokens)) cache read · \(TokenFormatter.format(model.cacheWriteTokens)) cache write")
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(model.displayName), \(modelTokensText) tokens: \(TokenFormatter.format(model.inputTokens)) input, \(TokenFormatter.format(model.outputTokens)) output, \(TokenFormatter.format(model.cacheReadTokens)) cache read, \(TokenFormatter.format(model.cacheWriteTokens)) cache write")
