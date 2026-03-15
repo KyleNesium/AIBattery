@@ -170,6 +170,16 @@ struct ActivityChartView: View {
 
     // MARK: - Shared chart styling
 
+    /// Shared area gradient used by all three chart modes (daily/hourly/monthly).
+    private static let areaGradient: LinearGradient = .linearGradient(
+        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
+    /// Shared line style used by all chart modes.
+    private static let chartLineStyle = StrokeStyle(lineWidth: 1.5)
+
     /// Standard Y-axis for all chart modes: trailing position, 3 ticks, compact count labels.
     private var sharedYAxis: some AxisContent {
         AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
@@ -205,13 +215,7 @@ struct ActivityChartView: View {
                     x: .value("Day", point.date, unit: .day),
                     y: .value("Messages", point.count)
                 )
-                .foregroundStyle(
-                    .linearGradient(
-                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
@@ -219,7 +223,7 @@ struct ActivityChartView: View {
                     y: .value("Messages", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .lineStyle(Self.chartLineStyle)
                 .interpolationMethod(.catmullRom)
 
                 PointMark(
@@ -289,13 +293,7 @@ struct ActivityChartView: View {
                     x: .value("Hour", point.id),
                     y: .value("Messages", point.count)
                 )
-                .foregroundStyle(
-                    .linearGradient(
-                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
@@ -303,7 +301,7 @@ struct ActivityChartView: View {
                     y: .value("Messages", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .lineStyle(Self.chartLineStyle)
                 .interpolationMethod(.catmullRom)
             }
 
@@ -358,13 +356,7 @@ struct ActivityChartView: View {
                     x: .value("Month", point.date, unit: .month),
                     y: .value("Messages", point.count)
                 )
-                .foregroundStyle(
-                    .linearGradient(
-                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
@@ -372,7 +364,7 @@ struct ActivityChartView: View {
                     y: .value("Messages", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .lineStyle(Self.chartLineStyle)
                 .interpolationMethod(.catmullRom)
 
                 PointMark(

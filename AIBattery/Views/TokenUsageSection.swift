@@ -10,19 +10,20 @@ struct TokenUsageSection: View {
         "cpu", "bolt", "sparkles", "cube", "wand.and.stars"
     ]
 
-    /// Index of the active model in snapshot.modelTokens, or nil if none active.
-    /// Used to display active model first without copying the array on every render.
-    private var activeModelIndex: Int? {
-        guard let activeId = activeModelId, !activeId.isEmpty else { return nil }
-        return snapshot.modelTokens.firstIndex(where: { activeId.hasPrefix($0.id) || $0.id.hasPrefix(activeId) })
-    }
+    /// Cached active model index and ordered tokens — avoids linear scan + array allocation per render.
+    @State private var cachedActiveIndex: Int? = nil
+    @State private var cachedOrdered: [(offset: Int, element: ModelTokenSummary)] = []
 
-    /// Iteration order: active model first, then the rest in original order.
-    /// Returns (index, model) pairs without allocating a new array.
-    private var orderedTokens: [(offset: Int, element: ModelTokenSummary)] {
+    private func recomputeOrdered() {
         let tokens = snapshot.modelTokens
-        guard let activeIdx = activeModelIndex else {
-            return Array(tokens.enumerated())
+        var activeIdx: Int? = nil
+        if let activeId = activeModelId, !activeId.isEmpty {
+            activeIdx = tokens.firstIndex(where: { activeId.hasPrefix($0.id) || $0.id.hasPrefix(activeId) })
+        }
+        cachedActiveIndex = activeIdx
+        guard let activeIdx else {
+            cachedOrdered = Array(tokens.enumerated())
+            return
         }
         var result = [(offset: Int, element: ModelTokenSummary)]()
         result.reserveCapacity(tokens.count)
@@ -30,7 +31,7 @@ struct TokenUsageSection: View {
         for (i, model) in tokens.enumerated() where i != activeIdx {
             result.append((i, model))
         }
-        return result
+        cachedOrdered = result
     }
 
     private func isActive(_ model: ModelTokenSummary) -> Bool {
@@ -40,10 +41,8 @@ struct TokenUsageSection: View {
 
     /// Active model display name for collapsed summary (e.g. "Opus 4.6").
     private var activeModelName: String? {
-        guard let activeId = activeModelId, !activeId.isEmpty else { return nil }
-        return snapshot.modelTokens
-            .first(where: { activeId.hasPrefix($0.id) || $0.id.hasPrefix(activeId) })
-            .map(\.displayName)
+        guard let idx = cachedActiveIndex else { return nil }
+        return snapshot.modelTokens[idx].displayName
     }
 
     /// Column width for cost values (e.g. "~$12.31").
@@ -58,13 +57,16 @@ struct TokenUsageSection: View {
 
             // Per-model breakdown with token types underneath
             if !collapsed && !snapshot.modelTokens.isEmpty {
-                ForEach(orderedTokens, id: \.element.id) { index, model in
+                ForEach(cachedOrdered, id: \.element.id) { index, model in
                     modelRow(model, index: index)
                 }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .onAppear { recomputeOrdered() }
+        .onChange(of: snapshot.modelTokens) { _ in recomputeOrdered() }
+        .onChange(of: activeModelId) { _ in recomputeOrdered() }
     }
 
     // MARK: - Header

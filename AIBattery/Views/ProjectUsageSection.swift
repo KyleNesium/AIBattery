@@ -7,6 +7,8 @@ struct ProjectUsageSection: View {
     @State private var showAll = false
     @State private var searchText = ""
     @State private var sortMode: ProjectSortMode = .tokensDesc
+    /// Cached sorted list — avoids O(n log n) sort on every body evaluation.
+    @State private var cachedSorted: [ProjectTokenSummary] = []
 
     /// Minimum projects shown when collapsed.
     private static let collapsedLimit = 6
@@ -25,21 +27,21 @@ struct ProjectUsageSection: View {
     /// Column width for token values (e.g. "1.2M").
     private let tokenColumnWidth: CGFloat = 42
 
-    private var sortedProjects: [ProjectTokenSummary] {
+    private func recomputeSorted() {
         switch sortMode {
         case .tokensDesc:
-            return snapshot.projectTokens // already sorted by totalTokens desc
+            cachedSorted = snapshot.projectTokens // already sorted by totalTokens desc
         case .costDesc:
-            return snapshot.projectTokens.sorted { $0.estimatedCost > $1.estimatedCost }
+            cachedSorted = snapshot.projectTokens.sorted { $0.estimatedCost > $1.estimatedCost }
         case .costAsc:
-            return snapshot.projectTokens.sorted { $0.estimatedCost < $1.estimatedCost }
+            cachedSorted = snapshot.projectTokens.sorted { $0.estimatedCost < $1.estimatedCost }
         case .name:
-            return snapshot.projectTokens.sorted { $0.projectName.localizedCaseInsensitiveCompare($1.projectName) == .orderedAscending }
+            cachedSorted = snapshot.projectTokens.sorted { $0.projectName.localizedCaseInsensitiveCompare($1.projectName) == .orderedAscending }
         }
     }
 
     private var displayedProjects: [ProjectTokenSummary] {
-        let sorted = sortedProjects
+        let sorted = cachedSorted
 
         if showAll && !searchText.isEmpty {
             let query = searchText.lowercased()
@@ -88,6 +90,9 @@ struct ProjectUsageSection: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
+        .onAppear { recomputeSorted() }
+        .onChange(of: sortMode) { _ in recomputeSorted() }
+        .onChange(of: snapshot.projectTokens) { _ in recomputeSorted() }
         .onChange(of: collapsed) { isCollapsed in
             if isCollapsed {
                 showAll = false
