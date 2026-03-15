@@ -103,23 +103,25 @@ public final class StatusBarManager: NSObject {
             object: hosting,
             queue: .main
         ) { [weak panel, weak hosting, weak self] _ in
-            guard let panel, let hosting, let self else { return }
-            let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
-            let maxPanelHeight = screenMaxHeight - 40
-            let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
-            let newHeight = max(fittingHeight, 100)
-            // Skip no-op frame updates to avoid layout feedback loops
-            guard abs(newHeight - panel.frame.height) > 0.5 else { return }
-            // Grow downward from fixed top anchor (set by positionPanel)
-            let newOrigin = NSPoint(
-                x: panel.frame.origin.x,
-                y: self.panelTopY - newHeight
-            )
-            panel.setFrame(
-                NSRect(origin: newOrigin, size: NSSize(width: 275, height: newHeight)),
-                display: true,
-                animate: false
-            )
+            MainActor.assumeIsolated {
+                guard let panel, let hosting, let self else { return }
+                let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
+                let maxPanelHeight = screenMaxHeight - 40
+                let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
+                let newHeight = max(fittingHeight, 100)
+                // Skip no-op frame updates to avoid layout feedback loops
+                guard abs(newHeight - panel.frame.height) > 0.5 else { return }
+                // Grow downward from fixed top anchor (set by positionPanel)
+                let newOrigin = NSPoint(
+                    x: panel.frame.origin.x,
+                    y: self.panelTopY - newHeight
+                )
+                panel.setFrame(
+                    NSRect(origin: newOrigin, size: NSSize(width: 275, height: newHeight)),
+                    display: true,
+                    animate: false
+                )
+            }
         }
 
         // React to snapshot or staleness changes — single subscription avoids double updates
