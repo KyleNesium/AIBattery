@@ -23,6 +23,12 @@ struct ActivityChartView: View {
         ActivityChartMode(rawValue: modeRaw) ?? .hourly
     }
 
+    // MARK: - Hover selection state
+
+    @State private var selectedDailyId: String?
+    @State private var selectedHourlyOffset: Int?
+    @State private var selectedMonthlyId: String?
+
     // MARK: - Cached data transforms
 
     /// Cached chart data — recomputed only when source data or mode changes.
@@ -155,6 +161,9 @@ struct ActivityChartView: View {
         .onAppear { refreshCachedData() }
         .onChange(of: dataFingerprint) { _ in refreshCachedData() }
         .onChange(of: modeRaw) { _ in
+            selectedDailyId = nil
+            selectedHourlyOffset = nil
+            selectedMonthlyId = nil
             ensureCachedData(for: mode)
         }
     }
@@ -225,6 +234,12 @@ struct ActivityChartView: View {
                 .symbolSize(12)
             }
 
+            if let selectedId = selectedDailyId,
+               let point = data.first(where: { $0.id == selectedId }) {
+                RuleMark(x: .value("Selected", point.date, unit: .day))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .lineStyle(Self.selectionRuleStyle)
+            }
         }
         .chartXAxis {
             AxisMarks(values: dates) { value in
@@ -238,6 +253,19 @@ struct ActivityChartView: View {
         }
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
+        .chartOverlay { proxy in
+            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
+                guard let date: Date = proxy.value(atX: x) else { return }
+                let cal = Calendar.current
+                selectedDailyId = data
+                    .min(by: {
+                        abs(cal.dateComponents([.hour], from: $0.date, to: date).hour ?? .max)
+                        < abs(cal.dateComponents([.hour], from: $1.date, to: date).hour ?? .max)
+                    })?.id
+            } onEnd: {
+                selectedDailyId = nil
+            }
+        }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
@@ -274,6 +302,12 @@ struct ActivityChartView: View {
                 .interpolationMethod(.catmullRom)
             }
 
+            if let selectedOffset = selectedHourlyOffset,
+               let point = data.first(where: { $0.id == selectedOffset }) {
+                RuleMark(x: .value("Selected", point.id))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .lineStyle(Self.selectionRuleStyle)
+            }
         }
         .chartXAxis {
             AxisMarks(values: [0, 4, 8, 12, 16, 20, 23]) { value in
@@ -288,6 +322,14 @@ struct ActivityChartView: View {
         .chartXScale(domain: 0...23)
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
+        .chartOverlay { proxy in
+            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
+                guard let value: Double = proxy.value(atX: x) else { return }
+                selectedHourlyOffset = max(0, min(23, Int(value.rounded())))
+            } onEnd: {
+                selectedHourlyOffset = nil
+            }
+        }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
@@ -327,6 +369,12 @@ struct ActivityChartView: View {
                 .symbolSize(12)
             }
 
+            if let selectedId = selectedMonthlyId,
+               let point = data.first(where: { $0.id == selectedId }) {
+                RuleMark(x: .value("Selected", point.date, unit: .month))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .lineStyle(Self.selectionRuleStyle)
+            }
         }
         .chartXAxis {
             AxisMarks(values: dates) { value in
@@ -340,6 +388,19 @@ struct ActivityChartView: View {
         }
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
+        .chartOverlay { proxy in
+            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
+                guard let date: Date = proxy.value(atX: x) else { return }
+                let cal = Calendar.current
+                selectedMonthlyId = data
+                    .min(by: {
+                        abs(cal.dateComponents([.day], from: $0.date, to: date).day ?? .max)
+                        < abs(cal.dateComponents([.day], from: $1.date, to: date).day ?? .max)
+                    })?.id
+            } onEnd: {
+                selectedMonthlyId = nil
+            }
+        }
         .frame(height: 50)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
@@ -455,6 +516,87 @@ struct ActivityChartView: View {
                 .copyable(value)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Hover helpers
+
+    private static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
+
+    /// Tooltip label styling.
+    private func tooltipLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.caption2, design: .monospaced))
+            .foregroundStyle(ThemeColors.secondaryLabel)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+    }
+
+    /// Chart overlay that handles hover detection AND renders the tooltip at the correct X position.
+    /// The tooltip is drawn as an overlay child (not a chart annotation), so it never affects chart layout.
+    private func chartHoverOverlay(
+        proxy: ChartProxy,
+        tooltipText: String?,
+        onHover: @escaping (CGFloat) -> Void,
+        onEnd: @escaping () -> Void
+    ) -> some View {
+        GeometryReader { geo in
+            let plotFrame = geo[proxy.plotAreaFrame]
+            Rectangle().fill(.clear).contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let location):
+                        onHover(location.x - plotFrame.origin.x)
+                    case .ended:
+                        onEnd()
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if let tooltipText, let hoverX = currentHoverX(proxy: proxy, plotFrame: plotFrame) {
+                        tooltipLabel(tooltipText)
+                            .offset(x: plotFrame.origin.x + hoverX - 20, y: 2)
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
+    }
+
+    /// Current hover X position within the plot area, derived from selection state.
+    private func currentHoverX(proxy: ChartProxy, plotFrame: CGRect) -> CGFloat? {
+        switch mode {
+        case .daily:
+            guard let id = selectedDailyId,
+                  let point = cachedDaily.first(where: { $0.id == id }),
+                  let x = proxy.position(forX: point.date) else { return nil }
+            return x
+        case .hourly:
+            guard let offset = selectedHourlyOffset,
+                  let x = proxy.position(forX: offset) else { return nil }
+            return x
+        case .monthly:
+            guard let id = selectedMonthlyId,
+                  let point = cachedMonthly.first(where: { $0.id == id }),
+                  let x = proxy.position(forX: point.date) else { return nil }
+            return x
+        }
+    }
+
+    /// Tooltip text for the currently hovered point, or nil if nothing selected.
+    private var hoverTooltipText: String? {
+        switch mode {
+        case .daily:
+            guard let id = selectedDailyId,
+                  let point = cachedDaily.first(where: { $0.id == id }) else { return nil }
+            return "\(point.count) msgs"
+        case .hourly:
+            guard let offset = selectedHourlyOffset,
+                  let point = cachedHourly.first(where: { $0.id == offset }) else { return nil }
+            return "\(Self.formatHourLabel(point.hour)):00 — \(point.count) msgs"
+        case .monthly:
+            guard let id = selectedMonthlyId,
+                  let point = cachedMonthly.first(where: { $0.id == id }) else { return nil }
+            return "\(Self.compactCount(point.count)) msgs"
+        }
     }
 
     // MARK: - Formatters

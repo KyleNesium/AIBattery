@@ -3,12 +3,7 @@ import SwiftUI
 struct TokenUsageSection: View {
     let snapshot: UsageSnapshot
     var activeModelId: String?
-    @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCost: Bool = false
     @AppStorage(UserDefaultsKeys.tokensCollapsed) private var collapsed: Bool = false
-
-    private let modelIcons = [
-        "cpu", "bolt", "sparkles", "cube", "wand.and.stars"
-    ]
 
     /// Cached active model index and ordered tokens — avoids linear scan + array allocation per render.
     @State private var cachedActiveIndex: Int? = nil
@@ -39,26 +34,28 @@ struct TokenUsageSection: View {
         return activeId.hasPrefix(model.id) || model.id.hasPrefix(activeId)
     }
 
-    /// Active model display name for collapsed summary (e.g. "Opus 4.6").
-    private var activeModelName: String? {
-        guard let idx = cachedActiveIndex else { return nil }
-        return snapshot.modelTokens[idx].displayName
-    }
-
     /// Column width for cost values (e.g. "~$12.31").
     private let costColumnWidth: CGFloat = 54
     /// Column width for token values (e.g. "1.2M").
     private let tokenColumnWidth: CGFloat = 42
 
+    /// Aggregate cache hit rate across all models.
+    private var overallCacheHitRate: Double? {
+        let totalCacheRead = snapshot.modelTokens.reduce(0) { $0 + $1.cacheReadTokens }
+        let totalInput = snapshot.modelTokens.reduce(0) { $0 + $1.inputTokens }
+        let denominator = totalCacheRead + totalInput
+        guard denominator > 0 else { return nil }
+        return Double(totalCacheRead) / Double(denominator) * 100
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Header: total tokens + optional cost (right-aligned columns)
             headerRow
 
-            // Per-model breakdown with token types underneath
+            // Per-model efficiency breakdown
             if !collapsed && !snapshot.modelTokens.isEmpty {
-                ForEach(cachedOrdered, id: \.element.id) { index, model in
-                    modelRow(model, index: index)
+                ForEach(cachedOrdered, id: \.element.id) { _, model in
+                    modelRow(model)
                 }
             }
         }
@@ -74,27 +71,25 @@ struct TokenUsageSection: View {
     private var headerRow: some View {
         let totalTokensText = TokenFormatter.format(snapshot.totalTokens)
         let totalCost = ModelPricing.totalCost(for: snapshot.modelTokens)
-        let costText: String? = showCost ? "~\(ModelPricing.formatCost(totalCost))" : nil
+        let costText = "~\(ModelPricing.formatCost(totalCost))"
         return HStack {
             CollapsibleSectionHeader(
-                title: "Token Usage",
+                title: "Tokens",
                 collapsed: $collapsed,
                 tooltip: "Total tokens used across all models (cost is API-equivalent estimate)"
             )
-            if collapsed, let activeModel = activeModelName {
-                Text(activeModel)
+            if let rate = overallCacheHitRate {
+                Text("\(Int(rate))% cached")
                     .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .lineLimit(1)
+                    .foregroundStyle(rate >= 80 ? Color.green : ThemeColors.secondaryLabel)
+                    .help("Cache hit rate: cached tokens / (cached + input)")
             }
             Spacer()
-            if let costText {
-                Text(costText)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-                    .frame(width: costColumnWidth, alignment: .trailing)
-                    .copyable(costText)
-            }
+            Text(costText)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(ThemeColors.secondaryLabel)
+                .frame(width: costColumnWidth, alignment: .trailing)
+                .copyable(costText)
             Text(totalTokensText)
                 .font(.system(.subheadline, design: .monospaced, weight: .semibold))
                 .contentTransition(.numericText())
@@ -104,12 +99,12 @@ struct TokenUsageSection: View {
         }
     }
 
-    // MARK: - Model row
+    // MARK: - Model row (efficiency layout)
 
-    private func modelRow(_ model: ModelTokenSummary, index: Int) -> some View {
+    private func modelRow(_ model: ModelTokenSummary) -> some View {
         let modelTokensText = TokenFormatter.format(model.totalTokens)
-        let modelCostText: String? = {
-            guard showCost, let pricing = ModelPricing.pricing(for: model.id) else { return nil }
+        let modelCost: String = {
+            guard let pricing = ModelPricing.pricing(for: model.id) else { return "" }
             let cost = pricing.cost(
                 input: model.inputTokens,
                 output: model.outputTokens,
@@ -118,13 +113,15 @@ struct TokenUsageSection: View {
             )
             return "~\(ModelPricing.formatCost(cost))"
         }()
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: modelIcons[index % modelIcons.count])
-                    .font(.system(size: 10))
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-                    .frame(width: 14)
+        let cacheText: String? = {
+            guard let rate = model.cacheHitRate else { return nil }
+            return "\(Int(rate))% cached"
+        }()
+        let outputText = "\(TokenFormatter.format(model.outputTokens)) out"
 
+        return VStack(alignment: .leading, spacing: 2) {
+            // Model name + total tokens + cost
+            HStack(spacing: 6) {
                 Text(model.displayName)
                     .font(.caption)
                     .lineLimit(1)
@@ -139,12 +136,12 @@ struct TokenUsageSection: View {
 
                 Spacer()
 
-                if let modelCostText {
-                    Text(modelCostText)
+                if !modelCost.isEmpty {
+                    Text(modelCost)
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .frame(width: costColumnWidth, alignment: .trailing)
-                        .copyable(modelCostText)
+                        .copyable(modelCost)
                 }
 
                 Text(modelTokensText)
@@ -154,39 +151,20 @@ struct TokenUsageSection: View {
                     .copyable(modelTokensText)
             }
 
-            // Token type breakdown for this model
-            HStack(spacing: 10) {
-                Spacer()
-                    .frame(width: 14)
-                TokenTag(icon: "arrow.up", label: TokenFormatter.format(model.inputTokens), accessibilityName: "input", tooltip: "Input tokens sent to Claude")
-                TokenTag(icon: "arrow.down", label: TokenFormatter.format(model.outputTokens), accessibilityName: "output", tooltip: "Output tokens generated by Claude")
-                TokenTag(icon: "doc.on.doc", label: TokenFormatter.format(model.cacheReadTokens), accessibilityName: "cache read", tooltip: "Cached tokens reused (cheaper)")
-                TokenTag(icon: "square.and.pencil", label: TokenFormatter.format(model.cacheWriteTokens), accessibilityName: "cache write", tooltip: "Tokens written to prompt cache")
-                Spacer()
+            // Efficiency summary: cache hit rate + output tokens
+            HStack(spacing: 8) {
+                if let cacheText {
+                    Text(cacheText)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                }
+                Text(outputText)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
             }
-            .lightCopyable("\(TokenFormatter.format(model.inputTokens)) in · \(TokenFormatter.format(model.outputTokens)) out · \(TokenFormatter.format(model.cacheReadTokens)) cache read · \(TokenFormatter.format(model.cacheWriteTokens)) cache write")
+            .padding(.leading, 2)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(model.displayName), \(modelTokensText) tokens: \(TokenFormatter.format(model.inputTokens)) input, \(TokenFormatter.format(model.outputTokens)) output, \(TokenFormatter.format(model.cacheReadTokens)) cache read, \(TokenFormatter.format(model.cacheWriteTokens)) cache write")
-    }
-}
-
-private struct TokenTag: View {
-    let icon: String
-    let label: String
-    var accessibilityName: String = ""
-    var tooltip: String = ""
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Image(systemName: icon)
-                .font(.system(size: 8))
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-            Text(label)
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-        }
-        .accessibilityLabel("\(accessibilityName) \(label)")
-        .help(tooltip)
+        .accessibilityLabel("\(model.displayName), \(modelTokensText) tokens, \(cacheText ?? "no cache"), \(outputText)")
     }
 }

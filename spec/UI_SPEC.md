@@ -35,11 +35,11 @@
 │ ~64K of 160K usable                  │
 │ 358 turns · Opus 4.6                 │
 ├──────────────────────────────────────┤
-│ Token Usage                  18.9M   │  ← ❹ Token Usage
-│   ⚡ Opus 4.6  ▶ Active  12.3M      │   (per-model)
-│      ↑ 5K  ↓ 29K  📄 17.6M  ✎ 1.4M │
-│   ⚡ Sonnet 4.5           6.6M      │
-│      ↑ 2K  ↓ 15K  📄 4.3M   ✎ 300K │
+│ Tokens    92% cached  ~$12  18.9M   │  ← ❹ Tokens
+│   Opus 4.6  ▶     ~$8.50  12.3M     │   (per-model)
+│     93% cached · 29K out             │
+│   Sonnet 4.5       ~$3.81  6.6M     │
+│     89% cached · 15K out             │
 ├──────────────────────────────────────┤
 │ Projects          ↕ by tokens 18.9M │  ← ❹b Projects
 │   📁 AIBattery    ~$12  8.1M      │   (per-project,
@@ -156,7 +156,7 @@ Padding: H 16, V 8
 
 ### Collapsible Sections
 
-Context Health, Tokens, Projects, and Activity sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`). When collapsed, the header row shows with summary value on the right plus a contextual hint: Token Usage shows active model name, Projects shows count + top project name, Activity shows vs-yesterday trend. Collapse/expand animates with `.easeInOut(duration: 0.2)`.
+Context Health, Tokens, Projects, and Activity sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`). When collapsed, the header row shows with summary value on the right: Tokens shows total tokens + cost, Projects shows total tokens + cost, Activity shows vs-yesterday trend. No contextual hints (model names, project counts) in collapsed state. Collapse/expand animates with `.easeInOut(duration: 0.2)`.
 
 ### Gate Views (`TokenUsageGate`, `ProjectUsageGate`, `ActivityChartGate`)
 
@@ -239,22 +239,16 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 
 Padding: H 16, V 8
 
-### ❹ Token Usage (`Views/TokenUsageSection.swift`)
+### ❹ Tokens (`Views/TokenUsageSection.swift`)
 
-- Header: `"Token Usage"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
+Efficiency-focused dashboard showing cache hit rates and API-equivalent cost.
+
+- Header: `"Tokens"` (.subheadline.bold) + aggregate cache hit rate (`"X% cached"`, .system 9pt monospaced, green when ≥80%) + total cost (`"~$X.XX"`, .caption monospaced, ThemeColors.secondaryLabel, 54pt width) + total tokens (.subheadline, monospaced, semibold, 42pt width)
+- **Cost always visible** — prefixed with `"~"` to indicate API-equivalent estimate (Pro/Max/Teams aren't billed per-token). Shows what the usage would cost on the pay-per-token API, helping subscription users see the value they're getting.
 - Per-model breakdown via `ForEach` over sorted models (active first via prefix matching, then by totalTokens descending)
-- Model icons: SF Symbols cycle (`cpu`, `bolt`, `sparkles`, `cube`, `wand.and.stars`) at 10pt, ThemeColors.secondaryLabel, 14pt frame
-- Per model row: icon + display name (.caption) + `"▶"` badge if active (.caption2, green) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
-- Token type breakdown per model (row below model name): `TokenTag` components with directional icons
-  - Input: `arrow.up`, Output: `arrow.down`, Cache Read: `doc.on.doc`, Cache Write: `square.and.pencil`
-  - Each tag: icon (8pt, ThemeColors.tertiaryLabel) + value (.caption2 monospaced, ThemeColors.tertiaryLabel)
-  - Aligned with 14pt leading spacer to match model icon width
-  - Each `TokenTag` has `accessibilityName` for VoiceOver
-- **Cost estimation** (when `aibattery_showCostEstimate` is true):
-  - All costs prefixed with `"~"` to indicate API-equivalent estimate (Pro/Max/Teams aren't billed per-token)
-  - Header: `"~$X.XX"` total cost next to "Token Usage" label (.caption monospaced, ThemeColors.secondaryLabel, 54pt width)
-  - Per-model: `"~$X.XX"` cost inline before token total (.caption2 monospaced, ThemeColors.secondaryLabel)
-  - All cost values have `.copyable()` modifier
+- Per model row: display name (.caption) + `"▶"` badge if active (.caption2, green) + cost (`"~$X.XX"`, .caption2 monospaced, 54pt width) + total tokens (.caption monospaced, ThemeColors.secondaryLabel, 42pt width)
+- Efficiency summary row (below model name): cache hit rate (`"X% cached"`, .caption2 monospaced, ThemeColors.tertiaryLabel) + output tokens (`"Y out"`, .caption2 monospaced, ThemeColors.tertiaryLabel). Cache rate omitted when model has no input/cache tokens.
+- All cost and token values have `.copyable()` modifier
 
 Padding: H 16, V 8
 
@@ -263,9 +257,9 @@ Padding: H 16, V 8
 Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Token Usage section but without per-token-type breakdown rows.
 
 - Header: `"Projects"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
-- **Sort toggle**: right-aligned button (`arrow.up.arrow.down` icon + "by tokens"/"by cost" label), toggles between totalTokens and estimatedCost sort. Only shown when 2+ projects.
+- **Sort toggle**: right-aligned button (directional arrow icon + label), cycles through 4 modes: tokens descending, cost descending, cost ascending, name alphabetical. Only shown when 2+ projects.
 - Per-project row: icon + project name (.caption) + cost (optional) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
-- Project icons: SF Symbols cycle (`folder`, `hammer`, `terminal`, `doc.text`, `gearshape.2`) at 10pt, ThemeColors.secondaryLabel, 14pt frame
+- Project index: numbered rank (`1`, `2`, `3`, ...) in .caption2 monospaced, ThemeColors.tertiaryLabel, 14pt frame
 - **Cost estimation**: same `aibattery_showCostEstimate` toggle as Token Usage section. Uses `formatCompactCost` (drops cents for >= $1, e.g. "$18"), prefixed with `"~"`. Cost column: 38pt width. Cost text uses ThemeColors.tertiaryLabel for visual separation from token values.
 - **6-project limit**: shows top 6 projects by default. "Show all (N)" button below list to expand. Collapses back with "Show less". State resets when section is collapsed.
 - **Search filter**: appears when expanded ("Show all" active) and > 6 projects. Filters projects by name. Magnifying glass icon + plain text field in subtle rounded background.
@@ -455,7 +449,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 ## Accessibility
 
 - **ActivityChartView insight rows**: `.accessibilityElement(children: .combine)` on each row with full labels ("All time: N messages, N sessions").
-- **TokenUsageSection**: `TokenTag` has `accessibilityName` param (input/output/cache read/cache write), model VStack has combined label
+- **TokenUsageSection**: model VStack has combined label with display name, total tokens, cache hit rate, and output tokens
 - **UsageBarsSection**: `"Binding constraint"` label on binding badge
 - **TokenHealthSection**: combined label on detail row with remaining tokens, turn count, model name
 

@@ -108,22 +108,14 @@ struct ProjectUsageSection: View {
     // MARK: - Header
 
     private var headerRow: some View {
-        let totalTokens = snapshot.projectTokens.reduce(0) { $0 + $1.totalTokens }
-        let totalTokensText = TokenFormatter.format(totalTokens)
-        let totalCost = snapshot.projectTokens.reduce(0.0) { $0 + $1.estimatedCost }
-        let costText: String? = showCost ? "~\(ModelPricing.formatCompactCost(totalCost))" : nil
+        let totalTokensText = TokenFormatter.format(snapshot.totalProjectTokens)
+        let costText: String? = showCost ? "~\(ModelPricing.formatCompactCost(snapshot.totalProjectCost))" : nil
         return HStack {
             CollapsibleSectionHeader(
                 title: "Projects",
                 collapsed: $collapsed,
                 tooltip: "Token usage grouped by project directory (recent sessions)"
             )
-            if collapsed, let topProject = snapshot.projectTokens.first {
-                Text("\(snapshot.projectTokens.count) · \(topProject.projectName)")
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .lineLimit(1)
-            }
             Spacer()
             if let costText {
                 Text(costText)

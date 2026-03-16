@@ -40,10 +40,11 @@ struct ModelPricing {
         if cost < 1 {
             return String(format: "$%.2f", cost)
         }
-        if cost < 100 {
+        if cost < 1000 {
             return String(format: "$%.0f", cost)
         }
-        return String(format: "$%.0f", cost)
+        let k = cost / 1000
+        return k == k.rounded() ? "$\(Int(k))K" : String(format: "$%.1fK", k)
     }
 
     /// Lookup cache — avoids repeated displayName + linear scan per model ID.

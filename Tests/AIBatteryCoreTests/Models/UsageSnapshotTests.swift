@@ -29,6 +29,8 @@ struct UsageSnapshotTests {
             todayToolCalls: 0,
             modelTokens: modelTokens,
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
+            totalProjectTokens: 0,
+            totalProjectCost: 0,
             dailyActivity: dailyActivity,
             dailyAverage: activityStats.average,
             trendDirection: activityStats.trend,

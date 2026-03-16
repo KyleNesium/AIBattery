@@ -123,6 +123,8 @@ struct ActivityTrendTests {
             todayToolCalls: 0,
             modelTokens: [],
             totalTokens: 0,
+            totalProjectTokens: 0,
+            totalProjectCost: 0,
             dailyActivity: dailyActivity,
             dailyAverage: stats.average,
             trendDirection: stats.trend,

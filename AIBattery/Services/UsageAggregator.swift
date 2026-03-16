@@ -227,6 +227,8 @@ final class UsageAggregator {
             modelTokens: modelTokens,
             projectTokens: projectTokens,
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
+            totalProjectTokens: projectTokens.reduce(0) { $0 + $1.totalTokens },
+            totalProjectCost: projectTokens.reduce(0.0) { $0 + $1.estimatedCost },
             dailyActivity: activity,
             dailyAverage: activityStats.average,
             trendDirection: activityStats.trend,

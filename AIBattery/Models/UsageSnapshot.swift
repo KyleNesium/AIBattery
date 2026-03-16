@@ -32,6 +32,10 @@ struct UsageSnapshot {
     // Total tokens (pre-computed at construction to avoid per-render reduce)
     let totalTokens: Int
 
+    // Total project tokens (pre-computed at construction to avoid per-render reduce)
+    let totalProjectTokens: Int
+    let totalProjectCost: Double
+
     /// The percentage for a given metric mode — shared by menu bar and popover.
     /// Context health uses the highest usage across all tracked sessions (not just
     /// the most recent), so auto mode and the menu bar reflect the most critical session.
@@ -259,6 +263,13 @@ struct ModelTokenSummary: Identifiable, Equatable {
 
     var totalTokens: Int {
         inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
+    }
+
+    /// Cache hit rate as percentage (0–100). Returns nil when there are no input or cache tokens.
+    var cacheHitRate: Double? {
+        let denominator = cacheReadTokens + inputTokens
+        guard denominator > 0 else { return nil }
+        return Double(cacheReadTokens) / Double(denominator) * 100
     }
 }
 
