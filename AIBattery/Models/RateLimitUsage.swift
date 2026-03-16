@@ -7,7 +7,7 @@ import Foundation
 ///   - 7-day window (long-term usage)
 /// Each reports a utilization fraction (0.0–1.0) and a reset timestamp.
 /// The `representative-claim` tells which window is the binding constraint.
-struct RateLimitUsage: Equatable {
+struct RateLimitUsage: Equatable, Codable {
     /// Window identifiers used in API headers.
     static let fiveHourWindow = "five_hour"
     static let sevenDayWindow = "seven_day"

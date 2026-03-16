@@ -29,6 +29,11 @@ struct DisplaySettingsSection: View {
                             idleSliderPosition = 6
                         }
                     }
+                    .onChange(of: idleSessionMinutes) { newValue in
+                        if let idx = Self.idleSteps.firstIndex(of: newValue) {
+                            idleSliderPosition = Double(idx + 1)
+                        }
+                    }
                     .accessibilityLabel("Hide idle sessions")
                     .accessibilityValue(idleLabelForPosition)
                 Text(idleLabelForPosition)

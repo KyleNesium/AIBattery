@@ -22,6 +22,9 @@ final class RateLimitFetcher {
     /// Maximum age of cached result before it's considered stale and discarded.
     static let cacheMaxAge: TimeInterval = 3600 // 1 hour
 
+    /// UserDefaults key prefix for persisted rate limits.
+    private static let persistKeyPrefix = "aibattery_rateLimits_"
+
     /// Models to try in order. Free accounts may not have access to larger models,
     /// but rate limit headers come back the same regardless of model.
     private let models = [
@@ -32,6 +35,10 @@ final class RateLimitFetcher {
 
     /// Per-account model index (remembers last working model to avoid repeated fallbacks).
     private var currentModelIndex: [String: Int] = [:]
+
+    private init() {
+        restorePersistedRateLimits()
+    }
 
     /// User-Agent string built from bundle version at startup.
     private let userAgent: String = {
@@ -52,6 +59,7 @@ final class RateLimitFetcher {
             case .success(let fetchResult):
                 currentModelIndex[accountId] = i
                 cachedResults[accountId] = fetchResult
+                persistRateLimits(fetchResult.rateLimits, fetchedAt: fetchResult.fetchedAt, accountId: accountId)
                 return fetchResult
             case .modelUnavailable:
                 // This model isn't available for this account — try the next one
@@ -210,6 +218,50 @@ final class RateLimitFetcher {
             return .success(result)
         } catch {
             return .networkError
+        }
+    }
+
+    // MARK: - Rate limit persistence (survive app restart)
+
+    /// Wrapper for persisting rate limits + fetch timestamp.
+    private struct PersistedRateLimits: Codable {
+        let rateLimits: RateLimitUsage
+        let fetchedAt: Date
+    }
+
+    /// Save rate limits to UserDefaults for instant display on next launch.
+    private func persistRateLimits(_ rateLimits: RateLimitUsage?, fetchedAt: Date, accountId: String) {
+        guard let rateLimits else { return }
+        let key = Self.persistKeyPrefix + accountId
+        let persisted = PersistedRateLimits(rateLimits: rateLimits, fetchedAt: fetchedAt)
+        if let data = try? JSONEncoder().encode(persisted) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    /// Restore persisted rate limits into the in-memory cache on launch.
+    /// Only restores if within cacheMaxAge — stale persisted data is discarded.
+    private func restorePersistedRateLimits() {
+        let defaults = UserDefaults.standard
+        let prefix = Self.persistKeyPrefix
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            let accountId = String(key.dropFirst(prefix.count))
+            guard let data = defaults.data(forKey: key),
+                  let persisted = try? JSONDecoder().decode(PersistedRateLimits.self, from: data) else {
+                defaults.removeObject(forKey: key)
+                continue
+            }
+            let age = Date().timeIntervalSince(persisted.fetchedAt)
+            if age < Self.cacheMaxAge {
+                cachedResults[accountId] = APIFetchResult(
+                    rateLimits: persisted.rateLimits,
+                    profile: nil,
+                    fetchedAt: persisted.fetchedAt,
+                    isCached: true
+                )
+            } else {
+                defaults.removeObject(forKey: key)
+            }
         }
     }
 
