@@ -520,6 +520,7 @@ struct InsightsView: View {
                         )
                         return "~\(ModelPricing.formatCompactCost(cost))"
                     }()
+                    let copyText = "\(model.displayName) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
                     HStack(spacing: 6) {
                         Text(model.displayName)
                             .font(.caption2)
@@ -539,15 +540,14 @@ struct InsightsView: View {
                                 .font(.system(.caption2, design: .monospaced))
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
                                 .frame(width: costColumnWidth, alignment: .trailing)
-                                .copyable(modelCost)
                         }
 
                         Text(modelTokensText)
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .frame(width: tokenColumnWidth, alignment: .trailing)
-                            .copyable(modelTokensText)
                     }
+                    .copyable(copyText)
                 }
             }
         }
@@ -606,8 +606,8 @@ struct InsightsView: View {
                 .foregroundStyle(valueColor)
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.4), value: value)
-                .copyable(value)
         }
+        .copyable("\(label) \u{00B7} \(value)")
         .accessibilityElement(children: .combine)
     }
 

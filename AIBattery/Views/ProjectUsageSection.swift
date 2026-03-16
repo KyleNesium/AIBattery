@@ -153,6 +153,7 @@ struct ProjectUsageSection: View {
     private func projectRow(_ project: ProjectTokenSummary, index: Int) -> some View {
         let tokensText = TokenFormatter.format(project.totalTokens)
         let costText = "~\(ModelPricing.formatCompactCost(project.estimatedCost))"
+        let copyText = "\(project.projectName) \u{00B7} \(costText) \u{00B7} \(tokensText)"
         return HStack(spacing: 6) {
             Text("\(index + 1)")
                 .font(.system(.caption2, design: .monospaced, weight: .medium))
@@ -169,14 +170,13 @@ struct ProjectUsageSection: View {
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .frame(width: costColumnWidth, alignment: .trailing)
-                .copyable(costText)
 
             Text(tokensText)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: tokenColumnWidth, alignment: .trailing)
-                .copyable(tokensText)
         }
+        .copyable(copyText)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(project.projectName), \(tokensText) tokens")
     }
