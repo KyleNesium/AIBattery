@@ -156,8 +156,8 @@ struct MenuBarIcon: View {
         // but can be slow; no need to serialize rendering across threads.
         let icon: NSImage
         if isBroken {
-            // Throttled: static star at peak intensity (no animation, no broken fragments)
-            icon = renderIcon(percent: 100, color: color, pulseStep: 0, highContrast: highContrast, isDarkMode: isDarkMode)
+            // Throttled: static multi-pointed star at peak intensity (no animation)
+            icon = renderThrottledIcon(color: color, highContrast: highContrast, isDarkMode: isDarkMode)
         } else if isSparkle {
             icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
         } else {
@@ -247,7 +247,45 @@ struct MenuBarIcon: View {
         return image
     }
 
-    // MARK: - Broken star rendering (throttled)
+    // MARK: - Throttled star rendering (static, many-pointed)
+
+    /// Static many-pointed star for throttled state — no animation, no fragments.
+    /// Uses a 12-pointed star shape with the normal 4-pointed star overlaid for depth.
+    static func renderThrottledIcon(color: NSColor, highContrast: Bool, isDarkMode: Bool) -> NSImage {
+        let size = iconSize
+        let outerRadius: CGFloat = 6.5
+        let innerRadius: CGFloat = 2.0
+
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            let center = NSPoint(x: size / 2, y: size / 2)
+
+            // 12-pointed star glow behind (spiky, aggressive)
+            let spikyPath = multiPointStarPath(
+                center: center,
+                outerRadius: outerRadius * 1.3,
+                innerRadius: outerRadius * 0.65,
+                points: 12
+            )
+            ctx.setFillColor(color.withAlphaComponent(0.35).cgColor)
+            ctx.addPath(spikyPath.asCGPath)
+            ctx.fillPath()
+
+            // Normal 4-pointed star on top (solid fill)
+            let starFill = starPath(center: center, outerRadius: outerRadius * 1.14, innerRadius: innerRadius * 1.14)
+            ctx.setFillColor(color.cgColor)
+            ctx.addPath(starFill.asCGPath)
+            ctx.fillPath()
+
+            drawStroke(ctx: ctx, path: starFill.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
+    // MARK: - Broken star rendering (legacy, unused — kept for cache key compatibility)
 
     /// Number of starburst rays behind the broken star.
     private static let burstRayCount = 12
