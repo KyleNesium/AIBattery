@@ -1,27 +1,33 @@
 # Changelog
 
-## [1.9.1] — 2026-03-16
+## [1.9.0] — 2026-03-16
 
 ### Added
 - **Tokens efficiency dashboard** — replaced raw 4-tag token breakdown with cache hit rate (`"X% cached"`) and output tokens (`"Y out"`) per model. Aggregate cache hit rate shown in header (green when ≥80%)
-- **API-equivalent cost always visible** — Tokens section now always shows `~$X.XX` cost (was behind settings toggle). Framed as "what this would cost on the API" to help subscription users see their savings
+- **API-equivalent cost always visible** — Tokens section always shows `~$X.XX` cost. Framed as "what this would cost on the API" to help subscription users see their savings
+- **Per-project token usage** — new Projects section groups tokens by working directory with sort (tokens/cost/name), search, and expand/collapse
+- **Collapsed state summaries** — Token Usage and Projects show contextual hints when collapsed
+- **Copy session details** — clipboard button in Context Health copies full session info
 - **`cacheHitRate` on ModelTokenSummary** — computed property returning cache read / (cache read + input) as percentage
-- **Pre-computed project totals** — `totalProjectTokens` and `totalProjectCost` on `UsageSnapshot` (eliminates per-render `reduce` in Projects header)
-- **README project tracking docs** — explains how Claude stores JSONL data per project directory and how AI Battery calculates per-project token totals
+- **Pre-computed project totals** — `totalProjectTokens` and `totalProjectCost` on `UsageSnapshot` (eliminates per-render `reduce`)
+- **README project tracking docs** — explains how Claude stores JSONL data per project and how totals are calculated
 
 ### Improved
-- **Panel crash fix** — `DispatchQueue.main.async` in frame observer prevents re-entering SwiftUI constraint update cycle (was causing `_postWindowNeedsUpdateConstraints` assertion failure)
-- **Activity chart hover** — tooltip now renders as floating overlay via `chartOverlay` instead of chart annotation, preventing layout shifts on hover
-- **`formatCompactCost` fix** — duplicate branches for ≥$100 now distinct: ≥$1000 shows `"$1.2K"` format
-- **Equatable conformances** on 5 model types for efficient SwiftUI diffing
+- **Panel crash fix** — `DispatchQueue.main.async` in frame observer prevents re-entering SwiftUI constraint update cycle
+- **Activity chart hover** — tooltip renders as floating overlay via `chartOverlay`, preventing layout shifts
+- **Equatable conformances** on 5 model types (`ModelTokenSummary`, `ProjectTokenSummary`, `DailyActivity`, `HealthWarning`, `TokenHealthStatus`) for efficient SwiftUI diffing
 - **KeychainHelper extraction** from OAuthManager (650→590 lines)
 - **Gate views extraction** to UsageGateViews.swift
 - **Breath timer optimization** — red band uses 4 wakeups/cycle instead of 8
+- **`formatCompactCost` fix** — duplicate branches for ≥$100 now distinct: ≥$1000 shows `"$1.2K"` format
+- **Selective FileWatcher invalidation** — only invalidates affected caches, not all
+- **Chart caching** — deduplicated area gradient and line style across chart modes
 
 ### Changed
 - **"Token Usage" → "Tokens"** — shorter section header
 - **Collapsed sections simplified** — Tokens and Projects no longer show model name or project count when collapsed
-- **Model icons removed** — were unstable (shifted based on active model position)
+- **Model icons removed** from Tokens section — were unstable (shifted based on active model position)
+- **Insights merged into Activity** — All Time, Longest, and Period rows moved below the activity chart trend summary
 
 ## [1.8.5] — 2026-03-12
 
