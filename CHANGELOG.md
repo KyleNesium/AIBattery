@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.1] — 2026-03-17
+
+### Added
+- **Instant rate limits on launch** — persists last rate limit data per account to UserDefaults. On restart, 5-hour and 7-day bars appear immediately from cache while the API call runs in the background.
+
+### Fixed
+- **Throttle display** — restored correct condition: "Throttled" only shows when the API confirms throttling, not just at 100% usage. Fixes reset celebration being blocked.
+- **Idle slider sync** — slider position stays in sync when the idle setting changes externally.
+
 ## [1.9.0] — 2026-03-16
 
 ### Added
