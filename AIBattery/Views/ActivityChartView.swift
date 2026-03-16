@@ -11,10 +11,11 @@ enum ActivityChartMode: String, CaseIterable {
 
 // MARK: - View
 
-struct ActivityChartView: View {
+struct InsightsView: View {
     let dailyActivity: [DailyActivity]
     let todayHourCounts: [String: Int]
     var snapshot: UsageSnapshot?
+    var activeModelId: String?
     @AppStorage(UserDefaultsKeys.activityCollapsed) private var collapsed: Bool = false
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
@@ -64,8 +65,9 @@ struct ActivityChartView: View {
             lastDailyFingerprint = fp
         case .monthly:
             guard force || fp != lastMonthlyFingerprint else { return }
-            cachedMonthly = ActivityChartData.monthlyData(from: dailyActivity)
-            cachedMonthTotals = ActivityChartData.monthTotals(from: dailyActivity)
+            let totals = ActivityChartData.monthTotals(from: dailyActivity)
+            cachedMonthTotals = totals
+            cachedMonthly = ActivityChartData.monthlyData(from: dailyActivity, monthTotals: totals)
             lastMonthlyFingerprint = fp
         }
     }
@@ -96,9 +98,9 @@ struct ActivityChartView: View {
             // Header with toggle
             HStack {
                 CollapsibleSectionHeader(
-                    title: "Activity",
+                    title: "Insights",
                     collapsed: $collapsed,
-                    tooltip: "Message activity over time"
+                    tooltip: "Activity, cost, and usage insights"
                 )
                 Spacer()
                 if collapsed, let snapshot, let change = ActivityTrendComputation.changeVsYesterday(snapshot) {
@@ -148,10 +150,17 @@ struct ActivityChartView: View {
                 }
             }
 
-            // Trend summary + insight rows
+            // Trend + cost + history — visually grouped
             if !collapsed, let snapshot {
                 trendSummary(snapshot)
                     .accessibilityElement(children: .combine)
+
+                if !windowedModelTokens.isEmpty {
+                    Divider().opacity(0.3).padding(.vertical, 2)
+                    costSection(snapshot)
+                }
+
+                Divider().opacity(0.3).padding(.vertical, 2)
                 insightRows(snapshot)
             }
         }
@@ -168,6 +177,16 @@ struct ActivityChartView: View {
     }
 
     // MARK: - Shared chart styling
+
+    /// Shared area gradient used by all three chart modes (daily/hourly/monthly).
+    private static let areaGradient: LinearGradient = .linearGradient(
+        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
+    /// Shared line style used by all chart modes.
+    private static let chartLineStyle = StrokeStyle(lineWidth: 1.5)
 
     /// Standard Y-axis for all chart modes: trailing position, 3 ticks, compact count labels.
     private var sharedYAxis: some AxisContent {
@@ -204,13 +223,7 @@ struct ActivityChartView: View {
                     x: .value("Day", point.date, unit: .day),
                     y: .value("Messages", point.count)
                 )
-                .foregroundStyle(
-                    .linearGradient(
-                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
@@ -218,7 +231,7 @@ struct ActivityChartView: View {
                     y: .value("Messages", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .lineStyle(Self.chartLineStyle)
                 .interpolationMethod(.catmullRom)
 
                 PointMark(
@@ -234,9 +247,6 @@ struct ActivityChartView: View {
                 RuleMark(x: .value("Selected", point.date, unit: .day))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .lineStyle(Self.selectionRuleStyle)
-                    .annotation(position: .top, spacing: 4) {
-                        tooltipLabel("\(point.count) msgs")
-                    }
             }
         }
         .chartXAxis {
@@ -252,7 +262,7 @@ struct ActivityChartView: View {
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
-            chartHoverOverlay(proxy: proxy) { x in
+            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
                 guard let date: Date = proxy.value(atX: x) else { return }
                 let cal = Calendar.current
                 selectedDailyId = data
@@ -288,13 +298,7 @@ struct ActivityChartView: View {
                     x: .value("Hour", point.id),
                     y: .value("Messages", point.count)
                 )
-                .foregroundStyle(
-                    .linearGradient(
-                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
@@ -302,7 +306,7 @@ struct ActivityChartView: View {
                     y: .value("Messages", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .lineStyle(Self.chartLineStyle)
                 .interpolationMethod(.catmullRom)
             }
 
@@ -311,9 +315,6 @@ struct ActivityChartView: View {
                 RuleMark(x: .value("Selected", point.id))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .lineStyle(Self.selectionRuleStyle)
-                    .annotation(position: .top, spacing: 4) {
-                        tooltipLabel("\(Self.formatHourLabel(point.hour)):00 — \(point.count) msgs")
-                    }
             }
         }
         .chartXAxis {
@@ -330,7 +331,7 @@ struct ActivityChartView: View {
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
-            chartHoverOverlay(proxy: proxy) { x in
+            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
                 guard let value: Double = proxy.value(atX: x) else { return }
                 selectedHourlyOffset = max(0, min(23, Int(value.rounded())))
             } onEnd: {
@@ -357,13 +358,7 @@ struct ActivityChartView: View {
                     x: .value("Month", point.date, unit: .month),
                     y: .value("Messages", point.count)
                 )
-                .foregroundStyle(
-                    .linearGradient(
-                        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
@@ -371,7 +366,7 @@ struct ActivityChartView: View {
                     y: .value("Messages", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                .lineStyle(Self.chartLineStyle)
                 .interpolationMethod(.catmullRom)
 
                 PointMark(
@@ -387,9 +382,6 @@ struct ActivityChartView: View {
                 RuleMark(x: .value("Selected", point.date, unit: .month))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .lineStyle(Self.selectionRuleStyle)
-                    .annotation(position: .top, spacing: 4) {
-                        tooltipLabel("\(Self.compactCount(point.count)) msgs")
-                    }
             }
         }
         .chartXAxis {
@@ -405,7 +397,7 @@ struct ActivityChartView: View {
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
-            chartHoverOverlay(proxy: proxy) { x in
+            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
                 guard let date: Date = proxy.value(atX: x) else { return }
                 let cal = Calendar.current
                 selectedMonthlyId = data
@@ -475,19 +467,108 @@ struct ActivityChartView: View {
         }
     }
 
+    // MARK: - Cost breakdown (mode-aware)
+
+    /// Column width for cost values.
+    private let costColumnWidth: CGFloat = 54
+    /// Column width for token values.
+    private let tokenColumnWidth: CGFloat = 42
+
+    /// Model tokens for the current time window.
+    private var windowedModelTokens: [ModelTokenSummary] {
+        guard let snapshot else { return [] }
+        switch mode {
+        case .hourly: return snapshot.todayModelTokens
+        case .daily: return snapshot.weekModelTokens
+        case .monthly: return snapshot.monthModelTokens
+        }
+    }
+
+    private func isActive(_ model: ModelTokenSummary) -> Bool {
+        guard let activeId = activeModelId, !activeId.isEmpty else { return false }
+        return activeId.hasPrefix(model.id) || model.id.hasPrefix(activeId)
+    }
+
+    @ViewBuilder
+    private func costSection(_ snapshot: UsageSnapshot) -> some View {
+        let models = windowedModelTokens
+        if !models.isEmpty {
+            let totalCost = ModelPricing.totalCost(for: models)
+            let costText = "~\(ModelPricing.formatCompactCost(totalCost))"
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("API Equivalent")
+                        .font(.caption)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
+                        .help("What this usage would cost on the pay-per-token API — your subscription covers it")
+                    Spacer()
+                    Text(costText)
+                        .font(.system(.caption, design: .monospaced, weight: .semibold))
+                        .copyable(costText)
+                }
+
+                ForEach(models) { model in
+                    let modelTokensText = TokenFormatter.format(model.totalTokens)
+                    let modelCost: String = {
+                        guard let pricing = ModelPricing.pricing(for: model.id) else { return "" }
+                        let cost = pricing.cost(
+                            input: model.inputTokens,
+                            output: model.outputTokens,
+                            cacheRead: model.cacheReadTokens,
+                            cacheWrite: model.cacheWriteTokens
+                        )
+                        return "~\(ModelPricing.formatCompactCost(cost))"
+                    }()
+                    let copyText = "\(model.displayName) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
+                    HStack(spacing: 6) {
+                        Text(model.displayName)
+                            .font(.caption2)
+                            .lineLimit(1)
+
+                        if isActive(model) {
+                            Text("▶")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.green)
+                                .help("Active model in current session")
+                        }
+
+                        Spacer()
+
+                        if !modelCost.isEmpty {
+                            Text(modelCost)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
+                                .frame(width: costColumnWidth, alignment: .trailing)
+                        }
+
+                        Text(modelTokensText)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .frame(width: tokenColumnWidth, alignment: .trailing)
+                    }
+                    .copyable(copyText)
+                }
+            }
+        }
+    }
+
     // MARK: - Insight rows (merged from former Insights section)
 
     private static let insightLabelWidth: CGFloat = 55
 
     @ViewBuilder
     private func insightRows(_ snapshot: UsageSnapshot) -> some View {
-        // All Time
-        insightRow(
-            label: "All Time",
-            value: "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions",
-            tooltip: "Cumulative activity across all sessions"
-        )
-        .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
+        // Date range
+        if let start = snapshot.firstSessionDate,
+           let lastDay = snapshot.dailyActivity.last?.date,
+           let end = DateFormatters.dateKey.date(from: lastDay) {
+            insightRow(
+                label: "Period",
+                value: DateFormatters.formatDateRange(from: start, to: end),
+                tooltip: "Date range of tracked data"
+            )
+        }
 
         // Longest session
         if let duration = snapshot.longestSessionDuration, snapshot.longestSessionMessages > 0 {
@@ -498,17 +579,13 @@ struct ActivityChartView: View {
             )
         }
 
-        // Date range
-        if let start = snapshot.firstSessionDate,
-           let lastDay = snapshot.dailyActivity.last?.date,
-           let end = DateFormatters.dateKey.date(from: lastDay) {
-            insightRow(
-                label: "Period",
-                value: DateFormatters.formatDateRange(from: start, to: end),
-                tooltip: "Date range of tracked data",
-                valueColor: ThemeColors.secondaryLabel
-            )
-        }
+        // All Time (at bottom)
+        insightRow(
+            label: "All Time",
+            value: "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions",
+            tooltip: "Cumulative activity across all sessions"
+        )
+        .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
     }
 
     private func insightRow(
@@ -529,14 +606,16 @@ struct ActivityChartView: View {
                 .foregroundStyle(valueColor)
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.4), value: value)
-                .copyable(value)
         }
+        .copyable("\(label) \u{00B7} \(value)")
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: - Tooltip annotation
+    // MARK: - Hover helpers
 
-    /// Shared tooltip label styling used by all chart hover annotations.
+    private static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
+
+    /// Tooltip label styling.
     private func tooltipLabel(_ text: String) -> some View {
         Text(text)
             .font(.system(.caption2, design: .monospaced))
@@ -546,23 +625,70 @@ struct ActivityChartView: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
     }
 
-    /// Shared RuleMark styling for hover selection indicators.
-    private static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
-
-    /// Shared chart overlay that converts mouse location to plot-area X offset.
-    /// Eliminates the duplicated GeometryReader + Rectangle + onContinuousHover boilerplate.
-    private func chartHoverOverlay(proxy: ChartProxy, onHover: @escaping (CGFloat) -> Void, onEnd: @escaping () -> Void) -> some View {
+    /// Chart overlay that handles hover detection AND renders the tooltip at the correct X position.
+    /// The tooltip is drawn as an overlay child (not a chart annotation), so it never affects chart layout.
+    private func chartHoverOverlay(
+        proxy: ChartProxy,
+        tooltipText: String?,
+        onHover: @escaping (CGFloat) -> Void,
+        onEnd: @escaping () -> Void
+    ) -> some View {
         GeometryReader { geo in
+            let plotFrame = geo[proxy.plotAreaFrame]
             Rectangle().fill(.clear).contentShape(Rectangle())
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let location):
-                        let origin = geo[proxy.plotAreaFrame].origin
-                        onHover(location.x - origin.x)
+                        onHover(location.x - plotFrame.origin.x)
                     case .ended:
                         onEnd()
                     }
                 }
+                .overlay(alignment: .topLeading) {
+                    if let tooltipText, let hoverX = currentHoverX(proxy: proxy, plotFrame: plotFrame) {
+                        tooltipLabel(tooltipText)
+                            .offset(x: plotFrame.origin.x + hoverX - 20, y: 2)
+                            .allowsHitTesting(false)
+                    }
+                }
+        }
+    }
+
+    /// Current hover X position within the plot area, derived from selection state.
+    private func currentHoverX(proxy: ChartProxy, plotFrame: CGRect) -> CGFloat? {
+        switch mode {
+        case .daily:
+            guard let id = selectedDailyId,
+                  let point = cachedDaily.first(where: { $0.id == id }),
+                  let x = proxy.position(forX: point.date) else { return nil }
+            return x
+        case .hourly:
+            guard let offset = selectedHourlyOffset,
+                  let x = proxy.position(forX: offset) else { return nil }
+            return x
+        case .monthly:
+            guard let id = selectedMonthlyId,
+                  let point = cachedMonthly.first(where: { $0.id == id }),
+                  let x = proxy.position(forX: point.date) else { return nil }
+            return x
+        }
+    }
+
+    /// Tooltip text for the currently hovered point, or nil if nothing selected.
+    private var hoverTooltipText: String? {
+        switch mode {
+        case .daily:
+            guard let id = selectedDailyId,
+                  let point = cachedDaily.first(where: { $0.id == id }) else { return nil }
+            return "\(point.count) msgs"
+        case .hourly:
+            guard let offset = selectedHourlyOffset,
+                  let point = cachedHourly.first(where: { $0.id == offset }) else { return nil }
+            return "\(Self.formatHourLabel(point.hour)):00 — \(point.count) msgs"
+        case .monthly:
+            guard let id = selectedMonthlyId,
+                  let point = cachedMonthly.first(where: { $0.id == id }) else { return nil }
+            return "\(Self.compactCount(point.count)) msgs"
         }
     }
 

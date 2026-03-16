@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.9.0] — 2026-03-16
+
+### Added
+- **Insights section** — merged Tokens + Activity into a unified section with activity chart, time-windowed API-equivalent cost breakdown, and cumulative stats (Period, Longest, All Time)
+- **Windowed cost breakdown** — per-model API-equivalent cost filtered by chart time window (24H = today, 7D = this week, 12M = this month)
+- **Per-project token usage** — Projects section groups tokens by working directory with sort (tokens/cost/name), search, and expand/collapse
+- **Copy session details** — clipboard button in Context Health copies full session info
+- **Pre-computed project totals** — `totalProjectTokens` and `totalProjectCost` on `UsageSnapshot`
+- **README project tracking docs** — explains how Claude stores JSONL data per project and how totals are calculated
+
+### Improved
+- **Panel crash fix** — `DispatchQueue.main.async` in frame observer prevents re-entering SwiftUI constraint update cycle
+- **Activity chart hover** — tooltip renders as floating overlay, preventing layout shifts
+- **Equatable conformances** on 5 model types for efficient SwiftUI diffing
+- **KeychainHelper extraction** from OAuthManager (650→590 lines)
+- **Breath timer optimization** — red band uses 4 wakeups/cycle instead of 8
+- **`formatCompactCost` fix** — ≥$1000 shows `"$1.2K"` format
+- **Selective FileWatcher invalidation** — only invalidates affected caches
+- **Menu bar font** — 12pt → 11pt to match macOS Battery percentage size
+- **Projects** — top 5 default (was 6), expand to 10, show more + sort on same line
+
+### Changed
+- **Token Usage section removed** — merged into Insights as API-equivalent cost block
+- **"Activity" → "Insights"** — renamed to reflect combined scope
+- **Cost always visible** — removed settings toggle, API-equivalent cost shown everywhere
+- **Header logo** — white sparkle SF Symbol matching website icon (was plain text `✦`)
+- **Metric toggle** — tinted background, tighter layout
+- **Insight rows reordered** — Period → Longest → All Time (at bottom)
+
 ## [1.8.5] — 2026-03-12
 
 ### Improved

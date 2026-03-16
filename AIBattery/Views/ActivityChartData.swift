@@ -1,6 +1,6 @@
 import Foundation
 
-/// Pure data transformations for activity charts — extracted from ActivityChartView for testability.
+/// Pure data transformations for activity charts — extracted from InsightsView for testability.
 enum ActivityChartData {
 
     struct DailyPoint: Identifiable {
@@ -71,9 +71,10 @@ enum ActivityChartData {
     }
 
     /// Generates 12 monthly data points with current-month projection.
-    static func monthlyData(from activity: [DailyActivity], now: Date = .now) -> [MonthlyPoint] {
+    /// Accepts pre-computed month totals to avoid recomputation when the caller already has them.
+    static func monthlyData(from activity: [DailyActivity], monthTotals lookup: [String: Int]? = nil, now: Date = .now) -> [MonthlyPoint] {
         let cal = Calendar.current
-        let lookup = monthTotals(from: activity)
+        let lookup = lookup ?? monthTotals(from: activity)
 
         let nowComps = cal.dateComponents([.year, .month], from: now)
         guard let thisMonth = cal.date(from: nowComps) else { return [] }

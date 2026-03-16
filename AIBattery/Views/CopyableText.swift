@@ -74,9 +74,39 @@ struct CopyableModifier: ViewModifier {
     }
 }
 
+/// Lightweight click-to-copy for dense areas (e.g. token tags).
+/// Skips cursor push/pop, help tooltip, and per-element overlay to reduce modifier stack overhead.
+struct LightCopyableModifier: ViewModifier {
+    let value: String
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 3)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(isHovered ? Color.primary.opacity(0.15) : Color.clear)
+            )
+            .onHover { isHovered = $0 }
+            .onTapGesture {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(value, forType: .string)
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Copy \(value)")
+    }
+}
+
 extension View {
     /// Makes this view tappable to copy the given value to the clipboard.
     func copyable(_ value: String) -> some View {
         modifier(CopyableModifier(value: value))
+    }
+
+    /// Lightweight copy — fewer @State variables, no cursor change or overlay feedback.
+    /// Use in dense areas (token tags, per-model breakdowns) where many elements share the same row.
+    func lightCopyable(_ value: String) -> some View {
+        modifier(LightCopyableModifier(value: value))
     }
 }

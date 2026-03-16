@@ -178,9 +178,8 @@ Click the ✦ icon to open the dashboard:
 |---|---|
 | 📊 **Rate Limits** | 5-hour burst + 7-day sustained — utilization %, reset countdown, binding indicator, predictive time-to-limit |
 | 🧠 **Context Health** | 5 most recent sessions with `< 1/5 >` chevron + swipe navigation |
-| 🔤 **Tokens** | Per-model breakdown with input/output/cache read/cache write · optional API cost |
 | 📁 **Projects** | Per-project token usage with sort (tokens/cost/name), search, expand/collapse |
-| 📉 **Activity** | Sparkline chart — 24H · 7D · 12M toggle · insight rows (All Time, Longest, Period) |
+| 📉 **Insights** | Activity chart (24H · 7D · 12M) · API-equivalent cost per model · Period · Longest · All Time |
 
 ---
 
@@ -265,7 +264,7 @@ Click ⚙️ in the header to configure:
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | ⏳ **Idle** | Hide sessions idle longer than cutoff from context health: 30m–8h or Never |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
-| 💲 **Cost** | Show equivalent API token rates |
+| 💲 **Cost** | Always visible — API-equivalent cost in Insights and Projects |
 | 🔔 **Alerts** | Notify on status page outages (all components) |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
 | 🚀 **Launch at Login** | Start automatically when you log in |
@@ -284,17 +283,17 @@ The header shows an **update indicator** when a new version is available — the
 
 ---
 
-## 💰 API Cost
+## 💰 API Cost Equivalent
 
-Enable in **Settings → Display → Cost** to see dollar amounts in the Tokens section.
+The dollar amounts in the Insights and Projects sections show what your usage **would have cost on Anthropic's pay-per-token API**. This is not your actual bill — Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token.
 
-This shows what your token usage **would cost at Anthropic's published API per-token rates** — it's not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token. The estimate is useful for understanding the value of your usage and comparing the economics of subscription vs. API billing.
+This is the whole point: seeing the API-equivalent cost makes it obvious how much value you're getting from your subscription. If the number exceeds your monthly fee, your subscription is saving you money. The bigger the gap, the better the deal.
 
-Pricing uses Anthropic's published rates for input, output, cache read, and cache write tokens per model.
+Pricing uses Anthropic's published per-million-token rates for input, output, cache read, and cache write tokens per model.
 
 ### How Token Tracking Works
 
-The **Tokens** section shows cumulative per-model token usage (input, output, cache read, cache write) with totals and optional cost estimates.
+The **Insights** section shows per-model API-equivalent cost filtered by the selected time window (24H = today, 7D = this week, 12M = this month), alongside the activity chart and cumulative stats.
 
 **Where the data comes from:** Claude Code writes session logs (JSONL files) to `~/.claude/projects/` and periodically aggregates them into `~/.claude/stats-cache.json`. AI Battery reads both — it never writes to Claude Code's files or reads message content, only token counts.
 
@@ -306,6 +305,40 @@ The **Tokens** section shows cumulative per-model token usage (input, output, ca
 - Models that disappear from `stats-cache.json` are **restored from the ledger**
 - Each account has its **own independent ledger** — switching accounts shows the correct totals
 - The ledger file is tiny (a few KB), read once at launch, and only written when values increase (background write, non-blocking)
+
+### How Project Tracking Works
+
+The **Projects** section groups token usage by the directory you ran Claude Code in.
+
+**Where Claude stores the data:** Every time you use Claude Code, it writes a JSONL session log to `~/.claude/projects/`. Each project gets its own directory, named by encoding the absolute path:
+
+```
+~/.claude/projects/
+  -Users-kyle-workspace-myapp/          ← /Users/kyle/workspace/myapp
+    session1.jsonl
+    subagents/
+      subagent1.jsonl
+  -Users-kyle-workspace-other-project/  ← /Users/kyle/workspace/other-project
+    session2.jsonl
+```
+
+Each line in a JSONL file is one assistant message with its token usage and a `cwd` field (the working directory at the time).
+
+**How AI Battery calculates project totals:**
+
+1. **Scans** all `.jsonl` files under `~/.claude/projects/` (including `subagents/` subdirectories)
+2. **Streams** each file in 64KB chunks — never loads full files into memory
+3. **Pre-filters** lines looking for `"type":"assistant"` + `"usage"` before JSON-decoding (fast path)
+4. **Deduplicates** by message ID across all files — each message counted exactly once
+5. **Groups** entries by their `cwd` field — the last path component becomes the display name (e.g. `/Users/kyle/workspace/myapp` → **myapp**)
+6. **Sums** input, output, cache read, and cache write tokens per project
+7. **Computes API-equivalent cost** per entry using the model's published per-token rates, then sums per project — this shows what you'd pay on the API, not what your subscription costs
+8. **Sorts** by total tokens descending
+
+Entries without a `cwd` field (rare edge cases) are grouped under **Other**. Only Claude models are included — non-Claude model entries are skipped.
+
+> [!NOTE]
+> Project tracking is JSONL-only. Claude Code's `stats-cache.json` doesn't include per-entry directory info, so project totals come entirely from streaming the session logs. This means project data appears after you've run at least one Claude Code session.
 
 ---
 

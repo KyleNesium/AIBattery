@@ -187,7 +187,7 @@ final class TokenHealthMonitor {
         // Git branch from the latest entry (current working state).
         let firstCwdEntry = sessionEntries.first(where: { $0.cwd != nil })
         let latestCwdEntry = sessionEntries.last(where: { $0.cwd != nil })
-        let projectName: String? = firstCwdEntry?.cwd.flatMap { URL(fileURLWithPath: $0).lastPathComponent }
+        let projectName: String? = firstCwdEntry?.cwd.flatMap { ($0 as NSString).lastPathComponent }
         let gitBranch: String? = latestCwdEntry?.gitBranch
 
         // Session timing

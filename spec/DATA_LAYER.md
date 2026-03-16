@@ -30,7 +30,7 @@ Main aggregated data struct consumed by all views.
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by highest usagePercentage (descending) |
 
-Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (requires 14+ days of activity for a symmetric 7-vs-7 comparison; ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
+Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `totalProjectTokens: Int` (sum of all `projectTokens.totalTokens`), `totalProjectCost: Double` (sum of all `projectTokens.estimatedCost`), `todayModelTokens: [ModelTokenSummary]` (JSONL entries from today), `weekModelTokens: [ModelTokenSummary]` (last 7 days), `monthModelTokens: [ModelTokenSummary]` (current calendar month) — windowed model tokens for Insights cost breakdown (JSONL-only, not ledger-merged), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (requires 14+ days of activity for a symmetric 7-vs-7 comparison; ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
 Static factory method: `computeActivityStats(_:)` — single-pass computation of all three metrics (average, trend, busiest day), called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
 
@@ -49,7 +49,9 @@ Static: `urgencyScore(percent:mode:) -> Double` — maps a raw percentage to a 0
 | `cacheReadTokens` | `Int` |
 | `cacheWriteTokens` | `Int` |
 
-Computed: `totalTokens` = sum of all four token types
+Computed: `totalTokens` = sum of all four token types. `cacheHitRate: Double?` = `cacheReadTokens / (cacheReadTokens + inputTokens) * 100` (nil when denominator is zero).
+
+Conforms to `Identifiable`, `Equatable`. Equatable enables SwiftUI to diff ForEach collections efficiently (skip re-rendering unchanged rows).
 
 ### ProjectTokenSummary (`Models/ProjectTokenSummary.swift`)
 
@@ -66,6 +68,8 @@ Per-project token usage derived from JSONL `cwd` field. Cost is pre-computed per
 | `estimatedCost` | `Double` (pre-computed from per-entry model pricing) |
 
 Computed: `totalTokens` = sum of all four token types
+
+Conforms to `Identifiable`, `Equatable`. Equatable enables SwiftUI to diff ForEach collections efficiently.
 
 ### MetricMode (`Models/MetricMode.swift`)
 
@@ -190,7 +194,7 @@ Thresholds apply to the **usable window** (80% of raw context). Claude Code auto
 
 Codable struct matching `~/.claude/stats-cache.json`:
 - `version`, `lastComputedDate`
-- `dailyActivity: [DailyActivity]` — date, messageCount, sessionCount, toolCallCount. `DailyActivity` has `private static let dateFormatter` for `parsedDate` computed property.
+- `dailyActivity: [DailyActivity]` — date, messageCount, sessionCount, toolCallCount. `DailyActivity` has `private static let dateFormatter` for `parsedDate` computed property. Conforms to `Codable`, `Identifiable`, `Equatable`.
 - `dailyModelTokens: [DailyModelTokens]` — date, tokensByModel: `[String: Int]` (model ID → token count)
 - `modelUsage: [String: ModelUsageEntry]` — total per-model usage (includes `webSearchRequests?`, `contextWindow?`, `maxOutputTokens?`)
 - `totalSessions`, `totalMessages`

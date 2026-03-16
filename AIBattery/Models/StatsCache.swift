@@ -14,7 +14,7 @@ struct StatsCache: Codable {
     let totalSpeculationTimeSavedMs: Int?
 }
 
-struct DailyActivity: Codable, Identifiable {
+struct DailyActivity: Codable, Identifiable, Equatable {
     let date: String
     let messageCount: Int
     let sessionCount: Int

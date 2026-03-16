@@ -53,9 +53,6 @@ struct TokenHealthSection: View {
                     sessionToggle
                 }
 
-                if !collapsed {
-                    copyDetailsButton
-                }
                 if !collapsed, let onRefresh {
                     RefreshButton(action: onRefresh)
                 }
@@ -157,6 +154,9 @@ struct TokenHealthSection: View {
             : nil
         )
         .accessibilityHint(sessions.count > 1 ? "Swipe left or right to browse sessions" : "")
+        .onAppear { recomputeSessionInfo() }
+        .onChange(of: selectedIndex) { _ in recomputeSessionInfo() }
+        .onChange(of: sessions) { _ in recomputeSessionInfo() }
         .onChange(of: sessions.count) { newCount in
             if selectedIndex >= newCount {
                 selectedIndex = 0
@@ -271,13 +271,23 @@ struct TokenHealthSection: View {
         .help(sessionDetailTooltip)
     }
 
-    // Session detail helpers delegated to SessionInfoFormatter (TokenHealthSessionInfo.swift)
+    // Session detail helpers — cached to avoid recomputation on every body evaluation.
+    // Recomputed via onChange(of: selectedIndex) and onChange(of: sessions).
 
-    private var staleIdleMinutes: Int? { SessionInfoFormatter.staleIdleMinutes(for: health) }
-    private var sessionDetailTooltip: String { SessionInfoFormatter.detailTooltip(for: health) }
-    private var sessionLabelParts: [String] { SessionInfoFormatter.labelParts(for: health) }
-    private var sessionIdPrefix: String? { SessionInfoFormatter.idPrefix(for: health) }
-    private var sessionBottomParts: [String] { SessionInfoFormatter.bottomParts(for: health) }
+    @State private var staleIdleMinutes: Int? = nil
+    @State private var sessionDetailTooltip: String = ""
+    @State private var sessionLabelParts: [String] = []
+    @State private var sessionIdPrefix: String? = nil
+    @State private var sessionBottomParts: [String] = []
+
+    private func recomputeSessionInfo() {
+        let h = health
+        staleIdleMinutes = SessionInfoFormatter.staleIdleMinutes(for: h)
+        sessionDetailTooltip = SessionInfoFormatter.detailTooltip(for: h)
+        sessionLabelParts = SessionInfoFormatter.labelParts(for: h)
+        sessionIdPrefix = SessionInfoFormatter.idPrefix(for: h)
+        sessionBottomParts = SessionInfoFormatter.bottomParts(for: h)
+    }
 
     @State private var detailsCopied = false
 

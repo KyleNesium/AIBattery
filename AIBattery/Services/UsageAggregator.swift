@@ -127,6 +127,13 @@ final class UsageAggregator {
         let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
         let projectTokens = Self.buildProjectTokens(from: allEntries)
 
+        // Windowed model tokens for Insights cost breakdown (JSONL-only)
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? today
+        let todayModelTokens = Self.buildModelTokensFromEntries(allEntries.filter { $0.timestamp >= today })
+        let weekModelTokens = Self.buildModelTokensFromEntries(allEntries.filter { $0.timestamp >= sevenDaysAgo })
+        let monthModelTokens = Self.buildModelTokensFromEntries(allEntries.filter { $0.timestamp >= monthStart })
+
         // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
         let modelTokens: [ModelTokenSummary]
         if let accountId {
@@ -227,6 +234,11 @@ final class UsageAggregator {
             modelTokens: modelTokens,
             projectTokens: projectTokens,
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
+            totalProjectTokens: projectTokens.reduce(0) { $0 + $1.totalTokens },
+            totalProjectCost: projectTokens.reduce(0.0) { $0 + $1.estimatedCost },
+            todayModelTokens: todayModelTokens,
+            weekModelTokens: weekModelTokens,
+            monthModelTokens: monthModelTokens,
             dailyActivity: activity,
             dailyAverage: activityStats.average,
             trendDirection: activityStats.trend,
@@ -267,7 +279,7 @@ final class UsageAggregator {
             let displayName: String
             if let cwd = entry.cwd, !cwd.isEmpty {
                 key = cwd
-                displayName = URL(fileURLWithPath: cwd).lastPathComponent
+                displayName = (cwd as NSString).lastPathComponent
             } else {
                 key = "Other"
                 displayName = "Other"
@@ -303,6 +315,21 @@ final class UsageAggregator {
     }
 
     /// Filter to Claude models, map to summaries, sort by total tokens descending.
+    /// Build per-model token summaries directly from JSONL entries (for windowed views).
+    private static func buildModelTokensFromEntries(_ entries: [AssistantUsageEntry]) -> [ModelTokenSummary] {
+        var map: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
+        for entry in entries {
+            let existing = map[entry.model] ?? (0, 0, 0, 0)
+            map[entry.model] = (
+                input: existing.input + entry.inputTokens,
+                output: existing.output + entry.outputTokens,
+                cacheRead: existing.cacheRead + entry.cacheReadTokens,
+                cacheWrite: existing.cacheWrite + entry.cacheWriteTokens
+            )
+        }
+        return buildModelTokens(from: map)
+    }
+
     private static func buildModelTokens(
         from map: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
     ) -> [ModelTokenSummary] {

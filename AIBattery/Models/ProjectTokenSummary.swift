@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProjectTokenSummary: Identifiable {
+struct ProjectTokenSummary: Identifiable, Equatable {
     let id: String              // full cwd path (unique key; "Other" for nil cwd)
     let projectName: String
     let inputTokens: Int
