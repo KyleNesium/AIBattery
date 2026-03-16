@@ -4,7 +4,7 @@ struct TokenHealthSection: View {
     let sessions: [TokenHealthStatus]
     var onRefresh: (() -> Void)? = nil
     @State private var selectedIndex: Int = 0
-    @AppStorage(UserDefaultsKeys.contextCollapsed) private var collapsed: Bool = false
+    @AppStorage(UserDefaultsKeys.contextCollapsed) private var collapsed: Bool = true
 
     /// Convenience init for single session (backward compat)
     init(health: TokenHealthStatus, onRefresh: (() -> Void)? = nil) {

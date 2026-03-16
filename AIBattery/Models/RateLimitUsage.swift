@@ -89,7 +89,7 @@ struct RateLimitUsage: Equatable {
             }
         }()
 
-        guard utilization > 0.05, let reset else { return nil }
+        guard utilization > 0.20, let reset else { return nil }
 
         let remaining = reset.timeIntervalSinceNow
         guard remaining > 0 else { return nil }

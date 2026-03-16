@@ -17,6 +17,12 @@ final class UsageAggregator {
     private static let dateFormatter = DateFormatters.dateKey
     private static let isoFormatter = DateFormatters.iso8601
 
+    /// Per-project per-model token accumulator used by unified pass and buildProjectTokensFromMap.
+    fileprivate struct ProjectAccum {
+        var displayName: String
+        var byModel: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
+    }
+
     // MARK: - Redundant aggregation skip
 
     private var cachedSnapshot: UsageSnapshot?
@@ -54,27 +60,41 @@ final class UsageAggregator {
         // Single JSONL scan — entries are already cached by SessionLogReader.
         let allEntries = sessionLogReader.readAllUsageEntries()
 
-        // Single-pass grouping: bucket all entries by date, collect today's separately.
+        // Unified single-pass over allEntries: date grouping, today extraction,
+        // project token accumulation, and windowed model token bucketing — all in one iteration.
         let now = Date()
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         let todayDate = Self.dateFormatter.string(from: now)
+        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
+        let twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today
 
         var todayEntries: [AssistantUsageEntry] = []
         var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
 
-        // Cache last date key — consecutive entries usually share the same day,
-        // avoiding 90%+ of DateFormatter.string(from:) calls (expensive: locale + calendar).
+        // Project accumulators (keyed by cwd → model → tokens)
+        var projectMap: [String: ProjectAccum] = [:]
+
+        // Windowed model token accumulators
+        typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
+        var todayTokenMap: TokenMap = [:]
+        var weekTokenMap: TokenMap = [:]
+        var monthTokenMap: TokenMap = [:]
+
+        // Date key cache — consecutive entries usually share the same day
         var lastDay: Date?
         var lastDateKey: String = ""
 
         for entry in allEntries {
-            let entryDay = calendar.startOfDay(for: entry.timestamp)
+            let ts = entry.timestamp
+
+            // --- Date grouping ---
+            let entryDay = calendar.startOfDay(for: ts)
             let dateKey: String
             if entryDay == lastDay {
                 dateKey = lastDateKey
             } else {
-                dateKey = Self.dateFormatter.string(from: entry.timestamp)
+                dateKey = Self.dateFormatter.string(from: ts)
                 lastDay = entryDay
                 lastDateKey = dateKey
             }
@@ -84,22 +104,74 @@ final class UsageAggregator {
             bucket.sessions.insert(entry.sessionId)
             entriesByDate[dateKey] = bucket
 
-            if entry.timestamp >= today {
+            if ts >= today {
                 todayEntries.append(entry)
+            }
+
+            // --- Project accumulation ---
+            if entry.model.hasPrefix("claude-") {
+                let projKey: String
+                let projName: String
+                if let cwd = entry.cwd, !cwd.isEmpty {
+                    projKey = cwd
+                    projName = (cwd as NSString).lastPathComponent
+                } else {
+                    projKey = "Other"
+                    projName = "Other"
+                }
+                var proj = projectMap[projKey] ?? ProjectAccum(displayName: projName)
+                var m = proj.byModel[entry.model] ?? (0, 0, 0, 0)
+                m.input += entry.inputTokens
+                m.output += entry.outputTokens
+                m.cacheRead += entry.cacheReadTokens
+                m.cacheWrite += entry.cacheWriteTokens
+                proj.byModel[entry.model] = m
+                projectMap[projKey] = proj
+            }
+
+            // --- Windowed model tokens ---
+            if ts >= today {
+                let e = todayTokenMap[entry.model] ?? (0, 0, 0, 0)
+                todayTokenMap[entry.model] = (e.input + entry.inputTokens, e.output + entry.outputTokens,
+                                              e.cacheRead + entry.cacheReadTokens, e.cacheWrite + entry.cacheWriteTokens)
+                let w = weekTokenMap[entry.model] ?? (0, 0, 0, 0)
+                weekTokenMap[entry.model] = (w.input + entry.inputTokens, w.output + entry.outputTokens,
+                                             w.cacheRead + entry.cacheReadTokens, w.cacheWrite + entry.cacheWriteTokens)
+                let mn = monthTokenMap[entry.model] ?? (0, 0, 0, 0)
+                monthTokenMap[entry.model] = (mn.input + entry.inputTokens, mn.output + entry.outputTokens,
+                                              mn.cacheRead + entry.cacheReadTokens, mn.cacheWrite + entry.cacheWriteTokens)
+            } else if ts >= sevenDaysAgo {
+                let w = weekTokenMap[entry.model] ?? (0, 0, 0, 0)
+                weekTokenMap[entry.model] = (w.input + entry.inputTokens, w.output + entry.outputTokens,
+                                             w.cacheRead + entry.cacheReadTokens, w.cacheWrite + entry.cacheWriteTokens)
+                if ts >= twelveMonthsAgo {
+                    let mn = monthTokenMap[entry.model] ?? (0, 0, 0, 0)
+                    monthTokenMap[entry.model] = (mn.input + entry.inputTokens, mn.output + entry.outputTokens,
+                                                  mn.cacheRead + entry.cacheReadTokens, mn.cacheWrite + entry.cacheWriteTokens)
+                }
+            } else if ts >= twelveMonthsAgo {
+                let mn = monthTokenMap[entry.model] ?? (0, 0, 0, 0)
+                monthTokenMap[entry.model] = (mn.input + entry.inputTokens, mn.output + entry.outputTokens,
+                                              mn.cacheRead + entry.cacheReadTokens, mn.cacheWrite + entry.cacheWriteTokens)
             }
         }
 
         let todayMessages = todayEntries.count
-        // Reuse session set from entriesByDate instead of re-allocating
         let todaySessions = entriesByDate[todayDate]?.sessions.count ?? 0
         let todayToolCalls = statsCache?.dailyActivity
             .first(where: { $0.date == todayDate })?.toolCallCount ?? 0
 
-        // Dates already covered by stats cache
-        let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
+        // Build project tokens from accumulated map (O(projects × models) pricing lookups)
+        let projectTokens = Self.buildProjectTokensFromMap(projectMap)
 
-        // All-time mode: stats cache + uncached JSONL
-        var modelTokensMap: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
+        // Build windowed model tokens from accumulated maps
+        let todayModelTokens = Self.buildModelTokens(from: todayTokenMap)
+        let weekModelTokens = Self.buildModelTokens(from: weekTokenMap)
+        let monthModelTokens = Self.buildModelTokens(from: monthTokenMap)
+
+        // All-time model tokens: stats cache + uncached JSONL
+        let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
+        var modelTokensMap: TokenMap = [:]
         if let cache = statsCache {
             for (modelId, usage) in cache.modelUsage {
                 modelTokensMap[modelId] = (
@@ -110,34 +182,19 @@ final class UsageAggregator {
                 )
             }
         }
-
-        // todayEntries all have timestamp >= today, so their date string is always todayDate.
-        // A single set-membership check replaces per-entry DateFormatter calls.
         let todayIsCached = cachedDates.contains(todayDate)
-        let uncachedEntries = todayIsCached ? [] : todayEntries
-        for entry in uncachedEntries {
-            let existing = modelTokensMap[entry.model] ?? (0, 0, 0, 0)
-            modelTokensMap[entry.model] = (
-                input: existing.input + entry.inputTokens,
-                output: existing.output + entry.outputTokens,
-                cacheRead: existing.cacheRead + entry.cacheReadTokens,
-                cacheWrite: existing.cacheWrite + entry.cacheWriteTokens
-            )
+        if !todayIsCached {
+            for entry in todayEntries {
+                let existing = modelTokensMap[entry.model] ?? (0, 0, 0, 0)
+                modelTokensMap[entry.model] = (
+                    input: existing.input + entry.inputTokens,
+                    output: existing.output + entry.outputTokens,
+                    cacheRead: existing.cacheRead + entry.cacheReadTokens,
+                    cacheWrite: existing.cacheWrite + entry.cacheWriteTokens
+                )
+            }
         }
-
         let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
-        let projectTokens = Self.buildProjectTokens(from: allEntries)
-
-        // Windowed model tokens for Insights cost breakdown — single pass over allEntries
-        // instead of 3 separate filter+accumulate passes (eliminates 5 redundant iterations).
-        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
-        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? today
-        let windowed = Self.buildWindowedModelTokens(
-            from: allEntries, today: today, weekStart: sevenDaysAgo, monthStart: monthStart
-        )
-        let todayModelTokens = windowed.today
-        let weekModelTokens = windowed.week
-        let monthModelTokens = windowed.month
 
         // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
         let modelTokens: [ModelTokenSummary]
@@ -267,44 +324,10 @@ final class UsageAggregator {
     /// Group JSONL entries by project (full cwd path as key), compute cost per (project, model) pair.
     /// Batches pricing lookups to O(projects × models) instead of O(entries) lock acquisitions.
     /// Entries without cwd are grouped under "Other". JSONL-only — stats-cache lacks per-entry cwd.
-    private static func buildProjectTokens(from entries: [AssistantUsageEntry]) -> [ProjectTokenSummary] {
-        struct ModelAccum {
-            var input: Int = 0
-            var output: Int = 0
-            var cacheRead: Int = 0
-            var cacheWrite: Int = 0
-        }
-        struct ProjectAccum {
-            var displayName: String
-            var byModel: [String: ModelAccum] = [:]
-        }
-
-        var byProject: [String: ProjectAccum] = [:]
-        for entry in entries {
-            guard entry.model.hasPrefix("claude-") else { continue }
-
-            let key: String
-            let displayName: String
-            if let cwd = entry.cwd, !cwd.isEmpty {
-                key = cwd
-                displayName = (cwd as NSString).lastPathComponent
-            } else {
-                key = "Other"
-                displayName = "Other"
-            }
-
-            var proj = byProject[key] ?? ProjectAccum(displayName: displayName)
-            var model = proj.byModel[entry.model] ?? ModelAccum()
-            model.input += entry.inputTokens
-            model.output += entry.outputTokens
-            model.cacheRead += entry.cacheReadTokens
-            model.cacheWrite += entry.cacheWriteTokens
-            proj.byModel[entry.model] = model
-            byProject[key] = proj
-        }
-
-        // Compute cost once per (project, model) pair — O(projects × models) pricing lookups
-        return byProject.map { key, proj in
+    /// Build project token summaries from pre-accumulated map (populated in unified pass).
+    /// Cost computed once per (project, model) pair — O(projects × models) pricing lookups.
+    private static func buildProjectTokensFromMap(_ projectMap: [String: ProjectAccum]) -> [ProjectTokenSummary] {
+        projectMap.map { key, proj in
             var totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheWrite = 0
             var totalCost: Double = 0
             for (modelId, tokens) in proj.byModel {
@@ -329,52 +352,6 @@ final class UsageAggregator {
                 estimatedCost: totalCost
             )
         }.sorted { $0.totalTokens > $1.totalTokens }
-    }
-
-    /// Single-pass windowed token computation. Iterates allEntries once, bucketing each entry
-    /// into today/week/month accumulators based on timestamp. Replaces 3 separate filter+accumulate passes.
-    private static func buildWindowedModelTokens(
-        from entries: [AssistantUsageEntry],
-        today: Date,
-        weekStart: Date,
-        monthStart: Date
-    ) -> (today: [ModelTokenSummary], week: [ModelTokenSummary], month: [ModelTokenSummary]) {
-        typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
-        var todayMap: TokenMap = [:]
-        var weekMap: TokenMap = [:]
-        var monthMap: TokenMap = [:]
-
-        for entry in entries {
-            let ts = entry.timestamp
-            // Entries are roughly sorted by timestamp; check narrowest window first
-            if ts >= today {
-                let e = todayMap[entry.model] ?? (0, 0, 0, 0)
-                todayMap[entry.model] = (e.input + entry.inputTokens, e.output + entry.outputTokens,
-                                         e.cacheRead + entry.cacheReadTokens, e.cacheWrite + entry.cacheWriteTokens)
-                // Today entries are also in week and month
-                let w = weekMap[entry.model] ?? (0, 0, 0, 0)
-                weekMap[entry.model] = (w.input + entry.inputTokens, w.output + entry.outputTokens,
-                                        w.cacheRead + entry.cacheReadTokens, w.cacheWrite + entry.cacheWriteTokens)
-                let m = monthMap[entry.model] ?? (0, 0, 0, 0)
-                monthMap[entry.model] = (m.input + entry.inputTokens, m.output + entry.outputTokens,
-                                         m.cacheRead + entry.cacheReadTokens, m.cacheWrite + entry.cacheWriteTokens)
-            } else if ts >= weekStart {
-                let w = weekMap[entry.model] ?? (0, 0, 0, 0)
-                weekMap[entry.model] = (w.input + entry.inputTokens, w.output + entry.outputTokens,
-                                        w.cacheRead + entry.cacheReadTokens, w.cacheWrite + entry.cacheWriteTokens)
-                if ts >= monthStart {
-                    let m = monthMap[entry.model] ?? (0, 0, 0, 0)
-                    monthMap[entry.model] = (m.input + entry.inputTokens, m.output + entry.outputTokens,
-                                             m.cacheRead + entry.cacheReadTokens, m.cacheWrite + entry.cacheWriteTokens)
-                }
-            } else if ts >= monthStart {
-                let m = monthMap[entry.model] ?? (0, 0, 0, 0)
-                monthMap[entry.model] = (m.input + entry.inputTokens, m.output + entry.outputTokens,
-                                         m.cacheRead + entry.cacheReadTokens, m.cacheWrite + entry.cacheWriteTokens)
-            }
-        }
-
-        return (buildModelTokens(from: todayMap), buildModelTokens(from: weekMap), buildModelTokens(from: monthMap))
     }
 
     private static func buildModelTokens(

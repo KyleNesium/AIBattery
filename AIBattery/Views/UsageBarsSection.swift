@@ -96,10 +96,12 @@ struct UsageBar: View {
             .accessibilityLabel("\(label) rate limit usage \(Int(percent)) percent")
             .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - percent))) percent remaining")
 
+            // TimelineView ticks every second when reset is <60s away for live countdown.
+            TimelineView(.periodic(from: .now, by: resetTickInterval)) { context in
+            let now = context.date
+            let resetDiff = resetsAt.map { $0.timeIntervalSince(now) }
+            let expired = (resetDiff ?? 1) <= 0
             HStack {
-                let resetDiff = resetsAt.map { $0.timeIntervalSince(Date()) }
-                let expired = (resetDiff ?? 1) <= 0
-
                 // Left side: time to limit / status
                 if wasExhausted && expired && percent < 1 {
                     HStack(spacing: 4) {
@@ -149,7 +151,15 @@ struct UsageBar: View {
                     }
                 }
             }
+            } // TimelineView
         }
+    }
+
+    /// Tick every 1s when reset is <60s away (live countdown), otherwise every 10s.
+    private var resetTickInterval: TimeInterval {
+        guard let reset = resetsAt else { return 10 }
+        let diff = reset.timeIntervalSinceNow
+        return (diff > 0 && diff < 60) ? 1 : 10
     }
 
     /// Whether the window was at or near exhaustion (throttled or 100%+).
