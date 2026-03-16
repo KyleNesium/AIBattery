@@ -510,16 +510,7 @@ struct InsightsView: View {
 
                 ForEach(models) { model in
                     let modelTokensText = TokenFormatter.format(model.totalTokens)
-                    let modelCost: String = {
-                        guard let pricing = ModelPricing.pricing(for: model.id) else { return "" }
-                        let cost = pricing.cost(
-                            input: model.inputTokens,
-                            output: model.outputTokens,
-                            cacheRead: model.cacheReadTokens,
-                            cacheWrite: model.cacheWriteTokens
-                        )
-                        return "~\(ModelPricing.formatCompactCost(cost))"
-                    }()
+                    let modelCost = "~\(ModelPricing.formatCompactCost(model.estimatedCost))"
                     let copyText = "\(model.displayName) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
                     HStack(spacing: 6) {
                         Text(model.displayName)
@@ -535,12 +526,10 @@ struct InsightsView: View {
 
                         Spacer()
 
-                        if !modelCost.isEmpty {
-                            Text(modelCost)
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(ThemeColors.tertiaryLabel)
-                                .frame(width: costColumnWidth, alignment: .trailing)
-                        }
+                        Text(modelCost)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .frame(width: costColumnWidth, alignment: .trailing)
 
                         Text(modelTokensText)
                             .font(.system(.caption2, design: .monospaced))

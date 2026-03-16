@@ -265,6 +265,8 @@ struct ModelTokenSummary: Identifiable, Equatable {
     let outputTokens: Int
     let cacheReadTokens: Int
     let cacheWriteTokens: Int
+    /// Pre-computed API-equivalent cost (avoids per-render pricing lock acquisition).
+    let estimatedCost: Double
 
     var totalTokens: Int {
         inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
