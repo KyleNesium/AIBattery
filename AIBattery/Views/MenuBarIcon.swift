@@ -156,7 +156,8 @@ struct MenuBarIcon: View {
         // but can be slow; no need to serialize rendering across threads.
         let icon: NSImage
         if isBroken {
-            icon = renderBrokenIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+            // Throttled: static star at peak intensity (no animation, no broken fragments)
+            icon = renderIcon(percent: 100, color: color, pulseStep: 0, highContrast: highContrast, isDarkMode: isDarkMode)
         } else if isSparkle {
             icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
         } else {
