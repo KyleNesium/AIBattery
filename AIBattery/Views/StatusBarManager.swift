@@ -55,8 +55,7 @@ public final class StatusBarManager: NSObject {
             button.imageHugsTitle = true
             button.title = "..."
             // Match macOS battery percentage text: monospaced digits at menu bar size.
-            // macOS menu bar uses ~12pt for status items; battery percentage matches this.
-            button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            button.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
             button.action = #selector(statusItemClicked)
             button.target = self
             button.setAccessibilityLabel("AI Battery")

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Pure data transformations for activity charts — extracted from ActivityChartView for testability.
+/// Pure data transformations for activity charts — extracted from InsightsView for testability.
 enum ActivityChartData {
 
     struct DailyPoint: Identifiable {

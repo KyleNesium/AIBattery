@@ -178,9 +178,8 @@ Click the ✦ icon to open the dashboard:
 |---|---|
 | 📊 **Rate Limits** | 5-hour burst + 7-day sustained — utilization %, reset countdown, binding indicator, predictive time-to-limit |
 | 🧠 **Context Health** | 5 most recent sessions with `< 1/5 >` chevron + swipe navigation |
-| 🔤 **Tokens** | Per-model breakdown with cache hit rate, output tokens, and API cost estimate |
 | 📁 **Projects** | Per-project token usage with sort (tokens/cost/name), search, expand/collapse |
-| 📉 **Activity** | Sparkline chart — 24H · 7D · 12M toggle · insight rows (All Time, Longest, Period) |
+| 📉 **Insights** | Activity chart (24H · 7D · 12M) · API-equivalent cost per model · Period · Longest · All Time |
 
 ---
 
@@ -265,7 +264,7 @@ Click ⚙️ in the header to configure:
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | ⏳ **Idle** | Hide sessions idle longer than cutoff from context health: 30m–8h or Never |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
-| 💲 **Cost** | Show API-equivalent cost — see how much your subscription saves |
+| 💲 **Cost** | Always visible — API-equivalent cost in Insights and Projects |
 | 🔔 **Alerts** | Notify on status page outages (all components) |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
 | 🚀 **Launch at Login** | Start automatically when you log in |
@@ -286,7 +285,7 @@ The header shows an **update indicator** when a new version is available — the
 
 ## 💰 API Cost Equivalent
 
-The dollar amounts in the Tokens and Projects sections show what your usage **would have cost on Anthropic's pay-per-token API**. This is not your actual bill — Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token.
+The dollar amounts in the Insights and Projects sections show what your usage **would have cost on Anthropic's pay-per-token API**. This is not your actual bill — Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token.
 
 This is the whole point: seeing the API-equivalent cost makes it obvious how much value you're getting from your subscription. If the number exceeds your monthly fee, your subscription is saving you money. The bigger the gap, the better the deal.
 
@@ -294,7 +293,7 @@ Pricing uses Anthropic's published per-million-token rates for input, output, ca
 
 ### How Token Tracking Works
 
-The **Tokens** section shows per-model token usage with cache hit rate (how efficiently you're reusing cached context), output tokens (the main cost driver at 3–5x input price), and the API-equivalent cost estimate.
+The **Insights** section shows per-model API-equivalent cost filtered by the selected time window (24H = today, 7D = this week, 12M = this month), alongside the activity chart and cumulative stats.
 
 **Where the data comes from:** Claude Code writes session logs (JSONL files) to `~/.claude/projects/` and periodically aggregates them into `~/.claude/stats-cache.json`. AI Battery reads both — it never writes to Claude Code's files or reads message content, only token counts.
 

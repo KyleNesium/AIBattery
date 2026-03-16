@@ -37,7 +37,7 @@ enum ActivityTrendComputation {
                 change: changeVsYesterday(snapshot, cal: cal, now: now),
                 stat: "\(snapshot.todayMessages) msgs today",
                 throttleCount: UsageViewModel.throttleCount(days: 1),
-                peak: snapshot.peakHour.map { "Peak: \(ActivityChartView.formatHourLabel($0)):00" },
+                peak: snapshot.peakHour.map { "Peak: \(InsightsView.formatHourLabel($0)):00" },
                 throttleDays: 1
             )
         case .daily:
@@ -60,11 +60,11 @@ enum ActivityTrendComputation {
             let busiestLabel: String? = {
                 guard let peak = monthTotals.max(by: { $0.value < $1.value }),
                       let date = DateFormatters.dateKey.date(from: peak.key + "-01") else { return nil }
-                return ActivityChartView.monthAbbrev(date)
+                return InsightsView.monthAbbrev(date)
             }()
             return ActivityTrendData(
                 change: monthChangeInfo(thisMonth: thisMonth, lastMonth: lastMonth, cal: cal, now: now),
-                stat: thisMonth > 0 ? "\(ActivityChartView.compactCount(thisMonth)) this month" : nil,
+                stat: thisMonth > 0 ? "\(InsightsView.compactCount(thisMonth)) this month" : nil,
                 throttleCount: UsageViewModel.throttleCount(days: 30),
                 peak: busiestLabel.map { "Peak: \($0)" },
                 throttleDays: 30

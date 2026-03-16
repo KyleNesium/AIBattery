@@ -74,7 +74,6 @@ public struct UsagePopoverView: View {
 
             if let snapshot = viewModel.snapshot {
                 metricToggle
-                Divider()
 
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
@@ -107,9 +106,8 @@ public struct UsagePopoverView: View {
                 }
                 .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
 
-                TokenUsageGate(snapshot: snapshot)
                 ProjectUsageGate(snapshot: snapshot)
-                ActivityChartGate(snapshot: snapshot)
+                InsightsGate(snapshot: snapshot)
 
             } else if viewModel.isLoading {
                 loadingView
@@ -138,7 +136,10 @@ public struct UsagePopoverView: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text("✦ AI Battery")
+                Image(systemName: "sparkle")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.primary)
+                Text("AI Battery")
                     .font(.headline)
                 accountPicker
                 Spacer()
@@ -415,7 +416,7 @@ public struct UsagePopoverView: View {
     @State private var autoGlowing = false
 
     private var metricToggle: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             autoModeButton
 
             Picker("", selection: autoMetricMode ? autoResolvedBinding : $metricModeRaw) {
@@ -432,6 +433,7 @@ public struct UsagePopoverView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+        .background(ThemeColors.badgeFill)
     }
 
     private var autoModeButton: some View {
@@ -458,7 +460,6 @@ public struct UsagePopoverView: View {
                     radius: autoGlowing ? 5 : 1
                 )
                 .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)
-                .padding(6)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

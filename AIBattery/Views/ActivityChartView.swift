@@ -11,10 +11,11 @@ enum ActivityChartMode: String, CaseIterable {
 
 // MARK: - View
 
-struct ActivityChartView: View {
+struct InsightsView: View {
     let dailyActivity: [DailyActivity]
     let todayHourCounts: [String: Int]
     var snapshot: UsageSnapshot?
+    var activeModelId: String?
     @AppStorage(UserDefaultsKeys.activityCollapsed) private var collapsed: Bool = false
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
@@ -97,9 +98,9 @@ struct ActivityChartView: View {
             // Header with toggle
             HStack {
                 CollapsibleSectionHeader(
-                    title: "Activity",
+                    title: "Insights",
                     collapsed: $collapsed,
-                    tooltip: "Message activity over time"
+                    tooltip: "Activity, cost, and usage insights"
                 )
                 Spacer()
                 if collapsed, let snapshot, let change = ActivityTrendComputation.changeVsYesterday(snapshot) {
@@ -149,10 +150,17 @@ struct ActivityChartView: View {
                 }
             }
 
-            // Trend summary + insight rows
+            // Trend + cost + history — visually grouped
             if !collapsed, let snapshot {
                 trendSummary(snapshot)
                     .accessibilityElement(children: .combine)
+
+                if !windowedModelTokens.isEmpty {
+                    Divider().opacity(0.3).padding(.vertical, 2)
+                    costSection(snapshot)
+                }
+
+                Divider().opacity(0.3).padding(.vertical, 2)
                 insightRows(snapshot)
             }
         }
@@ -459,19 +467,108 @@ struct ActivityChartView: View {
         }
     }
 
+    // MARK: - Cost breakdown (mode-aware)
+
+    /// Column width for cost values.
+    private let costColumnWidth: CGFloat = 54
+    /// Column width for token values.
+    private let tokenColumnWidth: CGFloat = 42
+
+    /// Model tokens for the current time window.
+    private var windowedModelTokens: [ModelTokenSummary] {
+        guard let snapshot else { return [] }
+        switch mode {
+        case .hourly: return snapshot.todayModelTokens
+        case .daily: return snapshot.weekModelTokens
+        case .monthly: return snapshot.monthModelTokens
+        }
+    }
+
+    private func isActive(_ model: ModelTokenSummary) -> Bool {
+        guard let activeId = activeModelId, !activeId.isEmpty else { return false }
+        return activeId.hasPrefix(model.id) || model.id.hasPrefix(activeId)
+    }
+
+    @ViewBuilder
+    private func costSection(_ snapshot: UsageSnapshot) -> some View {
+        let models = windowedModelTokens
+        if !models.isEmpty {
+            let totalCost = ModelPricing.totalCost(for: models)
+            let costText = "~\(ModelPricing.formatCompactCost(totalCost))"
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("API Equivalent")
+                        .font(.caption)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
+                        .help("What this usage would cost on the pay-per-token API — your subscription covers it")
+                    Spacer()
+                    Text(costText)
+                        .font(.system(.caption, design: .monospaced, weight: .semibold))
+                        .copyable(costText)
+                }
+
+                ForEach(models) { model in
+                    let modelTokensText = TokenFormatter.format(model.totalTokens)
+                    let modelCost: String = {
+                        guard let pricing = ModelPricing.pricing(for: model.id) else { return "" }
+                        let cost = pricing.cost(
+                            input: model.inputTokens,
+                            output: model.outputTokens,
+                            cacheRead: model.cacheReadTokens,
+                            cacheWrite: model.cacheWriteTokens
+                        )
+                        return "~\(ModelPricing.formatCompactCost(cost))"
+                    }()
+                    HStack(spacing: 6) {
+                        Text(model.displayName)
+                            .font(.caption2)
+                            .lineLimit(1)
+
+                        if isActive(model) {
+                            Text("▶")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.green)
+                                .help("Active model in current session")
+                        }
+
+                        Spacer()
+
+                        if !modelCost.isEmpty {
+                            Text(modelCost)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
+                                .frame(width: costColumnWidth, alignment: .trailing)
+                                .copyable(modelCost)
+                        }
+
+                        Text(modelTokensText)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .frame(width: tokenColumnWidth, alignment: .trailing)
+                            .copyable(modelTokensText)
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Insight rows (merged from former Insights section)
 
     private static let insightLabelWidth: CGFloat = 55
 
     @ViewBuilder
     private func insightRows(_ snapshot: UsageSnapshot) -> some View {
-        // All Time
-        insightRow(
-            label: "All Time",
-            value: "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions",
-            tooltip: "Cumulative activity across all sessions"
-        )
-        .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
+        // Date range
+        if let start = snapshot.firstSessionDate,
+           let lastDay = snapshot.dailyActivity.last?.date,
+           let end = DateFormatters.dateKey.date(from: lastDay) {
+            insightRow(
+                label: "Period",
+                value: DateFormatters.formatDateRange(from: start, to: end),
+                tooltip: "Date range of tracked data"
+            )
+        }
 
         // Longest session
         if let duration = snapshot.longestSessionDuration, snapshot.longestSessionMessages > 0 {
@@ -482,17 +579,13 @@ struct ActivityChartView: View {
             )
         }
 
-        // Date range
-        if let start = snapshot.firstSessionDate,
-           let lastDay = snapshot.dailyActivity.last?.date,
-           let end = DateFormatters.dateKey.date(from: lastDay) {
-            insightRow(
-                label: "Period",
-                value: DateFormatters.formatDateRange(from: start, to: end),
-                tooltip: "Date range of tracked data",
-                valueColor: ThemeColors.secondaryLabel
-            )
-        }
+        // All Time (at bottom)
+        insightRow(
+            label: "All Time",
+            value: "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions",
+            tooltip: "Cumulative activity across all sessions"
+        )
+        .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
     }
 
     private func insightRow(

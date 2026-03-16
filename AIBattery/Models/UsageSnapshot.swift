@@ -36,6 +36,11 @@ struct UsageSnapshot {
     let totalProjectTokens: Int
     let totalProjectCost: Double
 
+    // Windowed model tokens for Insights cost breakdown (JSONL-only, not ledger-merged)
+    let todayModelTokens: [ModelTokenSummary]
+    let weekModelTokens: [ModelTokenSummary]
+    let monthModelTokens: [ModelTokenSummary]
+
     /// The percentage for a given metric mode — shared by menu bar and popover.
     /// Context health uses the highest usage across all tracked sessions (not just
     /// the most recent), so auto mode and the menu bar reflect the most critical session.

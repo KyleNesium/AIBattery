@@ -4,8 +4,6 @@ import SwiftUI
 struct DisplaySettingsSection: View {
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
-    @AppStorage(UserDefaultsKeys.showCostEstimate) private var showCostEstimate: Bool = false
-
     /// Slider positions (1-6) mapped to minutes: 30, 60, 120, 240, 480, 0 (never).
     private static let idleSteps: [Double] = [30, 60, 120, 240, 480, 0]
 
@@ -38,10 +36,6 @@ struct DisplaySettingsSection: View {
                 .toggleStyle(.checkbox)
                 .font(.caption)
                 .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
-            Toggle("Cost", isOn: $showCostEstimate)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-                .help("Show estimated API cost per model")
         }
     }
 

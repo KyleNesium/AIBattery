@@ -138,7 +138,7 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 
 | Constant | Value |
 |----------|-------|
-| Show cost | `aibattery_showCostEstimate` (Bool, default false) — controls Projects section only; Tokens section always shows cost |
+| Show cost | Always visible — API-equivalent cost shown in Projects header/rows and Insights cost section. No toggle. |
 | Context collapsed | `aibattery_contextCollapsed` (Bool, default false) |
 | Tokens collapsed | `aibattery_tokensCollapsed` (Bool, default false) |
 | Projects collapsed | `aibattery_projectsCollapsed` (Bool, default false) |

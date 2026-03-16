@@ -101,7 +101,7 @@ AIBattery/
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
     MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, brokenStarFragments, drawStroke) + NSBezierPath→CGPath
     UsagePopoverView.swift        — Main popover: header, metric toggle, ordered sections, footer
-    UsageGateViews.swift          — TokenUsageGate, ProjectUsageGate, ActivityChartGate — data-availability wrappers
+    UsageGateViews.swift          — ProjectUsageGate, InsightsGate — data-availability wrappers
     Settings/
       SettingsRow.swift           — Inline settings container: account names + sub-sections
       RefreshSettingsSection.swift — Refresh interval slider + sliderMarks() helper
@@ -113,9 +113,8 @@ AIBattery/
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting, clipboard export
-    TokenUsageSection.swift       — Per-model token breakdown with token type tags + optional cost
-    ProjectUsageSection.swift     — Per-project token breakdown with optional cost
-    ActivityChartView.swift        — 24H/7D/12M activity chart (Swift Charts, rolling windows) + insight rows (All Time, Longest, Period)
+    ProjectUsageSection.swift     — Per-project token breakdown with cost (top 5 default, expand to 10)
+    ActivityChartView.swift        — InsightsView: 24H/7D/12M activity chart + API-equivalent cost breakdown + insight rows (Period, Longest, All Time)
     ActivityChartData.swift       — Chart data transformation layer (daily/hourly/monthly points)
     ActivityChartTrend.swift      — Trend computation: vs-yesterday/week/month comparisons + copy text
     CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 4 sections

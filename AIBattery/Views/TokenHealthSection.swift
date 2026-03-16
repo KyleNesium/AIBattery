@@ -53,9 +53,6 @@ struct TokenHealthSection: View {
                     sessionToggle
                 }
 
-                if !collapsed {
-                    copyDetailsButton
-                }
                 if !collapsed, let onRefresh {
                     RefreshButton(action: onRefresh)
                 }
