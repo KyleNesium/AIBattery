@@ -4,6 +4,7 @@ import SwiftUI
 struct DisplaySettingsSection: View {
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
+    @State private var idleSliderPosition: Double = 6
     /// Slider positions (1-6) mapped to minutes: 30, 60, 120, 240, 480, 0 (never).
     private static let idleSteps: [Double] = [30, 60, 120, 240, 480, 0]
 
@@ -15,13 +16,25 @@ struct DisplaySettingsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
-                Slider(value: idleSliderBinding, in: 1...6, step: 1)
+                Slider(value: $idleSliderPosition, in: 1...6, step: 1) { editing in
+                    if !editing {
+                        // Only write to AppStorage on drag end — avoids cascading redraws per tick
+                        idleSessionMinutes = Self.idleSteps[max(0, min(Int(idleSliderPosition) - 1, Self.idleSteps.count - 1))]
+                    }
+                }
+                    .onAppear {
+                        if let idx = Self.idleSteps.firstIndex(of: idleSessionMinutes) {
+                            idleSliderPosition = Double(idx + 1)
+                        } else {
+                            idleSliderPosition = 6
+                        }
+                    }
                     .accessibilityLabel("Hide idle sessions")
-                    .accessibilityValue(idleLabel)
-                Text(idleLabel)
+                    .accessibilityValue(idleLabelForPosition)
+                Text(idleLabelForPosition)
                     .font(.system(.caption, design: .monospaced))
                     .frame(width: 28, alignment: .trailing)
-                    .help(idleSessionMinutes == 0 ? "Show all sessions" : "Hide sessions idle > \(idleLabel)")
+                    .help(idleSliderPosition >= 6 ? "Show all sessions" : "Hide sessions idle > \(idleLabelForPosition)")
             }
             sliderMarks(labels: ["30m", "1h", "2h", "4h", "8h", "\u{221E}"], leadingPad: 50)
         }
@@ -39,22 +52,11 @@ struct DisplaySettingsSection: View {
         }
     }
 
-    /// Maps slider position (1-6) <-> stored minutes (30/60/120/240/480/0).
-    private var idleSliderBinding: Binding<Double> {
-        Binding(
-            get: {
-                if let idx = Self.idleSteps.firstIndex(of: idleSessionMinutes) {
-                    return Double(idx + 1)
-                }
-                return 6 // default to "Never"
-            },
-            set: { idleSessionMinutes = Self.idleSteps[max(0, min(Int($0) - 1, Self.idleSteps.count - 1))] }
-        )
-    }
-
-    /// Display label for the current idle cutoff.
-    private var idleLabel: String {
-        switch Int(idleSessionMinutes) {
+    /// Display label for the current slider position (live during drag).
+    private var idleLabelForPosition: String {
+        let idx = max(0, min(Int(idleSliderPosition) - 1, Self.idleSteps.count - 1))
+        let minutes = Self.idleSteps[idx]
+        switch Int(minutes) {
         case 30: return "30m"
         case 60: return "1h"
         case 120: return "2h"

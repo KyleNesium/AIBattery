@@ -4,6 +4,8 @@ import SwiftUI
 struct RefreshSettingsSection: View {
     let viewModel: UsageViewModel
     @AppStorage(UserDefaultsKeys.refreshInterval) private var refreshInterval: Double = 60
+    @State private var sliderValue: Double = 60
+    @State private var isDragging = false
 
     var body: some View {
         VStack(spacing: 2) {
@@ -12,13 +14,18 @@ struct RefreshSettingsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
-                Slider(value: $refreshInterval, in: 10...60, step: 5)
-                    .onChange(of: refreshInterval) { _ in
-                        viewModel.updatePollingInterval(refreshInterval)
+                Slider(value: $sliderValue, in: 10...60, step: 5) { editing in
+                    isDragging = editing
+                    if !editing {
+                        // Only update polling when drag ends — avoids timer restarts per tick
+                        refreshInterval = sliderValue
+                        viewModel.updatePollingInterval(sliderValue)
                     }
+                }
+                    .onAppear { sliderValue = refreshInterval }
                     .accessibilityLabel("Refresh interval")
-                    .accessibilityValue("\(Int(refreshInterval)) seconds")
-                Text("\(Int(refreshInterval))s")
+                    .accessibilityValue("\(Int(sliderValue)) seconds")
+                Text("\(Int(sliderValue))s")
                     .font(.system(.caption, design: .monospaced))
                     .frame(width: 28, alignment: .trailing)
             }

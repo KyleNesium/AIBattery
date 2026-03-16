@@ -90,7 +90,8 @@ final class UsageAggregator {
         }
 
         let todayMessages = todayEntries.count
-        let todaySessions = Set(todayEntries.map(\.sessionId)).count
+        // Reuse session set from entriesByDate instead of re-allocating
+        let todaySessions = entriesByDate[todayDate]?.sessions.count ?? 0
         let todayToolCalls = statsCache?.dailyActivity
             .first(where: { $0.date == todayDate })?.toolCallCount ?? 0
 
@@ -127,12 +128,16 @@ final class UsageAggregator {
         let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
         let projectTokens = Self.buildProjectTokens(from: allEntries)
 
-        // Windowed model tokens for Insights cost breakdown (JSONL-only)
+        // Windowed model tokens for Insights cost breakdown — single pass over allEntries
+        // instead of 3 separate filter+accumulate passes (eliminates 5 redundant iterations).
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? today
-        let todayModelTokens = Self.buildModelTokensFromEntries(allEntries.filter { $0.timestamp >= today })
-        let weekModelTokens = Self.buildModelTokensFromEntries(allEntries.filter { $0.timestamp >= sevenDaysAgo })
-        let monthModelTokens = Self.buildModelTokensFromEntries(allEntries.filter { $0.timestamp >= monthStart })
+        let windowed = Self.buildWindowedModelTokens(
+            from: allEntries, today: today, weekStart: sevenDaysAgo, monthStart: monthStart
+        )
+        let todayModelTokens = windowed.today
+        let weekModelTokens = windowed.week
+        let monthModelTokens = windowed.month
 
         // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
         let modelTokens: [ModelTokenSummary]
@@ -259,19 +264,22 @@ final class UsageAggregator {
         return snapshot
     }
 
-    /// Group JSONL entries by project (full cwd path as key), compute per-entry cost.
+    /// Group JSONL entries by project (full cwd path as key), compute cost per (project, model) pair.
+    /// Batches pricing lookups to O(projects × models) instead of O(entries) lock acquisitions.
     /// Entries without cwd are grouped under "Other". JSONL-only — stats-cache lacks per-entry cwd.
     private static func buildProjectTokens(from entries: [AssistantUsageEntry]) -> [ProjectTokenSummary] {
-        struct Accumulator {
-            var displayName: String
+        struct ModelAccum {
             var input: Int = 0
             var output: Int = 0
             var cacheRead: Int = 0
             var cacheWrite: Int = 0
-            var cost: Double = 0
+        }
+        struct ProjectAccum {
+            var displayName: String
+            var byModel: [String: ModelAccum] = [:]
         }
 
-        var byProject: [String: Accumulator] = [:]
+        var byProject: [String: ProjectAccum] = [:]
         for entry in entries {
             guard entry.model.hasPrefix("claude-") else { continue }
 
@@ -285,49 +293,88 @@ final class UsageAggregator {
                 displayName = "Other"
             }
 
-            var acc = byProject[key] ?? Accumulator(displayName: displayName)
-            acc.input += entry.inputTokens
-            acc.output += entry.outputTokens
-            acc.cacheRead += entry.cacheReadTokens
-            acc.cacheWrite += entry.cacheWriteTokens
-            if let pricing = ModelPricing.pricing(for: entry.model) {
-                acc.cost += pricing.cost(
-                    input: entry.inputTokens,
-                    output: entry.outputTokens,
-                    cacheRead: entry.cacheReadTokens,
-                    cacheWrite: entry.cacheWriteTokens
-                )
-            }
-            byProject[key] = acc
+            var proj = byProject[key] ?? ProjectAccum(displayName: displayName)
+            var model = proj.byModel[entry.model] ?? ModelAccum()
+            model.input += entry.inputTokens
+            model.output += entry.outputTokens
+            model.cacheRead += entry.cacheReadTokens
+            model.cacheWrite += entry.cacheWriteTokens
+            proj.byModel[entry.model] = model
+            byProject[key] = proj
         }
 
-        return byProject.map { key, acc in
-            ProjectTokenSummary(
+        // Compute cost once per (project, model) pair — O(projects × models) pricing lookups
+        return byProject.map { key, proj in
+            var totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheWrite = 0
+            var totalCost: Double = 0
+            for (modelId, tokens) in proj.byModel {
+                totalInput += tokens.input
+                totalOutput += tokens.output
+                totalCacheRead += tokens.cacheRead
+                totalCacheWrite += tokens.cacheWrite
+                if let pricing = ModelPricing.pricing(for: modelId) {
+                    totalCost += pricing.cost(
+                        input: tokens.input, output: tokens.output,
+                        cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite
+                    )
+                }
+            }
+            return ProjectTokenSummary(
                 id: key,
-                projectName: acc.displayName,
-                inputTokens: acc.input,
-                outputTokens: acc.output,
-                cacheReadTokens: acc.cacheRead,
-                cacheWriteTokens: acc.cacheWrite,
-                estimatedCost: acc.cost
+                projectName: proj.displayName,
+                inputTokens: totalInput,
+                outputTokens: totalOutput,
+                cacheReadTokens: totalCacheRead,
+                cacheWriteTokens: totalCacheWrite,
+                estimatedCost: totalCost
             )
         }.sorted { $0.totalTokens > $1.totalTokens }
     }
 
-    /// Filter to Claude models, map to summaries, sort by total tokens descending.
-    /// Build per-model token summaries directly from JSONL entries (for windowed views).
-    private static func buildModelTokensFromEntries(_ entries: [AssistantUsageEntry]) -> [ModelTokenSummary] {
-        var map: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
+    /// Single-pass windowed token computation. Iterates allEntries once, bucketing each entry
+    /// into today/week/month accumulators based on timestamp. Replaces 3 separate filter+accumulate passes.
+    private static func buildWindowedModelTokens(
+        from entries: [AssistantUsageEntry],
+        today: Date,
+        weekStart: Date,
+        monthStart: Date
+    ) -> (today: [ModelTokenSummary], week: [ModelTokenSummary], month: [ModelTokenSummary]) {
+        typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
+        var todayMap: TokenMap = [:]
+        var weekMap: TokenMap = [:]
+        var monthMap: TokenMap = [:]
+
         for entry in entries {
-            let existing = map[entry.model] ?? (0, 0, 0, 0)
-            map[entry.model] = (
-                input: existing.input + entry.inputTokens,
-                output: existing.output + entry.outputTokens,
-                cacheRead: existing.cacheRead + entry.cacheReadTokens,
-                cacheWrite: existing.cacheWrite + entry.cacheWriteTokens
-            )
+            let ts = entry.timestamp
+            // Entries are roughly sorted by timestamp; check narrowest window first
+            if ts >= today {
+                let e = todayMap[entry.model] ?? (0, 0, 0, 0)
+                todayMap[entry.model] = (e.input + entry.inputTokens, e.output + entry.outputTokens,
+                                         e.cacheRead + entry.cacheReadTokens, e.cacheWrite + entry.cacheWriteTokens)
+                // Today entries are also in week and month
+                let w = weekMap[entry.model] ?? (0, 0, 0, 0)
+                weekMap[entry.model] = (w.input + entry.inputTokens, w.output + entry.outputTokens,
+                                        w.cacheRead + entry.cacheReadTokens, w.cacheWrite + entry.cacheWriteTokens)
+                let m = monthMap[entry.model] ?? (0, 0, 0, 0)
+                monthMap[entry.model] = (m.input + entry.inputTokens, m.output + entry.outputTokens,
+                                         m.cacheRead + entry.cacheReadTokens, m.cacheWrite + entry.cacheWriteTokens)
+            } else if ts >= weekStart {
+                let w = weekMap[entry.model] ?? (0, 0, 0, 0)
+                weekMap[entry.model] = (w.input + entry.inputTokens, w.output + entry.outputTokens,
+                                        w.cacheRead + entry.cacheReadTokens, w.cacheWrite + entry.cacheWriteTokens)
+                if ts >= monthStart {
+                    let m = monthMap[entry.model] ?? (0, 0, 0, 0)
+                    monthMap[entry.model] = (m.input + entry.inputTokens, m.output + entry.outputTokens,
+                                             m.cacheRead + entry.cacheReadTokens, m.cacheWrite + entry.cacheWriteTokens)
+                }
+            } else if ts >= monthStart {
+                let m = monthMap[entry.model] ?? (0, 0, 0, 0)
+                monthMap[entry.model] = (m.input + entry.inputTokens, m.output + entry.outputTokens,
+                                         m.cacheRead + entry.cacheReadTokens, m.cacheWrite + entry.cacheWriteTokens)
+            }
         }
-        return buildModelTokens(from: map)
+
+        return (buildModelTokens(from: todayMap), buildModelTokens(from: weekMap), buildModelTokens(from: monthMap))
     }
 
     private static func buildModelTokens(
@@ -335,13 +382,18 @@ final class UsageAggregator {
     ) -> [ModelTokenSummary] {
         map.compactMap { modelId, tokens in
             guard modelId.hasPrefix("claude-") else { return nil }
+            let cost = ModelPricing.pricing(for: modelId)?.cost(
+                input: tokens.input, output: tokens.output,
+                cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite
+            ) ?? 0
             return ModelTokenSummary(
                 id: modelId,
                 displayName: ModelNameMapper.displayName(for: modelId),
                 inputTokens: tokens.input,
                 outputTokens: tokens.output,
                 cacheReadTokens: tokens.cacheRead,
-                cacheWriteTokens: tokens.cacheWrite
+                cacheWriteTokens: tokens.cacheWrite,
+                estimatedCost: cost
             )
         }.sorted { $0.totalTokens > $1.totalTokens }
     }

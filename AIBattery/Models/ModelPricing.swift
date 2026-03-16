@@ -82,17 +82,9 @@ struct ModelPricing {
         return result
     }
 
-    /// Total cost across all model summaries.
+    /// Total cost across all model summaries (uses pre-computed estimatedCost).
     static func totalCost(for models: [ModelTokenSummary]) -> Double {
-        models.reduce(0) { total, model in
-            guard let pricing = pricing(for: model.id) else { return total }
-            return total + pricing.cost(
-                input: model.inputTokens,
-                output: model.outputTokens,
-                cacheRead: model.cacheReadTokens,
-                cacheWrite: model.cacheWriteTokens
-            )
-        }
+        models.reduce(0) { $0 + $1.estimatedCost }
     }
 
     // MARK: - Pricing Table

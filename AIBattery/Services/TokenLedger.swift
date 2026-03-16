@@ -49,25 +49,35 @@ final class TokenLedger {
                 changed = true
             }
 
+            let cost = ModelPricing.pricing(for: model.id)?.cost(
+                input: merged.input, output: merged.output,
+                cacheRead: merged.cacheRead, cacheWrite: merged.cacheWrite
+            ) ?? 0
             result.append(ModelTokenSummary(
                 id: model.id,
                 displayName: model.displayName,
                 inputTokens: merged.input,
                 outputTokens: merged.output,
                 cacheReadTokens: merged.cacheRead,
-                cacheWriteTokens: merged.cacheWrite
+                cacheWriteTokens: merged.cacheWrite,
+                estimatedCost: cost
             ))
         }
 
         // Restore historical models no longer in current stats-cache/JSONL
         for (modelId, record) in accountData where !seenModels.contains(modelId) {
+            let cost = ModelPricing.pricing(for: modelId)?.cost(
+                input: record.input, output: record.output,
+                cacheRead: record.cacheRead, cacheWrite: record.cacheWrite
+            ) ?? 0
             result.append(ModelTokenSummary(
                 id: modelId,
                 displayName: ModelNameMapper.displayName(for: modelId),
                 inputTokens: record.input,
                 outputTokens: record.output,
                 cacheReadTokens: record.cacheRead,
-                cacheWriteTokens: record.cacheWrite
+                cacheWriteTokens: record.cacheWrite,
+                estimatedCost: cost
             ))
         }
 
