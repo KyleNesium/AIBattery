@@ -100,8 +100,8 @@ struct UsageBar: View {
                 let resetDiff = resetsAt.map { $0.timeIntervalSince(Date()) }
                 let expired = (resetDiff ?? 1) <= 0
 
+                // Left side: time to limit / status
                 if wasExhausted && expired && percent < 1 {
-                    // Was at 100%+, timer hit 0, API confirmed reset — celebrate
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
                             .font(.caption2)
@@ -123,13 +123,17 @@ struct UsageBar: View {
                         .foregroundStyle(ThemeColors.caution)
                         .copyable(estimateText)
                 } else {
+                    // No burn rate estimate yet — show remaining percentage
                     let remainingText = "\(max(0, Int(100 - percent)))% remaining"
                     Text(remainingText)
                         .font(.caption2)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .copyable(remainingText)
                 }
+
                 Spacer()
+
+                // Right side: reset countdown (always shown when available)
                 if let diff = resetDiff {
                     if diff <= 0 && wasExhausted && percent >= 1 {
                         Text("Resets soon")
