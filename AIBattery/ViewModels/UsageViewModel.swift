@@ -43,7 +43,7 @@ public final class UsageViewModel: ObservableObject {
         // Skip network work when not authenticated — still aggregate local data.
         guard oauthManager.isAuthenticated else {
             let result = aggregator.aggregate(rateLimits: nil)
-            if result.totalMessages > 0 { snapshot = result }
+            if result.totalMessages > 0, result != snapshot { snapshot = result }
             isLoading = false
             return
         }
@@ -51,7 +51,7 @@ public final class UsageViewModel: ObservableObject {
         // Skip network when offline — show local data with cached rate limits.
         guard NetworkMonitor.shared.isConnected else {
             let result = aggregator.aggregate(rateLimits: apiResult?.rateLimits)
-            snapshot = result
+            if result != snapshot { snapshot = result }
             isLoading = false
             errorMessage = "No internet connection"
             return
@@ -133,7 +133,7 @@ public final class UsageViewModel: ObservableObject {
             hasProfile: api.profile != nil,
             totalMessages: result.totalMessages
         )
-        snapshot = result
+        if result != snapshot { snapshot = result }
         isLoading = false
     }
 

@@ -22,11 +22,30 @@ final class TokenHealthMonitor {
         let cutoff = now.addingTimeInterval(-cutoffSeconds)
         let currentSessionId = latestEntry.sessionId
 
-        // Pre-filter to sessions with recent activity (or the current session) before
-        // grouping — avoids allocating dictionary buckets for months of stale sessions.
-        let relevantEntries = entries.filter {
-            $0.sessionId == currentSessionId || $0.timestamp > cutoff
+        // Binary search for cutoff index — entries are sorted by timestamp.
+        // Only scan from cutoff forward instead of filtering all entries (O(log N + recent) vs O(N)).
+        let cutoffIndex = binarySearchCutoff(entries: entries, cutoff: cutoff)
+
+        // Collect recent entries + current session entries from before the cutoff
+        var relevantEntries: [AssistantUsageEntry] = []
+        relevantEntries.reserveCapacity(entries.count - cutoffIndex + 50)
+
+        // Entries after cutoff — all potentially relevant
+        for i in cutoffIndex..<entries.count {
+            relevantEntries.append(entries[i])
         }
+
+        // Current session entries before cutoff (scan backward from cutoff)
+        for i in stride(from: cutoffIndex - 1, through: 0, by: -1) {
+            if entries[i].sessionId == currentSessionId {
+                relevantEntries.append(entries[i])
+            } else {
+                // Stop scanning once we hit a different session far enough back
+                // (current session entries tend to be clustered near the end)
+                if entries[i].timestamp < cutoff.addingTimeInterval(-3600) { break }
+            }
+        }
+
         let grouped = Dictionary(grouping: relevantEntries, by: \.sessionId)
         var current: TokenHealthStatus?
         var recentResults: [TokenHealthStatus] = []
@@ -54,6 +73,21 @@ final class TokenHealthMonitor {
         let top = Array(recentResults.prefix(topLimit))
 
         return (current, top)
+    }
+
+    /// Binary search for the first entry index with timestamp > cutoff.
+    /// Entries must be sorted by timestamp ascending.
+    private func binarySearchCutoff(entries: [AssistantUsageEntry], cutoff: Date) -> Int {
+        var lo = 0, hi = entries.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if entries[mid].timestamp > cutoff {
+                hi = mid
+            } else {
+                lo = mid + 1
+            }
+        }
+        return lo
     }
 
     /// Convenience: assess health for the most recent session only.
