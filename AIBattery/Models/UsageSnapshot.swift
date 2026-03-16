@@ -1,6 +1,26 @@
 import Foundation
 
-struct UsageSnapshot {
+struct UsageSnapshot: Equatable {
+    /// Custom equality skips `lastUpdated` (always changes) and compares meaningful data.
+    /// Prevents unnecessary SwiftUI diffs when polling returns identical data.
+    static func == (lhs: UsageSnapshot, rhs: UsageSnapshot) -> Bool {
+        lhs.rateLimits == rhs.rateLimits
+            && lhs.totalSessions == rhs.totalSessions
+            && lhs.totalMessages == rhs.totalMessages
+            && lhs.todayMessages == rhs.todayMessages
+            && lhs.todaySessions == rhs.todaySessions
+            && lhs.totalTokens == rhs.totalTokens
+            && lhs.totalProjectTokens == rhs.totalProjectTokens
+            && lhs.modelTokens == rhs.modelTokens
+            && lhs.projectTokens == rhs.projectTokens
+            && lhs.dailyActivity == rhs.dailyActivity
+            && lhs.topSessionHealths == rhs.topSessionHealths
+            && lhs.tokenHealth == rhs.tokenHealth
+            && lhs.todayHourCounts == rhs.todayHourCounts
+            && lhs.todayModelTokens == rhs.todayModelTokens
+            && lhs.weekModelTokens == rhs.weekModelTokens
+            && lhs.monthModelTokens == rhs.monthModelTokens
+    }
     /// Weekday symbols from the user's current calendar (Sunday = index 0).
     private static let weekdaySymbols = Calendar.current.weekdaySymbols
 
