@@ -16,7 +16,7 @@ struct InsightsView: View {
     let todayHourCounts: [String: Int]
     var snapshot: UsageSnapshot?
     var activeModelId: String?
-    @AppStorage(UserDefaultsKeys.activityCollapsed) private var collapsed: Bool = false
+    @AppStorage(UserDefaultsKeys.activityCollapsed) private var collapsed: Bool = true
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
 

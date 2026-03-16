@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ProjectUsageSection: View {
     let snapshot: UsageSnapshot
-    @AppStorage(UserDefaultsKeys.projectsCollapsed) private var collapsed: Bool = false
+    @AppStorage(UserDefaultsKeys.projectsCollapsed) private var collapsed: Bool = true
     @State private var showAll = false
     @State private var searchText = ""
     @State private var sortMode: ProjectSortMode = .tokensDesc

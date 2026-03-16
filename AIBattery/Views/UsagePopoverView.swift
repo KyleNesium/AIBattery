@@ -125,6 +125,8 @@ public struct UsagePopoverView: View {
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
         }
+        .onAppear { recomputeOrderedModes() }
+        .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
         .onDisappear {
             logoutRevertTask?.cancel()
             #if ENABLE_VERSION_CHECKER
@@ -408,9 +410,12 @@ public struct UsagePopoverView: View {
         .padding(.vertical, 12)
     }
 
-    /// Returns all metric modes with the selected one first.
-    private var orderedModes: [MetricMode] {
-        [metricMode] + MetricMode.allCases.filter { $0 != metricMode }
+    /// Cached ordered modes — avoids allocating a new array on every body evaluation.
+    @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
+    private var orderedModes: [MetricMode] { cachedOrderedModes }
+
+    private func recomputeOrderedModes() {
+        cachedOrderedModes = [metricMode] + MetricMode.allCases.filter { $0 != metricMode }
     }
 
     @State private var autoGlowing = false
