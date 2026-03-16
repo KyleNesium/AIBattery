@@ -58,11 +58,22 @@ public final class UsageViewModel: ObservableObject {
         }
 
         let wasEmpty = snapshot == nil
-        if wasEmpty { isLoading = true }
-        // Yield to let SwiftUI render the loading state before blocking on network + aggregation.
+        let accountId = oauthManager.accountStore.activeAccountId
+
+        // Show cached rate limits immediately while API call is in-flight.
+        // This eliminates the empty-bars delay on launch.
+        if wasEmpty, let accountId {
+            let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+            if cached.rateLimits != nil {
+                let earlyResult = aggregator.aggregate(rateLimits: cached.rateLimits, accountId: accountId)
+                snapshot = earlyResult
+                isShowingCachedData = true
+            } else {
+                isLoading = true
+            }
+        }
         await Task.yield()
 
-        let accountId = oauthManager.accountStore.activeAccountId
         let (api, status) = await fetchAPIData(oauthManager: oauthManager, accountId: accountId)
 
         apiResult = api
