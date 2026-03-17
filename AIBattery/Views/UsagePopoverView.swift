@@ -132,9 +132,7 @@ public struct UsagePopoverView: View {
                 ProjectUsageGate(snapshot: snapshot)
                 InsightsGate(snapshot: snapshot)
 
-            } else if viewModel.isLoading {
-                loadingView
-            } else if let error = viewModel.errorMessage {
+            } else if let error = viewModel.errorMessage, viewModel.snapshot == nil {
                 errorView(error)
             } else {
                 emptyView
@@ -171,13 +169,6 @@ public struct UsagePopoverView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer()
-                if viewModel.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 16, height: 16)
-                        .help("Refreshing usage data...")
-                        .accessibilityLabel("Loading")
-                }
                 #if ENABLE_VERSION_CHECKER
                 Text("v\(VersionChecker.currentAppVersion)")
                     .font(.system(size: 9, design: .monospaced))
@@ -592,14 +583,25 @@ public struct UsagePopoverView: View {
                         .foregroundStyle(statusColor)
                     MarqueeText(texts: names, color: statusColor)
                 }
-            } else if let lastFetch = viewModel.lastFreshFetch {
-                TimelineView(.periodic(from: .now, by: 10)) { _ in
-                    HStack {
-                        Spacer()
-                        Text("Updated \(Self.relativeTime(lastFetch))")
+            } else {
+                HStack {
+                    Spacer()
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .scaleEffect(0.4)
+                            .frame(width: 10, height: 10)
+                    }
+                    if let lastFetch = viewModel.lastFreshFetch {
+                        TimelineView(.periodic(from: .now, by: 10)) { _ in
+                            Text("Updated \(Self.relativeTime(lastFetch))")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
+                                .help("Last fetched: \(Self.absoluteTime(lastFetch))")
+                        }
+                    } else if viewModel.isLoading {
+                        Text("Loading...")
                             .font(.system(size: 9, design: .monospaced))
                             .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .help("Last fetched: \(Self.absoluteTime(lastFetch))")
                     }
                 }
             }
