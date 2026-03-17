@@ -27,7 +27,7 @@ final class RateLimitFetcher {
 
     /// Models to try in order. Free accounts may not have access to larger models,
     /// but rate limit headers come back the same regardless of model.
-    private let models = [
+    private let fallbackModels = [
         "claude-sonnet-4-6-20250929",
         "claude-sonnet-4-5-20250929",
         "claude-haiku-3-5-20241022",
@@ -35,11 +35,30 @@ final class RateLimitFetcher {
         "claude-3-haiku-20240307",
     ]
 
-    /// Per-account model index (remembers last working model to avoid repeated fallbacks).
-    private var currentModelIndex: [String: Int] = [:]
+    /// Per-account last working model ID — persisted to UserDefaults so the app
+    /// starts with a known-good model after restart instead of retrying from the top.
+    private var lastWorkingModel: [String: String] = [:]
+    private static let workingModelKeyPrefix = "aibattery_probeModel_"
 
     private init() {
         restorePersistedRateLimits()
+        restoreWorkingModels()
+    }
+
+    private func restoreWorkingModels() {
+        let defaults = UserDefaults.standard
+        let prefix = Self.workingModelKeyPrefix
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            let accountId = String(key.dropFirst(prefix.count))
+            if let model = defaults.string(forKey: key) {
+                lastWorkingModel[accountId] = model
+            }
+        }
+    }
+
+    private func saveWorkingModel(_ model: String, accountId: String) {
+        lastWorkingModel[accountId] = model
+        UserDefaults.standard.set(model, forKey: Self.workingModelKeyPrefix + accountId)
     }
 
     /// User-Agent string built from bundle version at startup.
@@ -48,30 +67,37 @@ final class RateLimitFetcher {
         return "AIBattery/\(version) (macOS)"
     }()
 
-    /// Fetches rate limits + org profile for a specific account.
-    func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
-        let startIndex = currentModelIndex[accountId] ?? 0
+    /// The model the user is actively running in Claude Code (from latest JSONL entry).
+    /// Set by UsageAggregator after reading session logs.
+    var activeUserModel: String?
 
-        // Try from the last-known-working model, then fall back through the list
-        for i in startIndex..<models.count {
-            let model = models[i]
+    /// Fetches rate limits + org profile for a specific account.
+    /// Probe order: user's active model → last working model → fallback list.
+    func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
+        // Build probe list: active model first, then persisted working model, then fallbacks.
+        // Dedup so we don't try the same model twice.
+        var probeModels: [String] = []
+        var seen = Set<String>()
+        for candidate in [activeUserModel, lastWorkingModel[accountId]].compactMap({ $0 }) + fallbackModels {
+            if seen.insert(candidate).inserted {
+                probeModels.append(candidate)
+            }
+        }
+
+        for model in probeModels {
             let result = await tryFetch(accessToken: accessToken, model: model, accountId: accountId)
 
             switch result {
             case .success(let fetchResult):
-                currentModelIndex[accountId] = i
+                saveWorkingModel(model, accountId: accountId)
                 cachedResults[accountId] = fetchResult
                 persistRateLimits(fetchResult.rateLimits, fetchedAt: fetchResult.fetchedAt, accountId: accountId)
-                AppLogger.network.info("RateLimitFetcher: success with \(model, privacy: .public), hasLimits=\(fetchResult.rateLimits != nil)")
                 return fetchResult
             case .modelUnavailable:
-                AppLogger.network.warning("RateLimitFetcher: model \(model, privacy: .public) unavailable, trying next")
                 continue
             case .authFailed:
-                AppLogger.network.error("RateLimitFetcher: auth failed for \(model, privacy: .public)")
                 return cachedOrEmpty(accountId: accountId)
             case .networkError:
-                AppLogger.network.error("RateLimitFetcher: network error for \(model, privacy: .public)")
                 return cachedOrEmpty(accountId: accountId)
             }
         }

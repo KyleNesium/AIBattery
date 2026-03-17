@@ -60,6 +60,9 @@ final class UsageAggregator {
         // Single JSONL scan — entries are already cached by SessionLogReader.
         let allEntries = sessionLogReader.readAllUsageEntries()
 
+        // Set the user's active model so RateLimitFetcher probes with a known-good model first.
+        RateLimitFetcher.shared.activeUserModel = allEntries.last?.model
+
         // Unified single-pass over allEntries: date grouping, today extraction,
         // project token accumulation, and windowed model token bucketing — all in one iteration.
         let now = Date()
