@@ -70,7 +70,7 @@ public final class StatusBarManager: NSObject {
         )
         panel.isFloatingPanel = true
         panel.level = .floating
-        panel.hidesOnDeactivate = false
+        panel.hidesOnDeactivate = true
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -171,15 +171,13 @@ public final class StatusBarManager: NSObject {
             panel?.appearance = NSApp.effectiveAppearance
         }
 
-        // Close panel when app loses focus (e.g., user switches to another app via Cmd+Tab)
+        // Sync isPanelShowing when the panel auto-hides (hidesOnDeactivate)
         deactivationObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil, queue: .main
+            forName: NSWindow.didResignKeyNotification,
+            object: panel, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.isPanelShowing else { return }
-                self.panel?.orderOut(nil)
-                self.isPanelShowing = false
+                self?.isPanelShowing = false
             }
         }
 
@@ -427,14 +425,10 @@ public final class StatusBarManager: NSObject {
 // MARK: - Panel subclass
 
 /// Borderless panel that can become key (accepts keyboard events).
-/// Overrides `hidesOnDeactivate` to always return false — prevents SwiftUI's
-/// app lifecycle from hiding the panel when the app loses focus.
+/// `hidesOnDeactivate = true` ensures the panel closes automatically when clicking
+/// outside or switching apps — standard menu bar popup behavior.
 private class PopoverPanel: NSPanel {
     override var canBecomeKey: Bool { true }
-    override var hidesOnDeactivate: Bool {
-        get { false }
-        set { /* ignore — panel must stay visible regardless of app activation */ }
-    }
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // Escape
