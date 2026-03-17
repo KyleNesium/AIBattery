@@ -70,7 +70,7 @@ public final class StatusBarManager: NSObject {
         )
         panel.isFloatingPanel = true
         panel.level = .floating
-        panel.hidesOnDeactivate = true
+        panel.hidesOnDeactivate = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -157,13 +157,12 @@ public final class StatusBarManager: NSObject {
             return event
         }
 
-        // Close panel when clicking outside (global mouse events from other apps)
+        // Close panel when clicking outside (global mouse events from other apps).
+        // Runs on main queue — no async Task needed.
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self, self.isPanelShowing else { return }
-            Task { @MainActor in
-                self.panel?.orderOut(nil)
-                self.isPanelShowing = false
-            }
+            self.panel?.orderOut(nil)
+            self.isPanelShowing = false
         }
 
         // Track system appearance changes so the panel follows light/dark mode
@@ -171,19 +170,20 @@ public final class StatusBarManager: NSObject {
             panel?.appearance = NSApp.effectiveAppearance
         }
 
-        // Sync isPanelShowing when the panel auto-hides (hidesOnDeactivate)
+        // Close panel when app loses focus (Cmd+Tab, click another app's window)
         deactivationObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didResignKeyNotification,
-            object: panel, queue: .main
+            forName: NSApplication.didResignActiveNotification,
+            object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                self?.isPanelShowing = false
-            }
+            guard let self, self.isPanelShowing else { return }
+            self.panel?.orderOut(nil)
+            self.isPanelShowing = false
         }
 
         self.statusItem = item
         self.panel = panel
         self.hostingView = hosting
+
     }
 
     deinit {
@@ -425,10 +425,15 @@ public final class StatusBarManager: NSObject {
 // MARK: - Panel subclass
 
 /// Borderless panel that can become key (accepts keyboard events).
-/// `hidesOnDeactivate = true` ensures the panel closes automatically when clicking
-/// outside or switching apps — standard menu bar popup behavior.
+/// `hidesOnDeactivate` must return false — LSUIElement menu bar apps don't maintain
+/// proper activation state, so the panel would auto-hide immediately after showing.
+/// Manual click-outside + deactivation observers handle dismissal instead.
 private class PopoverPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+    override var hidesOnDeactivate: Bool {
+        get { false }
+        set { /* ignore — manual dismiss via observers */ }
+    }
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // Escape

@@ -153,29 +153,17 @@ final class SessionLogReader {
                 newDirModDates[dir.path] = modDate
             }
 
-            guard let contents = try? fm.contentsOfDirectory(
+            // Enumerate all JSONL files recursively (top-level + session dirs + subagents)
+            // using a single enumerator instead of per-directory contentsOfDirectory calls.
+            if let enumerator = fm.enumerator(
                 at: dir,
-                includingPropertiesForKeys: [.isDirectoryKey],
+                includingPropertiesForKeys: [.isRegularFileKey],
                 options: [.skipsHiddenFiles]
-            ) else { continue }
-
-            // Top-level JSONL files in the project dir
-            jsonlFiles.append(contentsOf: contents.filter { $0.pathExtension == "jsonl" })
-
-            // Scan subdirectories (UUID session dirs) for JSONL + subagents/
-            for item in contents {
-                guard (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
-
-                // JSONL files directly in the session dir
-                if let sessionFiles = try? fm.contentsOfDirectory(at: item, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
-                    jsonlFiles.append(contentsOf: sessionFiles.filter { $0.pathExtension == "jsonl" })
-                }
-
-                // subagents/ inside the session dir
-                let subagentsDir = item.appendingPathComponent("subagents")
-                if fm.fileExists(atPath: subagentsDir.path),
-                   let subFiles = try? fm.contentsOfDirectory(at: subagentsDir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
-                    jsonlFiles.append(contentsOf: subFiles.filter { $0.pathExtension == "jsonl" })
+            ) {
+                for case let fileURL as URL in enumerator {
+                    if fileURL.pathExtension == "jsonl" {
+                        jsonlFiles.append(fileURL)
+                    }
                 }
             }
         }

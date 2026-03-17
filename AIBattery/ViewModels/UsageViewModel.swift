@@ -32,9 +32,28 @@ public final class UsageViewModel: ObservableObject {
 
         setupFileWatcher()
         setupSleepWakeObservers()
-        startPolling()
-        // Aggregate local data asynchronously — avoids blocking app launch.
-        Task { await refresh() }
+
+        // Show cached rate limits immediately (no I/O) so the panel has data on first click.
+        // Full JSONL refresh happens on first polling tick (avoids blocking main thread at launch).
+        let accountId = OAuthManager.shared.accountStore.activeAccountId
+        if let accountId {
+            let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+            if cached.rateLimits != nil {
+                let result = aggregator.aggregate(rateLimits: cached.rateLimits, accountId: accountId)
+                snapshot = result
+                isShowingCachedData = true
+                isLoading = false
+            }
+        }
+
+        // Start polling — first tick fires at the configured interval and does a full refresh.
+        // Use a short initial delay (2s) so data appears quickly without blocking launch.
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refresh()
+                self?.startPolling()
+            }
+        }
     }
 
     /// - Parameter skipNetworkCheck: When true, bypasses the offline guard. Used on wake

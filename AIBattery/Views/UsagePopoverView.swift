@@ -132,7 +132,20 @@ public struct UsagePopoverView: View {
                 ProjectUsageGate(snapshot: snapshot)
                 InsightsGate(snapshot: snapshot)
 
-            } else if let error = viewModel.errorMessage, viewModel.snapshot == nil {
+            } else if viewModel.isLoading {
+                // First load — show minimal loading state
+                HStack {
+                    Spacer()
+                    Text("Loading...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .frame(width: 12, height: 12)
+                    Spacer()
+                }
+                .frame(height: 40)
+            } else if let error = viewModel.errorMessage {
                 errorView(error)
             } else {
                 emptyView
