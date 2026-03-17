@@ -35,9 +35,9 @@ struct TokenHealthConfig {
 
     // MARK: - Usable context
 
-    /// Claude Code auto-compacts at 80% of context window.
-    /// Percentages are calculated against this usable portion, not the raw window.
-    static let usableContextRatio: Double = 0.80
+    /// Percentages are calculated against the full context window.
+    /// With 1M context windows, the full window is usable.
+    static let usableContextRatio: Double = 1.0
 
     // MARK: - Primary band thresholds (percentage of usable window)
 
