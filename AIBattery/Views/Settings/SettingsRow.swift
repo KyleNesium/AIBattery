@@ -59,7 +59,7 @@ struct SettingsRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .trailing)
-            TextField("Account \(index + 1)", text: nameBinding(for: account.id))
+            TextField("User \(index + 1)", text: nameBinding(for: account.id))
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
                 .help("Display name for this account (max 30 chars)")

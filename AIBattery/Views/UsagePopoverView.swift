@@ -303,7 +303,7 @@ public struct UsagePopoverView: View {
         .padding(.vertical, 6)
     }
 
-    /// Account picker — shows display name if set, otherwise "Account N".
+    /// Account picker — shows display name if set, otherwise "User N".
     private var accountPicker: some View {
         Menu {
             let activeId = accountStore.activeAccountId
@@ -349,10 +349,10 @@ public struct UsagePopoverView: View {
         .accessibilityHint("Select which Claude account to display")
     }
 
-    /// Label for an account: display name if set, otherwise "Account N".
+    /// Label for an account: display name if set, otherwise "User N".
     private func accountLabel(_ account: AccountRecord, index: Int) -> String {
         if let name = account.displayName, !name.isEmpty { return name }
-        return "Account \(index + 1)"
+        return "User \(index + 1)"
     }
 
     private var loadingView: some View {
