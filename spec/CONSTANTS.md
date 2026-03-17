@@ -82,16 +82,16 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 
 | Model | Window |
 |-------|--------|
-| claude-opus-4-6 | 200,000 |
-| claude-sonnet-4-6-20250929 | 200,000 |
-| claude-sonnet-4-5-20250929 | 200,000 |
-| claude-haiku-4-5-20251001 | 200,000 |
+| claude-opus-4-6 | 1,000,000 |
+| claude-sonnet-4-6-20250929 | 1,000,000 |
+| claude-sonnet-4-5-20250929 | 1,000,000 |
+| claude-haiku-4-5-20251001 | 1,000,000 |
 | claude-3-5-sonnet-20241022 | 200,000 |
 | claude-3-5-haiku-20241022 | 200,000 |
 | claude-3-opus-20240229 | 200,000 |
 | claude-3-sonnet-20240229 | 200,000 |
 | claude-3-haiku-20240307 | 200,000 |
-| Default fallback | 200,000 |
+| Default fallback | 1,000,000 |
 
 ## Health Thresholds
 

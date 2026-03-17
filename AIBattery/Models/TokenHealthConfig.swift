@@ -3,11 +3,13 @@ import Foundation
 /// Configurable thresholds for token health monitoring.
 struct TokenHealthConfig {
     /// Context window limits per model (in tokens).
+    /// Claude 4.x models have 1M context windows (updated March 2026).
+    /// Older Claude 3.x models retain 200K windows.
     static let contextWindows: [String: Int] = [
-        "claude-opus-4-6": 200_000,
-        "claude-sonnet-4-6-20250929": 200_000,
-        "claude-sonnet-4-5-20250929": 200_000,
-        "claude-haiku-4-5-20251001": 200_000,
+        "claude-opus-4-6": 1_000_000,
+        "claude-sonnet-4-6-20250929": 1_000_000,
+        "claude-sonnet-4-5-20250929": 1_000_000,
+        "claude-haiku-4-5-20251001": 1_000_000,
         // Older models (both naming formats for Claude 3.5)
         "claude-3-5-sonnet-20241022": 200_000,
         "claude-3-5-haiku-20241022": 200_000,
@@ -28,8 +30,8 @@ struct TokenHealthConfig {
         return lookup
     }()
 
-    /// Default context window if model not found.
-    static let defaultContextWindow = 200_000
+    /// Default context window if model not found (assumes newer model with 1M window).
+    static let defaultContextWindow = 1_000_000
 
     // MARK: - Usable context
 

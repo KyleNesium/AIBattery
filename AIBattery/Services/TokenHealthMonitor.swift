@@ -104,8 +104,7 @@ final class TokenHealthMonitor {
 
     private func assess(sessionEntries: [AssistantUsageEntry], sessionId: String = "", model: String, now: Date = Date()) -> TokenHealthStatus? {
         guard let latestEntry = sessionEntries.last else { return nil }
-        let contextWindow = TokenHealthConfig.contextWindow(for: model)
-        let usableWindow = Int(Double(contextWindow) * TokenHealthConfig.usableContextRatio)
+        var contextWindow = TokenHealthConfig.contextWindow(for: model)
         let turnCount = sessionEntries.count
 
         // Bind timestamps once — avoids repeated optional chain traversals
@@ -122,6 +121,19 @@ final class TokenHealthMonitor {
         let cacheWriteTokens = latestEntry.cacheWriteTokens
         let outputTokens = latestEntry.outputTokens
         let totalOutputTokens = sessionEntries.reduce(0) { $0 + $1.outputTokens }
+
+        // Auto-detect context window from observed token usage.
+        // If the session's tokens exceed the hardcoded window, the window was increased
+        // upstream (e.g. Anthropic expanded from 200K to 1M). Adjust to avoid capping
+        // at the wrong limit and showing inflated percentages.
+        let observedTokens = inputTokens + cacheReadTokens + cacheWriteTokens + outputTokens
+        if observedTokens > contextWindow {
+            // Round up to next power-of-2-ish tier: 200K, 500K, 1M, 2M
+            let tiers = [200_000, 500_000, 1_000_000, 2_000_000, 5_000_000]
+            contextWindow = tiers.first(where: { $0 > observedTokens }) ?? observedTokens * 2
+        }
+
+        let usableWindow = Int(Double(contextWindow) * TokenHealthConfig.usableContextRatio)
 
         // Total context used: latest full input + latest output (next turn will include it).
         // Guard against overflow from corrupted data — cap each component at contextWindow.
