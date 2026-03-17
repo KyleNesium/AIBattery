@@ -229,8 +229,8 @@ public final class StatusBarManager: NSObject {
         let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
         button.title = displayText
         button.setAccessibilityValue(displayText)
-        let overrideActive = viewModel.stalenessOverrideUntil.map { $0 > Date() } ?? false
-        button.appearsDisabled = overrideActive ? false : isStale(lastFetch: viewModel.lastFreshFetch)
+        // Never grey out — the icon always shows the last known state.
+        // Other menu bar apps (Battery, WiFi) don't dim on stale data.
     }
 
     private func resolveMetricMode(viewModel: UsageViewModel) -> MetricMode {
@@ -285,10 +285,6 @@ public final class StatusBarManager: NSObject {
         return "\(Int(percent))%"
     }
 
-    private func isStale(lastFetch: Date?) -> Bool {
-        guard let lastFetch else { return false }
-        return Date().timeIntervalSince(lastFetch) > 300
-    }
 
     /// Returns the reset date for countdown display when throttled or any window hits 100%.
     /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
