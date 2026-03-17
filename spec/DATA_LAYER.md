@@ -186,7 +186,9 @@ Computed: `suggestedAction` — nil for green/unknown, recommendation text for o
 
 Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`, `staleSessionMinutes = 30`, `zeroOutputTurnThreshold = 3`, `rapidConsumptionSeconds = 60`, `rapidConsumptionTokens = 50_000`, `velocityMinDuration: TimeInterval = 60`
 
-Static: `contextWindows: [String: Int]` dictionary, `defaultContextWindow = 200_000`, `usableContextRatio = 0.80`, `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
+Static: `contextWindows: [String: Int]` dictionary (Claude 4.x = 1M, Claude 3.x = 200K), `defaultContextWindow = 1_000_000`, `usableContextRatio = 0.80`, `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
+
+**Auto-detect from usage**: `TokenHealthMonitor.assess()` checks if a session's observed token count exceeds the hardcoded window. If so, it bumps to the next tier (200K → 500K → 1M → 2M → 5M). This prevents stale hardcoded values from showing inflated percentages when Anthropic increases context windows upstream — no code change needed.
 
 Thresholds apply to the **usable window** (80% of raw context). Claude Code auto-compacts at 80%, so 100% usage = imminent compaction.
 

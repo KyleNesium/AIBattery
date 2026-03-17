@@ -14,6 +14,7 @@
 - **Equatable completeness** — added 11 missing fields to UsageSnapshot equality check
 - **Double-hyphen filter** — decodes directory path to check for hidden components instead of false-positive raw `--` match
 - **Session ID copy** — full UUID in both collapsed and expanded context health views
+- **Context windows** — Claude 4.x models updated to 1M (was 200K). Auto-detects from token usage if hardcoded value is too low, so future Anthropic increases don't require a code change
 
 ### Changed
 - **"Account" → "User"** — shorter label in header picker and settings

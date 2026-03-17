@@ -78,7 +78,6 @@ public final class UsageViewModel: ObservableObject {
 
         let (api, status) = await fetchAPIData(oauthManager: oauthManager, accountId: accountId)
 
-        print("[AIBattery] refresh: hasRateLimits=\(api.rateLimits != nil), isCached=\(api.isCached), accountId=\(accountId ?? "nil")")
         apiResult = api
         systemStatus = status
         isShowingCachedData = api.isCached

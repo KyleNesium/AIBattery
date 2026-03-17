@@ -98,7 +98,6 @@ public final class OAuthManager: ObservableObject {
             return nil
         }
 
-        NSLog("[AIBattery] OAuth: refreshing token for %@", accountId)
         let gen = (refreshGeneration[accountId] ?? 0) &+ 1
         refreshGeneration[accountId] = gen
         let task = Task<String?, Never> {
@@ -318,7 +317,6 @@ public final class OAuthManager: ObservableObject {
         ]
 
         let tokenResult = await postToken(body: body)
-        NSLog("[AIBattery] OAuth refresh result for %@: %@", accountId, String(describing: tokenResult))
         switch tokenResult {
         case .success(let result):
             tokens[accountId] = AccountTokens(
