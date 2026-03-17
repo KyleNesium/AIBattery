@@ -444,7 +444,6 @@ public struct UsagePopoverView: View {
         cachedOrderedModes = [metricMode] + MetricMode.allCases.filter { $0 != metricMode }
     }
 
-    @State private var autoGlowing = false
 
     private var metricToggle: some View {
         HStack(spacing: 8) {
@@ -483,12 +482,7 @@ public struct UsagePopoverView: View {
                 )
                 .overlay(
                     Circle()
-                        .stroke(autoMetricMode ? Color.blue.opacity(autoGlowing ? 0.8 : 0.3) : Color.secondary.opacity(0.2), lineWidth: 1.5)
-                        .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)
-                )
-                .shadow(
-                    color: autoMetricMode ? Color.blue.opacity(0.3) : .clear,
-                    radius: 2
+                        .stroke(autoMetricMode ? Color.blue.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 1.5)
                 )
                 .contentShape(Circle())
         }
@@ -498,11 +492,7 @@ public struct UsagePopoverView: View {
         .accessibilityHint("Automatically shows the highest usage metric")
         .help(autoMetricMode ? "Auto mode: showing highest metric" : "Enable auto mode")
         .onChange(of: autoMetricMode) { active in
-            autoGlowing = active
             announceAutoMode(active)
-        }
-        .onAppear {
-            autoGlowing = autoMetricMode
         }
     }
 
