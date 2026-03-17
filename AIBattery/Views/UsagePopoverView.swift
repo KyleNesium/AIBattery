@@ -75,6 +75,21 @@ public struct UsagePopoverView: View {
             if let snapshot = viewModel.snapshot {
                 metricToggle
 
+                // Show inline error when rate limits unavailable (API not reachable)
+                if snapshot.rateLimits == nil, let error = viewModel.errorMessage {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    Divider()
+                }
+
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
