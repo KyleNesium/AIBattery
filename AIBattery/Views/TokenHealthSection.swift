@@ -238,7 +238,7 @@ struct TokenHealthSection: View {
                             Text(idPrefix)
                                 .font(.caption2)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
-                                .copyable(idPrefix)
+                                .copyable(health.id)
                         }
                     }
                     .lineLimit(1)
@@ -287,28 +287,6 @@ struct TokenHealthSection: View {
         sessionLabelParts = SessionInfoFormatter.labelParts(for: h)
         sessionIdPrefix = SessionInfoFormatter.idPrefix(for: h)
         sessionBottomParts = SessionInfoFormatter.bottomParts(for: h)
-    }
-
-    @State private var detailsCopied = false
-
-    private var copyDetailsButton: some View {
-        Button(action: {
-            let text = SessionInfoFormatter.copyableDetails(for: health)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            detailsCopied = true
-            Task {
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                detailsCopied = false
-            }
-        }) {
-            Image(systemName: detailsCopied ? "doc.on.clipboard.fill" : "doc.on.clipboard")
-                .font(.system(size: 10))
-                .foregroundStyle(detailsCopied ? .green : .secondary)
-        }
-        .buttonStyle(.plain)
-        .help("Copy session details to clipboard")
-        .accessibilityLabel("Copy session details")
     }
 
     private var healthBadge: some View {

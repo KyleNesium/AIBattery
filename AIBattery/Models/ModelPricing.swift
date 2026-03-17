@@ -89,12 +89,13 @@ struct ModelPricing {
 
     // MARK: - Pricing Table
 
+    // Cache write = 1.25× input price, cache read = 0.1× input price (Anthropic published rates)
     private static let pricingTable: [(String, ModelPricing)] = [
-        ("opus 4", ModelPricing(inputPerMillion: 15, outputPerMillion: 75, cacheWritePerMillion: 1.875, cacheReadPerMillion: 1.50)),
-        ("sonnet 4", ModelPricing(inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 0.375, cacheReadPerMillion: 0.30)),
-        ("haiku 4", ModelPricing(inputPerMillion: 0.80, outputPerMillion: 4, cacheWritePerMillion: 0.10, cacheReadPerMillion: 0.08)),
-        ("sonnet 3.5", ModelPricing(inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 0.375, cacheReadPerMillion: 0.30)),
-        ("haiku 3.5", ModelPricing(inputPerMillion: 0.80, outputPerMillion: 4, cacheWritePerMillion: 0.10, cacheReadPerMillion: 0.08)),
-        ("opus 3", ModelPricing(inputPerMillion: 15, outputPerMillion: 75, cacheWritePerMillion: 1.875, cacheReadPerMillion: 1.50)),
+        ("opus 4", ModelPricing(inputPerMillion: 15, outputPerMillion: 75, cacheWritePerMillion: 18.75, cacheReadPerMillion: 1.50)),
+        ("sonnet 4", ModelPricing(inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 3.75, cacheReadPerMillion: 0.30)),
+        ("haiku 4", ModelPricing(inputPerMillion: 0.80, outputPerMillion: 4, cacheWritePerMillion: 1.00, cacheReadPerMillion: 0.08)),
+        ("sonnet 3.5", ModelPricing(inputPerMillion: 3, outputPerMillion: 15, cacheWritePerMillion: 3.75, cacheReadPerMillion: 0.30)),
+        ("haiku 3.5", ModelPricing(inputPerMillion: 0.80, outputPerMillion: 4, cacheWritePerMillion: 1.00, cacheReadPerMillion: 0.08)),
+        ("opus 3", ModelPricing(inputPerMillion: 15, outputPerMillion: 75, cacheWritePerMillion: 18.75, cacheReadPerMillion: 1.50)),
     ]
 }

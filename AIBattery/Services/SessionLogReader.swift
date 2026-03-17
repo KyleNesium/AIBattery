@@ -141,9 +141,11 @@ final class SessionLogReader {
 
             // Skip non-Claude-Code project directories (e.g. MCP observer sessions).
             // Claude Code encodes the project's absolute path as the directory name,
-            // replacing "/" with "-". A "--" in the name means a path component started
-            // with "." (hidden directory), which real Claude Code projects never use.
-            if dir.lastPathComponent.contains("--") { continue }
+            // replacing "/" with "-". Decode back to a path and check if any component
+            // starts with "." (hidden directory). This avoids false positives on project
+            // directories that legitimately contain double hyphens (e.g. "my--project").
+            let decodedPath = "/" + dir.lastPathComponent.dropFirst().replacingOccurrences(of: "-", with: "/")
+            if decodedPath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) { continue }
 
             // Track each project dir mod date
             if let attrs = try? fm.attributesOfItem(atPath: dir.path),
@@ -151,22 +153,30 @@ final class SessionLogReader {
                 newDirModDates[dir.path] = modDate
             }
 
-            if let files = try? fm.contentsOfDirectory(
+            guard let contents = try? fm.contentsOfDirectory(
                 at: dir,
-                includingPropertiesForKeys: nil,
+                includingPropertiesForKeys: [.isDirectoryKey],
                 options: [.skipsHiddenFiles]
-            ) {
-                jsonlFiles.append(contentsOf: files.filter { $0.pathExtension == "jsonl" })
-            }
+            ) else { continue }
 
-            let subagentsDir = dir.appendingPathComponent("subagents")
-            guard fm.fileExists(atPath: subagentsDir.path) else { continue }
-            if let files = try? fm.contentsOfDirectory(
-                at: subagentsDir,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            ) {
-                jsonlFiles.append(contentsOf: files.filter { $0.pathExtension == "jsonl" })
+            // Top-level JSONL files in the project dir
+            jsonlFiles.append(contentsOf: contents.filter { $0.pathExtension == "jsonl" })
+
+            // Scan subdirectories (UUID session dirs) for JSONL + subagents/
+            for item in contents {
+                guard (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
+
+                // JSONL files directly in the session dir
+                if let sessionFiles = try? fm.contentsOfDirectory(at: item, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+                    jsonlFiles.append(contentsOf: sessionFiles.filter { $0.pathExtension == "jsonl" })
+                }
+
+                // subagents/ inside the session dir
+                let subagentsDir = item.appendingPathComponent("subagents")
+                if fm.fileExists(atPath: subagentsDir.path),
+                   let subFiles = try? fm.contentsOfDirectory(at: subagentsDir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+                    jsonlFiles.append(contentsOf: subFiles.filter { $0.pathExtension == "jsonl" })
+                }
             }
         }
 
