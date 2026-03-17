@@ -229,7 +229,8 @@ public final class StatusBarManager: NSObject {
         let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
         button.title = displayText
         button.setAccessibilityValue(displayText)
-        button.appearsDisabled = isStale(lastFetch: viewModel.lastFreshFetch)
+        let overrideActive = viewModel.stalenessOverrideUntil.map { $0 > Date() } ?? false
+        button.appearsDisabled = overrideActive ? false : isStale(lastFetch: viewModel.lastFreshFetch)
     }
 
     private func resolveMetricMode(viewModel: UsageViewModel) -> MetricMode {

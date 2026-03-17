@@ -11,6 +11,9 @@ public final class UsageViewModel: ObservableObject {
     @Published var lastFreshFetch: Date?
     /// Whether the most recent API result was served from cache.
     @Published var isShowingCachedData = false
+    /// Temporary override to suppress staleness grey-out on wake (expires after 30s).
+    /// Unlike faking lastFreshFetch, this doesn't pretend fresh data arrived.
+    var stalenessOverrideUntil: Date?
     #if ENABLE_VERSION_CHECKER
     /// Available update from GitHub Releases (nil if up-to-date or not checked).
     @Published var availableUpdate: VersionChecker.UpdateInfo?
@@ -227,9 +230,9 @@ public final class UsageViewModel: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                // Prevent grey-out: reset staleness so the icon stays colored
-                // with cached data while the API call runs in background.
-                if self.snapshot != nil { self.lastFreshFetch = Date() }
+                // Suppress grey-out for 30s while API refreshes in background.
+                // Unlike setting lastFreshFetch, this expires if the refresh fails.
+                self.stalenessOverrideUntil = Date().addingTimeInterval(30)
 
                 // Show cached rate limits immediately so bars appear on wake
                 // without waiting for the API round-trip.

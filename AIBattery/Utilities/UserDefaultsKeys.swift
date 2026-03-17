@@ -12,7 +12,7 @@ enum UserDefaultsKeys {
     static let alertStatus = "aibattery_alertStatus"
     static let alertRateLimit = "aibattery_alertRateLimit"
     static let rateLimitThreshold = "aibattery_rateLimitThreshold"
-    static let showCostEstimate = "aibattery_showCostEstimate"
+    // showCostEstimate removed — cost always visible since v1.9.0
     static let lastUpdateCheck = "aibattery_lastUpdateCheck"
     static let lastUpdateVersion = "aibattery_lastUpdateVersion"
     static let lastUpdateURL = "aibattery_lastUpdateURL"
@@ -22,7 +22,7 @@ enum UserDefaultsKeys {
     static let idleSessionMinutes = "aibattery_idleSessionMinutes"
     static let throttleTimestamps = "aibattery_throttleTimestamps"
     static let contextCollapsed = "aibattery_contextCollapsed"
-    static let tokensCollapsed = "aibattery_tokensCollapsed"
+    // tokensCollapsed removed — Tokens section merged into Insights since v1.9.0
     static let projectsCollapsed = "aibattery_projectsCollapsed"
     static let activityCollapsed = "aibattery_activityCollapsed"
     /// Prefix for per-account token expiry timestamps (append account ID).

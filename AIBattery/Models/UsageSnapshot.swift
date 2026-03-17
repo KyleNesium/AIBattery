@@ -9,17 +9,30 @@ struct UsageSnapshot: Equatable {
             && lhs.totalMessages == rhs.totalMessages
             && lhs.todayMessages == rhs.todayMessages
             && lhs.todaySessions == rhs.todaySessions
+            && lhs.todayToolCalls == rhs.todayToolCalls
             && lhs.totalTokens == rhs.totalTokens
             && lhs.totalProjectTokens == rhs.totalProjectTokens
+            && lhs.totalProjectCost == rhs.totalProjectCost
             && lhs.modelTokens == rhs.modelTokens
             && lhs.projectTokens == rhs.projectTokens
             && lhs.dailyActivity == rhs.dailyActivity
             && lhs.topSessionHealths == rhs.topSessionHealths
             && lhs.tokenHealth == rhs.tokenHealth
+            && lhs.hourCounts == rhs.hourCounts
             && lhs.todayHourCounts == rhs.todayHourCounts
+            && lhs.peakHour == rhs.peakHour
+            && lhs.peakHourCount == rhs.peakHourCount
+            && lhs.longestSessionDuration == rhs.longestSessionDuration
+            && lhs.longestSessionMessages == rhs.longestSessionMessages
+            && lhs.firstSessionDate == rhs.firstSessionDate
+            && lhs.dailyAverage == rhs.dailyAverage
+            && lhs.trendDirection == rhs.trendDirection
             && lhs.todayModelTokens == rhs.todayModelTokens
             && lhs.weekModelTokens == rhs.weekModelTokens
             && lhs.monthModelTokens == rhs.monthModelTokens
+            // busiestDayOfWeek is a tuple — compare components manually
+            && lhs.busiestDayOfWeek?.name == rhs.busiestDayOfWeek?.name
+            && lhs.busiestDayOfWeek?.averageCount == rhs.busiestDayOfWeek?.averageCount
     }
     /// Weekday symbols from the user's current calendar (Sunday = index 0).
     private static let weekdaySymbols = Calendar.current.weekdaySymbols
