@@ -84,7 +84,15 @@ public struct UsagePopoverView: View {
                         Text(error)
                             .font(.caption2)
                             .foregroundStyle(ThemeColors.secondaryLabel)
+                        Spacer()
+                        Button("Retry") {
+                            Task { await viewModel.refresh() }
+                        }
+                        .font(.caption2)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.blue)
                     }
+                    .copyable(error)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                     Divider()
