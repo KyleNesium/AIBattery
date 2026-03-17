@@ -14,7 +14,15 @@
 - **Equatable completeness** — added 11 missing fields to UsageSnapshot equality check
 - **Double-hyphen filter** — decodes directory path to check for hidden components instead of false-positive raw `--` match
 - **Session ID copy** — full UUID in both collapsed and expanded context health views
-- **Context windows** — Claude 4.x models updated to 1M (was 200K). Auto-detects from token usage if hardcoded value is too low, so future Anthropic increases don't require a code change
+- **Context windows** — Claude 4.x models updated to 1M (was 200K), usable ratio 1.0. Auto-detects from token usage if hardcoded value is too low
+- **Launch lag** — show cached rate limits instantly from UserDefaults, delay full JSONL refresh 2s. Panel opens immediately on first click
+- **Panel close** — click-away and app-switch now dismiss the panel reliably
+
+### Improved
+- **JSONL discovery** — single recursive enumerator per project dir instead of per-directory calls (469→215 syscalls)
+- **No background animations** — removed all data-driven `.animation()` and `.contentTransition()` that ran on every poll cycle even with panel closed
+- **Debounced Combine** — StatusBarManager button updates coalesced by 200ms
+- **Loading indicator** — tiny spinner in footer instead of large centered spinner
 
 ### Changed
 - **"Account" → "User"** — shorter label in header picker and settings
