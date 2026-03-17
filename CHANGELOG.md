@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.9.2] — 2026-03-17
+
+### Fixed
+- **Cache write pricing** — rates were 10x too low (0.125x input instead of 1.25x), all API-equivalent cost estimates underreported. Opus $1.875→$18.75, Sonnet $0.375→$3.75, Haiku $0.10→$1.00
+- **Subagent JSONL discovery** — now scans UUID session directories for subagent files (`project/UUID/subagents/*.jsonl`). Previously all subagent token usage was invisible
+- **Probe model fallback** — added older models (`claude-3-5-sonnet`, `claude-3-haiku`) as fallbacks when newer model IDs return 404 via OAuth. Persists last working model to UserDefaults; uses the user's active Claude Code model as first probe
+- **400 response handling** — generic 400 errors from the Messages API now try the next model instead of stopping (was treating all 400s as network errors)
+- **Sleep/wake recovery** — show cached rate limits immediately on wake, bypass NWPathMonitor network check (was reporting offline for minutes), 3s WiFi reconnect delay
+- **Inline error with retry** — when rate limits unavailable, shows orange warning with copiable message and Retry button instead of silent empty bars
+- **Auto mode button** — removed shadow animation that caused visual bouncing; static shadow only
+- **Menu bar grey-out removed** — icon never dims, matching macOS Battery/WiFi behavior
+- **Equatable completeness** — added 11 missing fields to UsageSnapshot equality check
+- **Double-hyphen filter** — decodes directory path to check for hidden components instead of false-positive raw `--` match
+- **Session ID copy** — full UUID in both collapsed and expanded context health views
+
+### Changed
+- **"Account" → "User"** — shorter label in header picker and settings
+- **Header spacing** — tighter icon-to-title gap, user name truncates with `...` instead of wrapping
+
+### Removed
+- Dead code: `copyDetailsButton`, `detailsCopied`, `showCostEstimate` key, `tokensCollapsed` key, staleness grey-out logic
+
 ## [1.9.1] — 2026-03-17
 
 ### Added
