@@ -487,10 +487,9 @@ public struct UsagePopoverView: View {
                         .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)
                 )
                 .shadow(
-                    color: autoMetricMode ? Color.blue.opacity(autoGlowing ? 0.5 : 0.1) : .clear,
-                    radius: autoGlowing ? 5 : 1
+                    color: autoMetricMode ? Color.blue.opacity(0.3) : .clear,
+                    radius: 2
                 )
-                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
