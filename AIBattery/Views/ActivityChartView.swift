@@ -593,8 +593,8 @@ struct InsightsView: View {
             Text(value)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(valueColor)
-                .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.4), value: value)
+                
+                
         }
         .copyable("\(label) \u{00B7} \(value)")
         .accessibilityElement(children: .combine)

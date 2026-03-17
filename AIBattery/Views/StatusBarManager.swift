@@ -127,9 +127,10 @@ public final class StatusBarManager: NSObject {
             }
         }
 
-        // React to snapshot or staleness changes — single subscription avoids double updates
+        // React to snapshot or staleness changes — debounced to avoid rapid-fire redraws
         viewModel.$snapshot
             .combineLatest(viewModel.$lastFreshFetch)
+            .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
             .sink { [weak self, weak item, weak viewModel] _, _ in
                 guard let self, let button = item?.button, let viewModel else { return }
                 self.updateButton(button, viewModel: viewModel)

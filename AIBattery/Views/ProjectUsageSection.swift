@@ -102,8 +102,8 @@ struct ProjectUsageSection: View {
                 .copyable(costText)
             Text(totalTokensText)
                 .font(.system(.subheadline, design: .monospaced, weight: .semibold))
-                .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.4), value: totalTokensText)
+                
+                
                 .frame(width: tokenColumnWidth, alignment: .trailing)
                 .copyable(totalTokensText)
         }
