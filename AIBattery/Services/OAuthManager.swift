@@ -76,7 +76,10 @@ public final class OAuthManager: ObservableObject {
 
     /// Returns a valid access token for a specific account, refreshing if needed.
     func getAccessToken(for accountId: String) async -> String? {
-        guard let acctTokens = tokens[accountId] else { return nil }
+        guard let acctTokens = tokens[accountId] else {
+            AppLogger.oauth.error("getAccessToken: no tokens for account \(accountId, privacy: .public)")
+            return nil
+        }
 
         // If we have a valid token with enough remaining lifetime, return it
         if let token = acctTokens.accessToken, let expires = acctTokens.expiresAt,
@@ -90,8 +93,12 @@ public final class OAuthManager: ObservableObject {
         }
 
         // Try to refresh
-        guard let refresh = acctTokens.refreshToken else { return nil }
+        guard let refresh = acctTokens.refreshToken else {
+            AppLogger.oauth.error("getAccessToken: no refresh token for account \(accountId, privacy: .public)")
+            return nil
+        }
 
+        NSLog("[AIBattery] OAuth: refreshing token for %@", accountId)
         let gen = (refreshGeneration[accountId] ?? 0) &+ 1
         refreshGeneration[accountId] = gen
         let task = Task<String?, Never> {
@@ -311,6 +318,7 @@ public final class OAuthManager: ObservableObject {
         ]
 
         let tokenResult = await postToken(body: body)
+        NSLog("[AIBattery] OAuth refresh result for %@: %@", accountId, String(describing: tokenResult))
         switch tokenResult {
         case .success(let result):
             tokens[accountId] = AccountTokens(

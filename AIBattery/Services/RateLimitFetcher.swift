@@ -31,6 +31,8 @@ final class RateLimitFetcher {
         "claude-sonnet-4-6-20250929",
         "claude-sonnet-4-5-20250929",
         "claude-haiku-3-5-20241022",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-haiku-20240307",
     ]
 
     /// Per-account model index (remembers last working model to avoid repeated fallbacks).
@@ -60,13 +62,16 @@ final class RateLimitFetcher {
                 currentModelIndex[accountId] = i
                 cachedResults[accountId] = fetchResult
                 persistRateLimits(fetchResult.rateLimits, fetchedAt: fetchResult.fetchedAt, accountId: accountId)
+                AppLogger.network.info("RateLimitFetcher: success with \(model, privacy: .public), hasLimits=\(fetchResult.rateLimits != nil)")
                 return fetchResult
             case .modelUnavailable:
-                // This model isn't available for this account — try the next one
+                AppLogger.network.warning("RateLimitFetcher: model \(model, privacy: .public) unavailable, trying next")
                 continue
             case .authFailed:
+                AppLogger.network.error("RateLimitFetcher: auth failed for \(model, privacy: .public)")
                 return cachedOrEmpty(accountId: accountId)
             case .networkError:
+                AppLogger.network.error("RateLimitFetcher: network error for \(model, privacy: .public)")
                 return cachedOrEmpty(accountId: accountId)
             }
         }
@@ -194,8 +199,7 @@ final class RateLimitFetcher {
                         return .modelUnavailable
                     }
                 }
-                // Non-model 400/404 (e.g., malformed request) — don't treat as success.
-                // Still try to extract rate limit headers before falling back.
+                // Try to extract rate limit headers even from error responses.
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 if let rateLimits {
                     let profile = APIProfile.parse(headers: http.allHeaderFields)
@@ -204,7 +208,8 @@ final class RateLimitFetcher {
                         profile: profile ?? cached?.profile
                     ))
                 }
-                return .networkError
+                // No headers — treat as model unavailable so we try the next model.
+                return .modelUnavailable
             }
 
             // Parse both rate limits and org info from the same response headers
