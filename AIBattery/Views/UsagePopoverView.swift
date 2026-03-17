@@ -152,13 +152,16 @@ public struct UsagePopoverView: View {
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Image(systemName: "sparkle")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(.primary)
                 Text("AI Battery")
                     .font(.headline)
+                    .fixedSize()
                 accountPicker
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 Spacer()
                 if viewModel.isLoading {
                     ProgressView()
@@ -344,7 +347,7 @@ public struct UsagePopoverView: View {
             }
         }
         .menuStyle(.borderlessButton)
-        .fixedSize()
+        .frame(maxWidth: 80)
         .accessibilityLabel("Switch account")
         .accessibilityHint("Select which Claude account to display")
     }
