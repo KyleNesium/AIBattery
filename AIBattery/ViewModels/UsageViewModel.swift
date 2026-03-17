@@ -37,7 +37,9 @@ public final class UsageViewModel: ObservableObject {
         Task { await refresh() }
     }
 
-    public func refresh() async {
+    /// - Parameter skipNetworkCheck: When true, bypasses the offline guard. Used on wake
+    ///   when NWPathMonitor may briefly report disconnected while WiFi reconnects.
+    public func refresh(skipNetworkCheck: Bool = false) async {
         let oauthManager = OAuthManager.shared
 
         // Skip network work when not authenticated — still aggregate local data.
@@ -49,7 +51,7 @@ public final class UsageViewModel: ObservableObject {
         }
 
         // Skip network when offline — show local data with cached rate limits.
-        guard NetworkMonitor.shared.isConnected else {
+        guard skipNetworkCheck || NetworkMonitor.shared.isConnected else {
             let result = aggregator.aggregate(rateLimits: apiResult?.rateLimits)
             if result != snapshot { snapshot = result }
             isLoading = false
@@ -223,9 +225,31 @@ public final class UsageViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.adaptivePolling.unchangedCycles = 0
-                self?.restartPolling(interval: self?.refreshInterval ?? 60)
-                await self?.refresh()
+                guard let self else { return }
+                // Prevent grey-out: reset staleness so the icon stays colored
+                // with cached data while the API call runs in background.
+                if self.snapshot != nil { self.lastFreshFetch = Date() }
+
+                // Show cached rate limits immediately so bars appear on wake
+                // without waiting for the API round-trip.
+                let accountId = OAuthManager.shared.accountStore.activeAccountId
+                if let accountId {
+                    let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+                    if cached.rateLimits != nil {
+                        let result = self.aggregator.aggregate(rateLimits: cached.rateLimits, accountId: accountId)
+                        if result != self.snapshot { self.snapshot = result }
+                        self.isShowingCachedData = true
+                    }
+                }
+
+                self.adaptivePolling.unchangedCycles = 0
+                self.restartPolling(interval: self.refreshInterval)
+
+                // Wait for WiFi to reconnect after sleep before hitting the API.
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                // Skip network check — NWPathMonitor may still report disconnected
+                // while WiFi is reconnecting. Let the API call try and timeout naturally.
+                await self.refresh(skipNetworkCheck: true)
             }
         }
     }
