@@ -197,7 +197,7 @@ Each bar:
 - **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
 - **Detail row**: left status + reset countdown on right
   - Normal: `"X% remaining"` (.caption2, secondaryLabel) + `"Resets in Xh Ym"` (.caption2, .tertiary)
-  - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 50%, estimate before reset)
+  - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 20%, estimate before reset)
   - Throttled: `"Rate limited"` (.caption2, .danger) — shown when per-window status is `"throttled"` OR overall `isThrottled` and window is at 100%
   - **Reset expired, API still shows usage** (percent ≥ 1): `"Resets soon"` (.caption2, .caution) — waiting for API confirmation
   - **Reset confirmed** (expired + percent < 1): sparkles icon + `"Reset"` (.caption2, .green) — celebration state
