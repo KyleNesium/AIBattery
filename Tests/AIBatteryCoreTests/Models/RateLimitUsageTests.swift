@@ -177,9 +177,9 @@ struct RateLimitUsageTests {
     // MARK: - Predictive estimate
 
     @Test func estimatedTimeToLimit_lowUtilization_returnsNil() {
-        // 30% utilization — too low to show estimate (threshold is >50%)
+        // 15% utilization — too low to show estimate (threshold is >20%)
         let usage = makeUsage(
-            fiveHourUtil: 0.30,
+            fiveHourUtil: 0.15,
             fiveHourReset: Date().addingTimeInterval(3 * 3600)
         )
         #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
@@ -241,9 +241,9 @@ struct RateLimitUsageTests {
     }
 
     @Test func estimatedTimeToLimit_exactlyAtThreshold_returnsNil() {
-        // Utilization at exactly 0.50 — threshold is > 0.50, so should return nil
+        // Utilization at exactly 0.20 — threshold is > 0.20, so should return nil
         let usage = makeUsage(
-            fiveHourUtil: 0.50,
+            fiveHourUtil: 0.20,
             fiveHourReset: Date().addingTimeInterval(2 * 3600)
         )
         #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
@@ -257,6 +257,22 @@ struct RateLimitUsageTests {
             fiveHourReset: Date().addingTimeInterval(5 * 3600 - 50)
         )
         #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
+    }
+
+    @Test func estimatedTimeToLimit_justAboveThreshold_returnsEstimate() {
+        // 25% utilization — above the 20% threshold, should not be blocked by the guard.
+        // 5h window, reset in 4.5h → elapsed = 0.5h = 1800s
+        // rate = 0.25/1800 ≈ 1.39e-4/s
+        // timeToFull = 0.75/rate ≈ 5400s (1.5h)
+        // 1.5h < 4.5h remaining → estimate returned
+        // This proves projections work in the 20-50% utilization range
+        let usage = makeUsage(
+            fiveHourUtil: 0.25,
+            fiveHourReset: Date().addingTimeInterval(4.5 * 3600)
+        )
+        let estimate = usage.estimatedTimeToLimit(for: "five_hour")
+        #expect(estimate != nil)
+        #expect(estimate! > 0)
     }
 
     @Test func requestsPercentUsed_unknownClaim_defaultsToFiveHour() {

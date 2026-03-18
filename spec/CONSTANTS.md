@@ -417,6 +417,6 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 
 | Constant | Value |
 |----------|-------|
-| Minimum utilization | 50% (below this, estimate not shown) |
+| Minimum utilization | 20% (below this, estimate not shown) |
 | Minimum elapsed time | 60 sec (need meaningful burn rate) |
 | Shown when | Estimate < remaining time before reset |
