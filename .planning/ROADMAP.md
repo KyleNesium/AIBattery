@@ -91,7 +91,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. Context & Projection Fixes | 1/1 | Complete   | 2026-03-18 | - |
-| 2. Data Accuracy Fixes | v1.10 | 0/2 | Not started | - |
+| 2. Data Accuracy Fixes | 1/2 | In Progress|  | - |
 | 3. Write Performance | v1.10 | 0/TBD | Not started | - |
 | 4. Polling & Discovery Hardening | v1.10 | 0/TBD | Not started | - |
 | 5. Spec Sync | v1.10 | 0/TBD | Not started | - |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.10
 milestone_name: Bugs & Performance
 status: unknown
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-03-18T19:48:02.883Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-18T21:30:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 01 — context-projection-fixes
+**Current focus:** Phase 02 — data-accuracy-fixes
 
 ## Current Position
 
-Phase: 01 (context-projection-fixes) — EXECUTING
-Plan: 1 of 1
+Phase: 02 (data-accuracy-fixes) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Plan: 1 of 1
 
 *Updated after each plan completion*
 | Phase 01 P01 | 3 | 2 tasks | 4 files |
+| Phase 02 P01 | ~8 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -54,6 +55,8 @@ Recent decisions affecting current work:
 - (Pre-GSD): JSONL reads are token-count-only (security/privacy boundary)
 - [Phase 01]: Downward tier adjustment only triggers when observed < lower tier boundary to prevent thrash on early/small sessions
 - [Phase 01]: Corrected 0.30 test value to 0.15 to actually exercise the 0.20 threshold guard rather than relying on burn-rate math returning nil
+- [Phase 02-01]: Single ultimateFallback instead of 5-model list — minimal surface area for fresh installs
+- [Phase 02-01]: lastSeenByModel folded into existing UsageAggregator for-loop to avoid extra O(n) pass
 
 ### Pending Todos
 
@@ -65,6 +68,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T19:45:29.043Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-03-18T21:30:00.000Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None
