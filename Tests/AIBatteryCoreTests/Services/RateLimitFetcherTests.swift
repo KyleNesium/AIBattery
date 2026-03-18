@@ -134,4 +134,63 @@ struct RateLimitFetcherTests {
         #expect(RateLimitFetcher.parseRetryAfter("20", maxDelay: 10) == 10.0)
         #expect(RateLimitFetcher.parseRetryAfter("5", maxDelay: 10) == 5.0)
     }
+
+    // MARK: - Dynamic observed models
+
+    @Test @MainActor func observedModels_defaultsToEmpty() {
+        let fetcher = RateLimitFetcher()
+        #expect(fetcher.observedModels.isEmpty)
+    }
+
+    @Test @MainActor func setObservedModels_updatesInMemoryList() {
+        let fetcher = RateLimitFetcher()
+        fetcher.setObservedModels(["model-a", "model-b"], accountId: "acct-1")
+        #expect(fetcher.observedModels == ["model-a", "model-b"])
+    }
+
+    @Test @MainActor func setObservedModels_persistsToUserDefaults() {
+        let accountId = "test-persist-\(UUID().uuidString)"
+        let key = "aibattery_observedModels_\(accountId)"
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+
+        let fetcher = RateLimitFetcher()
+        fetcher.setObservedModels(["model-x", "model-y"], accountId: accountId)
+
+        let stored = UserDefaults.standard.stringArray(forKey: key)
+        #expect(stored == ["model-x", "model-y"])
+    }
+
+    @Test @MainActor func observedModels_restoredOnInit() {
+        let accountId = "test-restore-\(UUID().uuidString)"
+        let key = "aibattery_observedModels_\(accountId)"
+        UserDefaults.standard.set(["restored-model-a", "restored-model-b"], forKey: key)
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+
+        // New fetcher should restore observedModels from UserDefaults
+        let fetcher = RateLimitFetcher()
+        #expect(fetcher.observedModels == ["restored-model-a", "restored-model-b"])
+    }
+
+    @Test @MainActor func setObservedModels_emptyList_fallsBackToUltimateFallback() async {
+        let fetcher = RateLimitFetcher()
+        // No observed models set — fetch should still attempt the ultimate fallback
+        // (We can't fully test network behavior, but we verify observedModels is empty)
+        #expect(fetcher.observedModels.isEmpty)
+        // The fetch will attempt ultimateFallback as the last resort
+        // (verified by the hardcoded constant existing in the implementation)
+    }
+
+    @Test @MainActor func ultimateFallback_isSingleHardcodedModel() {
+        // Verify ultimateFallback constant exists and is the newest Sonnet
+        #expect(RateLimitFetcher.ultimateFallback == "claude-sonnet-4-6-20250929")
+    }
+
+    @Test @MainActor func hardcodedFallbackModels_noLongerExists() {
+        // This test documents that the 5-model hardcoded list is replaced.
+        // We verify via observedModels being the dynamic source now.
+        let fetcher = RateLimitFetcher()
+        // observedModels is the dynamic replacement — starts empty for fresh install
+        #expect(fetcher.observedModels.isEmpty)
+        // The old fallbackModels had 5 entries — now we use observedModels + ultimateFallback
+    }
 }

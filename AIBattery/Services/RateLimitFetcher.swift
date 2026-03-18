@@ -25,15 +25,15 @@ final class RateLimitFetcher {
     /// UserDefaults key prefix for persisted rate limits.
     private static let persistKeyPrefix = "aibattery_rateLimits_"
 
-    /// Models to try in order. Free accounts may not have access to larger models,
-    /// but rate limit headers come back the same regardless of model.
-    private let fallbackModels = [
-        "claude-sonnet-4-6-20250929",
-        "claude-sonnet-4-5-20250929",
-        "claude-haiku-3-5-20241022",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-haiku-20240307",
-    ]
+    /// Single hardcoded model used as ultimate fallback for fresh installs with no JSONL data.
+    /// Kept to the single newest model so fresh installs work without any prior usage history.
+    static let ultimateFallback = "claude-sonnet-4-6-20250929"
+
+    /// Dynamic list of model IDs observed in JSONL sessions, sorted by most-recently-seen first.
+    /// Populated by UsageAggregator after each aggregation cycle. Replaces the old hardcoded
+    /// hardcoded list so the probe list self-heals when Anthropic deprecates model IDs.
+    private(set) var observedModels: [String] = []
+    private static let observedModelsKeyPrefix = "aibattery_observedModels_"
 
     /// Per-account last working model ID — persisted to UserDefaults so the app
     /// starts with a known-good model after restart instead of retrying from the top.
@@ -54,6 +54,21 @@ final class RateLimitFetcher {
                 lastWorkingModel[accountId] = model
             }
         }
+        // Also restore observed models from UserDefaults (best-effort — overwritten on first aggregation).
+        let observedPrefix = Self.observedModelsKeyPrefix
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(observedPrefix) {
+            if let models = defaults.stringArray(forKey: key), !models.isEmpty {
+                observedModels = models
+                break
+            }
+        }
+    }
+
+    /// Persist observed models for the given account so they survive app restarts.
+    /// Called by UsageAggregator after each aggregation cycle.
+    func setObservedModels(_ models: [String], accountId: String) {
+        observedModels = models
+        UserDefaults.standard.set(models, forKey: Self.observedModelsKeyPrefix + accountId)
     }
 
     private func saveWorkingModel(_ model: String, accountId: String) {
@@ -72,13 +87,14 @@ final class RateLimitFetcher {
     var activeUserModel: String?
 
     /// Fetches rate limits + org profile for a specific account.
-    /// Probe order: user's active model → last working model → fallback list.
+    /// Probe order: user's active model → last working model → observedModels (JSONL) → ultimateFallback.
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
-        // Build probe list: active model first, then persisted working model, then fallbacks.
+        // Build probe list: active model first, then persisted working model,
+        // then observed models from JSONL (most recent first), then the ultimate fallback.
         // Dedup so we don't try the same model twice.
         var probeModels: [String] = []
         var seen = Set<String>()
-        for candidate in [activeUserModel, lastWorkingModel[accountId]].compactMap({ $0 }) + fallbackModels {
+        for candidate in [activeUserModel, lastWorkingModel[accountId]].compactMap({ $0 }) + observedModels + [Self.ultimateFallback] {
             if seen.insert(candidate).inserted {
                 probeModels.append(candidate)
             }
