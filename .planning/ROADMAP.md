@@ -37,7 +37,9 @@ Last phase: 0 (pre-GSD, no phase numbering)
   1. Context window tier adjusts downward when session data shows fewer tokens than the current tier maximum
   2. Time-to-limit projection displays a value at any utilization percentage, including below 50%
   3. Context health indicator reflects the correct tier after downward adjustment without requiring app restart
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 01-01-PLAN.md — Bidirectional tier detection + projection threshold doc fix
 
 ### Phase 2: Data Accuracy Fixes
 **Goal**: Rate limit probe uses a resilient model list, and today's tool call count reflects actual JSONL data
@@ -85,7 +87,7 @@ Last phase: 0 (pre-GSD, no phase numbering)
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 1. Context & Projection Fixes | v1.10 | 0/TBD | Not started | - |
+| 1. Context & Projection Fixes | v1.10 | 0/1 | Planning complete | - |
 | 2. Data Accuracy Fixes | v1.10 | 0/TBD | Not started | - |
 | 3. Write Performance | v1.10 | 0/TBD | Not started | - |
 | 4. Polling & Discovery Hardening | v1.10 | 0/TBD | Not started | - |
