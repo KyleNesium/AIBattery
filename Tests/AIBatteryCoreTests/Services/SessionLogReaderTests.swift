@@ -18,7 +18,8 @@ struct SessionLogReaderTests {
             cacheWriteTokens: 30,
             sessionId: "session-1",
             cwd: "/Users/test/project",
-            gitBranch: "main"
+            gitBranch: "main",
+            toolCallCount: 0
         )
         #expect(entry.model == "claude-sonnet-4-5-20250929")
         #expect(entry.inputTokens == 100)
@@ -216,5 +217,133 @@ struct SessionLogReaderTests {
         let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
         let result = SessionLogReader.makeUsageEntry(from: entry)
         #expect(result?.messageId == "fallback-uuid-123")
+    }
+
+    // MARK: - Tool call counting
+
+    @Test func makeUsageEntry_twoToolUseBlocks_returnsToolCallCount2() throws {
+        let json = """
+        {
+            "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
+            "sessionId": "sess-tool-1",
+            "message": {
+                "role": "assistant",
+                "model": "claude-sonnet-4-5-20250929",
+                "id": "msg-tool-1",
+                "content": [
+                    {"type": "text", "text": "Here are the results"},
+                    {"type": "tool_use", "id": "tu-1", "name": "Read", "input": {}},
+                    {"type": "tool_use", "id": "tu-2", "name": "Write", "input": {}}
+                ],
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50
+                }
+            }
+        }
+        """
+        let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        let result = SessionLogReader.makeUsageEntry(from: entry)
+        #expect(result?.toolCallCount == 2)
+    }
+
+    @Test func makeUsageEntry_noContentField_returnsToolCallCount0() throws {
+        let json = """
+        {
+            "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
+            "sessionId": "sess-tool-2",
+            "message": {
+                "role": "assistant",
+                "model": "claude-sonnet-4-5-20250929",
+                "id": "msg-tool-2",
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50
+                }
+            }
+        }
+        """
+        let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        let result = SessionLogReader.makeUsageEntry(from: entry)
+        #expect(result?.toolCallCount == 0)
+    }
+
+    @Test func makeUsageEntry_onlyTextBlocks_returnsToolCallCount0() throws {
+        let json = """
+        {
+            "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
+            "sessionId": "sess-tool-3",
+            "message": {
+                "role": "assistant",
+                "model": "claude-sonnet-4-5-20250929",
+                "id": "msg-tool-3",
+                "content": [
+                    {"type": "text", "text": "Hello"},
+                    {"type": "text", "text": "World"}
+                ],
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50
+                }
+            }
+        }
+        """
+        let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        let result = SessionLogReader.makeUsageEntry(from: entry)
+        #expect(result?.toolCallCount == 0)
+    }
+
+    @Test func makeUsageEntry_mixedContent_returnsToolCallCount3() throws {
+        let json = """
+        {
+            "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
+            "sessionId": "sess-tool-4",
+            "message": {
+                "role": "assistant",
+                "model": "claude-sonnet-4-5-20250929",
+                "id": "msg-tool-4",
+                "content": [
+                    {"type": "text", "text": "Executing tasks"},
+                    {"type": "tool_use", "id": "tu-1", "name": "Read", "input": {}},
+                    {"type": "tool_use", "id": "tu-2", "name": "Write", "input": {}},
+                    {"type": "tool_use", "id": "tu-3", "name": "Bash", "input": {}}
+                ],
+                "usage": {
+                    "input_tokens": 200,
+                    "output_tokens": 80
+                }
+            }
+        }
+        """
+        let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        let result = SessionLogReader.makeUsageEntry(from: entry)
+        #expect(result?.toolCallCount == 3)
+    }
+
+    @Test func makeUsageEntry_emptyContentArray_returnsToolCallCount0() throws {
+        let json = """
+        {
+            "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
+            "sessionId": "sess-tool-5",
+            "message": {
+                "role": "assistant",
+                "model": "claude-sonnet-4-5-20250929",
+                "id": "msg-tool-5",
+                "content": [],
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 50
+                }
+            }
+        }
+        """
+        let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        let result = SessionLogReader.makeUsageEntry(from: entry)
+        #expect(result?.toolCallCount == 0)
     }
 }

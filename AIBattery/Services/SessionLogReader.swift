@@ -293,6 +293,8 @@ final class SessionLogReader {
             timestamp = Date()
         }
 
+        let toolCallCount = message.content?.filter { $0.type == "tool_use" }.count ?? 0
+
         return AssistantUsageEntry(
             timestamp: timestamp,
             model: model,
@@ -303,7 +305,8 @@ final class SessionLogReader {
             cacheWriteTokens: usage.cacheCreationInputTokens ?? 0,
             sessionId: entry.sessionId ?? "",
             cwd: entry.cwd,
-            gitBranch: entry.gitBranch
+            gitBranch: entry.gitBranch,
+            toolCallCount: toolCallCount
         )
     }
 }

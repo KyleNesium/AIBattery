@@ -14,6 +14,11 @@ struct SessionEntry: Codable {
         let model: String?
         let usage: TokenUsage?
         let id: String? // message ID for deduplication
+        let content: [ContentBlock]?
+    }
+
+    struct ContentBlock: Codable {
+        let type: String?
     }
 
     struct TokenUsage: Codable {
@@ -44,4 +49,5 @@ struct AssistantUsageEntry {
     let sessionId: String
     let cwd: String?
     let gitBranch: String?
+    let toolCallCount: Int
 }

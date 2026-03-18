@@ -447,7 +447,8 @@ struct TokenHealthMonitorTests {
             cacheWriteTokens: cacheWrite,
             sessionId: sessionId,
             cwd: cwd,
-            gitBranch: gitBranch
+            gitBranch: gitBranch,
+            toolCallCount: 0
         )
     }
 }
