@@ -42,7 +42,23 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-(Defining in v1.10 milestone)
+#### Bug Fixes
+- [ ] BUG-01: Dynamic probe model list
+- [ ] BUG-02: Bidirectional context window detect
+- [ ] BUG-03: Sub-50% time-to-limit projections
+- [ ] BUG-04: JSONL-based tool call counts
+- [ ] BUG-05: Spec drift fixes
+
+#### Performance
+- [ ] PERF-05: Batched TokenLedger disk writes
+- [ ] PERF-06: Efficient buildProjectTokens iteration
+- [ ] PERF-07: Smarter rate limit probe fallback
+- [ ] PERF-08: Resilient adaptive polling
+- [ ] PERF-09: Robust JSONL file discovery
+
+## Current Milestone: v1.10 Bugs & Performance
+
+**Goal:** Fix known bugs and optimize remaining performance bottlenecks for a more robust, efficient app.
 
 ### Out of Scope
 
