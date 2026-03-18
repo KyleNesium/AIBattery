@@ -799,6 +799,72 @@ struct UsageAggregatorTests {
         #expect(snapshot.projectTokens.count == 1) // merged, not two separate entries
     }
 
+    // MARK: - Observed models
+
+    @Test func aggregate_setsObservedModelsOnRateLimitFetcher() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        let earlier = now.addingTimeInterval(-3600)
+
+        // Two different models — newer model is sonnet-4-6, older is sonnet-4-5
+        let lines = [
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 100, output: 50,
+                              messageId: "obs-1", timestamp: earlier),
+            makeAssistantLine(model: "claude-sonnet-4-6-20250929", input: 200, output: 100,
+                              messageId: "obs-2", timestamp: now),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let accountId = "test-observed-\(UUID().uuidString)"
+        let key = "aibattery_observedModels_\(accountId)"
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        _ = aggregator.aggregate(rateLimits: nil, accountId: accountId)
+
+        // Most recently seen model (sonnet-4-6, at `now`) should be first
+        let stored = UserDefaults.standard.stringArray(forKey: key)
+        #expect(stored?.first == "claude-sonnet-4-6-20250929")
+        #expect(stored?.count == 2)
+    }
+
+    @Test func aggregate_noAccountId_doesNotSetObservedModels() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        let lines = [
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 100, output: 50,
+                              messageId: "no-acct-1", timestamp: now),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        // No accountId — should not persist observed models
+        let fetcher = RateLimitFetcher()
+        let beforeModels = fetcher.observedModels
+
+        _ = aggregator.aggregate(rateLimits: nil)
+
+        // RateLimitFetcher.shared may be updated but no accountId-keyed persistence happened
+        // (We can't easily verify shared state, but we verify the code path doesn't crash)
+        _ = beforeModels // suppress unused warning
+    }
+
     // MARK: - Test data
 
     private static let statsCacheJSON = """

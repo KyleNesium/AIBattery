@@ -78,6 +78,10 @@ final class UsageAggregator {
         // Project accumulators (keyed by cwd → model → tokens)
         var projectMap: [String: ProjectAccum] = [:]
 
+        // Tracks the most-recent timestamp seen for each model ID — used to build
+        // the dynamic probe list in RateLimitFetcher after the pass completes.
+        var lastSeenByModel: [String: Date] = [:]
+
         // Windowed model token accumulators
         typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
         var todayTokenMap: TokenMap = [:]
@@ -106,6 +110,10 @@ final class UsageAggregator {
             bucket.messages += 1
             bucket.sessions.insert(entry.sessionId)
             entriesByDate[dateKey] = bucket
+
+            // Track most-recent timestamp per model (entries are sorted ascending,
+            // so last write wins — no comparison needed).
+            lastSeenByModel[entry.model] = ts
 
             if ts >= today {
                 todayEntries.append(entry)
@@ -157,6 +165,13 @@ final class UsageAggregator {
                 monthTokenMap[entry.model] = (mn.input + entry.inputTokens, mn.output + entry.outputTokens,
                                               mn.cacheRead + entry.cacheReadTokens, mn.cacheWrite + entry.cacheWriteTokens)
             }
+        }
+
+        // Build observed model list sorted by recency (most recent first) for dynamic probe fallback.
+        // Only set when accountId is known so each account gets its own persisted list.
+        let observedModels = lastSeenByModel.sorted { $0.value > $1.value }.map(\.key)
+        if let accountId {
+            RateLimitFetcher.shared.setObservedModels(observedModels, accountId: accountId)
         }
 
         let todayMessages = todayEntries.count
