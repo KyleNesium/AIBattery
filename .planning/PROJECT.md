@@ -44,8 +44,8 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 #### Bug Fixes
 - [ ] BUG-01: Dynamic probe model list
-- [ ] BUG-02: Bidirectional context window detect
-- [ ] BUG-03: Sub-50% time-to-limit projections
+- [x] BUG-02: Bidirectional context window detect — Phase 1
+- [x] BUG-03: Sub-50% time-to-limit projections — Phase 1
 - [ ] BUG-04: JSONL-based tool call counts
 - [ ] BUG-05: Spec drift fixes
 
@@ -96,4 +96,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | UNUserNotificationCenter | Native notifications with app icon, no shell escaping risk | ✓ Good |
 
 ---
-*Last updated: 2026-03-18 after GSD initialization*
+*Last updated: 2026-03-18 after Phase 1 completion*
