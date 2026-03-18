@@ -201,6 +201,7 @@ final class RateLimitFetcher {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
                 if rateLimits != nil || profile != nil {
+                    saveWorkingModel(model, accountId: accountId)
                     return .success(APIFetchResult(
                         rateLimits: rateLimits ?? cached?.rateLimits,
                         profile: profile ?? cached?.profile
@@ -221,6 +222,7 @@ final class RateLimitFetcher {
                         let rateLimits = RateLimitUsage.parse(headers: retryHttp.allHeaderFields)
                         let profile = APIProfile.parse(headers: retryHttp.allHeaderFields)
                         if rateLimits != nil || profile != nil {
+                            saveWorkingModel(model, accountId: accountId)
                             return .success(APIFetchResult(
                                 rateLimits: rateLimits ?? cached?.rateLimits,
                                 profile: profile ?? cached?.profile
@@ -245,6 +247,7 @@ final class RateLimitFetcher {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 if let rateLimits {
                     let profile = APIProfile.parse(headers: http.allHeaderFields)
+                    saveWorkingModel(model, accountId: accountId)
                     return .success(APIFetchResult(
                         rateLimits: rateLimits,
                         profile: profile ?? cached?.profile

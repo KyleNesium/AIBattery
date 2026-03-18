@@ -215,7 +215,6 @@ public final class UsageViewModel: ObservableObject {
         fileWatcher = FileWatcher { [weak self] in
             Task { @MainActor [weak self] in
                 self?.aggregator.invalidate()
-                self?.adaptivePolling.unchangedCycles = 0
                 self?.restartPolling(interval: self?.refreshInterval ?? 60)
                 await self?.refresh()
             }
