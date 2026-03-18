@@ -47,7 +47,7 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - [x] BUG-02: Bidirectional context window detect — Phase 1
 - [x] BUG-03: Sub-50% time-to-limit projections — Phase 1
 - [x] BUG-04: JSONL-based tool call counts — Phase 2
-- [ ] BUG-05: Spec drift fixes
+- [x] BUG-05: Spec drift fixes — Phase 5
 
 #### Performance
 - [x] PERF-05: Batched TokenLedger disk writes — Phase 3 (already optimal, tests added)
@@ -96,4 +96,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | UNUserNotificationCenter | Native notifications with app icon, no shell escaping risk | ✓ Good |
 
 ---
-*Last updated: 2026-03-18 after Phase 4 completion*
+*Last updated: 2026-03-18 after Phase 5 completion — all v1.10 requirements complete*
