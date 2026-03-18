@@ -74,6 +74,7 @@ final class UsageAggregator {
 
         var todayEntries: [AssistantUsageEntry] = []
         var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
+        var jsonlTodayToolCalls = 0
 
         // Project accumulators (keyed by cwd → model → tokens)
         var projectMap: [String: ProjectAccum] = [:]
@@ -117,6 +118,7 @@ final class UsageAggregator {
 
             if ts >= today {
                 todayEntries.append(entry)
+                jsonlTodayToolCalls += entry.toolCallCount
             }
 
             // --- Project accumulation ---
@@ -176,8 +178,9 @@ final class UsageAggregator {
 
         let todayMessages = todayEntries.count
         let todaySessions = entriesByDate[todayDate]?.sessions.count ?? 0
-        let todayToolCalls = statsCache?.dailyActivity
+        let statsCacheToolCalls = statsCache?.dailyActivity
             .first(where: { $0.date == todayDate })?.toolCallCount ?? 0
+        let todayToolCalls = max(jsonlTodayToolCalls, statsCacheToolCalls)
 
         // Build project tokens from accumulated map (O(projects × models) pricing lookups)
         let projectTokens = Self.buildProjectTokensFromMap(projectMap)
@@ -244,7 +247,7 @@ final class UsageAggregator {
         var additionalMessages = 0
         var additionalSessions = 0
         for (date, bucket) in entriesByDate {
-            let toolCalls = (date == todayDate) ? todayToolCalls : 0
+            let toolCalls = (date == todayDate) ? jsonlTodayToolCalls : 0
             if let idx = activityIndex[date] {
                 // Capture original stats-cache values before potential mutation
                 let cachedMessages = activity[idx].messageCount

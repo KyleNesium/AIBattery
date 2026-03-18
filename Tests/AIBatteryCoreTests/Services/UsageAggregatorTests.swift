@@ -55,6 +55,31 @@ struct UsageAggregatorTests {
         """
     }
 
+    private func makeAssistantLineWithToolCalls(
+        toolCallCount: Int,
+        model: String = "claude-sonnet-4-5-20250929",
+        input: Int = 100,
+        output: Int = 50,
+        sessionId: String = "session-1",
+        messageId: String? = nil,
+        timestamp: Date? = nil,
+        cwd: String = "/test"
+    ) -> String {
+        let ts = timestamp ?? Date()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let tsStr = formatter.string(from: ts)
+        let msgId = messageId ?? UUID().uuidString
+        let cwdField = cwd.isEmpty ? "" : "\"cwd\":\"\(cwd)\","
+        let toolBlocks = (0..<toolCallCount).map { i in
+            "{\"type\":\"tool_use\",\"id\":\"tu-\(i)\",\"name\":\"Tool\",\"input\":{}}"
+        }.joined(separator: ",")
+        let contentField = "[{\"type\":\"text\",\"text\":\"response\"},\(toolBlocks.isEmpty ? "" : toolBlocks)]"
+        return """
+        {"type":"assistant","timestamp":"\(tsStr)","sessionId":"\(sessionId)",\(cwdField)"message":{"role":"assistant","model":"\(model)","id":"\(msgId)","content":\(contentField),"usage":{"input_tokens":\(input),"output_tokens":\(output),"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+        """
+    }
+
     // MARK: - No data
 
     @Test func aggregate_noData_returnsEmptySnapshot() {
@@ -863,6 +888,153 @@ struct UsageAggregatorTests {
         // RateLimitFetcher.shared may be updated but no accountId-keyed persistence happened
         // (We can't easily verify shared state, but we verify the code path doesn't crash)
         _ = beforeModels // suppress unused warning
+    }
+
+    // MARK: - Tool call count merge
+
+    @Test func aggregate_jsonlMoreToolCalls_jsonlWins() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let formatter = DateFormatters.dateKey
+        let todayStr = formatter.string(from: Date())
+
+        // Stats cache has 3 tool calls for today
+        let cacheJSON = """
+        {
+            "version": 1,
+            "lastComputedDate": "\(todayStr)",
+            "dailyActivity": [
+                {"date": "\(todayStr)", "messageCount": 2, "sessionCount": 1, "toolCallCount": 3}
+            ],
+            "dailyModelTokens": [],
+            "modelUsage": {},
+            "totalSessions": 1,
+            "totalMessages": 2,
+            "hourCounts": {}
+        }
+        """
+
+        let cacheURL = try writeStatsCache(cacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        // JSONL has 5 tool calls today — should win (5 > 3)
+        let now = Date()
+        let lines = [
+            makeAssistantLineWithToolCalls(toolCallCount: 2, messageId: "tc-1", timestamp: now),
+            makeAssistantLineWithToolCalls(toolCallCount: 3, messageId: "tc-2", timestamp: now),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        #expect(snapshot.todayToolCalls == 5) // max(5 jsonl, 3 cache)
+    }
+
+    @Test func aggregate_cacheMoreToolCalls_cacheWins() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let formatter = DateFormatters.dateKey
+        let todayStr = formatter.string(from: Date())
+
+        // Stats cache has 7 tool calls for today (fresher data)
+        let cacheJSON = """
+        {
+            "version": 1,
+            "lastComputedDate": "\(todayStr)",
+            "dailyActivity": [
+                {"date": "\(todayStr)", "messageCount": 5, "sessionCount": 1, "toolCallCount": 7}
+            ],
+            "dailyModelTokens": [],
+            "modelUsage": {},
+            "totalSessions": 1,
+            "totalMessages": 5,
+            "hourCounts": {}
+        }
+        """
+
+        let cacheURL = try writeStatsCache(cacheJSON, to: dir)
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        // JSONL has 2 tool calls — cache wins (7 > 2)
+        let now = Date()
+        let lines = [
+            makeAssistantLineWithToolCalls(toolCallCount: 2, messageId: "tc-cache-1", timestamp: now),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        #expect(snapshot.todayToolCalls == 7) // max(2 jsonl, 7 cache)
+    }
+
+    @Test func aggregate_noCacheDailyActivity_jsonlToolCallsUsed() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        // No stats cache — JSONL tool calls are the only source
+        let now = Date()
+        let lines = [
+            makeAssistantLineWithToolCalls(toolCallCount: 4, messageId: "tc-nocache-1", timestamp: now),
+            makeAssistantLineWithToolCalls(toolCallCount: 2, messageId: "tc-nocache-2", timestamp: now),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        #expect(snapshot.todayToolCalls == 6) // 4 + 2 from JSONL, cache is 0
+    }
+
+    @Test func aggregate_noJsonlTodayEntries_cacheToolCallsUsed() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let formatter = DateFormatters.dateKey
+        let todayStr = formatter.string(from: Date())
+
+        // Stats cache has 8 tool calls for today
+        let cacheJSON = """
+        {
+            "version": 1,
+            "lastComputedDate": "\(todayStr)",
+            "dailyActivity": [
+                {"date": "\(todayStr)", "messageCount": 10, "sessionCount": 2, "toolCallCount": 8}
+            ],
+            "dailyModelTokens": [],
+            "modelUsage": {},
+            "totalSessions": 2,
+            "totalMessages": 10,
+            "hourCounts": {}
+        }
+        """
+
+        let cacheURL = try writeStatsCache(cacheJSON, to: dir)
+        // No JSONL files at all
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        #expect(snapshot.todayToolCalls == 8) // cache value used, jsonl is 0
     }
 
     // MARK: - Test data
