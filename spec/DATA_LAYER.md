@@ -21,7 +21,7 @@ Main aggregated data struct consumed by all views.
 | `peakHourCount` | `Int` | Merged hourCounts |
 | `todayMessages` | `Int` | Today's JSONL entries count |
 | `todaySessions` | `Int` | Unique session IDs in today's entries |
-| `todayToolCalls` | `Int` | stats-cache dailyActivity for today |
+| `todayToolCalls` | `Int` | max(JSONL tool_use count, stats-cache dailyActivity) for today |
 | `hourCounts` | `[String: Int]` | All-time hourly distribution (stats-cache merged with today's JSONL, max per hour) |
 | `todayHourCounts` | `[String: Int]` | Today-only hourly breakdown from JSONL (hour "0"-"23" → message count) |
 | `modelTokens` | `[ModelTokenSummary]` | Merged stats-cache + JSONL |
@@ -188,7 +188,9 @@ Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0
 
 Static: `contextWindows: [String: Int]` dictionary (Claude 4.x = 1M, Claude 3.x = 200K), `defaultContextWindow = 1_000_000`, `usableContextRatio = 0.80`, `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
 
-**Auto-detect from usage**: `TokenHealthMonitor.assess()` checks if a session's observed token count exceeds the hardcoded window. If so, it bumps to the next tier (200K → 500K → 1M → 2M → 5M). This prevents stale hardcoded values from showing inflated percentages when Anthropic increases context windows upstream — no code change needed.
+**Bidirectional auto-detect from usage**: `TokenHealthMonitor.assess()` adjusts `contextWindow` in both directions based on observed token usage (tiers: 200K, 500K, 1M, 2M, 5M):
+- **Upward**: if observed tokens exceed the hardcoded window, bumps to the next tier above observed. Prevents inflated percentages when Anthropic expands context windows upstream.
+- **Downward**: if observed tokens fall below the next-lower tier boundary, downgrades to the smallest tier that still fits. Anti-thrash guard: only downgrades when `observedTokens < lowerTier` (e.g. 600K observed on a 1M window stays at 1M because 600K ≥ 500K — the next-lower tier boundary). This prevents false downgrade on early or small sessions within a large window.
 
 Thresholds apply to the **usable window** (80% of raw context). Claude Code auto-compacts at 80%, so 100% usage = imminent compaction.
 
@@ -210,10 +212,11 @@ Codable struct matching `~/.claude/stats-cache.json`:
 JSONL line schema (Codable):
 - `type`, `timestamp`, `sessionId`, `uuid` — all `String?`
 - `cwd: String?`, `gitBranch: String?`
-- `message: SessionMessage?` — contains `role`, `model`, `usage: TokenUsage?`, `id`
+- `message: SessionMessage?` — contains `role`, `model`, `usage: TokenUsage?`, `id: String?`, `content: [ContentBlock]?`
+- `ContentBlock` (nested struct, minimal decoding): `type: String?` — only the type field is decoded (sufficient for counting `tool_use` blocks without parsing id/name/input)
 - `TokenUsage` includes `service_tier: String?` alongside the four token count fields
 
-`AssistantUsageEntry` (processed form): `timestamp: Date`, `model: String`, `messageId: String`, `inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens: Int`, `sessionId: String`, `cwd: String?`, `gitBranch: String?`
+`AssistantUsageEntry` (processed form): `timestamp: Date`, `model: String`, `messageId: String`, `inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens: Int`, `sessionId: String`, `cwd: String?`, `gitBranch: String?`, `toolCallCount: Int` (computed as `content?.filter { $0.type == "tool_use" }.count ?? 0`)
 
 ### ModelPricing (`Models/ModelPricing.swift`)
 
@@ -280,7 +283,7 @@ Pricing table (per million tokens):
 ### AccountStore (`Services/AccountStore.swift`)
 - `@MainActor ObservableObject`, owned by `OAuthManager`
 - Published: `accounts: [AccountRecord]`, `activeAccountId: String?`
-- Computed: `activeAccount`, `canAddAccount` (< 2)
+- Computed: `activeAccount`, `canAddAccount` (< maxAccounts)
 - `add(_:)` — appends record, sets as active if first, rejects duplicates and over-max
 - `remove(id:)` — removes account, auto-switches active to remaining
 - `setActive(id:)` — changes active account (no-op for unknown IDs)
@@ -293,9 +296,14 @@ Pricing table (per million tokens):
 - Singleton: `.shared`
 - `fetch(accessToken:accountId:) async -> APIFetchResult` — returns both rate limits and org profile from a single API call
 - POST `/v1/messages?beta=true` with `max_tokens: 1`, content `"."`
-- Model fallback list: tries `claude-sonnet-4-6-20250929` first, then `claude-sonnet-4-5-20250929`, then `claude-haiku-3-5-20241022`. Remembers last working model index to avoid repeated fallbacks.
+- **Dynamic probe order** (deduped): `activeUserModel` (from latest JSONL entry) → `lastWorkingModel[accountId]` (persisted per account) → `observedModels` (JSONL-observed models, most recent first) → `ultimateFallback` (single newest Sonnet for fresh installs). Self-heals when Anthropic deprecates model IDs — no hardcoded list.
+- `observedModels: [String]` — dynamic list populated by `UsageAggregator.setObservedModels(_:accountId:)` after each aggregation cycle; persisted to UserDefaults under `aibattery_observedModels_{accountId}`. Restored on launch (best-effort, overwritten on first aggregation).
+- `static let ultimateFallback = "claude-sonnet-4-6-20250929"` — single model for fresh installs with no JSONL data.
+- `setObservedModels(_ models: [String], accountId: String)` — updates `observedModels` and persists to UserDefaults. Called by `UsageAggregator`.
+- `restoreWorkingModels()` — restores `lastWorkingModel` dictionary and `observedModels` from UserDefaults on init.
+- `saveWorkingModel` called on **all 4 success paths** in `tryFetch`: 200-OK, 429+headers, retry-after (200/400 after sleep), and 400+headers. Structural invariant — any response with parseable headers records the working model.
 - Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/{version} (macOS)` (dynamic from bundle)
-- Caller provides token and account ID. Per-account caching: `cachedResults: [String: APIFetchResult]` and `currentModelIndex: [String: Int]` keyed by account ID.
+- Caller provides token and account ID. Per-account caching: `cachedResults: [String: APIFetchResult]` and `lastWorkingModel: [String: String]` keyed by account ID.
 - Timeout: 15 sec
 - Parses `anthropic-ratelimit-unified-*` response headers via `RateLimitUsage.parse(headers:)` and `APIProfile.parse(headers:)` from the same response
 - Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache expires after 1 hour (`cacheMaxAge = 3600s`) to avoid showing very old data.
@@ -339,7 +347,7 @@ Pricing table (per million tokens):
 - Mod-time + file-size cache to skip unchanged files
 - **Result-level caching**: caches the merged `[AssistantUsageEntry]` result; invalidated by FileWatcher via `invalidate()`. Avoids re-sorting and re-deduplicating on every refresh.
 - **Symlink boundary check**: after discovery, resolves symlinks on each file URL and filters out any that resolve outside `~/.claude/projects/`. Prevents a symlink inside the projects directory from reading arbitrary files on disk.
-- **Discovery caching**: caches discovered JSONL file list with parent directory modification dates; re-scans only when directory contents change.
+- **Discovery caching**: caches discovered JSONL file list with parent directory modification dates AND a TTL (`discoveryTTL = 60s`). Cache hit requires BOTH unchanged directory mod-dates AND TTL not expired. If either condition fails, a full re-enumeration runs. `lastFullEnumerationDate` tracks when the last full scan occurred. `expireDiscoveryTTLForTesting()` test hook forces TTL expiry by setting `lastFullEnumerationDate = .distantPast`.
 - **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
 - Deduplication by messageId across all files (set-based). Fallback messageId uses a stable composite key (`sessionId:timestamp:inputTokens:outputTokens`) from entry fields — survives LRU cache eviction without inflating counts
 - Sorted by timestamp ascending
@@ -361,7 +369,8 @@ Pricing table (per million tokens):
 - **All-dates daily activity merge**: groups all JSONL entries by date via `entriesByDate` dictionary, then merges every date into `dailyActivity` (not just today). This fills gaps between a stale stats-cache rebuild date and the present. If JSONL has more messages for a date than the cache entry, replaces it; if no entry exists, appends one. Preserves the higher of JSONL or cache tool-call counts.
 - **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 24H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
 - **totalMessages/totalSessions dedup**: iterates all `entriesByDate` keys and computes `max(jsonlCount - cachedCount, 0)` per date, summing across all dates. Prevents inflation when stats-cache already includes recent data.
-- Tool calls from stats cache only (not parsed from JSONL)
+- **Tool calls merged**: `max(jsonlTodayToolCalls, statsCacheToolCalls)` — JSONL counts `tool_use` content blocks from today's `AssistantUsageEntry.toolCallCount` values; stats-cache provides its own daily count; `max()` prevents either source from underreporting. The JSONL count accumulates in the single-pass loop via `jsonlTodayToolCalls += entry.toolCallCount` for entries where `ts >= today`.
+- **`lastSeenByModel` tracking**: in the single-pass loop, `lastSeenByModel[entry.model] = ts` records the most recent timestamp per model (entries are sorted ascending, so last write wins without comparison). After the loop, models are sorted by recency (most recent first) and fed to `RateLimitFetcher.shared.setObservedModels(_:accountId:)` when `accountId` is non-nil.
 - **Idle session cutoff**: reads `aibattery_idleSessionMinutes` from UserDefaults (0 = never hide), passes to `TokenHealthMonitor.assessSessions(idleCutoffMinutes:)` to filter stale sessions from context health
 - Token health via `TokenHealthMonitor.assessSessions` (single-pass: returns both current + top 5)
 
@@ -463,7 +472,8 @@ Pricing table (per million tokens):
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
 - Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
-- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:totalMessages:)` (error string or nil), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection), `recordThrottleEvent(_:)` (records on not-throttled→throttled/exhausted transition; detects both explicit throttle status AND 100% utilization on either window; uses `parseThrottleTimestamps()` for mixed-type storage; 30-day prune), `throttleCount(days:)` (count throttle events within N days, handles Double/String/Int timestamps via `parseThrottleTimestamps()`)
+- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:totalMessages:)` (error string or nil), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
+- **Throttle tracking** (delegates to `ThrottleTracker`): `recordThrottleEvent(_:)` uses `ThrottleTracker.evaluate(_:)` to detect the normal→throttled/exhausted transition (detects both explicit `isThrottled` AND 100% utilization on either window), records timestamp to UserDefaults `aibattery_throttleTimestamps` via `ThrottleTracker.appendAndPrune`. `throttleCount(days:)` reads timestamps from UserDefaults, parses via `ThrottleTracker.parseTimestamps(_:)` (handles Double/String/Int storage variants), counts via `ThrottleTracker.count(timestamps:days:)`.
 - `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
@@ -544,3 +554,12 @@ Pricing table (per million tokens):
 - `barNSColor(percent:) -> NSColor` — menu bar icon fill color
 - Standard palette: green → yellow → orange → red
 - Colorblind palette: blue → cyan → amber → purple (deuteranopia/protanopia safe)
+
+### ThrottleTracker (`Utilities/ThrottleTracker.swift`)
+- Pure value type (struct) — immutable pattern, `evaluate` returns a new tracker instead of mutating
+- `private(set) var wasThrottled: Bool` — tracks whether the previous evaluation saw a throttled/exhausted state
+- `evaluate(_ rateLimits: RateLimitUsage?) -> (tracker: ThrottleTracker, recordTimestamp: Double?)` — detects the normal→throttled/exhausted transition. `effectivelyThrottled = isThrottled || fiveHourUtilization >= 1.0 || sevenDayUtilization >= 1.0`. Returns a new `ThrottleTracker` with updated `wasThrottled` + optional Unix timestamp to record (non-nil only on the transition from false→true). Does not mutate self.
+- `static parseTimestamps(_ raw: [Any]?) -> [Double]` — converts raw UserDefaults array to `[Double]`, handling Double, String, and Int storage variants (legacy data may be stored as strings)
+- `static appendAndPrune(timestamps: [Double], newTimestamp: Double) -> [Double]` — appends new timestamp, prunes entries older than 30 days (cutoff = `newTimestamp - 30 * 86400`)
+- `static count(timestamps: [Double], days: Int) -> Int` — counts timestamps within the last N days from now
+- Used by `UsageViewModel` for throttle trend tracking. Extracted from `UsageViewModel` for testability without global mutable state.

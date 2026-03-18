@@ -133,6 +133,7 @@ AIBattery/
     SecureNetworking.swift        — Ephemeral URLSession + response size guard (2 MB limit) + resource timeout (30s)
     DurationFormatter.swift       — Compact time duration formatting ("2h 5m", "1d 1h", "soon")
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
+    ThrottleTracker.swift         — Pure value type tracking throttle event transitions for trend display
     KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
 Tests/AIBatteryCoreTests/
   Utilities/
@@ -145,6 +146,7 @@ Tests/AIBatteryCoreTests/
     AdaptivePollingStateTests.swift — threshold, doubling, cap, reset, constants
     SecureNetworkingTests.swift   — Ephemeral session config, singleton, size limit constant
     DurationFormatterTests.swift  — compact format, boundaries, days/hours/minutes
+    ThrottleTrackerTests.swift    — Throttle transition detection, timestamp parsing, pruning, counting
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     MetricModeTests.swift         — rawValues, labels, allCases
@@ -165,6 +167,7 @@ Tests/AIBatteryCoreTests/
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
     SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
+    SessionLogReaderDiscoveryTests.swift — TTL-based discovery fallback, cache expiry
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity, rapid consumption, custom config
     TokenLedgerTests.swift        — high-water-mark merge, historical model restoration, per-account isolation, persistence, sort, file size guard
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests

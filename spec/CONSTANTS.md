@@ -165,6 +165,20 @@ Pricing per million tokens:
 | Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
 
+## Dynamic Probe Model Storage
+
+| Constant | Value |
+|----------|-------|
+| Observed models key | `aibattery_observedModels_{accountId}` ([String], models seen in JSONL sorted by most-recently-seen first) |
+| Working model key | `aibattery_probeModel_{accountId}` (String, last model that returned rate limit headers) |
+
+## Throttle Event Storage
+
+| Constant | Value |
+|----------|-------|
+| Throttle timestamps key | `aibattery_throttleTimestamps` ([Any] — Unix epoch doubles; legacy entries may be stored as String or Int) |
+| Pruning window | 30 days (entries older than 30 days pruned on each append) |
+
 ## Launch at Login
 
 | Constant | Value |
