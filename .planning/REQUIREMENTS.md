@@ -19,8 +19,8 @@ Requirements for bugs and performance milestone. Each maps to roadmap phases.
 
 - [x] **PERF-05**: `TokenLedger.merge()` batches disk writes instead of writing on every value increase
 - [x] **PERF-06**: `buildProjectTokens` avoids redundant full iteration of JSONL entries
-- [ ] **PERF-07**: `RateLimitFetcher` probe fallback minimizes unnecessary API calls
-- [ ] **PERF-08**: `AdaptivePollingState` doesn't reset on minor data changes during active churn
+- [x] **PERF-07**: `RateLimitFetcher` probe fallback minimizes unnecessary API calls
+- [x] **PERF-08**: `AdaptivePollingState` doesn't reset on minor data changes during active churn
 - [x] **PERF-09**: `SessionLogReader` discovery detects new JSONL files even when directory mod-time is unchanged
 
 ## Future Requirements
@@ -47,8 +47,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUG-04 | Phase 2 | Complete |
 | PERF-05 | Phase 3 | Complete |
 | PERF-06 | Phase 3 | Complete |
-| PERF-07 | Phase 4 | Pending |
-| PERF-08 | Phase 4 | Pending |
+| PERF-07 | Phase 4 | Complete |
+| PERF-08 | Phase 4 | Complete |
 | PERF-09 | Phase 4 | Complete |
 | BUG-05 | Phase 5 | Pending |
 

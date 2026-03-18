@@ -45,7 +45,7 @@ Plan: 2 of 2
 | Phase 02 P01 | ~8 min | 2 tasks | 4 files |
 | Phase 02 P02 | ~3 min | 2 tasks | 5 files |
 | Phase 03 P01 | 3 min | 2 tasks | 3 files |
-| Phase 04 P02 | 3 min | 1 tasks | 4 files |
+| Phase 04 P01 | 2 min | 1 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -63,7 +63,8 @@ Recent decisions affecting current work:
 - [Phase 02-02]: ContentBlock decoding uses minimal struct (type only) — no need to parse id/name/input for counting
 - [Phase 02-02]: toolCallCount in daily activity merge loop uses jsonlTodayToolCalls (not already-merged value) so existing max() in DailyActivity construction does the real merge
 - [Phase 03]: PERF-05/06: No production code changes needed — both write-batching and fingerprint-skip optimizations were already correctly implemented; tests added as regression guards
-- [Phase 04]: TTL constant co-located with SessionLogReader logic as static let; expireDiscoveryTTLForTesting() testing hook keeps private API private
+- [Phase 04-01]: saveWorkingModel added to all 4 success paths in RateLimitFetcher.tryFetch — 429+headers, retry-after, 400+headers, and 200-OK
+- [Phase 04-01]: FileWatcher no longer resets adaptivePolling.unchangedCycles — evaluate() owns the counter; only wake and manual interval change reset it externally
 
 ### Pending Todos
 
@@ -75,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T20:34:52.006Z
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-03-18T20:36:00.000Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None
