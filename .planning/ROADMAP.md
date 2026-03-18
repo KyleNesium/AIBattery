@@ -74,7 +74,10 @@ Plans:
   1. RateLimitFetcher does not retry probe models unnecessarily when a valid response was already received
   2. Adaptive polling interval holds steady during active Claude usage instead of resetting to minimum on minor data fluctuations
   3. SessionLogReader detects a newly created JSONL file even when the parent directory mod-time has not changed
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 04-01-PLAN.md — Persist working model on 429/400 success + remove FileWatcher polling reset
+- [ ] 04-02-PLAN.md — TTL-based JSONL discovery fallback in SessionLogReader
 
 ### Phase 5: Spec Sync
 **Goal**: Spec files accurately describe the current codebase with no undocumented components or incorrect API signatures
@@ -95,5 +98,5 @@ Plans:
 | 1. Context & Projection Fixes | 1/1 | Complete   | 2026-03-18 | - |
 | 2. Data Accuracy Fixes | 2/2 | Complete   | 2026-03-18 | - |
 | 3. Write Performance | 1/1 | Complete   | 2026-03-18 | - |
-| 4. Polling & Discovery Hardening | v1.10 | 0/TBD | Not started | - |
+| 4. Polling & Discovery Hardening | v1.10 | 0/2 | Not started | - |
 | 5. Spec Sync | v1.10 | 0/TBD | Not started | - |
