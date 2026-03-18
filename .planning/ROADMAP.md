@@ -87,7 +87,9 @@ Plans:
   1. ThrottleTracker is documented in the relevant spec file
   2. AccountStore.canAddAccount signature and behavior match what is documented in the spec
   3. No other undocumented divergences remain between spec and code (verified by reading spec against source)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 05-01-PLAN.md — Audit spec files against source code and fix all drift
 
 ## Progress
 
@@ -99,4 +101,4 @@ Plans:
 | 2. Data Accuracy Fixes | 2/2 | Complete   | 2026-03-18 | - |
 | 3. Write Performance | 1/1 | Complete   | 2026-03-18 | - |
 | 4. Polling & Discovery Hardening | 2/2 | Complete   | 2026-03-18 | - |
-| 5. Spec Sync | v1.10 | 0/TBD | Not started | - |
+| 5. Spec Sync | v1.10 | 0/1 | Not started | - |
