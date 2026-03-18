@@ -284,6 +284,7 @@ Pricing per million tokens:
 | Pre-filter marker 1b | `"type": "assistant"` (with space) |
 | Pre-filter marker 2 | `"usage"` |
 | Cache max entries | 200 files |
+| Discovery TTL | 60 sec — forces full re-enumeration regardless of dir mod-date (catches new files on filesystems where directory mtime may not update) |
 
 ## Activity Chart
 

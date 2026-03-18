@@ -17,6 +17,10 @@ final class SessionLogReader {
     /// Maximum number of cached files before eviction.
     private let maxCacheEntries = 200
 
+    /// Maximum time between full directory enumerations, regardless of mod-date changes.
+    /// Catches new files on filesystems where directory mtime doesn't always update.
+    static let discoveryTTL: TimeInterval = 60
+
     /// Cached result of readAllUsageEntries — invalidated when any file changes.
     private var cachedAllEntries: [AssistantUsageEntry]?
 
@@ -24,6 +28,9 @@ final class SessionLogReader {
     private var discoveredFiles: [URL]?
     /// Parent directory mod dates used to invalidate discovery cache.
     private var discoveryDirModDates: [String: Date] = [:]
+    /// Timestamp of the last full directory enumeration. Used as TTL fallback
+    /// when directory mod-dates don't reflect new files (filesystem-dependent).
+    private var lastFullEnumerationDate: Date?
 
     private nonisolated(unsafe) static let isoFormatter = DateFormatters.iso8601
 
@@ -44,6 +51,7 @@ final class SessionLogReader {
         cachedAllEntries = nil
         discoveredFiles = nil
         discoveryDirModDates.removeAll()
+        lastFullEnumerationDate = nil
     }
 
     func readAllUsageEntries() -> [AssistantUsageEntry] {
@@ -110,12 +118,20 @@ final class SessionLogReader {
         discoverJSONLFiles()
     }
 
+    /// Force TTL expiry for testing — makes next discoverJSONLFiles() re-enumerate.
+    func expireDiscoveryTTLForTesting() {
+        lastFullEnumerationDate = .distantPast
+    }
+
     // MARK: - Discovery
 
     private func discoverJSONLFiles() -> [URL] {
-        // Return cached discovery if directory mod dates haven't changed
+        // Return cached discovery if directory mod dates haven't changed AND TTL hasn't expired
         if let cached = discoveredFiles, !discoveryDirModDatesChanged() {
-            return cached
+            if let lastEnum = lastFullEnumerationDate,
+               Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
+                return cached
+            }
         }
 
         let fm = FileManager.default
@@ -180,6 +196,7 @@ final class SessionLogReader {
 
         discoveredFiles = jsonlFiles
         discoveryDirModDates = newDirModDates
+        lastFullEnumerationDate = Date()
         return jsonlFiles
     }
 
