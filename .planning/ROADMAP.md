@@ -62,7 +62,9 @@ Plans:
   1. TokenLedger produces one disk write per aggregation cycle instead of one write per token value increase
   2. buildProjectTokens skips entries already counted in a previous pass when nothing has changed
   3. No regression in token count accuracy after batching changes
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 03-01-PLAN.md — Verify write batching + iteration avoidance, add performance-characteristic tests
 
 ### Phase 4: Polling & Discovery Hardening
 **Goal**: The polling subsystem makes fewer unnecessary API calls, doesn't thrash on minor data changes, and reliably finds new JSONL files
@@ -92,6 +94,6 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 1. Context & Projection Fixes | 1/1 | Complete   | 2026-03-18 | - |
 | 2. Data Accuracy Fixes | 2/2 | Complete   | 2026-03-18 | - |
-| 3. Write Performance | v1.10 | 0/TBD | Not started | - |
+| 3. Write Performance | v1.10 | 0/1 | Not started | - |
 | 4. Polling & Discovery Hardening | v1.10 | 0/TBD | Not started | - |
 | 5. Spec Sync | v1.10 | 0/TBD | Not started | - |
