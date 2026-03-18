@@ -283,6 +283,22 @@ The header shows an **update indicator** when a new version is available — the
 
 ---
 
+## 📉 Activity & Insights
+
+<img src="screenshots/activity.png" width="280" alt="Activity chart and insights" />
+
+Interactive charts across three time windows:
+
+| Mode | Window | Shows |
+|---|---|---|
+| **24H** | Trailing 24 hours | Hourly activity, vs-yesterday trend, peak hour |
+| **7D** | Rolling 7 days | Daily activity, weekly trend, busiest day |
+| **12M** | Rolling 12 months | Monthly activity, month-over-month trend, busiest month |
+
+Below the chart: API-equivalent cost per model, throttle count, and cumulative stats (All Time messages/sessions, Longest session, Period date range).
+
+---
+
 ## 💰 API Cost Equivalent
 
 The dollar amounts in the Insights and Projects sections show what your usage **would have cost on Anthropic's pay-per-token API**. This is not your actual bill — Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token.
