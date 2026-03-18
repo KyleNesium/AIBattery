@@ -93,3 +93,12 @@ None - no external service configuration required.
 ---
 *Phase: 04-polling-discovery-hardening*
 *Completed: 2026-03-18*
+
+## Self-Check: PASSED
+
+- FOUND: AIBattery/Services/RateLimitFetcher.swift (5 saveWorkingModel occurrences)
+- FOUND: AIBattery/ViewModels/UsageViewModel.swift (setupFileWatcher has no adaptivePolling reset)
+- FOUND: Tests/AIBatteryCoreTests/Services/RateLimitFetcherTests.swift
+- FOUND: Tests/AIBatteryCoreTests/Utilities/AdaptivePollingStateTests.swift
+- FOUND: .planning/phases/04-polling-discovery-hardening/04-01-SUMMARY.md
+- FOUND: commit 548e6a8
