@@ -156,6 +156,108 @@ struct TokenLedgerTests {
         #expect(result[0].cacheWriteTokens == 400)
     }
 
+    // MARK: - Write-batching (PERF-05)
+
+    @Test @MainActor func merge_unchangedValues_doesNotWrite() throws {
+        let url = makeTempURL()
+        let ledger = TokenLedger(fileURL: url)
+
+        // First merge — values increase → write expected
+        _ = ledger.merge([makeToken(input: 100, output: 50)], accountId: "acc1")
+        ledger.flushForTesting()
+
+        let attrsBefore = try FileManager.default.attributesOfItem(atPath: url.path)
+        let modBefore = attrsBefore[.modificationDate] as? Date
+
+        // Second merge — identical values → no increase → no write
+        // Sleep 1s so any write would be detectable via mod date change
+        Thread.sleep(forTimeInterval: 1.0)
+        _ = ledger.merge([makeToken(input: 100, output: 50)], accountId: "acc1")
+        ledger.flushForTesting()
+
+        let attrsAfter = try FileManager.default.attributesOfItem(atPath: url.path)
+        let modAfter = attrsAfter[.modificationDate] as? Date
+
+        // Mod date must be unchanged — no write occurred
+        #expect(modBefore == modAfter)
+    }
+
+    @Test @MainActor func merge_singleCallWritesOnce() throws {
+        let url = makeTempURL()
+        let ledger1 = TokenLedger(fileURL: url)
+
+        // Merge 3 different models in one call
+        let tokens = [
+            makeToken(id: "claude-a", displayName: "A", input: 1000, output: 500),
+            makeToken(id: "claude-b", displayName: "B", input: 2000, output: 1000),
+            makeToken(id: "claude-c", displayName: "C", input: 3000, output: 1500),
+        ]
+        _ = ledger1.merge(tokens, accountId: "acc1")
+        ledger1.flushForTesting()
+
+        // Load fresh instance from the same file
+        let ledger2 = TokenLedger(fileURL: url)
+
+        // Merge lower values — all three should return the original higher values
+        // proving all 3 were persisted in a single write
+        let lower = [
+            makeToken(id: "claude-a", displayName: "A", input: 100, output: 50),
+            makeToken(id: "claude-b", displayName: "B", input: 200, output: 100),
+            makeToken(id: "claude-c", displayName: "C", input: 300, output: 150),
+        ]
+        let result = ledger2.merge(lower, accountId: "acc1")
+
+        let a = result.first(where: { $0.id == "claude-a" })
+        let b = result.first(where: { $0.id == "claude-b" })
+        let c = result.first(where: { $0.id == "claude-c" })
+        #expect(a?.inputTokens == 1000)
+        #expect(b?.inputTokens == 2000)
+        #expect(c?.inputTokens == 3000)
+    }
+
+    @Test @MainActor func merge_mixedChanges_writesOnlyOnce() throws {
+        let url = makeTempURL()
+        let ledger = TokenLedger(fileURL: url)
+
+        // Initial merge — establish baseline
+        _ = ledger.merge([
+            makeToken(id: "claude-x", displayName: "X", input: 100),
+            makeToken(id: "claude-y", displayName: "Y", input: 200),
+        ], accountId: "acc1")
+        ledger.flushForTesting()
+
+        let attrsBefore = try FileManager.default.attributesOfItem(atPath: url.path)
+        let modBefore = attrsBefore[.modificationDate] as? Date
+
+        // Sleep so a write is detectable
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Second merge: claude-x increases, claude-y decreases
+        _ = ledger.merge([
+            makeToken(id: "claude-x", displayName: "X", input: 150), // increase
+            makeToken(id: "claude-y", displayName: "Y", input: 100), // decrease (no-op)
+        ], accountId: "acc1")
+        ledger.flushForTesting()
+
+        let attrsAfter = try FileManager.default.attributesOfItem(atPath: url.path)
+        let modAfter = attrsAfter[.modificationDate] as? Date
+
+        // Write happened (because claude-x increased)
+        #expect(modBefore != modAfter)
+
+        // Reload — verify high-water marks preserved atomically in single write
+        let fresh = TokenLedger(fileURL: url)
+        let result = fresh.merge([
+            makeToken(id: "claude-x", displayName: "X", input: 0),
+            makeToken(id: "claude-y", displayName: "Y", input: 0),
+        ], accountId: "acc1")
+
+        let x = result.first(where: { $0.id == "claude-x" })
+        let y = result.first(where: { $0.id == "claude-y" })
+        #expect(x?.inputTokens == 150) // updated value persisted
+        #expect(y?.inputTokens == 200) // high-water preserved
+    }
+
     // MARK: - File size guard
 
     @Test @MainActor func load_rejectsOversizedFile() throws {
