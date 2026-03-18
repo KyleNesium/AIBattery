@@ -50,8 +50,8 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - [ ] BUG-05: Spec drift fixes
 
 #### Performance
-- [ ] PERF-05: Batched TokenLedger disk writes
-- [ ] PERF-06: Efficient buildProjectTokens iteration
+- [x] PERF-05: Batched TokenLedger disk writes — Phase 3 (already optimal, tests added)
+- [x] PERF-06: Efficient buildProjectTokens iteration — Phase 3 (already optimal, tests added)
 - [ ] PERF-07: Smarter rate limit probe fallback
 - [ ] PERF-08: Resilient adaptive polling
 - [ ] PERF-09: Robust JSONL file discovery
@@ -96,4 +96,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | UNUserNotificationCenter | Native notifications with app icon, no shell escaping risk | ✓ Good |
 
 ---
-*Last updated: 2026-03-18 after Phase 2 completion*
+*Last updated: 2026-03-18 after Phase 3 completion*
