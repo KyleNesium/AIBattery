@@ -39,7 +39,7 @@ Last phase: 0 (pre-GSD, no phase numbering)
   3. Context health indicator reflects the correct tier after downward adjustment without requiring app restart
 **Plans**: 1 plan
 Plans:
-- [ ] 01-01-PLAN.md — Bidirectional tier detection + projection threshold doc fix
+- [x] 01-01-PLAN.md — Bidirectional tier detection + projection threshold doc fix
 
 ### Phase 2: Data Accuracy Fixes
 **Goal**: Rate limit probe uses a resilient model list, and today's tool call count reflects actual JSONL data
@@ -49,7 +49,10 @@ Plans:
   1. Rate limit polling continues working after Anthropic deprecates a model ID in the probe list
   2. Today's tool call count matches tool_use blocks counted from JSONL session logs
   3. Probe model list updates without requiring an app release
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 02-01-PLAN.md — Dynamic probe model list from JSONL-observed models
+- [ ] 02-02-PLAN.md — JSONL-derived tool call counting with stats-cache merge
 
 ### Phase 3: Write Performance
 **Goal**: TokenLedger writes are batched and buildProjectTokens avoids full JSONL re-iteration
@@ -88,7 +91,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1. Context & Projection Fixes | 1/1 | Complete   | 2026-03-18 | - |
-| 2. Data Accuracy Fixes | v1.10 | 0/TBD | Not started | - |
+| 2. Data Accuracy Fixes | v1.10 | 0/2 | Not started | - |
 | 3. Write Performance | v1.10 | 0/TBD | Not started | - |
 | 4. Polling & Discovery Hardening | v1.10 | 0/TBD | Not started | - |
 | 5. Spec Sync | v1.10 | 0/TBD | Not started | - |
