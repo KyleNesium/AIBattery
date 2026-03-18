@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.10
 milestone_name: Bugs & Performance
 status: unknown
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-18T20:09:25.525Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-18T20:21:09.061Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 3
+  total_plans: 4
+  completed_plans: 4
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 02 — data-accuracy-fixes
+**Current focus:** Phase 03 — write-performance
 
 ## Current Position
 
-Phase: 02 (data-accuracy-fixes) — COMPLETE
-Plan: 2 of 2 (all complete)
+Phase: 03 (write-performance) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Plan: 2 of 2 (all complete)
 | Phase 01 P01 | 3 | 2 tasks | 4 files |
 | Phase 02 P01 | ~8 min | 2 tasks | 4 files |
 | Phase 02 P02 | ~3 min | 2 tasks | 5 files |
+| Phase 03 P01 | 3 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -60,6 +61,7 @@ Recent decisions affecting current work:
 - [Phase 02-01]: lastSeenByModel folded into existing UsageAggregator for-loop to avoid extra O(n) pass
 - [Phase 02-02]: ContentBlock decoding uses minimal struct (type only) — no need to parse id/name/input for counting
 - [Phase 02-02]: toolCallCount in daily activity merge loop uses jsonlTodayToolCalls (not already-merged value) so existing max() in DailyActivity construction does the real merge
+- [Phase 03]: PERF-05/06: No production code changes needed — both write-batching and fingerprint-skip optimizations were already correctly implemented; tests added as regression guards
 
 ### Pending Todos
 
@@ -71,6 +73,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T20:05:00.000Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-18T20:21:09.059Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None

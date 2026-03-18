@@ -23,7 +23,7 @@ Last phase: 0 (pre-GSD, no phase numbering)
 
 - [x] **Phase 1: Context & Projection Fixes** - Correct bidirectional context-window detection and sub-50% time-to-limit projections (completed 2026-03-18)
 - [x] **Phase 2: Data Accuracy Fixes** - Replace hardcoded probe model list with dynamic discovery and switch tool call counts to JSONL source (completed 2026-03-18)
-- [ ] **Phase 3: Write Performance** - Batch TokenLedger disk writes and eliminate redundant JSONL iteration in buildProjectTokens
+- [x] **Phase 3: Write Performance** - Batch TokenLedger disk writes and eliminate redundant JSONL iteration in buildProjectTokens (completed 2026-03-18)
 - [ ] **Phase 4: Polling & Discovery Hardening** - Minimize unnecessary probe API calls, prevent polling resets on minor churn, and detect new JSONL files when directory mod-time is unchanged
 - [ ] **Phase 5: Spec Sync** - Bring spec files current with code (ThrottleTracker, AccountStore.canAddAccount)
 
@@ -94,6 +94,6 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 1. Context & Projection Fixes | 1/1 | Complete   | 2026-03-18 | - |
 | 2. Data Accuracy Fixes | 2/2 | Complete   | 2026-03-18 | - |
-| 3. Write Performance | v1.10 | 0/1 | Not started | - |
+| 3. Write Performance | 1/1 | Complete   | 2026-03-18 | - |
 | 4. Polling & Discovery Hardening | v1.10 | 0/TBD | Not started | - |
 | 5. Spec Sync | v1.10 | 0/TBD | Not started | - |
