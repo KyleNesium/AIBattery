@@ -824,6 +824,129 @@ struct UsageAggregatorTests {
         #expect(snapshot.projectTokens.count == 1) // merged, not two separate entries
     }
 
+    // MARK: - Fingerprint skip (PERF-06)
+
+    @Test func aggregate_fingerprintSkip_returnsCachedSnapshot() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        try writeJSONL(
+            [makeAssistantLine(input: 100, output: 50, messageId: "fp-msg-1", timestamp: now)],
+            to: projectsDir
+        )
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let first = aggregator.aggregate(rateLimits: nil)
+        let second = aggregator.aggregate(rateLimits: nil)
+
+        // The cached snapshot is returned: same lastUpdated timestamp proves no recomputation
+        #expect(first.lastUpdated == second.lastUpdated)
+        // Same data content
+        #expect(first.totalMessages == second.totalMessages)
+        #expect(first.todayMessages == second.todayMessages)
+        #expect(first.modelTokens.map(\.id) == second.modelTokens.map(\.id))
+    }
+
+    @Test func aggregate_fingerprintChanged_recomputes() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        try writeJSONL(
+            [makeAssistantLine(input: 100, output: 50, messageId: "fp-change-1", timestamp: now)],
+            to: projectsDir
+        )
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        // First call with nil rate limits
+        let first = aggregator.aggregate(rateLimits: nil)
+        #expect(first.rateLimits == nil)
+
+        // Second call with non-nil rate limits — fingerprint changes, must recompute
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.75,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.30,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let second = aggregator.aggregate(rateLimits: rl)
+
+        // Recomputed snapshot carries the updated rate limit data
+        #expect(second.rateLimits?.fiveHourPercent == 75.0)
+        #expect(second.rateLimits?.sevenDayPercent == 30.0)
+    }
+
+    @Test func aggregate_projectTokens_fromPreBuiltMap() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        // Project A: two different models
+        let projALines = [
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 1000, output: 500,
+                              messageId: "map-a1", timestamp: now, cwd: "/workspace/project-alpha"),
+            makeAssistantLine(model: "claude-opus-4-20250514", input: 2000, output: 1000,
+                              messageId: "map-a2", timestamp: now, cwd: "/workspace/project-alpha"),
+        ]
+        // Project B: two different models
+        let projBLines = [
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 500, output: 250,
+                              messageId: "map-b1", timestamp: now, cwd: "/workspace/project-beta"),
+            makeAssistantLine(model: "claude-opus-4-20250514", input: 800, output: 400,
+                              messageId: "map-b2", timestamp: now, cwd: "/workspace/project-beta"),
+        ]
+        try writeJSONL(projALines, projectName: "proj-a", sessionId: "sess-a", to: projectsDir)
+        try writeJSONL(projBLines, projectName: "proj-b", sessionId: "sess-b", to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let snapshot = aggregator.aggregate(rateLimits: nil)
+
+        // Exactly 2 projects — proves grouping by cwd key works from the pre-built map
+        #expect(snapshot.projectTokens.count == 2)
+
+        let alpha = snapshot.projectTokens.first(where: { $0.projectName == "project-alpha" })
+        let beta = snapshot.projectTokens.first(where: { $0.projectName == "project-beta" })
+
+        // Alpha: 1000+500 input + 2000+1000 input = 3000+1500 = 4500 total tokens input,
+        // but totalTokens = input + output + cache: (1000+500) + (2000+1000) = 4500 input total
+        // + (500+1000) output = 1500 total output → totalTokens = 4500 + 1500 = 6000? No:
+        // totalTokens = inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
+        // alpha: input=3000, output=1500, cacheRead=0, cacheWrite=0 → total=4500
+        #expect(alpha != nil)
+        #expect(alpha?.inputTokens == 3000)
+        #expect(alpha?.outputTokens == 1500)
+        #expect(alpha?.totalTokens == 4500)
+
+        // Beta: input=1300, output=650, total=1950
+        #expect(beta != nil)
+        #expect(beta?.inputTokens == 1300)
+        #expect(beta?.outputTokens == 650)
+        #expect(beta?.totalTokens == 1950)
+    }
+
     // MARK: - Observed models
 
     @Test func aggregate_setsObservedModelsOnRateLimitFetcher() throws {
