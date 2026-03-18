@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.10
 milestone_name: Bugs & Performance
 status: unknown
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-18T20:24:04.215Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-18T20:36:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 03 — write-performance
+**Current focus:** Phase 04 — polling-discovery-hardening
 
 ## Current Position
 
-Phase: 03 (write-performance) — EXECUTING
-Plan: 1 of 1
+Phase: 04 (polling-discovery-hardening) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Plan: 1 of 1
 | Phase 02 P01 | ~8 min | 2 tasks | 4 files |
 | Phase 02 P02 | ~3 min | 2 tasks | 5 files |
 | Phase 03 P01 | 3 min | 2 tasks | 3 files |
+| Phase 04 P02 | 3 min | 1 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,7 @@ Recent decisions affecting current work:
 - [Phase 02-02]: ContentBlock decoding uses minimal struct (type only) — no need to parse id/name/input for counting
 - [Phase 02-02]: toolCallCount in daily activity merge loop uses jsonlTodayToolCalls (not already-merged value) so existing max() in DailyActivity construction does the real merge
 - [Phase 03]: PERF-05/06: No production code changes needed — both write-batching and fingerprint-skip optimizations were already correctly implemented; tests added as regression guards
+- [Phase 04]: TTL constant co-located with SessionLogReader logic as static let; expireDiscoveryTTLForTesting() testing hook keeps private API private
 
 ### Pending Todos
 
@@ -73,6 +75,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T20:21:09.059Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-18T20:34:52.006Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
