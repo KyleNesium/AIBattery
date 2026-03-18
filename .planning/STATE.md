@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.10
 milestone_name: Bugs & Performance
-status: unknown
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-18T21:30:00.000Z"
+status: phase_complete
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-18T20:05:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-18)
 
 ## Current Position
 
-Phase: 02 (data-accuracy-fixes) — EXECUTING
-Plan: 2 of 2
+Phase: 02 (data-accuracy-fixes) — COMPLETE
+Plan: 2 of 2 (all complete)
 
 ## Performance Metrics
 
@@ -43,6 +43,7 @@ Plan: 2 of 2
 *Updated after each plan completion*
 | Phase 01 P01 | 3 | 2 tasks | 4 files |
 | Phase 02 P01 | ~8 min | 2 tasks | 4 files |
+| Phase 02 P02 | ~3 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -57,6 +58,8 @@ Recent decisions affecting current work:
 - [Phase 01]: Corrected 0.30 test value to 0.15 to actually exercise the 0.20 threshold guard rather than relying on burn-rate math returning nil
 - [Phase 02-01]: Single ultimateFallback instead of 5-model list — minimal surface area for fresh installs
 - [Phase 02-01]: lastSeenByModel folded into existing UsageAggregator for-loop to avoid extra O(n) pass
+- [Phase 02-02]: ContentBlock decoding uses minimal struct (type only) — no need to parse id/name/input for counting
+- [Phase 02-02]: toolCallCount in daily activity merge loop uses jsonlTodayToolCalls (not already-merged value) so existing max() in DailyActivity construction does the real merge
 
 ### Pending Todos
 
@@ -68,6 +71,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T21:30:00.000Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-18T20:05:00.000Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None

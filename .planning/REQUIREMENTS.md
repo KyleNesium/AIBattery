@@ -12,7 +12,7 @@ Requirements for bugs and performance milestone. Each maps to roadmap phases.
 - [x] **BUG-01**: Rate limit probe model list is dynamically maintained, not hardcoded — app recovers when Anthropic deprecates model IDs
 - [x] **BUG-02**: Context window auto-detect adjusts downward when session data indicates a smaller tier
 - [x] **BUG-03**: `estimatedTimeToLimit` provides projections below 50% utilization
-- [ ] **BUG-04**: Today's tool call count reflects JSONL data, not just stats-cache
+- [x] **BUG-04**: Today's tool call count reflects JSONL data, not just stats-cache
 - [ ] **BUG-05**: Spec files reflect current code (ThrottleTracker documented, AccountStore.canAddAccount corrected)
 
 ### Performance
@@ -44,7 +44,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUG-02 | Phase 1 | Complete |
 | BUG-03 | Phase 1 | Complete |
 | BUG-01 | Phase 2 | Complete |
-| BUG-04 | Phase 2 | Pending |
+| BUG-04 | Phase 2 | Complete |
 | PERF-05 | Phase 3 | Pending |
 | PERF-06 | Phase 3 | Pending |
 | PERF-07 | Phase 4 | Pending |
