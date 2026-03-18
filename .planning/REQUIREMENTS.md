@@ -13,7 +13,7 @@ Requirements for bugs and performance milestone. Each maps to roadmap phases.
 - [x] **BUG-02**: Context window auto-detect adjusts downward when session data indicates a smaller tier
 - [x] **BUG-03**: `estimatedTimeToLimit` provides projections below 50% utilization
 - [x] **BUG-04**: Today's tool call count reflects JSONL data, not just stats-cache
-- [ ] **BUG-05**: Spec files reflect current code (ThrottleTracker documented, AccountStore.canAddAccount corrected)
+- [x] **BUG-05**: Spec files reflect current code (ThrottleTracker documented, AccountStore.canAddAccount corrected)
 
 ### Performance
 
@@ -50,7 +50,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-07 | Phase 4 | Complete |
 | PERF-08 | Phase 4 | Complete |
 | PERF-09 | Phase 4 | Complete |
-| BUG-05 | Phase 5 | Pending |
+| BUG-05 | Phase 5 | Complete |
 
 **Coverage:**
 - v1.10 requirements: 10 total

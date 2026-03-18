@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.10
 milestone_name: Bugs & Performance
-status: unknown
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-18T20:38:16.242Z"
+status: complete
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-18T21:05:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 5
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,26 +19,32 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 04 — polling-discovery-hardening
+**Current focus:** All phases complete — milestone v1.10 done
 
 ## Current Position
 
-Phase: 04 (polling-discovery-hardening) — EXECUTING
-Plan: 2 of 2
+Phase: 05 (spec-sync) — COMPLETE
+Plan: 1 of 1 — COMPLETE
+
+All 5 phases complete. All 7 plans complete.
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 7
+- Average duration: ~15 min
+- Total execution time: ~105 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| Phase 01 | 1 | ~3 min | ~3 min |
+| Phase 02 | 2 | ~11 min | ~5.5 min |
+| Phase 03 | 1 | ~3 min | ~3 min |
+| Phase 04 | 2 | ~10 min | ~5 min |
+| Phase 05 | 1 | ~20 min | ~20 min |
 
 *Updated after each plan completion*
 | Phase 01 P01 | 3 | 2 tasks | 4 files |
@@ -46,6 +52,7 @@ Plan: 2 of 2
 | Phase 02 P02 | ~3 min | 2 tasks | 5 files |
 | Phase 03 P01 | 3 min | 2 tasks | 3 files |
 | Phase 04 P01 | 2 min | 1 tasks | 4 files |
+| Phase 05 P01 | ~20 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -65,17 +72,19 @@ Recent decisions affecting current work:
 - [Phase 03]: PERF-05/06: No production code changes needed — both write-batching and fingerprint-skip optimizations were already correctly implemented; tests added as regression guards
 - [Phase 04-01]: saveWorkingModel added to all 4 success paths in RateLimitFetcher.tryFetch — 429+headers, retry-after, 400+headers, and 200-OK
 - [Phase 04-01]: FileWatcher no longer resets adaptivePolling.unchangedCycles — evaluate() owns the counter; only wake and manual interval change reset it externally
+- [Phase 05-01]: ThrottleTracker section placed in Utilities subsection of DATA_LAYER.md to match file location
+- [Phase 05-01]: CONSTANTS.md sections for observedModels/throttleTimestamps keys added as separate named sections
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-None yet.
+None.
 
 ## Session Continuity
 
-Last session: 2026-03-18T20:36:00.000Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-03-18T21:05:00.000Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None

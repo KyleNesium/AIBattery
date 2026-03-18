@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v1.0–v1.9.2** - Pre-GSD (shipped 2026-03-17)
-- 🚧 **v1.10 Bugs & Performance** - Phases 1–5 (in progress)
+- ✅ **v1.10 Bugs & Performance** - Phases 1–5 (completed 2026-03-18)
 
 ## Phases
 
@@ -17,7 +17,7 @@ Last phase: 0 (pre-GSD, no phase numbering)
 
 </details>
 
-### 🚧 v1.10 Bugs & Performance (In Progress)
+### ✅ v1.10 Bugs & Performance (Completed 2026-03-18)
 
 **Milestone Goal:** Fix known bugs and optimize remaining performance bottlenecks for a more robust, efficient app.
 
@@ -25,7 +25,7 @@ Last phase: 0 (pre-GSD, no phase numbering)
 - [x] **Phase 2: Data Accuracy Fixes** - Replace hardcoded probe model list with dynamic discovery and switch tool call counts to JSONL source (completed 2026-03-18)
 - [x] **Phase 3: Write Performance** - Batch TokenLedger disk writes and eliminate redundant JSONL iteration in buildProjectTokens (completed 2026-03-18)
 - [x] **Phase 4: Polling & Discovery Hardening** - Minimize unnecessary probe API calls, prevent polling resets on minor churn, and detect new JSONL files when directory mod-time is unchanged (completed 2026-03-18)
-- [ ] **Phase 5: Spec Sync** - Bring spec files current with code (ThrottleTracker, AccountStore.canAddAccount)
+- [x] **Phase 5: Spec Sync** - Bring spec files current with code (ThrottleTracker, AccountStore.canAddAccount) (completed 2026-03-18)
 
 ## Phase Details
 
@@ -89,7 +89,7 @@ Plans:
   3. No other undocumented divergences remain between spec and code (verified by reading spec against source)
 **Plans**: 1 plan
 Plans:
-- [ ] 05-01-PLAN.md — Audit spec files against source code and fix all drift
+- [x] 05-01-PLAN.md — Audit spec files against source code and fix all drift
 
 ## Progress
 
@@ -101,4 +101,4 @@ Plans:
 | 2. Data Accuracy Fixes | 2/2 | Complete   | 2026-03-18 | - |
 | 3. Write Performance | 1/1 | Complete   | 2026-03-18 | - |
 | 4. Polling & Discovery Hardening | 2/2 | Complete   | 2026-03-18 | - |
-| 5. Spec Sync | v1.10 | 0/1 | Not started | - |
+| 5. Spec Sync | v1.10 | 1/1 | Complete | 2026-03-18 |
