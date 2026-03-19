@@ -9,7 +9,7 @@ struct ProjectUsageGate: View {
     var body: some View {
         if !snapshot.projectTokens.isEmpty {
             ProjectUsageSection(snapshot: snapshot)
-            Divider()
+            StyledDivider()
         }
     }
 }
@@ -26,7 +26,7 @@ struct InsightsGate: View {
                 snapshot: snapshot,
                 activeModelId: snapshot.tokenHealth?.model
             )
-            Divider()
+            StyledDivider()
         }
     }
 }

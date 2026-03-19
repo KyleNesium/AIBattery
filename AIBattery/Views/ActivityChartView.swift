@@ -156,11 +156,11 @@ struct InsightsView: View {
                     .accessibilityElement(children: .combine)
 
                 if !windowedModelTokens.isEmpty {
-                    Divider().opacity(0.3).padding(.vertical, 2)
+                    StyledDivider()
                     costSection(snapshot)
                 }
 
-                Divider().opacity(0.3).padding(.vertical, 2)
+                StyledDivider()
                 insightRows(snapshot)
             }
         }

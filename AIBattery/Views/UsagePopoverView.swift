@@ -60,7 +60,7 @@ public struct UsagePopoverView: View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection
 
-            Divider()
+            StyledDivider()
 
             if showSettings {
                 SettingsRow(
@@ -69,7 +69,7 @@ public struct UsagePopoverView: View {
                     onAddAccount: { isAddingAccount = true }
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))
-                Divider()
+                StyledDivider()
             }
 
             if let snapshot = viewModel.snapshot {
@@ -95,7 +95,7 @@ public struct UsagePopoverView: View {
                     .copyable(error)
                     .padding(.horizontal, Spacing.sectionHorizontal)
                     .padding(.vertical, Spacing.section)
-                    Divider()
+                    StyledDivider()
                 }
 
                 ForEach(orderedModes, id: \.rawValue) { mode in
@@ -103,27 +103,27 @@ public struct UsagePopoverView: View {
                     case .fiveHour:
                         if let limits = snapshot.rateLimits {
                             FiveHourBarSection(limits: limits)
-                            Divider()
+                            StyledDivider()
                         }
                     case .sevenDay:
                         if let limits = snapshot.rateLimits {
                             SevenDayBarSection(limits: limits)
-                            Divider()
+                            StyledDivider()
                         }
                     case .contextHealth:
                         if !snapshot.topSessionHealths.isEmpty {
                             TokenHealthSection(sessions: snapshot.topSessionHealths, onRefresh: {
                                 Task { await viewModel.refresh() }
                             })
-                            Divider()
+                            StyledDivider()
                         } else if let health = snapshot.tokenHealth {
                             TokenHealthSection(health: health, onRefresh: {
                                 Task { await viewModel.refresh() }
                             })
-                            Divider()
+                            StyledDivider()
                         } else {
                             idleFilteredEmptyState
-                            Divider()
+                            StyledDivider()
                         }
                     }
                 }
@@ -151,7 +151,7 @@ public struct UsagePopoverView: View {
                 emptyView
             }
 
-            Divider()
+            StyledDivider()
             footerSection
         }
         .frame(width: Layout.popoverWidth)

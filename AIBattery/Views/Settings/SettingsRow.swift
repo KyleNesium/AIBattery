@@ -36,13 +36,13 @@ struct SettingsRow: View {
                 }
             }
 
-            Divider().opacity(0.5)
+            StyledDivider()
             RefreshSettingsSection(viewModel: viewModel)
-            Divider().opacity(0.5)
+            StyledDivider()
             DisplaySettingsSection()
-            Divider().opacity(0.5)
+            StyledDivider()
             AlertSettingsSection()
-            Divider().opacity(0.5)
+            StyledDivider()
             LaunchAtLoginSection()
         }
         .padding(.horizontal, Spacing.sectionHorizontal)

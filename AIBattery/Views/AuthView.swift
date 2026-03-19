@@ -37,7 +37,7 @@ public struct AuthView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Divider()
+            StyledDivider()
 
             if !isWaitingForCode {
                 // Step 1: Start auth
@@ -146,7 +146,7 @@ public struct AuthView: View {
                 }
             }
 
-            Divider()
+            StyledDivider()
 
             // Footer
             HStack {
