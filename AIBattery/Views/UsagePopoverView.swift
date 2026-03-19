@@ -127,7 +127,7 @@ public struct UsagePopoverView: View {
                         }
                     }
                 }
-                .animation(.easeInOut(duration: 0.15), value: metricModeRaw)
+                .animation(MotionConstants.snappy, value: metricModeRaw)
 
                 ProjectUsageGate(snapshot: snapshot)
                 InsightsGate(snapshot: snapshot)
@@ -223,7 +223,7 @@ public struct UsagePopoverView: View {
                     .font(Typography.monoTiny)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                 #endif
-                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() } }) {
+                Button(action: { withAnimation(MotionConstants.standard) { showSettings.toggle() } }) {
                     Image(systemName: "gearshape")
                         .font(Typography.bodyLabel)
                 }
@@ -324,7 +324,7 @@ public struct UsagePopoverView: View {
             let activeId = accountStore.activeAccountId
             ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(MotionConstants.standard) {
                         viewModel.switchAccount(to: account.id)
                     }
                 }) {
@@ -472,7 +472,7 @@ public struct UsagePopoverView: View {
 
     private var autoModeButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(MotionConstants.standard) {
                 autoMetricMode.toggle()
             }
         } label: {
@@ -567,7 +567,7 @@ public struct UsagePopoverView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(showLogoutConfirm ? .red : .secondary)
-                .animation(.easeInOut(duration: 0.15), value: showLogoutConfirm)
+                .animation(MotionConstants.snappy, value: showLogoutConfirm)
                 .accessibilityLabel(showLogoutConfirm ? "Confirm logout" : "Logout")
                 .accessibilityHint("Sign out of active Claude account")
 

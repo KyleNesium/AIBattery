@@ -9,7 +9,7 @@ struct CollapsibleSectionHeader: View {
 
     var body: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) { collapsed.toggle() }
+            withAnimation(MotionConstants.standard) { collapsed.toggle() }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "chevron.right")
