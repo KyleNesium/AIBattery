@@ -83,9 +83,6 @@ extension InsightsView {
     func costSection(_ snapshot: UsageSnapshot) -> some View {
         let models = windowedModelTokens
         if !models.isEmpty {
-            let totalCost = ModelPricing.totalCost(for: models)
-            let costText = "~\(ModelPricing.formatCompactCost(totalCost))"
-
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(models) { model in
                     let modelTokensText = TokenFormatter.format(model.totalTokens)
