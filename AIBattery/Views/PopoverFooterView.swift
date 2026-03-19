@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct PopoverFooterView: View {
     let systemStatus: ClaudeSystemStatus?
@@ -97,12 +98,7 @@ struct PopoverFooterView: View {
                             .frame(width: 10, height: 10)
                     }
                     if let lastFetch = lastFreshFetch {
-                        TimelineView(.periodic(from: .now, by: 10)) { _ in
-                            Text("Updated \(Self.relativeTime(lastFetch))")
-                                .font(Typography.monoTiny)
-                                .foregroundStyle(ThemeColors.tertiaryLabel)
-                                .help("Last fetched: \(Self.absoluteTime(lastFetch))")
-                        }
+                        RelativeTimeText(date: lastFetch)
                     } else if isLoading {
                         Text("Loading...")
                             .font(Typography.monoTiny)
@@ -124,7 +120,7 @@ struct PopoverFooterView: View {
         return ThemeColors.statusColor(indicator)
     }
 
-    private static func relativeTime(_ date: Date) -> String {
+    static func relativeTime(_ date: Date) -> String {
         let elapsed = Date().timeIntervalSince(date)
         if elapsed < 5 { return "just now" }
         if elapsed < 60 { return "\(Int(elapsed))s ago" }
@@ -132,14 +128,14 @@ struct PopoverFooterView: View {
         return "\(Int(elapsed / 3600))h ago"
     }
 
-    private static let absoluteFormatter: DateFormatter = {
+    static let absoluteFormatter: DateFormatter = {
         let f = DateFormatter()
         f.timeStyle = .medium
         f.dateStyle = .none
         return f
     }()
 
-    private static func absoluteTime(_ date: Date) -> String {
+    static func absoluteTime(_ date: Date) -> String {
         absoluteFormatter.string(from: date)
     }
 
@@ -152,5 +148,28 @@ struct PopoverFooterView: View {
         case .maintenance: return "Under maintenance"
         case .unknown, .none: return "Check system status"
         }
+    }
+}
+
+/// Displays "Updated Xs/Xm/Xh ago" with a timer that only ticks while visible.
+/// Replaces TimelineView to avoid background re-renders when popover is hidden.
+private struct RelativeTimeText: View {
+    let date: Date
+    @State private var now = Date()
+    private let timer = Timer.publish(every: 10, on: .main, in: .common)
+    @State private var timerCancellable: (any Cancellable)?
+
+    var body: some View {
+        Text("Updated \(relativeTime)")
+            .font(Typography.monoTiny)
+            .foregroundStyle(ThemeColors.tertiaryLabel)
+            .help("Last fetched: \(PopoverFooterView.absoluteTime(date))")
+            .onAppear { timerCancellable = timer.connect() }
+            .onDisappear { timerCancellable?.cancel(); timerCancellable = nil }
+            .onReceive(timer) { now = $0 }
+    }
+
+    private var relativeTime: String {
+        PopoverFooterView.relativeTime(date)
     }
 }
