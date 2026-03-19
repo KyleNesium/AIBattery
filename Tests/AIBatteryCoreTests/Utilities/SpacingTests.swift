@@ -27,11 +27,11 @@ struct LayoutTests {
 struct MotionConstantsTests {
     @Test func standard_isDefined() {
         let anim = MotionConstants.standard
-        #expect(anim == .easeInOut(duration: 0.2))
+        #expect(anim == .easeOut(duration: 0.15))
     }
 
     @Test func snappy_isDefined() {
         let anim = MotionConstants.snappy
-        #expect(anim == .easeInOut(duration: 0.15))
+        #expect(anim == .easeOut(duration: 0.1))
     }
 }

@@ -61,11 +61,11 @@ enum Layout {
 /// Centralizes the two dominant animation durations found across the codebase.
 /// Pattern matches ThemeColors/Typography/Spacing: caseless enum as namespace.
 enum MotionConstants {
-    /// Standard section expand/collapse and metric value animation: 0.2s easeInOut.
-    static let standard: Animation = .easeInOut(duration: 0.2)
+    /// Standard section expand/collapse and metric value animation: 0.15s easeOut.
+    static let standard: Animation = .easeOut(duration: 0.15)
 
-    /// Snappy gesture-driven animation (session swipe, nav): 0.15s easeInOut.
-    static let snappy: Animation = .easeInOut(duration: 0.15)
+    /// Snappy gesture-driven animation (session swipe, nav): 0.1s easeOut.
+    static let snappy: Animation = .easeOut(duration: 0.1)
 }
 
 // MARK: - View convenience extension
