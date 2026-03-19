@@ -65,10 +65,10 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 #### Code Quality
 - [x] CQ-01: Extract large view files (<400 lines each) — v1.11 Phase 8
-- [ ] CQ-02: Spec sync for structural changes
+- [x] CQ-02: Spec sync for structural changes — v1.11 Phase 9
 
 #### Performance Guard
-- [ ] PG-01: No animation when panel closed
+- [x] PG-01: No animation when panel closed — v1.11 Phase 9
 
 ## Current Milestone: v1.11 Polish & Consistency
 
@@ -113,4 +113,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | 60s discovery TTL | Catches new JSONL files even when dir mtime unchanged; low cost fallback | ✓ Good |
 
 ---
-*Last updated: 2026-03-19 — Phase 8 File Extraction complete*
+*Last updated: 2026-03-19 — Phase 9 Wrap-Up complete, v1.11 milestone finished*
