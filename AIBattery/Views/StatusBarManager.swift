@@ -95,18 +95,20 @@ public final class StatusBarManager: NSObject {
 
         // Resize panel when SwiftUI content changes height.
         // Max height is screen-relative so all sections fit on most displays.
+        // Debounced: coalesces rapid layout changes into a single frame update.
         hosting.setContentHuggingPriority(.defaultHigh, for: .vertical)
         hosting.postsFrameChangedNotifications = true
+        var resizeWorkItem: DispatchWorkItem?
         frameObserver = NotificationCenter.default.addObserver(
             forName: NSView.frameDidChangeNotification,
             object: hosting,
             queue: .main
         ) { [weak panel, weak hosting, weak self] _ in
-            // Defer frame update to next run-loop tick to avoid re-entering
-            // the constraint update cycle (causes _postWindowNeedsUpdateConstraints crash).
-            DispatchQueue.main.async {
+            resizeWorkItem?.cancel()
+            let work = DispatchWorkItem {
                 MainActor.assumeIsolated {
                     guard let panel, let hosting, let self else { return }
+                    guard self.isPanelShowing else { return }
                     let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
                     let maxPanelHeight = screenMaxHeight - 40
                     let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
@@ -125,6 +127,8 @@ public final class StatusBarManager: NSObject {
                     )
                 }
             }
+            resizeWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.016, execute: work)
         }
 
         // React to snapshot or staleness changes — debounced to avoid rapid-fire redraws
