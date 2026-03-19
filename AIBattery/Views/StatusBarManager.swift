@@ -389,13 +389,15 @@ public final class StatusBarManager: NSObject {
     @objc private func statusItemClicked() {
         guard let panel, let button = statusItem?.button else { return }
         if isPanelShowing {
-            panel.orderOut(nil)
             isPanelShowing = false
+            panel.orderOut(nil)
         } else {
             positionPanel(relativeTo: button)
-            NSApp.activate(ignoringOtherApps: true)
             panel.makeKeyAndOrderFront(nil)
             isPanelShowing = true
+            // Activate after showing — LSUIElement activation is slow (~100-300ms)
+            // and blocking it delays the panel appearance.
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

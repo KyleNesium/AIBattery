@@ -102,11 +102,9 @@ struct ProjectUsageSection: View {
                 .font(Typography.monoCaption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: costColumnWidth, alignment: .trailing)
-                .contentTransition(.numericText())
                 .copyable(costText)
             Text(totalTokensText)
                 .font(Typography.monoValueMedium)
-                .contentTransition(.numericText())
                 .frame(width: tokenColumnWidth, alignment: .trailing)
                 .copyable(totalTokensText)
         }
@@ -173,13 +171,11 @@ struct ProjectUsageSection: View {
                 .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .frame(width: costColumnWidth, alignment: .trailing)
-                .contentTransition(.numericText())
 
             Text(tokensText)
                 .font(Typography.monoCaption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: tokenColumnWidth, alignment: .trailing)
-                .contentTransition(.numericText())
         }
         .copyable(copyText)
         .accessibilityElement(children: .combine)

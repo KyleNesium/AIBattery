@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.9.4] — 2026-03-20
+
+### Added
+- **Design token system** — Typography (15 tokens), Spacing (6), Layout (7), MotionConstants (2) centralize all font, spacing, and animation values — no more inline literals scattered across views
+- **StyledDivider component** — unified divider styling (opacity 0.3, tight padding) replaces 19 inconsistent `Divider()` calls
+- **Section animations** — smooth opacity fade on expand/collapse, digit-rolling transitions on rate limit percentages
+- **Snapshot tests** — 28 new tests locking design token constant values against regression
+
+### Improved
+- **Popover snappiness** — panel now shows before app activation (removed ~200ms blocking `NSApp.activate` delay)
+- **File structure** — UsagePopoverView split from 666→210 lines (4 sub-views), ActivityChartView from 711→185 lines (3 extension files); no view file exceeds 400 lines
+- **Spec sync** — ARCHITECTURE.md, CONSTANTS.md, and UI_SPEC.md updated to reflect all structural changes
+- **Minimum font size** — two 6pt accessibility violations bumped to 8pt floor
+- **Consistent outer padding** — all popover sections use uniform horizontal/vertical spacing
+
+### Fixed
+- **Popover hang on open/close** — removed `.transition(.opacity)` inside `TimelineView` that fired on every 10-second tick, blocking the main thread with animation renders
+- **Animation pipeline overhead** — removed unnecessary `contentTransition(.numericText())` from infrequently-changing values (project tokens, health percentages) to reduce SwiftUI render cost
+
 ## [1.9.3] — 2026-03-19
 
 ### Fixed

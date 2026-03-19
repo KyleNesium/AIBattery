@@ -196,7 +196,6 @@ struct TokenHealthSection: View {
             Text("\(selectedIndex + 1)/\(sessions.count)")
                 .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
-                .contentTransition(.numericText())
 
             ChevronButton(
                 direction: .right,
@@ -300,7 +299,6 @@ struct TokenHealthSection: View {
                 .frame(width: Layout.dotSize, height: Layout.dotSize)
             Text("\(Int(health.usagePercentage))%")
                 .font(Typography.monoValue)
-                .contentTransition(.numericText())
                 .copyable("\(Int(health.usagePercentage))%")
         }
     }
