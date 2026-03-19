@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.12
 milestone_name: Performance & Cleanup
-status: defining_requirements
+status: ready_to_plan
 last_updated: "2026-03-20"
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Defining requirements for v1.12
+**Current focus:** Phase 10 — Popover Performance
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-20 — Milestone v1.12 started
+Phase: 10 of 11 (Popover Performance)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-03-20 — v1.12 roadmap created (phases 10-11)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -58,5 +58,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-20
-Stopped at: Milestone v1.12 started — requirements pending
+Stopped at: Roadmap created for v1.12 — ready to plan Phase 10
 Resume file: None

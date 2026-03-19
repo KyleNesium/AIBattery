@@ -35,17 +35,17 @@ Requirements for performance and cleanup milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERF-10 | TBD | Pending |
-| PERF-11 | TBD | Pending |
-| PERF-12 | TBD | Pending |
-| CQ-03 | TBD | Pending |
-| CQ-04 | TBD | Pending |
-| CQ-05 | TBD | Pending |
+| PERF-10 | Phase 10 | Pending |
+| PERF-11 | Phase 10 | Pending |
+| PERF-12 | Phase 10 | Pending |
+| CQ-03 | Phase 11 | Pending |
+| CQ-04 | Phase 11 | Pending |
+| CQ-05 | Phase 11 | Pending |
 
 **Coverage:**
 - v1.12 requirements: 6 total
-- Mapped to phases: 0
-- Unmapped: 6 (pending roadmap)
+- Mapped to phases: 6
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-20*

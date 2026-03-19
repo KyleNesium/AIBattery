@@ -5,6 +5,7 @@
 - ✅ **v1.0–v1.9.2** — Pre-GSD (shipped 2026-03-17)
 - ✅ **v1.10 Bugs & Performance** — Phases 1-5 (shipped 2026-03-19) → [archive](milestones/v1.10-ROADMAP.md)
 - ✅ **v1.11 Polish & Consistency** — Phases 6-9 (shipped 2026-03-19) → [archive](milestones/v1.11-ROADMAP.md)
+- 🚧 **v1.12 Performance & Cleanup** — Phases 10-11 (in progress)
 
 ## Phases
 
@@ -26,3 +27,41 @@ See [milestones/v1.11-ROADMAP.md](milestones/v1.11-ROADMAP.md) for full phase de
 - [x] Phase 9: Wrap-Up (1/1 plan) — completed 2026-03-19
 
 </details>
+
+### 🚧 v1.12 Performance & Cleanup (In Progress)
+
+**Milestone Goal:** Eliminate remaining popover lag, gate periodic updates on panel visibility, and clean up dead code from v1.11.
+
+- [ ] **Phase 10: Popover Performance** - Eliminate lag and gate periodic updates on panel visibility
+- [ ] **Phase 11: Code Cleanup** - Remove dead code and sync specs and README
+
+## Phase Details
+
+### Phase 10: Popover Performance
+**Goal**: The popover opens and closes instantly with no unnecessary background work while hidden
+**Depends on**: Phase 9 (v1.11 complete)
+**Requirements**: PERF-10, PERF-11, PERF-12
+**Success Criteria** (what must be TRUE):
+  1. Popover opens with no perceptible lag — feels native and instantaneous
+  2. TimelineViews and periodic timers stop ticking when the popover is closed
+  3. Popover render triggers fewer SwiftUI layout passes (GeometryReader count reduced)
+**Plans**: TBD
+
+### Phase 11: Code Cleanup
+**Goal**: Codebase is free of dead code and all specs and README reflect current state
+**Depends on**: Phase 10
+**Requirements**: CQ-03, CQ-04, CQ-05
+**Success Criteria** (what must be TRUE):
+  1. `sectionPadding()` extension and `PopoverLoadingView` struct are gone from the codebase
+  2. CONSTANTS.md and UI_SPEC.md match actual animation durations and performance behavior
+  3. README test coverage section shows 706 tests across 45 files
+**Plans**: TBD
+
+## Progress
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1-5. v1.10 phases | v1.10 | 7/7 | Complete | 2026-03-19 |
+| 6-9. v1.11 phases | v1.11 | 7/7 | Complete | 2026-03-19 |
+| 10. Popover Performance | v1.12 | 0/? | Not started | - |
+| 11. Code Cleanup | v1.12 | 0/? | Not started | - |
