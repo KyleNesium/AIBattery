@@ -28,7 +28,7 @@ See [milestones/v1.11-ROADMAP.md](milestones/v1.11-ROADMAP.md) for full phase de
 
 </details>
 
-### 🚧 v1.12 Performance & Cleanup (In Progress)
+### v1.12 Performance & Cleanup (In Progress)
 
 **Milestone Goal:** Eliminate remaining popover lag, gate periodic updates on panel visibility, and clean up dead code from v1.11.
 
@@ -45,7 +45,9 @@ See [milestones/v1.11-ROADMAP.md](milestones/v1.11-ROADMAP.md) for full phase de
   1. Popover opens with no perceptible lag — feels native and instantaneous
   2. TimelineViews and periodic timers stop ticking when the popover is closed
   3. Popover render triggers fewer SwiftUI layout passes (GeometryReader count reduced)
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 10-01-PLAN.md — Extract GaugeBar component, verify v1.9.4 performance fixes
 
 ### Phase 11: Code Cleanup
 **Goal**: Codebase is free of dead code and all specs and README reflect current state
@@ -63,5 +65,5 @@ See [milestones/v1.11-ROADMAP.md](milestones/v1.11-ROADMAP.md) for full phase de
 |-------|-----------|----------------|--------|-----------|
 | 1-5. v1.10 phases | v1.10 | 7/7 | Complete | 2026-03-19 |
 | 6-9. v1.11 phases | v1.11 | 7/7 | Complete | 2026-03-19 |
-| 10. Popover Performance | v1.12 | 0/? | Not started | - |
+| 10. Popover Performance | v1.12 | 0/1 | Planned | - |
 | 11. Code Cleanup | v1.12 | 0/? | Not started | - |
