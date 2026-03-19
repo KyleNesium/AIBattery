@@ -54,14 +54,18 @@ struct MarqueeText: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .background(
-                    GeometryReader { textGeo in
-                        Color.clear
-                            .onAppear { textWidth = textGeo.size.width }
-                            .onChange(of: textGeo.size.width) { newWidth in
-                                textWidth = newWidth
-                            }
-                    }
+                    Text(currentText)
+                        .font(font)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .hidden()
+                        .overlay(GeometryReader { textGeo in
+                            Color.clear.preference(key: TextWidthKey.self, value: textGeo.size.width)
+                        })
                 )
+                .onPreferenceChange(TextWidthKey.self) { newWidth in
+                    if abs(textWidth - newWidth) > 0.5 { textWidth = newWidth }
+                }
                 .offset(x: offset)
                 .opacity(textOpacity)
         }
@@ -98,7 +102,7 @@ struct MarqueeText: View {
 
     private func updateContainerWidth(_ width: CGFloat) {
         if abs(containerWidth - width) > 1 {
-            DispatchQueue.main.async { containerWidth = width }
+            containerWidth = width
         }
     }
 
@@ -202,5 +206,13 @@ struct MarqueeText: View {
                 }
             }
         }
+    }
+}
+
+/// PreferenceKey for measuring text width without a nested GeometryReader.
+private struct TextWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
