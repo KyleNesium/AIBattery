@@ -62,7 +62,15 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-(None — next milestone not yet defined. Run `/gsd:new-milestone` to start.)
+#### Performance
+- [ ] PERF-10: Eliminate remaining popover open/close lag sources
+- [ ] PERF-11: Gate all periodic updates (TimelineView, timers) on panel visibility
+- [ ] PERF-12: Reduce SwiftUI layout passes on popover render
+
+#### Code Quality
+- [ ] CQ-03: Remove dead code (sectionPadding(), PopoverLoadingView)
+- [ ] CQ-04: Spec sync for v1.9.4 performance changes
+- [ ] CQ-05: README test coverage update
 
 ### Out of Scope
 
@@ -72,8 +80,8 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 ## Context
 
-- **Version:** 1.11 (2026-03-19) — polish & consistency milestone shipped
-- **Tests:** ~460+ across 36+ files (28 design token snapshot tests added in v1.11)
+- **Version:** 1.9.4 (2026-03-20) — performance fixes shipped (popover hang, animation tuning)
+- **Tests:** 706 across 45 files
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
@@ -107,4 +115,9 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | MotionConstants enum | Animation durations centralized (standard 0.2s, snappy 0.15s) | ✓ Good |
 
 ---
-*Last updated: 2026-03-19 after v1.11 milestone*
+## Current Milestone: v1.12 Performance & Cleanup
+
+**Goal:** Eliminate remaining popover lag, gate periodic updates on visibility, and clean up dead code from v1.11.
+
+---
+*Last updated: 2026-03-20 after v1.12 milestone start*
