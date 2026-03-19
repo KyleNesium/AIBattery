@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.9.3] — 2026-03-19
+
+### Fixed
+- **Context window detection** — removed downward tier adjustment that incorrectly showed 200K for 1M-context sessions (any session under 500K tokens was wrongly downgraded)
+- **API Equivalent label** — removed summary row from cost section; per-model breakdown remains
+- **Projection threshold docs** — corrected stale 50% references to 20% in DATA_LAYER and UI_SPEC
+
+### Improved
+- **Dynamic probe model list** — rate limit probes now use models observed in JSONL sessions instead of a hardcoded list; self-heals when Anthropic deprecates model IDs
+- **JSONL tool call counting** — today's tool calls now sourced from JSONL (supplements stale stats-cache via max() merge)
+- **Probe model persistence** — working model saved on all success paths (429, 400+headers, retry-after), eliminating redundant re-probing
+- **Adaptive polling** — FileWatcher no longer resets the backoff counter; interval only resets when data actually changes
+- **JSONL discovery TTL** — 60-second fallback re-enumeration catches new files even when directory mod-time is unchanged
+- **Performance regression tests** — 6 new tests codifying write-batching and aggregation-skip guarantees
+
+### Changed
+- **Auto mode button** — green glow instead of blue, matching website theme
+- **Spec sync** — all 4 spec files updated to reflect current codebase (ThrottleTracker, AccountStore, dynamic probes, tool call merge, discovery TTL)
+
 ## [1.9.2] — 2026-03-17
 
 ### Fixed
