@@ -53,7 +53,26 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-(Defining in next milestone)
+#### Design System
+- [ ] DS-01: Typography constants
+- [ ] DS-02: Spacing constants
+- [ ] DS-03: Consistent outer padding
+
+#### UI Polish
+- [ ] UI-05: Minimum font size audit
+- [ ] UI-06: Section visual consistency
+- [ ] UI-07: Subtle transition animations (performance-gated)
+
+#### Code Quality
+- [ ] CQ-01: Extract large view files (<400 lines each)
+- [ ] CQ-02: Spec sync for structural changes
+
+#### Performance Guard
+- [ ] PG-01: No animation when panel closed
+
+## Current Milestone: v1.11 Polish & Consistency
+
+**Goal:** Unify typography, spacing, and visual consistency across the popover UI while extracting large files and guarding performance.
 
 ### Out of Scope
 
@@ -94,4 +113,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | 60s discovery TTL | Catches new JSONL files even when dir mtime unchanged; low cost fallback | ✓ Good |
 
 ---
-*Last updated: 2026-03-19 after v1.10 milestone*
+*Last updated: 2026-03-19 after v1.11 milestone start*
