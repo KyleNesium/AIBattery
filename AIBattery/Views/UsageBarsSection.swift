@@ -111,12 +111,10 @@ struct UsageBar: View {
                             .font(Typography.tinyLabel)
                             .foregroundStyle(.green)
                     }
-                    .transition(.opacity)
                 } else if isThrottled {
                     Text("Throttled")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
-                        .transition(.opacity)
                 } else if let estimate = estimatedTimeToLimit {
                     let estimateText = "~\(DurationFormatter.compact(estimate)) to limit"
                     Text(estimateText)
