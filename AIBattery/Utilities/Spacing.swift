@@ -67,17 +67,3 @@ enum MotionConstants {
     /// Snappy gesture-driven animation (session swipe, nav): 0.1s easeOut.
     static let snappy: Animation = .easeOut(duration: 0.1)
 }
-
-// MARK: - View convenience extension
-
-extension View {
-    /// Applies the standard popover section outer padding:
-    /// `Spacing.sectionHorizontal` (16pt) horizontal, `Spacing.section` (8pt) vertical.
-    ///
-    /// Use this on section container views instead of two separate `.padding()` calls.
-    func sectionPadding() -> some View {
-        self
-            .padding(.horizontal, Spacing.sectionHorizontal)
-            .padding(.vertical, Spacing.section)
-    }
-}

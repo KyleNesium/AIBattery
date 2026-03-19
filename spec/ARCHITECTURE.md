@@ -103,7 +103,7 @@ AIBattery/
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
     PopoverHeaderView.swift       — Header row, account picker, update banner (ENABLE_VERSION_CHECKER)
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
-    PopoverStateViews.swift       — PopoverLoadingView, PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
+    PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
     PopoverFooterView.swift       — Footer links, logout confirm, status indicator, timestamp
     UsageGateViews.swift          — ProjectUsageGate, InsightsGate — data-availability wrappers
     Settings/
@@ -145,7 +145,7 @@ AIBattery/
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
     ThrottleTracker.swift         — Pure value type tracking throttle event transitions for trend display
     Typography.swift              — Named font style tokens (sectionHeader, monoValue, tinyLabel, decorativeIcon, etc.) — caseless enum namespace
-    Spacing.swift                 — Spacing/Layout/MotionConstants enums + sectionPadding() View extension — caseless enum namespaces co-located
+    Spacing.swift                 — Spacing/Layout/MotionConstants enums — caseless enum namespaces co-located
     KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
 Tests/AIBatteryCoreTests/
   Utilities/

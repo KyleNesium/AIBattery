@@ -1,21 +1,5 @@
 import SwiftUI
 
-// MARK: - Loading
-
-struct PopoverLoadingView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.8)
-            Text("Fetching usage data...")
-                .font(Typography.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 80)
-    }
-}
-
 // MARK: - Error
 
 struct PopoverErrorView: View {

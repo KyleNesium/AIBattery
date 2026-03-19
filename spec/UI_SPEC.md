@@ -96,8 +96,7 @@ All font sizes, spacing values, layout dimensions, and animation durations are d
 - **Typography** — 15 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`)
 - **Spacing** — 6 spacing constants (`tight` 2pt, `small` 4pt, `gap` 6pt, `section` 8pt, `sectionHorizontal` 16pt, `overlay` 24pt)
 - **Layout** — 7 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, etc.)
-- **MotionConstants** — 2 animation durations (`standard` 0.2s easeInOut, `snappy` 0.15s easeInOut)
-- **sectionPadding()** — View extension applying `Spacing.sectionHorizontal` + `Spacing.section` outer padding
+- **MotionConstants** — 2 animation durations (`standard` 0.15s easeOut, `snappy` 0.1s easeOut)
 
 Full token values are listed in `CONSTANTS.md > Design Tokens`.
 

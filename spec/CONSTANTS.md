@@ -269,10 +269,10 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 
 | Constant | Value |
 |----------|-------|
-| Settings toggle | `.easeInOut(duration: 0.2)` — `MotionConstants.standard` |
+| Settings toggle | `.easeOut(duration: 0.15)` — `MotionConstants.standard` |
 | Settings transition | `.opacity.combined(with: .move(edge: .top))` |
-| Metric mode change | `.easeInOut(duration: 0.15)` — `MotionConstants.snappy` |
-| Account switch | `.easeInOut(duration: 0.2)` — `MotionConstants.standard` |
+| Metric mode change | `.easeOut(duration: 0.1)` — `MotionConstants.snappy` |
+| Account switch | `.easeOut(duration: 0.15)` — `MotionConstants.standard` |
 | Copy clipboard icon display | 1.2 seconds, `.easeOut(duration: 0.12)` show / `.easeIn(duration: 0.2)` hide |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
@@ -333,8 +333,8 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `MotionConstants.standard` | `.easeInOut(duration: 0.2)` | Section expand/collapse, settings toggle, account switch |
-| `MotionConstants.snappy` | `.easeInOut(duration: 0.15)` | Session navigation, metric mode change |
+| `MotionConstants.standard` | `.easeOut(duration: 0.15)` | Standard section expand/collapse, settings toggle, account switch |
+| `MotionConstants.snappy` | `.easeOut(duration: 0.1)` | Session navigation, metric mode change |
 
 ## Security Guards
 
