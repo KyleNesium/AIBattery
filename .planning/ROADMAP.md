@@ -38,8 +38,8 @@ See [milestones/v1.10-ROADMAP.md](milestones/v1.10-ROADMAP.md) for full phase de
 **Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 06-01-PLAN.md — Create Typography, Spacing, and Layout constant enums with snapshot tests
-- [ ] 06-02-PLAN.md — Migrate all view files to use design system constants
+- [x] 06-01-PLAN.md — Create Typography, Spacing, and Layout constant enums with snapshot tests
+- [x] 06-02-PLAN.md — Migrate all view files to use design system constants
 
 ### Phase 7: Visual Polish
 **Goal**: All popover sections look and behave consistently, with subtle animations that enhance rather than distract
@@ -50,7 +50,11 @@ Plans:
   2. Expanding or collapsing any section plays a smooth, subtle animation (no abrupt jumps)
   3. Metric values that change during a poll cycle transition smoothly rather than snapping
   4. Animations do not measurably slow section expand/collapse interaction — feel instant on typical hardware
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Create StyledDivider component and MotionConstants, replace all Divider() callsites
+- [ ] 07-02-PLAN.md — Add opacity transitions, numeric contentTransition, migrate animation literals to MotionConstants
 
 ### Phase 8: File Extraction
 **Goal**: Large view files are split into focused, composable sub-views that stay under 400 lines each
@@ -79,6 +83,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. Design System | 2/2 | Complete   | 2026-03-19 | - |
-| 7. Visual Polish | v1.11 | 0/? | Not started | - |
+| 7. Visual Polish | v1.11 | 0/2 | Planned | - |
 | 8. File Extraction | v1.11 | 0/? | Not started | - |
 | 9. Wrap-Up | v1.11 | 0/? | Not started | - |
