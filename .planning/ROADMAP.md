@@ -78,7 +78,10 @@ Plans:
   1. `UI_SPEC.md` documents the design system constants, updated section layout, and animation behavior
   2. `ARCHITECTURE.md` reflects any structural changes from file extraction
   3. With the panel closed, CPU usage during a poll cycle is no higher than before animations were added — verified by running the app with Instruments or timed polling
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 09-01-PLAN.md — Update ARCHITECTURE.md, CONSTANTS.md, and UI_SPEC.md with Phase 6-8 changes; document PG-01 animation audit
 
 ## Progress
 
@@ -89,4 +92,4 @@ Plans:
 | 6. Design System | 2/2 | Complete   | 2026-03-19 | - |
 | 7. Visual Polish | 2/2 | Complete   | 2026-03-19 | - |
 | 8. File Extraction | 2/2 | Complete   | 2026-03-19 | - |
-| 9. Wrap-Up | v1.11 | 0/? | Not started | - |
+| 9. Wrap-Up | v1.11 | 0/1 | Not started | - |
