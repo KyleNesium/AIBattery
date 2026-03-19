@@ -47,7 +47,7 @@ See [milestones/v1.11-ROADMAP.md](milestones/v1.11-ROADMAP.md) for full phase de
   3. Popover render triggers fewer SwiftUI layout passes (GeometryReader count reduced)
 **Plans:** 1/1 plans complete
 Plans:
-- [ ] 10-01-PLAN.md — Extract GaugeBar component, verify v1.9.4 performance fixes
+- [x] 10-01-PLAN.md — Extract GaugeBar component, verify v1.9.4 performance fixes
 
 ### Phase 11: Code Cleanup
 **Goal**: Codebase is free of dead code and all specs and README reflect current state
@@ -56,8 +56,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. `sectionPadding()` extension and `PopoverLoadingView` struct are gone from the codebase
   2. CONSTANTS.md and UI_SPEC.md match actual animation durations and performance behavior
-  3. README test coverage section shows 706 tests across 45 files
-**Plans**: TBD
+  3. README test coverage section is accurate
+**Plans:** 1 plan
+Plans:
+- [ ] 11-01-PLAN.md — Remove dead code, sync specs and README
 
 ## Progress
 
@@ -65,5 +67,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 1-5. v1.10 phases | v1.10 | 7/7 | Complete | 2026-03-19 |
 | 6-9. v1.11 phases | v1.11 | 7/7 | Complete | 2026-03-19 |
-| 10. Popover Performance | 1/1 | Complete    | 2026-03-19 | - |
-| 11. Code Cleanup | v1.12 | 0/? | Not started | - |
+| 10. Popover Performance | v1.12 | 1/1 | Complete | 2026-03-19 |
+| 11. Code Cleanup | v1.12 | 0/1 | Not started | - |
