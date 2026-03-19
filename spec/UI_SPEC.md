@@ -90,6 +90,19 @@ UsagePopoverView (275px, VStack)
 
 Conditional states (mutually exclusive with content): Loading | Error | Empty
 
+## Design Tokens
+
+All font sizes, spacing values, layout dimensions, and animation durations are defined as named constants in `Utilities/`:
+- **Typography** — 15 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`)
+- **Spacing** — 6 spacing constants (`tight` 2pt, `small` 4pt, `gap` 6pt, `section` 8pt, `sectionHorizontal` 16pt, `overlay` 24pt)
+- **Layout** — 7 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, etc.)
+- **MotionConstants** — 2 animation durations (`standard` 0.2s easeInOut, `snappy` 0.15s easeInOut)
+- **sectionPadding()** — View extension applying `Spacing.sectionHorizontal` + `Spacing.section` outer padding
+
+Full token values are listed in `CONSTANTS.md > Design Tokens`.
+
+All visual section dividers use `StyledDivider` — a shared component rendering `Divider()` at 0.3 opacity with `Spacing.tight` (2pt) vertical padding.
+
 ## Section Specs
 
 ### ❶ Header (`PopoverHeaderView`)
@@ -145,9 +158,13 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 **`sliderMarks()`**: `fileprivate` file-level helper for generating slider tick marks (shared by sections).
 
 **Animations**:
-- Settings toggle: `withAnimation(.easeInOut(duration: 0.2))` + `.transition(.opacity.combined(with: .move(edge: .top)))`
-- Metric mode changes: `.animation(.easeInOut(duration: 0.15), value: metricModeRaw)` — scoped to ForEach block only, not entire VStack
-- Account switch: `withAnimation(.easeInOut(duration: 0.2))`
+- Settings toggle: `withAnimation(.easeInOut(duration: 0.2))` — `MotionConstants.standard`
+- Metric mode changes: `.animation(.easeInOut(duration: 0.15), value: metricModeRaw)` — `MotionConstants.snappy`, scoped to ForEach block only, not entire VStack
+- Account switch: `withAnimation(.easeInOut(duration: 0.2))` — `MotionConstants.standard`
+
+### Panel Visibility Safety (PG-01)
+
+All popover animations are naturally gated by SwiftUI's view lifecycle. When the panel is hidden (`orderOut`), `NSHostingView` removes all views from the rendering tree — no layout passes occur, no `.animation()` modifiers evaluate, and no `withAnimation` blocks can be triggered (no user interaction possible). `MarqueeText` explicitly calls `cancelAndStop()` in `.onDisappear`. The `StatusBarManager` breath timer operates at the AppKit layer outside the `NSHostingView` and is not a popover animation. Verified by code audit — no runtime gating logic is needed.
 
 Values propagate to header + menu bar immediately via `@AppStorage` (settings) and `@Published` (account names).
 
@@ -171,7 +188,7 @@ HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, cente
 **Segmented picker**: 3 segments using `MetricMode.shortLabel` — `"5 Hour"`, `"7 Day"`, `"Context"`. Auto mode syncs picker selection to the auto-resolved mode via a read-only binding.
 
 **Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
-- **Active**: blue text, `Color.blue.opacity(0.15)` fill, 1.5pt blue stroke with pulsing opacity (0.3–0.8), pulsing blue shadow (radius 1–5pt, opacity 0.1–0.5). Pulse via scoped `.animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: autoGlowing)` on stroke/shadow views only (never `withAnimation` — leaks global repeating transaction).
+- **Active**: green text, `Color.green.opacity(0.15)` fill, 1.5pt green stroke at 0.6 opacity, green shadow (radius 4pt, 0.5 opacity). Static green styling — no pulse animation. When auto mode is active, the button uses a green fill, stroke, and constant shadow effect. Controlled by the `autoMetricMode` boolean. There is no repeating timer or pulsing opacity — the glow is always-on while active.
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Picker dims to 0.4 opacity and is disabled when auto mode is active.
 - **Auto highlight**: when auto mode is active, the picker selection syncs to the auto-resolved mode via a read-only binding, visually highlighting which segment was chosen. The picker is dimmed (0.55 opacity) and disabled.
