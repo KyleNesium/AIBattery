@@ -64,7 +64,7 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - [x] UI-07: Subtle transition animations (performance-gated) — v1.11 Phase 7
 
 #### Code Quality
-- [ ] CQ-01: Extract large view files (<400 lines each)
+- [x] CQ-01: Extract large view files (<400 lines each) — v1.11 Phase 8
 - [ ] CQ-02: Spec sync for structural changes
 
 #### Performance Guard
@@ -113,4 +113,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | 60s discovery TTL | Catches new JSONL files even when dir mtime unchanged; low cost fallback | ✓ Good |
 
 ---
-*Last updated: 2026-03-19 — Phase 7 Visual Polish complete*
+*Last updated: 2026-03-19 — Phase 8 File Extraction complete*
