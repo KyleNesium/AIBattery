@@ -20,24 +20,24 @@ struct InsightsView: View {
 
     @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
 
-    private var mode: ActivityChartMode {
+    var mode: ActivityChartMode {
         ActivityChartMode(rawValue: modeRaw) ?? .hourly
     }
 
     // MARK: - Hover selection state
 
-    @State private var selectedDailyId: String?
-    @State private var selectedHourlyOffset: Int?
-    @State private var selectedMonthlyId: String?
+    @State var selectedDailyId: String?
+    @State var selectedHourlyOffset: Int?
+    @State var selectedMonthlyId: String?
 
     // MARK: - Cached data transforms
 
     /// Cached chart data — recomputed only when source data or mode changes.
     /// Eliminates O(n) transforms from the SwiftUI render path.
-    @State private var cachedDaily: [ActivityChartData.DailyPoint] = []
-    @State private var cachedHourly: [ActivityChartData.HourlyPoint] = []
-    @State private var cachedMonthly: [ActivityChartData.MonthlyPoint] = []
-    @State private var cachedMonthTotals: [String: Int] = [:]
+    @State var cachedDaily: [ActivityChartData.DailyPoint] = []
+    @State var cachedHourly: [ActivityChartData.HourlyPoint] = []
+    @State var cachedMonthly: [ActivityChartData.MonthlyPoint] = []
+    @State var cachedMonthTotals: [String: Int] = [:]
 
     /// Per-mode fingerprint to skip recomputation when toggling back to a mode
     /// whose underlying data hasn't changed (e.g. 24H → 7D → 24H).
@@ -52,7 +52,7 @@ struct InsightsView: View {
 
     /// Lazily compute cached data only for the requested mode.
     /// Skips recomputation if the underlying data fingerprint hasn't changed.
-    private func ensureCachedData(for chartMode: ActivityChartMode, force: Bool = false) {
+    func ensureCachedData(for chartMode: ActivityChartMode, force: Bool = false) {
         let fp = dataFingerprint
         switch chartMode {
         case .hourly:
@@ -74,7 +74,7 @@ struct InsightsView: View {
 
     /// Single fingerprint combining all data sources — collapses 3 onChange handlers into 1.
     /// When any underlying data changes, the fingerprint changes, triggering one refresh.
-    private var dataFingerprint: Int {
+    var dataFingerprint: Int {
         var hasher = Hasher()
         hasher.combine(dailyActivity.count)
         hasher.combine(snapshot?.totalMessages)
@@ -183,361 +183,6 @@ struct InsightsView: View {
         }
     }
 
-    // MARK: - Shared chart styling
-
-    /// Shared area gradient used by all three chart modes (daily/hourly/monthly).
-    private static let areaGradient: LinearGradient = .linearGradient(
-        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
-        startPoint: .top,
-        endPoint: .bottom
-    )
-
-    /// Shared line style used by all chart modes.
-    private static let chartLineStyle = StrokeStyle(lineWidth: 1.5)
-
-    /// Standard Y-axis for all chart modes: trailing position, 3 ticks, compact count labels.
-    private var sharedYAxis: some AxisContent {
-        AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-            AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-            AxisValueLabel {
-                if let v = value.as(Int.self) {
-                    Text(Self.compactCount(v))
-                        .font(Typography.decorativeIcon)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
-                }
-            }
-        }
-    }
-
-    // MARK: - Daily Chart (7D)
-
-    private var dailyChart: some View {
-        let data = cachedDaily
-        let dates = data.map(\.date)
-        let total = data.reduce(0) { $0 + $1.count }
-        let peak = data.max(by: { $0.count < $1.count })
-        let a11yLabel: String = {
-            if let peak, peak.count > 0 {
-                return "7-day activity chart. \(total) messages this week. Peak: \(peak.count) on \(Self.dayShortLabel(peak.date))"
-            }
-            return "7-day activity chart. \(total) messages this week"
-        }()
-
-        return Chart {
-            ForEach(data) { point in
-                AreaMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Messages", point.count)
-                )
-                .foregroundStyle(Self.areaGradient)
-                .interpolationMethod(.catmullRom)
-
-                LineMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Messages", point.count)
-                )
-                .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(Self.chartLineStyle)
-                .interpolationMethod(.catmullRom)
-
-                PointMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Messages", point.count)
-                )
-                .foregroundStyle(ThemeColors.chartAccent)
-                .symbolSize(12)
-            }
-
-            if let selectedId = selectedDailyId,
-               let point = data.first(where: { $0.id == selectedId }) {
-                RuleMark(x: .value("Selected", point.date, unit: .day))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .lineStyle(Self.selectionRuleStyle)
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: dates) { value in
-                AxisValueLabel {
-                    if let date = value.as(Date.self) {
-                        Text(Self.dayShortLabel(date))
-                            .font(Typography.monoTiny)
-                    }
-                }
-            }
-        }
-        .chartYAxis { sharedYAxis }
-        .chartPlotStyle { plot in plot.background(.clear) }
-        .chartOverlay { proxy in
-            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
-                guard let date: Date = proxy.value(atX: x) else { return }
-                let cal = Calendar.current
-                selectedDailyId = data
-                    .min(by: {
-                        abs(cal.dateComponents([.hour], from: $0.date, to: date).hour ?? .max)
-                        < abs(cal.dateComponents([.hour], from: $1.date, to: date).hour ?? .max)
-                    })?.id
-            } onEnd: {
-                selectedDailyId = nil
-            }
-        }
-        .frame(height: Layout.chartHeight)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(a11yLabel)
-    }
-
-    // MARK: - Hourly Chart (24H)
-
-    private var hourlyChart: some View {
-        let data = cachedHourly
-        let total = data.reduce(0) { $0 + $1.count }
-        let peak = data.max(by: { $0.count < $1.count })
-        let a11yLabel: String = {
-            if let peak, peak.count > 0 {
-                return "24-hour activity chart. \(total) messages in trailing window. Peak hour: \(Self.formatHourLabel(peak.hour)) with \(peak.count) messages"
-            }
-            return "24-hour activity chart. \(total) messages in trailing window"
-        }()
-
-        return Chart {
-            ForEach(data) { point in
-                AreaMark(
-                    x: .value("Hour", point.id),
-                    y: .value("Messages", point.count)
-                )
-                .foregroundStyle(Self.areaGradient)
-                .interpolationMethod(.catmullRom)
-
-                LineMark(
-                    x: .value("Hour", point.id),
-                    y: .value("Messages", point.count)
-                )
-                .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(Self.chartLineStyle)
-                .interpolationMethod(.catmullRom)
-            }
-
-            if let selectedOffset = selectedHourlyOffset,
-               let point = data.first(where: { $0.id == selectedOffset }) {
-                RuleMark(x: .value("Selected", point.id))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .lineStyle(Self.selectionRuleStyle)
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: [0, 4, 8, 12, 16, 20, 23]) { value in
-                AxisValueLabel {
-                    if let offset = value.as(Int.self), offset >= 0, offset < data.count {
-                        Text(Self.formatHourLabel(data[offset].hour))
-                            .font(Typography.decorativeIcon)
-                    }
-                }
-            }
-        }
-        .chartXScale(domain: 0...23)
-        .chartYAxis { sharedYAxis }
-        .chartPlotStyle { plot in plot.background(.clear) }
-        .chartOverlay { proxy in
-            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
-                guard let value: Double = proxy.value(atX: x) else { return }
-                selectedHourlyOffset = max(0, min(23, Int(value.rounded())))
-            } onEnd: {
-                selectedHourlyOffset = nil
-            }
-        }
-        .frame(height: Layout.chartHeight)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(a11yLabel)
-    }
-
-    // MARK: - Monthly Chart (12M)
-
-    private var monthlyChart: some View {
-        let data = cachedMonthly
-        let dates = data.map(\.date)
-        // Use actual (non-projected) total for accessibility — projected data is only for visual comparison
-        let actualTotal = dailyActivity.reduce(0) { $0 + $1.messageCount }
-        let a11yLabel = "12-month activity chart. \(actualTotal) messages total"
-
-        return Chart {
-            ForEach(data) { point in
-                AreaMark(
-                    x: .value("Month", point.date, unit: .month),
-                    y: .value("Messages", point.count)
-                )
-                .foregroundStyle(Self.areaGradient)
-                .interpolationMethod(.catmullRom)
-
-                LineMark(
-                    x: .value("Month", point.date, unit: .month),
-                    y: .value("Messages", point.count)
-                )
-                .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(Self.chartLineStyle)
-                .interpolationMethod(.catmullRom)
-
-                PointMark(
-                    x: .value("Month", point.date, unit: .month),
-                    y: .value("Messages", point.count)
-                )
-                .foregroundStyle(ThemeColors.chartAccent)
-                .symbolSize(12)
-            }
-
-            if let selectedId = selectedMonthlyId,
-               let point = data.first(where: { $0.id == selectedId }) {
-                RuleMark(x: .value("Selected", point.date, unit: .month))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
-                    .lineStyle(Self.selectionRuleStyle)
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: dates) { value in
-                AxisValueLabel {
-                    if let date = value.as(Date.self) {
-                        Text(Self.monthAbbrev(date))
-                            .font(Typography.monoTiny)
-                    }
-                }
-            }
-        }
-        .chartYAxis { sharedYAxis }
-        .chartPlotStyle { plot in plot.background(.clear) }
-        .chartOverlay { proxy in
-            chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
-                guard let date: Date = proxy.value(atX: x) else { return }
-                let cal = Calendar.current
-                selectedMonthlyId = data
-                    .min(by: {
-                        abs(cal.dateComponents([.day], from: $0.date, to: date).day ?? .max)
-                        < abs(cal.dateComponents([.day], from: $1.date, to: date).day ?? .max)
-                    })?.id
-            } onEnd: {
-                selectedMonthlyId = nil
-            }
-        }
-        .frame(height: Layout.chartHeight)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(a11yLabel)
-    }
-
-    // MARK: - Trend
-
-    private func trendSummary(_ snapshot: UsageSnapshot) -> some View {
-        let data = ActivityTrendComputation.compute(mode: mode, snapshot: snapshot, monthTotals: cachedMonthTotals)
-        return VStack(spacing: 4) {
-            trendRowTop(change: data.change, stat: data.stat)
-            trendRowBottom(throttleCount: data.throttleCount, peak: data.peak)
-        }
-        .padding(.top, 4)
-        .copyable(ActivityTrendComputation.copyText(data))
-    }
-
-    // MARK: - Shared trend row builders
-
-    private func trendRowTop(change: ActivityChangeInfo?, stat: String?) -> some View {
-        HStack(spacing: 6) {
-            if let change {
-                Text(change.symbol)
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(change.color)
-                Text(change.label)
-                    .font(Typography.monoCaption)
-                    .foregroundStyle(change.color)
-            }
-            Spacer()
-            if let stat {
-                Text(stat)
-                    .font(Typography.monoCaption)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-            }
-        }
-    }
-
-    private func trendRowBottom(throttleCount: Int, peak: String?) -> some View {
-        HStack(spacing: 6) {
-            if throttleCount > 0 {
-                Text("Throttled: \(throttleCount)×")
-                    .font(Typography.monoCaption)
-                    .foregroundStyle(ThemeColors.caution)
-            } else {
-                Text("Throttled: 0×")
-                    .font(Typography.monoCaption)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-            }
-            Spacer()
-            if let peak {
-                Text(peak)
-                    .font(Typography.monoCaption)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-            }
-        }
-    }
-
-    // MARK: - Cost breakdown (mode-aware)
-
-    /// Column width for cost values.
-    private let costColumnWidth: CGFloat = 54
-    /// Column width for token values.
-    private let tokenColumnWidth: CGFloat = 42
-
-    /// Model tokens for the current time window.
-    private var windowedModelTokens: [ModelTokenSummary] {
-        guard let snapshot else { return [] }
-        switch mode {
-        case .hourly: return snapshot.todayModelTokens
-        case .daily: return snapshot.weekModelTokens
-        case .monthly: return snapshot.monthModelTokens
-        }
-    }
-
-    private func isActive(_ model: ModelTokenSummary) -> Bool {
-        guard let activeId = activeModelId, !activeId.isEmpty else { return false }
-        return activeId.hasPrefix(model.id) || model.id.hasPrefix(activeId)
-    }
-
-    @ViewBuilder
-    private func costSection(_ snapshot: UsageSnapshot) -> some View {
-        let models = windowedModelTokens
-        if !models.isEmpty {
-            let totalCost = ModelPricing.totalCost(for: models)
-            let costText = "~\(ModelPricing.formatCompactCost(totalCost))"
-
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(models) { model in
-                    let modelTokensText = TokenFormatter.format(model.totalTokens)
-                    let modelCost = "~\(ModelPricing.formatCompactCost(model.estimatedCost))"
-                    let copyText = "\(model.displayName) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
-                    HStack(spacing: 6) {
-                        Text(model.displayName)
-                            .font(Typography.tinyLabel)
-                            .lineLimit(1)
-
-                        if isActive(model) {
-                            Text("▶")
-                                .font(Typography.decorativeIcon)
-                                .foregroundStyle(.green)
-                                .help("Active model in current session")
-                        }
-
-                        Spacer()
-
-                        Text(modelCost)
-                            .font(Typography.monoCaptionSmall)
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .frame(width: costColumnWidth, alignment: .trailing)
-
-                        Text(modelTokensText)
-                            .font(Typography.monoCaptionSmall)
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .frame(width: tokenColumnWidth, alignment: .trailing)
-                    }
-                    .copyable(copyText)
-                }
-            }
-        }
-    }
-
     // MARK: - Insight rows (merged from former Insights section)
 
     private static let insightLabelWidth: CGFloat = 55
@@ -589,8 +234,6 @@ struct InsightsView: View {
             Text(value)
                 .font(Typography.monoCaption)
                 .foregroundStyle(valueColor)
-                
-                
         }
         .copyable("\(label) \u{00B7} \(value)")
         .accessibilityElement(children: .combine)
@@ -598,10 +241,10 @@ struct InsightsView: View {
 
     // MARK: - Hover helpers
 
-    private static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
+    static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
 
     /// Tooltip label styling.
-    private func tooltipLabel(_ text: String) -> some View {
+    func tooltipLabel(_ text: String) -> some View {
         Text(text)
             .font(Typography.monoCaptionSmall)
             .foregroundStyle(ThemeColors.secondaryLabel)
@@ -612,7 +255,7 @@ struct InsightsView: View {
 
     /// Chart overlay that handles hover detection AND renders the tooltip at the correct X position.
     /// The tooltip is drawn as an overlay child (not a chart annotation), so it never affects chart layout.
-    private func chartHoverOverlay(
+    func chartHoverOverlay(
         proxy: ChartProxy,
         tooltipText: String?,
         onHover: @escaping (CGFloat) -> Void,
@@ -640,7 +283,7 @@ struct InsightsView: View {
     }
 
     /// Current hover X position within the plot area, derived from selection state.
-    private func currentHoverX(proxy: ChartProxy, plotFrame: CGRect) -> CGFloat? {
+    func currentHoverX(proxy: ChartProxy, plotFrame: CGRect) -> CGFloat? {
         switch mode {
         case .daily:
             guard let id = selectedDailyId,
@@ -660,7 +303,7 @@ struct InsightsView: View {
     }
 
     /// Tooltip text for the currently hovered point, or nil if nothing selected.
-    private var hoverTooltipText: String? {
+    var hoverTooltipText: String? {
         switch mode {
         case .daily:
             guard let id = selectedDailyId,
