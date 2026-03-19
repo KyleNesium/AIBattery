@@ -92,7 +92,7 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 
 ## Section Specs
 
-### ❶ Header (`UsagePopoverView.headerSection`)
+### ❶ Header (`PopoverHeaderView`)
 
 - Title: `"✦ AI Battery"` (.headline)
 - **Account picker**: always-visible dropdown Menu next to title
@@ -164,7 +164,7 @@ Gate views check data availability and render the section + divider. Sections ow
 - **`ProjectUsageGate`**: renders `ProjectUsageSection` + `Divider` when `snapshot.projectTokens` is non-empty.
 - **`InsightsGate`**: renders `InsightsView` + `Divider` when activity data or token data is available.
 
-### Metric Toggle (`UsagePopoverView.metricToggle`)
+### Metric Toggle (`MetricToggleView`)
 
 HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
 
@@ -341,7 +341,7 @@ Date range uses `DateFormatters.formatDateRange(from:to:)` — same year omits s
 
 Padding: H 16, V 8
 
-### ❻ Footer (`UsagePopoverView.footerSection`)
+### ❻ Footer (`PopoverFooterView`)
 
 Links row in HStack (spacing 10):
 1. **Usage**: chart.bar icon (9pt) + "Usage" + arrow.up.right (6pt) → opens `platform.claude.com/usage`
@@ -467,7 +467,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - **TokenHealthSection**: context gauge ("Percentage of usable context window consumed"), turns label, safe minimum hint, expanded session details tooltip
 - **ActivityChartView**: mode picker ("Switch activity chart time range")
 - **ActivityChartView**: insight rows (All Time/Longest/Period)
-- **UsagePopoverView**: metric mode picker, auto mode button
+- **MetricToggleView**: metric mode picker, auto mode button
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)
 

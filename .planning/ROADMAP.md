@@ -64,7 +64,7 @@ Plans:
   1. `UsagePopoverView.swift` is under 400 lines; extracted sub-views compile and render identically to the original
   2. `ActivityChartView.swift` is under 400 lines; extracted sub-views compile and render identically to the original
   3. All existing tests continue to pass after extraction — no behavioral regressions
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 08-01-PLAN.md — Extract UsagePopoverView into 4 sub-view files (header, metric toggle, state views, footer)
@@ -88,5 +88,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 6. Design System | 2/2 | Complete   | 2026-03-19 | - |
 | 7. Visual Polish | 2/2 | Complete   | 2026-03-19 | - |
-| 8. File Extraction | v1.11 | 0/2 | Planned | - |
+| 8. File Extraction | 1/2 | In Progress|  | - |
 | 9. Wrap-Up | v1.11 | 0/? | Not started | - |

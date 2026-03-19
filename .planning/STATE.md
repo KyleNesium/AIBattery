@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Polish & Consistency
 status: unknown
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-03-19T17:10:07.238Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-19T17:27:45.100Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 07 — visual-polish
+**Current focus:** Phase 08 — file-extraction
 
 ## Current Position
 
-Phase: 07 (visual-polish) — EXECUTING
+Phase: 08 (file-extraction) — EXECUTING
 Plan: 2 of 2
 
 ## Performance Metrics
@@ -44,6 +44,7 @@ Plan: 2 of 2
 | Phase 06-design-system P02 | 16 | 2 tasks | 16 files |
 | Phase 07-visual-polish P01 | 4 | 2 tasks | 7 files |
 | Phase 07-visual-polish P02 | 6 | 2 tasks | 6 files |
+| Phase 08-file-extraction P01 | 6 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,8 @@ Recent decisions affecting current work:
 - [Phase 07-01]: Menu separator Divider() in accountPicker kept as bare Divider() — SwiftUI Menu uses native menu separators, not visual View dividers
 - [Phase 07-02]: ActivityChartView chart content wrapped in VStack before .transition(.opacity) — switch statement cannot receive view modifiers directly
 - [Phase 07-02]: .contentTransition(.numericText()) with no arguments (macOS 13+ safe; numericText(value:) requires macOS 14)
+- [Phase 08-file-extraction]: orderedModes kept in UsagePopoverView (not MetricToggleView) — ForEach over modes is in mainContent, moving would break compilation
+- [Phase 08-file-extraction]: Callback pattern (onSwitchAccount, onUpdateFound, onLogout) used in sub-views instead of ViewModel reference — preserves no-EnvironmentObject convention
 
 ### Pending Todos
 
@@ -72,6 +75,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:50:29.210Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-03-19T17:27:45.097Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None
