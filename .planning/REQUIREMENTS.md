@@ -44,21 +44,21 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DS-01 | — | Pending |
-| DS-02 | — | Pending |
-| DS-03 | — | Pending |
-| UI-05 | — | Pending |
-| UI-06 | — | Pending |
-| UI-07 | — | Pending |
-| CQ-01 | — | Pending |
-| CQ-02 | — | Pending |
-| PG-01 | — | Pending |
+| DS-01 | Phase 6 | Pending |
+| DS-02 | Phase 6 | Pending |
+| DS-03 | Phase 6 | Pending |
+| UI-05 | Phase 6 | Pending |
+| UI-06 | Phase 7 | Pending |
+| UI-07 | Phase 7 | Pending |
+| CQ-01 | Phase 8 | Pending |
+| CQ-02 | Phase 9 | Pending |
+| PG-01 | Phase 9 | Pending |
 
 **Coverage:**
 - v1.11 requirements: 9 total
-- Mapped to phases: 0
-- Unmapped: 9 ⚠️
+- Mapped to phases: 9
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 after initial definition*
+*Last updated: 2026-03-19 — traceability mapped after roadmap creation*
