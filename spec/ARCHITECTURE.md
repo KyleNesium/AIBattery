@@ -114,6 +114,8 @@ AIBattery/
       LaunchAtLoginSection.swift  — Launch at Login toggle
     AuthView.swift                 — OAuth login/paste-code screen
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
+    Components/
+      GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting, clipboard export
