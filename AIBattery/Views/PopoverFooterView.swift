@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 struct PopoverFooterView: View {
     let systemStatus: ClaudeSystemStatus?
@@ -151,25 +150,17 @@ struct PopoverFooterView: View {
     }
 }
 
-/// Displays "Updated Xs/Xm/Xh ago" with a timer that only ticks while visible.
-/// Replaces TimelineView to avoid background re-renders when popover is hidden.
+/// Displays "Updated Xs/Xm/Xh ago" — uses TimelineView (only renders while in view hierarchy).
+/// The popover's orderOut removes the view from the hierarchy, so this naturally stops ticking.
 private struct RelativeTimeText: View {
     let date: Date
-    @State private var now = Date()
-    private let timer = Timer.publish(every: 10, on: .main, in: .common)
-    @State private var timerCancellable: (any Cancellable)?
 
     var body: some View {
-        Text("Updated \(relativeTime)")
-            .font(Typography.monoTiny)
-            .foregroundStyle(ThemeColors.tertiaryLabel)
-            .help("Last fetched: \(PopoverFooterView.absoluteTime(date))")
-            .onAppear { timerCancellable = timer.connect() }
-            .onDisappear { timerCancellable?.cancel(); timerCancellable = nil }
-            .onReceive(timer) { now = $0 }
-    }
-
-    private var relativeTime: String {
-        PopoverFooterView.relativeTime(date)
+        TimelineView(.periodic(from: .now, by: 10)) { _ in
+            Text("Updated \(PopoverFooterView.relativeTime(date))")
+                .font(Typography.monoTiny)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+                .help("Last fetched: \(PopoverFooterView.absoluteTime(date))")
+        }
     }
 }
