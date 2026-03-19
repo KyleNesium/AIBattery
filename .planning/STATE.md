@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Polish & Consistency
 status: unknown
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-03-19T17:33:20.944Z"
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-19T17:49:31.683Z"
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 4
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 08 — file-extraction
+**Current focus:** Phase 09 — wrap-up
 
 ## Current Position
 
-Phase: 08 (file-extraction) — COMPLETE
-Plan: 2 of 2 (ALL COMPLETE)
+Phase: 09 (wrap-up) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Plan: 2 of 2 (ALL COMPLETE)
 | Phase 07-visual-polish P02 | 6 | 2 tasks | 6 files |
 | Phase 08-file-extraction P01 | 6 | 2 tasks | 7 files |
 | Phase 08-file-extraction P02 | 12 | 2 tasks | 4 files |
+| Phase 09-wrap-up P01 | 8 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [08-02]: Extension-in-separate-file over standalone struct for InsightsView — chart views access @State directly via self, eliminates all Binding plumbing
 - [08-02]: Static formatters stay on InsightsView in InsightsRowsAndHover.swift — ActivityChartTrend.swift call sites require zero changes
 - [08-02]: costColumnWidth/tokenColumnWidth promoted from stored let to computed var — Swift extensions cannot contain stored properties
+- [Phase 09-wrap-up]: Auto mode pulse correction: spec said repeatForever pulse, code has static green styling — corrected spec to match reality
+- [Phase 09-wrap-up]: PG-01 via SwiftUI lifecycle gating — all 13 animation sites gated by view hierarchy removal, no runtime code changes needed
 
 ### Pending Todos
 
@@ -79,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T17:35:00.000Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-03-19T17:49:31.680Z
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None

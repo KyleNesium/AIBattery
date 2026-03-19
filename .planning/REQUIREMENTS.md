@@ -22,11 +22,11 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 ### Code Quality
 
 - [x] **CQ-01**: Extract large view files — break UsagePopoverView (666 lines) and ActivityChartView (704 lines) into focused sub-views under 400 lines each
-- [ ] **CQ-02**: Spec sync — update UI_SPEC.md and ARCHITECTURE.md to reflect any structural changes
+- [x] **CQ-02**: Spec sync — update UI_SPEC.md and ARCHITECTURE.md to reflect any structural changes
 
 ### Performance Guard
 
-- [ ] **PG-01**: No animation runs when panel is closed — verify all new animations are gated on panel visibility
+- [x] **PG-01**: No animation runs when panel is closed — verify all new animations are gated on panel visibility
 
 ## Future Requirements
 
@@ -51,8 +51,8 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 | UI-06 | Phase 7 | Complete |
 | UI-07 | Phase 7 | Complete |
 | CQ-01 | Phase 8 | Complete |
-| CQ-02 | Phase 9 | Pending |
-| PG-01 | Phase 9 | Pending |
+| CQ-02 | Phase 9 | Complete |
+| PG-01 | Phase 9 | Complete |
 
 **Coverage:**
 - v1.11 requirements: 9 total

@@ -22,7 +22,7 @@ See [milestones/v1.10-ROADMAP.md](milestones/v1.10-ROADMAP.md) for full phase de
 - [x] **Phase 6: Design System** - Typography and spacing constants replace inline values; all sections use consistent outer padding; no text below 8pt (completed 2026-03-19)
 - [x] **Phase 7: Visual Polish** - Uniform section dividers, headers, and collapse behavior; subtle expand/collapse and metric-change animations (completed 2026-03-19)
 - [x] **Phase 8: File Extraction** - UsagePopoverView and ActivityChartView broken into focused sub-views under 400 lines each (completed 2026-03-19)
-- [ ] **Phase 9: Wrap-Up** - Spec files reflect all structural changes; all new animations gated on panel visibility
+- [x] **Phase 9: Wrap-Up** - Spec files reflect all structural changes; all new animations gated on panel visibility (completed 2026-03-19)
 
 ## Phase Details
 
@@ -78,7 +78,7 @@ Plans:
   1. `UI_SPEC.md` documents the design system constants, updated section layout, and animation behavior
   2. `ARCHITECTURE.md` reflects any structural changes from file extraction
   3. With the panel closed, CPU usage during a poll cycle is no higher than before animations were added — verified by running the app with Instruments or timed polling
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 09-01-PLAN.md — Update ARCHITECTURE.md, CONSTANTS.md, and UI_SPEC.md with Phase 6-8 changes; document PG-01 animation audit
@@ -92,4 +92,4 @@ Plans:
 | 6. Design System | 2/2 | Complete   | 2026-03-19 | - |
 | 7. Visual Polish | 2/2 | Complete   | 2026-03-19 | - |
 | 8. File Extraction | 2/2 | Complete   | 2026-03-19 | - |
-| 9. Wrap-Up | v1.11 | 0/1 | Not started | - |
+| 9. Wrap-Up | 1/1 | Complete   | 2026-03-19 | - |
