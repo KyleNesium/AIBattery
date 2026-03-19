@@ -78,19 +78,7 @@ struct UsageBar: View {
                     .copyable("\(Int(percent))%")
             }
 
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: Layout.barCornerRadius)
-                        .fill(ThemeColors.trackFill)
-                        .frame(height: Layout.barHeight)
-
-                    RoundedRectangle(cornerRadius: Layout.barCornerRadius)
-                        .fill(ThemeColors.barColor(percent: percent))
-                        .frame(width: geometry.size.width * min(CGFloat(percent) / 100.0, 1.0), height: Layout.barHeight)
-                        
-                }
-            }
-            .frame(height: Layout.barHeight)
+            GaugeBar(percent: percent, barColor: ThemeColors.barColor(percent: percent))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(label) rate limit usage \(Int(percent)) percent")
             .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - percent))) percent remaining")

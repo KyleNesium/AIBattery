@@ -66,19 +66,7 @@ struct TokenHealthSection: View {
                     .id(selectedIndex)
 
                 // Gauge bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: Layout.barCornerRadius)
-                            .fill(ThemeColors.trackFill)
-                            .frame(height: Layout.barHeight)
-
-                        RoundedRectangle(cornerRadius: Layout.barCornerRadius)
-                            .fill(bandColor)
-                            .frame(width: geometry.size.width * min(CGFloat(health.usagePercentage) / 100.0, 1.0), height: Layout.barHeight)
-
-                    }
-                }
-                .frame(height: Layout.barHeight)
+                GaugeBar(percent: health.usagePercentage, barColor: bandColor)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
                 .accessibilityValue("\(remainingText) tokens remaining")
