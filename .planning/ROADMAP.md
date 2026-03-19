@@ -19,7 +19,7 @@ See [milestones/v1.10-ROADMAP.md](milestones/v1.10-ROADMAP.md) for full phase de
 
 **Milestone Goal:** Unify typography, spacing, and visual consistency across the popover UI while extracting large files and guarding performance.
 
-- [ ] **Phase 6: Design System** - Typography and spacing constants replace inline values; all sections use consistent outer padding; no text below 8pt
+- [x] **Phase 6: Design System** - Typography and spacing constants replace inline values; all sections use consistent outer padding; no text below 8pt (completed 2026-03-19)
 - [ ] **Phase 7: Visual Polish** - Uniform section dividers, headers, and collapse behavior; subtle expand/collapse and metric-change animations
 - [ ] **Phase 8: File Extraction** - UsagePopoverView and ActivityChartView broken into focused sub-views under 400 lines each
 - [ ] **Phase 9: Wrap-Up** - Spec files reflect all structural changes; all new animations gated on panel visibility
@@ -35,7 +35,7 @@ See [milestones/v1.10-ROADMAP.md](milestones/v1.10-ROADMAP.md) for full phase de
   2. A unified spacing scale (section, gap, tight, padding) replaces all hardcoded numeric spacing values
   3. Every popover section uses the same horizontal and vertical outer padding pattern — visually consistent margins
   4. No visible text in the popover renders below 8pt; the previous size-6 edge case no longer appears
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 06-01-PLAN.md — Create Typography, Spacing, and Layout constant enums with snapshot tests
@@ -78,7 +78,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 6. Design System | 1/2 | In Progress|  | - |
+| 6. Design System | 2/2 | Complete   | 2026-03-19 | - |
 | 7. Visual Polish | v1.11 | 0/? | Not started | - |
 | 8. File Extraction | v1.11 | 0/? | Not started | - |
 | 9. Wrap-Up | v1.11 | 0/? | Not started | - |

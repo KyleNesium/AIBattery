@@ -11,11 +11,11 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 
 - [x] **DS-01**: Typography constants — named font styles replacing 30+ inline `.font()` calls (e.g., `.sectionHeader`, `.monoValue`, `.tinyLabel`)
 - [x] **DS-02**: Spacing constants — unified scale replacing 8+ hardcoded spacing values (section, gap, tight, padding)
-- [ ] **DS-03**: Consistent outer padding — all sections use the same horizontal/vertical pattern
+- [x] **DS-03**: Consistent outer padding — all sections use the same horizontal/vertical pattern
 
 ### UI Polish
 
-- [ ] **UI-05**: Minimum font size audit — no text below 8pt (size 6 edge case fixed)
+- [x] **UI-05**: Minimum font size audit — no text below 8pt (size 6 edge case fixed)
 - [ ] **UI-06**: Section visual consistency — uniform dividers, header styles, and collapse behavior across all popover sections
 - [ ] **UI-07**: Subtle transition animations on section expand/collapse and metric changes (must not impact poll-cycle performance)
 
@@ -46,8 +46,8 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 |-------------|-------|--------|
 | DS-01 | Phase 6 | Complete |
 | DS-02 | Phase 6 | Complete |
-| DS-03 | Phase 6 | Pending |
-| UI-05 | Phase 6 | Pending |
+| DS-03 | Phase 6 | Complete |
+| UI-05 | Phase 6 | Complete |
 | UI-06 | Phase 7 | Pending |
 | UI-07 | Phase 7 | Pending |
 | CQ-01 | Phase 8 | Pending |
