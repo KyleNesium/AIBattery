@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Polish & Consistency
 status: unknown
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-19T15:44:11.102Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-19T15:50:29.213Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -43,6 +43,7 @@ Plan: 2 of 2
 *Updated after each plan completion*
 | Phase 06-design-system P02 | 16 | 2 tasks | 16 files |
 | Phase 07-visual-polish P01 | 4 | 2 tasks | 7 files |
+| Phase 07-visual-polish P02 | 6 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -58,6 +59,8 @@ Recent decisions affecting current work:
 - [06-01]: sectionPadding() View extension added — covers 12-occurrence .padding(.horizontal,16)+.padding(.vertical,8) pattern
 - [Phase 06]: DS-01/DS-02/DS-03/UI-05: all view files migrated to Typography/Spacing/Layout tokens in one atomic pass
 - [Phase 07-01]: Menu separator Divider() in accountPicker kept as bare Divider() — SwiftUI Menu uses native menu separators, not visual View dividers
+- [Phase 07-02]: ActivityChartView chart content wrapped in VStack before .transition(.opacity) — switch statement cannot receive view modifiers directly
+- [Phase 07-02]: .contentTransition(.numericText()) with no arguments (macOS 13+ safe; numericText(value:) requires macOS 14)
 
 ### Pending Todos
 
@@ -69,6 +72,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:44:11.100Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-19T15:50:29.210Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None

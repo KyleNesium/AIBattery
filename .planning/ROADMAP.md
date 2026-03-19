@@ -20,7 +20,7 @@ See [milestones/v1.10-ROADMAP.md](milestones/v1.10-ROADMAP.md) for full phase de
 **Milestone Goal:** Unify typography, spacing, and visual consistency across the popover UI while extracting large files and guarding performance.
 
 - [x] **Phase 6: Design System** - Typography and spacing constants replace inline values; all sections use consistent outer padding; no text below 8pt (completed 2026-03-19)
-- [ ] **Phase 7: Visual Polish** - Uniform section dividers, headers, and collapse behavior; subtle expand/collapse and metric-change animations
+- [x] **Phase 7: Visual Polish** - Uniform section dividers, headers, and collapse behavior; subtle expand/collapse and metric-change animations (completed 2026-03-19)
 - [ ] **Phase 8: File Extraction** - UsagePopoverView and ActivityChartView broken into focused sub-views under 400 lines each
 - [ ] **Phase 9: Wrap-Up** - Spec files reflect all structural changes; all new animations gated on panel visibility
 
@@ -50,7 +50,7 @@ Plans:
   2. Expanding or collapsing any section plays a smooth, subtle animation (no abrupt jumps)
   3. Metric values that change during a poll cycle transition smoothly rather than snapping
   4. Animations do not measurably slow section expand/collapse interaction — feel instant on typical hardware
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 07-01-PLAN.md — Create StyledDivider component and MotionConstants, replace all Divider() callsites
@@ -83,6 +83,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 6. Design System | 2/2 | Complete   | 2026-03-19 | - |
-| 7. Visual Polish | 1/2 | In Progress|  | - |
+| 7. Visual Polish | 2/2 | Complete   | 2026-03-19 | - |
 | 8. File Extraction | v1.11 | 0/? | Not started | - |
 | 9. Wrap-Up | v1.11 | 0/? | Not started | - |

@@ -17,7 +17,7 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 
 - [x] **UI-05**: Minimum font size audit — no text below 8pt (size 6 edge case fixed)
 - [x] **UI-06**: Section visual consistency — uniform dividers, header styles, and collapse behavior across all popover sections
-- [ ] **UI-07**: Subtle transition animations on section expand/collapse and metric changes (must not impact poll-cycle performance)
+- [x] **UI-07**: Subtle transition animations on section expand/collapse and metric changes (must not impact poll-cycle performance)
 
 ### Code Quality
 
@@ -49,7 +49,7 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 | DS-03 | Phase 6 | Complete |
 | UI-05 | Phase 6 | Complete |
 | UI-06 | Phase 7 | Complete |
-| UI-07 | Phase 7 | Pending |
+| UI-07 | Phase 7 | Complete |
 | CQ-01 | Phase 8 | Pending |
 | CQ-02 | Phase 9 | Pending |
 | PG-01 | Phase 9 | Pending |
