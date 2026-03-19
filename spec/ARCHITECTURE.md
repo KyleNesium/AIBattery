@@ -118,7 +118,10 @@ AIBattery/
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting, clipboard export
     ProjectUsageSection.swift     — Per-project token breakdown with cost (top 5 default, expand to 10)
-    ActivityChartView.swift        — InsightsView: 24H/7D/12M activity chart + API-equivalent cost breakdown + insight rows (Period, Longest, All Time)
+    ActivityChartView.swift        — InsightsView core: struct declaration, @State/@AppStorage, cache logic, fingerprinting, and body
+    InsightsCharts.swift           — extension InsightsView: areaGradient, chartLineStyle, sharedYAxis, dailyChart, hourlyChart, monthlyChart
+    InsightsTrendCostSection.swift — extension InsightsView: trendSummary, trendRowTop/Bottom, windowedModelTokens, costSection
+    InsightsRowsAndHover.swift     — extension InsightsView: insightRows, hover helpers, static formatters (formatHourLabel, compactCount, monthAbbrev)
     ActivityChartData.swift       — Chart data transformation layer (daily/hourly/monthly points)
     ActivityChartTrend.swift      — Trend computation: vs-yesterday/week/month comparisons + copy text
     CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 4 sections
