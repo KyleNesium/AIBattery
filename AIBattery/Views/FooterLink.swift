@@ -37,13 +37,13 @@ struct FooterLink<Leading: View>: View {
                     leading()
                 } else if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 9))
+                        .font(Typography.monoTiny)
                 }
                 Text(label)
-                    .font(.caption2)
+                    .font(Typography.tinyLabel)
                     .underline(isHovered)
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 6))
+                    .font(Typography.decorativeIcon)
             }
             .fixedSize()
         }

@@ -108,7 +108,7 @@ struct InsightsView: View {
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .foregroundStyle(change.color)
                     Text(change.label)
-                        .font(.system(.caption2, design: .monospaced))
+                        .font(Typography.monoCaptionSmall)
                         .foregroundStyle(change.color)
                 }
                 if !collapsed {
@@ -131,14 +131,14 @@ struct InsightsView: View {
             } else if isEmpty {
                 VStack(spacing: 4) {
                     Image(systemName: "chart.line.flattrend.xyaxis")
-                        .font(.system(size: 14))
+                        .font(Typography.heroTitle)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                     Text("No activity in \(mode.rawValue) window")
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .frame(height: Layout.chartHeight)
             } else {
                 switch mode {
                 case .daily:
@@ -164,8 +164,8 @@ struct InsightsView: View {
                 insightRows(snapshot)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
         .onAppear { refreshCachedData() }
         .onChange(of: dataFingerprint) { _ in refreshCachedData() }
         .onChange(of: modeRaw) { _ in
@@ -196,7 +196,7 @@ struct InsightsView: View {
             AxisValueLabel {
                 if let v = value.as(Int.self) {
                     Text(Self.compactCount(v))
-                        .font(.system(size: 8))
+                        .font(Typography.decorativeIcon)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
             }
@@ -254,7 +254,7 @@ struct InsightsView: View {
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(Self.dayShortLabel(date))
-                            .font(.system(size: 9))
+                            .font(Typography.monoTiny)
                     }
                 }
             }
@@ -274,7 +274,7 @@ struct InsightsView: View {
                 selectedDailyId = nil
             }
         }
-        .frame(height: 50)
+        .frame(height: Layout.chartHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
     }
@@ -322,7 +322,7 @@ struct InsightsView: View {
                 AxisValueLabel {
                     if let offset = value.as(Int.self), offset >= 0, offset < data.count {
                         Text(Self.formatHourLabel(data[offset].hour))
-                            .font(.system(size: 8))
+                            .font(Typography.decorativeIcon)
                     }
                 }
             }
@@ -338,7 +338,7 @@ struct InsightsView: View {
                 selectedHourlyOffset = nil
             }
         }
-        .frame(height: 50)
+        .frame(height: Layout.chartHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
     }
@@ -389,7 +389,7 @@ struct InsightsView: View {
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(Self.monthAbbrev(date))
-                            .font(.system(size: 9))
+                            .font(Typography.monoTiny)
                     }
                 }
             }
@@ -409,7 +409,7 @@ struct InsightsView: View {
                 selectedMonthlyId = nil
             }
         }
-        .frame(height: 50)
+        .frame(height: Layout.chartHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
     }
@@ -435,13 +435,13 @@ struct InsightsView: View {
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(change.color)
                 Text(change.label)
-                    .font(.system(.caption, design: .monospaced, weight: .medium))
+                    .font(Typography.monoCaption)
                     .foregroundStyle(change.color)
             }
             Spacer()
             if let stat {
                 Text(stat)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(Typography.monoCaption)
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
         }
@@ -451,17 +451,17 @@ struct InsightsView: View {
         HStack(spacing: 6) {
             if throttleCount > 0 {
                 Text("Throttled: \(throttleCount)×")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(Typography.monoCaption)
                     .foregroundStyle(ThemeColors.caution)
             } else {
                 Text("Throttled: 0×")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(Typography.monoCaption)
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
             Spacer()
             if let peak {
                 Text(peak)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(Typography.monoCaption)
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
         }
@@ -503,12 +503,12 @@ struct InsightsView: View {
                     let copyText = "\(model.displayName) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
                     HStack(spacing: 6) {
                         Text(model.displayName)
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .lineLimit(1)
 
                         if isActive(model) {
                             Text("▶")
-                                .font(.system(size: 8))
+                                .font(Typography.decorativeIcon)
                                 .foregroundStyle(.green)
                                 .help("Active model in current session")
                         }
@@ -516,12 +516,12 @@ struct InsightsView: View {
                         Spacer()
 
                         Text(modelCost)
-                            .font(.system(.caption2, design: .monospaced))
+                            .font(Typography.monoCaptionSmall)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .frame(width: costColumnWidth, alignment: .trailing)
 
                         Text(modelTokensText)
-                            .font(.system(.caption2, design: .monospaced))
+                            .font(Typography.monoCaptionSmall)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .frame(width: tokenColumnWidth, alignment: .trailing)
                     }
@@ -574,13 +574,13 @@ struct InsightsView: View {
     ) -> some View {
         HStack {
             Text(label)
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Self.insightLabelWidth, alignment: .leading)
                 .help(tooltip)
             Spacer()
             Text(value)
-                .font(.system(.caption, design: .monospaced))
+                .font(Typography.monoCaption)
                 .foregroundStyle(valueColor)
                 
                 
@@ -596,10 +596,10 @@ struct InsightsView: View {
     /// Tooltip label styling.
     private func tooltipLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(.caption2, design: .monospaced))
+            .font(Typography.monoCaptionSmall)
             .foregroundStyle(ThemeColors.secondaryLabel)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
+            .padding(.horizontal, Spacing.small)
+            .padding(.vertical, Spacing.tight)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
     }
 

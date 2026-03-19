@@ -16,7 +16,7 @@ struct RefreshButton: View {
             action()
         } label: {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 10))
+                .font(Typography.tinyLabel)
                 .rotationEffect(.degrees(rotation))
         }
         .buttonStyle(.plain)

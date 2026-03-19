@@ -7,12 +7,12 @@ struct LaunchAtLoginSection: View {
     var body: some View {
         HStack(spacing: 8) {
             Text("Startup")
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .trailing)
             Toggle("Launch at Login", isOn: $launchAtLogin)
                 .toggleStyle(.checkbox)
-                .font(.caption)
+                .font(Typography.caption)
                 .help("Start AI Battery when you log in to macOS")
                 .onAppear {
                     launchAtLogin = LaunchAtLoginManager.isEnabled

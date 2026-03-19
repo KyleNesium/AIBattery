@@ -43,7 +43,7 @@ struct TokenHealthSection: View {
 
                 if collapsed, let hash = sessionIdPrefix {
                     Text(hash)
-                        .font(.system(size: 9, design: .monospaced))
+                        .font(Typography.monoTiny)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                         .copyable(health.id)
                         .padding(.trailing, 4)
@@ -67,17 +67,17 @@ struct TokenHealthSection: View {
                 // Gauge bar
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: Layout.barCornerRadius)
                             .fill(ThemeColors.trackFill)
-                            .frame(height: 8)
+                            .frame(height: Layout.barHeight)
 
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: Layout.barCornerRadius)
                             .fill(bandColor)
-                            .frame(width: geometry.size.width * min(CGFloat(health.usagePercentage) / 100.0, 1.0), height: 8)
+                            .frame(width: geometry.size.width * min(CGFloat(health.usagePercentage) / 100.0, 1.0), height: Layout.barHeight)
                             
                     }
                 }
-                .frame(height: 8)
+                .frame(height: Layout.barHeight)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
                 .accessibilityValue("\(remainingText) tokens remaining")
@@ -86,13 +86,13 @@ struct TokenHealthSection: View {
                 HStack {
                     let detailText = "~\(remainingText) of \(usableText) usable"
                     Text(detailText)
-                        .font(.caption)
+                        .font(Typography.caption)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .copyable(detailText)
                     Spacer()
                     let turnsModelText = "\(health.turnCount) turns · \(modelDisplay)"
                     Text(turnsModelText)
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                         .help("Conversation turns in this session")
                         .copyable(turnsModelText)
@@ -104,7 +104,7 @@ struct TokenHealthSection: View {
                 if health.band == .orange || health.band == .red {
                     let safeMin = health.usableWindow / 5 // 20% of usable window
                     Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                         .help("Recommended minimum tokens to maintain response quality")
                 }
@@ -113,10 +113,10 @@ struct TokenHealthSection: View {
                 ForEach(health.warnings) { warning in
                     HStack(spacing: 4) {
                         Image(systemName: warning.severity == .strong ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
                         Text(warning.message)
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                 }
@@ -124,15 +124,15 @@ struct TokenHealthSection: View {
                 // Suggested action
                 if let action = health.suggestedAction {
                     Text(action)
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
         .contentShape(Rectangle())
         .gesture(
             sessions.count > 1 ?
@@ -191,7 +191,7 @@ struct TokenHealthSection: View {
             .accessibilityLabel("Previous session")
 
             Text("\(selectedIndex + 1)/\(sessions.count)")
-                .font(.system(.caption2, design: .monospaced))
+                .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
 
             ChevronButton(
@@ -217,14 +217,14 @@ struct TokenHealthSection: View {
                 let idPrefix = sessionIdPrefix
                 if labelParts.isEmpty && idPrefix == nil {
                     Text("Latest session")
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                         .lineLimit(1)
                 } else {
                     HStack(spacing: 0) {
                         if !labelParts.isEmpty {
                             Text(labelParts.joined(separator: " · "))
-                                .font(.caption2)
+                                .font(Typography.tinyLabel)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
@@ -232,11 +232,11 @@ struct TokenHealthSection: View {
                         if let idPrefix {
                             if !labelParts.isEmpty {
                                 Text(" · ")
-                                    .font(.caption2)
+                                    .font(Typography.tinyLabel)
                                     .foregroundStyle(ThemeColors.tertiaryLabel)
                             }
                             Text(idPrefix)
-                                .font(.caption2)
+                                .font(Typography.tinyLabel)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
                                 .copyable(health.id)
                         }
@@ -248,9 +248,9 @@ struct TokenHealthSection: View {
                     HStack(spacing: 2) {
                         Circle()
                             .fill(ThemeColors.caution)
-                            .frame(width: 6, height: 6)
+                            .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
                         Text("Idle \(idleMinutes)m")
-                            .font(.system(.caption2, design: .monospaced))
+                            .font(Typography.monoCaptionSmall)
                             .foregroundStyle(ThemeColors.caution)
                     }
                     .help("Session has been idle — context may be stale")
@@ -262,7 +262,7 @@ struct TokenHealthSection: View {
             if !bottomParts.isEmpty {
                 let bottomText = bottomParts.joined(separator: " · ")
                 Text(bottomText)
-                    .font(.caption2)
+                    .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.secondaryLabel)
                     .lineLimit(1)
                     .copyable(bottomText)
@@ -293,9 +293,9 @@ struct TokenHealthSection: View {
         HStack(spacing: 4) {
             Circle()
                 .fill(bandColor)
-                .frame(width: 8, height: 8)
+                .frame(width: Layout.dotSize, height: Layout.dotSize)
             Text("\(Int(health.usagePercentage))%")
-                .font(.system(.headline, design: .monospaced, weight: .semibold))
+                .font(Typography.monoValue)
                 
                 
                 .copyable("\(Int(health.usagePercentage))%")
@@ -321,8 +321,8 @@ private struct ChevronButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: direction == .left ? "chevron.left" : "chevron.right")
-                .font(.system(size: 9, weight: .bold))
-                .frame(width: 22, height: 22)
+                .font(Typography.chevronIcon)
+                .frame(width: Layout.chevronFrame, height: Layout.chevronFrame)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
                         .fill(isPressed ? Color.primary.opacity(0.1) : Color.clear)

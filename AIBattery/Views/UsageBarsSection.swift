@@ -14,8 +14,8 @@ struct FiveHourBarSection: View {
                 || (limits.isThrottled && limits.fiveHourPercent >= 100),
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow)
         )
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
     }
 }
 
@@ -33,8 +33,8 @@ struct SevenDayBarSection: View {
                 || (limits.isThrottled && limits.sevenDayPercent >= 100),
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow)
         )
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
     }
 }
 
@@ -51,21 +51,21 @@ struct UsageBar: View {
             HStack {
                 HStack(spacing: 4) {
                     Text(label)
-                        .font(.subheadline.bold())
+                        .font(Typography.sectionHeader)
                         .accessibilityAddTraits(.isHeader)
                     if isBinding {
                         Text("binding")
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .font(Typography.badgeLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .padding(.horizontal, 4)
+                            .padding(.horizontal, Spacing.small)
                             .padding(.vertical, 1)
-                            .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: 3))
+                            .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: Layout.barCornerRadius))
                             .accessibilityLabel("Binding constraint")
                             .help("This window is the active rate limit constraint")
                     }
                     if isThrottled {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
                             .accessibilityLabel("Rate limited")
                             .help("You are currently rate limited")
@@ -73,7 +73,7 @@ struct UsageBar: View {
                 }
                 Spacer()
                 Text("\(Int(percent))%")
-                    .font(.system(.headline, design: .monospaced, weight: .semibold))
+                    .font(Typography.monoValue)
                     
                     
                     .copyable("\(Int(percent))%")
@@ -81,17 +81,17 @@ struct UsageBar: View {
 
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: Layout.barCornerRadius)
                         .fill(ThemeColors.trackFill)
-                        .frame(height: 8)
+                        .frame(height: Layout.barHeight)
 
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: Layout.barCornerRadius)
                         .fill(ThemeColors.barColor(percent: percent))
-                        .frame(width: geometry.size.width * min(CGFloat(percent) / 100.0, 1.0), height: 8)
+                        .frame(width: geometry.size.width * min(CGFloat(percent) / 100.0, 1.0), height: Layout.barHeight)
                         
                 }
             }
-            .frame(height: 8)
+            .frame(height: Layout.barHeight)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(label) rate limit usage \(Int(percent)) percent")
             .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - percent))) percent remaining")
@@ -106,29 +106,29 @@ struct UsageBar: View {
                 if wasExhausted && expired && percent < 1 {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(.green)
                         Text("Reset")
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(.green)
                     }
                     .transition(.opacity)
                 } else if isThrottled {
                     Text("Throttled")
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
                         .transition(.opacity)
                 } else if let estimate = estimatedTimeToLimit {
                     let estimateText = "~\(DurationFormatter.compact(estimate)) to limit"
                     Text(estimateText)
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.caution)
                         .copyable(estimateText)
                 } else {
                     // No burn rate estimate yet — show remaining percentage
                     let remainingText = "\(max(0, Int(100 - percent)))% remaining"
                     Text(remainingText)
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .copyable(remainingText)
                 }
@@ -139,13 +139,13 @@ struct UsageBar: View {
                 if let diff = resetDiff {
                     if diff <= 0 && wasExhausted && percent >= 1 {
                         Text("Resets soon")
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.caution)
                             .help("Rate limit window is resetting")
                     } else if diff > 0 {
                         let resetText = "Resets in \(DurationFormatter.compact(diff))"
                         Text(resetText)
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .copyable(resetText)
                     }

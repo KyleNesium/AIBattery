@@ -9,19 +9,19 @@ struct AlertSettingsSection: View {
     var body: some View {
         HStack(spacing: 8) {
             Text("Alerts")
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .trailing)
             Toggle("Status", isOn: $alertStatus)
                 .toggleStyle(.checkbox)
-                .font(.caption)
+                .font(Typography.caption)
                 .help("Notify on Claude.ai outages and incidents")
                 .onChange(of: alertStatus) { on in
                     if on { NotificationManager.shared.requestPermission() }
                 }
             Toggle("Rate Limit", isOn: $alertRateLimit)
                 .toggleStyle(.checkbox)
-                .font(.caption)
+                .font(Typography.caption)
                 .help("Notify when usage exceeds threshold")
                 .onChange(of: alertRateLimit) { on in
                     if on { NotificationManager.shared.requestPermission() }
@@ -31,7 +31,7 @@ struct AlertSettingsSection: View {
                     NotificationManager.shared.testAlerts()
                 }
                 .buttonStyle(.plain)
-                .font(.caption2)
+                .font(Typography.tinyLabel)
                 .foregroundStyle(.blue)
                 .help("Send a test notification")
                 .accessibilityLabel("Test alerts")
@@ -46,7 +46,7 @@ struct AlertSettingsSection: View {
                         .accessibilityValue("\(Int(rateLimitThreshold)) percent")
                         .help("Alert when usage exceeds \(Int(rateLimitThreshold))%")
                     Text("\(Int(rateLimitThreshold))%")
-                        .font(.system(.caption, design: .monospaced))
+                        .font(Typography.monoCaption)
                         .frame(width: 28, alignment: .trailing)
                 }
                 sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)

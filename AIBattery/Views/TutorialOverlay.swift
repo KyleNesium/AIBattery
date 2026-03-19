@@ -45,10 +45,10 @@ struct TutorialOverlay: View {
                     .accessibilityHidden(true)
 
                 Text(steps[step].title)
-                    .font(.headline)
+                    .font(Typography.sectionHeader)
 
                 Text(steps[step].description)
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -72,7 +72,7 @@ struct TutorialOverlay: View {
                             withAnimation(.easeOut(duration: 0.2)) { hasSeenTutorial = true }
                         }
                         .buttonStyle(.plain)
-                        .font(.caption)
+                        .font(Typography.caption)
                         .foregroundStyle(.secondary)
                         .keyboardShortcut(.cancelAction)
                         .accessibilityLabel("Skip tutorial")
@@ -92,7 +92,7 @@ struct TutorialOverlay: View {
                     .keyboardShortcut(.defaultAction)
                 }
             }
-            .padding(24)
+            .padding(Spacing.overlay)
             .frame(maxWidth: 280)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             .accessibilityElement(children: .contain)

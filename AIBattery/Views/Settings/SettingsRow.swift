@@ -9,7 +9,8 @@ struct SettingsRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Settings")
-                .font(.caption.weight(.semibold))
+                .font(Typography.caption)
+                .fontWeight(.semibold)
                 .foregroundStyle(.secondary)
                 .accessibilityAddTraits(.isHeader)
 
@@ -24,9 +25,9 @@ struct SettingsRow: View {
                     Button(action: onAddAccount) {
                         HStack(spacing: 3) {
                             Image(systemName: "plus.circle")
-                                .font(.system(size: 10))
+                                .font(Typography.tinyLabel)
                             Text("Add Account")
-                                .font(.caption)
+                                .font(Typography.caption)
                         }
                     }
                     .buttonStyle(.plain)
@@ -44,8 +45,8 @@ struct SettingsRow: View {
             Divider().opacity(0.5)
             LaunchAtLoginSection()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
     }
 
     /// Editable name row for a single account.
@@ -56,19 +57,19 @@ struct SettingsRow: View {
             : "Name"
         return HStack(spacing: 8) {
             Text(label)
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .trailing)
             TextField("User \(index + 1)", text: nameBinding(for: account.id))
                 .textFieldStyle(.roundedBorder)
-                .font(.caption)
+                .font(Typography.caption)
                 .help("Display name for this account (max 30 chars)")
             if accountStore.accounts.count > 1 {
                 Button(action: {
                     OAuthManager.shared.signOut(accountId: account.id)
                 }) {
                     Image(systemName: "xmark.circle")
-                        .font(.system(size: 10))
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)

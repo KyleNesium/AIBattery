@@ -31,9 +31,9 @@ public struct AuthView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 Text("AI Battery")
-                    .font(.headline)
+                    .font(Typography.sectionHeader)
                 Text(isAddingAccount ? "Add another Claude account" : "Sign in with your Claude account")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -45,7 +45,7 @@ public struct AuthView: View {
                     Text(isAddingAccount
                         ? "Connect another Claude account to monitor multiple orgs from AI Battery."
                         : "Connect your Anthropic account to see your usage, rate limits, and plan details.")
-                        .font(.caption)
+                        .font(Typography.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
 
@@ -54,7 +54,7 @@ public struct AuthView: View {
                             Image(systemName: "person.crop.circle.badge.checkmark")
                                 .font(.system(size: 13))
                             Text("Sign In")
-                                .font(.subheadline.weight(.medium))
+                                .font(Typography.buttonLabel)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
@@ -70,9 +70,9 @@ public struct AuthView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "1.circle.fill")
                             .foregroundStyle(ThemeColors.caution)
-                            .font(.caption)
+                            .font(Typography.caption)
                         Text("Sign in via the browser window that just opened")
-                            .font(.caption)
+                            .font(Typography.caption)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -80,9 +80,9 @@ public struct AuthView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "2.circle.fill")
                             .foregroundStyle(ThemeColors.caution)
-                            .font(.caption)
+                            .font(Typography.caption)
                         Text("Copy the authorization code shown after signing in")
-                            .font(.caption)
+                            .font(Typography.caption)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,16 +90,16 @@ public struct AuthView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "3.circle.fill")
                             .foregroundStyle(ThemeColors.caution)
-                            .font(.caption)
+                            .font(Typography.caption)
                         Text("Paste it below:")
-                            .font(.caption)
+                            .font(Typography.caption)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     TextField("Paste code...", text: $authCode)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(Typography.monoCaption)
                         .onSubmit(submitCode)
                         .accessibilityLabel("Authorization code")
                         .accessibilityHint("Paste the code from the browser")
@@ -111,7 +111,7 @@ public struct AuthView: View {
                             errorMessage = nil
                         }
                         .buttonStyle(.plain)
-                        .font(.caption)
+                        .font(Typography.caption)
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Cancel authentication")
 
@@ -123,7 +123,7 @@ public struct AuthView: View {
                                     .scaleEffect(0.6)
                             } else {
                                 Text("Connect")
-                                    .font(.subheadline.weight(.medium))
+                                    .font(Typography.buttonLabel)
                             }
                         }
                         .buttonStyle(.borderedProminent)
@@ -138,10 +138,10 @@ public struct AuthView: View {
             if let error = errorMessage {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
                     Text(error)
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
                 }
             }
@@ -153,21 +153,21 @@ public struct AuthView: View {
                 if isAddingAccount, let onCancel {
                     Button("Cancel") { onCancel() }
                         .buttonStyle(.plain)
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Cancel adding account")
                 } else {
                     Button("Quit") { NSApplication.shared.terminate(nil) }
                         .buttonStyle(.plain)
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(.secondary)
                         .keyboardShortcut("q", modifiers: .command)
                 }
                 Spacer()
             }
         }
-        .padding(16)
-        .frame(width: 275)
+        .padding(Spacing.sectionHorizontal)
+        .frame(width: Layout.popoverWidth)
         .contentShape(Rectangle())
     }
 

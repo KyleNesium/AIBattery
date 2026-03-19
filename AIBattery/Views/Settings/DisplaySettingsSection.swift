@@ -13,7 +13,7 @@ struct DisplaySettingsSection: View {
         VStack(spacing: 2) {
             HStack(spacing: 8) {
                 Text("Hide idle")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
                 Slider(value: $idleSliderPosition, in: 1...6, step: 1) { editing in
@@ -37,7 +37,7 @@ struct DisplaySettingsSection: View {
                     .accessibilityLabel("Hide idle sessions")
                     .accessibilityValue(idleLabelForPosition)
                 Text(idleLabelForPosition)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(Typography.monoCaption)
                     .frame(width: 28, alignment: .trailing)
                     .help(idleSliderPosition >= 6 ? "Show all sessions" : "Hide sessions idle > \(idleLabelForPosition)")
             }
@@ -47,12 +47,12 @@ struct DisplaySettingsSection: View {
         // Display toggles
         HStack(spacing: 8) {
             Text("Display")
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 50, alignment: .trailing)
             Toggle("Colorblind", isOn: $colorblindMode)
                 .toggleStyle(.checkbox)
-                .font(.caption)
+                .font(Typography.caption)
                 .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
         }
     }

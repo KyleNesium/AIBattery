@@ -13,11 +13,11 @@ struct CollapsibleSectionHeader: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(Typography.chevronIcon)
                     .rotationEffect(.degrees(collapsed ? 0 : 90))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                 Text(title)
-                    .font(.subheadline.bold())
+                    .font(Typography.sectionHeader)
                     .foregroundStyle(.primary)
             }
             .contentShape(Rectangle())

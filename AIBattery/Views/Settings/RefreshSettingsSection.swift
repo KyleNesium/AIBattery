@@ -11,7 +11,7 @@ struct RefreshSettingsSection: View {
         VStack(spacing: 2) {
             HStack(spacing: 8) {
                 Text("Refresh")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: 50, alignment: .trailing)
                 Slider(value: $sliderValue, in: 10...60, step: 5) { editing in
@@ -26,12 +26,12 @@ struct RefreshSettingsSection: View {
                     .accessibilityLabel("Refresh interval")
                     .accessibilityValue("\(Int(sliderValue)) seconds")
                 Text("\(Int(sliderValue))s")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(Typography.monoCaption)
                     .frame(width: 28, alignment: .trailing)
             }
             sliderMarks(labels: ["10s", "20s", "30s", "40s", "50s", "60s"], leadingPad: 50)
             Text("~3 tokens/poll to update menu bar")
-                .font(.caption2)
+                .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, 58)
         }
@@ -45,7 +45,7 @@ func sliderMarks(labels: [String], leadingPad: CGFloat) -> some View {
         HStack(spacing: 0) {
             ForEach(Array(labels.enumerated()), id: \.offset) { i, label in
                 Text(label)
-                    .font(.system(size: 8))
+                    .font(Typography.decorativeIcon)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                 if i < labels.count - 1 {
                     Spacer()

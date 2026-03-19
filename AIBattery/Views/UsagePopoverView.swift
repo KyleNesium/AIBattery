@@ -79,22 +79,22 @@ public struct UsagePopoverView: View {
                 if snapshot.rateLimits == nil, let error = viewModel.errorMessage {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle")
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(.orange)
                         Text(error)
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
                         Spacer()
                         Button("Retry") {
                             Task { await viewModel.refresh() }
                         }
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .buttonStyle(.plain)
                         .foregroundStyle(.blue)
                     }
                     .copyable(error)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, Spacing.sectionHorizontal)
+                    .padding(.vertical, Spacing.section)
                     Divider()
                 }
 
@@ -137,7 +137,7 @@ public struct UsagePopoverView: View {
                 HStack {
                     Spacer()
                     Text("Loading...")
-                        .font(.caption)
+                        .font(Typography.caption)
                         .foregroundStyle(.secondary)
                     ProgressView()
                         .scaleEffect(0.5)
@@ -154,7 +154,7 @@ public struct UsagePopoverView: View {
             Divider()
             footerSection
         }
-        .frame(width: 275)
+        .frame(width: Layout.popoverWidth)
         .contentShape(Rectangle())
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
@@ -173,10 +173,10 @@ public struct UsagePopoverView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Image(systemName: "sparkle")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(Typography.heroValue)
                     .foregroundStyle(.primary)
                 Text("AI Battery")
-                    .font(.headline)
+                    .font(Typography.sectionHeader)
                     .fixedSize()
                 accountPicker
                     .lineLimit(1)
@@ -184,7 +184,7 @@ public struct UsagePopoverView: View {
                 Spacer()
                 #if ENABLE_VERSION_CHECKER
                 Text("v\(VersionChecker.currentAppVersion)")
-                    .font(.system(size: 9, design: .monospaced))
+                    .font(Typography.monoTiny)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                 Button(action: {
                     if viewModel.availableUpdate != nil {
@@ -208,7 +208,7 @@ public struct UsagePopoverView: View {
                     }
                 }) {
                     Image(systemName: "arrow.up.circle")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Typography.bodyLabel)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(
@@ -220,12 +220,12 @@ public struct UsagePopoverView: View {
                 .accessibilityLabel(viewModel.availableUpdate.map { "Version \($0.version) available" } ?? "Check for updates")
                 #else
                 Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")")
-                    .font(.system(size: 9, design: .monospaced))
+                    .font(Typography.monoTiny)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                 #endif
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() } }) {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(Typography.bodyLabel)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(showSettings ? .primary : .secondary)
@@ -245,13 +245,13 @@ public struct UsagePopoverView: View {
                     }) {
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.caption2)
+                                .font(Typography.tinyLabel)
                                 .foregroundStyle(.yellow)
                             Text("v\(update.version)")
-                                .font(.caption2)
+                                .font(Typography.tinyLabel)
                                 .foregroundStyle(.secondary)
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 6))
+                                .font(Typography.decorativeIcon)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
                         }
                     }
@@ -272,9 +272,9 @@ public struct UsagePopoverView: View {
                     }) {
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.down.circle")
-                                .font(.system(size: 9))
+                                .font(Typography.monoTiny)
                             Text("Install Update")
-                                .font(.caption2)
+                                .font(Typography.tinyLabel)
                         }
                     }
                     .buttonStyle(.plain)
@@ -283,7 +283,7 @@ public struct UsagePopoverView: View {
                     Spacer()
                     Button(action: { updateBannerDismissed = true }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14))
+                            .font(Typography.heroTitle)
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
@@ -304,18 +304,18 @@ public struct UsagePopoverView: View {
             } else if let msg = updateCheckMessage {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(.green)
                     Text(msg)
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(.secondary)
                 }
                 .transition(.opacity)
             }
             #endif
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
     }
 
     /// Account picker — shows display name if set, otherwise "User N".
@@ -348,12 +348,12 @@ public struct UsagePopoverView: View {
         } label: {
             if let activeIndex = accountStore.accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
                 Text(accountLabel(accountStore.accounts[activeIndex], index: activeIndex))
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             } else {
                 Text("Account")
-                    .font(.caption)
+                    .font(Typography.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -375,7 +375,7 @@ public struct UsagePopoverView: View {
             ProgressView()
                 .scaleEffect(0.8)
             Text("Fetching usage data...")
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -388,23 +388,23 @@ public struct UsagePopoverView: View {
                 .font(.title3)
                 .foregroundStyle(ThemeColors.caution)
             Text(message)
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
             Button(action: { Task { await viewModel.refresh() } }) {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 9))
+                        .font(Typography.monoTiny)
                     Text("Retry")
-                        .font(.caption)
+                        .font(Typography.caption)
                 }
             }
             .buttonStyle(.plain)
             .foregroundStyle(.blue)
             .accessibilityHint("Retry loading usage data")
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Spacing.sectionHorizontal)
         .frame(maxWidth: .infinity)
         .frame(height: 100)
     }
@@ -412,14 +412,14 @@ public struct UsagePopoverView: View {
     private var emptyView: some View {
         VStack(spacing: 4) {
             Text("No Claude Code data found")
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
             Text("Start a Claude Code session to populate usage data.\nData appears automatically once Claude Code is running.")
-                .font(.caption2)
+                .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .multilineTextAlignment(.center)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Spacing.sectionHorizontal)
         .frame(maxWidth: .infinity)
         .frame(height: 80)
     }
@@ -427,12 +427,12 @@ public struct UsagePopoverView: View {
     private var idleFilteredEmptyState: some View {
         VStack(spacing: 4) {
             Text("No active sessions")
-                .font(.caption)
+                .font(Typography.caption)
                 .foregroundStyle(.secondary)
             let idleMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
             if idleMinutes > 0 {
                 Text("Idle cutoff: \(idleMinutes)m")
-                    .font(.caption2)
+                    .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
             }
         }
@@ -465,8 +465,8 @@ public struct UsagePopoverView: View {
             .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
             .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
         .background(ThemeColors.badgeFill)
     }
 
@@ -536,7 +536,7 @@ public struct UsagePopoverView: View {
                 } leading: {
                     Circle()
                         .fill(statusColor)
-                        .frame(width: 6, height: 6)
+                        .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
                 }
 
                 Spacer()
@@ -559,9 +559,9 @@ public struct UsagePopoverView: View {
                 }) {
                     HStack(spacing: 2) {
                         Image(systemName: showLogoutConfirm ? "exclamationmark.triangle" : "rectangle.portrait.and.arrow.right")
-                            .font(.system(size: 9))
+                            .font(Typography.monoTiny)
                         Text(showLogoutConfirm ? "Confirm?" : "Logout")
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                     }
                     .fixedSize()
                 }
@@ -577,9 +577,9 @@ public struct UsagePopoverView: View {
                 }) {
                     HStack(spacing: 2) {
                         Image(systemName: "xmark.circle")
-                            .font(.system(size: 9))
+                            .font(Typography.monoTiny)
                         Text("Quit")
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                     }
                     .fixedSize()
                 }
@@ -593,7 +593,7 @@ public struct UsagePopoverView: View {
             if let names = viewModel.systemStatus?.incidentNames, !names.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(statusColor)
                     MarqueeText(texts: names, color: statusColor)
                 }
@@ -608,21 +608,21 @@ public struct UsagePopoverView: View {
                     if let lastFetch = viewModel.lastFreshFetch {
                         TimelineView(.periodic(from: .now, by: 10)) { _ in
                             Text("Updated \(Self.relativeTime(lastFetch))")
-                                .font(.system(size: 9, design: .monospaced))
+                                .font(Typography.monoTiny)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
                                 .help("Last fetched: \(Self.absoluteTime(lastFetch))")
                         }
                     } else if viewModel.isLoading {
                         Text("Loading...")
-                            .font(.system(size: 9, design: .monospaced))
+                            .font(Typography.monoTiny)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                     }
                 }
             }
 
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
     }
 
     private var systemIndicator: StatusIndicator? {

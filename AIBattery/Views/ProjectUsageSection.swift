@@ -66,8 +66,8 @@ struct ProjectUsageSection: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
         .onAppear { recomputeSorted() }
         .onChange(of: sortMode) { _ in recomputeSorted() }
         .onChange(of: snapshot.projectTokens) { _ in recomputeSorted() }
@@ -96,12 +96,12 @@ struct ProjectUsageSection: View {
             )
             Spacer()
             Text(costText)
-                .font(.system(.caption, design: .monospaced))
+                .font(Typography.monoCaption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: costColumnWidth, alignment: .trailing)
                 .copyable(costText)
             Text(totalTokensText)
-                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .font(Typography.monoValueMedium)
                 
                 
                 .frame(width: tokenColumnWidth, alignment: .trailing)
@@ -121,7 +121,7 @@ struct ProjectUsageSection: View {
                     }
                 }) {
                     Text(showAll ? "Show less" : "Show more")
-                        .font(.caption2)
+                        .font(Typography.tinyLabel)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(ThemeColors.chartAccent)
@@ -134,9 +134,9 @@ struct ProjectUsageSection: View {
                 Button(action: { sortMode = sortMode.next }) {
                     HStack(spacing: 3) {
                         Image(systemName: sortMode.icon)
-                            .font(.system(size: 8))
+                            .font(Typography.decorativeIcon)
                         Text(sortMode.label)
-                            .font(.caption2)
+                            .font(Typography.tinyLabel)
                     }
                 }
                 .buttonStyle(.plain)
@@ -156,23 +156,23 @@ struct ProjectUsageSection: View {
         let copyText = "\(project.projectName) \u{00B7} \(costText) \u{00B7} \(tokensText)"
         return HStack(spacing: 6) {
             Text("\(index + 1)")
-                .font(.system(.caption2, design: .monospaced, weight: .medium))
+                .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .frame(width: 14, alignment: .trailing)
 
             Text(project.projectName)
-                .font(.caption)
+                .font(Typography.caption)
                 .lineLimit(1)
 
             Spacer()
 
             Text(costText)
-                .font(.system(.caption2, design: .monospaced))
+                .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .frame(width: costColumnWidth, alignment: .trailing)
 
             Text(tokensText)
-                .font(.system(.caption, design: .monospaced))
+                .font(Typography.monoCaption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: tokenColumnWidth, alignment: .trailing)
         }
@@ -186,15 +186,15 @@ struct ProjectUsageSection: View {
     private var searchField: some View {
         HStack(spacing: 4) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 9))
+                .font(Typography.monoTiny)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
             TextField("Filter projects", text: $searchText)
-                .font(.caption)
+                .font(Typography.caption)
                 .textFieldStyle(.plain)
             if !searchText.isEmpty {
                 Button(action: { searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
                 .buttonStyle(.plain)

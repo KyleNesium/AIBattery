@@ -461,7 +461,7 @@ private struct PopoverContentView: View {
                 AuthView(oauthManager: oauthManager)
             }
         }
-        .frame(width: 275)
+        .frame(width: Layout.popoverWidth)
         .background(Color(nsColor: .controlBackgroundColor))
     }
 }
