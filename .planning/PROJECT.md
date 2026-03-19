@@ -54,12 +54,12 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 <!-- Current scope. Building toward these. -->
 
 #### Design System
-- [ ] DS-01: Typography constants
-- [ ] DS-02: Spacing constants
-- [ ] DS-03: Consistent outer padding
+- [x] DS-01: Typography constants — v1.11 Phase 6
+- [x] DS-02: Spacing constants — v1.11 Phase 6
+- [x] DS-03: Consistent outer padding — v1.11 Phase 6
 
 #### UI Polish
-- [ ] UI-05: Minimum font size audit
+- [x] UI-05: Minimum font size audit — v1.11 Phase 6
 - [ ] UI-06: Section visual consistency
 - [ ] UI-07: Subtle transition animations (performance-gated)
 
@@ -113,4 +113,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | 60s discovery TTL | Catches new JSONL files even when dir mtime unchanged; low cost fallback | ✓ Good |
 
 ---
-*Last updated: 2026-03-19 after v1.11 milestone start*
+*Last updated: 2026-03-19 — Phase 6 Design System complete*
