@@ -38,27 +38,22 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ PERF-03: Cached rate limits for instant launch — v1.9.2
 - ✓ PERF-04: Recursive JSONL enumerator (469→215 syscalls) — v1.9.2
 
+- ✓ BUG-01: Dynamic probe model list — v1.10
+- ✓ BUG-02: Bidirectional context window detect — v1.10
+- ✓ BUG-03: Sub-50% time-to-limit projections — v1.10
+- ✓ BUG-04: JSONL-based tool call counts — v1.10
+- ✓ BUG-05: Spec drift fixes — v1.10
+- ✓ PERF-05: Batched TokenLedger disk writes — v1.10 (verified + tests)
+- ✓ PERF-06: Efficient buildProjectTokens iteration — v1.10 (verified + tests)
+- ✓ PERF-07: Smarter rate limit probe fallback — v1.10
+- ✓ PERF-08: Resilient adaptive polling — v1.10
+- ✓ PERF-09: Robust JSONL file discovery — v1.10
+
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-#### Bug Fixes
-- [x] BUG-01: Dynamic probe model list — Phase 2
-- [x] BUG-02: Bidirectional context window detect — Phase 1
-- [x] BUG-03: Sub-50% time-to-limit projections — Phase 1
-- [x] BUG-04: JSONL-based tool call counts — Phase 2
-- [x] BUG-05: Spec drift fixes — Phase 5
-
-#### Performance
-- [x] PERF-05: Batched TokenLedger disk writes — Phase 3 (already optimal, tests added)
-- [x] PERF-06: Efficient buildProjectTokens iteration — Phase 3 (already optimal, tests added)
-- [x] PERF-07: Smarter rate limit probe fallback — Phase 4
-- [x] PERF-08: Resilient adaptive polling — Phase 4
-- [x] PERF-09: Robust JSONL file discovery — Phase 4
-
-## Current Milestone: v1.10 Bugs & Performance
-
-**Goal:** Fix known bugs and optimize remaining performance bottlenecks for a more robust, efficient app.
+(Defining in next milestone)
 
 ### Out of Scope
 
@@ -68,13 +63,13 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 ## Context
 
-- **Version:** 1.9.2 (2026-03-17)
-- **Tests:** 434 across 34 files
+- **Version:** 1.10 (2026-03-19) — bugs & performance milestone shipped
+- **Tests:** ~450+ across 34+ files (6 perf regression tests added in v1.10)
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
 - **Zero TODOs/FIXMEs** in codebase — clean slate
-- **Recent focus:** v1.8–1.9.2 was heavy bug fixing and performance work
+- **Recent focus:** v1.10 shipped all known bugs and performance improvements; specs fully synced
 
 ## Constraints
 
@@ -94,6 +89,9 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | Unified rate limit headers | Anthropic uses `anthropic-ratelimit-unified-*` format | ✓ Good |
 | All-time token mode only | Windowed mode removed — simpler, always accurate | ✓ Good |
 | UNUserNotificationCenter | Native notifications with app icon, no shell escaping risk | ✓ Good |
+| Dynamic probe model list | Self-heals from JSONL-observed models instead of hardcoded list | ✓ Good |
+| max() merge for tool calls | JSONL supplements stale stats-cache; neither source is authoritative alone | ✓ Good |
+| 60s discovery TTL | Catches new JSONL files even when dir mtime unchanged; low cost fallback | ✓ Good |
 
 ---
-*Last updated: 2026-03-18 after Phase 5 completion — all v1.10 requirements complete*
+*Last updated: 2026-03-19 after v1.10 milestone*
