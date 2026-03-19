@@ -1,5 +1,15 @@
 # Milestones
 
+## v1.11 Polish & Consistency (Shipped: 2026-03-19)
+
+**Phases completed:** 4 phases, 7 plans, 0 tasks
+
+**Key accomplishments:**
+
+- (none recorded)
+
+---
+
 ## v1.10 Bugs & Performance (Shipped: 2026-03-19)
 
 **Phases completed:** 5 phases, 7 plans | **18 files changed, +1076 -43 lines** | **41 commits**

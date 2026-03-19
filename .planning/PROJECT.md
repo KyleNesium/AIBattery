@@ -48,31 +48,21 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ PERF-07: Smarter rate limit probe fallback — v1.10
 - ✓ PERF-08: Resilient adaptive polling — v1.10
 - ✓ PERF-09: Robust JSONL file discovery — v1.10
+- ✓ DS-01: Typography constants — v1.11
+- ✓ DS-02: Spacing constants — v1.11
+- ✓ DS-03: Consistent outer padding — v1.11
+- ✓ UI-05: Minimum font size audit — v1.11
+- ✓ UI-06: Section visual consistency — v1.11
+- ✓ UI-07: Subtle transition animations (performance-gated) — v1.11
+- ✓ CQ-01: Extract large view files (<400 lines each) — v1.11
+- ✓ CQ-02: Spec sync for structural changes — v1.11
+- ✓ PG-01: No animation when panel closed — v1.11
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-#### Design System
-- [x] DS-01: Typography constants — v1.11 Phase 6
-- [x] DS-02: Spacing constants — v1.11 Phase 6
-- [x] DS-03: Consistent outer padding — v1.11 Phase 6
-
-#### UI Polish
-- [x] UI-05: Minimum font size audit — v1.11 Phase 6
-- [x] UI-06: Section visual consistency — v1.11 Phase 7
-- [x] UI-07: Subtle transition animations (performance-gated) — v1.11 Phase 7
-
-#### Code Quality
-- [x] CQ-01: Extract large view files (<400 lines each) — v1.11 Phase 8
-- [x] CQ-02: Spec sync for structural changes — v1.11 Phase 9
-
-#### Performance Guard
-- [x] PG-01: No animation when panel closed — v1.11 Phase 9
-
-## Current Milestone: v1.11 Polish & Consistency
-
-**Goal:** Unify typography, spacing, and visual consistency across the popover UI while extracting large files and guarding performance.
+(None — next milestone not yet defined. Run `/gsd:new-milestone` to start.)
 
 ### Out of Scope
 
@@ -82,13 +72,13 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 ## Context
 
-- **Version:** 1.10 (2026-03-19) — bugs & performance milestone shipped
-- **Tests:** ~450+ across 34+ files (6 perf regression tests added in v1.10)
+- **Version:** 1.11 (2026-03-19) — polish & consistency milestone shipped
+- **Tests:** ~460+ across 36+ files (28 design token snapshot tests added in v1.11)
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
 - **Zero TODOs/FIXMEs** in codebase — clean slate
-- **Recent focus:** v1.10 shipped all known bugs and performance improvements; specs fully synced
+- **Recent focus:** v1.11 shipped design system, visual polish, and file extraction; all specs synced
 
 ## Constraints
 
@@ -111,6 +101,10 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | Dynamic probe model list | Self-heals from JSONL-observed models instead of hardcoded list | ✓ Good |
 | max() merge for tool calls | JSONL supplements stale stats-cache; neither source is authoritative alone | ✓ Good |
 | 60s discovery TTL | Catches new JSONL files even when dir mtime unchanged; low cost fallback | ✓ Good |
+| Design token system | Typography/Spacing/Layout enums centralize all UI constants — single source of truth | ✓ Good |
+| Extension-based extraction | ActivityChartView uses extensions to share @State without Binding plumbing | ✓ Good |
+| StyledDivider component | Unified divider styling across all sections (opacity 0.3, tight padding) | ✓ Good |
+| MotionConstants enum | Animation durations centralized (standard 0.2s, snappy 0.15s) | ✓ Good |
 
 ---
-*Last updated: 2026-03-19 — Phase 9 Wrap-Up complete, v1.11 milestone finished*
+*Last updated: 2026-03-19 after v1.11 milestone*
