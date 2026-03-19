@@ -1,5 +1,15 @@
 # Milestones
 
+## v1.12 Performance & Cleanup (Shipped: 2026-03-19)
+
+**Phases completed:** 2 phases, 2 plans, 0 tasks
+
+**Key accomplishments:**
+
+- (none recorded)
+
+---
+
 ## v1.11 Polish & Consistency (Shipped: 2026-03-19)
 
 **Phases completed:** 4 phases, 7 plans, 0 tasks

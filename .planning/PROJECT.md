@@ -57,20 +57,18 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ CQ-01: Extract large view files (<400 lines each) — v1.11
 - ✓ CQ-02: Spec sync for structural changes — v1.11
 - ✓ PG-01: No animation when panel closed — v1.11
+- ✓ PERF-10: Popover opens/closes instantly — v1.12
+- ✓ PERF-11: Periodic updates gated on panel visibility — v1.12
+- ✓ PERF-12: Reduced GeometryReader layout passes — v1.12
+- ✓ CQ-03: Dead code removed (sectionPadding, PopoverLoadingView) — v1.12
+- ✓ CQ-04: Spec sync for performance changes — v1.12
+- ✓ CQ-05: README test coverage updated — v1.12
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-#### Performance
-- [ ] PERF-10: Eliminate remaining popover open/close lag sources
-- [ ] PERF-11: Gate all periodic updates (TimelineView, timers) on panel visibility
-- [ ] PERF-12: Reduce SwiftUI layout passes on popover render
-
-#### Code Quality
-- [ ] CQ-03: Remove dead code (sectionPadding(), PopoverLoadingView)
-- [ ] CQ-04: Spec sync for v1.9.4 performance changes
-- [ ] CQ-05: README test coverage update
+(None — next milestone not yet defined. Run `/gsd:new-milestone` to start.)
 
 ### Out of Scope
 
@@ -115,9 +113,5 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | MotionConstants enum | Animation durations centralized (standard 0.2s, snappy 0.15s) | ✓ Good |
 
 ---
-## Current Milestone: v1.12 Performance & Cleanup
-
-**Goal:** Eliminate remaining popover lag, gate periodic updates on visibility, and clean up dead code from v1.11.
-
 ---
-*Last updated: 2026-03-20 after v1.12 milestone start*
+*Last updated: 2026-03-20 after v1.12 milestone*
