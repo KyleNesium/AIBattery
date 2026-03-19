@@ -9,9 +9,9 @@ Requirements for performance and cleanup milestone. Each maps to roadmap phases.
 
 ### Performance
 
-- [ ] **PERF-10**: Popover opens/closes as fast as native macOS menu bar extras — no perceptible lag
-- [ ] **PERF-11**: All TimelineViews and periodic timers only tick while the popover panel is visible
-- [ ] **PERF-12**: Minimize SwiftUI layout passes on popover open — reduce GeometryReader count where possible
+- [x] **PERF-10**: Popover opens/closes as fast as native macOS menu bar extras — no perceptible lag
+- [x] **PERF-11**: All TimelineViews and periodic timers only tick while the popover panel is visible
+- [x] **PERF-12**: Minimize SwiftUI layout passes on popover open — reduce GeometryReader count where possible
 
 ### Code Quality
 
@@ -35,9 +35,9 @@ Requirements for performance and cleanup milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERF-10 | Phase 10 | Pending |
-| PERF-11 | Phase 10 | Pending |
-| PERF-12 | Phase 10 | Pending |
+| PERF-10 | Phase 10 | Complete |
+| PERF-11 | Phase 10 | Complete |
+| PERF-12 | Phase 10 | Complete |
 | CQ-03 | Phase 11 | Pending |
 | CQ-04 | Phase 11 | Pending |
 | CQ-05 | Phase 11 | Pending |
