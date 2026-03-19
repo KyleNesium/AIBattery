@@ -9,8 +9,8 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 
 ### Design System
 
-- [ ] **DS-01**: Typography constants — named font styles replacing 30+ inline `.font()` calls (e.g., `.sectionHeader`, `.monoValue`, `.tinyLabel`)
-- [ ] **DS-02**: Spacing constants — unified scale replacing 8+ hardcoded spacing values (section, gap, tight, padding)
+- [x] **DS-01**: Typography constants — named font styles replacing 30+ inline `.font()` calls (e.g., `.sectionHeader`, `.monoValue`, `.tinyLabel`)
+- [x] **DS-02**: Spacing constants — unified scale replacing 8+ hardcoded spacing values (section, gap, tight, padding)
 - [ ] **DS-03**: Consistent outer padding — all sections use the same horizontal/vertical pattern
 
 ### UI Polish
@@ -44,8 +44,8 @@ Requirements for polish and consistency milestone. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DS-01 | Phase 6 | Pending |
-| DS-02 | Phase 6 | Pending |
+| DS-01 | Phase 6 | Complete |
+| DS-02 | Phase 6 | Complete |
 | DS-03 | Phase 6 | Pending |
 | UI-05 | Phase 6 | Pending |
 | UI-06 | Phase 7 | Pending |

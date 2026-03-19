@@ -35,7 +35,7 @@ See [milestones/v1.10-ROADMAP.md](milestones/v1.10-ROADMAP.md) for full phase de
   2. A unified spacing scale (section, gap, tight, padding) replaces all hardcoded numeric spacing values
   3. Every popover section uses the same horizontal and vertical outer padding pattern — visually consistent margins
   4. No visible text in the popover renders below 8pt; the previous size-6 edge case no longer appears
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 06-01-PLAN.md — Create Typography, Spacing, and Layout constant enums with snapshot tests
@@ -78,7 +78,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 6. Design System | v1.11 | 0/2 | Planning complete | - |
+| 6. Design System | 1/2 | In Progress|  | - |
 | 7. Visual Polish | v1.11 | 0/? | Not started | - |
 | 8. File Extraction | v1.11 | 0/? | Not started | - |
 | 9. Wrap-Up | v1.11 | 0/? | Not started | - |
