@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.12
 milestone_name: Performance & Cleanup
 status: unknown
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-03-19T23:41:20.846Z"
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-19T23:47:57.106Z"
 progress:
   total_phases: 2
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 10 — popover-performance
+**Current focus:** Phase 11 — code-cleanup
 
 ## Current Position
 
-Phase: 10 (popover-performance) — EXECUTING
+Phase: 11 (code-cleanup) — EXECUTING
 Plan: 1 of 1
 
 ## Performance Metrics
@@ -46,6 +46,8 @@ Plan: 1 of 1
 - [v1.9.4]: contentTransition(.numericText()) removed from infrequently-changing values
 - [Phase 10-popover-performance]: GaugeBar shared component extracted — single GeometryReader for all gauge bars in Views/
 - [Phase 10-popover-performance]: PERF-10/11 v1.9.4 fixes verified in place — no additional changes needed
+- [Phase 11-code-cleanup]: sectionPadding() removed — no callers found in codebase; dead code elimination
+- [Phase 11-code-cleanup]: PopoverLoadingView removed — replaced by spinner in PopoverHeaderView; no callers in production code
 
 ### Pending Todos
 
@@ -57,6 +59,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T23:38:17.322Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-03-19T23:47:57.103Z
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None

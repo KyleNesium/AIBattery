@@ -33,7 +33,7 @@ See [milestones/v1.11-ROADMAP.md](milestones/v1.11-ROADMAP.md) for full phase de
 **Milestone Goal:** Eliminate remaining popover lag, gate periodic updates on panel visibility, and clean up dead code from v1.11.
 
 - [x] **Phase 10: Popover Performance** - Eliminate lag and gate periodic updates on panel visibility (completed 2026-03-19)
-- [ ] **Phase 11: Code Cleanup** - Remove dead code and sync specs and README
+- [x] **Phase 11: Code Cleanup** - Remove dead code and sync specs and README (completed 2026-03-19)
 
 ## Phase Details
 
@@ -57,7 +57,7 @@ Plans:
   1. `sectionPadding()` extension and `PopoverLoadingView` struct are gone from the codebase
   2. CONSTANTS.md and UI_SPEC.md match actual animation durations and performance behavior
   3. README test coverage section is accurate
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 11-01-PLAN.md — Remove dead code, sync specs and README
 
@@ -68,4 +68,4 @@ Plans:
 | 1-5. v1.10 phases | v1.10 | 7/7 | Complete | 2026-03-19 |
 | 6-9. v1.11 phases | v1.11 | 7/7 | Complete | 2026-03-19 |
 | 10. Popover Performance | v1.12 | 1/1 | Complete | 2026-03-19 |
-| 11. Code Cleanup | v1.12 | 0/1 | Not started | - |
+| 11. Code Cleanup | 1/1 | Complete   | 2026-03-19 | - |

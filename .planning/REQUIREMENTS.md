@@ -15,9 +15,9 @@ Requirements for performance and cleanup milestone. Each maps to roadmap phases.
 
 ### Code Quality
 
-- [ ] **CQ-03**: Remove dead code — unused `sectionPadding()` extension and `PopoverLoadingView` struct
-- [ ] **CQ-04**: Spec sync — update CONSTANTS.md and UI_SPEC.md for animation duration changes and performance fixes
-- [ ] **CQ-05**: README test coverage section reflects current 706 tests / 45 files
+- [x] **CQ-03**: Remove dead code — unused `sectionPadding()` extension and `PopoverLoadingView` struct
+- [x] **CQ-04**: Spec sync — update CONSTANTS.md and UI_SPEC.md for animation duration changes and performance fixes
+- [x] **CQ-05**: README test coverage section reflects current 706 tests / 45 files
 
 ## Future Requirements
 
@@ -38,9 +38,9 @@ Requirements for performance and cleanup milestone. Each maps to roadmap phases.
 | PERF-10 | Phase 10 | Complete |
 | PERF-11 | Phase 10 | Complete |
 | PERF-12 | Phase 10 | Complete |
-| CQ-03 | Phase 11 | Pending |
-| CQ-04 | Phase 11 | Pending |
-| CQ-05 | Phase 11 | Pending |
+| CQ-03 | Phase 11 | Complete |
+| CQ-04 | Phase 11 | Complete |
+| CQ-05 | Phase 11 | Complete |
 
 **Coverage:**
 - v1.12 requirements: 6 total
