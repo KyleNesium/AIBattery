@@ -60,8 +60,8 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 #### UI Polish
 - [x] UI-05: Minimum font size audit — v1.11 Phase 6
-- [ ] UI-06: Section visual consistency
-- [ ] UI-07: Subtle transition animations (performance-gated)
+- [x] UI-06: Section visual consistency — v1.11 Phase 7
+- [x] UI-07: Subtle transition animations (performance-gated) — v1.11 Phase 7
 
 #### Code Quality
 - [ ] CQ-01: Extract large view files (<400 lines each)
@@ -113,4 +113,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | 60s discovery TTL | Catches new JSONL files even when dir mtime unchanged; low cost fallback | ✓ Good |
 
 ---
-*Last updated: 2026-03-19 — Phase 6 Design System complete*
+*Last updated: 2026-03-19 — Phase 7 Visual Polish complete*
