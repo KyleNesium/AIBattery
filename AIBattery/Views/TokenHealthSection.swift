@@ -60,6 +60,7 @@ struct TokenHealthSection: View {
             }
 
             if !collapsed {
+                VStack(alignment: .leading, spacing: 6) {
                 // Session info on its own line for full width
                 sessionInfoLabel
                     .id(selectedIndex)
@@ -74,7 +75,7 @@ struct TokenHealthSection: View {
                         RoundedRectangle(cornerRadius: Layout.barCornerRadius)
                             .fill(bandColor)
                             .frame(width: geometry.size.width * min(CGFloat(health.usagePercentage) / 100.0, 1.0), height: Layout.barHeight)
-                            
+
                     }
                 }
                 .frame(height: Layout.barHeight)
@@ -129,6 +130,8 @@ struct TokenHealthSection: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
                 }
+                }
+                .transition(.opacity)
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -143,7 +146,7 @@ struct TokenHealthSection: View {
                     // Accept either a long drag (>50pt) or a fast flick (velocity > 300pt/s)
                     let velocity = abs(value.predictedEndTranslation.width - value.translation.width)
                     guard abs(horizontal) > 50 || velocity > 300 else { return }
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(MotionConstants.snappy) {
                         if horizontal < 0 {
                             selectedIndex = min(selectedIndex + 1, sessions.count - 1)
                         } else {
@@ -164,7 +167,7 @@ struct TokenHealthSection: View {
         }
         .accessibilityAdjustableAction { direction in
             guard sessions.count > 1 else { return }
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(MotionConstants.snappy) {
                 switch direction {
                 case .increment:
                     selectedIndex = min(selectedIndex + 1, sessions.count - 1)
@@ -184,7 +187,7 @@ struct TokenHealthSection: View {
                 direction: .left,
                 enabled: selectedIndex > 0
             ) {
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(MotionConstants.snappy) {
                     selectedIndex = max(selectedIndex - 1, 0)
                 }
             }
@@ -193,12 +196,13 @@ struct TokenHealthSection: View {
             Text("\(selectedIndex + 1)/\(sessions.count)")
                 .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
+                .contentTransition(.numericText())
 
             ChevronButton(
                 direction: .right,
                 enabled: selectedIndex < sessions.count - 1
             ) {
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(MotionConstants.snappy) {
                     selectedIndex = min(selectedIndex + 1, sessions.count - 1)
                 }
             }
@@ -296,8 +300,7 @@ struct TokenHealthSection: View {
                 .frame(width: Layout.dotSize, height: Layout.dotSize)
             Text("\(Int(health.usagePercentage))%")
                 .font(Typography.monoValue)
-                
-                
+                .contentTransition(.numericText())
                 .copyable("\(Int(health.usagePercentage))%")
         }
     }

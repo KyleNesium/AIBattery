@@ -139,7 +139,9 @@ struct InsightsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: Layout.chartHeight)
+                .transition(.opacity)
             } else {
+                VStack(alignment: .leading, spacing: 6) {
                 switch mode {
                 case .daily:
                     dailyChart
@@ -148,10 +150,13 @@ struct InsightsView: View {
                 case .monthly:
                     monthlyChart
                 }
+                }
+                .transition(.opacity)
             }
 
             // Trend + cost + history — visually grouped
             if !collapsed, let snapshot {
+                VStack(alignment: .leading, spacing: 6) {
                 trendSummary(snapshot)
                     .accessibilityElement(children: .combine)
 
@@ -162,6 +167,8 @@ struct InsightsView: View {
 
                 StyledDivider()
                 insightRows(snapshot)
+                }
+                .transition(.opacity)
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)

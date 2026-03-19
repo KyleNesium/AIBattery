@@ -51,6 +51,7 @@ struct ProjectUsageSection: View {
             headerRow
 
             if !collapsed && !snapshot.projectTokens.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
                 // Search field when expanded
                 if showAll {
                     searchField
@@ -64,6 +65,8 @@ struct ProjectUsageSection: View {
                 if hasMore || snapshot.projectTokens.count > 1 {
                     controlsRow
                 }
+                }
+                .transition(.opacity)
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -99,11 +102,11 @@ struct ProjectUsageSection: View {
                 .font(Typography.monoCaption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: costColumnWidth, alignment: .trailing)
+                .contentTransition(.numericText())
                 .copyable(costText)
             Text(totalTokensText)
                 .font(Typography.monoValueMedium)
-                
-                
+                .contentTransition(.numericText())
                 .frame(width: tokenColumnWidth, alignment: .trailing)
                 .copyable(totalTokensText)
         }
@@ -115,7 +118,7 @@ struct ProjectUsageSection: View {
         HStack {
             if hasMore {
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(MotionConstants.standard) {
                         showAll.toggle()
                         if !showAll { searchText = "" }
                     }
@@ -170,11 +173,13 @@ struct ProjectUsageSection: View {
                 .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .frame(width: costColumnWidth, alignment: .trailing)
+                .contentTransition(.numericText())
 
             Text(tokensText)
                 .font(Typography.monoCaption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: tokenColumnWidth, alignment: .trailing)
+                .contentTransition(.numericText())
         }
         .copyable(copyText)
         .accessibilityElement(children: .combine)

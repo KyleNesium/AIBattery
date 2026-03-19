@@ -74,8 +74,7 @@ struct UsageBar: View {
                 Spacer()
                 Text("\(Int(percent))%")
                     .font(Typography.monoValue)
-                    
-                    
+                    .contentTransition(.numericText())
                     .copyable("\(Int(percent))%")
             }
 
