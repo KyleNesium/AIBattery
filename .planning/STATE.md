@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Polish & Consistency
 status: unknown
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-19T15:12:29.276Z"
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-19T15:44:11.102Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 06 — design-system
+**Current focus:** Phase 07 — visual-polish
 
 ## Current Position
 
-Phase: 06 (design-system) — EXECUTING
-Plan: 2 of 2 (Plan 01 complete)
+Phase: 07 (visual-polish) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Plan: 2 of 2 (Plan 01 complete)
 
 *Updated after each plan completion*
 | Phase 06-design-system P02 | 16 | 2 tasks | 16 files |
+| Phase 07-visual-polish P01 | 4 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -56,6 +57,7 @@ Recent decisions affecting current work:
 - [06-01]: Layout enum co-located in Spacing.swift — both are non-font spatial constants, reduces file proliferation
 - [06-01]: sectionPadding() View extension added — covers 12-occurrence .padding(.horizontal,16)+.padding(.vertical,8) pattern
 - [Phase 06]: DS-01/DS-02/DS-03/UI-05: all view files migrated to Typography/Spacing/Layout tokens in one atomic pass
+- [Phase 07-01]: Menu separator Divider() in accountPicker kept as bare Divider() — SwiftUI Menu uses native menu separators, not visual View dividers
 
 ### Pending Todos
 
@@ -67,6 +69,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:07:19.458Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-03-19T15:44:11.100Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None
