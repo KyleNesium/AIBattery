@@ -80,7 +80,7 @@ UsagePopoverView (275px, VStack)
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
 │   └── TokenHealthSection — collapsible (if topSessionHealths or tokenHealth)
-│   └── .animation(.easeInOut(duration: 0.15), value: metricModeRaw) ← scoped to ForEach only
+│   └── .animation(MotionConstants.snappy, value: metricModeRaw) ← scoped to ForEach only
 ├── ProjectUsageGate (data check, ProjectUsageSection owns collapsed @AppStorage)
 ├── InsightsGate (data check, InsightsView owns collapsed @AppStorage)
 ├── Divider
@@ -157,9 +157,9 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 **`sliderMarks()`**: `fileprivate` file-level helper for generating slider tick marks (shared by sections).
 
 **Animations**:
-- Settings toggle: `withAnimation(.easeInOut(duration: 0.2))` — `MotionConstants.standard`
-- Metric mode changes: `.animation(.easeInOut(duration: 0.15), value: metricModeRaw)` — `MotionConstants.snappy`, scoped to ForEach block only, not entire VStack
-- Account switch: `withAnimation(.easeInOut(duration: 0.2))` — `MotionConstants.standard`
+- Settings toggle: `withAnimation(MotionConstants.standard)` — `.easeOut(duration: 0.15)`
+- Metric mode changes: `.animation(MotionConstants.snappy, value: metricModeRaw)` — `.easeOut(duration: 0.1)`, scoped to ForEach block only, not entire VStack
+- Account switch: `withAnimation(MotionConstants.standard)` — `.easeOut(duration: 0.15)`
 
 ### Panel Visibility Safety (PG-01)
 
@@ -171,7 +171,7 @@ Padding: H 16, V 8
 
 ### Collapsible Sections
 
-Context Health, Tokens, Projects, and Activity sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`). When collapsed, the header row shows with summary value on the right: Tokens shows total tokens + cost, Projects shows total tokens + cost, Activity shows vs-yesterday trend. No contextual hints (model names, project counts) in collapsed state. Collapse/expand animates with `.easeInOut(duration: 0.2)`.
+Context Health, Tokens, Projects, and Activity sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`). When collapsed, the header row shows with summary value on the right: Tokens shows total tokens + cost, Projects shows total tokens + cost, Activity shows vs-yesterday trend. No contextual hints (model names, project counts) in collapsed state. Collapse/expand animates with `MotionConstants.standard` (`.easeOut(duration: 0.15)`).
 
 ### Gate Views (`ProjectUsageGate`, `InsightsGate`)
 
@@ -234,7 +234,7 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 - **Session toggle** (if multiple sessions): `< 1/3 >` `ChevronButton` components
   - `@State selectedIndex` tracks current session (position 1 = highest context usage)
   - `ChevronButton`: 22pt square hit target, `chevron.left`/`chevron.right` icons at 9pt bold, 4pt corner radius background with press highlight (`Color.primary.opacity(0.1)`), `.plain` button style. Disabled state uses 0.15 opacity; enabled uses 0.6 opacity.
-  - Left/right chevrons with `.easeInOut(0.15)` animation
+  - Left/right chevrons with `MotionConstants.snappy` animation (`.easeOut(duration: 0.1)`)
   - Counter: monospaced caption2, e.g. `"1/3"`
 - **Swipe gesture**: `DragGesture(minimumDistance: 20)` on main VStack — horizontal drag >50pt or fast flick (velocity >300pt/s) navigates prev/next session (same animation as chevron buttons)
 - **VoiceOver**: `.accessibilityAdjustableAction` on section — increment/decrement maps to next/previous session
