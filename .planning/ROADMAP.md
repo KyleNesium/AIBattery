@@ -21,7 +21,7 @@ See [milestones/v1.10-ROADMAP.md](milestones/v1.10-ROADMAP.md) for full phase de
 
 - [x] **Phase 6: Design System** - Typography and spacing constants replace inline values; all sections use consistent outer padding; no text below 8pt (completed 2026-03-19)
 - [x] **Phase 7: Visual Polish** - Uniform section dividers, headers, and collapse behavior; subtle expand/collapse and metric-change animations (completed 2026-03-19)
-- [ ] **Phase 8: File Extraction** - UsagePopoverView and ActivityChartView broken into focused sub-views under 400 lines each
+- [x] **Phase 8: File Extraction** - UsagePopoverView and ActivityChartView broken into focused sub-views under 400 lines each (completed 2026-03-19)
 - [ ] **Phase 9: Wrap-Up** - Spec files reflect all structural changes; all new animations gated on panel visibility
 
 ## Phase Details
@@ -64,7 +64,7 @@ Plans:
   1. `UsagePopoverView.swift` is under 400 lines; extracted sub-views compile and render identically to the original
   2. `ActivityChartView.swift` is under 400 lines; extracted sub-views compile and render identically to the original
   3. All existing tests continue to pass after extraction — no behavioral regressions
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 08-01-PLAN.md — Extract UsagePopoverView into 4 sub-view files (header, metric toggle, state views, footer)
@@ -88,5 +88,5 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 6. Design System | 2/2 | Complete   | 2026-03-19 | - |
 | 7. Visual Polish | 2/2 | Complete   | 2026-03-19 | - |
-| 8. File Extraction | 1/2 | In Progress|  | - |
+| 8. File Extraction | 2/2 | Complete   | 2026-03-19 | - |
 | 9. Wrap-Up | v1.11 | 0/? | Not started | - |

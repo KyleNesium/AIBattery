@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.11
 milestone_name: Polish & Consistency
-status: unknown
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-19T17:27:45.100Z"
+status: completed
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-03-19T17:35:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 
 ## Current Position
 
-Phase: 08 (file-extraction) — EXECUTING
-Plan: 2 of 2
+Phase: 08 (file-extraction) — COMPLETE
+Plan: 2 of 2 (ALL COMPLETE)
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Plan: 2 of 2
 | Phase 07-visual-polish P01 | 4 | 2 tasks | 7 files |
 | Phase 07-visual-polish P02 | 6 | 2 tasks | 6 files |
 | Phase 08-file-extraction P01 | 6 | 2 tasks | 7 files |
+| Phase 08-file-extraction P02 | 12 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,9 @@ Recent decisions affecting current work:
 - [Phase 07-02]: .contentTransition(.numericText()) with no arguments (macOS 13+ safe; numericText(value:) requires macOS 14)
 - [Phase 08-file-extraction]: orderedModes kept in UsagePopoverView (not MetricToggleView) — ForEach over modes is in mainContent, moving would break compilation
 - [Phase 08-file-extraction]: Callback pattern (onSwitchAccount, onUpdateFound, onLogout) used in sub-views instead of ViewModel reference — preserves no-EnvironmentObject convention
+- [08-02]: Extension-in-separate-file over standalone struct for InsightsView — chart views access @State directly via self, eliminates all Binding plumbing
+- [08-02]: Static formatters stay on InsightsView in InsightsRowsAndHover.swift — ActivityChartTrend.swift call sites require zero changes
+- [08-02]: costColumnWidth/tokenColumnWidth promoted from stored let to computed var — Swift extensions cannot contain stored properties
 
 ### Pending Todos
 
@@ -75,6 +79,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-19T17:27:45.097Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-19T17:35:00.000Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
