@@ -1,4 +1,5 @@
 import Testing
+import SwiftUI
 @testable import AIBatteryCore
 
 @Suite("Spacing")
@@ -20,4 +21,17 @@ struct LayoutTests {
     @Test func chevronFrame_is22() { #expect(Layout.chevronFrame == 22) }
     @Test func dotSize_is8() { #expect(Layout.dotSize == 8) }
     @Test func dotSizeSmall_is6() { #expect(Layout.dotSizeSmall == 6) }
+}
+
+@Suite("MotionConstants")
+struct MotionConstantsTests {
+    @Test func standard_isDefined() {
+        let anim = MotionConstants.standard
+        #expect(anim == .easeInOut(duration: 0.2))
+    }
+
+    @Test func snappy_isDefined() {
+        let anim = MotionConstants.snappy
+        #expect(anim == .easeInOut(duration: 0.15))
+    }
 }
