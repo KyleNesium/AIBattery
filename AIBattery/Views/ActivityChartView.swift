@@ -497,17 +497,6 @@ struct InsightsView: View {
             let costText = "~\(ModelPricing.formatCompactCost(totalCost))"
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("API Equivalent")
-                        .font(.caption)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
-                        .help("What this usage would cost on the pay-per-token API — your subscription covers it")
-                    Spacer()
-                    Text(costText)
-                        .font(.system(.caption, design: .monospaced, weight: .semibold))
-                        .copyable(costText)
-                }
-
                 ForEach(models) { model in
                     let modelTokensText = TokenFormatter.format(model.totalTokens)
                     let modelCost = "~\(ModelPricing.formatCompactCost(model.estimatedCost))"
