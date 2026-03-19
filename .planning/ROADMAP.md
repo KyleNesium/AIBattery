@@ -68,4 +68,4 @@ Plans:
 | 1-5. v1.10 phases | v1.10 | 7/7 | Complete | 2026-03-19 |
 | 6-9. v1.11 phases | v1.11 | 7/7 | Complete | 2026-03-19 |
 | 10. Popover Performance | v1.12 | 1/1 | Complete | 2026-03-19 |
-| 11. Code Cleanup | 1/1 | Complete   | 2026-03-19 | - |
+| 11. Code Cleanup | 1/1 | Complete    | 2026-03-19 | - |
