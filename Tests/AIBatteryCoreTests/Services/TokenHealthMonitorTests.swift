@@ -380,28 +380,17 @@ struct TokenHealthMonitorTests {
 
     // MARK: - Context window tier adjustment
 
-    @Test func contextWindow_downwardAdjustment_150K_to_200K() {
-        // Model default: 1M. Observed 150K tokens → should downgrade to 200K tier
-        // (150K < 500K which is the tier below 1M, so downgrade triggers)
+    @Test func contextWindow_noDownward_150K_stays_1M() {
+        // Model default: 1M. Observed 150K tokens — no downgrade (upward-only adjustment)
         let entries = [makeEntry(sessionId: "s1", input: 149_000, output: 1_000)]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        #expect(result?.contextWindow == 200_000)
+        #expect(result?.contextWindow == 1_000_000)
     }
 
-    @Test func contextWindow_downwardAdjustment_400K_to_500K() {
-        // Model default: 1M. Observed 400K tokens → should downgrade to 500K tier
-        // (400K < 500K which is the tier below 1M, so downgrade triggers)
-        let entries = [makeEntry(sessionId: "s1", input: 399_000, output: 1_000)]
-        let result = monitor.assessCurrentSession(entries: entries)
-        #expect(result != nil)
-        #expect(result?.contextWindow == 500_000)
-    }
-
-    @Test func contextWindow_noDownward_900K_stays_1M() {
-        // Model default: 1M. Observed 900K tokens → no downgrade
-        // (900K >= 500K which is the tier below 1M, threshold not crossed)
-        let entries = [makeEntry(sessionId: "s1", input: 899_000, output: 1_000)]
+    @Test func contextWindow_noDownward_50K_stays_1M() {
+        // Model default: 1M. Very small session — no downgrade (low tokens = early session, not smaller window)
+        let entries = [makeEntry(sessionId: "s1", input: 49_000, output: 1_000)]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
         #expect(result?.contextWindow == 1_000_000)
@@ -413,15 +402,6 @@ struct TokenHealthMonitorTests {
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
         #expect(result?.contextWindow == 2_000_000)
-    }
-
-    @Test func contextWindow_verySmall_50K_stays_200K() {
-        // Model default: 1M. Very small session (50K) — smallest tier is 200K, no tier below it
-        let entries = [makeEntry(sessionId: "s1", input: 49_000, output: 1_000)]
-        let result = monitor.assessCurrentSession(entries: entries)
-        #expect(result != nil)
-        // 50K < 500K (tier below 1M), so downgrade triggers → finds smallest tier >= 50K = 200K
-        #expect(result?.contextWindow == 200_000)
     }
 
     // MARK: - Helper

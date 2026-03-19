@@ -122,27 +122,15 @@ final class TokenHealthMonitor {
         let outputTokens = latestEntry.outputTokens
         let totalOutputTokens = sessionEntries.reduce(0) { $0 + $1.outputTokens }
 
-        // Auto-detect context window from observed token usage (bidirectional).
-        // Upward: if observed tokens exceed the hardcoded window, the window was expanded
+        // Auto-detect context window from observed token usage (upward only).
+        // If observed tokens exceed the hardcoded window, the window was expanded
         // upstream (e.g. Anthropic expanded from 200K to 1M). Adjust to avoid showing
-        // inflated percentages.
-        // Downward: if observed tokens are well below the current tier (below the next-lower
-        // tier boundary), the session is likely on a smaller context window. Only downgrade
-        // when the evidence is strong (below the next-lower tier), preventing thrash on
-        // sessions that are simply early or small within a large window.
+        // inflated percentages. Downward adjustment is intentionally omitted — low token
+        // counts don't imply a smaller window, they just mean an early/small session.
         let observedTokens = inputTokens + cacheReadTokens + cacheWriteTokens + outputTokens
         let tiers = [200_000, 500_000, 1_000_000, 2_000_000, 5_000_000]
         if observedTokens > contextWindow {
-            // Upward: session exceeds known window — find the next tier above observed
             contextWindow = tiers.first(where: { $0 > observedTokens }) ?? observedTokens * 2
-        } else if let currentIndex = tiers.firstIndex(of: contextWindow), currentIndex > 0 {
-            // Downward: check if observed tokens are below the next-lower tier boundary.
-            // Only then can we confidently say the session is on a smaller window.
-            let lowerTier = tiers[currentIndex - 1]
-            if observedTokens < lowerTier {
-                // Find the smallest tier that still accommodates the observed tokens
-                contextWindow = tiers.first(where: { $0 >= observedTokens }) ?? tiers[0]
-            }
         }
 
         let usableWindow = Int(Double(contextWindow) * TokenHealthConfig.usableContextRatio)
