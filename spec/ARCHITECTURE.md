@@ -125,6 +125,7 @@ AIBattery/
     ActivityChartData.swift       — Chart data transformation layer (daily/hourly/monthly points)
     ActivityChartTrend.swift      — Trend computation: vs-yesterday/week/month comparisons + copy text
     CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 4 sections
+    StyledDivider.swift            — Standardized divider: Divider() at 0.3 opacity, Spacing.tight vertical padding
     FooterLink.swift              — Footer link button with hover underline and external arrow
     RefreshButton.swift           — Refresh button with brief spin animation
     CopyableText.swift            — ViewModifier for click-to-copy: full CopyableModifier + lightweight LightCopyableModifier for dense areas
@@ -141,6 +142,8 @@ AIBattery/
     DurationFormatter.swift       — Compact time duration formatting ("2h 5m", "1d 1h", "soon")
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
     ThrottleTracker.swift         — Pure value type tracking throttle event transitions for trend display
+    Typography.swift              — Named font style tokens (sectionHeader, monoValue, tinyLabel, decorativeIcon, etc.) — caseless enum namespace
+    Spacing.swift                 — Spacing/Layout/MotionConstants enums + sectionPadding() View extension — caseless enum namespaces co-located
     KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
 Tests/AIBatteryCoreTests/
   Utilities/

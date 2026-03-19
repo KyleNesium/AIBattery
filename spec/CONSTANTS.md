@@ -226,6 +226,8 @@ Pricing per million tokens:
 
 ## UI Layout
 
+See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spacing.*`) backing these values.
+
 | Constant | Value |
 |----------|-------|
 | Popover width | 275pt |
@@ -263,20 +265,76 @@ Pricing per million tokens:
 
 ## Animations
 
+See also: Design Tokens section for the Swift enum constants (`MotionConstants.standard`, `MotionConstants.snappy`) backing the standard and snappy durations listed below.
+
 | Constant | Value |
 |----------|-------|
-| Settings toggle | `.easeInOut(duration: 0.2)` |
+| Settings toggle | `.easeInOut(duration: 0.2)` — `MotionConstants.standard` |
 | Settings transition | `.opacity.combined(with: .move(edge: .top))` |
-| Metric mode change | `.easeInOut(duration: 0.15)` |
-| Account switch | `.easeInOut(duration: 0.2)` |
+| Metric mode change | `.easeInOut(duration: 0.15)` — `MotionConstants.snappy` |
+| Account switch | `.easeInOut(duration: 0.2)` — `MotionConstants.standard` |
 | Copy clipboard icon display | 1.2 seconds, `.easeOut(duration: 0.12)` show / `.easeIn(duration: 0.2)` hide |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
 | Copy hover highlight | `Color.primary.opacity(0.10)` background, `NSCursor.pointingHand` |
-| Auto mode pulse | `.easeInOut(duration: 1.2).repeatForever(autoreverses: true)` — blue glow |
+| Auto mode button | Static green fill/stroke/shadow — no animation (see Design Tokens note) |
 | MarqueeText scroll | 30pt/s linear, 2s pause at each end |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
 | MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
+
+## Design Tokens
+
+Canonical Swift constants backing the numeric values in the tables above. Defined as caseless enum namespaces in `Utilities/`.
+
+### Typography (`Utilities/Typography.swift`)
+
+| Token | Value |
+|-------|-------|
+| `sectionHeader` | `.subheadline.bold()` |
+| `chevronIcon` | `.system(size: 9, weight: .bold)` |
+| `heroTitle` | `.system(size: 14)` |
+| `heroValue` | `.system(size: 12, weight: .bold)` |
+| `bodyLabel` | `.system(size: 11, weight: .medium)` |
+| `caption` | `.caption` |
+| `tinyLabel` | `.caption2` |
+| `monoValue` | `.system(.headline, design: .monospaced, weight: .semibold)` |
+| `monoValueMedium` | `.system(.subheadline, design: .monospaced, weight: .semibold)` |
+| `monoCaption` | `.system(.caption, design: .monospaced)` |
+| `monoCaptionSmall` | `.system(.caption2, design: .monospaced)` |
+| `monoTiny` | `.system(size: 9, design: .monospaced)` |
+| `badgeLabel` | `.system(size: 9, weight: .medium, design: .monospaced)` |
+| `buttonLabel` | `.subheadline.weight(.medium)` |
+| `decorativeIcon` | `.system(size: 8)` — 8pt minimum (UI-05) |
+
+### Spacing (`Utilities/Spacing.swift`)
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `Spacing.tight` | 2pt | Divider micro-gap, dot gap |
+| `Spacing.small` | 4pt | Badge internal padding, minor offset |
+| `Spacing.gap` | 6pt | VStack section spacing, header/footer V padding |
+| `Spacing.section` | 8pt | Standard section vertical outer padding |
+| `Spacing.sectionHorizontal` | 16pt | Standard section horizontal outer padding |
+| `Spacing.overlay` | 24pt | Overlay and tutorial content padding |
+
+### Layout (`Utilities/Spacing.swift`, co-located)
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `Layout.popoverWidth` | 275pt | AuthView, StatusBarManager panel width |
+| `Layout.chartHeight` | 50pt | ActivityChartView height |
+| `Layout.barHeight` | 8pt | UsageBar, TokenHealthSection progress bar |
+| `Layout.barCornerRadius` | 3pt | Progress bar corner radius |
+| `Layout.chevronFrame` | 22pt | CollapsibleSectionHeader chevron tap target |
+| `Layout.dotSize` | 8pt | Health/model status dot diameter |
+| `Layout.dotSizeSmall` | 6pt | Token type/status component dot diameter |
+
+### MotionConstants (`Utilities/Spacing.swift`, co-located)
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `MotionConstants.standard` | `.easeInOut(duration: 0.2)` | Section expand/collapse, settings toggle, account switch |
+| `MotionConstants.snappy` | `.easeInOut(duration: 0.15)` | Session navigation, metric mode change |
 
 ## Security Guards
 
