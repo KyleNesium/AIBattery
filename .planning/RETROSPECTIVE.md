@@ -43,9 +43,68 @@
 
 ---
 
+## Milestone: v1.13 — Responsiveness
+
+**Shipped:** 2026-03-20
+**Phases:** 1 | **Plans:** 2
+
+### What Was Built
+- PanelToggleState value-type state machine replacing isPanelShowing boolean — 8 tests
+- PopoverPanel.orderOut override with onDismiss callback catching all 5 dismiss paths
+- DeferredRenderState gating InsightsView and ProjectUsageSection with async hop — 5 tests
+- os_signpost instrumentation for Instruments profiling of panel open latency
+
+### What Worked
+- Single-phase milestone with 2 parallel plans — clean separation (StatusBarManager vs UsagePopoverView)
+- Value-type state machines (PanelToggleState, DeferredRenderState) made logic fully testable without AppKit
+- Plan 12-02 auto-detected and fixed incomplete PanelToggleState integration from Plan 12-01's parallel execution
+
+### What Was Inefficient
+- v1.12 already addressed some responsiveness concerns — v1.13 scope overlapped slightly (PERF-10 vs RESP-01)
+- UI-SPEC generated for a purely behavioral phase — added process overhead with minimal design value
+
+### Patterns Established
+- Value-type state machines for testable view state (PanelToggleState, DeferredRenderState)
+- orderOut override as the canonical dismiss sync point for NSPanel subclasses
+- Deferred rendering via `DispatchQueue.main.async` in `onAppear` — defers heavy work one run-loop
+
+### Key Lessons
+1. Toggle desync bugs need structural prevention (callback-based), not conditional fixes (boolean checks)
+2. Behavioral/performance phases don't benefit from UI-SPEC — skip the gate for non-visual work
+3. Parallel plans that touch different files but share types need cross-plan awareness of partial state
+
+### Cost Observations
+- Model mix: opus for planning, sonnet for research/execution/verification
+- Single session, single wave — fastest milestone execution yet
+- Both plans autonomous — no checkpoints needed
+
+---
+
+## Milestone: v1.12 — Performance & Cleanup
+
+**Shipped:** 2026-03-19
+**Phases:** 2 | **Plans:** 2
+
+### What Was Built
+- GaugeBar shared component replacing 5 duplicate GeometryReader patterns
+- Dead code removal (sectionPadding, PopoverLoadingView)
+- Spec sync for all performance and structural changes
+
+### What Worked
+- GaugeBar extraction was straightforward with clear before/after pattern
+- Dead code identified systematically via unused symbol search
+
+### Key Lessons
+1. GeometryReader duplication is a reliable signal for component extraction
+2. Dead code accumulates across milestones — periodic cleanup phases prevent drift
+
+---
+
 ## Cross-Milestone Trends
 
 | Milestone | Phases | Plans | Duration | Key Pattern |
 |-----------|--------|-------|----------|-------------|
 | v1.10 | 5 | 7 | ~3 hours | Bug fixes + performance |
 | v1.11 | 4 | 7 | ~3 hours | Design system + refactoring |
+| v1.12 | 2 | 2 | ~1 hour | Component extraction + cleanup |
+| v1.13 | 1 | 2 | ~30 min | Toggle desync + deferred rendering |
