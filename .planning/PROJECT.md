@@ -63,16 +63,16 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ CQ-03: Dead code removed (sectionPadding, PopoverLoadingView) — v1.12
 - ✓ CQ-04: Spec sync for performance changes — v1.12
 - ✓ CQ-05: README test coverage updated — v1.12
+- ✓ RESP-01: Popover opens/closes in under 50ms — v1.13
+- ✓ RESP-02: No UI freeze or hang during normal usage — v1.13
+- ✓ RESP-03: Panel toggle never desyncs — v1.13
+- ✓ RESP-04: Lazy-load heavy sections on open — v1.13
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-#### Responsiveness
-- [ ] RESP-01: Popover opens/closes in under 50ms — no perceptible delay on any click
-- [ ] RESP-02: No UI freeze or hang during normal usage (open, scroll, toggle, close)
-- [ ] RESP-03: Panel toggle never desyncs (click always produces correct open/close)
-- [ ] RESP-04: Lazy-load heavy sections — only render visible content on open
+_(no active requirements — v1.13 complete)_
 
 ### Out of Scope
 
@@ -82,7 +82,7 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 ## Context
 
-- **Version:** 1.9.4 (2026-03-20) — performance fixes shipped (popover hang, animation tuning)
+- **Version:** 1.9.4 (2026-03-20) — Phase 12 Responsiveness complete (toggle desync fix, deferred rendering, signpost profiling)
 - **Tests:** 706 across 45 files
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
@@ -117,9 +117,10 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | MotionConstants enum | Animation durations centralized (standard 0.2s, snappy 0.15s) | ✓ Good |
 
 ---
-## Current Milestone: v1.13 Responsiveness
+## Current Milestone: v1.13 Responsiveness — COMPLETE
 
 **Goal:** The app must be completely responsive — zero delays on click, zero hangs during use.
+**Status:** Phase 12 complete — PanelToggleState, orderOut callback, deferred rendering, signpost profiling all shipped.
 
 ---
-*Last updated: 2026-03-20 after v1.13 milestone start*
+*Last updated: 2026-03-20 after Phase 12 completion*
