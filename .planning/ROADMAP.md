@@ -38,7 +38,10 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 12.
   1. Clicking the menu bar icon opens the panel every time — no silent no-ops
   2. Panel interaction (scrolling, collapsing sections, clicking buttons) does not freeze or hang
   3. Repeated rapid open/close cycles complete without visual glitch or stuck state
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 13-01-PLAN.md — Guard window + debounce + async activation fix for panel toggle reliability
 
 ### Phase 14: System Preference Integration
 **Goal**: Users who enable Reduce Motion or Increase Contrast in System Settings see those preferences respected throughout the app
@@ -85,7 +88,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 12.
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 12. Responsiveness | v1.13 | 2/2 | Complete | 2026-03-20 |
-| 13. Reliability | v1.14 | 0/TBD | Not started | - |
+| 13. Reliability | v1.14 | 0/1 | Not started | - |
 | 14. System Preference Integration | v1.14 | 0/TBD | Not started | - |
 | 15. Visual Polish | v1.14 | 0/TBD | Not started | - |
 | 16. UX Clarity | v1.14 | 0/TBD | Not started | - |
