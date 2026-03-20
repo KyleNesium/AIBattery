@@ -116,6 +116,13 @@ public final class StatusBarManager: NSObject {
         // Follow system light/dark appearance so the popover material matches the OS theme
         panel.appearance = NSApp.effectiveAppearance
 
+        // Wire onDismiss callback — consolidates all dismiss paths through a single point.
+        // PopoverPanel.orderOut calls onDismiss for every path (including system-initiated ones),
+        // making desync impossible. dismiss() is idempotent so double-calls are safe.
+        panel.onDismiss = { [weak self] in
+            self?.toggleState.dismiss()
+        }
+
         // SwiftUI content — background color is set in PopoverContentView
         // using the system's controlBackgroundColor which adapts to light/dark.
         let hosting = NSHostingView(
@@ -187,11 +194,11 @@ public final class StatusBarManager: NSObject {
             }
             .store(in: &cancellables)
 
-        // Close panel on Escape key
+        // Close panel on Escape key.
+        // onDismiss fires from PopoverPanel.orderOut — no redundant dismiss() call needed.
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53, let self, self.toggleState.isShowing {
                 self.panel?.orderOut(nil)
-                self.toggleState.dismiss()
                 return nil
             }
             return event
@@ -199,10 +206,10 @@ public final class StatusBarManager: NSObject {
 
         // Close panel when clicking outside (global mouse events from other apps).
         // Runs on main queue — no async Task needed.
+        // onDismiss fires from PopoverPanel.orderOut — no redundant dismiss() call needed.
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self, self.toggleState.isShowing else { return }
             self.panel?.orderOut(nil)
-            self.toggleState.dismiss()
         }
 
         // Track system appearance changes so the panel follows light/dark mode
@@ -210,14 +217,14 @@ public final class StatusBarManager: NSObject {
             panel?.appearance = NSApp.effectiveAppearance
         }
 
-        // Close panel when app loses focus (Cmd+Tab, click another app's window)
+        // Close panel when app loses focus (Cmd+Tab, click another app's window).
+        // onDismiss fires from PopoverPanel.orderOut — no redundant dismiss() call needed.
         deactivationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
             guard let self, self.toggleState.isShowing else { return }
             self.panel?.orderOut(nil)
-            self.toggleState.dismiss()
         }
 
         self.statusItem = item
@@ -434,7 +441,9 @@ public final class StatusBarManager: NSObject {
             panel.orderOut(nil)
         case .show:
             positionPanel(relativeTo: button)
+            os_signpost(.begin, log: panelShowLog, name: "PanelShow")
             panel.makeKeyAndOrderFront(nil)
+            os_signpost(.end, log: panelShowLog, name: "PanelShow")
             // Activate after showing — LSUIElement activation is slow (~100-300ms)
             // and blocking it delays the panel appearance.
             NSApp.activate(ignoringOtherApps: true)
@@ -470,11 +479,20 @@ public final class StatusBarManager: NSObject {
 /// `hidesOnDeactivate` must return false — LSUIElement menu bar apps don't maintain
 /// proper activation state, so the panel would auto-hide immediately after showing.
 /// Manual click-outside + deactivation observers handle dismissal instead.
+/// `onDismiss` is called for every orderOut path, including system-initiated ones,
+/// ensuring toggleState never desyncs.
 private class PopoverPanel: NSPanel {
+    var onDismiss: (() -> Void)?
+
     override var canBecomeKey: Bool { true }
     override var hidesOnDeactivate: Bool {
         get { false }
         set { /* ignore — manual dismiss via observers */ }
+    }
+
+    override func orderOut(_ sender: Any?) {
+        super.orderOut(sender)
+        onDismiss?()
     }
 
     override func keyDown(with event: NSEvent) {
