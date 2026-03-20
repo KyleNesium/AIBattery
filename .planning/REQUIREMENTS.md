@@ -1,44 +1,78 @@
-# Requirements: AIBattery
+# Requirements: AIBattery v1.14 Polish & UX
 
 **Defined:** 2026-03-20
 **Core Value:** Show Claude API usage clearly and instantly from the menu bar
 
-## v1.13 Requirements
+## v1.14 Requirements
 
-Requirements for responsiveness milestone. The app must feel instant.
+### Reliability
 
-### Responsiveness
+- [ ] **REL-01**: Menu bar icon click always opens the panel — diagnose and fix intermittent no-open
+- [ ] **REL-02**: No UI freeze or hang during normal panel interaction
 
-- [x] **RESP-01**: Popover opens/closes in under 50ms — no perceptible delay on any click
-- [x] **RESP-02**: No UI freeze or hang during normal usage (open, scroll, toggle, close)
-- [x] **RESP-03**: Panel toggle never desyncs (click always produces correct open/close)
-- [x] **RESP-04**: Lazy-load heavy sections — only render visible content on open
+### Accessibility
+
+- [ ] **A11Y-01**: App respects system Reduce Motion preference — all animations gated
+- [ ] **A11Y-02**: App respects system Increase Contrast preference — bolder borders/fills
+
+### UX Clarity
+
+- [ ] **UXC-01**: Error messages include specific failure cause (timeout, auth, network)
+- [ ] **UXC-02**: All non-obvious values have `.help()` tooltips (burn rate, cache %, binding)
+
+### Visual Polish
+
+- [ ] **VIS-01**: Number formatting is consistent (sub-1M tokens, sub-$1 costs, edge-case times)
+- [ ] **VIS-02**: Panel shows visual staleness indicator when data is old
+- [ ] **VIS-03**: All clickable elements show pointer cursor consistently
+
+### Code Quality
+
+- [ ] **CQ-01**: All spec files match current code after polish changes
+- [ ] **CQ-02**: No inline literals bypass the design token system
 
 ## Future Requirements
 
-(None deferred)
+### Deferred from v1.14
+
+- **A11Y-03**: VoiceOver full audit — complete coverage for Settings, MetricToggle, footer, menu bar button
+- **UXC-03**: Section-level empty states — Projects (no JSONL cwd data), Context Health (no active sessions)
+- **VIS-04**: Collapsed section summary audit — verify all sections show useful one-line summaries
+- **VIS-05**: Smooth section reorder animation on auto-mode switch
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| New features | This milestone is strictly responsiveness |
-| CPU/energy when idle | Not a user-facing pain point |
-| Memory footprint | Not a user-facing pain point |
+| Global keyboard shortcut to open panel | Requires NSEvent global monitor, non-trivial; menu bar is easy to click |
+| Copy-entire-section affordance | Individual values are already copyable |
+| Dark/light mode override toggle | System appearance contract; macOS handles this |
+| Custom color themes | Multiplies test surface; colorblind mode covers real need |
+| Animation speed slider | System Reduce Motion covers 95% of real need |
+| Font size slider | macOS Larger Text accessibility handles this at system level |
+| CSV/JSON data export | JSONL files are the data source; document location instead |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RESP-01 | Phase 12 | Complete |
-| RESP-02 | Phase 12 | Complete |
-| RESP-03 | Phase 12 | Complete |
-| RESP-04 | Phase 12 | Complete |
+| REL-01 | — | Pending |
+| REL-02 | — | Pending |
+| A11Y-01 | — | Pending |
+| A11Y-02 | — | Pending |
+| UXC-01 | — | Pending |
+| UXC-02 | — | Pending |
+| VIS-01 | — | Pending |
+| VIS-02 | — | Pending |
+| VIS-03 | — | Pending |
+| CQ-01 | — | Pending |
+| CQ-02 | — | Pending |
 
 **Coverage:**
-- v1.13 requirements: 4 total
-- Mapped to phases: 4
-- Unmapped: 0
+- v1.14 requirements: 11 total
+- Mapped to phases: 0
+- Unmapped: 11 (pending roadmap creation)
 
 ---
 *Requirements defined: 2026-03-20*
+*Last updated: 2026-03-20 after initial definition*
