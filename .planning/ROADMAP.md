@@ -31,10 +31,13 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 11.
   2. Scrolling and interacting within the panel never causes a freeze or hang on the main thread
   3. Every click on the menu bar icon produces the correct open/close result — no stuck or desynced toggle state
   4. Heavy sections load only when the panel is visible — opening the panel does not trigger upfront rendering of off-screen content
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 12-01-PLAN.md — Toggle desync fix + signpost profiling (RESP-01, RESP-02, RESP-03)
+- [ ] 12-02-PLAN.md — Deferred rendering of heavy sections (RESP-02, RESP-04)
 
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 12. Responsiveness | v1.13 | 0/? | Not started | - |
+| 12. Responsiveness | v1.13 | 0/2 | Not started | - |
