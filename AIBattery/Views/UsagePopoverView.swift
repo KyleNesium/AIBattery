@@ -1,5 +1,23 @@
 import SwiftUI
 
+// MARK: - Deferred render state
+
+/// Tracks whether the panel has completed its initial render pass.
+/// Heavy sections gate on `hasAppeared` to defer rendering by one run-loop iteration.
+struct DeferredRenderState {
+    private(set) var hasAppeared: Bool = false
+
+    mutating func appeared() {
+        hasAppeared = true
+    }
+
+    mutating func disappeared() {
+        hasAppeared = false
+    }
+}
+
+// MARK: - UsagePopoverView
+
 public struct UsagePopoverView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject private var accountStore: AccountStore
@@ -10,6 +28,7 @@ public struct UsagePopoverView: View {
     @State private var accountCountAtAddStart = 0
     @State private var showLogoutConfirm = false
     @State private var logoutRevertTask: Task<Void, Never>?
+    @State private var panelHasAppeared = false
 
     /// Cached ordered modes — avoids allocating a new array on every body evaluation.
     @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
@@ -146,8 +165,10 @@ public struct UsagePopoverView: View {
                 }
                 .animation(MotionConstants.snappy, value: metricModeRaw)
 
-                ProjectUsageGate(snapshot: snapshot)
-                InsightsGate(snapshot: snapshot)
+                if panelHasAppeared {
+                    ProjectUsageGate(snapshot: snapshot)
+                    InsightsGate(snapshot: snapshot)
+                }
 
             } else if viewModel.isLoading {
                 // First load — show minimal loading state
@@ -197,10 +218,16 @@ public struct UsagePopoverView: View {
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
         }
-        .onAppear { recomputeOrderedModes() }
+        .onAppear {
+            recomputeOrderedModes()
+            DispatchQueue.main.async {
+                panelHasAppeared = true
+            }
+        }
         .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
         .onDisappear {
             logoutRevertTask?.cancel()
+            panelHasAppeared = false
         }
     }
 

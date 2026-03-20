@@ -1,6 +1,40 @@
 import SwiftUI
 import AppKit
 import Combine
+import os.signpost
+
+// MARK: - Toggle State Machine
+
+/// Pure value-type toggle state machine extracted from StatusBarManager for testability.
+/// Covers RESP-03: every dismiss path sets isShowing to false.
+struct PanelToggleState {
+    private(set) var isShowing: Bool = false
+
+    mutating func show() {
+        isShowing = true
+    }
+
+    mutating func dismiss() {
+        isShowing = false
+    }
+
+    /// Transitions the state and returns the action to perform.
+    mutating func toggle() -> PanelAction {
+        if isShowing {
+            dismiss()
+            return .hide
+        } else {
+            show()
+            return .show
+        }
+    }
+
+    enum PanelAction: Equatable {
+        case show, hide
+    }
+}
+
+// MARK: - StatusBarManager
 
 /// Manages the NSStatusItem and a floating NSPanel directly, replacing SwiftUI's MenuBarExtra.
 /// Uses a standalone NSPanel instead of NSPopover — immune to macOS auto-hide and focus changes.
@@ -13,9 +47,11 @@ public final class StatusBarManager: NSObject {
     private var cancellables = Set<AnyCancellable>()
     private var escapeMonitor: Any?
     private var clickOutsideMonitor: Any?
-    /// Tracks intended panel visibility — used to re-show panel after app deactivation.
-    private var isPanelShowing = false
+    /// Toggle state machine — tracks intended panel visibility.
+    /// All dismiss paths (including system-initiated orderOut) call toggleState.dismiss() via onDismiss callback.
+    private var toggleState = PanelToggleState()
     private var deactivationObserver: Any?
+    private let panelShowLog = OSLog(subsystem: "com.kylenesium.AIBattery", category: .pointsOfInterest)
     private var appearanceObserver: NSKeyValueObservation?
     private var frameObserver: Any?
     /// Absolute Y coordinate of the panel's top edge (just below the menu bar).
@@ -108,7 +144,7 @@ public final class StatusBarManager: NSObject {
             let work = DispatchWorkItem {
                 MainActor.assumeIsolated {
                     guard let panel, let hosting, let self else { return }
-                    guard self.isPanelShowing else { return }
+                    guard self.toggleState.isShowing else { return }
                     let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
                     let maxPanelHeight = screenMaxHeight - 40
                     let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
@@ -153,9 +189,9 @@ public final class StatusBarManager: NSObject {
 
         // Close panel on Escape key
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53, let self, self.isPanelShowing {
+            if event.keyCode == 53, let self, self.toggleState.isShowing {
                 self.panel?.orderOut(nil)
-                self.isPanelShowing = false
+                self.toggleState.dismiss()
                 return nil
             }
             return event
@@ -164,9 +200,9 @@ public final class StatusBarManager: NSObject {
         // Close panel when clicking outside (global mouse events from other apps).
         // Runs on main queue — no async Task needed.
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            guard let self, self.isPanelShowing else { return }
+            guard let self, self.toggleState.isShowing else { return }
             self.panel?.orderOut(nil)
-            self.isPanelShowing = false
+            self.toggleState.dismiss()
         }
 
         // Track system appearance changes so the panel follows light/dark mode
@@ -179,9 +215,9 @@ public final class StatusBarManager: NSObject {
             forName: NSApplication.didResignActiveNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, self.isPanelShowing else { return }
+            guard let self, self.toggleState.isShowing else { return }
             self.panel?.orderOut(nil)
-            self.isPanelShowing = false
+            self.toggleState.dismiss()
         }
 
         self.statusItem = item
@@ -392,13 +428,13 @@ public final class StatusBarManager: NSObject {
 
     @objc private func statusItemClicked() {
         guard let panel, let button = statusItem?.button else { return }
-        if isPanelShowing {
-            isPanelShowing = false
+        let action = toggleState.toggle()
+        switch action {
+        case .hide:
             panel.orderOut(nil)
-        } else {
+        case .show:
             positionPanel(relativeTo: button)
             panel.makeKeyAndOrderFront(nil)
-            isPanelShowing = true
             // Activate after showing — LSUIElement activation is slow (~100-300ms)
             // and blocking it delays the panel appearance.
             NSApp.activate(ignoringOtherApps: true)
