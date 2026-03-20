@@ -33,16 +33,19 @@ public final class UsageViewModel: ObservableObject {
         setupFileWatcher()
         setupSleepWakeObservers()
 
-        // Show cached rate limits immediately (no I/O) so the panel has data on first click.
-        // Full JSONL refresh happens on first polling tick (avoids blocking main thread at launch).
+        // Show cached rate limits quickly — JSONL scan runs off main thread.
         let accountId = OAuthManager.shared.accountStore.activeAccountId
         if let accountId {
             let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil {
-                let result = aggregator.aggregate(rateLimits: cached.rateLimits, accountId: accountId)
-                snapshot = result
-                isShowingCachedData = true
-                isLoading = false
+                let rl = cached.rateLimits
+                Task { [weak self] in
+                    guard let self else { return }
+                    let result = await self.aggregator.aggregate(rateLimits: rl, accountId: accountId)
+                    self.snapshot = result
+                    self.isShowingCachedData = true
+                    self.isLoading = false
+                }
             }
         }
 
@@ -63,7 +66,7 @@ public final class UsageViewModel: ObservableObject {
 
         // Skip network work when not authenticated — still aggregate local data.
         guard oauthManager.isAuthenticated else {
-            let result = aggregator.aggregate(rateLimits: nil)
+            let result = await aggregator.aggregate(rateLimits: nil)
             if result.totalMessages > 0, result != snapshot { snapshot = result }
             isLoading = false
             return
@@ -71,7 +74,7 @@ public final class UsageViewModel: ObservableObject {
 
         // Skip network when offline — show local data with cached rate limits.
         guard skipNetworkCheck || NetworkMonitor.shared.isConnected else {
-            let result = aggregator.aggregate(rateLimits: apiResult?.rateLimits)
+            let result = await aggregator.aggregate(rateLimits: apiResult?.rateLimits)
             if result != snapshot { snapshot = result }
             isLoading = false
             errorMessage = "No internet connection"
@@ -86,7 +89,7 @@ public final class UsageViewModel: ObservableObject {
         if wasEmpty, let accountId {
             let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil {
-                let earlyResult = aggregator.aggregate(rateLimits: cached.rateLimits, accountId: accountId)
+                let earlyResult = await aggregator.aggregate(rateLimits: cached.rateLimits, accountId: accountId)
                 snapshot = earlyResult
                 isShowingCachedData = true
             } else {
@@ -108,7 +111,7 @@ public final class UsageViewModel: ObservableObject {
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits)
 
-        let result = aggregator.aggregate(rateLimits: api.rateLimits, accountId: accountId)
+        let result = await aggregator.aggregate(rateLimits: api.rateLimits, accountId: accountId)
         logCorruptionMetrics()
         updateAdaptivePolling(result)
         updateSnapshot(result, api: api)
@@ -250,7 +253,7 @@ public final class UsageViewModel: ObservableObject {
                 if let accountId {
                     let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
                     if cached.rateLimits != nil {
-                        let result = self.aggregator.aggregate(rateLimits: cached.rateLimits, accountId: accountId)
+                        let result = await self.aggregator.aggregate(rateLimits: cached.rateLimits, accountId: accountId)
                         if result != self.snapshot { self.snapshot = result }
                         self.isShowingCachedData = true
                     }

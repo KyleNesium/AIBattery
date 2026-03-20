@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.5] — 2026-03-20
+
+### Fixed
+- **Panel freeze on open** — JSONL session log scanning (16+ seconds of file I/O) was running on the main thread via `@MainActor`, starving the run loop and blocking all user interaction. Moved to background thread via `Task.detached` with `NSLock`-protected caching
+- **Panel dismissed immediately after opening** — click-outside monitor was treating the status bar click itself as an "outside click" on LSUIElement apps. Now checks click location against the status item button frame
+- **NSApp.activate blocking** — removed `NSApp.activate(ignoringOtherApps:)` entirely from the panel show path. Menu bar panels use `.statusBar` window level + `orderFrontRegardless()` instead, matching the pattern used by Ice, Bartender, and other production menu bar apps
+
+### Improved
+- **Panel appears above all windows** — window level raised from `.floating` to `.statusBar`, with `.moveToActiveSpace` and `.fullScreenAuxiliary` collection behaviors
+- **SwiftUI pre-warm** — panel is briefly shown offscreen at launch to pay the first-layout cost upfront instead of on first click
+- **Click debounce** — rapid clicks within 100ms are dropped to prevent toggle state thrashing
+
 ## [1.9.4] — 2026-03-20
 
 ### Added

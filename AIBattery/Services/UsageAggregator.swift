@@ -37,7 +37,7 @@ final class UsageAggregator {
         cachedSnapshot = nil
     }
 
-    func aggregate(rateLimits: RateLimitUsage?, accountId: String? = nil) -> UsageSnapshot {
+    func aggregate(rateLimits: RateLimitUsage?, accountId: String? = nil) async -> UsageSnapshot {
         // Idle session cutoff for context health (0 = never hide)
         let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
 
@@ -57,8 +57,9 @@ final class UsageAggregator {
 
         let statsCache = statsCacheReader.read()
 
-        // Single JSONL scan — entries are already cached by SessionLogReader.
-        let allEntries = sessionLogReader.readAllUsageEntries()
+        // JSONL scan runs off main thread — can take 10+ seconds on large histories.
+        let reader = sessionLogReader
+        let allEntries = await Task.detached { reader.readAllUsageEntries() }.value
 
         // Set the user's active model so RateLimitFetcher probes with a known-good model first.
         RateLimitFetcher.shared.activeUserModel = allEntries.last?.model

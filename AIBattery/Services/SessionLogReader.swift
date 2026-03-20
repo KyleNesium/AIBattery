@@ -1,8 +1,10 @@
 import Foundation
 import os
 
-@MainActor
-final class SessionLogReader {
+/// Reads and caches JSONL session log files. NOT MainActor — file I/O must not block the UI.
+/// Thread-safety: all mutable state is accessed behind `lock`. Public API is safe to call from any thread.
+final class SessionLogReader: @unchecked Sendable {
+    private let lock = NSLock()
     static let shared = SessionLogReader()
 
     private let projectsURL: URL
@@ -48,6 +50,8 @@ final class SessionLogReader {
 
     /// Called by FileWatcher when files change — invalidates caches so the next read re-scans.
     func invalidate() {
+        lock.lock()
+        defer { lock.unlock() }
         cachedAllEntries = nil
         discoveredFiles = nil
         discoveryDirModDates.removeAll()
@@ -55,6 +59,8 @@ final class SessionLogReader {
     }
 
     func readAllUsageEntries() -> [AssistantUsageEntry] {
+        lock.lock()
+        defer { lock.unlock() }
         lastCorruptLineCount = 0
 
         // Return cached result if available (invalidated by FileWatcher)
