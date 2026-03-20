@@ -75,6 +75,12 @@ public final class StatusBarManager: NSObject {
     /// Absolute Y coordinate of the panel's top edge (just below the menu bar).
     /// Set by `positionPanel` and used by the resize observer to keep the top anchored.
     private var panelTopY: CGFloat = 0
+    /// Timestamp of last panel show — used by guard window to suppress spurious deactivation dismissals.
+    /// REL-01: NSApp.activate triggers didResignActiveNotification as a side-effect within ~200ms of show.
+    private var panelShowedAt: Date = .distantPast
+    /// Timestamp of last status item click — used to debounce rapid clicks.
+    /// REL-01: Prevents a second click arriving while NSApp.activate is still running from toggling past intended state.
+    private var lastClickAt: Date = .distantPast
 
     // Breathing glow animation state
     private var breathTimer: Timer?
@@ -227,6 +233,9 @@ public final class StatusBarManager: NSObject {
         // onDismiss fires from PopoverPanel.orderOut — no redundant dismiss() call needed.
         clickOutsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             guard let self, self.toggleState.isShowing else { return }
+            // Guard window: the status bar button click may arrive as a global mouse event
+            // before statusItemClicked() fires — suppress if within 200ms of show (REL-01).
+            guard !shouldSuppressDeactivation(showedAt: self.panelShowedAt) else { return }
             self.panel?.orderOut(nil)
         }
 
@@ -242,6 +251,10 @@ public final class StatusBarManager: NSObject {
             object: nil, queue: .main
         ) { [weak self] _ in
             guard let self, self.toggleState.isShowing else { return }
+            // Guard window: ignore deactivation arriving within 200ms of panel show (REL-01).
+            // NSApp.activate() triggers a deactivation/reactivation cycle in LSUIElement apps
+            // that fires this notification as a side-effect, not a real app switch.
+            guard !shouldSuppressDeactivation(showedAt: self.panelShowedAt) else { return }
             self.panel?.orderOut(nil)
         }
 
@@ -452,6 +465,13 @@ public final class StatusBarManager: NSObject {
     // MARK: - Panel toggle
 
     @objc private func statusItemClicked() {
+        // Debounce: ignore rapid-repeat clicks within 150ms (REL-01).
+        // Prevents a second click arriving while NSApp.activate is running from
+        // toggling the state past the intended position.
+        let now = Date()
+        guard !shouldDebounceClick(lastClickAt: lastClickAt, now: now) else { return }
+        lastClickAt = now
+
         guard let panel, let button = statusItem?.button else { return }
         let action = toggleState.toggle()
         switch action {
@@ -462,9 +482,12 @@ public final class StatusBarManager: NSObject {
             os_signpost(.begin, log: panelShowLog, name: "PanelShow")
             panel.makeKeyAndOrderFront(nil)
             os_signpost(.end, log: panelShowLog, name: "PanelShow")
-            // Activate after showing — LSUIElement activation is slow (~100-300ms)
-            // and blocking it delays the panel appearance.
-            NSApp.activate(ignoringOtherApps: true)
+            panelShowedAt = Date()
+            // Activate asynchronously — NSApp.activate blocks for 100-300ms on LSUIElement apps.
+            // Deferring prevents the click handler from hanging (REL-02).
+            DispatchQueue.main.async {
+                NSApp.activate(ignoringOtherApps: true)
+            }
         }
     }
 
