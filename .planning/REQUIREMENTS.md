@@ -9,9 +9,9 @@ Requirements for responsiveness milestone. The app must feel instant.
 
 ### Responsiveness
 
-- [ ] **RESP-01**: Popover opens/closes in under 50ms — no perceptible delay on any click
+- [x] **RESP-01**: Popover opens/closes in under 50ms — no perceptible delay on any click
 - [x] **RESP-02**: No UI freeze or hang during normal usage (open, scroll, toggle, close)
-- [ ] **RESP-03**: Panel toggle never desyncs (click always produces correct open/close)
+- [x] **RESP-03**: Panel toggle never desyncs (click always produces correct open/close)
 - [x] **RESP-04**: Lazy-load heavy sections — only render visible content on open
 
 ## Future Requirements
@@ -30,9 +30,9 @@ Requirements for responsiveness milestone. The app must feel instant.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RESP-01 | Phase 12 | Pending |
+| RESP-01 | Phase 12 | Complete |
 | RESP-02 | Phase 12 | Complete |
-| RESP-03 | Phase 12 | Pending |
+| RESP-03 | Phase 12 | Complete |
 | RESP-04 | Phase 12 | Complete |
 
 **Coverage:**

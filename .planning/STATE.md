@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.13
 milestone_name: Responsiveness
 status: unknown
-stopped_at: Completed 12-02-PLAN.md
-last_updated: "2026-03-20T08:02:19.039Z"
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-03-20T08:03:57.762Z"
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -37,6 +37,8 @@ Plan: 1 of 2
 - [Phase 12]: Use if panelHasAppeared branch over .hidden() — SwiftUI skips instantiation entirely; .hidden() still renders
 - [Phase 12]: Use DispatchQueue.main.async (not .task) for deferred render — fires reliably after window compositing
 - [Phase 12]: DeferredRenderState: pure value-type struct with mutating methods for testable @State logic without mocks
+- [Phase 12-responsiveness]: PanelToggleState extracted as value type — all dismiss paths sync via PopoverPanel.onDismiss callback, making desync structurally impossible
+- [Phase 12-01]: os_signpost(.pointsOfInterest) brackets makeKeyAndOrderFront for Instruments panel latency profiling
 
 ### Blockers/Concerns
 
@@ -44,6 +46,6 @@ Plan: 1 of 2
 
 ## Session Continuity
 
-Last session: 2026-03-20T08:02:19.036Z
-Stopped at: Completed 12-02-PLAN.md
+Last session: 2026-03-20T08:03:57.759Z
+Stopped at: Completed 12-01-PLAN.md
 Resume file: None
