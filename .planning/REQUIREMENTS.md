@@ -56,23 +56,23 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REL-01 | — | Pending |
-| REL-02 | — | Pending |
-| A11Y-01 | — | Pending |
-| A11Y-02 | — | Pending |
-| UXC-01 | — | Pending |
-| UXC-02 | — | Pending |
-| VIS-01 | — | Pending |
-| VIS-02 | — | Pending |
-| VIS-03 | — | Pending |
-| CQ-01 | — | Pending |
-| CQ-02 | — | Pending |
+| REL-01 | Phase 13 | Pending |
+| REL-02 | Phase 13 | Pending |
+| A11Y-01 | Phase 14 | Pending |
+| A11Y-02 | Phase 14 | Pending |
+| VIS-01 | Phase 15 | Pending |
+| VIS-02 | Phase 15 | Pending |
+| VIS-03 | Phase 15 | Pending |
+| UXC-01 | Phase 16 | Pending |
+| UXC-02 | Phase 16 | Pending |
+| CQ-01 | Phase 17 | Pending |
+| CQ-02 | Phase 17 | Pending |
 
 **Coverage:**
 - v1.14 requirements: 11 total
-- Mapped to phases: 0
-- Unmapped: 11 (pending roadmap creation)
+- Mapped to phases: 11
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-20*
-*Last updated: 2026-03-20 after initial definition*
+*Last updated: 2026-03-20 — traceability mapped after roadmap creation*

@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.14
 milestone_name: Polish & UX
-status: defining_requirements
+status: ready_to_plan
 stopped_at: null
 last_updated: "2026-03-20T10:30:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,35 +19,48 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Defining requirements for v1.14 Polish & UX
+**Current focus:** Phase 13 — Reliability (v1.14 roadmap ready)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-20 — Milestone v1.14 started
+Phase: 13 of 17 (Reliability)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-03-20 — Roadmap created for v1.14 (5 phases, 11 requirements)
+
+Progress: [░░░░░░░░░░] 0%
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 0 (this milestone)
+- Average duration: —
+- Total execution time: —
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
+
+*Updated after each plan completion*
 
 ## Accumulated Context
 
 ### Decisions
 
-- [v1.9.4]: panel.isVisible toggle made it WORSE — reverted. isPanelShowing boolean is correct approach.
 - [v1.9.4]: Timer.publish on SwiftUI struct causes freeze — always use TimelineView instead
-- [v1.12]: Frame resize debounced + gated on isPanelShowing
-- [v1.12]: NSApp.activate after makeKeyAndOrderFront (non-blocking)
-- [Phase 12]: Use if panelHasAppeared branch over .hidden() — SwiftUI skips instantiation entirely; .hidden() still renders
-- [Phase 12]: Use DispatchQueue.main.async (not .task) for deferred render — fires reliably after window compositing
-- [Phase 12]: DeferredRenderState: pure value-type struct with mutating methods for testable @State logic without mocks
-- [Phase 12-responsiveness]: PanelToggleState extracted as value type — all dismiss paths sync via PopoverPanel.onDismiss callback, making desync structurally impossible
-- [Phase 12-01]: os_signpost(.pointsOfInterest) brackets makeKeyAndOrderFront for Instruments panel latency profiling
+- [Phase 12]: Use if panelHasAppeared over .hidden() — SwiftUI skips instantiation entirely
+- [Phase 12]: DispatchQueue.main.async (not .task) for deferred render — fires after window compositing
+- [Phase 12]: PanelToggleState value type makes toggle desync structurally impossible
 
 ### Blockers/Concerns
 
-- User reports intermittent hang still occurs despite v1.12 fixes — root cause not yet identified
+- PopoverFooterView uses TimelineView — highest hang-regression risk; treat all footer animation changes with extreme care
+- Intermittent panel no-open reported despite v1.13 fixes — Phase 13 must diagnose root cause before moving forward
 
 ## Session Continuity
 
-Last session: 2026-03-20T10:30:00.000Z
-Stopped at: null
+Last session: 2026-03-20
+Stopped at: Roadmap created — ready to plan Phase 13
 Resume file: None
