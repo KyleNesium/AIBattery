@@ -34,6 +34,24 @@ struct PanelToggleState {
     }
 }
 
+// MARK: - Reliability Guards
+
+/// Returns true if a deactivation event should be suppressed because it arrived
+/// within the guard window after panel show. Prevents activation-race dismiss.
+/// REL-01: NSApp.activate triggers a didResignActiveNotification side-effect that
+/// arrives within ~200ms of panel show — this guard window filters it out.
+func shouldSuppressDeactivation(showedAt: Date, now: Date = Date(), guardInterval: TimeInterval = 0.2) -> Bool {
+    now.timeIntervalSince(showedAt) <= guardInterval
+}
+
+/// Returns true if a click should be debounced because it arrived too soon
+/// after the previous click. Prevents double-click toggle race.
+/// REL-01: A second click arriving while NSApp.activate is still running (~150ms)
+/// would shoot the toggle past the intended state.
+func shouldDebounceClick(lastClickAt: Date, now: Date = Date(), cooldown: TimeInterval = 0.15) -> Bool {
+    now.timeIntervalSince(lastClickAt) <= cooldown
+}
+
 // MARK: - StatusBarManager
 
 /// Manages the NSStatusItem and a floating NSPanel directly, replacing SwiftUI's MenuBarExtra.
