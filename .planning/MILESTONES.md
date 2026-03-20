@@ -1,5 +1,18 @@
 # Milestones
 
+## v1.13 Responsiveness (Shipped: 2026-03-20)
+
+**Phases completed:** 1 phase, 2 plans | **4 files changed, +228 -18 lines** | **13 tests added**
+
+**Key accomplishments:**
+
+- PanelToggleState value-type state machine replaces isPanelShowing boolean — structurally prevents toggle desync
+- PopoverPanel.orderOut override with onDismiss callback catches all 5 dismiss paths (ESC, click-outside, deactivation, system, programmatic)
+- Deferred rendering gates InsightsView and ProjectUsageSection — panel opens lightweight, heavy sections render one run-loop later
+- os_signpost instrumentation brackets makeKeyAndOrderFront for Instruments profiling
+
+---
+
 ## v1.12 Performance & Cleanup (Shipped: 2026-03-19)
 
 **Phases completed:** 2 phases, 2 plans, 0 tasks

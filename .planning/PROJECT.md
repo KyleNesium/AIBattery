@@ -82,13 +82,13 @@ _(no active requirements — v1.13 complete)_
 
 ## Context
 
-- **Version:** 1.9.4 (2026-03-20) — Phase 12 Responsiveness complete (toggle desync fix, deferred rendering, signpost profiling)
-- **Tests:** 706 across 45 files
+- **Version:** v1.13 (2026-03-20) — all milestones through Responsiveness shipped
+- **Tests:** 719+ across 47 files (13 tests added in v1.13)
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
 - **Zero TODOs/FIXMEs** in codebase — clean slate
-- **Recent focus:** v1.11 shipped design system, visual polish, and file extraction; all specs synced
+- **Recent focus:** v1.13 shipped toggle desync fix, deferred rendering, signpost profiling
 
 ## Constraints
 
@@ -115,12 +115,18 @@ _(no active requirements — v1.13 complete)_
 | Extension-based extraction | ActivityChartView uses extensions to share @State without Binding plumbing | ✓ Good |
 | StyledDivider component | Unified divider styling across all sections (opacity 0.3, tight padding) | ✓ Good |
 | MotionConstants enum | Animation durations centralized (standard 0.2s, snappy 0.15s) | ✓ Good |
+| PanelToggleState value type | Testable state machine prevents toggle desync structurally | ✓ Good |
+| orderOut override with onDismiss | Single dismiss sync point catches all 5 paths | ✓ Good |
+| Deferred rendering via async hop | DispatchQueue.main.async defers heavy sections one run-loop | ✓ Good |
 
 ---
-## Current Milestone: v1.13 Responsiveness — COMPLETE
+## Milestone History
 
-**Goal:** The app must be completely responsive — zero delays on click, zero hangs during use.
-**Status:** Phase 12 complete — PanelToggleState, orderOut callback, deferred rendering, signpost profiling all shipped.
+- **v1.13 Responsiveness** — shipped 2026-03-20 (Phase 12)
+- **v1.12 Performance & Cleanup** — shipped 2026-03-19 (Phases 10-11)
+- **v1.11 Polish & Consistency** — shipped 2026-03-19 (Phases 6-9)
+- **v1.10 Bugs & Performance** — shipped 2026-03-19 (Phases 1-5)
+- **v1.0–v1.9.2** — pre-GSD
 
 ---
-*Last updated: 2026-03-20 after Phase 12 completion*
+*Last updated: 2026-03-20 after v1.13 milestone completion*
