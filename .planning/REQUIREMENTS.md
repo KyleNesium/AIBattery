@@ -30,15 +30,15 @@ Requirements for responsiveness milestone. The app must feel instant.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| RESP-01 | TBD | Pending |
-| RESP-02 | TBD | Pending |
-| RESP-03 | TBD | Pending |
-| RESP-04 | TBD | Pending |
+| RESP-01 | Phase 12 | Pending |
+| RESP-02 | Phase 12 | Pending |
+| RESP-03 | Phase 12 | Pending |
+| RESP-04 | Phase 12 | Pending |
 
 **Coverage:**
 - v1.13 requirements: 4 total
-- Mapped to phases: 0
-- Unmapped: 4 (pending roadmap)
+- Mapped to phases: 4
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-20*
