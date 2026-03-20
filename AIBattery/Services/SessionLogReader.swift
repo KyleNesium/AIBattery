@@ -2,9 +2,12 @@ import Foundation
 import os
 
 /// Reads and caches JSONL session log files. NOT MainActor — file I/O must not block the UI.
-/// Thread-safety: all mutable state is accessed behind `lock`. Public API is safe to call from any thread.
+/// Thread-safety: mutable state accessed behind `lock`. `invalidate()` uses `tryLock` so
+/// FileWatcher on main never blocks waiting for a long-running background scan.
 final class SessionLogReader: @unchecked Sendable {
     private let lock = NSLock()
+    /// Set true by invalidate() when lock is held by a scan — checked after scan completes.
+    private var pendingInvalidation = false
     static let shared = SessionLogReader()
 
     private let projectsURL: URL
@@ -49,22 +52,27 @@ final class SessionLogReader: @unchecked Sendable {
     private(set) var lastCorruptLineCount = 0
 
     /// Called by FileWatcher when files change — invalidates caches so the next read re-scans.
+    /// Non-blocking: if a scan is in progress, sets a flag so the scan result is discarded.
     func invalidate() {
-        lock.lock()
-        defer { lock.unlock() }
-        cachedAllEntries = nil
-        discoveredFiles = nil
-        discoveryDirModDates.removeAll()
-        lastFullEnumerationDate = nil
+        if lock.try() {
+            cachedAllEntries = nil
+            discoveredFiles = nil
+            discoveryDirModDates.removeAll()
+            lastFullEnumerationDate = nil
+            lock.unlock()
+        } else {
+            // Scan in progress — mark for invalidation when it finishes
+            pendingInvalidation = true
+        }
     }
 
     func readAllUsageEntries() -> [AssistantUsageEntry] {
         lock.lock()
-        defer { lock.unlock() }
+        pendingInvalidation = false
         lastCorruptLineCount = 0
 
         // Return cached result if available (invalidated by FileWatcher)
-        if let cached = cachedAllEntries { return cached }
+        if let cached = cachedAllEntries { lock.unlock(); return cached }
         let jsonlFiles = discoverJSONLFiles()
         var allEntries: [AssistantUsageEntry] = []
         var seenMessageIds = Set<String>()
@@ -79,7 +87,15 @@ final class SessionLogReader: @unchecked Sendable {
         }
 
         allEntries.sort { $0.timestamp < $1.timestamp }
+
+        // If invalidate() was called during the scan, discard cache so next call re-scans.
+        if pendingInvalidation {
+            pendingInvalidation = false
+            lock.unlock()
+            return allEntries
+        }
         cachedAllEntries = allEntries
+        lock.unlock()
         return allEntries
     }
 

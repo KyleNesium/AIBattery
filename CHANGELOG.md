@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.6] — 2026-03-20
+
+### Fixed
+- **16-second main thread stall** — `SessionLogReader.invalidate()` blocked on `NSLock` while a background JSONL scan (57K+ entries) held it. Now uses `tryLock()` with atomic pending-invalidation flag — FileWatcher on main never blocks
+- **JSONL I/O still on main thread** — moved `UsageAggregator`, `SessionLogReader`, `StatsCacheReader`, and `TokenLedger` off `@MainActor`. Aggregate runs entirely in `Task.detached`; only snapshot assignment and two property updates hop back to main
+- **Multiple concurrent refreshes** — `$isAuthenticated` publisher and polling timer both triggered `refresh()` at startup, causing redundant 19-second JSONL scans fighting over the lock
+
+### Changed
+- **Auto mode button** — "A" glow color changed from green to blue
+
 ## [1.9.5] — 2026-03-20
 
 ### Fixed

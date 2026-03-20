@@ -9,8 +9,7 @@ import Foundation
 /// - Read: once at init (cached in memory)
 /// - Write: only when values increase (background I/O, atomic)
 /// - File: `~/Library/Application Support/AIBattery/token-ledger.json`
-@MainActor
-final class TokenLedger {
+final class TokenLedger: @unchecked Sendable {
     static let shared = TokenLedger()
 
     private let fileURL: URL

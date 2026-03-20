@@ -3,7 +3,6 @@ import AppKit
 import Combine
 import os.signpost
 
-
 // MARK: - Toggle State Machine
 
 /// Pure value-type toggle state machine extracted from StatusBarManager for testability.

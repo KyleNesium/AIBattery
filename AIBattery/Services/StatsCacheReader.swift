@@ -1,8 +1,7 @@
 import Foundation
 import os
 
-@MainActor
-final class StatsCacheReader {
+final class StatsCacheReader: @unchecked Sendable {
     static let shared = StatsCacheReader()
 
     private static let jsonDecoder = JSONDecoder()

@@ -42,17 +42,17 @@ struct MetricToggleView: View {
         } label: {
             Text("A")
                 .font(.system(size: 9, weight: .heavy, design: .rounded))
-                .foregroundStyle(autoMetricMode ? Color.green : .secondary.opacity(0.5))
+                .foregroundStyle(autoMetricMode ? Color.blue : .secondary.opacity(0.5))
                 .frame(width: 20, height: 20)
                 .background(
                     Circle()
-                        .fill(autoMetricMode ? Color.green.opacity(0.15) : Color.clear)
+                        .fill(autoMetricMode ? Color.blue.opacity(0.15) : Color.clear)
                 )
                 .overlay(
                     Circle()
-                        .stroke(autoMetricMode ? Color.green.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 1.5)
+                        .stroke(autoMetricMode ? Color.blue.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 1.5)
                 )
-                .shadow(color: autoMetricMode ? Color.green.opacity(0.5) : .clear, radius: 4)
+                .shadow(color: autoMetricMode ? Color.blue.opacity(0.5) : .clear, radius: 4)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

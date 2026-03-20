@@ -1,7 +1,16 @@
 import Foundation
 
-@MainActor
-final class UsageAggregator {
+final class UsageAggregator: @unchecked Sendable {
+    /// Side effects that must be applied on @MainActor after aggregate returns.
+    struct SideEffects: Sendable {
+        let activeUserModel: String?
+        let observedModels: [String]
+        let accountId: String?
+    }
+
+    /// Result of aggregate — snapshot + deferred side effects for @MainActor callers.
+    private(set) var lastSideEffects: SideEffects?
+
     private let statsCacheReader: StatsCacheReader
     private let sessionLogReader: SessionLogReader
 
@@ -37,7 +46,7 @@ final class UsageAggregator {
         cachedSnapshot = nil
     }
 
-    func aggregate(rateLimits: RateLimitUsage?, accountId: String? = nil) async -> UsageSnapshot {
+    func aggregate(rateLimits: RateLimitUsage?, accountId: String? = nil) -> UsageSnapshot {
         // Idle session cutoff for context health (0 = never hide)
         let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
 
@@ -56,13 +65,11 @@ final class UsageAggregator {
         }
 
         let statsCache = statsCacheReader.read()
+        let allEntries = sessionLogReader.readAllUsageEntries()
 
-        // JSONL scan runs off main thread — can take 10+ seconds on large histories.
-        let reader = sessionLogReader
-        let allEntries = await Task.detached { reader.readAllUsageEntries() }.value
-
-        // Set the user's active model so RateLimitFetcher probes with a known-good model first.
-        RateLimitFetcher.shared.activeUserModel = allEntries.last?.model
+        // Side effects deferred to caller (RateLimitFetcher is @MainActor):
+        // - activeUserModel = allEntries.last?.model
+        // - setObservedModels(observedModels, accountId:)
 
         // Unified single-pass over allEntries: date grouping, today extraction,
         // project token accumulation, and windowed model token bucketing — all in one iteration.
@@ -171,11 +178,7 @@ final class UsageAggregator {
         }
 
         // Build observed model list sorted by recency (most recent first) for dynamic probe fallback.
-        // Only set when accountId is known so each account gets its own persisted list.
         let observedModels = lastSeenByModel.sorted { $0.value > $1.value }.map(\.key)
-        if let accountId {
-            RateLimitFetcher.shared.setObservedModels(observedModels, accountId: accountId)
-        }
 
         let todayMessages = todayEntries.count
         let todaySessions = entriesByDate[todayDate]?.sessions.count ?? 0
@@ -339,6 +342,13 @@ final class UsageAggregator {
         lastRateLimits = rateLimits
         lastIdleSessionMinutes = idleSessionMinutes
         lastAccountId = accountId
+
+        // Store side effects for @MainActor callers to apply
+        lastSideEffects = SideEffects(
+            activeUserModel: allEntries.last?.model,
+            observedModels: observedModels,
+            accountId: accountId
+        )
 
         return snapshot
     }
