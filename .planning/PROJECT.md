@@ -68,7 +68,11 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-(None — next milestone not yet defined. Run `/gsd:new-milestone` to start.)
+#### Responsiveness
+- [ ] RESP-01: Popover opens/closes in under 50ms — no perceptible delay on any click
+- [ ] RESP-02: No UI freeze or hang during normal usage (open, scroll, toggle, close)
+- [ ] RESP-03: Panel toggle never desyncs (click always produces correct open/close)
+- [ ] RESP-04: Lazy-load heavy sections — only render visible content on open
 
 ### Out of Scope
 
@@ -113,5 +117,9 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | MotionConstants enum | Animation durations centralized (standard 0.2s, snappy 0.15s) | ✓ Good |
 
 ---
+## Current Milestone: v1.13 Responsiveness
+
+**Goal:** The app must be completely responsive — zero delays on click, zero hangs during use.
+
 ---
-*Last updated: 2026-03-20 after v1.12 milestone*
+*Last updated: 2026-03-20 after v1.13 milestone start*
