@@ -72,7 +72,7 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-_(no active requirements — v1.13 complete)_
+_(defining requirements for v1.14 Polish & UX)_
 
 ### Out of Scope
 
@@ -82,13 +82,13 @@ _(no active requirements — v1.13 complete)_
 
 ## Context
 
-- **Version:** v1.13 (2026-03-20) — all milestones through Responsiveness shipped
+- **Version:** v1.14 (2026-03-20) — Polish & UX milestone started
 - **Tests:** 719+ across 47 files (13 tests added in v1.13)
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
 - **Zero TODOs/FIXMEs** in codebase — clean slate
-- **Recent focus:** v1.13 shipped toggle desync fix, deferred rendering, signpost profiling
+- **Recent focus:** v1.14 Polish & UX — visual refinement, edge case hardening, code quality, UX improvements
 
 ## Constraints
 
@@ -122,6 +122,7 @@ _(no active requirements — v1.13 complete)_
 ---
 ## Milestone History
 
+- **v1.14 Polish & UX** — started 2026-03-20
 - **v1.13 Responsiveness** — shipped 2026-03-20 (Phase 12)
 - **v1.12 Performance & Cleanup** — shipped 2026-03-19 (Phases 10-11)
 - **v1.11 Polish & Consistency** — shipped 2026-03-19 (Phases 6-9)
@@ -129,4 +130,15 @@ _(no active requirements — v1.13 complete)_
 - **v1.0–v1.9.2** — pre-GSD
 
 ---
-*Last updated: 2026-03-20 after v1.13 milestone completion*
+## Current Milestone: v1.14 Polish & UX
+
+**Goal:** Comprehensive polish pass — visual refinement, edge case hardening, code quality, and UX improvements across the entire app.
+
+**Target areas:**
+- Visual refinement (spacing, alignment, color consistency, native macOS feel)
+- User experience (smoother transitions, better feedback, clearer information hierarchy)
+- Edge case hardening (error states, empty states, graceful degradation)
+- Code quality (spec drift audit, test gaps, consistency sweep)
+
+---
+*Last updated: 2026-03-20 after v1.14 milestone start*
