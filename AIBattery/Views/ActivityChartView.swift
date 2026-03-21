@@ -105,7 +105,7 @@ struct InsightsView: View {
                 Spacer()
                 if collapsed, let snapshot, let change = ActivityTrendComputation.changeVsYesterday(snapshot) {
                     Text(change.symbol)
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .font(Typography.trendLabelSmall)
                         .foregroundStyle(change.color)
                     Text(change.label)
                         .font(Typography.monoCaptionSmall)
@@ -139,7 +139,7 @@ struct InsightsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: Layout.chartHeight)
-                .transition(.opacity)
+                .transition(MotionConstants.expandTransition)
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                 switch mode {
@@ -151,7 +151,9 @@ struct InsightsView: View {
                     monthlyChart
                 }
                 }
+                .id(mode)
                 .transition(.opacity)
+                .animation(MotionConstants.standard, value: mode)
             }
 
             // Trend + cost + history — visually grouped
@@ -168,7 +170,7 @@ struct InsightsView: View {
                 StyledDivider()
                 insightRows(snapshot)
                 }
-                .transition(.opacity)
+                .transition(MotionConstants.expandTransition)
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)

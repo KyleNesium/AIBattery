@@ -6,12 +6,14 @@ struct CollapsibleSectionHeader: View {
     let title: String
     @Binding var collapsed: Bool
     var tooltip: String = ""
+    @State private var isHovered = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         Button {
             withAnimation(MotionConstants.standard) { collapsed.toggle() }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.inner) {
                 Image(systemName: "chevron.right")
                     .font(Typography.chevronIcon)
                     .rotationEffect(.degrees(collapsed ? 0 : 90))
@@ -20,9 +22,21 @@ struct CollapsibleSectionHeader: View {
                     .font(Typography.sectionHeader)
                     .foregroundStyle(.primary)
             }
+            .padding(.horizontal, 3)
+            .padding(.vertical, 1)
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(isFocused ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focused($isFocused)
+        .onHover { isHovered = $0 }
         .help(tooltip)
         .accessibilityAddTraits(.isHeader)
         .accessibilityLabel("\(title), \(collapsed ? "collapsed" : "expanded")")

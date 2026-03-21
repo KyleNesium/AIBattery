@@ -7,6 +7,8 @@ struct PopoverFooterView: View {
     @Binding var showLogoutConfirm: Bool
     let onLogout: () -> Void
     let onRequestLogout: () -> Void
+    @State private var logoutHovered = false
+    @State private var quitHovered = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -53,11 +55,13 @@ struct PopoverFooterView: View {
                             .font(Typography.monoTiny)
                         Text(showLogoutConfirm ? "Confirm?" : "Logout")
                             .font(Typography.tinyLabel)
+                            .underline(logoutHovered)
                     }
                     .fixedSize()
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(showLogoutConfirm ? .red : .secondary)
+                .onHover { logoutHovered = $0 }
                 .animation(MotionConstants.snappy, value: showLogoutConfirm)
                 .accessibilityLabel(showLogoutConfirm ? "Confirm logout" : "Logout")
                 .accessibilityHint("Sign out of active Claude account")
@@ -71,11 +75,13 @@ struct PopoverFooterView: View {
                             .font(Typography.monoTiny)
                         Text("Quit")
                             .font(Typography.tinyLabel)
+                            .underline(quitHovered)
                     }
                     .fixedSize()
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                .onHover { quitHovered = $0 }
                 .help("Quit (⌘Q)")
                 .accessibilityLabel("Quit AI Battery")
             }

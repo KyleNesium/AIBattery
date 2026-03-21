@@ -28,11 +28,14 @@ struct MetricToggleView: View {
             .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.vertical, Spacing.section)
+        .padding(.top, Spacing.section)
+        .padding(.bottom, Spacing.gap)
         .background(ThemeColors.badgeFill)
         .onAppear { recomputeOrderedModes() }
         .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
     }
+
+    @State private var autoHovered = false
 
     private var autoModeButton: some View {
         Button {
@@ -41,21 +44,22 @@ struct MetricToggleView: View {
             }
         } label: {
             Text("A")
-                .font(.system(size: 9, weight: .heavy, design: .rounded))
-                .foregroundStyle(autoMetricMode ? Color.blue : .secondary.opacity(0.5))
-                .frame(width: 20, height: 20)
+                .font(Typography.autoModeLabel)
+                .foregroundStyle(autoMetricMode ? Color.blue : autoHovered ? .secondary : .secondary.opacity(0.5))
+                .frame(width: Layout.autoModeSize, height: Layout.autoModeSize)
                 .background(
                     Circle()
-                        .fill(autoMetricMode ? Color.blue.opacity(0.15) : Color.clear)
+                        .fill(autoMetricMode ? Color.blue.opacity(0.15) : autoHovered ? Color.primary.opacity(0.06) : Color.clear)
                 )
                 .overlay(
                     Circle()
-                        .stroke(autoMetricMode ? Color.blue.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 1.5)
+                        .stroke(autoMetricMode ? Color.blue.opacity(0.6) : autoHovered ? Color.secondary.opacity(0.4) : Color.secondary.opacity(0.2), lineWidth: 1.5)
                 )
                 .shadow(color: autoMetricMode ? Color.blue.opacity(0.5) : .clear, radius: 4)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .onHover { autoHovered = $0 }
         .accessibilityLabel("Auto mode")
         .accessibilityValue(autoMetricMode ? "On" : "Off")
         .accessibilityHint("Automatically shows the highest usage metric")

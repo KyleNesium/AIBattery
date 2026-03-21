@@ -93,10 +93,10 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 ## Design Tokens
 
 All font sizes, spacing values, layout dimensions, and animation durations are defined as named constants in `Utilities/`:
-- **Typography** — 15 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`)
-- **Spacing** — 6 spacing constants (`tight` 2pt, `small` 4pt, `gap` 6pt, `section` 8pt, `sectionHorizontal` 16pt, `overlay` 24pt)
-- **Layout** — 7 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, etc.)
-- **MotionConstants** — 2 animation durations (`standard` 0.15s easeOut, `snappy` 0.1s easeOut)
+- **Typography** — 19 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`, `Typography.trendSymbol`)
+- **Spacing** — 7 spacing constants (`tight` 2pt, `inner` 4pt, `small` 4pt, `gap` 6pt, `section` 8pt, `sectionHorizontal` 16pt, `overlay` 24pt)
+- **Layout** — 11 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `autoModeSize` 20pt, `bannerCornerRadius` 6pt, `costColumn` 46pt, `tokenColumn` 42pt, etc.)
+- **MotionConstants** — 4 animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `expandTransition` opacity+move)
 
 Full token values are listed in `CONSTANTS.md > Design Tokens`.
 

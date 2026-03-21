@@ -301,16 +301,23 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `monoValueMedium` | `.system(.subheadline, design: .monospaced, weight: .semibold)` |
 | `monoCaption` | `.system(.caption, design: .monospaced)` |
 | `monoCaptionSmall` | `.system(.caption2, design: .monospaced)` |
-| `monoTiny` | `.system(size: 9, design: .monospaced)` |
-| `badgeLabel` | `.system(size: 9, weight: .medium, design: .monospaced)` |
+| `monoTiny` | `.system(size: 10, design: .monospaced)` |
+| `badgeLabel` | `.system(size: 10, weight: .medium, design: .monospaced)` |
 | `buttonLabel` | `.subheadline.weight(.medium)` |
-| `decorativeIcon` | `.system(size: 8)` — 8pt minimum (UI-05) |
+| `iconSmall` | `.system(size: 9)` — icon-only floor for SF Symbols |
+| `decorativeIcon` | alias for `iconSmall` |
+| `clipboardIcon` | alias for `iconSmall` |
+| `trendSymbol` | `.system(size: 11, weight: .semibold, design: .monospaced)` |
+| `trendLabelSmall` | `.system(size: 10, weight: .semibold, design: .monospaced)` |
+| `autoModeLabel` | `.system(size: 10, weight: .heavy, design: .rounded)` |
+| `clipboardIcon` | `.system(size: 9)` |
 
 ### Spacing (`Utilities/Spacing.swift`)
 
 | Token | Value | Usage |
 |-------|-------|-------|
 | `Spacing.tight` | 2pt | Divider micro-gap, dot gap |
+| `Spacing.inner` | 4pt | Internal element spacing within a section |
 | `Spacing.small` | 4pt | Badge internal padding, minor offset |
 | `Spacing.gap` | 6pt | VStack section spacing, header/footer V padding |
 | `Spacing.section` | 8pt | Standard section vertical outer padding |
@@ -328,6 +335,10 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.chevronFrame` | 22pt | CollapsibleSectionHeader chevron tap target |
 | `Layout.dotSize` | 8pt | Health/model status dot diameter |
 | `Layout.dotSizeSmall` | 6pt | Token type/status component dot diameter |
+| `Layout.autoModeSize` | 20pt | Auto mode "A" button circle diameter |
+| `Layout.bannerCornerRadius` | 6pt | Banner corner radius (update banner, search field) |
+| `Layout.costColumn` | 46pt | Compact cost column width (Projects, Insights) |
+| `Layout.tokenColumn` | 42pt | Token value column width (Projects, Insights) |
 
 ### MotionConstants (`Utilities/Spacing.swift`, co-located)
 
@@ -335,6 +346,8 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 |-------|-------|-------|
 | `MotionConstants.standard` | `.easeOut(duration: 0.15)` | Standard section expand/collapse, settings toggle, account switch |
 | `MotionConstants.snappy` | `.easeOut(duration: 0.1)` | Session navigation, metric mode change |
+| `MotionConstants.smooth` | `.easeInOut(duration: 0.4)` | Gauge bar fill, chart transitions |
+| `MotionConstants.expandTransition` | `.opacity + .move(edge: .top)` | Section expand/collapse content transition |
 
 ## Security Guards
 

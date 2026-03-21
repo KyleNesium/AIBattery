@@ -6,6 +6,8 @@ struct ProjectUsageSection: View {
     @State private var showAll = false
     @State private var searchText = ""
     @State private var sortMode: ProjectSortMode = .tokensDesc
+    @State private var showMoreHovered = false
+    @State private var sortHovered = false
     /// Cached sorted list — avoids O(n log n) sort on every body evaluation.
     @State private var cachedSorted: [ProjectTokenSummary] = []
 
@@ -13,9 +15,9 @@ struct ProjectUsageSection: View {
     private static let expandedLimit = 10
 
     /// Column width for compact cost values (e.g. "~$18").
-    private let costColumnWidth: CGFloat = 38
+    private let costColumnWidth: CGFloat = Layout.costColumn
     /// Column width for token values (e.g. "1.2M").
-    private let tokenColumnWidth: CGFloat = 42
+    private let tokenColumnWidth: CGFloat = Layout.tokenColumn
 
     private func recomputeSorted() {
         switch sortMode {
@@ -66,7 +68,7 @@ struct ProjectUsageSection: View {
                     controlsRow
                 }
                 }
-                .transition(.opacity)
+                .transition(MotionConstants.expandTransition)
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -123,9 +125,11 @@ struct ProjectUsageSection: View {
                 }) {
                     Text(showAll ? "Show less" : "Show more")
                         .font(Typography.tinyLabel)
+                        .underline(showMoreHovered)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(ThemeColors.chartAccent)
+                .foregroundStyle(.blue)
+                .onHover { showMoreHovered = $0 }
                 .accessibilityLabel(showAll ? "Show fewer projects" : "Show more projects")
             }
 
@@ -138,11 +142,13 @@ struct ProjectUsageSection: View {
                             .font(Typography.decorativeIcon)
                         Text(sortMode.label)
                             .font(Typography.tinyLabel)
+                            .underline(sortHovered)
                     }
                 }
                 .buttonStyle(.plain)
                 .fixedSize()
-                .foregroundStyle(ThemeColors.tertiaryLabel)
+                .foregroundStyle(sortHovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
+                .onHover { sortHovered = $0 }
                 .help("Cycle sort: \(sortMode.next.label)")
                 .accessibilityLabel("Sort by \(sortMode.label)")
             }
@@ -164,6 +170,7 @@ struct ProjectUsageSection: View {
             Text(project.projectName)
                 .font(Typography.caption)
                 .lineLimit(1)
+                .truncationMode(.middle)
 
             Spacer()
 

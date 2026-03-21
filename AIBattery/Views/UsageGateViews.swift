@@ -26,7 +26,6 @@ struct InsightsGate: View {
                 snapshot: snapshot,
                 activeModelId: snapshot.tokenHealth?.model
             )
-            StyledDivider()
         }
     }
 }

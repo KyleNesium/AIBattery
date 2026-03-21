@@ -22,7 +22,7 @@ struct CopyableModifier: ViewModifier {
             .overlay(alignment: .trailing) {
                 if copied {
                     Image(systemName: "doc.on.clipboard.fill")
-                        .font(.system(size: 9))
+                        .font(Typography.clipboardIcon)
                         .foregroundStyle(.secondary)
                         .transition(.scale.combined(with: .opacity))
                         .padding(.trailing, -13)

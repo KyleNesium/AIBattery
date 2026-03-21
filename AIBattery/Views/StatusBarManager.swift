@@ -3,6 +3,11 @@ import AppKit
 import Combine
 import os.signpost
 
+extension Notification.Name {
+    /// Keyboard shortcut pressed in the popover panel — forwarded to SwiftUI views.
+    static let panelKeyPress = Notification.Name("panelKeyPress")
+}
+
 // MARK: - Toggle State Machine
 
 /// Pure value-type toggle state machine extracted from StatusBarManager for testability.
@@ -137,7 +142,7 @@ public final class StatusBarManager: NSObject {
         hosting.layer?.masksToBounds = true
 
         panel.contentView = hosting
-        panel.setContentSize(NSSize(width: 275, height: 700))
+        panel.setContentSize(NSSize(width: Layout.popoverWidth, height: 700))
 
         // Resize panel when SwiftUI content changes height.
         // Max height is screen-relative so all sections fit on most displays.
@@ -166,8 +171,9 @@ public final class StatusBarManager: NSObject {
                         x: panel.frame.origin.x,
                         y: self.panelTopY - newHeight
                     )
+                    let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
                     panel.setFrame(
-                        NSRect(origin: newOrigin, size: NSSize(width: 275, height: newHeight)),
+                        NSRect(origin: newOrigin, size: NSSize(width: fittingWidth, height: newHeight)),
                         display: true,
                         animate: false
                     )
@@ -479,17 +485,29 @@ public final class StatusBarManager: NSObject {
 
         let panelWidth = panel.frame.width
         let panelHeight = panel.frame.height
+        let margin: CGFloat = 4
 
-        // Left-align panel to the status item's left edge
-        var x = screenRect.minX
-        let y = screenRect.minY - panelHeight - 4
-
+        // Prefer left-align to status item; flip to right-align if panel would overflow
+        var x: CGFloat
         if let screen = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame {
-            x = max(screen.minX + 4, min(x, screen.maxX - panelWidth - 4))
+            let leftAligned = screenRect.minX
+            let rightAligned = screenRect.maxX - panelWidth
+
+            if leftAligned + panelWidth + margin > screen.maxX {
+                // Near right edge — right-align to the status item
+                x = max(screen.minX + margin, rightAligned)
+            } else {
+                // Normal — left-align to the status item
+                x = max(screen.minX + margin, leftAligned)
+            }
+        } else {
+            x = screenRect.minX
         }
 
+        let y = screenRect.minY - panelHeight - margin
+
         // Store absolute top anchor so the resize observer can keep top pinned
-        panelTopY = screenRect.minY - 4
+        panelTopY = screenRect.minY - margin
 
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
@@ -522,6 +540,25 @@ private class PopoverPanel: NSPanel {
             orderOut(nil)
         } else if event.keyCode == 12 && event.modifierFlags.contains(.command) { // Cmd+Q
             NSApplication.shared.terminate(nil)
+        } else if !event.modifierFlags.contains(.command) {
+            // Forward unmodified keys to SwiftUI via notification
+            switch event.charactersIgnoringModifiers {
+            case "1", "2", "3", "r":
+                NotificationCenter.default.post(
+                    name: .panelKeyPress,
+                    object: event.charactersIgnoringModifiers
+                )
+            default:
+                // Arrow keys: keyCode 123 = left, 124 = right
+                if event.keyCode == 123 || event.keyCode == 124 {
+                    NotificationCenter.default.post(
+                        name: .panelKeyPress,
+                        object: event.keyCode == 123 ? "left" : "right"
+                    )
+                } else {
+                    super.keyDown(with: event)
+                }
+            }
         } else {
             super.keyDown(with: event)
         }

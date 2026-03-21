@@ -21,6 +21,8 @@ struct DeferredRenderState {
 public struct UsagePopoverView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject private var accountStore: AccountStore
+    /// Popover width scales with system text size, capped to avoid overflow.
+    @ScaledMetric(relativeTo: .body) private var scaledWidth: CGFloat = Layout.popoverWidth
     @State private var showSettings = false
     @State private var isAddingAccount = false
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
@@ -89,8 +91,6 @@ public struct UsagePopoverView: View {
                 },
                 availableUpdate: viewModel.availableUpdate
             )
-
-            StyledDivider()
 
             if showSettings {
                 SettingsRow(
@@ -213,7 +213,7 @@ public struct UsagePopoverView: View {
                 }
             )
         }
-        .frame(width: Layout.popoverWidth)
+        .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
         .contentShape(Rectangle())
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
@@ -225,6 +225,10 @@ public struct UsagePopoverView: View {
             }
         }
         .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
+        .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
+            guard let key = notification.object as? String else { return }
+            handleKeyPress(key)
+        }
         .onDisappear {
             logoutRevertTask?.cancel()
             panelHasAppeared = false
@@ -233,5 +237,21 @@ public struct UsagePopoverView: View {
 
     private func recomputeOrderedModes() {
         cachedOrderedModes = [metricMode] + MetricMode.allCases.filter { $0 != metricMode }
+    }
+
+    private func handleKeyPress(_ key: String) {
+        switch key {
+        case "1":
+            withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.fiveHour.rawValue }
+        case "2":
+            withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.sevenDay.rawValue }
+        case "3":
+            withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.contextHealth.rawValue }
+        case "r":
+            Task { await viewModel.refresh() }
+        default:
+            // Arrow keys handled by TokenHealthSection via its own notification observer
+            break
+        }
     }
 }

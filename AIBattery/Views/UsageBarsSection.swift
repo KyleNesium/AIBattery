@@ -47,9 +47,9 @@ struct UsageBar: View {
     var estimatedTimeToLimit: TimeInterval?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Spacing.inner) {
             HStack {
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.inner) {
                     Text(label)
                         .font(Typography.sectionHeader)
                         .accessibilityAddTraits(.isHeader)

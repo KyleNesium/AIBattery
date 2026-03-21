@@ -64,6 +64,10 @@ struct TokenHealthSection: View {
                 // Session info on its own line for full width
                 sessionInfoLabel
                     .id(selectedIndex)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .trailing)),
+                        removal: .opacity.combined(with: .move(edge: .leading))
+                    ))
 
                 // Gauge bar
                 GaugeBar(percent: health.usagePercentage, barColor: bandColor)
@@ -119,7 +123,7 @@ struct TokenHealthSection: View {
                         .padding(.top, 2)
                 }
                 }
-                .transition(.opacity)
+                .transition(MotionConstants.expandTransition)
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -145,6 +149,16 @@ struct TokenHealthSection: View {
             : nil
         )
         .accessibilityHint(sessions.count > 1 ? "Swipe left or right to browse sessions" : "")
+        .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
+            guard sessions.count > 1, let key = notification.object as? String else { return }
+            withAnimation(MotionConstants.snappy) {
+                if key == "right" {
+                    selectedIndex = min(selectedIndex + 1, sessions.count - 1)
+                } else if key == "left" {
+                    selectedIndex = max(selectedIndex - 1, 0)
+                }
+            }
+        }
         .onAppear { recomputeSessionInfo() }
         .onChange(of: selectedIndex) { _ in recomputeSessionInfo() }
         .onChange(of: sessions) { _ in recomputeSessionInfo() }
@@ -281,12 +295,14 @@ struct TokenHealthSection: View {
     }
 
     private var healthBadge: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Spacing.inner) {
             Circle()
                 .fill(bandColor)
                 .frame(width: Layout.dotSize, height: Layout.dotSize)
+                .animation(MotionConstants.smooth, value: bandColor)
             Text("\(Int(health.usagePercentage))%")
                 .font(Typography.monoValue)
+                .contentTransition(.numericText())
                 .copyable("\(Int(health.usagePercentage))%")
         }
     }

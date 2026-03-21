@@ -26,6 +26,8 @@ struct GaugeBar: View {
                         width: geometry.size.width * Self.clampedPercent(percent),
                         height: Layout.barHeight
                     )
+                    .animation(MotionConstants.smooth, value: percent)
+                    .animation(MotionConstants.smooth, value: barColor)
             }
         }
         .frame(height: Layout.barHeight)

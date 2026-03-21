@@ -9,15 +9,17 @@ struct PopoverHeaderView: View {
     let onUpdateFound: (VersionChecker.UpdateInfo?) -> Void
     let availableUpdate: VersionChecker.UpdateInfo?
 
+    @State private var gearHovered = false
     #if ENABLE_VERSION_CHECKER
     @State private var updateCheckMessage: String?
     @State private var updateCheckDismissTask: Task<Void, Never>?
     @State private var updateBannerDismissed = false
+    @State private var updateHovered = false
     #endif
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+        VStack(alignment: .leading, spacing: Spacing.inner) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.inner) {
                 Image(systemName: "sparkle")
                     .font(Typography.heroValue)
                     .foregroundStyle(.primary)
@@ -60,8 +62,9 @@ struct PopoverHeaderView: View {
                 .foregroundStyle(
                     availableUpdate != nil ? .yellow
                     : updateCheckMessage != nil ? .green
-                    : .secondary
+                    : updateHovered ? .primary : .secondary
                 )
+                .onHover { updateHovered = $0 }
                 .help(availableUpdate.map { "v\($0.version) available" } ?? "Check for updates")
                 .accessibilityLabel(availableUpdate.map { "Version \($0.version) available" } ?? "Check for updates")
                 #else
@@ -74,7 +77,8 @@ struct PopoverHeaderView: View {
                         .font(Typography.bodyLabel)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(showSettings ? .primary : .secondary)
+                .foregroundStyle(showSettings || gearHovered ? .primary : .secondary)
+                .onHover { gearHovered = $0 }
                 .help("Settings")
                 .accessibilityLabel("Settings")
                 .accessibilityHint(showSettings ? "Close settings" : "Open settings")
@@ -136,19 +140,19 @@ struct PopoverHeaderView: View {
                     .help("Dismiss")
                     .accessibilityLabel("Dismiss update banner")
                 }
-                .padding(8)
+                .padding(Spacing.section)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
                         .fill(Color.yellow.opacity(0.12))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
                                 .stroke(Color.yellow.opacity(0.35), lineWidth: 1)
                         )
                 )
-                .padding(.horizontal, -2)
-                .transition(.opacity)
+                .padding(.horizontal, -Spacing.tight)
+                .transition(MotionConstants.expandTransition)
             } else if let msg = updateCheckMessage {
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.inner) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(.green)
@@ -210,7 +214,7 @@ struct PopoverHeaderView: View {
             }
         }
         .menuStyle(.borderlessButton)
-        .frame(maxWidth: 80)
+        .frame(maxWidth: 100)
         .accessibilityLabel("Switch account")
         .accessibilityHint("Select which Claude account to display")
     }

@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.9.7] — 2026-03-21
+
+### Improved
+- **Typography system** — 19 tokens with documented minor-third scale (9pt icons → 10pt base → 11pt body → 12pt emphasis → 14pt hero); icon floor unified at 9pt; all inline `.system(size:)` calls in views replaced with tokens
+- **Design token coverage** — 7 spacing tokens (added `inner` 4pt), 11 layout tokens (added `autoModeSize`, `bannerCornerRadius`, `costColumn`, `tokenColumn`), 4 motion tokens (added `smooth` 0.4s, `expandTransition` slide+fade)
+- **Interaction states** — hover feedback on all interactive elements: section headers (subtle fill), footer buttons (underline), gear/update icons (brighten), auto mode button (stroke + fill), sort button (underline + brighten), refresh button (brighten), "Show more" link (underline)
+- **Motion polish** — gauge bars animate fill width and color transitions; sections slide+fade on expand/collapse; chart modes crossfade; context health percentage uses numeric text transition; health dot animates color changes
+- **Keyboard shortcuts** — `1`/`2`/`3` switch metric modes, `←`/`→` navigate sessions, `R` refreshes data
+- **Responsive layout** — popover width scales with macOS text size via `@ScaledMetric` (capped at 130%); panel frame tracks SwiftUI content width; account picker widened 80→100pt; cost column widened 38→46pt to handle 5-digit values; project names use middle truncation
+- **Panel positioning** — right-aligns to status item when near screen edge instead of clamping
+
+### Fixed
+- **Double divider below Insights** — removed duplicate `StyledDivider` between Insights section and footer
+- **Stray divider above metric toggle** — removed redundant divider between header and grey toggle band (background fill provides separation)
+- **Hardcoded panel width** — replaced 3 literal `275` values in StatusBarManager with `Layout.popoverWidth`
+- **"Show more" link color** — changed from orange (data color) to blue (action color) for semantic consistency
+
 ## [1.9.6] — 2026-03-20
 
 ### Fixed

@@ -8,11 +8,11 @@ extension InsightsView {
 
     func trendSummary(_ snapshot: UsageSnapshot) -> some View {
         let data = ActivityTrendComputation.compute(mode: mode, snapshot: snapshot, monthTotals: cachedMonthTotals)
-        return VStack(spacing: 4) {
+        return VStack(spacing: Spacing.inner) {
             trendRowTop(change: data.change, stat: data.stat)
             trendRowBottom(throttleCount: data.throttleCount, peak: data.peak)
         }
-        .padding(.top, 4)
+        .padding(.top, Spacing.inner)
         .copyable(ActivityTrendComputation.copyText(data))
     }
 
@@ -22,7 +22,7 @@ extension InsightsView {
         HStack(spacing: 6) {
             if let change {
                 Text(change.symbol)
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(Typography.trendSymbol)
                     .foregroundStyle(change.color)
                 Text(change.label)
                     .font(Typography.monoCaption)
@@ -60,9 +60,9 @@ extension InsightsView {
     // MARK: - Cost breakdown (mode-aware)
 
     /// Column width for cost values.
-    var costColumnWidth: CGFloat { 54 }
+    var costColumnWidth: CGFloat { Layout.costColumn }
     /// Column width for token values.
-    var tokenColumnWidth: CGFloat { 42 }
+    var tokenColumnWidth: CGFloat { Layout.tokenColumn }
 
     /// Model tokens for the current time window.
     var windowedModelTokens: [ModelTokenSummary] {
@@ -83,12 +83,12 @@ extension InsightsView {
     func costSection(_ snapshot: UsageSnapshot) -> some View {
         let models = windowedModelTokens
         if !models.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Spacing.inner) {
                 ForEach(models) { model in
                     let modelTokensText = TokenFormatter.format(model.totalTokens)
                     let modelCost = "~\(ModelPricing.formatCompactCost(model.estimatedCost))"
                     let copyText = "\(model.displayName) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
-                    HStack(spacing: 6) {
+                    HStack(spacing: Spacing.gap) {
                         Text(model.displayName)
                             .font(Typography.tinyLabel)
                             .lineLimit(1)

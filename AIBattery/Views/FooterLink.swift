@@ -11,6 +11,7 @@ struct FooterLink<Leading: View>: View {
     let leading: () -> Leading
 
     @State private var isHovered = false
+    @FocusState private var isFocused: Bool
 
     init(
         icon: String? = nil,
@@ -48,7 +49,8 @@ struct FooterLink<Leading: View>: View {
             .fixedSize()
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(isFocused ? .primary : .secondary)
+        .focused($isFocused)
         .onHover { isHovered = $0 }
         .help(tooltip)
         .accessibilityLabel(accessibilityLabel ?? label)

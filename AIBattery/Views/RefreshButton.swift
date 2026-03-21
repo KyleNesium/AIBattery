@@ -4,6 +4,7 @@ import SwiftUI
 struct RefreshButton: View {
     let action: () -> Void
     @State private var rotation: Double = 0
+    @State private var isHovered = false
 
     var body: some View {
         Button {
@@ -20,7 +21,8 @@ struct RefreshButton: View {
                 .rotationEffect(.degrees(rotation))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(isHovered ? .primary : .secondary)
+        .onHover { isHovered = $0 }
         .help("Refresh for latest session")
         .accessibilityLabel("Refresh")
     }
