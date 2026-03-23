@@ -132,10 +132,6 @@ The Gatekeeper prompt is one-time. The Keychain prompt appears once on first lau
 
 A minimal API call reads your rate limit headers each cycle. Local JSONL session logs provide token counts and context health — **never your message content**. Click the ✦ icon to open the dashboard.
 
-<table>
-<tr>
-<td width="55%">
-
 The segmented toggle picks which metric drives the ✦ icon color:
 
 | Mode | Tracks | Best for |
@@ -149,20 +145,13 @@ Selected metric moves to the top. The other two stay visible below.
 
 **Auto mode**: click the **(A)** button next to the toggle. It glows blue when active and automatically selects whichever metric has the highest percentage — so the menu bar always shows your most critical limit.
 
-</td>
-<td width="45%" align="center">
-<img src="screenshots/dashboard.png" width="320" alt="Rate limits dashboard" />
-</td>
-</tr>
-</table>
+<div align="center">
+<img src="screenshots/dashboard.png" width="360" alt="Rate limits dashboard" />
+</div>
 
 ---
 
 ## 🧠 Context Health
-
-<table>
-<tr>
-<td width="55%">
 
 Shows your **5 most recent sessions** with context health. Browse with `< 1/5 >` chevrons or swipe left/right. Stale sessions (idle > 30 min) show an amber "Idle" badge.
 
@@ -176,12 +165,9 @@ Percentages are relative to the **usable window** — 80% of the model's raw con
 | 🟠 Orange | 60–80% | Quality may degrade |
 | 🔴 Red | > 80% | Start a fresh session |
 
-</td>
-<td width="45%" align="center">
-<img src="screenshots/context.png" width="320" alt="Context Health view" />
-</td>
-</tr>
-</table>
+<div align="center">
+<img src="screenshots/context.png" width="360" alt="Context Health view" />
+</div>
 
 <details>
 <summary>⚠️ <strong>Understanding context</strong></summary>
@@ -224,7 +210,7 @@ Click ⚙️ in the header to configure:
 | 🚀 **Launch at Login** | Start automatically when you log in |
 
 <div align="center">
-<img src="screenshots/settings.png" width="440" alt="Settings view" />
+<img src="screenshots/settings.png" width="360" alt="Settings view" />
 </div>
 
 > [!TIP]
@@ -245,7 +231,7 @@ Interactive charts across three time windows:
 Below the chart: API-equivalent cost per model, throttle count, and cumulative stats (All Time messages/sessions, Longest session, Period date range).
 
 <div align="center">
-<img src="screenshots/activity.png" width="440" alt="Activity chart and insights" />
+<img src="screenshots/activity.png" width="360" alt="Activity chart and insights" />
 </div>
 
 ---
