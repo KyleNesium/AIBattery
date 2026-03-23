@@ -208,10 +208,6 @@ Percentages are relative to the **usable window** — 80% of the model's raw con
 
 ## ⚙️ Settings
 
-<table>
-<tr>
-<td width="55%">
-
 Click ⚙️ in the header to configure:
 
 | Setting | What it does |
@@ -227,12 +223,9 @@ Click ⚙️ in the header to configure:
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
 | 🚀 **Launch at Login** | Start automatically when you log in |
 
-</td>
-<td width="45%" align="center">
-<img src="screenshots/settings.png" width="320" alt="Settings view" />
-</td>
-</tr>
-</table>
+<div align="center">
+<img src="screenshots/settings.png" width="440" alt="Settings view" />
+</div>
 
 > [!TIP]
 > Click any stat value (percentages, token counts, costs) to copy it to the clipboard.
@@ -240,10 +233,6 @@ Click ⚙️ in the header to configure:
 ---
 
 ## 📉 Activity & Insights
-
-<table>
-<tr>
-<td width="55%">
 
 Interactive charts across three time windows:
 
@@ -255,12 +244,9 @@ Interactive charts across three time windows:
 
 Below the chart: API-equivalent cost per model, throttle count, and cumulative stats (All Time messages/sessions, Longest session, Period date range).
 
-</td>
-<td width="45%" align="center">
-<img src="screenshots/activity.png" width="320" alt="Activity chart and insights" />
-</td>
-</tr>
-</table>
+<div align="center">
+<img src="screenshots/activity.png" width="440" alt="Activity chart and insights" />
+</div>
 
 ---
 
