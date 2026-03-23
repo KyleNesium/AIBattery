@@ -19,7 +19,7 @@ Monitor rate limits, context health, and token usage — always visible in your 
 
 <br/>
 
-<img src="screenshots/dashboard.png" width="360" alt="AI Battery dashboard" />
+<img src="screenshots/full-popover.png" width="360" alt="AI Battery — full dashboard view" />
 
 
 
@@ -185,6 +185,10 @@ Click the ✦ icon to open the dashboard:
 
 ## 📐 Metrics
 
+<table>
+<tr>
+<td width="55%">
+
 The segmented toggle picks which metric drives the ✦ icon color:
 
 | Mode | Tracks | Best for |
@@ -197,6 +201,13 @@ The segmented toggle picks which metric drives the ✦ icon color:
 Selected metric moves to the top. The other two stay visible below.
 
 **Auto mode**: click the **(A)** button next to the toggle. It glows blue when active and automatically selects whichever metric has the highest percentage — so the menu bar always shows your most critical limit.
+
+</td>
+<td width="45%" align="center">
+<img src="screenshots/dashboard.png" width="280" alt="Rate limits dashboard" />
+</td>
+</tr>
+</table>
 
 ---
 
@@ -285,7 +296,9 @@ The header shows an **update indicator** when a new version is available — the
 
 ## 📉 Activity & Insights
 
-<img src="screenshots/activity.png" width="280" alt="Activity chart and insights" />
+<table>
+<tr>
+<td width="55%">
 
 Interactive charts across three time windows:
 
@@ -296,6 +309,13 @@ Interactive charts across three time windows:
 | **12M** | Rolling 12 months | Monthly activity, month-over-month trend, busiest month |
 
 Below the chart: API-equivalent cost per model, throttle count, and cumulative stats (All Time messages/sessions, Longest session, Period date range).
+
+</td>
+<td width="45%" align="center">
+<img src="screenshots/activity.png" width="280" alt="Activity chart and insights" />
+</td>
+</tr>
+</table>
 
 ---
 
