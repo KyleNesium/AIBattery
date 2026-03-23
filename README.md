@@ -8,7 +8,7 @@
 
 [aibattery.dev](https://aibattery.dev)
 
-Monitor rate limits, context health, and token usage — always visible in your macOS menu bar. Know exactly when to pace yourself, when to start a fresh session, and how much runway you have left.
+Monitor rate limits, context health, and token usage — always visible in your macOS menu bar.
 
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift&logoColor=white)](https://swift.org)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-blue?logo=apple&logoColor=white)](https://www.apple.com/macos/)
@@ -19,38 +19,11 @@ Monitor rate limits, context health, and token usage — always visible in your 
 
 <br/>
 
-<img src="screenshots/full-popover.png" width="360" alt="AI Battery — full dashboard view" />
+<img src="screenshots/full-popover.png" width="440" alt="AI Battery — full dashboard view" />
 
 
 
 </div>
-
----
-
-<details>
-<summary><strong>Table of Contents</strong></summary>
-
-- [Install](#-install)
-- [Update](#-update)
-- [Authentication](#-authentication)
-- [How It Works](#-how-it-works)
-- [Metrics](#-metrics)
-- [Context Health](#-context-health)
-- [Settings](#%EF%B8%8F-settings)
-- [API Cost](#-api-cost)
-- [Troubleshooting](#-troubleshooting)
-- [FAQ](#-faq)
-- [Privacy](#-privacy)
-- [Architecture](#-architecture)
-- [Accessibility](#-accessibility)
-- [Uninstall](#-uninstall)
-- [Contributing](#-contributing)
-- [Support](#-support)
-- [License](#-license)
-
-</details>
-
----
 
 ## 📦 Install
 
@@ -106,22 +79,15 @@ Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/clau
 
 ## 🔄 Update
 
-AI Battery checks for new versions once per day. When an update is available, the arrow button in the header turns **yellow** and a banner appears.
+AI Battery checks for updates once per day. When available, the header arrow turns **yellow** and a banner appears.
 
-**In-app (recommended):** Click **Install Update** in the banner. [Sparkle](https://sparkle-project.org/) downloads the update, verifies its EdDSA signature, replaces the app, and relaunches — all without leaving the app.
+| Method | How |
+|---|---|
+| **In-app** (recommended) | Click **Install Update** — [Sparkle](https://sparkle-project.org/) downloads, verifies, replaces, and relaunches |
+| **Homebrew** | `brew upgrade --cask aibattery` |
+| **DMG** | Download from [Releases](https://github.com/KyleNesium/AIBattery/releases/latest), drag to Applications |
 
-**Homebrew:**
-
-```bash
-brew upgrade --cask aibattery
-```
-
-**DMG:** Download the latest DMG from [Releases](https://github.com/KyleNesium/AIBattery/releases/latest), open it, and drag to Applications — replace when prompted.
-
-**Or** re-run the quick install command — it overwrites the old version in place.
-
-> [!NOTE]
-> Your settings and OAuth session carry over automatically. Updates are user-initiated only — the app never downloads or installs anything in the background.
+Settings and OAuth sessions carry over automatically. Updates are user-initiated only — nothing downloads in the background.
 
 ---
 
@@ -136,9 +102,7 @@ OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **3 account
 | **3** | Sign in → copy the authorization code |
 | **4** | Paste into AI Battery → done |
 
-To add a second account: click the account dropdown in the header → **Add Account**, or open Settings → **Add Account**.
-
-Switch between accounts by clicking the account dropdown in the header. Each account has its own rate limits, tokens, and identity.
+**Multiple accounts:** Use the header dropdown to switch accounts or add new ones (up to 3). Each account has its own rate limits, tokens, and identity.
 
 <details>
 <summary>🔑 <strong>Session details</strong></summary>
@@ -164,26 +128,9 @@ The Gatekeeper prompt is one-time. The Keychain prompt appears once on first lau
 
 ---
 
-## 🔋 How It Works
-
-AI Battery makes a minimal API call each refresh cycle to read your rate limit headers. It also reads local JSONL session logs for token counts and context health — **never your message content**.
-
-```
-✦ 71%                 ← menu bar: selected metric
-```
-
-Click the ✦ icon to open the dashboard:
-
-| Section | What you see |
-|---|---|
-| 📊 **Rate Limits** | 5-hour burst + 7-day sustained — utilization %, reset countdown, binding indicator, predictive time-to-limit |
-| 🧠 **Context Health** | 5 most recent sessions with `< 1/5 >` chevron + swipe navigation |
-| 📁 **Projects** | Per-project token usage with sort (tokens/cost/name), search, expand/collapse |
-| 📉 **Insights** | Activity chart (24H · 7D · 12M) · API-equivalent cost per model · Period · Longest · All Time |
-
----
-
 ## 📐 Metrics
+
+A minimal API call reads your rate limit headers each cycle. Local JSONL session logs provide token counts and context health — **never your message content**. Click the ✦ icon to open the dashboard.
 
 <table>
 <tr>
@@ -204,7 +151,7 @@ Selected metric moves to the top. The other two stay visible below.
 
 </td>
 <td width="45%" align="center">
-<img src="screenshots/dashboard.png" width="280" alt="Rate limits dashboard" />
+<img src="screenshots/dashboard.png" width="320" alt="Rate limits dashboard" />
 </td>
 </tr>
 </table>
@@ -221,9 +168,7 @@ Shows your **5 most recent sessions** with context health. Browse with `< 1/5 >`
 
 Each session displays: **project name** · **git branch** · **duration** · **last active time**.
 
-Percentages are relative to the **usable window** — 80% of the model's raw context window. At 100%, Claude Code auto-compacts.
-
-**Think of context as Claude's short-term memory.** Every message, file read, tool call, and response accumulates in a 200K-token window. Nothing is discarded between turns. When the window fills up (100% of usable), Claude Code auto-compacts — it summarizes the session into a few paragraphs and clears the rest. That summary is lossy: file contents, specific instructions, and nuanced decisions get compressed. Claude keeps working, but from a recap instead of the real conversation. Quality degrades even before that point — a packed window means Claude is scanning thousands of stale tokens every turn, making responses slower and less accurate. Keep at least 20–40% free for best results.
+Percentages are relative to the **usable window** — 80% of the model's raw context window. At 100%, Claude Code auto-compacts and quality drops. Keep at least 20-40% free for best results.
 
 | Color | Range | Meaning |
 |---|---|---|
@@ -233,13 +178,15 @@ Percentages are relative to the **usable window** — 80% of the model's raw con
 
 </td>
 <td width="45%" align="center">
-<img src="screenshots/context.png" width="280" alt="Context Health view" />
+<img src="screenshots/context.png" width="320" alt="Context Health view" />
 </td>
 </tr>
 </table>
 
 <details>
-<summary>⚠️ <strong>Understanding context warnings</strong></summary>
+<summary>⚠️ <strong>Understanding context</strong></summary>
+
+**Think of context as Claude's short-term memory.** Every message, file read, tool call, and response accumulates in a 200K-token window. Nothing is discarded between turns. When it fills up, Claude Code auto-compacts — summarizing the session into a few paragraphs and clearing the rest. That summary is lossy: file contents, specific instructions, and nuanced decisions get compressed. Claude keeps working, but from a recap instead of the real conversation.
 
 **Long conversation (15+ turns)** — Nothing is discarded between turns. Your messages, Claude's responses, tool calls, and results all accumulate. After ~15 turns the window is full of old history that Claude still reads every turn — slowing responses, reducing quality, and burning through your token budget on stale context.
 
@@ -282,12 +229,10 @@ Click ⚙️ in the header to configure:
 
 </td>
 <td width="45%" align="center">
-<img src="screenshots/settings.png" width="280" alt="Settings view" />
+<img src="screenshots/settings.png" width="320" alt="Settings view" />
 </td>
 </tr>
 </table>
-
-The header shows an **update indicator** when a new version is available — the arrow button turns yellow, and a banner appears with the version number and an **Install Update** button. Clicking Install Update downloads, verifies, and installs the update in-app via Sparkle. Click the ✕ to dismiss the banner; the yellow button re-shows it.
 
 > [!TIP]
 > Click any stat value (percentages, token counts, costs) to copy it to the clipboard.
@@ -312,7 +257,7 @@ Below the chart: API-equivalent cost per model, throttle count, and cumulative s
 
 </td>
 <td width="45%" align="center">
-<img src="screenshots/activity.png" width="280" alt="Activity chart and insights" />
+<img src="screenshots/activity.png" width="320" alt="Activity chart and insights" />
 </td>
 </tr>
 </table>
@@ -321,64 +266,29 @@ Below the chart: API-equivalent cost per model, throttle count, and cumulative s
 
 ## 💰 API Cost Equivalent
 
-The dollar amounts in the Insights and Projects sections show what your usage **would have cost on Anthropic's pay-per-token API**. This is not your actual bill — Pro, Max, and Teams subscribers pay a flat monthly fee, not per-token.
+Dollar amounts show what your usage **would have cost on Anthropic's pay-per-token API** — not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee. When the API-equivalent exceeds your monthly fee, your subscription is saving you money. The bigger the gap, the better the deal. Pricing uses Anthropic's published per-million-token rates.
 
-This is the whole point: seeing the API-equivalent cost makes it obvious how much value you're getting from your subscription. If the number exceeds your monthly fee, your subscription is saving you money. The bigger the gap, the better the deal.
+<details>
+<summary><strong>How token tracking works</strong></summary>
 
-Pricing uses Anthropic's published per-million-token rates for input, output, cache read, and cache write tokens per model.
+AI Battery reads Claude Code's session logs (`~/.claude/projects/`) and stats cache (`~/.claude/stats-cache.json`) — it never writes to Claude Code's files or reads message content, only token counts.
 
-### How Token Tracking Works
+To prevent totals from dropping when Claude Code rebuilds its cache, AI Battery maintains a **persistent ledger** (`~/Library/Application Support/AIBattery/token-ledger.json`) that keeps the high-water mark for each model. Token totals never decrease, even across cache rebuilds.
 
-The **Insights** section shows per-model API-equivalent cost filtered by the selected time window (24H = today, 7D = this week, 12M = this month), alongside the activity chart and cumulative stats.
+</details>
 
-**Where the data comes from:** Claude Code writes session logs (JSONL files) to `~/.claude/projects/` and periodically aggregates them into `~/.claude/stats-cache.json`. AI Battery reads both — it never writes to Claude Code's files or reads message content, only token counts.
+<details>
+<summary><strong>How project tracking works</strong></summary>
 
-**The problem:** Claude Code can rebuild `stats-cache.json` at any time, and when it does, it may include fewer historical logs than before (e.g. if old session logs were cleaned up). This causes token totals to suddenly drop, even though your actual usage hasn't changed.
+The **Projects** section groups token usage by the directory you ran Claude Code in. AI Battery scans all `.jsonl` session logs under `~/.claude/projects/`, deduplicates by message ID, groups by working directory, and computes API-equivalent cost per project.
 
-**How AI Battery solves it:** AI Battery maintains a **persistent ledger** at `~/Library/Application Support/AIBattery/token-ledger.json`. Every time it reads token data, it compares each model's per-type totals (input, output, cache read, cache write) against the ledger and keeps whichever value is higher. This means:
+Project data appears after you've run at least one Claude Code session.
 
-- Token totals **never decrease**, even if Claude Code rebuilds its cache
-- Models that disappear from `stats-cache.json` are **restored from the ledger**
-- Each account has its **own independent ledger** — switching accounts shows the correct totals
-- The ledger file is tiny (a few KB), read once at launch, and only written when values increase (background write, non-blocking)
-
-### How Project Tracking Works
-
-The **Projects** section groups token usage by the directory you ran Claude Code in.
-
-**Where Claude stores the data:** Every time you use Claude Code, it writes a JSONL session log to `~/.claude/projects/`. Each project gets its own directory, named by encoding the absolute path:
-
-```
-~/.claude/projects/
-  -Users-kyle-workspace-myapp/          ← /Users/kyle/workspace/myapp
-    session1.jsonl
-    subagents/
-      subagent1.jsonl
-  -Users-kyle-workspace-other-project/  ← /Users/kyle/workspace/other-project
-    session2.jsonl
-```
-
-Each line in a JSONL file is one assistant message with its token usage and a `cwd` field (the working directory at the time).
-
-**How AI Battery calculates project totals:**
-
-1. **Scans** all `.jsonl` files under `~/.claude/projects/` (including `subagents/` subdirectories)
-2. **Streams** each file in 64KB chunks — never loads full files into memory
-3. **Pre-filters** lines looking for `"type":"assistant"` + `"usage"` before JSON-decoding (fast path)
-4. **Deduplicates** by message ID across all files — each message counted exactly once
-5. **Groups** entries by their `cwd` field — the last path component becomes the display name (e.g. `/Users/kyle/workspace/myapp` → **myapp**)
-6. **Sums** input, output, cache read, and cache write tokens per project
-7. **Computes API-equivalent cost** per entry using the model's published per-token rates, then sums per project — this shows what you'd pay on the API, not what your subscription costs
-8. **Sorts** by total tokens descending
-
-Entries without a `cwd` field (rare edge cases) are grouped under **Other**. Only Claude models are included — non-Claude model entries are skipped.
-
-> [!NOTE]
-> Project tracking is JSONL-only. Claude Code's `stats-cache.json` doesn't include per-entry directory info, so project totals come entirely from streaming the session logs. This means project data appears after you've run at least one Claude Code session.
+</details>
 
 ---
 
-## 🔧 Troubleshooting
+## 🔧 Troubleshooting & FAQ
 
 <details open>
 <summary><strong>App appears in the menu bar then disappears</strong></summary>
@@ -421,10 +331,6 @@ Click **Always Allow** when prompted. AI Battery stores its OAuth refresh token 
 
 </details>
 
----
-
-## ❓ FAQ
-
 <details>
 <summary><strong>Only rate limits show — tokens, models, and activity are all empty?</strong></summary>
 
@@ -465,11 +371,9 @@ Anthropic is actively limiting your requests. Wait for the reset timer.
 
 | | |
 |---|---|
-| 📂 **Local data** | Reads JSONL for token counts only — **never your message content** |
-| 🌐 **Network calls** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast, on update click) |
-| 🔄 **Backoff** | Status checks use exponential backoff on failures (60s → 5 min cap) |
-| ⏳ **Adaptive polling** | Interval doubles after 3 idle cycles, resets when data changes |
-| 🚫 **No tracking** | No analytics. No telemetry. No tracking. |
+| 📂 **Local only** | Reads JSONL for token counts — **never your message content** |
+| 🌐 **Network** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast) |
+| 🚫 **No tracking** | No analytics. No telemetry. No data collection. Period. |
 
 ---
 
@@ -536,17 +440,11 @@ AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) i
 
 ---
 
-## 🤝 Contributing
+## 🤝 Contributing & Support
 
-Contributions welcome! Please read the [contributing guide](CONTRIBUTING.md) first. See [CHANGELOG.md](CHANGELOG.md) for version history.
+Contributions welcome — read the [contributing guide](CONTRIBUTING.md) first. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
----
-
-## 💛 Support
-
-AI Battery is **free and open source** — always will be. Visit [aibattery.dev](https://aibattery.dev) to learn more.
-
-If it saves you time or helps you get more out of your Claude subscription, consider [sponsoring the project](https://github.com/sponsors/KyleNesium). It helps cover development time and keeps the project going.
+AI Battery is **free and open source** — always will be. If it helps you get more out of Claude, consider [sponsoring the project](https://github.com/sponsors/KyleNesium).
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/KyleNesium)
 
@@ -558,11 +456,13 @@ If it saves you time or helps you get more out of your Claude subscription, cons
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 191 | Token summaries, project token summaries (id, display name, zero/large tokens, Other grouping, cost), compact cost formatting, rate limit parsing (predictive estimates, fresh window guard, unknown claim defaults, countdown formatter, throttled header parsing, per-window throttle detection, utilization clamping, past reset guard, threshold boundary), health status, metric modes, API profiles (org ID validation: empty, too long, special chars, hyphens/underscores), session entries (service_tier decode), account records, stats cache, usage snapshots (trends, busiest day, auto-resolved mode with priority tiers and edge cases, urgency score piecewise interpolation with midpoint verification and clamping, context health fallback chain, single-pass activity stats), model pricing (cache correctness for unknown models), health config |
-| Services | 246 | Token ledger (high-water-mark merge, historical model restoration, per-account isolation, persistence, sort order, all token types, file size guard, write-batching: no-write-when-unchanged, all-models-in-single-write, mixed-changes-single-write), version checker (semver comparison, tag stripping, cache behavior, force check, stale cache discard, persistence keys), Sparkle update service (automatic checks disabled, automatic downloads disabled, check interval zero, feed URL, singleton identity, canCheckForUpdates), notification manager (alert thresholds, alert key migration), token health monitor (band classification, warnings, anomalies, velocity, rapid consumption, custom config, idle session inclusion), status checker (severity ordering, incident escalation, known components catalog, status string parsing), status indicator (dot colors, label text), session log reader (entry decoding, makeUsageEntry, symlink boundary check, TTL-based discovery fallback: 60s constant, cache hit within TTL, re-enumeration after TTL expiry, invalidate resets TTL), account store (multi-account CRUD, persistence, merge metadata preservation), stats cache reader (decode, caching, invalidation, full payload, file size guard, symlink boundary check, prefix traversal attack), usage aggregator (empty state, stats-only, JSONL-only, rate limit pass-through, model filtering, deduplication, stats+JSONL merge, all-time mode, redundant aggregation skip, fingerprint-skip returns cached snapshot, fingerprint-change triggers recompute, project tokens from pre-built map, hourly merge, peak hour update, totalMessages dedup, old model visibility, all-dates daily merge, todayHourCounts separation, project token grouping by cwd, nil-cwd grouping as Other, per-entry cost aggregation, empty project tokens, cross-session project merge), rate limit fetcher (cache expiry, stale marking, multi-account isolation, Retry-After parsing), OAuth manager (AuthError messages, transient error classification) |
-| Views | 59 | Activity chart data transformations (daily 7-day generation, gap filling, chronological ordering, hourly 24-hour window, full-day coverage, month totals aggregation, invalid date handling, monthly 12-month generation, current-month projection, early-month projection skip, past-month no projection), activity trend computation (vs-yesterday positive/negative/same/nil, month change projection/nil/early-month, copy text formatting), session info formatter (label parts with project/branch/HEAD/empty, ID prefix truncation/nil/short, bottom parts with duration/velocity/fallback, stale idle detection by band/recency, detail tooltip content, time formatting just-now/minutes/today, copyable details with exact tokens/model/project/empty field omission), GaugeBar (percent clamping below-zero/zero/fifty/hundred/over-hundred, view body construction for all edge-case percent values) |
-| ViewModels | 26 | UsageViewModel static helpers (refresh interval clamping, error message logic, adaptive polling data-change detection, throttle event recording with dedup + exhaustion detection, throttle count filtering + string timestamp parsing) |
-| Utilities | 136 | Token formatter (K/M suffixes, boundaries), model name mapper (display names, versions, date stripping, result cache), Claude paths (suffixes, URLs), theme colors (standard + colorblind palettes, NSColor, semantic colors, danger), UserDefaults keys (prefix, uniqueness), date formatters (format strings, round-trips, locale pinning, date range formatting), adaptive polling state (threshold behavior, progressive doubling, caps, reset), secure networking (ephemeral session config, singleton, size limit, cookie policy, resource timeout), duration formatter (compact format, boundaries, 24h edge case, days/hours/minutes/seconds), menu bar icon (breathing animation, recovery sparkle effect, quantized caching, broken star fragments, pulse steps, cache identity, sparkle/broken/normal key isolation, context health colors), throttle tracker (transition detection, recovery-then-throttle, exhaustion detection, no double-count, timestamp parsing for doubles/strings/ints/mixed, append-and-prune with 30-day cutoff, count filtering) |
+| Models | 191 | Token summaries, rate limit parsing, health status, metric modes, API profiles, usage snapshots, model pricing |
+| Services | 246 | Token ledger, version checker, Sparkle updates, notifications, health monitor, status checker, session log reader, account store, stats cache, usage aggregator, rate limit fetcher, OAuth |
+| Views | 59 | Activity chart data transforms, trend computation, session info formatting, GaugeBar clamping |
+| ViewModels | 26 | Refresh interval clamping, error messages, adaptive polling, throttle tracking |
+| Utilities | 136 | Token/duration formatting, model name mapping, theme colors, secure networking, menu bar icon animations, throttle tracker |
+
+---
 
 ## 📄 License
 
