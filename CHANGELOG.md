@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.8] — 2026-03-24
+
+### Added
+- **Idle/lock detection** — all timers (polling, FileWatcher fallback) suspend after 5 minutes of system idle or when the screen is locked; resume on wake or unlock with an immediate refresh to catch up on missed events
+- **IdleSuspendPolicy** — pure enum for idle threshold logic, fully testable without system dependencies
+
+### Improved
+- **Sleep/wake lifecycle** — consolidated timer pause/resume into shared `suspendTimers()`/`resumeTimers()` methods, used by sleep, wake, lock, and unlock observers
+- **Visual hierarchy** — reduced 5-Hour/7-Day bar label weight from bold to medium so they match the visual weight of collapsible section headers
+
 ## [1.9.7] — 2026-03-21
 
 ### Improved
