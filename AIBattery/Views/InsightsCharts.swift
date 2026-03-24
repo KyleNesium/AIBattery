@@ -223,7 +223,7 @@ extension InsightsView {
                 }
             }
         }
-        .chartXScale(domain: dates.first!...dates.last!)
+        .chartXScale(domain: (dates.first ?? .now)...(dates.last ?? .now))
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
