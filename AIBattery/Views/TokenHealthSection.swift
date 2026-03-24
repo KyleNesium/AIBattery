@@ -35,7 +35,7 @@ struct TokenHealthSection: View {
             // Header with session toggle
             HStack {
                 CollapsibleSectionHeader(
-                    title: "Context Health",
+                    title: "Context",
                     collapsed: $collapsed,
                     tooltip: "Percentage of usable context window consumed"
                 )

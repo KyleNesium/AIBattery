@@ -224,7 +224,7 @@ extension InsightsView {
             }
         }
         .chartYAxis { sharedYAxis }
-        .chartPlotStyle { plot in plot.background(.clear).clipped() }
+        .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
             chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
                 guard let date: Date = proxy.value(atX: x) else { return }

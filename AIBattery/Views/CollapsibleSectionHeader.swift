@@ -21,6 +21,7 @@ struct CollapsibleSectionHeader: View {
                 Text(title)
                     .font(Typography.sectionHeader)
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
             }
             .padding(.horizontal, 3)
             .padding(.vertical, 1)
