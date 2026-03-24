@@ -8,9 +8,6 @@ final class UsageAggregator: @unchecked Sendable {
         let accountId: String?
     }
 
-    /// Result of aggregate — snapshot + deferred side effects for @MainActor callers.
-    private(set) var lastSideEffects: SideEffects?
-
     private let statsCacheReader: StatsCacheReader
     private let sessionLogReader: SessionLogReader
 
@@ -35,6 +32,7 @@ final class UsageAggregator: @unchecked Sendable {
     // MARK: - Redundant aggregation skip
 
     private var cachedSnapshot: UsageSnapshot?
+    private var cachedEffects: SideEffects?
     private var lastStatsCacheModDate: Date?
     private var lastRateLimits: RateLimitUsage?
     private var lastIdleSessionMinutes: Int = -1
@@ -46,7 +44,7 @@ final class UsageAggregator: @unchecked Sendable {
         cachedSnapshot = nil
     }
 
-    func aggregate(rateLimits: RateLimitUsage?, accountId: String? = nil) -> UsageSnapshot {
+    func aggregate(rateLimits: RateLimitUsage?, accountId: String? = nil) -> (UsageSnapshot, SideEffects) {
         // Idle session cutoff for context health (0 = never hide)
         let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
 
@@ -61,7 +59,7 @@ final class UsageAggregator: @unchecked Sendable {
            rateLimits == lastRateLimits,
            idleSessionMinutes == lastIdleSessionMinutes,
            accountId == lastAccountId {
-            return cached
+            return (cached, cachedEffects ?? SideEffects(activeUserModel: nil, observedModels: [], accountId: accountId))
         }
 
         let statsCache = statsCacheReader.read()
@@ -343,14 +341,15 @@ final class UsageAggregator: @unchecked Sendable {
         lastIdleSessionMinutes = idleSessionMinutes
         lastAccountId = accountId
 
-        // Store side effects for @MainActor callers to apply
-        lastSideEffects = SideEffects(
+        // Build and return side effects for @MainActor callers to apply
+        let effects = SideEffects(
             activeUserModel: allEntries.last?.model,
             observedModels: observedModels,
             accountId: accountId
         )
+        cachedEffects = effects
 
-        return snapshot
+        return (snapshot, effects)
     }
 
     /// Group JSONL entries by project (full cwd path as key), compute cost per (project, model) pair.

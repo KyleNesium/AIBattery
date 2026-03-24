@@ -62,13 +62,11 @@ public final class UsageViewModel: ObservableObject {
     /// Run aggregate off the main thread, then apply @MainActor side effects.
     private func aggregateOffMain(rateLimits: RateLimitUsage?, accountId: String? = nil) async -> UsageSnapshot {
         let agg = aggregator
-        let result = await Task.detached { agg.aggregate(rateLimits: rateLimits, accountId: accountId) }.value
+        let (result, effects) = await Task.detached { agg.aggregate(rateLimits: rateLimits, accountId: accountId) }.value
         // Apply deferred @MainActor side effects
-        if let effects = agg.lastSideEffects {
-            RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
-            if let id = effects.accountId {
-                RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)
-            }
+        RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
+        if let id = effects.accountId {
+            RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)
         }
         return result
     }

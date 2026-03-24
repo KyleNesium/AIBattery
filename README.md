@@ -424,15 +424,15 @@ AI Battery is **free and open source** — always will be. If it helps you get m
 
 ## 🧪 Test Coverage
 
-**716 tests** across 46 test files.
+**735 tests** across 48 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 191 | Token summaries, rate limit parsing, health status, metric modes, API profiles, usage snapshots, model pricing |
-| Services | 246 | Token ledger, version checker, Sparkle updates, notifications, health monitor, status checker, session log reader, account store, stats cache, usage aggregator, rate limit fetcher, OAuth |
-| Views | 59 | Activity chart data transforms, trend computation, session info formatting, GaugeBar clamping |
+| Models | 192 | Token summaries, rate limit parsing, health status, metric modes, API profiles, usage snapshots, model pricing |
+| Services | 276 | Token ledger, version checker, Sparkle updates, notifications, health monitor, status checker, session log reader (incl. NSLock/pendingInvalidation concurrency), account store, stats cache, usage aggregator (incl. side-effects tuple return), rate limit fetcher, OAuth |
+| Views | 72 | Activity chart data transforms, trend computation, session info formatting, GaugeBar clamping, deferred rendering, status bar toggle |
 | ViewModels | 26 | Refresh interval clamping, error messages, adaptive polling, throttle tracking |
-| Utilities | 136 | Token/duration formatting, model name mapping, theme colors, secure networking, menu bar icon animations, throttle tracker |
+| Utilities | 169 | Token/duration formatting, model name mapping, theme colors, secure networking, menu bar icon animations, throttle tracker, typography, spacing |
 
 ---
 

@@ -214,7 +214,7 @@ extension InsightsView {
             }
         }
         .chartXAxis {
-            AxisMarks(values: Self.quarterlyLabelDates(from: dates)) { value in
+            AxisMarks(values: .stride(by: .month, count: 3)) { value in
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(Self.monthAbbrev(date))
@@ -223,7 +223,6 @@ extension InsightsView {
                 }
             }
         }
-        .chartXScale(domain: (dates.first ?? .now)...(dates.last ?? .now))
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear).clipped() }
         .chartOverlay { proxy in

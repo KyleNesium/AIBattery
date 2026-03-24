@@ -346,4 +346,191 @@ struct SessionLogReaderTests {
         let result = SessionLogReader.makeUsageEntry(from: entry)
         #expect(result?.toolCallCount == 0)
     }
+
+    // MARK: - Concurrency: NSLock + pendingInvalidation
+
+    /// Creates a temp projects directory with one project subdir. Returns the projectsURL.
+    private func makeTempProjectsDir(id: String = UUID().uuidString) throws -> URL {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("slr-concurrency-\(id)")
+        let projectDir = tmp.appendingPathComponent("projects")
+            .appendingPathComponent("-test-project")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        return tmp.appendingPathComponent("projects")
+    }
+
+    /// Writes JSONL lines to a named session file inside the first project subdir.
+    private func writeJSONL(
+        _ lines: [String],
+        to projectsDir: URL,
+        sessionName: String = "session.jsonl"
+    ) throws {
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        let fileURL = projectDir.appendingPathComponent(sessionName)
+        let content = lines.joined(separator: "\n") + "\n"
+        try Data(content.utf8).write(to: fileURL)
+    }
+
+    /// Returns a single valid assistant JSONL line.
+    private func assistantLine(
+        messageId: String,
+        timestamp: String = "2026-02-17T10:00:00.000Z",
+        sessionId: String = "ses-1",
+        inputTokens: Int = 100,
+        outputTokens: Int = 50
+    ) -> String {
+        """
+        {"type":"assistant","timestamp":"\(timestamp)","sessionId":"\(sessionId)","message":{"role":"assistant","model":"claude-sonnet-4-5-20250929","id":"\(messageId)","usage":{"input_tokens":\(inputTokens),"output_tokens":\(outputTokens)}}}
+        """
+    }
+
+    @Test func invalidate_whenNoScanRunning_clearsCachesDirectly() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Write one entry and prime the cache.
+        try writeJSONL([assistantLine(messageId: "msg-001", inputTokens: 100)], to: projectsDir)
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 1)
+        #expect(first[0].inputTokens == 100)
+
+        // Overwrite the file with a different entry.
+        try writeJSONL([assistantLine(messageId: "msg-001", inputTokens: 999)], to: projectsDir)
+
+        // invalidate() with no scan running must clear the cache immediately.
+        reader.invalidate()
+
+        // Next read should pick up the changed file rather than returning the stale cache.
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 1)
+        #expect(second[0].inputTokens == 999)
+    }
+
+    @Test func invalidate_afterScan_nextReadReturnsFreshData() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Write 1 entry, read to populate cache.
+        try writeJSONL([assistantLine(messageId: "msg-A01")], to: projectsDir)
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 1)
+
+        // Write a new file with 2 entries (different session file to guarantee
+        // a cache-key miss even if mod date resolution is coarse).
+        try writeJSONL(
+            [
+                assistantLine(messageId: "msg-B01", sessionId: "ses-2"),
+                assistantLine(messageId: "msg-B02", sessionId: "ses-2"),
+            ],
+            to: projectsDir,
+            sessionName: "session2.jsonl"
+        )
+
+        // invalidate() with lock free — clears cachedAllEntries and discoveredFiles.
+        reader.invalidate()
+
+        // Next read must re-scan and return both files' entries.
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 3)
+    }
+
+    @Test func readAllUsageEntries_returnsSortedByTimestamp() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Write entries with deliberately out-of-order timestamps across two files.
+        try writeJSONL(
+            [
+                assistantLine(messageId: "msg-late",  timestamp: "2026-02-17T12:00:00.000Z"),
+                assistantLine(messageId: "msg-early", timestamp: "2026-02-17T08:00:00.000Z"),
+            ],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        try writeJSONL(
+            [
+                assistantLine(messageId: "msg-mid", timestamp: "2026-02-17T10:00:00.000Z"),
+            ],
+            to: projectsDir,
+            sessionName: "file-b.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let entries = reader.readAllUsageEntries()
+
+        #expect(entries.count == 3)
+        // Verify ascending timestamp order.
+        for i in 0..<(entries.count - 1) {
+            #expect(entries[i].timestamp <= entries[i + 1].timestamp)
+        }
+        #expect(entries[0].messageId == "msg-early")
+        #expect(entries[1].messageId == "msg-mid")
+        #expect(entries[2].messageId == "msg-late")
+    }
+
+    @Test func readAllUsageEntries_deduplicatesByMessageId() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        let sharedId = "msg-shared-001"
+
+        // Same messageId in two different JSONL files.
+        try writeJSONL(
+            [assistantLine(messageId: sharedId, inputTokens: 111)],
+            to: projectsDir,
+            sessionName: "file-x.jsonl"
+        )
+        try writeJSONL(
+            [assistantLine(messageId: sharedId, inputTokens: 222)],
+            to: projectsDir,
+            sessionName: "file-y.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let entries = reader.readAllUsageEntries()
+
+        // Only one entry with the shared ID should survive deduplication.
+        #expect(entries.count == 1)
+        #expect(entries[0].messageId == sharedId)
+    }
+
+    @Test func concurrent_readAndInvalidate_noDeadlock() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL(
+            [
+                assistantLine(messageId: "msg-c1"),
+                assistantLine(messageId: "msg-c2"),
+            ],
+            to: projectsDir
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let group = DispatchGroup()
+
+        // 10 concurrent readers + 10 concurrent invalidations on separate queues.
+        for i in 0..<10 {
+            let readQueue = DispatchQueue(label: "test.read.\(i)", attributes: .concurrent)
+            let invalidateQueue = DispatchQueue(label: "test.invalidate.\(i)", attributes: .concurrent)
+
+            group.enter()
+            readQueue.async {
+                _ = reader.readAllUsageEntries()
+                group.leave()
+            }
+
+            group.enter()
+            invalidateQueue.async {
+                reader.invalidate()
+                group.leave()
+            }
+        }
+
+        // Must complete well within 5 seconds — any deadlock would hang here.
+        let result = group.wait(timeout: .now() + 5)
+        #expect(result == .success)
+    }
 }

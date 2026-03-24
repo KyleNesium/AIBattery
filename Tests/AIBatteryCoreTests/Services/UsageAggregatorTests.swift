@@ -93,7 +93,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.totalSessions == 0)
         #expect(snapshot.totalMessages == 0)
@@ -114,7 +114,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.totalSessions == 10)
         #expect(snapshot.totalMessages == 200)
@@ -142,7 +142,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.todayMessages == 2)
         #expect(snapshot.todaySessions == 1)
@@ -173,7 +173,7 @@ struct UsageAggregatorTests {
             overallStatus: "allowed"
         )
 
-        let snapshot = aggregator.aggregate(rateLimits: rateLimits)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: rateLimits)
 
         #expect(snapshot.rateLimits?.fiveHourPercent == 42.5)
         #expect(snapshot.rateLimits?.sevenDayPercent == 15.0)
@@ -198,7 +198,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // Token health should be populated (at minimum a band assessment)
         #expect(snapshot.tokenHealth != nil)
@@ -224,7 +224,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.todayMessages == 1)
     }
@@ -255,7 +255,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // Stats cache has 10 sessions + 200 messages; JSONL adds today's
         #expect(snapshot.totalSessions >= 10)
@@ -279,7 +279,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // Should include stats-cache modelUsage totals without needing recent JSONL
         #expect(!snapshot.modelTokens.isEmpty)
@@ -319,8 +319,8 @@ struct UsageAggregatorTests {
             overallStatus: "allowed"
         )
 
-        let first = aggregator.aggregate(rateLimits: rateLimits)
-        let second = aggregator.aggregate(rateLimits: rateLimits)
+        let (first, _) = aggregator.aggregate(rateLimits: rateLimits)
+        let (second, _) = aggregator.aggregate(rateLimits: rateLimits)
 
         // Same object returned (reference-equal for struct means identical field values)
         #expect(first.totalMessages == second.totalMessages)
@@ -367,8 +367,8 @@ struct UsageAggregatorTests {
             overallStatus: "allowed"
         )
 
-        let first = aggregator.aggregate(rateLimits: rl1)
-        let second = aggregator.aggregate(rateLimits: rl2)
+        let (first, _) = aggregator.aggregate(rateLimits: rl1)
+        let (second, _) = aggregator.aggregate(rateLimits: rl2)
 
         // Different rate limits should produce a fresh snapshot
         #expect(first.rateLimits?.fiveHourPercent == 50.0)
@@ -392,7 +392,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let first = aggregator.aggregate(rateLimits: nil)
+        let (first, _) = aggregator.aggregate(rateLimits: nil)
         #expect(first.todayMessages == 1)
 
         // Add a new entry — invalidate both reader cache and aggregator fingerprint
@@ -406,7 +406,7 @@ struct UsageAggregatorTests {
             to: projectsDir
         )
 
-        let second = aggregator.aggregate(rateLimits: nil)
+        let (second, _) = aggregator.aggregate(rateLimits: nil)
         #expect(second.todayMessages == 2)
     }
 
@@ -435,7 +435,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // JSONL has 2 messages at hour 10 and 1 at hour 11
         #expect(snapshot.hourCounts["10"] == 2)
@@ -468,7 +468,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // Peak should now be hour 9 with 30 messages
         #expect(snapshot.peakHour == 9)
@@ -515,7 +515,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // Should be 5, not 10 (no double-counting)
         #expect(snapshot.totalMessages == 5)
@@ -559,7 +559,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // 3 (cache total) + 2 (additional beyond cache's today) = 5
         #expect(snapshot.totalMessages == 5)
@@ -601,7 +601,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // Model should appear even without recent activity
         let opus = snapshot.modelTokens.first(where: { $0.id == "claude-opus-4-20250514" })
@@ -654,7 +654,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // dailyActivity should include entries for all 3 dates
         let activityDates = Set(snapshot.dailyActivity.map(\.date))
@@ -688,7 +688,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // todayHourCounts should only have today's data
         #expect(snapshot.todayHourCounts["10"] == 2)
@@ -718,7 +718,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.projectTokens.count == 2)
         let alpha = snapshot.projectTokens.first(where: { $0.projectName == "alpha" })
@@ -744,7 +744,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         let other = snapshot.projectTokens.first(where: { $0.projectName == "Other" })
         #expect(other != nil)
@@ -770,7 +770,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         let myapp = snapshot.projectTokens.first(where: { $0.projectName == "myapp" })
         #expect(myapp != nil)
@@ -789,7 +789,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.projectTokens.isEmpty)
     }
@@ -816,7 +816,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         let myapp = snapshot.projectTokens.first(where: { $0.projectName == "myapp" })
         #expect(myapp != nil)
@@ -843,8 +843,8 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let first = aggregator.aggregate(rateLimits: nil)
-        let second = aggregator.aggregate(rateLimits: nil)
+        let (first, _) = aggregator.aggregate(rateLimits: nil)
+        let (second, _) = aggregator.aggregate(rateLimits: nil)
 
         // The cached snapshot is returned: same lastUpdated timestamp proves no recomputation
         #expect(first.lastUpdated == second.lastUpdated)
@@ -872,7 +872,7 @@ struct UsageAggregatorTests {
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
         // First call with nil rate limits
-        let first = aggregator.aggregate(rateLimits: nil)
+        let (first, _) = aggregator.aggregate(rateLimits: nil)
         #expect(first.rateLimits == nil)
 
         // Second call with non-nil rate limits — fingerprint changes, must recompute
@@ -886,7 +886,7 @@ struct UsageAggregatorTests {
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
-        let second = aggregator.aggregate(rateLimits: rl)
+        let (second, _) = aggregator.aggregate(rateLimits: rl)
 
         // Recomputed snapshot carries the updated rate limit data
         #expect(second.rateLimits?.fiveHourPercent == 75.0)
@@ -922,7 +922,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         // Exactly 2 projects — proves grouping by cwd key works from the pre-built map
         #expect(snapshot.projectTokens.count == 2)
@@ -969,19 +969,56 @@ struct UsageAggregatorTests {
         try writeJSONL(lines, to: projectsDir)
 
         let accountId = "test-observed-\(UUID().uuidString)"
-        let key = "aibattery_observedModels_\(accountId)"
-        defer { UserDefaults.standard.removeObject(forKey: key) }
 
         let reader = StatsCacheReader(fileURL: cacheURL)
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        _ = aggregator.aggregate(rateLimits: nil, accountId: accountId)
+        let (_, effects) = aggregator.aggregate(rateLimits: nil, accountId: accountId)
 
         // Most recently seen model (sonnet-4-6, at `now`) should be first
-        let stored = UserDefaults.standard.stringArray(forKey: key)
-        #expect(stored?.first == "claude-sonnet-4-6-20250929")
-        #expect(stored?.count == 2)
+        #expect(effects.observedModels.first == "claude-sonnet-4-6-20250929")
+        #expect(effects.observedModels.count == 2)
+    }
+
+    @Test func aggregate_returnsCorrectSideEffects() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        let now = Date()
+        let earlier = now.addingTimeInterval(-7200)
+        let oldest = now.addingTimeInterval(-14400)
+
+        // Three entries with distinct models in ascending time order
+        let lines = [
+            makeAssistantLine(model: "claude-opus-4-20250514", input: 100, output: 50,
+                              messageId: "eff-1", timestamp: oldest),
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 100, output: 50,
+                              messageId: "eff-2", timestamp: earlier),
+            makeAssistantLine(model: "claude-sonnet-4-6-20250929", input: 100, output: 50,
+                              messageId: "eff-3", timestamp: now),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let accountId = "test-effects-\(UUID().uuidString)"
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let (_, effects) = aggregator.aggregate(rateLimits: nil, accountId: accountId)
+
+        // activeUserModel is the last entry's model (entries sorted ascending by timestamp)
+        #expect(effects.activeUserModel == "claude-sonnet-4-6-20250929")
+        // observedModels sorted by recency: most recent first
+        #expect(effects.observedModels.first == "claude-sonnet-4-6-20250929")
+        #expect(effects.observedModels.contains("claude-sonnet-4-5-20250929"))
+        #expect(effects.observedModels.contains("claude-opus-4-20250514"))
+        #expect(effects.observedModels.count == 3)
+        // accountId is threaded through
+        #expect(effects.accountId == accountId)
     }
 
     @Test func aggregate_noAccountId_doesNotSetObservedModels() throws {
@@ -1006,7 +1043,7 @@ struct UsageAggregatorTests {
         let fetcher = RateLimitFetcher()
         let beforeModels = fetcher.observedModels
 
-        _ = aggregator.aggregate(rateLimits: nil)
+        let (_, _) = aggregator.aggregate(rateLimits: nil)
 
         // RateLimitFetcher.shared may be updated but no accountId-keyed persistence happened
         // (We can't easily verify shared state, but we verify the code path doesn't crash)
@@ -1053,7 +1090,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.todayToolCalls == 5) // max(5 jsonl, 3 cache)
     }
@@ -1095,7 +1132,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.todayToolCalls == 7) // max(2 jsonl, 7 cache)
     }
@@ -1119,7 +1156,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.todayToolCalls == 6) // 4 + 2 from JSONL, cache is 0
     }
@@ -1155,7 +1192,7 @@ struct UsageAggregatorTests {
         let logReader = SessionLogReader(projectsURL: projectsDir)
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
-        let snapshot = aggregator.aggregate(rateLimits: nil)
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
 
         #expect(snapshot.todayToolCalls == 8) // cache value used, jsonl is 0
     }
