@@ -68,13 +68,16 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ RESP-03: Panel toggle never desyncs — v1.13
 - ✓ RESP-04: Lazy-load heavy sections on open — v1.13
 
+- ✓ DATA-01: 24H chart shows data on cold start (dailyActivity loading signal) — v1.14
+- ✓ CHART-02: 24H axis labels evenly spaced in HH:00 format — v1.14
+- ✓ CHART-01: 12M axis labels use quarterly stride (no overlap) — v1.14
+- ✓ LAYOUT-01: Rate limit sections have equal vertical padding — v1.14
+
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Chart label readability (12M months, 24H hours)
-- [ ] 24H false "No activity" after app update
-- [ ] Rate limit sections uneven vertical spacing
+_(none — planning next milestone)_
 
 ### Out of Scope
 
@@ -84,13 +87,12 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 ## Context
 
-- **Version:** v1.14 (2026-03-24) — Visual Polish milestone started
-- **Tests:** 719+ across 47 files
+- **Version:** v1.14 (2026-03-24) — Visual Polish shipped
+- **Tests:** 731+ across 49 files (12 tests added in v1.14)
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
-- **Zero TODOs/FIXMEs** in codebase — clean slate
-- **Recent work:** UsageAggregator lastSideEffects shared mutable state eliminated, SideEffects mechanism removed from ViewModel
+- **Recent:** Chart label fixes, false empty state fix, layout spacing equalized, Context header cleaned up
 
 ## Constraints
 
@@ -120,11 +122,14 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | PanelToggleState value type | Testable state machine prevents toggle desync structurally | ✓ Good |
 | orderOut override with onDismiss | Single dismiss sync point catches all 5 paths | ✓ Good |
 | Deferred rendering via async hop | DispatchQueue.main.async defers heavy sections one run-loop | ✓ Good |
+| dailyActivity as loading signal | isEmpty checks daily records before declaring hourly empty — prevents false "No activity" on cold start | ✓ Good |
+| stride(by: .month, count: 3) for 12M | Let Swift Charts handle quarterly label placement — simpler than manual quarterlyLabelDates | ✓ Good |
+| "Context" not "Context Health" | Shorter header fits one line with session toggle + refresh + badge | ✓ Good |
 
 ---
 ## Milestone History
 
-- **v1.14 Visual Polish** — started 2026-03-24 (replaces unexecuted "Polish & UX" scope)
+- **v1.14 Visual Polish** — shipped 2026-03-24 (Phases 13-14)
 - **v1.13 Responsiveness** — shipped 2026-03-20 (Phase 12)
 - **v1.12 Performance & Cleanup** — shipped 2026-03-19 (Phases 10-11)
 - **v1.11 Polish & Consistency** — shipped 2026-03-19 (Phases 6-9)
@@ -132,15 +137,7 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - **v1.0–v1.9.2** — pre-GSD
 
 ---
-## Current Milestone: v1.14 Visual Polish
-
-**Goal:** Fix chart readability, false empty states, and layout spacing inconsistencies.
-
-**Target issues:**
-- 12M chart month labels squished/illegible — show every month on a small chart
-- 24H chart hour labels unevenly spaced — offsets [0,4,8,12,16,20,23] create irregular gaps
-- 24H chart falsely shows "No activity" after app update — todayHourCounts empty on restart
-- Rate limit sections (auto mode, 5h, 7d) have uneven vertical padding
+## Current Milestone: (planning next)
 
 ---
-*Last updated: 2026-03-24 after v1.14 Visual Polish milestone restart*
+*Last updated: 2026-03-24 after v1.14 Visual Polish milestone*

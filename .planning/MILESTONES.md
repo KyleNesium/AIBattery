@@ -1,5 +1,15 @@
 # Milestones
 
+## v1.14 Visual Polish (Shipped: 2026-03-24)
+
+**Phases completed:** 2 phases, 2 plans, 0 tasks
+
+**Key accomplishments:**
+
+- (none recorded)
+
+---
+
 ## v1.13 Responsiveness (Shipped: 2026-03-20)
 
 **Phases completed:** 1 phase, 2 plans | **4 files changed, +228 -18 lines** | **13 tests added**
