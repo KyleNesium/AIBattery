@@ -485,6 +485,19 @@ Pricing table (per million tokens):
 - **Identity timeout**: warns if a pending account hasn't resolved identity after 1 hour (prompts re-auth).
 - **JSONL corruption logging**: after aggregation, logs `SessionLogReader.lastCorruptLineCount` via `AppLogger.files.warning` if > 0.
 
+## Views
+
+### StatusBarManager (`Views/StatusBarManager.swift`)
+
+- `@MainActor` class managing the `NSStatusItem`, `PopoverPanel`, and breath timer.
+- **Breath timer** — animates the menu bar icon with a pulsing effect when usage is ≥ 95% or during a recovery sparkle. Implemented as a `Timer` with step-based pulse driven by `MenuBarIcon.pulseSteps`.
+  - Red band (≥95%): 4 steps, 1s per tick (4 wakeups/cycle).
+  - Sparkle mode: 8 steps, 500ms per tick (8 wakeups/cycle).
+  - Screen sleep/wake: timer pauses on `NSWorkspace.screensDidSleepNotification`, resumes on wake.
+  - Visibility gate: `breathTimerShouldRun(isShowing:isThrottled:isSparkleActive:percent:)` — timer only runs while the popover is showing. Stops immediately on panel dismiss (`stopBreathTimer()` called in `panel.onDismiss`); restarts on panel open (`updateBreathTimer` called after `panel.orderFrontRegardless()`) if conditions are met (≥95% or sparkle active). This eliminates idle CPU from the timer firing against a hidden icon.
+- **Panel toggle** — `PanelToggleState` value type tracks `.isShowing`; `statusItemClicked` toggles show/hide; `panel.onDismiss` consolidates all dismiss paths.
+- **Recovery sparkle** — 3s animation triggered when throttle clears; `isSparkleActive` drives higher timer frequency and sparkle icon.
+
 ## Utilities
 
 ### ClaudePaths (`Utilities/ClaudePaths.swift`)
