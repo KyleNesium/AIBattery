@@ -138,7 +138,7 @@ extension InsightsView {
         case .monthly:
             guard let id = selectedMonthlyId,
                   let point = cachedMonthly.first(where: { $0.id == id }) else { return nil }
-            return "\(Self.compactCount(point.count)) msgs"
+            return "\(Self.monthAbbrev(point.date)) — \(Self.compactCount(point.count)) msgs"
         }
     }
 

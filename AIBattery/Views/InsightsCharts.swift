@@ -225,7 +225,7 @@ extension InsightsView {
         }
         .chartXScale(domain: (dates.first ?? .now)...(dates.last ?? .now))
         .chartYAxis { sharedYAxis }
-        .chartPlotStyle { plot in plot.background(.clear) }
+        .chartPlotStyle { plot in plot.background(.clear).clipped() }
         .chartOverlay { proxy in
             chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
                 guard let date: Date = proxy.value(atX: x) else { return }
