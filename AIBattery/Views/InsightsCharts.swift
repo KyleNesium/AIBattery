@@ -147,10 +147,10 @@ extension InsightsView {
             }
         }
         .chartXAxis {
-            AxisMarks(values: [0, 4, 8, 12, 16, 20, 23]) { value in
+            AxisMarks(values: [0, 6, 12, 18]) { value in
                 AxisValueLabel {
                     if let offset = value.as(Int.self), offset >= 0, offset < data.count {
-                        Text(Self.formatHourLabel(data[offset].hour))
+                        Text(Self.formatHourLabelFull(data[offset].hour))
                             .font(Typography.decorativeIcon)
                     }
                 }
@@ -214,7 +214,7 @@ extension InsightsView {
             }
         }
         .chartXAxis {
-            AxisMarks(values: dates) { value in
+            AxisMarks(values: Self.quarterlyLabelDates(from: dates)) { value in
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(Self.monthAbbrev(date))
@@ -223,6 +223,7 @@ extension InsightsView {
                 }
             }
         }
+        .chartXScale(domain: dates.first!...dates.last!)
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
