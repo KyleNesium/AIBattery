@@ -32,6 +32,19 @@ final class FileWatcher {
         }
     }
 
+    /// Pause the fallback timer without tearing down FSEvent watchers.
+    /// Called when the system goes idle or locks — FS events continue, polling stops.
+    func suspendFallbackTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    /// Resume the fallback timer if FSEvent watchers are absent.
+    func resumeFallbackTimer() {
+        guard timer == nil, fileSource == nil || fsEventStream == nil else { return }
+        startFallbackTimer()
+    }
+
     func stopWatching() {
         isStopped = true
         debounceWorkItem?.cancel()

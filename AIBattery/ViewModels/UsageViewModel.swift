@@ -26,6 +26,11 @@ public final class UsageViewModel: ObservableObject {
     /// Adaptive polling state machine — delegates interval logic to a pure struct.
     private var adaptivePolling = AdaptivePollingState()
 
+    /// True when timers are suspended due to system idle or screen lock.
+    private var isSuspended = false
+    private var lockObserver: NSObjectProtocol?
+    private var unlockObserver: NSObjectProtocol?
+
     public init() {
         ThemeColors.registerObserver()
         NetworkMonitor.shared.start()
@@ -75,6 +80,20 @@ public final class UsageViewModel: ObservableObject {
     ///   when NWPathMonitor may briefly report disconnected while WiFi reconnects.
 
     public func refresh(skipNetworkCheck: Bool = false) async {
+        // Skip polling cycle when suspended due to idle or screen lock.
+        // Allow explicit resume refreshes through by checking skipNetworkCheck (wake path).
+        guard !isSuspended || skipNetworkCheck else { return }
+
+        // Check idle at each polling tick — suspend if threshold reached.
+        // No new timer — piggybacks on the existing polling cycle.
+        if !skipNetworkCheck {
+            let idle = IdleSuspendPolicy.idleSeconds()
+            if IdleSuspendPolicy.shouldSuspend(secondsIdle: idle) {
+                suspendTimers()
+                return
+            }
+        }
+
         let oauthManager = OAuthManager.shared
 
         // Skip network work when not authenticated — still aggregate local data.
@@ -248,8 +267,7 @@ public final class UsageViewModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.pollingTimer?.invalidate()
-                self?.pollingTimer = nil
+                self?.suspendTimers()
             }
         }
 
@@ -272,13 +290,37 @@ public final class UsageViewModel: ObservableObject {
                     }
                 }
 
-                self.adaptivePolling.unchangedCycles = 0
-                self.restartPolling(interval: self.refreshInterval)
+                self.resumeTimers()
 
                 // Wait for WiFi to reconnect after sleep before hitting the API.
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 // Skip network check — NWPathMonitor may still report disconnected
                 // while WiFi is reconnecting. Let the API call try and timeout naturally.
+                await self.refresh(skipNetworkCheck: true)
+            }
+        }
+
+        // Screen lock — suspend all timers immediately.
+        lockObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.sessionDidResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.suspendTimers()
+            }
+        }
+
+        // Screen unlock — resume timers and refresh.
+        unlockObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.sessionDidBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.resumeTimers()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
                 await self.refresh(skipNetworkCheck: true)
             }
         }
@@ -337,6 +379,25 @@ public final class UsageViewModel: ObservableObject {
         return ThrottleTracker.count(timestamps: timestamps, days: days)
     }
 
+    /// Suspend polling and FileWatcher fallback timer.
+    /// Called on screen lock or idle threshold reached.
+    private func suspendTimers() {
+        guard !isSuspended else { return }
+        isSuspended = true
+        pollingTimer?.invalidate()
+        pollingTimer = nil
+        fileWatcher?.suspendFallbackTimer()
+    }
+
+    /// Resume polling and FileWatcher fallback timer after wake or activity.
+    private func resumeTimers() {
+        guard isSuspended else { return }
+        isSuspended = false
+        adaptivePolling.unchangedCycles = 0
+        restartPolling(interval: refreshInterval)
+        fileWatcher?.resumeFallbackTimer()
+    }
+
     private func startPolling() {
         restartPolling(interval: refreshInterval)
     }
@@ -361,7 +422,7 @@ public final class UsageViewModel: ObservableObject {
     deinit {
         pollingTimer?.invalidate()
         // FileWatcher.deinit handles its own cleanup (cancels sources, streams, timers)
-        for observer in [wakeObserver, sleepObserver].compactMap({ $0 }) {
+        for observer in [wakeObserver, sleepObserver, lockObserver, unlockObserver].compactMap({ $0 }) {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
     }

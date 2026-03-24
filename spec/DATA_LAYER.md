@@ -480,7 +480,8 @@ Pricing table (per million tokens):
 - Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
 - Deinit: invalidates polling timer, removes sleep/wake observers (FileWatcher's own deinit handles its cleanup)
 - **Adaptive polling**: delegates to `AdaptivePollingState` struct. Compares `totalMessages`/`todayMessages` before and after refresh. After 3 unchanged cycles, doubles polling interval (up to 5 min max). Any data change or file watcher trigger resets to configured interval.
-- **Sleep/wake lifecycle**: `setupSleepWakeObservers()` subscribes to `NSWorkspace.willSleepNotification` (pauses timer) and `didWakeNotification` (resets adaptive polling, triggers immediate refresh + restarts timer).
+- **Idle/lock suspension**: `isSuspended: Bool` tracks whether timers are paused. Idle check piggybacks on each polling tick via `IdleSuspendPolicy.shouldSuspend(secondsIdle:)` — no new timer. `suspendTimers()` invalidates polling timer and calls `FileWatcher.suspendFallbackTimer()`. `resumeTimers()` restarts polling and calls `FileWatcher.resumeFallbackTimer()`.
+- **Sleep/wake lifecycle**: `setupSleepWakeObservers()` subscribes to `NSWorkspace.willSleepNotification` (suspends timers) and `didWakeNotification` (resumes timers, triggers immediate refresh). Also subscribes to `sessionDidResignActiveNotification` (screen lock → suspend) and `sessionDidBecomeActiveNotification` (unlock → resume + refresh).
 - **Network awareness**: skips network calls when `NetworkMonitor.shared.isConnected` is false — aggregates local data with cached rate limits. `NetworkMonitor.start()` called in init.
 - **Identity timeout**: warns if a pending account hasn't resolved identity after 1 hour (prompts re-auth).
 - **JSONL corruption logging**: after aggregation, logs `SessionLogReader.lastCorruptLineCount` via `AppLogger.files.warning` if > 0.
@@ -567,6 +568,13 @@ Pricing table (per million tokens):
 - `barNSColor(percent:) -> NSColor` — menu bar icon fill color
 - Standard palette: green → yellow → orange → red
 - Colorblind palette: blue → cyan → amber → purple (deuteranopia/protanopia safe)
+
+### IdleSuspendPolicy (`Utilities/IdleSuspendPolicy.swift`)
+- Pure enum — no instances, fully `nonisolated`, no side effects
+- `static let defaultThreshold: TimeInterval = 300` — 5-minute idle threshold
+- `static func shouldSuspend(secondsIdle:threshold:) -> Bool` — returns true when idle time meets or exceeds threshold
+- `static func idleSeconds() -> TimeInterval` — reads system HID idle seconds via `CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .mouseMoved)`. Returns 0 on failure (safe — never suspends on error).
+- Used by `UsageViewModel.refresh()` to decide whether to suspend timers on each polling tick
 
 ### ThrottleTracker (`Utilities/ThrottleTracker.swift`)
 - Pure value type (struct) — immutable pattern, `evaluate` returns a new tracker instead of mutating
