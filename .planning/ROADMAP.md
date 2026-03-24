@@ -25,7 +25,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 14.
 
 ## Phase Details
 
-- [ ] **Phase 15: Breath Timer Fix** - Gate breath animation on popover visibility — stop rendering when panel is closed
+- [x] **Phase 15: Breath Timer Fix** - Gate breath animation on popover visibility — stop rendering when panel is closed (completed 2026-03-24)
 - [ ] **Phase 16: Idle and Lock Detection** - Pause all timers on screen lock or 5-minute system idle; resume on wake
 
 ### Phase 15: Breath Timer Fix
@@ -59,5 +59,5 @@ Plans:
 | 12. Responsiveness | v1.13 | 2/2 | Complete | 2026-03-20 |
 | 13. Chart & Data Fixes | v1.14 | 2/2 | Complete | 2026-03-24 |
 | 14. Layout Consistency | v1.14 | 0/0 | Complete | 2026-03-24 |
-| 15. Breath Timer Fix | v1.15 | 0/1 | Not started | - |
+| 15. Breath Timer Fix | 1/1 | Complete   | 2026-03-24 | - |
 | 16. Idle and Lock Detection | v1.15 | 0/? | Not started | - |

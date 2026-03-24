@@ -7,7 +7,7 @@
 
 ### Timer Management
 
-- [ ] **PERF-01**: Breath timer stops when popover is closed — no background icon rendering at 500ms/1s intervals
+- [x] **PERF-01**: Breath timer stops when popover is closed — no background icon rendering at 500ms/1s intervals
 
 ### Resource Gating
 
@@ -33,7 +33,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERF-01 | Phase 15 | Pending |
+| PERF-01 | Phase 15 | Complete |
 | PERF-02 | Phase 16 | Pending |
 
 **Coverage:**
