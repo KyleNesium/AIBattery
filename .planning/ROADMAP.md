@@ -59,5 +59,5 @@ Plans:
 | 12. Responsiveness | v1.13 | 2/2 | Complete | 2026-03-20 |
 | 13. Chart & Data Fixes | v1.14 | 2/2 | Complete | 2026-03-24 |
 | 14. Layout Consistency | v1.14 | 0/0 | Complete | 2026-03-24 |
-| 15. Breath Timer Fix | 1/1 | Complete   | 2026-03-24 | - |
+| 15. Breath Timer Fix | 1/1 | Complete    | 2026-03-24 | - |
 | 16. Idle and Lock Detection | v1.15 | 0/? | Not started | - |
