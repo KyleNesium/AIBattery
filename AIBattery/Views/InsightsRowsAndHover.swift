@@ -181,4 +181,20 @@ extension InsightsView {
         // STUB — returns wrong answer intentionally for RED phase
         return todayHourCounts.values.allSatisfy { $0 == 0 }
     }
+
+    /// Full HH:00 format for chart axis labels (e.g. "06:00", "18:00").
+    /// Distinct from formatHourLabel which returns "HH" for tooltip/trend use.
+    static func formatHourLabelFull(_ hour: Int) -> String {
+        // STUB — returns wrong answer intentionally for RED phase
+        return String(format: "%02d", hour)   // returns "06" not "06:00"
+    }
+
+    /// Returns the subset of dates from `allDates` that should be labeled on the 12M x-axis:
+    /// quarterly anchor months (Jan=1, Apr=4, Jul=7, Oct=10) plus the current month.
+    /// `allDates` must be start-of-month Dates ordered chronologically (12 entries).
+    /// `now` is injectable for testing.
+    static func quarterlyLabelDates(from allDates: [Date], now: Date = Date()) -> [Date] {
+        // STUB — returns all dates (wrong: too many labels)
+        return allDates
+    }
 }
