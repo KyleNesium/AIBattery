@@ -28,8 +28,7 @@ struct MetricToggleView: View {
             .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.top, Spacing.section)
-        .padding(.bottom, Spacing.gap)
+        .padding(.vertical, Spacing.section)
         .background(ThemeColors.badgeFill)
         .onAppear { recomputeOrderedModes() }
         .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
