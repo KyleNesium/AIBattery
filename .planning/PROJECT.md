@@ -77,7 +77,7 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-_(none — planning next milestone)_
+_(defining requirements for v1.15 Performance)_
 
 ### Out of Scope
 
@@ -87,12 +87,12 @@ _(none — planning next milestone)_
 
 ## Context
 
-- **Version:** v1.14 (2026-03-24) — Visual Polish shipped
-- **Tests:** 731+ across 49 files (12 tests added in v1.14)
+- **Version:** v1.15 (2026-03-24) — Performance milestone started
+- **Tests:** 731+ across 49 files
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
-- **Recent:** Chart label fixes, false empty state fix, layout spacing equalized, Context header cleaned up
+- **Critical bug:** 83% CPU at idle — breath timer runs every 500ms without panel visibility check, polling continues when popover closed
 
 ## Constraints
 
@@ -129,6 +129,7 @@ _(none — planning next milestone)_
 ---
 ## Milestone History
 
+- **v1.15 Performance** — started 2026-03-24
 - **v1.14 Visual Polish** — shipped 2026-03-24 (Phases 13-14)
 - **v1.13 Responsiveness** — shipped 2026-03-20 (Phase 12)
 - **v1.12 Performance & Cleanup** — shipped 2026-03-19 (Phases 10-11)
@@ -137,7 +138,16 @@ _(none — planning next milestone)_
 - **v1.0–v1.9.2** — pre-GSD
 
 ---
-## Current Milestone: (planning next)
+## Current Milestone: v1.15 Performance
+
+**Goal:** Eliminate 83% CPU usage at idle — kill runaway timers and gate all background work on visibility.
+
+**Root causes identified:**
+- Breath timer fires every 500ms-1s at ≥95% usage with no panel visibility check
+- Each tick renders full NSImage (MenuBarIcon.statusBarImage)
+- Polling timer (60s) continues when popover closed
+- FileWatcher fallback timer (60s) overlaps with polling
+- No screen-lock/idle detection
 
 ---
-*Last updated: 2026-03-24 after v1.14 Visual Polish milestone*
+*Last updated: 2026-03-24 after v1.15 Performance milestone start*
