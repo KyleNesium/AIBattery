@@ -44,16 +44,16 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CHART-01 | TBD | Pending |
-| CHART-02 | TBD | Pending |
-| DATA-01 | TBD | Pending |
-| LAYOUT-01 | TBD | Pending |
+| CHART-01 | Phase 13 | Pending |
+| CHART-02 | Phase 13 | Pending |
+| DATA-01 | Phase 13 | Pending |
+| LAYOUT-01 | Phase 14 | Pending |
 
 **Coverage:**
 - v1.14 requirements: 4 total
-- Mapped to phases: 0
-- Unmapped: 4
+- Mapped to phases: 4
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-24*
-*Last updated: 2026-03-24 — initial definition*
+*Last updated: 2026-03-24 — phase mapping added*
