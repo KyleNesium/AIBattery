@@ -7,12 +7,12 @@
 
 ### Chart Readability
 
-- [ ] **CHART-01**: 12M chart shows quarterly month labels plus current month — no overlapping text
-- [ ] **CHART-02**: 24H chart shows 4 evenly-spaced hour labels in `HH:00` format (00:00, 06:00, 12:00, 18:00)
+- [x] **CHART-01**: 12M chart shows quarterly month labels plus current month — no overlapping text
+- [x] **CHART-02**: 24H chart shows 4 evenly-spaced hour labels in `HH:00` format (00:00, 06:00, 12:00, 18:00)
 
 ### Data Correctness
 
-- [ ] **DATA-01**: 24H chart never shows "No activity" when daily activity data exists — uses dailyActivity as loading signal
+- [x] **DATA-01**: 24H chart never shows "No activity" when daily activity data exists — uses dailyActivity as loading signal
 
 ### Layout Consistency
 
@@ -44,9 +44,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CHART-01 | Phase 13 | Pending |
-| CHART-02 | Phase 13 | Pending |
-| DATA-01 | Phase 13 | Pending |
+| CHART-01 | Phase 13 | Complete |
+| CHART-02 | Phase 13 | Complete |
+| DATA-01 | Phase 13 | Complete |
 | LAYOUT-01 | Phase 14 | Pending |
 
 **Coverage:**

@@ -57,5 +57,5 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 12. Responsiveness | v1.13 | 2/2 | Complete | 2026-03-20 |
-| 13. Chart & Data Fixes | v1.14 | 0/2 | Not started | - |
+| 13. Chart & Data Fixes | 1/2 | In Progress|  | - |
 | 14. Layout Consistency | v1.14 | 0/TBD | Not started | - |
