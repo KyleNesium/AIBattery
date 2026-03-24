@@ -51,7 +51,7 @@ struct UsageBar: View {
             HStack {
                 HStack(spacing: Spacing.inner) {
                     Text(label)
-                        .font(Typography.sectionHeader)
+                        .font(Typography.buttonLabel)
                         .accessibilityAddTraits(.isHeader)
                     if isBinding {
                         Text("binding")
