@@ -36,7 +36,10 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 14.
   1. CPU usage drops from ~83% idle to background-normal when the popover is closed
   2. The menu bar icon renders no animation frames while the popover is closed
   3. The breath animation resumes immediately and correctly when the popover opens
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 15-01-PLAN.md — Gate breath timer on popover visibility; update spec and README test coverage
 
 ### Phase 16: Idle and Lock Detection
 **Goal**: Users see AIBattery consume no CPU when their machine is locked or idle for more than 5 minutes
@@ -56,5 +59,5 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 14.
 | 12. Responsiveness | v1.13 | 2/2 | Complete | 2026-03-20 |
 | 13. Chart & Data Fixes | v1.14 | 2/2 | Complete | 2026-03-24 |
 | 14. Layout Consistency | v1.14 | 0/0 | Complete | 2026-03-24 |
-| 15. Breath Timer Fix | v1.15 | 0/? | Not started | - |
+| 15. Breath Timer Fix | v1.15 | 0/1 | Not started | - |
 | 16. Idle and Lock Detection | v1.15 | 0/? | Not started | - |
