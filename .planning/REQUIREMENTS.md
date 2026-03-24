@@ -33,14 +33,14 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERF-01 | TBD | Pending |
-| PERF-02 | TBD | Pending |
+| PERF-01 | Phase 15 | Pending |
+| PERF-02 | Phase 16 | Pending |
 
 **Coverage:**
 - v1.15 requirements: 2 total
-- Mapped to phases: 0
-- Unmapped: 2
+- Mapped to phases: 2
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-24*
-*Last updated: 2026-03-24 — initial definition*
+*Last updated: 2026-03-24 — traceability mapped (Phase 15: PERF-01, Phase 16: PERF-02)*

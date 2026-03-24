@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.15
 milestone_name: Performance
-status: defining_requirements
+status: ready_to_plan
 stopped_at: null
-last_updated: "2026-03-24T14:10:00.000Z"
+last_updated: "2026-03-24T14:30:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -19,14 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Defining requirements for v1.15 Performance
+**Current focus:** Phase 15 — Breath Timer Fix
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 15 of 16 (Breath Timer Fix)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-24 — Milestone v1.15 Performance started (CPU spike investigation complete)
+Status: Ready to plan
+Last activity: 2026-03-24 — Roadmap created for v1.15 Performance (2 phases, 2 requirements)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Accumulated Context
 
@@ -39,11 +41,11 @@ Last activity: 2026-03-24 — Milestone v1.15 Performance started (CPU spike inv
 
 ### Blockers/Concerns
 
-- PopoverFooterView uses TimelineView — highest hang-regression risk
-- Breath timer has no panel visibility check — primary CPU hot path
+- PopoverFooterView uses TimelineView — highest hang-regression risk; verify not broken after timer gating
+- Breath timer is the primary CPU hot path — Phase 15 target
 
 ## Session Continuity
 
 Last session: 2026-03-24
-Stopped at: Defining requirements for v1.15
+Stopped at: Roadmap created — ready to plan Phase 15
 Resume file: None
