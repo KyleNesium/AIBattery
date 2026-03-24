@@ -176,9 +176,12 @@ extension InsightsView {
 
     /// Testable isEmpty logic for the hourly chart mode.
     /// Returns false when dailyActivity has records for today (loading signal),
-    /// even if todayHourCounts is empty or all-zero.
+    /// even if todayHourCounts is empty or all-zero (JSONL scan still in progress).
     static func isHourlyEmpty(todayHourCounts: [String: Int], dailyActivity: [DailyActivity]) -> Bool {
-        // STUB — returns wrong answer intentionally for RED phase
+        let todayKey = DateFormatters.dateKey.string(from: Date())
+        if dailyActivity.contains(where: { $0.date == todayKey && $0.messageCount > 0 }) {
+            return false
+        }
         return todayHourCounts.values.allSatisfy { $0 == 0 }
     }
 

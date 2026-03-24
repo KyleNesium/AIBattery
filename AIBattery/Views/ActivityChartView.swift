@@ -86,7 +86,7 @@ struct InsightsView: View {
     private var isEmpty: Bool {
         switch mode {
         case .daily: return dailyActivity.allSatisfy { $0.messageCount == 0 }
-        case .hourly: return todayHourCounts.values.allSatisfy { $0 == 0 }
+        case .hourly: return Self.isHourlyEmpty(todayHourCounts: todayHourCounts, dailyActivity: dailyActivity)
         case .monthly: return dailyActivity.allSatisfy { $0.messageCount == 0 }
         }
     }
