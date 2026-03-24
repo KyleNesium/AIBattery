@@ -129,6 +129,7 @@ public final class StatusBarManager: NSObject {
         // making desync impossible. dismiss() is idempotent so double-calls are safe.
         panel.onDismiss = { [weak self] in
             self?.toggleState.dismiss()
+            self?.stopBreathTimer()
         }
 
         // SwiftUI content — background color is set in PopoverContentView
@@ -341,10 +342,26 @@ public final class StatusBarManager: NSObject {
         hasReceivedFirstUpdate = true
     }
 
+    /// Pure function: determines whether the breath timer should run given current state.
+    /// Extracted for testability — StatusBarManager calls this then acts on the result.
+    static func breathTimerShouldRun(
+        isShowing: Bool,
+        isThrottled: Bool,
+        isSparkleActive: Bool,
+        percent: Double
+    ) -> Bool {
+        guard isShowing else { return false }
+        guard !isThrottled else { return false }
+        return isSparkleActive || percent >= 95
+    }
+
     private func updateBreathTimer(percent: Double, isThrottled: Bool) {
-        if isThrottled {
-            stopBreathTimer()
-        } else if isSparkleActive || percent >= 95 {
+        if Self.breathTimerShouldRun(
+            isShowing: toggleState.isShowing,
+            isThrottled: isThrottled,
+            isSparkleActive: isSparkleActive,
+            percent: percent
+        ) {
             startBreathTimerIfNeeded()
         } else {
             stopBreathTimer()
@@ -475,6 +492,7 @@ public final class StatusBarManager: NSObject {
             panel.orderFrontRegardless()
             panel.makeKey()
             os_signpost(.end, log: panelShowLog, name: "PanelShow")
+            updateBreathTimer(percent: currentPercent, isThrottled: currentIsThrottled)
         }
     }
 
