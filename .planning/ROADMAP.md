@@ -36,7 +36,10 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 12.
   2. The 24H chart x-axis shows exactly 4 labels at midnight, 06:00, 12:00, and 18:00 with equal pixel gaps between them
   3. The 12M chart x-axis shows quarterly month labels (4 labels, one per quarter) with no clipping or overlapping text at the 275pt popover width
   4. After JSONL scan completes on cold start, the 24H chart updates to reflect actual hourly data
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 13-01-PLAN.md — TDD wave 0: stubs + failing tests for DATA-01, CHART-02, CHART-01
+- [ ] 13-02-PLAN.md — Implement all three fixes; full suite green + visual verification
 
 ### Phase 14: Layout Consistency
 **Goal**: Rate limit sections have uniform vertical spacing regardless of which mode is shown
@@ -54,5 +57,5 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 12.
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 12. Responsiveness | v1.13 | 2/2 | Complete | 2026-03-20 |
-| 13. Chart & Data Fixes | v1.14 | 0/TBD | Not started | - |
+| 13. Chart & Data Fixes | v1.14 | 0/2 | Not started | - |
 | 14. Layout Consistency | v1.14 | 0/TBD | Not started | - |
