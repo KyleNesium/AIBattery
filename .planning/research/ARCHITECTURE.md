@@ -1,330 +1,374 @@
 # Architecture Research
 
-**Domain:** macOS menu bar app — visual polish, UX refinement, accessibility, error/empty states
-**Researched:** 2026-03-20
-**Confidence:** HIGH (derived entirely from live codebase and spec — no external research needed)
+**Domain:** macOS menu bar app — chart label readability, false empty states, layout spacing
+**Researched:** 2026-03-24
+**Confidence:** HIGH (derived entirely from live codebase — no external research needed)
 
-## Standard Architecture
+## System Overview
 
-### System Overview
+The three target issues each live in a different layer. The chart label and false empty-state fixes
+are contained within the InsightsView extension cluster. The spacing fix is in `UsageBarsSection.swift`
+and touched by the `Spacing` design token system.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        AppKit Layer                              │
-│  ┌────────────────────┐   ┌──────────────────────────────────┐   │
-│  │  NSStatusItem      │   │  PopoverPanel (NSPanel, floating) │   │
-│  │  button.image      │   │  NSHostingView                    │   │
-│  │  button.title      │   │  └─ PopoverContentView           │   │
-│  │  (MenuBarIcon)     │   │     └─ UsagePopoverView          │   │
-│  └────────────────────┘   └──────────────────────────────────┘   │
-│  StatusBarManager (panel toggle, Combine subscriptions)          │
-├─────────────────────────────────────────────────────────────────┤
-│                      SwiftUI View Layer                          │
-│  UsagePopoverView (thin orchestrator — wires sub-views)         │
-│  ├── PopoverHeaderView                                          │
-│  ├── SettingsRow (Settings/*)                                   │
-│  ├── MetricToggleView                                           │
-│  ├── ForEach(orderedModes) → FiveHourBarSection                 │
-│  │                         → SevenDayBarSection                 │
-│  │                         → TokenHealthSection                 │
-│  ├── ProjectUsageGate → ProjectUsageSection                     │
-│  ├── InsightsGate → InsightsView (ActivityChartView.swift)      │
-│  │                → InsightsCharts (extension)                  │
-│  │                → InsightsTrendCostSection (extension)        │
-│  │                → InsightsRowsAndHover (extension)            │
-│  └── PopoverFooterView                                          │
-│  Shared state views: PopoverStateViews (Error / Empty / Idle)  │
-├─────────────────────────────────────────────────────────────────┤
-│                    Design System Layer                           │
-│  Typography  Spacing  Layout  MotionConstants  ThemeColors      │
-│  GaugeBar  StyledDivider  CollapsibleSectionHeader              │
-│  CopyableText  MarqueeText  RefreshButton  FooterLink           │
-├─────────────────────────────────────────────────────────────────┤
-│                      ViewModel Layer                             │
-│  UsageViewModel (@MainActor ObservableObject)                   │
-│  └─ UsageSnapshot (plain struct, consumed by all views)         │
-├─────────────────────────────────────────────────────────────────┤
-│                      Services Layer                              │
-│  OAuthManager  RateLimitFetcher  SessionLogReader               │
-│  UsageAggregator  StatusChecker  TokenLedger  FileWatcher       │
+│                   Issue → File Map                               │
+│                                                                  │
+│  12M label squish  ──→  InsightsCharts.swift (monthlyChart)     │
+│  24H label spacing ──→  InsightsCharts.swift (hourlyChart)      │
+│  24H false empty   ──→  ActivityChartView.swift (isEmpty)       │
+│                         + InsightsGate (UsageGateViews.swift)   │
+│                         + todayHourCounts data flow             │
+│  Rate limit vpad   ──→  UsageBarsSection.swift                  │
+│                         + Spacing.swift (design token)          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities Relevant to Polish
+## Component Responsibilities — Milestone Scope
 
-| Component | Responsibility | Polish Impact |
-|-----------|---------------|---------------|
-| `UsagePopoverView` | Thin orchestrator; owns `panelHasAppeared`, `showSettings`, logout confirm state | Route-level state changes only; avoid adding visual logic here |
-| `PopoverStateViews` | `PopoverErrorView`, `PopoverEmptyView`, `PopoverIdleFilteredView` — the 3 non-data states | Primary target for error/empty state polish |
-| `CollapsibleSectionHeader` | Chevron + title + collapse animation; used by 4 sections | Single change propagates to all collapsible sections |
-| `GaugeBar` | Shared progress bar used by UsageBar and TokenHealthSection | Single change propagates to all progress gauges |
-| `ThemeColors` | All color decisions — adaptive light/dark, colorblind-safe | Add new semantic colors here, never inline |
-| `Typography` | All font style tokens — 15 named styles | Add new styles here; never use raw `.font()` calls |
-| `Spacing` / `Layout` / `MotionConstants` | Spacing, dimension, animation constants | Add new constants here; never inline magic numbers |
-| `StyledDivider` | Standardized divider at 0.3 opacity + `Spacing.tight` padding | Single change propagates to all section dividers |
-| `CopyableText` | `CopyableModifier` + `LightCopyableModifier` ViewModifiers | Copy affordance consistency across all numeric values |
-| `StatusBarManager` | Panel lifecycle, Combine-driven button updates | Accessibility of menu bar button lives here |
+| Component | File | Role in This Milestone |
+|-----------|------|------------------------|
+| `InsightsView` | `ActivityChartView.swift` | Struct declaration, `isEmpty` computed var, `todayHourCounts` usage |
+| `InsightsView` (chart extension) | `InsightsCharts.swift` | `hourlyChart` and `monthlyChart` — contains the broken x-axis label configs |
+| `InsightsView` (formatter extension) | `InsightsRowsAndHover.swift` | `formatHourLabel` — currently returns "HH" zero-padded strings |
+| `ActivityChartData` | `ActivityChartData.swift` | `hourlyData(from:now:)` — produces `HourlyPoint.hour` values consumed by label |
+| `InsightsGate` | `UsageGateViews.swift` | Controls whether `InsightsView` is even shown; current gate may hide chart when `todayHourCounts` is empty |
+| `UsageAggregator` | `UsageAggregator.swift` | Builds `todayHourCounts` from JSONL `todayEntries` — the root of the false empty-state bug |
+| `UsageSnapshot` | `UsageSnapshot.swift` | Stores `todayHourCounts: [String: Int]` — passed through as-is |
+| `FiveHourBarSection` | `UsageBarsSection.swift` | Applies `.padding(.vertical, Spacing.section)` — spacing to audit |
+| `SevenDayBarSection` | `UsageBarsSection.swift` | Same padding as above |
+| `Spacing` | `Utilities/Spacing.swift` | `Spacing.section = 8pt` — token used by all three bar sections |
 
-## Recommended Project Structure
+## Fix 1: 12M Month Labels Squished
 
-```
-AIBattery/
-├── Views/
-│   ├── Components/
-│   │   ├── GaugeBar.swift              — modified: animation on fill width
-│   │   └── [new shared components]     — extract only when used 3+ places
-│   ├── PopoverStateViews.swift         — modified: error/empty state polish
-│   ├── CollapsibleSectionHeader.swift  — modified if animation or a11y changes needed
-│   ├── UsageBarsSection.swift          — modified for any bar section polish
-│   ├── TokenHealthSection.swift        — modified for health section polish
-│   ├── PopoverHeaderView.swift         — modified for header UX polish
-│   ├── PopoverFooterView.swift         — modified for footer polish
-│   └── [section views as needed]
-├── Utilities/
-│   ├── ThemeColors.swift               — modified: new semantic colors if needed
-│   ├── Typography.swift                — modified: new font styles if needed
-│   └── Spacing.swift                   — modified: new constants if needed
-└── spec/
-    ├── UI_SPEC.md                      — update before AND after visual changes
-    └── CONSTANTS.md                    — update when constants change
-```
+### Root Cause
 
-### Structure Rationale
+`monthlyChart` in `InsightsCharts.swift` (line 217) uses:
 
-- **One primary type per file:** Existing pattern — continue this; do not merge polish into unrelated files.
-- **Design token system is the single source of truth:** All spacing, typography, color, animation values flow through enums in `Utilities/`. Polish work that changes any value must update the enum, not inline a new literal.
-- **Components only when used 3+ places:** `GaugeBar` and `StyledDivider` were extracted for this reason. New components should meet the same threshold or be extracted for a clear semantic reason (e.g., a reusable error banner).
-- **Section views are self-contained:** Each section owns its own `@AppStorage` for collapse state. Polish within a section is isolated; no plumbing changes to `UsagePopoverView`.
-
-## Architectural Patterns
-
-### Pattern 1: Design Token Modification (safest polish path)
-
-**What:** Change a value in a `Utilities/` enum — it propagates to every consumer automatically.
-**When to use:** Spacing adjustments, typography tweaks, animation timing changes, color adjustments.
-**Trade-offs:** Extremely safe — tests already cover the enum values. Risk is that the change is truly global; verify the constant is used consistently before widening or tightening a value.
-
-**Example:**
 ```swift
-// Utilities/Spacing.swift
-enum MotionConstants {
-    static let standard: Animation = .easeOut(duration: 0.15)
-    // Changing 0.15 here affects all 4 collapsible sections + settings toggle simultaneously
-}
-```
-
-### Pattern 2: Shared Component Modification
-
-**What:** Modify a shared view (`GaugeBar`, `StyledDivider`, `CollapsibleSectionHeader`) to propagate a visual change to all consumers.
-**When to use:** Bar fill animation, divider opacity, chevron behavior, copy affordance feedback.
-**Trade-offs:** High leverage — one change reaches all consumers. Requires checking that the change is desired in all contexts (e.g., adding animation to `GaugeBar` affects both rate limit bars and context health bar).
-
-**Example:**
-```swift
-// Add animated fill to GaugeBar — reaches UsageBarsSection + TokenHealthSection
-RoundedRectangle(cornerRadius: Layout.barCornerRadius)
-    .fill(barColor)
-    .frame(width: ..., height: ...)
-    .animation(.easeInOut(duration: 0.4), value: percent) // CONSTANTS.md already documents this
-```
-
-### Pattern 3: Isolated Section Polish
-
-**What:** Modify a single section view for polish that is specific to that section.
-**When to use:** Label changes, section-specific layout adjustments, adding a section-specific empty state.
-**Trade-offs:** Zero blast radius. Safest approach when the change is contextual (e.g., the Insights section has its own empty state logic that differs from the global `PopoverEmptyView`).
-
-**Example:**
-```swift
-// InsightsCharts.swift — chart-specific empty state
-if data.isEmpty {
-    VStack(spacing: 4) {
-        Image(systemName: "chart.line.flattrend.xyaxis")
-            .font(.system(size: 14))
-            .foregroundStyle(ThemeColors.tertiaryLabel)
-        Text("No activity in \(mode.label) window")
-            .font(Typography.tinyLabel)
-            .foregroundStyle(ThemeColors.tertiaryLabel)
+.chartXAxis {
+    AxisMarks(values: dates) { value in
+        AxisValueLabel {
+            if let date = value.as(Date.self) {
+                Text(Self.monthAbbrev(date))
+                    .font(Typography.monoTiny)
+            }
+        }
     }
-    .frame(height: Layout.chartHeight)
 }
 ```
 
-### Pattern 4: New Semantic Colors via ThemeColors
+`dates` is all 12 `MonthlyPoint.date` values — `AxisMarks(values: dates)` forces the chart to render
+a label at every month position. With 12 months squeezed into a 275pt wide, 50pt tall chart, the labels
+physically cannot fit without overlapping.
 
-**What:** Add a new `static var` to `ThemeColors` rather than inlining an opacity or custom color.
-**When to use:** Any new color role needed for polish (e.g., a subtle success tint, a highlight background).
-**Trade-offs:** Centralizes color decisions and ensures colorblind-mode handling is considered at definition time. Never inline `Color(...).opacity(...)` in a view for a semantic role.
+### Fix Surface
 
-**Example:**
+**File: `InsightsCharts.swift`** — `monthlyChart` computed var, `.chartXAxis` block only.
+
+**Options (in order of preference):**
+
+1. **Stride by 2 or 3** — `AxisMarks(values: stride(from: 0, to: 12, by: 3).map { dates[$0] })` shows
+   4 labels (Jan, Apr, Jul, Oct style) with visible gaps. Simple, readable.
+
+2. **Let Charts decide** — `AxisMarks(values: .automatic(desiredCount: 4))` with a custom label
+   formatter. Relies on Charts framework picking reasonable months.
+
+3. **Keep all 12, rotate** — not practical at 50pt height; rotation cuts off vertically.
+
+**Recommendation: option 1** — stride by 3 gives 4 evenly spaced labels (every quarter), preserving
+chart context without overlap. The chart shape communicates trend; 4 anchor labels are sufficient.
+
+**No changes needed in:**
+- `ActivityChartData.monthlyData` — data structure is correct
+- `InsightsRowsAndHover.monthAbbrev` — formatter is correct
+- `Spacing`, `Layout`, `Typography` — no token changes needed
+
+## Fix 2: 24H Hour Labels Unevenly Spaced
+
+### Root Cause
+
+`hourlyChart` in `InsightsCharts.swift` (line 150) uses:
+
 ```swift
-// ThemeColors.swift
-static var successTint: Color {
-    isColorblind ? .blue.opacity(0.08) : .green.opacity(0.08)
+.chartXAxis {
+    AxisMarks(values: [0, 4, 8, 12, 16, 20, 23]) { value in
+```
+
+The values `[0, 4, 8, 12, 16, 20, 23]` have consistent 4-step gaps except the last: `20 → 23` is
+only 3 steps. This creates a visually cramped final label. The domain is `0...23` (set via
+`.chartXScale(domain: 0...23)`).
+
+The x-axis maps integer `offset` (0–23) not hour-of-day. `offset` 0 = the oldest hour in the trailing
+window, `offset` 23 = the current hour. The label text comes from `data[offset].hour` — the actual
+wall-clock hour.
+
+### Fix Surface
+
+**File: `InsightsCharts.swift`** — `hourlyChart` computed var, `AxisMarks(values:)` literal only.
+
+**Fix:** Replace `[0, 4, 8, 12, 16, 20, 23]` with `[0, 4, 8, 12, 16, 20]` (6 labels, perfectly even
+4-step spacing). Dropping the `23` is the minimal change — the current-hour label is redundant given
+the chart domain visually communicates "now" at the right edge. Alternatively `stride(from: 0, to: 24, by: 6)`
+gives 4 labels (0, 6, 12, 18) — even simpler.
+
+**Recommendation:** Use `Array(stride(from: 0, through: 20, by: 4))` = `[0, 4, 8, 12, 16, 20]`.
+Six labels, 4-step spacing throughout, no trailing gap irregularity.
+
+**No changes needed in:**
+- `ActivityChartData.hourlyData` — produces correct offset→hour mapping
+- `InsightsRowsAndHover.formatHourLabel` — zero-pads correctly (e.g. "04", "08")
+- Any other file
+
+## Fix 3: 24H False "No Activity" After App Update
+
+### Root Cause (data flow trace)
+
+`InsightsView.isEmpty` (in `ActivityChartView.swift`) for `.hourly` mode is:
+
+```swift
+case .hourly: return todayHourCounts.values.allSatisfy { $0 == 0 }
+```
+
+`todayHourCounts` comes from `UsageSnapshot.todayHourCounts`, which is built in `UsageAggregator`:
+
+```swift
+var todayHourCounts: [String: Int] = [:]
+for entry in todayEntries {
+    let hour = String(calendar.component(.hour, from: entry.timestamp))
+    todayHourCounts[hour, default: 0] += 1
 }
 ```
 
-### Pattern 5: ViewModifier for Cross-Cutting UX Concerns
+`todayEntries` is populated from JSONL entries where `ts >= today` (start of current day).
 
-**What:** `CopyableModifier` is the existing example — a ViewModifier encapsulates copy feedback behavior.
-**When to use:** When the same UX behavior (hover highlight, tooltip pattern, press feedback) needs to apply to multiple distinct view types.
-**Trade-offs:** Keeps individual views clean. Only worth adding a new modifier if it will be applied in 3+ places. For one-off effects, inline is cleaner.
+**The bug:** After an app update, `SessionLogReader` cache is cold. The aggregator runs before JSONL
+files are fully scanned — `todayEntries` is empty → `todayHourCounts` is `[:]` → `isEmpty` returns
+`true` → false "No activity" is shown.
 
-## Data Flow
+The `isEmpty` check uses `allSatisfy { $0 == 0 }` on values. An **empty dictionary** trivially satisfies
+`allSatisfy`, returning `true`. So an empty `todayHourCounts` and an all-zero `todayHourCounts` are
+treated identically — both show the empty state. The fix is to distinguish "no data yet" from "data
+confirmed zero."
 
-### Polish-Relevant State Flow
+**Additional data-flow note:** `InsightsGate` also gates on `!snapshot.todayHourCounts.isEmpty` —
+if `todayHourCounts` is empty, `InsightsGate` can hide the entire `InsightsView`. However, the gate
+condition is actually:
 
-```
-UserDefaults (@AppStorage)
-    ↓ (direct binding)
-Section views (collapse state, chart mode, settings)
-    ↓ (no ViewModel involvement)
-[Re-render on change]
-
-UsageViewModel.snapshot (@Published)
-    ↓ (Combine, @ObservedObject)
-UsagePopoverView → section views via init params
-    ↓ (pure data, no mutation in views)
-[Display-only reads]
-
-ThemeColors.isColorblind (KVO observer on UserDefaults)
-    ↓ (static, cached, updated via NotificationCenter)
-All views that call ThemeColors.*
-    ↓ (views must re-render on colorblind toggle — see pitfall below)
+```swift
+if !snapshot.dailyActivity.isEmpty || !snapshot.todayHourCounts.isEmpty || snapshot.totalTokens > 0
 ```
 
-### Key Data Flows for Polish Work
+So if `dailyActivity` has entries (which it does for existing users from `stats-cache.json`), the
+gate shows `InsightsView` regardless. The false empty state is in `InsightsView.isEmpty`, not the gate.
 
-1. **Color changes:** All color decisions go through `ThemeColors`. Adding a new color requires adding it there and considering both light/dark mode AND colorblind mode variants.
-2. **Spacing/layout changes:** All size and spacing values are defined in `Spacing.swift` (`Spacing`, `Layout`, `MotionConstants` enums). Changing a constant value propagates everywhere it is used.
-3. **Error/empty states:** `PopoverStateViews.swift` contains the three global states. Section-specific empty states live within each section view. Neither talks to `UsageViewModel` — they receive data via init params.
-4. **Accessibility labels:** VoiceOver labels are on individual views. `CollapsibleSectionHeader` has an `accessibilityLabel` that includes the collapsed state — changes to that component's label affect all 4 collapsible sections.
+### Fix Surface
 
-### Section Rendering Order (build-order dependency)
+**Option A (simplest): Special-case empty dict in `isEmpty`**
 
-```
-UsagePopoverView (orchestrator)
-    ├── Header (no dependencies on other sections)
-    ├── Settings (no dependencies on other sections)
-    ├── MetricToggle (reads snapshot.autoResolvedMode)
-    ├── Rate Limit sections (reads snapshot.rateLimits)
-    ├── TokenHealth (reads snapshot.topSessionHealths / tokenHealth)
-    ├── ProjectUsage (reads snapshot.projectTokens, gated on panelHasAppeared)
-    └── Insights (reads snapshot, gated on panelHasAppeared)
+In `ActivityChartView.swift`, change `isEmpty` for `.hourly`:
+
+```swift
+case .hourly:
+    // Empty dict = data not yet loaded; show chart rather than empty state
+    if todayHourCounts.isEmpty { return false }
+    return todayHourCounts.values.allSatisfy { $0 == 0 }
 ```
 
-Sections gated behind `panelHasAppeared` (`ProjectUsageGate`, `InsightsGate`) defer rendering by one run-loop via `DispatchQueue.main.async` in `.onAppear`. Polish to these sections must account for the deferred appearance — transitions that run on first render will trigger on every panel open, not just first app launch.
+This makes "no JSONL data loaded yet" show a flat chart (all zeros) rather than the empty state.
+A flat chart with 24 zero-height bars is honest: the window exists, we just have no messages yet today.
 
-## Integration Points for Polish Work
+**Option B: Persist `todayHourCounts` in `StatsCache` / `UserDefaults`**
 
-### New vs. Modified Components
+Store yesterday's and today's hourly data in a persistent cache so the chart pre-populates on launch.
+This is heavier — `StatsCache` does not currently store `todayHourCounts` separately from `hourCounts`.
 
-| Change Type | Target | New or Modified |
-|-------------|--------|-----------------|
-| Spacing/layout value | `Utilities/Spacing.swift` | **Modified** |
-| Typography value | `Utilities/Typography.swift` | **Modified** |
-| Animation duration | `Utilities/Spacing.swift` (MotionConstants) | **Modified** |
-| New semantic color | `Utilities/ThemeColors.swift` | **Modified** |
-| Progress bar fill animation | `Views/Components/GaugeBar.swift` | **Modified** |
-| Error state polish | `Views/PopoverStateViews.swift` | **Modified** |
-| Empty state polish | `Views/PopoverStateViews.swift` | **Modified** |
-| Section-specific empty state | Individual section file | **Modified** |
-| New shared UX pattern (3+ uses) | `Views/Components/` new file | **New** |
-| Accessibility label fix | Individual view file where label lives | **Modified** |
-| New VoiceOver hint | Individual view file | **Modified** |
-| `.help()` tooltip | Individual view file | **Modified** |
-| Spec drift fix | `spec/UI_SPEC.md` or `spec/CONSTANTS.md` | **Modified** |
-| New constant | `spec/CONSTANTS.md` + `Utilities/` enum | **Modified** (both) |
+**Recommendation: Option A.** The false empty state is a presentation-layer bug — the distinction
+between "empty dict" and "all-zero values" is entirely within `ActivityChartView.swift`. No data model
+changes, no persistence changes, one-line fix in `isEmpty`. The flat chart on first load is semantically
+correct: we have no recorded messages this hour, which is different from "no data exists."
 
-### Suggested Build Order for Non-Destructive Polish
+**Files touched:** `ActivityChartView.swift` only — `isEmpty` computed var.
 
-1. **Design tokens first** — any spacing, color, or animation constant changes. These are pure value changes with no structural impact. Tests already validate enum values; update tests when changing constants.
+**No changes needed in:**
+- `UsageAggregator` — `todayHourCounts` is built correctly from available JSONL
+- `UsageSnapshot` — storage is correct
+- `InsightsGate` — gate condition is already permissive for existing users
+- `ActivityChartData.hourlyData` — handles empty input correctly (returns 24 zero-count points)
 
-2. **Shared component modifications** — `GaugeBar`, `StyledDivider`, `CollapsibleSectionHeader`. Changes here have global reach but zero orchestrator coupling. Verify behavior in all consumers (rate limit bars, context health bar, all 4 collapsible sections).
+## Fix 4: Rate Limit Sections Uneven Vertical Spacing
 
-3. **State view polish** — `PopoverStateViews.swift`. Error and empty states are isolated, low-risk, and have a clear UI spec to implement against.
+### Root Cause
 
-4. **Section-by-section visual polish** — work through individual section files in isolation. Each section is self-contained. Order: rate limit bars → context health → tokens → projects → insights → header → footer. This order matches user visual scanning order.
+`FiveHourBarSection` and `SevenDayBarSection` in `UsageBarsSection.swift` both use:
 
-5. **Accessibility pass** — after visual structure is stable, audit `.accessibilityLabel`, `.accessibilityHint`, `.accessibilityElement(children:)`, and VoiceOver reading order. Changes here are purely additive and never break visual layout.
+```swift
+.padding(.horizontal, Spacing.sectionHorizontal)
+.padding(.vertical, Spacing.section)
+```
 
-6. **Spec sync** — after all changes, update `spec/UI_SPEC.md`, `spec/CONSTANTS.md`, and `spec/ARCHITECTURE.md` to reflect actual state.
+`Spacing.section = 8pt`. This is the outer section padding. The MetricToggleView above the rate limit
+bars and the `StyledDivider` between sections use different implicit spacing, creating visual
+inconsistency between the auto mode section and the 5h/7d sections.
 
-## Anti-Patterns
+The "auto mode" section is `MetricToggleView`, which uses its own internal padding. The `StyledDivider`
+between sections uses `Spacing.tight` (2pt) vertically. The rate limit sections' 8pt top + 8pt bottom
+padding then stacks with the divider's 2pt, producing different inter-section gaps depending on which
+sections are adjacent.
 
-### Anti-Pattern 1: Inline Color or Spacing Literals
+### Fix Surface
 
-**What people do:** Add `.foregroundStyle(Color(red: 0.5, green: 0.5, blue: 0.5).opacity(0.7))` directly in a view during polish.
-**Why it's wrong:** Bypasses colorblind-mode handling in `ThemeColors`. Creates an inconsistency that is hard to find later. Breaks the single-source-of-truth contract.
-**Do this instead:** Add a named constant to `ThemeColors` or reuse an existing one (`ThemeColors.secondaryLabel`, `ThemeColors.tertiaryLabel`, `ThemeColors.caution`, etc.).
+This requires understanding the actual visual output to determine what gap sizes are causing the
+unevenness. The architectural options are:
 
-### Anti-Pattern 2: Adding @State to UsagePopoverView
+**Option A: Audit and normalize via existing tokens**
 
-**What people do:** Add section-specific UI state (`@State var isHighlighted`, `@State var showTooltip`) to `UsagePopoverView` because it's the "root" view.
-**Why it's wrong:** `UsagePopoverView` is intentionally a thin orchestrator. Adding state there couples unrelated sections and causes unnecessary re-renders of the entire popover.
-**Do this instead:** Keep state local to the section view that owns it. Section views are self-contained.
+Check the actual rendered spacing: `MetricToggleView` internal padding + `StyledDivider` 2pt padding +
+`FiveHourBarSection` 8pt top padding. If the gap between MetricToggleView and FiveHourBarSection
+differs from the gap between FiveHourBarSection and SevenDayBarSection, the fix is to adjust one
+section's padding.
 
-### Anti-Pattern 3: Modifying the Shared Timer for Animation
+**Option B: Extract a new `Spacing` token**
 
-**What people do:** Add a new `Timer.publish` property to a SwiftUI struct for a polish animation (e.g., a pulsing highlight on an idle session).
-**Why it's wrong:** `Timer.publish` stored as a property on a SwiftUI struct causes timer accumulation — a known freeze issue documented in the project MEMORY. This was the cause of a past regression.
-**Do this instead:** Use `TimelineView(.periodic(...))` for any periodic UI updates within SwiftUI views. For non-SwiftUI animation, use `MotionConstants` with SwiftUI's `.animation()` modifier.
+If the desired section gap requires a value not currently in the token system (e.g., 6pt vertical
+instead of 8pt), add it to `Utilities/Spacing.swift` and update the affected padding calls.
 
-### Anti-Pattern 4: Directly Triggering Refresh from a Visual Polish Change
+**Files touched:** `UsageBarsSection.swift` (padding adjustments) and possibly `Utilities/Spacing.swift`
+(new or adjusted token). Always update `spec/CONSTANTS.md` when changing design token values.
 
-**What people do:** Wire a new UI affordance (e.g., a pull-to-refresh gesture or a "stale data" banner) to call `viewModel.refresh()` without debouncing.
-**Why it's wrong:** `StatusChecker` has a 60s backoff after failures. `RateLimitFetcher` has a 1-hour cache. Direct refresh calls bypass these guards and can cause API hammering.
-**Do this instead:** Route user-initiated refreshes through the existing `Task { await viewModel.refresh() }` pattern used throughout the views. The ViewModel has guard logic.
+**Constraint:** Any change to `Spacing.section` affects all 8+ consumers of that token globally
+(verified via grep: `UsageBarsSection`, `InsightsView`, error view, footer, etc.). If only the rate
+limit sections need adjustment, use a new token or a local literal rather than changing the global token.
 
-### Anti-Pattern 5: Adding a New ViewModifier Outside CopyableText.swift
+## Data Flow: `todayHourCounts` Lifecycle
 
-**What people do:** Create a new `.swift` file with a ViewModifier for a single-use affordance (e.g., hover highlight, press feedback).
-**Why it's wrong:** Fragments the modifier library. `CopyableText.swift` already has two modifier variants (`CopyableModifier` for full affordance, `LightCopyableModifier` for dense areas). New affordance modifiers should extend that file unless they are semantically distinct.
-**Do this instead:** Add the modifier to `CopyableText.swift` if it is a copy-related affordance, or create a new file only if it represents a genuinely distinct interaction pattern used 3+ times.
+This traces the full pipeline for the false empty-state fix:
 
-### Anti-Pattern 6: Skipping Spec Sync After Visual Changes
+```
+JSONL files (~/.claude/projects/*/[session].jsonl)
+    ↓ FileHandle streaming (SessionLogReader.readAllUsageEntries)
+    ↓ [off main thread, @unchecked Sendable + NSLock]
+UsageAggregator.aggregate(rateLimits:accountId:)
+    ↓ Filters entries where ts >= today
+    todayEntries: [AssistantUsageEntry]
+    ↓ Groups by calendar.component(.hour)
+    todayHourCounts: [String: Int]  ← key is "0"..."23" (not zero-padded)
+    ↓
+UsageSnapshot(todayHourCounts: todayHourCounts)
+    ↓ @Published on UsageViewModel
+InsightsGate → InsightsView(todayHourCounts: snapshot.todayHourCounts)
+    ↓ @State cachedHourly (via ActivityChartData.hourlyData)
+    ↓ isEmpty check (bug lives here)
+    hourlyChart or "No activity" empty state
+```
 
-**What people do:** Make a polish change (new spacing value, new color, changed label text) without updating `spec/UI_SPEC.md` or `spec/CONSTANTS.md`.
-**Why it's wrong:** The `spec/` folder is the single source of truth by project convention. Spec drift is an explicit anti-requirement — the project has a `CQ-02` requirement for spec sync on structural changes.
-**Do this instead:** Treat spec sync as part of the definition of done for every phase, not a separate step.
+**Key invariant:** `ActivityChartData.hourlyData(from: hourCounts)` always returns exactly 24 points
+regardless of input — missing hours default to count 0. So an empty `todayHourCounts` dict produces
+a valid 24-point array of all-zero counts. The chart would render (flat line at y=0), but `isEmpty`
+short-circuits rendering before `hourlyData` is ever called.
 
-## Accessibility Integration Points
+**AppStorage persistence note:** `cachedHourly` is `@State`, not `@AppStorage`. It does not persist
+across app launches. Every cold start recomputes from JSONL. The fix (Option A) embraces this — rather
+than adding persistence, it simply shows the flat chart while JSONL loads.
 
-The existing accessibility coverage is partial. Key gaps and integration points for polish:
+## Integration Points: New vs. Modified
 
-| Area | Current State | Integration Point |
-|------|--------------|-------------------|
-| VoiceOver on rate limit bars | `accessibilityAddTraits(.isHeader)` on label; no combined label for bar + percent | `UsageBarsSection.swift` — add `.accessibilityElement(children: .combine)` on the outer `VStack` with a computed label |
-| VoiceOver on metric toggle | `.help()` tooltip present; no explicit `accessibilityLabel` on the segmented picker | `MetricToggleView.swift` |
-| VoiceOver on collapsible sections | `CollapsibleSectionHeader` has labels; content inside has individual labels | Verify reading order with VoiceOver — no code change may be needed |
-| VoiceOver on footer buttons | No `accessibilityHint` on Logout's two-tap confirm flow | `PopoverFooterView.swift` — add hint explaining two-tap requirement |
-| Menu bar button | `NSStatusItem.button` — no `accessibilityLabel` set | `StatusBarManager.swift` — add `button.setAccessibilityLabel(...)` |
-| Keyboard navigation | Panel handles Escape; Cmd+Q wired to panel | Verify Tab order within popover content |
+| Change | File | New or Modified |
+|--------|------|-----------------|
+| 12M axis label stride | `AIBattery/Views/InsightsCharts.swift` | **Modified** — `monthlyChart` `.chartXAxis` block |
+| 24H axis label values | `AIBattery/Views/InsightsCharts.swift` | **Modified** — `hourlyChart` `AxisMarks(values:)` literal |
+| 24H false empty state | `AIBattery/Views/ActivityChartView.swift` | **Modified** — `isEmpty` computed var, `.hourly` case |
+| Rate limit spacing | `AIBattery/Views/UsageBarsSection.swift` | **Modified** — `.padding(.vertical, ...)` on bar sections |
+| New spacing token (if needed) | `AIBattery/Utilities/Spacing.swift` | **Modified** — add token only if needed |
+| Spec sync | `spec/CONSTANTS.md` and/or `spec/UI_SPEC.md` | **Modified** — required per project convention |
 
-**Constraint:** Accessibility changes in `NSStatusItem` use AppKit APIs (`setAccessibilityLabel`, `setAccessibilityRole`), not SwiftUI. These live in `StatusBarManager.swift`.
+## Suggested Build Order
 
-## Scaling Considerations
+Dependencies between the four fixes are minimal — each is isolated. Suggested order minimizes
+review risk:
 
-Not applicable in the traditional sense — this is a single-user local app. The relevant "scale" is UI complexity:
+1. **24H false empty state** (`ActivityChartView.swift`) — one-line change, highest user impact,
+   zero risk of visual regression. Fix and test first.
 
-| Concern | Current | Risk | Mitigation |
-|---------|---------|------|------------|
-| Popover render time | ~50ms open target (RESP-01 met) | Adding heavy views degrades this | Gate new sections behind `panelHasAppeared` deferred render |
-| Animation stacking | 3 independent animation contexts | Adding more `.animation()` modifiers can create compositing conflicts | Keep animations scoped to the specific value they animate (`value:` parameter) |
-| Design token sprawl | 15 Typography + 6 Spacing + 7 Layout + 2 Motion = 30 tokens | Adding tokens for every one-off value creates noise | Only add tokens when a value is used 2+ times or represents a named semantic role |
-| File size limits | 800-line max per project convention | `UsagePopoverView` is 237 lines — safe | Section extraction pattern already established if sizes approach limit |
+2. **24H label spacing** (`InsightsCharts.swift`) — literal array change, zero logic risk.
+   Single line in `hourlyChart`.
+
+3. **12M label squish** (`InsightsCharts.swift`) — same file as fix 2, same pattern.
+   Change `AxisMarks(values: dates)` to strided subset.
+
+4. **Rate limit spacing** (`UsageBarsSection.swift` + possibly `Spacing.swift`) — audit actual
+   rendered spacing first, then adjust padding. This fix requires visual inspection to confirm
+   correctness; do it last so chart fixes can be confirmed independently.
+
+**Spec sync goes last** — after all four fixes are confirmed correct, update `spec/CONSTANTS.md`
+and `spec/UI_SPEC.md` in a single commit. Update `spec/DATA_LAYER.md` only if `UsageSnapshot` or
+`UsageAggregator` changes (they should not for the recommended fix paths).
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Adding @AppStorage to Cache `todayHourCounts`
+
+**What people do:** Persist `todayHourCounts` to `UserDefaults` so the chart is non-empty on first load.
+**Why it's wrong:** `todayHourCounts` is per-account, time-bounded (resets each day), and derived from
+JSONL. Persisting it adds stale-data risk. The empty-dict distinction fix (Option A) is the right
+approach — it is zero-cost and semantically correct.
+**Do this instead:** Fix `isEmpty` to treat empty dict as "not yet loaded" rather than "truly empty."
+
+### Anti-Pattern 2: Changing `Spacing.section` to Fix Rate Limit Spacing
+
+**What people do:** Change `Spacing.section` from 8pt to 6pt to reduce rate limit bar padding.
+**Why it's wrong:** `Spacing.section` is used in 8+ places. Narrowing it globally would reduce
+padding in `InsightsView`, the error view, and the inline error banner — all of which may look correct
+at 8pt.
+**Do this instead:** Audit which specific gap is uneven, then either add a targeted padding override
+on the affected section or introduce a new named token (`Spacing.sectionCompact` or similar) that
+is used only where the tighter padding is needed.
+
+### Anti-Pattern 3: Extending `ActivityChartData` for the False Empty Fix
+
+**What people do:** Add a `hasData` flag to `HourlyPoint` or add an `isEmpty` method to `ActivityChartData`.
+**Why it's wrong:** The presentation-layer distinction (empty dict vs all-zero values) belongs in
+the view. `ActivityChartData` is a pure data transformation layer — it should not carry view-state semantics.
+**Do this instead:** Fix the `isEmpty` computed var in `ActivityChartView.swift`. The data layer does not change.
+
+### Anti-Pattern 4: Adding a PointMark to hourlyChart to "Fix" Empty Display
+
+**What people do:** Add `PointMark` at (0, 0) to prevent the chart from showing as empty.
+**Why it's wrong:** This is a workaround that changes data semantics (falsely shows a data point).
+The correct fix is one line in the `isEmpty` check, not a phantom data point.
+**Do this instead:** Fix `isEmpty`.
+
+## Constraints
+
+- `hourlyChart` uses `AxisMarks(values: [0, 4, 8, 12, 16, 20, 23])` with `Int` typed axis values.
+  The axis domain is `0...23` (offsets). Labels call `data[offset].hour` to get the wall-clock hour.
+  Any change to the `values` array must stay within `0...23` range and index `data` safely.
+
+- `monthlyChart` passes all 12 `Date` values as `AxisMarks(values: dates)`. The chart renders
+  the `Date`-typed x-axis natively. Striding requires subsetting the `dates` array — no type changes.
+
+- `Spacing.section` is used in `FiveHourBarSection`, `SevenDayBarSection`, `InsightsView`,
+  `PopoverFooterView`, `PopoverHeaderView`, and inline error display. Any change to the token is global.
+
+- Tests for `ActivityChartData` exist in `ActivityChartTests` (if present) and `UsageAggregatorTests`.
+  The `isEmpty` fix is in `ActivityChartView.swift` (a view) — views are not currently directly tested.
+  The fix is a guard clause change, not logic change; no new tests strictly required, but a behavioral
+  note in `UsageAggregatorTests` may clarify the empty-dict contract.
 
 ## Sources
 
-- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/spec/ARCHITECTURE.md` — live architecture spec
-- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/spec/UI_SPEC.md` — live UI specification
-- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/spec/CONSTANTS.md` — live constants reference
-- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/UsagePopoverView.swift` — orchestrator
-- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/PopoverStateViews.swift` — state views
-- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/Components/GaugeBar.swift` — shared component
-- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Utilities/ThemeColors.swift` — color system
-- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/.planning/PROJECT.md` — milestone context
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/InsightsCharts.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/ActivityChartView.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/InsightsRowsAndHover.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/ActivityChartData.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/UsageGateViews.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Views/UsageBarsSection.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Services/UsageAggregator.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Models/UsageSnapshot.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/AIBattery/Utilities/Spacing.swift`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/spec/CONSTANTS.md`
+- `/Users/kyle/workspace/Github/KyleNesium/AIBattery/.planning/PROJECT.md`
 
 ---
-*Architecture research for: AIBattery v1.14 Polish & UX — SwiftUI+AppKit hybrid macOS menu bar app*
-*Researched: 2026-03-20*
+*Architecture research for: AIBattery v1.14 Visual Polish — chart labels, false empty states, layout spacing*
+*Researched: 2026-03-24*
