@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.14
-milestone_name: Polish & UX
-status: ready_to_plan
+milestone_name: Visual Polish
+status: defining_requirements
 stopped_at: null
-last_updated: "2026-03-20T10:30:00.000Z"
+last_updated: "2026-03-24T09:33:00.000Z"
 progress:
-  total_phases: 5
+  total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,34 +16,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-20)
+See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 13 — Reliability (v1.14 roadmap ready)
+**Current focus:** Defining requirements for v1.14 Visual Polish
 
 ## Current Position
 
-Phase: 13 of 17 (Reliability)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-20 — Roadmap created for v1.14 (5 phases, 11 requirements)
-
-Progress: [░░░░░░░░░░] 0%
-
-## Performance Metrics
-
-**Velocity:**
-- Total plans completed: 0 (this milestone)
-- Average duration: —
-- Total execution time: —
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
-
-*Updated after each plan completion*
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-24 — Milestone v1.14 Visual Polish started (replaces unexecuted "Polish & UX" scope)
 
 ## Accumulated Context
 
@@ -57,10 +40,9 @@ Progress: [░░░░░░░░░░] 0%
 ### Blockers/Concerns
 
 - PopoverFooterView uses TimelineView — highest hang-regression risk; treat all footer animation changes with extreme care
-- Intermittent panel no-open reported despite v1.13 fixes — Phase 13 must diagnose root cause before moving forward
 
 ## Session Continuity
 
-Last session: 2026-03-20
-Stopped at: Roadmap created — ready to plan Phase 13
+Last session: 2026-03-24
+Stopped at: Defining requirements — ready to scope and create roadmap
 Resume file: None

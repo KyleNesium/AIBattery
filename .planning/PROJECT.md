@@ -72,7 +72,9 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-_(defining requirements for v1.14 Polish & UX)_
+- [ ] Chart label readability (12M months, 24H hours)
+- [ ] 24H false "No activity" after app update
+- [ ] Rate limit sections uneven vertical spacing
 
 ### Out of Scope
 
@@ -82,13 +84,13 @@ _(defining requirements for v1.14 Polish & UX)_
 
 ## Context
 
-- **Version:** v1.14 (2026-03-20) — Polish & UX milestone started
-- **Tests:** 719+ across 47 files (13 tests added in v1.13)
+- **Version:** v1.14 (2026-03-24) — Visual Polish milestone started
+- **Tests:** 719+ across 47 files
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
 - **Zero TODOs/FIXMEs** in codebase — clean slate
-- **Recent focus:** v1.14 Polish & UX — visual refinement, edge case hardening, code quality, UX improvements
+- **Recent work:** UsageAggregator lastSideEffects shared mutable state eliminated, SideEffects mechanism removed from ViewModel
 
 ## Constraints
 
@@ -122,7 +124,7 @@ _(defining requirements for v1.14 Polish & UX)_
 ---
 ## Milestone History
 
-- **v1.14 Polish & UX** — started 2026-03-20
+- **v1.14 Visual Polish** — started 2026-03-24 (replaces unexecuted "Polish & UX" scope)
 - **v1.13 Responsiveness** — shipped 2026-03-20 (Phase 12)
 - **v1.12 Performance & Cleanup** — shipped 2026-03-19 (Phases 10-11)
 - **v1.11 Polish & Consistency** — shipped 2026-03-19 (Phases 6-9)
@@ -130,15 +132,15 @@ _(defining requirements for v1.14 Polish & UX)_
 - **v1.0–v1.9.2** — pre-GSD
 
 ---
-## Current Milestone: v1.14 Polish & UX
+## Current Milestone: v1.14 Visual Polish
 
-**Goal:** Comprehensive polish pass — visual refinement, edge case hardening, code quality, and UX improvements across the entire app.
+**Goal:** Fix chart readability, false empty states, and layout spacing inconsistencies.
 
-**Target areas:**
-- Visual refinement (spacing, alignment, color consistency, native macOS feel)
-- User experience (smoother transitions, better feedback, clearer information hierarchy)
-- Edge case hardening (error states, empty states, graceful degradation)
-- Code quality (spec drift audit, test gaps, consistency sweep)
+**Target issues:**
+- 12M chart month labels squished/illegible — show every month on a small chart
+- 24H chart hour labels unevenly spaced — offsets [0,4,8,12,16,20,23] create irregular gaps
+- 24H chart falsely shows "No activity" after app update — todayHourCounts empty on restart
+- Rate limit sections (auto mode, 5h, 7d) have uneven vertical padding
 
 ---
-*Last updated: 2026-03-20 after v1.14 milestone start*
+*Last updated: 2026-03-24 after v1.14 Visual Polish milestone restart*
