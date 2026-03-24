@@ -22,7 +22,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 12.
 
 **Milestone Goal:** Fix chart readability, false empty states, and layout spacing inconsistencies — surgical fixes only, no architectural changes.
 
-- [ ] **Phase 13: Chart & Data Fixes** - Fix 24H false empty state, 24H axis label spacing, and 12M month label collision
+- [x] **Phase 13: Chart & Data Fixes** - Fix 24H false empty state, 24H axis label spacing, and 12M month label collision (completed 2026-03-24)
 - [ ] **Phase 14: Layout Consistency** - Fix uneven vertical padding between rate limit sections
 
 ## Phase Details
@@ -57,5 +57,5 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 12. Responsiveness | v1.13 | 2/2 | Complete | 2026-03-20 |
-| 13. Chart & Data Fixes | 1/2 | In Progress|  | - |
+| 13. Chart & Data Fixes | 1/2 | Complete    | 2026-03-24 | - |
 | 14. Layout Consistency | v1.14 | 0/TBD | Not started | - |
