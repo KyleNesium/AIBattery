@@ -77,7 +77,12 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-_(defining requirements for v1.15 Performance)_
+- ✓ PERF-13: Breath timer gated on panel visibility — v1.15
+- ✓ PERF-14: Idle/lock detection suspends all timers — v1.15
+- ✓ PERF-15: Breath animation removed entirely (zero CPU wakeups for icon) — v1.9.9
+- ✓ CRASH-01: Use-after-free from concurrent aggregation (NSLock + task serialization) — v1.9.9
+
+_(defining requirements for v1.16 JSONL Performance)_
 
 ### Out of Scope
 
@@ -87,12 +92,12 @@ _(defining requirements for v1.15 Performance)_
 
 ## Context
 
-- **Version:** v1.15 (2026-03-24) — Performance milestone started
-- **Tests:** 731+ across 49 files
+- **Version:** v1.9.9 (2026-03-25) — v1.15 shipped, v1.16 starting
+- **Tests:** 756 across 52 files
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
-- **Critical bug:** 83% CPU at idle — breath timer runs every 500ms without panel visibility check, polling continues when popover closed
+- **Critical bug:** 83% CPU at idle — SessionLogReader scanning 3,103 JSONL files (2 GB) on every polling cycle; aggregation takes entire CPU core continuously
 
 ## Constraints
 
@@ -129,7 +134,8 @@ _(defining requirements for v1.15 Performance)_
 ---
 ## Milestone History
 
-- **v1.15 Performance** — started 2026-03-24
+- **v1.16 JSONL Performance** — started 2026-03-25
+- **v1.15 Performance** — shipped 2026-03-25 (Phases 15-16)
 - **v1.14 Visual Polish** — shipped 2026-03-24 (Phases 13-14)
 - **v1.13 Responsiveness** — shipped 2026-03-20 (Phase 12)
 - **v1.12 Performance & Cleanup** — shipped 2026-03-19 (Phases 10-11)
@@ -138,16 +144,16 @@ _(defining requirements for v1.15 Performance)_
 - **v1.0–v1.9.2** — pre-GSD
 
 ---
-## Current Milestone: v1.15 Performance
+## Current Milestone: v1.16 JSONL Performance
 
-**Goal:** Eliminate 83% CPU usage at idle — kill runaway timers and gate all background work on visibility.
+**Goal:** Reduce CPU usage from 83% to <2% at idle — SessionLogReader scans 3,103 files (2 GB) on every polling cycle, consuming an entire CPU core continuously.
 
-**Root causes identified:**
-- Breath timer fires every 500ms-1s at ≥95% usage with no panel visibility check
-- Each tick renders full NSImage (MenuBarIcon.statusBarImage)
-- Polling timer (60s) continues when popover closed
-- FileWatcher fallback timer (60s) overlaps with polling
-- No screen-lock/idle detection
+**Root cause (profiled):**
+- `UsageAggregator.aggregate()` → `SessionLogReader.readAllUsageEntries()` → `cachedRead()` → `readSessionFile()` accounts for 100% of background CPU
+- 3,103 JSONL files totaling 2 GB are enumerated and scanned every 10-60s
+- `Collection.firstIndex(of:)` byte scanning dominates (854/2371 samples)
+- LRU cache (200 entries) is too small for 3,103 files — constant eviction and re-parse
+- Memory footprint: 409 MB RSS, 2 GB physical
 
 ---
-*Last updated: 2026-03-24 after v1.15 Performance milestone start*
+*Last updated: 2026-03-25 after v1.16 JSONL Performance milestone start*
