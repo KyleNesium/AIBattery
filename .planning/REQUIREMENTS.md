@@ -9,7 +9,7 @@
 
 - [x] **SCAN-01**: Aggregation cycle completes in <100ms (currently takes seconds, consuming entire CPU core)
 - [x] **SCAN-02**: Only changed JSONL files are re-parsed on each cycle (incremental, not full re-scan)
-- [ ] **SCAN-03**: File discovery uses mod-date comparison to skip unchanged directories
+- [x] **SCAN-03**: File discovery uses mod-date comparison to skip unchanged directories
 
 ### Memory Efficiency
 
@@ -46,7 +46,7 @@
 |-------------|-------|--------|
 | SCAN-01 | Phase 17 | Complete |
 | SCAN-02 | Phase 17 | Complete |
-| SCAN-03 | Phase 17 | Pending |
+| SCAN-03 | Phase 17 | Complete |
 | MEM-01 | Phase 18 | Pending |
 | MEM-02 | Phase 18 | Pending |
 | CPU-01 | Phase 19 | Pending |
