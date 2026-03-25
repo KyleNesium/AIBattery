@@ -65,7 +65,9 @@ Plans:
   2. CPU stays under 5% during an active polling cycle with popover closed and a live session running
   3. Integration tests reproduce the pre-fix hotspot scenario and assert the performance targets
   4. No correctness regressions — token counts and cost totals match pre-fix values on the same fixture set
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 19-01-PLAN.md — Integration tests for incremental scanning + aggregation pipeline; human-verify CPU/memory targets
 
 ## Progress
 
@@ -78,4 +80,4 @@ Plans:
 | 16. Idle and Lock Detection | v1.15 | 0/? | Complete | 2026-03-25 |
 | 17. Incremental Scanning | v1.16 | Complete    | 2026-03-25 | 2026-03-25 |
 | 18. Memory Optimization | 1/1 | Complete    | 2026-03-25 | - |
-| 19. Verification | v1.16 | 0/? | Not started | - |
+| 19. Verification | v1.16 | 0/1 | Not started | - |
