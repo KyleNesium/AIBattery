@@ -81,14 +81,13 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ PERF-14: Idle/lock detection suspends all timers — v1.15
 - ✓ PERF-15: Breath animation removed entirely (zero CPU wakeups for icon) — v1.9.9
 - ✓ CRASH-01: Use-after-free from concurrent aggregation (NSLock + task serialization) — v1.9.9
-
-- [ ] SCAN-01: Aggregation <100ms — Phase 17 ✓
-- [ ] SCAN-02: Only changed files re-parsed — Phase 17 ✓
-- [ ] SCAN-03: Directory mod-date skip — Phase 17 ✓
-- [ ] MEM-01: RSS under 100 MB — Phase 18 ✓
-- [ ] MEM-02: Inactive session entries evicted — Phase 18 ✓
-- [ ] CPU-01: CPU <2% at idle — Phase 19 ✓ (measured 0.0%)
-- [ ] CPU-02: CPU <5% during polling — Phase 19 ✓ (measured 0.0-0.1%)
+- ✓ SCAN-01: Aggregation <100ms — v1.16
+- ✓ SCAN-02: Only changed files re-parsed — v1.16
+- ✓ SCAN-03: Directory mod-date skip — v1.16
+- ✓ MEM-01: RSS under 100 MB (measured 44-52 MB) — v1.16
+- ✓ MEM-02: Inactive session entries evicted — v1.16
+- ✓ CPU-01: CPU <2% at idle (measured 0.0%) — v1.16
+- ✓ CPU-02: CPU <5% during polling (measured 0.0-0.1%) — v1.16
 
 ### Out of Scope
 
@@ -98,12 +97,12 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 ## Context
 
-- **Version:** v1.9.9 (2026-03-25) — v1.15 shipped, v1.16 starting
-- **Tests:** 756 across 52 files
+- **Version:** v1.16 (2026-03-25) — JSONL Performance milestone shipped
+- **Tests:** 764+ across 54 files (8 new integration tests in v1.16)
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
-- **Critical bug:** 83% CPU at idle — SessionLogReader scanning 3,103 JSONL files (2 GB) on every polling cycle; aggregation takes entire CPU core continuously
+- **Performance:** CPU 0.0% at idle (was 83%), RSS 44-52 MB (was 409 MB), aggregation <100ms
 
 ## Constraints
 
@@ -136,11 +135,16 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | dailyActivity as loading signal | isEmpty checks daily records before declaring hourly empty — prevents false "No activity" on cold start | ✓ Good |
 | stride(by: .month, count: 3) for 12M | Let Swift Charts handle quarterly label placement — simpler than manual quarterlyLabelDates | ✓ Good |
 | "Context" not "Context Health" | Shorter header fits one line with session toggle + refresh + badge | ✓ Good |
+| Unbounded per-file cache | 3,103 files is trivial; LRU 200 caused 94% eviction | ✓ Good |
+| isDirty flag incremental merge | Avoids full re-merge when only one file changed | ✓ Good |
+| Per-directory discovery cache | Selective re-enumeration of changed dirs only | ✓ Good |
+| Calendar.startOfDay() caching | ICU lock contention was hidden CPU hotspot | ✓ Good |
+| FileCacheEntry with eviction | Fingerprint-only after merge; eliminates double-storage | ✓ Good |
 
 ---
 ## Milestone History
 
-- **v1.16 JSONL Performance** — started 2026-03-25
+- **v1.16 JSONL Performance** — shipped 2026-03-25 (Phases 17-19): CPU 83%→0%, RSS 409→52 MB
 - **v1.15 Performance** — shipped 2026-03-25 (Phases 15-16)
 - **v1.14 Visual Polish** — shipped 2026-03-24 (Phases 13-14)
 - **v1.13 Responsiveness** — shipped 2026-03-20 (Phase 12)
@@ -152,14 +156,8 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 ---
 ## Current Milestone: v1.16 JSONL Performance
 
-**Goal:** Reduce CPU usage from 83% to <2% at idle — SessionLogReader scans 3,103 files (2 GB) on every polling cycle, consuming an entire CPU core continuously.
-
-**Root cause (profiled):**
-- `UsageAggregator.aggregate()` → `SessionLogReader.readAllUsageEntries()` → `cachedRead()` → `readSessionFile()` accounts for 100% of background CPU
-- 3,103 JSONL files totaling 2 GB are enumerated and scanned every 10-60s
-- `Collection.firstIndex(of:)` byte scanning dominates (854/2371 samples)
-- LRU cache (200 entries) is too small for 3,103 files — constant eviction and re-parse
-- Memory footprint: 409 MB RSS, 2 GB physical
+**Goal:** Reduce CPU usage from 83% to <2% at idle — ACHIEVED (0.0% measured)
+**Result:** CPU 83%→0%, RSS 409→52 MB, aggregation seconds→<100ms. All 7 requirements met.
 
 ---
-*Last updated: 2026-03-25 after v1.16 JSONL Performance milestone start*
+*Last updated: 2026-03-25 after v1.16 JSONL Performance milestone shipped*
