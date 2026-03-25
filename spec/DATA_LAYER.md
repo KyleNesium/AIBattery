@@ -490,14 +490,10 @@ Pricing table (per million tokens):
 
 ### StatusBarManager (`Views/StatusBarManager.swift`)
 
-- `@MainActor` class managing the `NSStatusItem`, `PopoverPanel`, and breath timer.
-- **Breath timer** — animates the menu bar icon with a pulsing effect when usage is ≥ 95% or during a recovery sparkle. Implemented as a `Timer` with step-based pulse driven by `MenuBarIcon.pulseSteps`.
-  - Red band (≥95%): 4 steps, 1s per tick (4 wakeups/cycle).
-  - Sparkle mode: 8 steps, 500ms per tick (8 wakeups/cycle).
-  - Screen sleep/wake: timer pauses on `NSWorkspace.screensDidSleepNotification`, resumes on wake.
-  - Visibility gate: `breathTimerShouldRun(isShowing:isThrottled:isSparkleActive:percent:)` — timer only runs while the popover is showing. Stops immediately on panel dismiss (`stopBreathTimer()` called in `panel.onDismiss`); restarts on panel open (`updateBreathTimer` called after `panel.orderFrontRegardless()`) if conditions are met (≥95% or sparkle active). This eliminates idle CPU from the timer firing against a hidden icon.
+- `@MainActor` class managing the `NSStatusItem` and `PopoverPanel`.
+- **Exhausted state** — when throttled or any rate limit window reaches 100%, the menu bar icon switches to a static broken star (12-pointed spiky star with solid 4-pointed overlay). No animation — the distinct shape communicates the state.
 - **Panel toggle** — `PanelToggleState` value type tracks `.isShowing`; `statusItemClicked` toggles show/hide; `panel.onDismiss` consolidates all dismiss paths.
-- **Recovery sparkle** — 3s animation triggered when throttle clears; `isSparkleActive` drives higher timer frequency and sparkle icon.
+- **Recovery sparkle** — 30s celebration animation triggered when throttle/exhaustion clears; `isSparkleActive` drives sparkle icon rendering.
 
 ## Utilities
 

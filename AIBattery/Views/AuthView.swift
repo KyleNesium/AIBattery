@@ -52,12 +52,12 @@ public struct AuthView: View {
                     Button(action: startAuth) {
                         HStack(spacing: 6) {
                             Image(systemName: "person.crop.circle.badge.checkmark")
-                                .font(.system(size: 13))
+                                .font(Typography.authIcon)
                             Text("Sign In")
                                 .font(Typography.buttonLabel)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                        .padding(.vertical, Spacing.gap)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.accentColor)

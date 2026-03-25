@@ -11,7 +11,7 @@ struct RefreshButton: View {
             // Reset without animation first, then animate one full turn.
             // This avoids unbounded accumulation while always spinning forward.
             withAnimation(.none) { rotation = 0 }
-            withAnimation(.easeInOut(duration: 0.5)) {
+            withAnimation(MotionConstants.spin) {
                 rotation = 360
             }
             action()

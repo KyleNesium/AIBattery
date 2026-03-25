@@ -96,7 +96,7 @@ extension InsightsView {
                         if isActive(model) {
                             Text("▶")
                                 .font(Typography.decorativeIcon)
-                                .foregroundStyle(.green)
+                                .foregroundStyle(ThemeColors.success)
                                 .help("Active model in current session")
                         }
 

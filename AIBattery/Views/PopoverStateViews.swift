@@ -25,7 +25,7 @@ struct PopoverErrorView: View {
                 }
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.blue)
+            .foregroundStyle(ThemeColors.action)
             .accessibilityHint("Retry loading usage data")
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -71,6 +71,6 @@ struct PopoverIdleFilteredView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
+        .padding(.vertical, Spacing.sectionHorizontal * 0.75)
     }
 }

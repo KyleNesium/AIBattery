@@ -23,14 +23,14 @@ struct CollapsibleSectionHeader: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 3)
-            .padding(.vertical, 1)
+            .padding(.horizontal, Spacing.xsmall)
+            .padding(.vertical, Spacing.micro)
             .background(
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: Spacing.xsmall)
                     .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: Spacing.xsmall)
                     .stroke(isFocused ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
             )
             .contentShape(Rectangle())

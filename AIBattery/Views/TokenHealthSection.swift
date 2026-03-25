@@ -46,7 +46,7 @@ struct TokenHealthSection: View {
                         .font(Typography.monoTiny)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                         .copyable(health.id)
-                        .padding(.trailing, 4)
+                        .padding(.trailing, Spacing.inner)
                 }
 
                 if !collapsed && sessions.count > 1 {
@@ -120,7 +120,7 @@ struct TokenHealthSection: View {
                         .font(Typography.tinyLabel)
                         .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 2)
+                        .padding(.top, Spacing.tight)
                 }
                 }
                 .transition(MotionConstants.expandTransition)
@@ -300,6 +300,7 @@ struct TokenHealthSection: View {
                 .fill(bandColor)
                 .frame(width: Layout.dotSize, height: Layout.dotSize)
                 .animation(MotionConstants.smooth, value: bandColor)
+                .accessibilityLabel("Health: \(health.band == .green ? "good" : health.band == .orange ? "warning" : health.band == .red ? "critical" : "unknown")")
             Text("\(Int(health.usagePercentage))%")
                 .font(Typography.monoValue)
                 .contentTransition(.numericText())

@@ -139,6 +139,19 @@ enum ThemeColors {
         isColorblind ? .purple : .red
     }
 
+    /// Color for interactive links and action buttons.
+    static var action: Color { .accentColor }
+
+    /// Color for update-available indicators and banners.
+    static var updateAvailable: Color {
+        isColorblind ? amber : Color(nsColor: .systemYellow)
+    }
+
+    /// Color for success confirmations (e.g. "Up to date", "Reset").
+    static var success: Color {
+        isColorblind ? .blue : .green
+    }
+
     // MARK: - Text label colors
 
     /// Secondary-level text — darker than system `.secondary` in light mode for readability.

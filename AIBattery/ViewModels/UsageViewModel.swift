@@ -17,6 +17,8 @@ public final class UsageViewModel: ObservableObject {
     #endif
 
     private let aggregator = UsageAggregator()
+    /// Serializes concurrent aggregateOffMain calls — only one detached task runs at a time.
+    private var inflightAggregation: Task<(UsageSnapshot, UsageAggregator.SideEffects), Never>?
     private var fileWatcher: FileWatcher?
     private var pollingTimer: Timer?
     private var apiResult: APIFetchResult?
@@ -65,14 +67,26 @@ public final class UsageViewModel: ObservableObject {
     }
 
     /// Run aggregate off the main thread, then apply @MainActor side effects.
+    /// Best-effort serialization: waits for any in-flight aggregation before starting
+    /// a new one. UsageAggregator's internal lock is the primary guard against concurrent
+    /// mutation; this layer reduces redundant overlapping work.
     private func aggregateOffMain(rateLimits: RateLimitUsage?, accountId: String? = nil) async -> UsageSnapshot {
+        if let inflight = inflightAggregation {
+            _ = await inflight.value
+        }
+
         let agg = aggregator
-        let (result, effects) = await Task.detached { agg.aggregate(rateLimits: rateLimits, accountId: accountId) }.value
-        // Apply deferred @MainActor side effects
+        let task = Task.detached { agg.aggregate(rateLimits: rateLimits, accountId: accountId) }
+        inflightAggregation = task
+        let (result, effects) = await task.value
+
+        // Apply side effects before clearing inflightAggregation so the next
+        // caller sees consistent RateLimitFetcher state.
         RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
         if let id = effects.accountId {
             RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)
         }
+        inflightAggregation = nil
         return result
     }
 

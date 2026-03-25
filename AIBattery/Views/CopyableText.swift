@@ -13,10 +13,10 @@ struct CopyableModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(.horizontal, 3)
-            .padding(.vertical, 1)
+            .padding(.horizontal, Spacing.xsmall)
+            .padding(.vertical, Spacing.micro)
             .background(
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: Spacing.xsmall)
                     .fill(isHovered ? Color.primary.opacity(0.15) : Color.clear)
             )
             .overlay(alignment: .trailing) {
@@ -58,13 +58,13 @@ struct CopyableModifier: ViewModifier {
                 // Cancel any previous feedback timer
                 feedbackTask?.cancel()
 
-                withAnimation(.easeOut(duration: 0.15)) {
+                withAnimation(MotionConstants.standard) {
                     copied = true
                 }
                 feedbackTask = Task {
                     try? await Task.sleep(nanoseconds: 1_500_000_000)
                     guard !Task.isCancelled else { return }
-                    withAnimation(.easeIn(duration: 0.15)) {
+                    withAnimation(MotionConstants.standard) {
                         copied = false
                     }
                 }
@@ -82,10 +82,10 @@ struct LightCopyableModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(.horizontal, 3)
-            .padding(.vertical, 1)
+            .padding(.horizontal, Spacing.xsmall)
+            .padding(.vertical, Spacing.micro)
             .background(
-                RoundedRectangle(cornerRadius: 3)
+                RoundedRectangle(cornerRadius: Spacing.xsmall)
                     .fill(isHovered ? Color.primary.opacity(0.15) : Color.clear)
             )
             .onHover { isHovered = $0 }

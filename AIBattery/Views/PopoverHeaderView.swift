@@ -60,8 +60,8 @@ struct PopoverHeaderView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(
-                    availableUpdate != nil ? .yellow
-                    : updateCheckMessage != nil ? .green
+                    availableUpdate != nil ? ThemeColors.updateAvailable
+                    : updateCheckMessage != nil ? ThemeColors.success
                     : updateHovered ? .primary : .secondary
                 )
                 .onHover { updateHovered = $0 }
@@ -96,7 +96,7 @@ struct PopoverHeaderView: View {
                         HStack(spacing: 3) {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(Typography.tinyLabel)
-                                .foregroundStyle(.yellow)
+                                .foregroundStyle(ThemeColors.updateAvailable)
                             Text("v\(update.version)")
                                 .font(Typography.tinyLabel)
                                 .foregroundStyle(.secondary)
@@ -128,7 +128,7 @@ struct PopoverHeaderView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(ThemeColors.action)
                     .accessibilityLabel("Install update version \(update.version)")
                     Spacer()
                     Button(action: { updateBannerDismissed = true }) {
@@ -143,10 +143,10 @@ struct PopoverHeaderView: View {
                 .padding(Spacing.section)
                 .background(
                     RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                        .fill(Color.yellow.opacity(0.12))
+                        .fill(ThemeColors.updateAvailable.opacity(0.12))
                         .overlay(
                             RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                                .stroke(Color.yellow.opacity(0.35), lineWidth: 1)
+                                .stroke(ThemeColors.updateAvailable.opacity(0.35), lineWidth: 1)
                         )
                 )
                 .padding(.horizontal, -Spacing.tight)
@@ -155,7 +155,7 @@ struct PopoverHeaderView: View {
                 HStack(spacing: Spacing.inner) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(Typography.tinyLabel)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(ThemeColors.success)
                     Text(msg)
                         .font(Typography.tinyLabel)
                         .foregroundStyle(.secondary)

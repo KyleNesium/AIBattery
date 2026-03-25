@@ -183,7 +183,7 @@ struct MarqueeText: View {
         guard animating, hasMultiple else { return }
 
         // Fade out
-        withAnimation(.easeOut(duration: 0.3)) {
+        withAnimation(MotionConstants.fadeOut) {
             textOpacity = 0
         }
 

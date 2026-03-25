@@ -128,7 +128,7 @@ struct ProjectUsageSection: View {
                         .underline(showMoreHovered)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.blue)
+                .foregroundStyle(ThemeColors.action)
                 .onHover { showMoreHovered = $0 }
                 .accessibilityLabel(showAll ? "Show fewer projects" : "Show more projects")
             }
@@ -208,8 +208,8 @@ struct ProjectUsageSection: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, Spacing.gap)
+        .padding(.vertical, Spacing.xsmall)
         .background(
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.primary.opacity(0.05))

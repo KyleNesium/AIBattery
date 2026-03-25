@@ -44,17 +44,17 @@ struct MetricToggleView: View {
         } label: {
             Text("A")
                 .font(Typography.autoModeLabel)
-                .foregroundStyle(autoMetricMode ? Color.blue : autoHovered ? .secondary : .secondary.opacity(0.5))
+                .foregroundStyle(autoMetricMode ? ThemeColors.action : autoHovered ? .secondary : .secondary.opacity(0.5))
                 .frame(width: Layout.autoModeSize, height: Layout.autoModeSize)
                 .background(
                     Circle()
-                        .fill(autoMetricMode ? Color.blue.opacity(0.15) : autoHovered ? Color.primary.opacity(0.06) : Color.clear)
+                        .fill(autoMetricMode ? ThemeColors.action.opacity(0.15) : autoHovered ? Color.primary.opacity(0.06) : Color.clear)
                 )
                 .overlay(
                     Circle()
-                        .stroke(autoMetricMode ? Color.blue.opacity(0.6) : autoHovered ? Color.secondary.opacity(0.4) : Color.secondary.opacity(0.2), lineWidth: 1.5)
+                        .stroke(autoMetricMode ? ThemeColors.action.opacity(0.6) : autoHovered ? Color.secondary.opacity(0.4) : Color.secondary.opacity(0.2), lineWidth: 1.5)
                 )
-                .shadow(color: autoMetricMode ? Color.blue.opacity(0.5) : .clear, radius: 4)
+                .shadow(color: autoMetricMode ? ThemeColors.action.opacity(0.5) : .clear, radius: 4)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

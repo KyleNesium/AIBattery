@@ -69,6 +69,12 @@ enum Typography {
     /// Badge/tag label text (e.g. "binding" pill in session views).
     static let badgeLabel: Font = .system(size: 10, weight: .medium, design: .monospaced)
 
+    /// Auth flow icon — 13pt for large SF Symbol in sign-in button.
+    static let authIcon: Font = .system(size: 13)
+
+    /// Large tutorial/onboarding icon — 28pt SF Symbol.
+    static let largeIcon: Font = .system(size: 28)
+
     /// Decorative SF Symbol — 9pt icon floor.
     static let decorativeIcon: Font = iconSmall
 

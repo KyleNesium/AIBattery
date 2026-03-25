@@ -10,6 +10,9 @@ final class UsageAggregator: @unchecked Sendable {
 
     private let statsCacheReader: StatsCacheReader
     private let sessionLogReader: SessionLogReader
+    /// Guards all mutable cached state — prevents concurrent Task.detached calls
+    /// from racing on cachedSnapshot, lastRateLimits, etc.
+    private let lock = NSLock()
 
     init(statsCacheReader: StatsCacheReader, sessionLogReader: SessionLogReader) {
         self.statsCacheReader = statsCacheReader
@@ -41,6 +44,8 @@ final class UsageAggregator: @unchecked Sendable {
     /// Clear cached snapshot so the next aggregate() re-computes from scratch.
     /// Called by FileWatcher when JSONL or stats-cache files change.
     func invalidate() {
+        lock.lock()
+        defer { lock.unlock() }
         cachedSnapshot = nil
     }
 
@@ -48,20 +53,22 @@ final class UsageAggregator: @unchecked Sendable {
         // Idle session cutoff for context health (0 = never hide)
         let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
 
-        // Check cheap fingerprints BEFORE expensive JSONL scan.
-        // Only rate limits and settings can change without a file change;
-        // SessionLogReader's cache is invalidated by FileWatcher, so entry count
-        // only changes after invalidation (which clears our cached snapshot via
-        // the file watcher callback resetting the ViewModel).
+        // Narrow lock scope: only guards cached-state reads/writes, not I/O.
+        // Prevents blocking invalidate() callers on main actor during JSONL scans.
+        lock.lock()
         let statsCacheModDate = statsCacheReader.lastModificationDate
         if let cached = cachedSnapshot,
            statsCacheModDate == lastStatsCacheModDate,
            rateLimits == lastRateLimits,
            idleSessionMinutes == lastIdleSessionMinutes,
            accountId == lastAccountId {
-            return (cached, cachedEffects ?? SideEffects(activeUserModel: nil, observedModels: [], accountId: accountId))
+            let effects = cachedEffects ?? SideEffects(activeUserModel: nil, observedModels: [], accountId: accountId)
+            lock.unlock()
+            return (cached, effects)
         }
+        lock.unlock()
 
+        // Expensive I/O runs without holding the lock.
         let statsCache = statsCacheReader.read()
         let allEntries = sessionLogReader.readAllUsageEntries()
 
@@ -334,20 +341,22 @@ final class UsageAggregator: @unchecked Sendable {
             topSessionHealths: topSessionHealths
         )
 
-        // Cache the result and fingerprint
-        cachedSnapshot = snapshot
-        lastStatsCacheModDate = statsCacheModDate
-        lastRateLimits = rateLimits
-        lastIdleSessionMinutes = idleSessionMinutes
-        lastAccountId = accountId
-
-        // Build and return side effects for @MainActor callers to apply
+        // Build side effects for @MainActor callers to apply
         let effects = SideEffects(
             activeUserModel: allEntries.last?.model,
             observedModels: observedModels,
             accountId: accountId
         )
+
+        // Cache the result and fingerprint (lock protects mutable state only)
+        lock.lock()
+        cachedSnapshot = snapshot
         cachedEffects = effects
+        lastStatsCacheModDate = statsCacheModDate
+        lastRateLimits = rateLimits
+        lastIdleSessionMinutes = idleSessionMinutes
+        lastAccountId = accountId
+        lock.unlock()
 
         return (snapshot, effects)
     }

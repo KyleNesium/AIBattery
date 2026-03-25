@@ -40,8 +40,8 @@ struct TutorialOverlay: View {
             // Centered card
             VStack(spacing: 16) {
                 Image(systemName: steps[step].icon)
-                    .font(.system(size: 28))
-                    .foregroundStyle(.blue)
+                    .font(Typography.largeIcon)
+                    .foregroundStyle(ThemeColors.action)
                     .accessibilityHidden(true)
 
                 Text(steps[step].title)
@@ -57,7 +57,7 @@ struct TutorialOverlay: View {
                 HStack(spacing: 6) {
                     ForEach(0..<steps.count, id: \.self) { i in
                         Circle()
-                            .fill(i == step ? Color.blue : Color.secondary.opacity(0.45))
+                            .fill(i == step ? ThemeColors.action : Color.secondary.opacity(0.45))
                             .frame(width: 6, height: 6)
                             .accessibilityHidden(true)
                     }
@@ -69,7 +69,7 @@ struct TutorialOverlay: View {
                 HStack {
                     if step < steps.count - 1 {
                         Button("Skip") {
-                            withAnimation(.easeOut(duration: 0.2)) { hasSeenTutorial = true }
+                            withAnimation(MotionConstants.dialog) { hasSeenTutorial = true }
                         }
                         .buttonStyle(.plain)
                         .font(Typography.caption)
@@ -82,9 +82,9 @@ struct TutorialOverlay: View {
 
                     Button(step < steps.count - 1 ? "Next" : "Get Started") {
                         if step < steps.count - 1 {
-                            withAnimation(.easeInOut(duration: 0.2)) { step += 1 }
+                            withAnimation(MotionConstants.dialog) { step += 1 }
                         } else {
-                            withAnimation(.easeOut(duration: 0.2)) { hasSeenTutorial = true }
+                            withAnimation(MotionConstants.dialog) { hasSeenTutorial = true }
                         }
                     }
                     .buttonStyle(.borderedProminent)

@@ -114,7 +114,7 @@ public struct UsagePopoverView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(Typography.tinyLabel)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ThemeColors.caution)
                         Text(error)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
@@ -124,7 +124,7 @@ public struct UsagePopoverView: View {
                         }
                         .font(Typography.tinyLabel)
                         .buttonStyle(.plain)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(ThemeColors.action)
                     }
                     .copyable(error)
                     .padding(.horizontal, Spacing.sectionHorizontal)
@@ -174,7 +174,7 @@ public struct UsagePopoverView: View {
                 // First load — show minimal loading state
                 HStack {
                     Spacer()
-                    Text("Loading...")
+                    Text("Fetching usage data…")
                         .font(Typography.caption)
                         .foregroundStyle(.secondary)
                     ProgressView()

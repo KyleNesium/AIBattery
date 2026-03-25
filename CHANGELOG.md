@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.9] — 2026-03-25
+
+### Fixed
+- **Crash: use-after-free (EXC_BAD_ACCESS)** — concurrent `Task.detached` aggregation calls raced on `UsageAggregator`'s mutable cached state, corrupting reference counts during SwiftUI view teardown. Added NSLock to guard cached state and task serialization in `UsageViewModel` to prevent overlapping background work
+- **"~0s to limit" at 100%** — when a rate limit window hit 100% before the API reported throttled, the bar showed "soon to limit" instead of indicating the limit was reached. Now shows "Limit reached" in red
+- **Menu bar icon still animated at 100%** — breathing animation continued when a window was exhausted but not yet throttled. Icon now shows a static broken star when any window reaches 100%
+
+### Changed
+- **Breathing animation removed** — the pulsing glow effect at ≥95% usage is replaced by a static broken star icon when exhausted/throttled. Zero CPU wakeups for icon animation; the distinct 12-pointed star shape communicates the state without motion
+- **Design system colors** — 22 hardcoded `.blue`/`.green`/`.yellow`/`.red` values replaced with semantic `ThemeColors` tokens (`action`, `success`, `updateAvailable`, `danger`, `caution`), restoring colorblind-safe palette support across the entire UI
+- **Design system tokens** — added `Spacing.micro` (1pt), `Spacing.xsmall` (3pt), `MotionConstants.fadeOut`/`dialog`/`spin`, `Typography.authIcon`/`largeIcon`; replaced 11 raw padding values, 7 raw animation durations, and 2 raw font sizes with tokens
+- **Microcopy** — "Loading..." replaced with contextual messages ("Fetching usage data…", "Updating…"); chart empty state now includes a call-to-action
+- **Accessibility** — status dot and health badge dot now have accessibility labels
+
 ## [1.9.8] — 2026-03-24
 
 ### Added

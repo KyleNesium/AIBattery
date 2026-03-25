@@ -38,6 +38,7 @@ struct PopoverFooterView: View {
                     Circle()
                         .fill(statusColor)
                         .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
+                        .accessibilityLabel(statusTooltip)
                 }
 
                 Spacer()
@@ -60,7 +61,7 @@ struct PopoverFooterView: View {
                     .fixedSize()
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(showLogoutConfirm ? .red : .secondary)
+                .foregroundStyle(showLogoutConfirm ? ThemeColors.danger : .secondary)
                 .onHover { logoutHovered = $0 }
                 .animation(MotionConstants.snappy, value: showLogoutConfirm)
                 .accessibilityLabel(showLogoutConfirm ? "Confirm logout" : "Logout")
@@ -105,7 +106,7 @@ struct PopoverFooterView: View {
                     if let lastFetch = lastFreshFetch {
                         RelativeTimeText(date: lastFetch)
                     } else if isLoading {
-                        Text("Loading...")
+                        Text("Updating…")
                             .font(Typography.monoTiny)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                     }

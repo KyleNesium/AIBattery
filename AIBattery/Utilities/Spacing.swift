@@ -9,6 +9,12 @@ import SwiftUI
 ///
 /// Pattern matches ThemeColors: caseless enum used as a pure namespace.
 enum Spacing {
+    /// 1pt — hairline vertical padding for badges and copyable highlights.
+    static let micro: CGFloat = 1
+
+    /// 3pt — compact horizontal padding for badges and hover backgrounds.
+    static let xsmall: CGFloat = 3
+
     /// 2pt — divider micro-gap, dot gap between elements.
     static let tight: CGFloat = 2
 
@@ -84,6 +90,15 @@ enum MotionConstants {
 
     /// Smooth data-driven animation (gauge fill, chart transition): 0.4s easeInOut.
     static let smooth: Animation = .easeInOut(duration: 0.4)
+
+    /// Cross-fade text transition (marquee): 0.3s easeOut.
+    static let fadeOut: Animation = .easeOut(duration: 0.3)
+
+    /// Dialog/overlay enter/exit: 0.2s easeInOut.
+    static let dialog: Animation = .easeInOut(duration: 0.2)
+
+    /// Full-rotation spin (refresh button): 0.5s easeInOut.
+    static let spin: Animation = .easeInOut(duration: 0.5)
 
     /// Section expand/collapse transition — fade + slide from top.
     static var expandTransition: AnyTransition {

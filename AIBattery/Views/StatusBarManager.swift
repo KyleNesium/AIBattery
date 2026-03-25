@@ -65,17 +65,12 @@ public final class StatusBarManager: NSObject {
     /// Set by `positionPanel` and used by the resize observer to keep the top anchored.
     private var panelTopY: CGFloat = 0
 
-    // Breathing glow animation state
-    private var breathTimer: Timer?
-    private var currentPulseStep: Int = 0
-    // Snapshot of current render state for the breath timer callback
+    // Snapshot of current render state
     private var currentPercent: Double = 0
     private var currentColor: NSColor = .systemGreen
     private var currentIsThrottled: Bool = false
     /// Whether we've received at least one update (so we can detect real transitions vs initial state).
     private var hasReceivedFirstUpdate: Bool = false
-    private var screenSleepObserver: Any?
-    private var screenWakeObserver: Any?
 
     // Recovery sparkle: 30s celebration after throttle clears
     private var isSparkleActive: Bool = false
@@ -129,7 +124,6 @@ public final class StatusBarManager: NSObject {
         // making desync impossible. dismiss() is idempotent so double-calls are safe.
         panel.onDismiss = { [weak self] in
             self?.toggleState.dismiss()
-            self?.stopBreathTimer()
         }
 
         // SwiftUI content — background color is set in PopoverContentView
@@ -273,10 +267,7 @@ public final class StatusBarManager: NSObject {
         }
         if let obs = frameObserver { NotificationCenter.default.removeObserver(obs) }
         appearanceObserver?.invalidate()
-        breathTimer?.invalidate()
         sparkleTimer?.invalidate()
-        if let obs = screenSleepObserver { NotificationCenter.default.removeObserver(obs) }
-        if let obs = screenWakeObserver { NotificationCenter.default.removeObserver(obs) }
     }
 
     // MARK: - Button update
@@ -286,18 +277,21 @@ public final class StatusBarManager: NSObject {
         let percent = viewModel.snapshot?.percent(for: metricMode) ?? 0
         let rateLimits = viewModel.snapshot?.rateLimits
         let isThrottled = rateLimits?.isThrottled ?? false
-        let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isThrottled)
+        // Show broken star when throttled OR any window hits 100%.
+        let isExhausted = isThrottled
+            || (rateLimits?.fiveHourPercent ?? 0) >= 100
+            || (rateLimits?.sevenDayPercent ?? 0) >= 100
+        let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isExhausted)
 
-        updateSparkleState(isThrottled: isThrottled)
-        updateRenderState(percent: percent, color: starColor, isThrottled: isThrottled)
-        updateBreathTimer(percent: percent, isThrottled: isThrottled)
+        updateSparkleState(isThrottled: isExhausted)
+        updateRenderState(percent: percent, color: starColor, isThrottled: isExhausted)
 
         button.image = MenuBarIcon.statusBarImage(
             for: percent,
             color: starColor,
-            isBroken: isThrottled,
+            isBroken: isExhausted,
             isSparkle: isSparkleActive,
-            pulseStep: currentPulseStep
+            pulseStep: 0
         )
 
         let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
@@ -342,32 +336,6 @@ public final class StatusBarManager: NSObject {
         hasReceivedFirstUpdate = true
     }
 
-    /// Pure function: determines whether the breath timer should run given current state.
-    /// Extracted for testability — StatusBarManager calls this then acts on the result.
-    static func breathTimerShouldRun(
-        isShowing: Bool,
-        isThrottled: Bool,
-        isSparkleActive: Bool,
-        percent: Double
-    ) -> Bool {
-        guard isShowing else { return false }
-        guard !isThrottled else { return false }
-        return isSparkleActive || percent >= 95
-    }
-
-    private func updateBreathTimer(percent: Double, isThrottled: Bool) {
-        if Self.breathTimerShouldRun(
-            isShowing: toggleState.isShowing,
-            isThrottled: isThrottled,
-            isSparkleActive: isSparkleActive,
-            percent: percent
-        ) {
-            startBreathTimerIfNeeded()
-        } else {
-            stopBreathTimer()
-        }
-    }
-
     private func resolveDisplayText(rateLimits: RateLimitUsage?, percent: Double) -> String {
         if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
             return RateLimitUsage.countdownText(to: resetDate)
@@ -399,62 +367,6 @@ public final class StatusBarManager: NSObject {
         }
 
         return nil
-    }
-
-    // MARK: - Breath timer
-
-    /// Breathing cycle: 4s per full cycle, discrete steps.
-    /// Sparkle mode: 8 steps (500ms per tick) for smooth twinkling.
-    /// Red band (≥95%): 4 steps (1s per tick) — halves CPU wakeups with imperceptible visual change.
-    /// Pauses on screen sleep.
-    private var breathTimerStepSize: Int = 1
-
-    private func startBreathTimerIfNeeded() {
-        // Red band uses every-other step (4 wakeups/cycle); sparkle uses every step (8 wakeups/cycle).
-        let newStepSize = isSparkleActive ? 1 : 2
-        // Restart timer if step size changed (e.g. sparkle → red transition)
-        if breathTimer != nil && breathTimerStepSize != newStepSize {
-            stopBreathTimer()
-        }
-        guard breathTimer == nil else { return }
-        breathTimerStepSize = newStepSize
-
-        // Observe screen sleep/wake to pause animation when display is off
-        if screenSleepObserver == nil {
-            screenSleepObserver = NotificationCenter.default.addObserver(
-                forName: NSWorkspace.screensDidSleepNotification,
-                object: nil, queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.stopBreathTimer() }
-            }
-            screenWakeObserver = NotificationCenter.default.addObserver(
-                forName: NSWorkspace.screensDidWakeNotification,
-                object: nil, queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.startBreathTimerIfNeeded() }
-            }
-        }
-
-        let interval: TimeInterval = 4.0 / Double(MenuBarIcon.pulseSteps) * Double(newStepSize)
-        breathTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, let button = self.statusItem?.button else { return }
-                self.currentPulseStep = (self.currentPulseStep + self.breathTimerStepSize) % MenuBarIcon.pulseSteps
-                button.image = MenuBarIcon.statusBarImage(
-                    for: self.currentPercent,
-                    color: self.currentColor,
-                    isBroken: self.currentIsThrottled,
-                    isSparkle: self.isSparkleActive,
-                    pulseStep: self.currentPulseStep
-                )
-            }
-        }
-    }
-
-    private func stopBreathTimer() {
-        breathTimer?.invalidate()
-        breathTimer = nil
-        currentPulseStep = 0
     }
 
     // MARK: - Recovery sparkle (throttle → green transition)
@@ -492,7 +404,6 @@ public final class StatusBarManager: NSObject {
             panel.orderFrontRegardless()
             panel.makeKey()
             os_signpost(.end, log: panelShowLog, name: "PanelShow")
-            updateBreathTimer(percent: currentPercent, isThrottled: currentIsThrottled)
         }
     }
 

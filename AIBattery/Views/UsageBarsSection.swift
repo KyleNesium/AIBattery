@@ -58,7 +58,7 @@ struct UsageBar: View {
                             .font(Typography.badgeLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .padding(.horizontal, Spacing.small)
-                            .padding(.vertical, 1)
+                            .padding(.vertical, Spacing.micro)
                             .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: Layout.barCornerRadius))
                             .accessibilityLabel("Binding constraint")
                             .help("This window is the active rate limit constraint")
@@ -94,13 +94,17 @@ struct UsageBar: View {
                     HStack(spacing: 4) {
                         Image(systemName: "sparkles")
                             .font(Typography.tinyLabel)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(ThemeColors.success)
                         Text("Reset")
                             .font(Typography.tinyLabel)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(ThemeColors.success)
                     }
                 } else if isThrottled {
                     Text("Throttled")
+                        .font(Typography.tinyLabel)
+                        .foregroundStyle(ThemeColors.danger)
+                } else if percent >= 100 {
+                    Text("Limit reached")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
                 } else if let estimate = estimatedTimeToLimit {

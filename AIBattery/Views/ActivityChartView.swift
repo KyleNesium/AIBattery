@@ -133,7 +133,7 @@ struct InsightsView: View {
                     Image(systemName: "chart.line.flattrend.xyaxis")
                         .font(Typography.heroTitle)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
-                    Text("No activity in \(mode.rawValue) window")
+                    Text("No activity in \(mode.rawValue) window — start a session to see data")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }

@@ -32,7 +32,7 @@ struct AlertSettingsSection: View {
                 }
                 .buttonStyle(.plain)
                 .font(Typography.tinyLabel)
-                .foregroundStyle(.blue)
+                .foregroundStyle(ThemeColors.action)
                 .help("Send a test notification")
                 .accessibilityLabel("Test alerts")
             }

@@ -31,7 +31,7 @@ struct SettingsRow: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(ThemeColors.action)
                     .accessibilityLabel("Add another Claude account")
                 }
             }
