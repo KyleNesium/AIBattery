@@ -102,21 +102,25 @@ final class UsageAggregator: @unchecked Sendable {
         var weekTokenMap: TokenMap = [:]
         var monthTokenMap: TokenMap = [:]
 
-        // Date key cache — consecutive entries usually share the same day
-        var lastDay: Date?
+        // Date boundary cache — avoids Calendar.startOfDay() ICU calls per entry.
+        // Entries are sorted ascending, so we track the current day's start/end
+        // and only recompute when timestamp crosses the boundary.
+        var lastDayStart: Date = .distantPast
+        var lastDayEnd: Date = .distantPast
         var lastDateKey: String = ""
 
         for entry in allEntries {
             let ts = entry.timestamp
 
             // --- Date grouping ---
-            let entryDay = calendar.startOfDay(for: ts)
             let dateKey: String
-            if entryDay == lastDay {
+            if ts >= lastDayStart && ts < lastDayEnd {
                 dateKey = lastDateKey
             } else {
+                let entryDay = calendar.startOfDay(for: ts)
+                lastDayStart = entryDay
+                lastDayEnd = calendar.date(byAdding: .day, value: 1, to: entryDay) ?? entryDay.addingTimeInterval(86400)
                 dateKey = Self.dateFormatter.string(from: ts)
-                lastDay = entryDay
                 lastDateKey = dateKey
             }
 
