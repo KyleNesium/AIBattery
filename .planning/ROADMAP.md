@@ -39,7 +39,10 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 16.
   2. On a polling cycle with no new Claude Code activity, zero JSONL files are re-parsed
   3. On a polling cycle where one session is active, only that session's file(s) are re-parsed
   4. Directory traversal uses mod-date comparison to skip unchanged subdirectories without opening them
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 17-01-PLAN.md — Remove LRU cache cap and implement incremental dirty-flag merge
+- [ ] 17-02-PLAN.md — Per-directory incremental discovery and performance verification
 
 ### Phase 18: Memory Optimization
 **Goal**: AIBattery holds under 100 MB RSS during normal operation by not retaining parsed entries from old sessions
@@ -71,6 +74,6 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 16.
 | 14. Layout Consistency | v1.14 | 0/0 | Complete | 2026-03-24 |
 | 15. Breath Timer Fix | v1.15 | 1/1 | Complete | 2026-03-24 |
 | 16. Idle and Lock Detection | v1.15 | 0/? | Complete | 2026-03-25 |
-| 17. Incremental Scanning | v1.16 | 0/? | Not started | - |
+| 17. Incremental Scanning | v1.16 | 0/2 | In progress | - |
 | 18. Memory Optimization | v1.16 | 0/? | Not started | - |
 | 19. Verification | v1.16 | 0/? | Not started | - |
