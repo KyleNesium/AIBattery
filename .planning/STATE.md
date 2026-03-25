@@ -4,12 +4,12 @@ milestone: v1.16
 milestone_name: JSONL Performance
 status: unknown
 stopped_at: Completed 17-02-PLAN.md (per-directory incremental discovery)
-last_updated: "2026-03-25T10:19:54.642Z"
+last_updated: "2026-03-25T11:13:49.187Z"
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State

@@ -13,8 +13,8 @@
 
 ### Memory Efficiency
 
-- [ ] **MEM-01**: RSS stays under 100 MB during normal operation (currently 409 MB)
-- [ ] **MEM-02**: Parsed entries from old/inactive sessions are not held in memory permanently
+- [x] **MEM-01**: RSS stays under 100 MB during normal operation (currently 409 MB)
+- [x] **MEM-02**: Parsed entries from old/inactive sessions are not held in memory permanently
 
 ### CPU at Idle
 
@@ -47,8 +47,8 @@
 | SCAN-01 | Phase 17 | Complete |
 | SCAN-02 | Phase 17 | Complete |
 | SCAN-03 | Phase 17 | Complete |
-| MEM-01 | Phase 18 | Pending |
-| MEM-02 | Phase 18 | Pending |
+| MEM-01 | Phase 18 | Complete |
+| MEM-02 | Phase 18 | Complete |
 | CPU-01 | Phase 19 | Pending |
 | CPU-02 | Phase 19 | Pending |
 

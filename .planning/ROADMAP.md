@@ -27,7 +27,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 16.
 ## Phase Details
 
 - [x] **Phase 17: Incremental Scanning** - Only re-parse JSONL files that changed since last cycle; skip unchanged files via mod-date + size fingerprint (completed 2026-03-25)
-- [ ] **Phase 18: Memory Optimization** - Evict parsed entries for old/inactive sessions; store aggregated results not raw entries
+- [x] **Phase 18: Memory Optimization** - Evict parsed entries for old/inactive sessions; store aggregated results not raw entries (completed 2026-03-25)
 - [ ] **Phase 19: Verification** - Confirm CPU and memory targets are met under realistic conditions; integration tests
 
 ### Phase 17: Incremental Scanning
@@ -52,7 +52,7 @@ Plans:
   1. RSS stays under 100 MB after a full aggregation cycle across all 3,103 files (currently 409 MB)
   2. Sessions not accessed in the current polling window do not have raw parsed entries in memory
   3. Evicting old session data does not cause a correctness regression — totals remain accurate
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 18-01-PLAN.md — Eliminate double-storage: release per-file entry arrays after merge into cachedAllEntries
 
@@ -77,5 +77,5 @@ Plans:
 | 15. Breath Timer Fix | v1.15 | 1/1 | Complete | 2026-03-24 |
 | 16. Idle and Lock Detection | v1.15 | 0/? | Complete | 2026-03-25 |
 | 17. Incremental Scanning | v1.16 | Complete    | 2026-03-25 | 2026-03-25 |
-| 18. Memory Optimization | v1.16 | 0/1 | Not started | - |
+| 18. Memory Optimization | 1/1 | Complete    | 2026-03-25 | - |
 | 19. Verification | v1.16 | 0/? | Not started | - |
