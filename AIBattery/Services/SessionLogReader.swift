@@ -34,6 +34,9 @@ final class SessionLogReader: @unchecked Sendable {
     private var discoveredFiles: [URL]?
     /// Parent directory mod dates used to invalidate discovery cache.
     private var discoveryDirModDates: [String: Date] = [:]
+    /// Per-directory cached JSONL file URLs — keyed by project directory path.
+    /// Preserved across invalidation cycles so unchanged directories skip enumeration.
+    private var discoveredFilesByDir: [String: [URL]] = [:]
     /// Timestamp of the last full directory enumeration. Used as TTL fallback
     /// when directory mod-dates don't reflect new files (filesystem-dependent).
     private var lastFullEnumerationDate: Date?
@@ -58,9 +61,10 @@ final class SessionLogReader: @unchecked Sendable {
     func invalidate() {
         if lock.try() {
             isDirty = true
-            // Clear discovery cache so new/deleted files are found
             discoveredFiles = nil
-            discoveryDirModDates.removeAll()
+            // Keep discoveryDirModDates and discoveredFilesByDir for incremental comparison —
+            // next discovery will only enumerate directories whose mod-date changed.
+            // Clear lastFullEnumerationDate so next call does per-dir check (not TTL shortcut).
             lastFullEnumerationDate = nil
             lock.unlock()
         } else {
@@ -144,26 +148,35 @@ final class SessionLogReader: @unchecked Sendable {
     /// Force TTL expiry for testing — makes next discoverJSONLFiles() re-enumerate.
     func expireDiscoveryTTLForTesting() {
         lastFullEnumerationDate = .distantPast
+        discoveredFiles = nil
     }
 
     // MARK: - Discovery
 
     private func discoverJSONLFiles() -> [URL] {
-        // Return cached discovery if directory mod dates haven't changed AND TTL hasn't expired
-        if let cached = discoveredFiles, !discoveryDirModDatesChanged() {
-            if let lastEnum = lastFullEnumerationDate,
-               Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
-                return cached
-            }
+        // Fast path: nothing dirty and TTL not expired — return flattened cache
+        if discoveredFiles != nil,
+           !discoveryDirModDatesChanged(),
+           let lastEnum = lastFullEnumerationDate,
+           Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
+            return discoveredFiles!
         }
 
         let fm = FileManager.default
         guard fm.fileExists(atPath: projectsURL.path) else { return [] }
 
-        var jsonlFiles: [URL] = []
+        // Determine if we must do a full enumeration (TTL expired) or can skip unchanged dirs
+        let forceFullEnum: Bool
+        if let lastEnum = lastFullEnumerationDate,
+           Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
+            forceFullEnum = false
+        } else {
+            forceFullEnum = true
+        }
+
         var newDirModDates: [String: Date] = [:]
 
-        // Track projects dir mod date
+        // Track projects root mod date
         if let attrs = try? fm.attributesOfItem(atPath: projectsURL.path),
            let modDate = attrs[.modificationDate] as? Date {
             newDirModDates[projectsURL.path] = modDate
@@ -175,25 +188,43 @@ final class SessionLogReader: @unchecked Sendable {
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
+        let resolvedBase = projectsURL.resolvingSymlinksInPath().path
+        let resolvedBaseSlash = resolvedBase + "/"
+        var currentDirPaths = Set<String>()
+
         for dir in projectDirs {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
 
             // Skip non-Claude-Code project directories (e.g. MCP observer sessions).
             // Claude Code encodes the project's absolute path as the directory name,
             // replacing "/" with "-". Decode back to a path and check if any component
-            // starts with "." (hidden directory). This avoids false positives on project
-            // directories that legitimately contain double hyphens (e.g. "my--project").
+            // starts with "." (hidden directory).
             let decodedPath = "/" + dir.lastPathComponent.dropFirst().replacingOccurrences(of: "-", with: "/")
             if decodedPath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) { continue }
 
-            // Track each project dir mod date
-            if let attrs = try? fm.attributesOfItem(atPath: dir.path),
-               let modDate = attrs[.modificationDate] as? Date {
-                newDirModDates[dir.path] = modDate
+            let dirPath = dir.path
+            currentDirPaths.insert(dirPath)
+
+            // Track directory mod date
+            let dirModDate: Date?
+            if let attrs = try? fm.attributesOfItem(atPath: dirPath) {
+                dirModDate = attrs[.modificationDate] as? Date
+                if let md = dirModDate { newDirModDates[dirPath] = md }
+            } else {
+                dirModDate = nil
             }
 
-            // Enumerate all JSONL files recursively (top-level + session dirs + subagents)
-            // using a single enumerator instead of per-directory contentsOfDirectory calls.
+            // Skip unchanged directories — use cached file list (unless forced full enumeration)
+            if !forceFullEnum,
+               let cachedDate = discoveryDirModDates[dirPath],
+               let currentDate = dirModDate,
+               currentDate == cachedDate,
+               discoveredFilesByDir[dirPath] != nil {
+                continue
+            }
+
+            // Enumerate this directory for JSONL files
+            var dirFiles: [URL] = []
             if let enumerator = fm.enumerator(
                 at: dir,
                 includingPropertiesForKeys: [.isRegularFileKey],
@@ -201,25 +232,27 @@ final class SessionLogReader: @unchecked Sendable {
             ) {
                 for case let fileURL as URL in enumerator {
                     if fileURL.pathExtension == "jsonl" {
-                        jsonlFiles.append(fileURL)
+                        // Symlink boundary + regular file check
+                        let resolved = fileURL.resolvingSymlinksInPath().path
+                        guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
+                        guard (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+                        dirFiles.append(fileURL)
                     }
                 }
             }
+            discoveredFilesByDir[dirPath] = dirFiles
         }
 
-        // Symlink boundary + regular file check in a single pass.
-        // Rejects symlinks escaping the projects directory and non-regular files (pipes, devices, sockets).
-        let resolvedBase = projectsURL.resolvingSymlinksInPath().path
-        let resolvedBaseSlash = resolvedBase + "/"
-        jsonlFiles = jsonlFiles.filter {
-            let resolved = $0.resolvingSymlinksInPath().path
-            guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { return false }
-            return (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
-        }
+        // Remove stale directory entries (deleted project dirs)
+        let staleDirs = discoveredFilesByDir.keys.filter { !currentDirPaths.contains($0) }
+        for key in staleDirs { discoveredFilesByDir.removeValue(forKey: key) }
+
+        // Flatten all per-directory caches into the result
+        let jsonlFiles = Array(discoveredFilesByDir.values.flatMap { $0 })
 
         discoveredFiles = jsonlFiles
         discoveryDirModDates = newDirModDates
-        lastFullEnumerationDate = Date()
+        if forceFullEnum { lastFullEnumerationDate = Date() }
         return jsonlFiles
     }
 
