@@ -16,8 +16,23 @@ final class SessionLogReader: @unchecked Sendable {
         self.projectsURL = projectsURL ?? ClaudePaths.projects
     }
 
-    // Cache: filePath -> (modDate, fileSize, entries)
-    private var cache: [String: (Date, UInt64, [AssistantUsageEntry])] = [:]
+    // MARK: - Cache types
+
+    /// Per-file cache entry. After a successful merge into cachedAllEntries, `entries` is
+    /// set to nil for files not modified today — releasing raw entry arrays while retaining
+    /// the fingerprint (modDate + fileSize) and messageIds (for stale-entry removal).
+    struct FileCacheEntry {
+        let modDate: Date
+        let fileSize: UInt64
+        /// Raw entries — nil after eviction for old files. Re-populated on re-parse if file changes.
+        var entries: [AssistantUsageEntry]?
+        /// Message IDs contributed by this file — retained after eviction so stale entries
+        /// can be removed from cachedAllEntries when the file is re-parsed.
+        var messageIds: Set<String>
+    }
+
+    // Cache: filePath -> FileCacheEntry (entries may be nil after eviction)
+    private var cache: [String: FileCacheEntry] = [:]
 
     /// Dirty flag — set by invalidate(), cleared by readAllUsageEntries().
     /// Starts true so the first read performs a full scan.
@@ -27,7 +42,8 @@ final class SessionLogReader: @unchecked Sendable {
     /// Catches new files on filesystems where directory mtime doesn't always update.
     static let discoveryTTL: TimeInterval = 60
 
-    /// Cached result of readAllUsageEntries — invalidated when any file changes.
+    /// Cached result of readAllUsageEntries — the authoritative merged array.
+    /// Preserved across invalidations so incremental rebuilds can add only changed files.
     private var cachedAllEntries: [AssistantUsageEntry]?
 
     /// Cached list of discovered JSONL file URLs.
@@ -57,7 +73,8 @@ final class SessionLogReader: @unchecked Sendable {
 
     /// Called by FileWatcher when files change — marks caches dirty so the next read re-scans.
     /// Non-blocking: if a scan is in progress, sets a flag so the scan result is discarded.
-    /// Does NOT clear per-file cache — unchanged files keep their cached entries (fingerprint handles staleness).
+    /// Does NOT clear per-file cache — unchanged files keep their cached fingerprints.
+    /// Does NOT clear cachedAllEntries — preserved for incremental rebuilds.
     func invalidate() {
         if lock.try() {
             isDirty = true
@@ -87,57 +104,119 @@ final class SessionLogReader: @unchecked Sendable {
         isDirty = false
         let jsonlFiles = discoverJSONLFiles()
 
-        // Remove cache entries for files that no longer exist
+        // Remove cache entries for deleted files and purge their entries from cachedAllEntries.
         let currentPaths = Set(jsonlFiles.map(\.path))
         let staleKeys = cache.keys.filter { !currentPaths.contains($0) }
-        for key in staleKeys { cache.removeValue(forKey: key) }
-
-        // Incremental rebuild: cachedRead returns instantly for unchanged files (fingerprint match)
-        var allEntries: [AssistantUsageEntry] = []
-        var seenMessageIds = Set<String>()
-
-        for fileURL in jsonlFiles {
-            let entries = cachedRead(fileURL)
-            for entry in entries {
-                if seenMessageIds.insert(entry.messageId).inserted {
-                    allEntries.append(entry)
-                }
+        if !staleKeys.isEmpty {
+            // Compute the set of messageIds to remove from cachedAllEntries.
+            var idsToRemove = Set<String>()
+            for key in staleKeys {
+                idsToRemove.formUnion(cache[key]?.messageIds ?? [])
+                cache.removeValue(forKey: key)
+            }
+            if !idsToRemove.isEmpty, let existing = cachedAllEntries {
+                cachedAllEntries = existing.filter { !idsToRemove.contains($0.messageId) }
             }
         }
 
-        allEntries.sort { $0.timestamp < $1.timestamp }
+        // Incremental rebuild: use cachedAllEntries as base, only re-parse changed/new files.
+        // For evicted files with unchanged fingerprint, entries already live in cachedAllEntries.
+        let result = rebuild(jsonlFiles: jsonlFiles, base: cachedAllEntries)
 
-        // If invalidate() was called during the scan, discard cache so next call re-scans.
         if pendingInvalidation {
             pendingInvalidation = false
             isDirty = true
             lock.unlock()
-            return allEntries
+            return result
         }
-        cachedAllEntries = allEntries
+
+        cachedAllEntries = result
+        evictOldFileEntries()
         lock.unlock()
-        return allEntries
+        return result
     }
 
-    // MARK: - Caching
+    /// Rebuild the merged entry array, using `base` as a starting point.
+    /// For each file:
+    ///   - Unchanged + evicted (entries == nil): already in base — skip.
+    ///   - Unchanged + live entries: add any not yet in base (handles first-run where base was nil).
+    ///   - Changed or new: remove stale messageIds from base, re-parse, add fresh entries.
+    ///   - base == nil: parse all files from scratch.
+    private func rebuild(jsonlFiles: [URL], base: [AssistantUsageEntry]?) -> [AssistantUsageEntry] {
+        var resultEntries = base ?? []
+        var seenIds = Set(resultEntries.map(\.messageId))
+        var changed = false
 
-    private func cachedRead(_ url: URL) -> [AssistantUsageEntry] {
-        let path = url.path
-        let fm = FileManager.default
+        for fileURL in jsonlFiles {
+            let path = fileURL.path
+            let fm = FileManager.default
 
-        guard let attrs = try? fm.attributesOfItem(atPath: path),
-              let modDate = attrs[.modificationDate] as? Date,
-              let fileSize = attrs[.size] as? UInt64 else {
-            return readSessionFile(at: url)
+            let attrs = try? fm.attributesOfItem(atPath: path)
+            let modDate = attrs?[.modificationDate] as? Date
+            let fileSize = attrs?[.size] as? UInt64
+
+            if let cached = cache[path],
+               cached.modDate == modDate,
+               cached.fileSize == fileSize {
+                // Unchanged fingerprint.
+                if let liveEntries = cached.entries {
+                    // Entries still in memory (today's file not yet evicted).
+                    // Add any that aren't already in the base (handles nil-base first-run).
+                    for entry in liveEntries {
+                        if seenIds.insert(entry.messageId).inserted {
+                            resultEntries.append(entry)
+                            changed = true
+                        }
+                    }
+                }
+                // entries == nil (evicted, unchanged): already in base — skip.
+                continue
+            }
+
+            // File is new or changed. Remove any stale entries from this file before adding fresh.
+            if let cached = cache[path], !cached.messageIds.isEmpty {
+                let staleIds = cached.messageIds
+                resultEntries.removeAll { staleIds.contains($0.messageId) }
+                seenIds.subtract(staleIds)
+                changed = true
+            }
+
+            // Re-parse (or first-parse for new files).
+            let entries = readSessionFile(at: fileURL)
+            let newIds = Set(entries.map(\.messageId))
+            cache[path] = FileCacheEntry(
+                modDate: modDate ?? Date(),
+                fileSize: fileSize ?? 0,
+                entries: entries,
+                messageIds: newIds
+            )
+            for entry in entries {
+                if seenIds.insert(entry.messageId).inserted {
+                    resultEntries.append(entry)
+                    changed = true
+                }
+            }
         }
 
-        if let cached = cache[path], cached.0 == modDate, cached.1 == fileSize {
-            return cached.2
+        if changed || base == nil {
+            resultEntries.sort { $0.timestamp < $1.timestamp }
         }
+        return resultEntries
+    }
 
-        let entries = readSessionFile(at: url)
-        cache[path] = (modDate, fileSize, entries)
-        return entries
+    /// Release raw entry arrays from per-file cache for files not modified today.
+    /// Only the fingerprint (modDate + fileSize) and messageIds are retained.
+    /// cachedAllEntries remains the authoritative source for these entries.
+    private func evictOldFileEntries() {
+        let today = Calendar.current.startOfDay(for: Date())
+        for (path, entry) in cache where entry.entries != nil && entry.modDate < today {
+            cache[path] = FileCacheEntry(
+                modDate: entry.modDate,
+                fileSize: entry.fileSize,
+                entries: nil,
+                messageIds: entry.messageIds
+            )
+        }
     }
 
     /// Exposes discovery for testing the symlink boundary check.
@@ -149,6 +228,14 @@ final class SessionLogReader: @unchecked Sendable {
     func expireDiscoveryTTLForTesting() {
         lastFullEnumerationDate = .distantPast
         discoveredFiles = nil
+    }
+
+    /// Returns the number of per-file cache entries that still have live (non-nil) entry arrays.
+    /// Used by tests to verify memory eviction behavior.
+    func cacheEntriesWithLiveEntriesCountForTesting() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache.values.filter { $0.entries != nil }.count
     }
 
     // MARK: - Discovery
@@ -356,7 +443,7 @@ final class SessionLogReader: @unchecked Sendable {
               let model = message.model else { return nil }
 
         // Stable fallback: deterministic composite key so re-reading the same file
-        // after LRU cache eviction produces the same ID (preserving deduplication).
+        // after cache eviction produces the same ID (preserving deduplication).
         let messageId = message.id ?? entry.uuid
             ?? "\(entry.sessionId ?? ""):\(entry.timestamp ?? ""):\(usage.inputTokens ?? 0):\(usage.outputTokens ?? 0)"
         let timestamp: Date
