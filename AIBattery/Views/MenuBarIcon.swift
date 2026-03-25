@@ -285,69 +285,6 @@ struct MenuBarIcon: View {
         return image
     }
 
-    // MARK: - Broken star rendering (legacy, unused — kept for cache key compatibility)
-
-    /// Number of starburst rays behind the broken star.
-    private static let burstRayCount = 12
-    /// Half-angle width of each burst ray (radians). Smaller = thinner spikes.
-    private static let burstRayHalfAngle: CGFloat = 0.08
-
-    static func renderBrokenIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
-        let size = iconSize
-
-        // Static broken star — frozen at peak intensity (no breathing).
-        // Saves timer wakeups + image renders while staying visually distinct.
-        let fragmentScale: CGFloat = 1.14
-        let burstAlpha: CGFloat = 0.45
-        let burstRadius: CGFloat = 6.5 * fragmentScale * 1.3 + 1.0
-
-        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-            let center = NSPoint(x: size / 2, y: size / 2)
-            let outerRadius: CGFloat = 6.5
-            let innerRadius: CGFloat = 2.0
-            let fragmentOffset: CGFloat = 1.5
-
-            // Starburst rays — thin triangular spikes radiating outward
-            let burstInnerR: CGFloat = outerRadius * fragmentScale * 0.5
-            ctx.setFillColor(color.withAlphaComponent(burstAlpha).cgColor)
-            for i in 0..<burstRayCount {
-                let angle = CGFloat(i) * (2 * .pi / CGFloat(burstRayCount))
-                let tipX = center.x + burstRadius * cos(angle)
-                let tipY = center.y + burstRadius * sin(angle)
-                let leftX = center.x + burstInnerR * cos(angle - burstRayHalfAngle)
-                let leftY = center.y + burstInnerR * sin(angle - burstRayHalfAngle)
-                let rightX = center.x + burstInnerR * cos(angle + burstRayHalfAngle)
-                let rightY = center.y + burstInnerR * sin(angle + burstRayHalfAngle)
-                ctx.move(to: CGPoint(x: leftX, y: leftY))
-                ctx.addLine(to: CGPoint(x: tipX, y: tipY))
-                ctx.addLine(to: CGPoint(x: rightX, y: rightY))
-                ctx.closePath()
-            }
-            ctx.fillPath()
-
-            // Broken fragments on top — also breathe
-            let fragments = brokenStarFragments(
-                center: center,
-                outerRadius: outerRadius * fragmentScale,
-                innerRadius: innerRadius * fragmentScale,
-                offset: fragmentOffset
-            )
-
-            for fragment in fragments {
-                let cgPath = fragment.asCGPath
-                ctx.setFillColor(color.cgColor)
-                ctx.addPath(cgPath)
-                ctx.fillPath()
-                drawStroke(ctx: ctx, path: cgPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
-            }
-
-            return true
-        }
-        image.isTemplate = false
-        return image
-    }
-
     // MARK: - Sparkle star rendering (green / healthy)
 
     /// Pre-computed sparkle positions: angle (radians) and distance from center.
@@ -364,7 +301,6 @@ struct MenuBarIcon: View {
     ]
 
     /// Each pulse step shows a different subset of sparkles (indices into sparklePositions).
-    /// 8 unique frames with 2-3 sparkles each — celebratory twinkling for recovery.
     /// 8 frames with 2-3 sparkles each — celebratory twinkling for recovery.
     private static let sparkleFrames: [[Int]] = [
         [0, 4],     [1, 5],     [2, 6],     [3, 7],

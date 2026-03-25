@@ -45,44 +45,6 @@ extension MenuBarIcon {
         return path
     }
 
-    /// 4 triangular fragments of the star, each offset outward from center.
-    static func brokenStarFragments(
-        center: NSPoint,
-        outerRadius: CGFloat,
-        innerRadius: CGFloat,
-        offset: CGFloat
-    ) -> [NSBezierPath] {
-        var vertices: [NSPoint] = []
-        for i in 0..<8 {
-            let angle = (CGFloat(i) * .pi / 4) - (.pi / 2)
-            let radius = i % 2 == 0 ? outerRadius : innerRadius
-            vertices.append(NSPoint(
-                x: center.x + radius * cos(angle),
-                y: center.y + radius * sin(angle)
-            ))
-        }
-
-        var fragments: [NSBezierPath] = []
-        for k in 0..<4 {
-            let outerIdx = k * 2
-            let prevInner = (outerIdx + 7) % 8
-            let nextInner = (outerIdx + 1) % 8
-
-            let outerAngle = (CGFloat(outerIdx) * .pi / 4) - (.pi / 2)
-            let dx = offset * cos(outerAngle)
-            let dy = offset * sin(outerAngle)
-
-            let path = NSBezierPath()
-            path.move(to: NSPoint(x: vertices[outerIdx].x + dx, y: vertices[outerIdx].y + dy))
-            path.line(to: NSPoint(x: vertices[prevInner].x + dx, y: vertices[prevInner].y + dy))
-            path.line(to: NSPoint(x: vertices[nextInner].x + dx, y: vertices[nextInner].y + dy))
-            path.close()
-            fragments.append(path)
-        }
-
-        return fragments
-    }
-
     /// Shared stroke drawing via CGContext.
     static func drawStroke(ctx: CGContext, path: CGPath, color: NSColor, highContrast: Bool, isDarkMode: Bool) {
         if highContrast {

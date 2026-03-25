@@ -343,7 +343,6 @@ public final class StatusBarManager: NSObject {
         return "\(Int(percent))%"
     }
 
-
     /// Returns the reset date for countdown display when throttled or any window hits 100%.
     /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
     private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
