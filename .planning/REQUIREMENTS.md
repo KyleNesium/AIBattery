@@ -44,19 +44,19 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCAN-01 | TBD | Pending |
-| SCAN-02 | TBD | Pending |
-| SCAN-03 | TBD | Pending |
-| MEM-01 | TBD | Pending |
-| MEM-02 | TBD | Pending |
-| CPU-01 | TBD | Pending |
-| CPU-02 | TBD | Pending |
+| SCAN-01 | Phase 17 | Pending |
+| SCAN-02 | Phase 17 | Pending |
+| SCAN-03 | Phase 17 | Pending |
+| MEM-01 | Phase 18 | Pending |
+| MEM-02 | Phase 18 | Pending |
+| CPU-01 | Phase 19 | Pending |
+| CPU-02 | Phase 19 | Pending |
 
 **Coverage:**
 - v1.16 requirements: 7 total
-- Mapped to phases: 0
-- Unmapped: 7 ⚠️
+- Mapped to phases: 7
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-25*
-*Last updated: 2026-03-25 after initial definition*
+*Last updated: 2026-03-25 after roadmap creation*
