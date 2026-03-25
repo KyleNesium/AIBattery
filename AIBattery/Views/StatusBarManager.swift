@@ -6,6 +6,8 @@ import os.signpost
 extension Notification.Name {
     /// Keyboard shortcut pressed in the popover panel — forwarded to SwiftUI views.
     static let panelKeyPress = Notification.Name("panelKeyPress")
+    /// Panel was dismissed — used to reset transient popover UI state kept alive by NSHostingView reuse.
+    static let panelDidDismiss = Notification.Name("panelDidDismiss")
 }
 
 // MARK: - Toggle State Machine
@@ -124,6 +126,7 @@ public final class StatusBarManager: NSObject {
         // making desync impossible. dismiss() is idempotent so double-calls are safe.
         panel.onDismiss = { [weak self] in
             self?.toggleState.dismiss()
+            NotificationCenter.default.post(name: .panelDidDismiss, object: nil)
         }
 
         // SwiftUI content — background color is set in PopoverContentView

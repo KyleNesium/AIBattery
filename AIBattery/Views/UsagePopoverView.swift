@@ -229,14 +229,25 @@ public struct UsagePopoverView: View {
             guard let key = notification.object as? String else { return }
             handleKeyPress(key)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in
+            resetTransientPopoverState()
+        }
         .onDisappear {
-            logoutRevertTask?.cancel()
             panelHasAppeared = false
+            resetTransientPopoverState()
         }
     }
 
     private func recomputeOrderedModes() {
         cachedOrderedModes = [metricMode] + MetricMode.allCases.filter { $0 != metricMode }
+    }
+
+    private func resetTransientPopoverState() {
+        withAnimation(MotionConstants.standard) {
+            showSettings = false
+            showLogoutConfirm = false
+        }
+        logoutRevertTask?.cancel()
     }
 
     private func handleKeyPress(_ key: String) {

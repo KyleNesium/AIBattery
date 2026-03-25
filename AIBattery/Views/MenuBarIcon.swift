@@ -247,10 +247,11 @@ struct MenuBarIcon: View {
         return image
     }
 
-    // MARK: - Throttled star rendering (static, many-pointed)
+    // MARK: - Throttled star rendering (static, shattered)
 
-    /// Static many-pointed star for throttled state — no animation, no fragments.
-    /// Uses a 12-pointed star shape with the normal 4-pointed star overlaid for depth.
+    /// Static shattered star for throttled/exhausted state.
+    /// Four detached red shards keep the original star silhouette recognizable,
+    /// while the center gap reads as "broken" at menu bar size.
     static func renderThrottledIcon(color: NSColor, highContrast: Bool, isDarkMode: Bool) -> NSImage {
         let size = iconSize
         let outerRadius: CGFloat = 6.5
@@ -260,24 +261,35 @@ struct MenuBarIcon: View {
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             let center = NSPoint(x: size / 2, y: size / 2)
 
-            // 12-pointed star glow behind (spiky, aggressive)
-            let spikyPath = multiPointStarPath(
+            // Burst halo behind the shards — keeps the state visually urgent.
+            let burstPath = multiPointStarPath(
                 center: center,
-                outerRadius: outerRadius * 1.3,
-                innerRadius: outerRadius * 0.65,
+                outerRadius: outerRadius * 1.28,
+                innerRadius: outerRadius * 0.62,
                 points: 12
             )
-            ctx.setFillColor(color.withAlphaComponent(0.35).cgColor)
-            ctx.addPath(spikyPath.asCGPath)
+            ctx.setFillColor(color.withAlphaComponent(0.22).cgColor)
+            ctx.addPath(burstPath.asCGPath)
             ctx.fillPath()
 
-            // Normal 4-pointed star on top (solid fill)
-            let starFill = starPath(center: center, outerRadius: outerRadius * 1.14, innerRadius: innerRadius * 1.14)
-            ctx.setFillColor(color.cgColor)
-            ctx.addPath(starFill.asCGPath)
-            ctx.fillPath()
+            let fragments = brokenStarFragments(
+                center: center,
+                outerRadius: outerRadius * 1.08,
+                innerRadius: innerRadius * 1.15,
+                offset: 1.5
+            )
+            let shardColor = color.blended(withFraction: 0.12, of: .white) ?? color
+            for fragment in fragments {
+                ctx.setFillColor(shardColor.cgColor)
+                ctx.addPath(fragment.asCGPath)
+                ctx.fillPath()
+                drawStroke(ctx: ctx, path: fragment.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+            }
 
-            drawStroke(ctx: ctx, path: starFill.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+            // A subtle center flash helps the break register without turning into noise.
+            let coreRect = CGRect(x: center.x - 0.9, y: center.y - 0.9, width: 1.8, height: 1.8)
+            ctx.setFillColor(NSColor.white.withAlphaComponent(0.3).cgColor)
+            ctx.fillEllipse(in: coreRect)
 
             return true
         }

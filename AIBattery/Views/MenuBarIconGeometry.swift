@@ -45,6 +45,45 @@ extension MenuBarIcon {
         return path
     }
 
+    /// Shattered 4-point star fragments for exhausted/throttled state.
+    /// Each arm is detached and pushed slightly outward so the center reads as "broken"
+    /// even at menu bar size.
+    static func brokenStarFragments(center: NSPoint, outerRadius: CGFloat, innerRadius: CGFloat, offset: CGFloat) -> [NSBezierPath] {
+        let top = NSPoint(x: center.x, y: center.y + outerRadius)
+        let topRight = NSPoint(x: center.x + innerRadius, y: center.y + innerRadius)
+        let right = NSPoint(x: center.x + outerRadius, y: center.y)
+        let bottomRight = NSPoint(x: center.x + innerRadius, y: center.y - innerRadius)
+        let bottom = NSPoint(x: center.x, y: center.y - outerRadius)
+        let bottomLeft = NSPoint(x: center.x - innerRadius, y: center.y - innerRadius)
+        let left = NSPoint(x: center.x - outerRadius, y: center.y)
+        let topLeft = NSPoint(x: center.x - innerRadius, y: center.y + innerRadius)
+
+        func translated(_ point: NSPoint, dx: CGFloat, dy: CGFloat) -> NSPoint {
+            NSPoint(x: point.x + dx, y: point.y + dy)
+        }
+
+        func fragment(_ points: [NSPoint], dx: CGFloat, dy: CGFloat) -> NSBezierPath {
+            let path = NSBezierPath()
+            for (index, point) in points.enumerated() {
+                let shifted = translated(point, dx: dx, dy: dy)
+                if index == 0 {
+                    path.move(to: shifted)
+                } else {
+                    path.line(to: shifted)
+                }
+            }
+            path.close()
+            return path
+        }
+
+        return [
+            fragment([topLeft, top, topRight], dx: 0, dy: offset),
+            fragment([topRight, right, bottomRight], dx: offset, dy: 0),
+            fragment([bottomRight, bottom, bottomLeft], dx: 0, dy: -offset),
+            fragment([bottomLeft, left, topLeft], dx: -offset, dy: 0),
+        ]
+    }
+
     /// Shared stroke drawing via CGContext.
     static func drawStroke(ctx: CGContext, path: CGPath, color: NSColor, highContrast: Bool, isDarkMode: Bool) {
         if highContrast {
