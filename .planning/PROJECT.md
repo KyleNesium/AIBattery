@@ -82,7 +82,13 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ PERF-15: Breath animation removed entirely (zero CPU wakeups for icon) — v1.9.9
 - ✓ CRASH-01: Use-after-free from concurrent aggregation (NSLock + task serialization) — v1.9.9
 
-_(defining requirements for v1.16 JSONL Performance)_
+- [ ] SCAN-01: Aggregation <100ms — Phase 17 ✓
+- [ ] SCAN-02: Only changed files re-parsed — Phase 17 ✓
+- [ ] SCAN-03: Directory mod-date skip — Phase 17 ✓
+- [ ] MEM-01: RSS under 100 MB — Phase 18
+- [ ] MEM-02: Inactive session entries evicted — Phase 18
+- [ ] CPU-01: CPU <2% at idle — Phase 19
+- [ ] CPU-02: CPU <5% during polling — Phase 19
 
 ### Out of Scope
 
