@@ -93,11 +93,11 @@ extension InsightsView {
         .chartOverlay { proxy in
             chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
                 guard let date: Date = proxy.value(atX: x) else { return }
-                let cal = Calendar.current
+                let ts = date.timeIntervalSinceReferenceDate
                 selectedDailyId = data
                     .min(by: {
-                        abs(cal.dateComponents([.hour], from: $0.date, to: date).hour ?? .max)
-                        < abs(cal.dateComponents([.hour], from: $1.date, to: date).hour ?? .max)
+                        abs($0.date.timeIntervalSinceReferenceDate - ts)
+                        < abs($1.date.timeIntervalSinceReferenceDate - ts)
                     })?.id
             } onEnd: {
                 selectedDailyId = nil
@@ -228,11 +228,11 @@ extension InsightsView {
         .chartOverlay { proxy in
             chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
                 guard let date: Date = proxy.value(atX: x) else { return }
-                let cal = Calendar.current
+                let ts = date.timeIntervalSinceReferenceDate
                 selectedMonthlyId = data
                     .min(by: {
-                        abs(cal.dateComponents([.day], from: $0.date, to: date).day ?? .max)
-                        < abs(cal.dateComponents([.day], from: $1.date, to: date).day ?? .max)
+                        abs($0.date.timeIntervalSinceReferenceDate - ts)
+                        < abs($1.date.timeIntervalSinceReferenceDate - ts)
                     })?.id
             } onEnd: {
                 selectedMonthlyId = nil

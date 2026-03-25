@@ -31,7 +31,7 @@ final class RateLimitFetcher {
 
     /// Dynamic list of model IDs observed in JSONL sessions, sorted by most-recently-seen first.
     /// Populated by UsageAggregator after each aggregation cycle. Replaces the old hardcoded
-    /// hardcoded list so the probe list self-heals when Anthropic deprecates model IDs.
+    /// list so the probe list self-heals when Anthropic deprecates model IDs.
     private(set) var observedModels: [String] = []
     private static let observedModelsKeyPrefix = "aibattery_observedModels_"
 
