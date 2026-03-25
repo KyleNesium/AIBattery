@@ -87,8 +87,8 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - [ ] SCAN-03: Directory mod-date skip — Phase 17 ✓
 - [ ] MEM-01: RSS under 100 MB — Phase 18 ✓
 - [ ] MEM-02: Inactive session entries evicted — Phase 18 ✓
-- [ ] CPU-01: CPU <2% at idle — Phase 19
-- [ ] CPU-02: CPU <5% during polling — Phase 19
+- [ ] CPU-01: CPU <2% at idle — Phase 19 ✓ (measured 0.0%)
+- [ ] CPU-02: CPU <5% during polling — Phase 19 ✓ (measured 0.0-0.1%)
 
 ### Out of Scope
 
