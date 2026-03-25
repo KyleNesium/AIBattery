@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.16
 milestone_name: JSONL Performance
-status: ready_to_plan
-stopped_at: null
-last_updated: "2026-03-25"
+status: executing
+stopped_at: Completed 17-01-PLAN.md (incremental scanning)
+last_updated: "2026-03-25T09:35:26.769Z"
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,12 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-25)
 
 ## Current Position
 
-Phase: 17 of 19 (Incremental Scanning)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-25 — v1.16 roadmap created; v1.15 shipped (Phases 15–16 complete)
-
-Progress: [░░░░░░░░░░] 0% (v1.16 phases; 0 of 3 complete)
+Phase: 17 (Incremental Scanning) — EXECUTING
+Current Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -41,6 +37,8 @@ Progress: [░░░░░░░░░░] 0% (v1.16 phases; 0 of 3 complete)
 - [v1.9.9]: NSLock on UsageAggregator + task serialization in UsageViewModel
 - [v1.16 scoping]: SQLite/persistent index ruled out — mod-date fingerprint caching is sufficient
 - [v1.16 scoping]: FileWatcher rewrite ruled out — CPU hotspot is JSONL scan, not FSEvents I/O
+- [Phase 17-01]: Unbounded per-file cache — 3,103 entries is trivial vs 200-entry LRU causing 94% eviction
+- [Phase 17-01]: isDirty flag instead of clearing cachedAllEntries — avoids full re-merge when only one file changed
 
 ### Blockers/Concerns
 
@@ -51,5 +49,5 @@ Progress: [░░░░░░░░░░] 0% (v1.16 phases; 0 of 3 complete)
 ## Session Continuity
 
 Last session: 2026-03-25
-Stopped at: Roadmap created for v1.16; no plans written yet
+Stopped at: Completed 17-01-PLAN.md (incremental scanning)
 Resume file: None
