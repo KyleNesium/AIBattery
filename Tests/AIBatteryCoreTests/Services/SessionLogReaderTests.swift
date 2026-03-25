@@ -558,4 +558,136 @@ struct SessionLogReaderTests {
         #expect(second.count == 1)
         #expect(second[0].inputTokens == 100, "Should return cached result without invalidation, not re-parse")
     }
+
+    // MARK: - Incremental cache behavior
+
+    @Test func incrementalRebuild_onlyReParsesChangedFiles() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Write two files with distinct entries
+        try writeJSONL(
+            [assistantLine(messageId: "msg-A", inputTokens: 100)],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        try writeJSONL(
+            [assistantLine(messageId: "msg-B", inputTokens: 200)],
+            to: projectsDir,
+            sessionName: "file-b.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 2)
+
+        // Sleep to ensure mod date changes on APFS
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Overwrite file-a with updated tokens (same messageId)
+        try writeJSONL(
+            [assistantLine(messageId: "msg-A", inputTokens: 999)],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        reader.invalidate()
+
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 2)
+
+        // Changed file re-parsed: msg-A should have updated tokens
+        let entryA = second.first { $0.messageId == "msg-A" }
+        #expect(entryA?.inputTokens == 999)
+
+        // Unchanged file cached: msg-B keeps original tokens
+        let entryB = second.first { $0.messageId == "msg-B" }
+        #expect(entryB?.inputTokens == 200)
+    }
+
+    @Test func cacheUnbounded_noEvictionAt250Files() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Write 250 separate JSONL files, each with one unique entry
+        for i in 0..<250 {
+            try writeJSONL(
+                [assistantLine(messageId: "msg-\(i)", inputTokens: i)],
+                to: projectsDir,
+                sessionName: "session-\(String(format: "%03d", i)).jsonl"
+            )
+        }
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 250, "All 250 entries should be present (no eviction)")
+
+        // Read again — still 250 (no eviction between reads)
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 250, "Cache should hold all 250 entries without eviction")
+    }
+
+    @Test func deletedFile_removedFromResults() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL(
+            [assistantLine(messageId: "msg-A")],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        try writeJSONL(
+            [assistantLine(messageId: "msg-B")],
+            to: projectsDir,
+            sessionName: "file-b.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 2)
+
+        // Delete file-b
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.removeItem(at: projectDir.appendingPathComponent("file-b.jsonl"))
+
+        reader.invalidate()
+
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 1)
+        #expect(second[0].messageId == "msg-A")
+    }
+
+    @Test func incrementalRebuild_preservesDeduplication() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Same messageId in two different files
+        try writeJSONL(
+            [assistantLine(messageId: "msg-SHARED", inputTokens: 100)],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        try writeJSONL(
+            [assistantLine(messageId: "msg-SHARED", inputTokens: 200)],
+            to: projectsDir,
+            sessionName: "file-b.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 1, "Duplicate messageId should be deduped")
+
+        // Sleep to ensure mod date changes
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Modify file-a with same shared messageId but different tokens
+        try writeJSONL(
+            [assistantLine(messageId: "msg-SHARED", inputTokens: 300)],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        reader.invalidate()
+
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 1, "Deduplication should be preserved after incremental rebuild")
+    }
 }
