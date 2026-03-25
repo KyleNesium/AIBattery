@@ -26,7 +26,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 16.
 
 ## Phase Details
 
-- [ ] **Phase 17: Incremental Scanning** - Only re-parse JSONL files that changed since last cycle; skip unchanged files via mod-date + size fingerprint
+- [x] **Phase 17: Incremental Scanning** - Only re-parse JSONL files that changed since last cycle; skip unchanged files via mod-date + size fingerprint (completed 2026-03-25)
 - [ ] **Phase 18: Memory Optimization** - Evict parsed entries for old/inactive sessions; store aggregated results not raw entries
 - [ ] **Phase 19: Verification** - Confirm CPU and memory targets are met under realistic conditions; integration tests
 
@@ -39,7 +39,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 16.
   2. On a polling cycle with no new Claude Code activity, zero JSONL files are re-parsed
   3. On a polling cycle where one session is active, only that session's file(s) are re-parsed
   4. Directory traversal uses mod-date comparison to skip unchanged subdirectories without opening them
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 17-01-PLAN.md — Remove LRU cache cap and implement incremental dirty-flag merge
 - [x] 17-02-PLAN.md — Per-directory incremental discovery and performance verification
@@ -74,6 +74,6 @@ Plans:
 | 14. Layout Consistency | v1.14 | 0/0 | Complete | 2026-03-24 |
 | 15. Breath Timer Fix | v1.15 | 1/1 | Complete | 2026-03-24 |
 | 16. Idle and Lock Detection | v1.15 | 0/? | Complete | 2026-03-25 |
-| 17. Incremental Scanning | v1.16 | 2/2 | Complete | 2026-03-25 |
+| 17. Incremental Scanning | v1.16 | Complete    | 2026-03-25 | 2026-03-25 |
 | 18. Memory Optimization | v1.16 | 0/? | Not started | - |
 | 19. Verification | v1.16 | 0/? | Not started | - |
