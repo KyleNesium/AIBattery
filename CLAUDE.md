@@ -68,7 +68,7 @@ These aren't obvious from reading the code — know them before making changes:
 - `APIFetchResult.isCached` distinguishes fresh API data from stale cache — always check before treating as fresh. Cache expires after 1 hour.
 - OAuth refresh: transient errors (network + server 5xx) keep `isAuthenticated` true (retry next cycle); only auth errors trigger logout. Token endpoint retries 5xx up to 2 times with backoff. Token refresh fires 5 min before expiry to avoid clock-skew 401s. Concurrent refresh attempts are serialized via a shared task.
 - StatusChecker backs off 60s after failures — no immediate retries
-- SessionLogReader uses unbounded per-file cache with dirty-flag incremental merge; trailing JSONL lines without closing `}` are skipped; leftover buffer capped at 1MB (oversized lines discarded)
+- SessionLogReader per-file cache stores fingerprints only (modDate + fileSize); raw entry arrays released after merge into cachedAllEntries. On dirty cycle, only changed files re-parsed — eliminates double-storage. Trailing JSONL lines without closing `}` are skipped; leftover buffer capped at 1MB (oversized lines discarded)
 - NotificationManager fires once per outage via `UNUserNotificationCenter`, deduplicates per component, resets on recovery
 - `~/.claude.json` oauthAccount may not match the OAuth token's org if user switched accounts
 
