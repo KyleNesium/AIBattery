@@ -27,6 +27,20 @@ struct SessionLogReaderDiscoveryTests {
         return file
     }
 
+    /// Creates a named project directory inside the projects root and returns its URL.
+    private func makeProjectDir(in projectsDir: URL, name: String) throws -> URL {
+        let dir = projectsDir.appendingPathComponent(name)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// Adds a JSONL file to a specific project directory.
+    private func addJSONLFile(to projectDir: URL, name: String) throws -> URL {
+        let file = projectDir.appendingPathComponent(name)
+        try Data("{}".utf8).write(to: file)
+        return file
+    }
+
     // MARK: - TTL Constant
 
     @Test func discoveryTTL_is60Seconds() {
@@ -92,5 +106,90 @@ struct SessionLogReaderDiscoveryTests {
         try addJSONLFile(to: projectsDir, name: "after-invalidate.jsonl")
         let files = reader.discoverJSONLFilesForTesting()
         #expect(files.count == 2)
+    }
+
+    // MARK: - Per-directory incremental discovery
+
+    @Test func unchangedDirectory_skipsEnumeration() throws {
+        // Create projects root with two project dirs, each containing a JSONL file
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("discovery-incr-test-\(UUID().uuidString)")
+        let projectsDir = tmpDir.appendingPathComponent("projects")
+        try FileManager.default.createDirectory(at: projectsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let dirA = try makeProjectDir(in: projectsDir, name: "-project-a")
+        let dirB = try makeProjectDir(in: projectsDir, name: "-project-b")
+        try addJSONLFile(to: dirA, name: "a.jsonl")
+        try addJSONLFile(to: dirB, name: "b.jsonl")
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+
+        // Prime cache — both dirs enumerated
+        let first = reader.discoverJSONLFilesForTesting()
+        #expect(first.count == 2)
+
+        // Invalidate (clears discoveredFiles but preserves per-dir cache)
+        reader.invalidate()
+
+        // Second discovery — both dirs unchanged, should still return both files
+        let second = reader.discoverJSONLFilesForTesting()
+        #expect(second.count == 2)
+        #expect(Set(second.map(\.lastPathComponent)) == Set(["a.jsonl", "b.jsonl"]))
+    }
+
+    @Test func newDirectoryDiscovered_afterInvalidation() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("discovery-newdir-test-\(UUID().uuidString)")
+        let projectsDir = tmpDir.appendingPathComponent("projects")
+        try FileManager.default.createDirectory(at: projectsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let dirA = try makeProjectDir(in: projectsDir, name: "-project-a")
+        try addJSONLFile(to: dirA, name: "a.jsonl")
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+
+        let first = reader.discoverJSONLFilesForTesting()
+        #expect(first.count == 1)
+
+        // Add a new project directory with a file
+        let dirB = try makeProjectDir(in: projectsDir, name: "-project-b")
+        try addJSONLFile(to: dirB, name: "b.jsonl")
+
+        // Invalidate so discovery re-checks
+        reader.invalidate()
+
+        let second = reader.discoverJSONLFilesForTesting()
+        #expect(second.count == 2)
+        #expect(second.map(\.lastPathComponent).sorted() == ["a.jsonl", "b.jsonl"])
+    }
+
+    @Test func deletedDirectory_filesRemoved() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("discovery-deldir-test-\(UUID().uuidString)")
+        let projectsDir = tmpDir.appendingPathComponent("projects")
+        try FileManager.default.createDirectory(at: projectsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let dirA = try makeProjectDir(in: projectsDir, name: "-project-a")
+        let dirB = try makeProjectDir(in: projectsDir, name: "-project-b")
+        try addJSONLFile(to: dirA, name: "a.jsonl")
+        try addJSONLFile(to: dirB, name: "b.jsonl")
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+
+        let first = reader.discoverJSONLFilesForTesting()
+        #expect(first.count == 2)
+
+        // Delete project B
+        try FileManager.default.removeItem(at: dirB)
+
+        // Invalidate so discovery re-checks
+        reader.invalidate()
+
+        let second = reader.discoverJSONLFilesForTesting()
+        #expect(second.count == 1)
+        #expect(second.first?.lastPathComponent == "a.jsonl")
     }
 }
