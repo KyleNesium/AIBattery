@@ -229,10 +229,21 @@ public struct UsagePopoverView: View {
             guard let key = notification.object as? String else { return }
             handleKeyPress(key)
         }
-        .onDisappear {
-            logoutRevertTask?.cancel()
-            panelHasAppeared = false
+        .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in
+            resetTransientPopoverState()
         }
+        .onDisappear {
+            panelHasAppeared = false
+            resetTransientPopoverState()
+        }
+    }
+
+    private func resetTransientPopoverState() {
+        // No animation — panel is already hidden, animated state changes
+        // would leave stale frames that show as blank space on next open.
+        showSettings = false
+        showLogoutConfirm = false
+        logoutRevertTask?.cancel()
     }
 
     private func recomputeOrderedModes() {

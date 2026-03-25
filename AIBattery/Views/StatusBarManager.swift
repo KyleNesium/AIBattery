@@ -6,6 +6,8 @@ import os.signpost
 extension Notification.Name {
     /// Keyboard shortcut pressed in the popover panel — forwarded to SwiftUI views.
     static let panelKeyPress = Notification.Name("panelKeyPress")
+    /// Panel was dismissed (any path) — SwiftUI views reset transient state.
+    static let panelDidDismiss = Notification.Name("panelDidDismiss")
 }
 
 // MARK: - Toggle State Machine
@@ -124,6 +126,7 @@ public final class StatusBarManager: NSObject {
         // making desync impossible. dismiss() is idempotent so double-calls are safe.
         panel.onDismiss = { [weak self] in
             self?.toggleState.dismiss()
+            NotificationCenter.default.post(name: .panelDidDismiss, object: nil)
         }
 
         // SwiftUI content — background color is set in PopoverContentView
@@ -398,6 +401,15 @@ public final class StatusBarManager: NSObject {
         case .hide:
             panel.orderOut(nil)
         case .show:
+            // Refit panel to current SwiftUI content size — settings may have
+            // collapsed while the panel was hidden, leaving a stale frame.
+            if let hosting = hostingView {
+                let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
+                let maxPanelHeight = screenMaxHeight - 40
+                let fittingHeight = min(max(hosting.fittingSize.height, 100), maxPanelHeight)
+                let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
+                panel.setContentSize(NSSize(width: fittingWidth, height: fittingHeight))
+            }
             positionPanel(relativeTo: button)
             os_signpost(.begin, log: panelShowLog, name: "PanelShow")
             panel.orderFrontRegardless()
