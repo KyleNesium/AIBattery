@@ -1,46 +1,62 @@
-# Requirements: AIBattery v1.15 Performance
+# Requirements: AIBattery v1.16 JSONL Performance
 
-**Defined:** 2026-03-24
+**Defined:** 2026-03-25
 **Core Value:** Show Claude API usage clearly and instantly from the menu bar
 
-## v1.15 Requirements
+## v1.16 Requirements
 
-### Timer Management
+### JSONL Scan Efficiency
 
-- [x] **PERF-01**: Breath timer stops when popover is closed — no background icon rendering at 500ms/1s intervals
+- [ ] **SCAN-01**: Aggregation cycle completes in <100ms (currently takes seconds, consuming entire CPU core)
+- [ ] **SCAN-02**: Only changed JSONL files are re-parsed on each cycle (incremental, not full re-scan)
+- [ ] **SCAN-03**: File discovery uses mod-date comparison to skip unchanged directories
 
-### Resource Gating
+### Memory Efficiency
 
-- [ ] **PERF-02**: All timers stop when screen is locked or app is idle >5min — resume on wake/activity
+- [ ] **MEM-01**: RSS stays under 100 MB during normal operation (currently 409 MB)
+- [ ] **MEM-02**: Parsed entries from old/inactive sessions are not held in memory permanently
+
+### CPU at Idle
+
+- [ ] **CPU-01**: CPU usage stays under 2% when popover is closed and no Claude Code session is active
+- [ ] **CPU-02**: CPU usage stays under 5% during active polling with popover closed
+
+## Previous Milestone (v1.15 — shipped)
+
+- [x] **PERF-01**: Breath timer stops when popover is closed — v1.15
+- [x] **PERF-02**: All timers stop when screen is locked or app is idle >5min — v1.15
 
 ## Future Requirements
 
-### Deferred from v1.15
-
 - **PERF-03**: Suspend polling timer when popover closed — resume on open
 - **PERF-04**: Consolidate FileWatcher fallback timer with main polling cycle
-- **PERF-05**: Profile and optimize MenuBarIcon.statusBarImage rendering cost
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Rewrite FileWatcher to pure FSEvents | Current debounced approach works; CPU issue is timer-driven not I/O-driven |
-| Background refresh scheduling | Over-engineering for a menu bar app — visibility gating is sufficient |
-| Energy Impact API integration | Apple's Activity Monitor already shows this; not user-visible |
+| SQLite/persistent index | Over-engineered for the problem; file mod-date caching is sufficient |
+| Background daemon | Menu bar app should be lightweight, not a service |
+| JSONL content parsing | Security/privacy boundary; token-count-only reads |
+| Rewrite FileWatcher to pure FSEvents | Current debounced approach works; CPU issue is JSONL scan not I/O |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PERF-01 | Phase 15 | Complete |
-| PERF-02 | Phase 16 | Pending |
+| SCAN-01 | TBD | Pending |
+| SCAN-02 | TBD | Pending |
+| SCAN-03 | TBD | Pending |
+| MEM-01 | TBD | Pending |
+| MEM-02 | TBD | Pending |
+| CPU-01 | TBD | Pending |
+| CPU-02 | TBD | Pending |
 
 **Coverage:**
-- v1.15 requirements: 2 total
-- Mapped to phases: 2
-- Unmapped: 0
+- v1.16 requirements: 7 total
+- Mapped to phases: 0
+- Unmapped: 7 ⚠️
 
 ---
-*Requirements defined: 2026-03-24*
-*Last updated: 2026-03-24 — traceability mapped (Phase 15: PERF-01, Phase 16: PERF-02)*
+*Requirements defined: 2026-03-25*
+*Last updated: 2026-03-25 after initial definition*
