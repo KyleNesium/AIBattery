@@ -77,7 +77,17 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-_(defining requirements for v1.15 Performance)_
+- ✓ PERF-13: Breath timer gated on panel visibility — v1.15
+- ✓ PERF-14: Idle/lock detection suspends all timers — v1.15
+- ✓ PERF-15: Breath animation removed entirely (zero CPU wakeups for icon) — v1.9.9
+- ✓ CRASH-01: Use-after-free from concurrent aggregation (NSLock + task serialization) — v1.9.9
+- ✓ SCAN-01: Aggregation <100ms — v1.16
+- ✓ SCAN-02: Only changed files re-parsed — v1.16
+- ✓ SCAN-03: Directory mod-date skip — v1.16
+- ✓ MEM-01: RSS under 100 MB (measured 44-52 MB) — v1.16
+- ✓ MEM-02: Inactive session entries evicted — v1.16
+- ✓ CPU-01: CPU <2% at idle (measured 0.0%) — v1.16
+- ✓ CPU-02: CPU <5% during polling (measured 0.0-0.1%) — v1.16
 
 ### Out of Scope
 
@@ -87,12 +97,12 @@ _(defining requirements for v1.15 Performance)_
 
 ## Context
 
-- **Version:** v1.15 (2026-03-24) — Performance milestone started
-- **Tests:** 731+ across 49 files
+- **Version:** v1.16 (2026-03-25) — JSONL Performance milestone shipped
+- **Tests:** 764+ across 54 files (8 new integration tests in v1.16)
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
-- **Critical bug:** 83% CPU at idle — breath timer runs every 500ms without panel visibility check, polling continues when popover closed
+- **Performance:** CPU 0.0% at idle (was 83%), RSS 44-52 MB (was 409 MB), aggregation <100ms
 
 ## Constraints
 
@@ -125,11 +135,17 @@ _(defining requirements for v1.15 Performance)_
 | dailyActivity as loading signal | isEmpty checks daily records before declaring hourly empty — prevents false "No activity" on cold start | ✓ Good |
 | stride(by: .month, count: 3) for 12M | Let Swift Charts handle quarterly label placement — simpler than manual quarterlyLabelDates | ✓ Good |
 | "Context" not "Context Health" | Shorter header fits one line with session toggle + refresh + badge | ✓ Good |
+| Unbounded per-file cache | 3,103 files is trivial; LRU 200 caused 94% eviction | ✓ Good |
+| isDirty flag incremental merge | Avoids full re-merge when only one file changed | ✓ Good |
+| Per-directory discovery cache | Selective re-enumeration of changed dirs only | ✓ Good |
+| Calendar.startOfDay() caching | ICU lock contention was hidden CPU hotspot | ✓ Good |
+| FileCacheEntry with eviction | Fingerprint-only after merge; eliminates double-storage | ✓ Good |
 
 ---
 ## Milestone History
 
-- **v1.15 Performance** — started 2026-03-24
+- **v1.16 JSONL Performance** — shipped 2026-03-25 (Phases 17-19): CPU 83%→0%, RSS 409→52 MB
+- **v1.15 Performance** — shipped 2026-03-25 (Phases 15-16)
 - **v1.14 Visual Polish** — shipped 2026-03-24 (Phases 13-14)
 - **v1.13 Responsiveness** — shipped 2026-03-20 (Phase 12)
 - **v1.12 Performance & Cleanup** — shipped 2026-03-19 (Phases 10-11)
@@ -138,16 +154,10 @@ _(defining requirements for v1.15 Performance)_
 - **v1.0–v1.9.2** — pre-GSD
 
 ---
-## Current Milestone: v1.15 Performance
+## Current Milestone: v1.16 JSONL Performance
 
-**Goal:** Eliminate 83% CPU usage at idle — kill runaway timers and gate all background work on visibility.
-
-**Root causes identified:**
-- Breath timer fires every 500ms-1s at ≥95% usage with no panel visibility check
-- Each tick renders full NSImage (MenuBarIcon.statusBarImage)
-- Polling timer (60s) continues when popover closed
-- FileWatcher fallback timer (60s) overlaps with polling
-- No screen-lock/idle detection
+**Goal:** Reduce CPU usage from 83% to <2% at idle — ACHIEVED (0.0% measured)
+**Result:** CPU 83%→0%, RSS 409→52 MB, aggregation seconds→<100ms. All 7 requirements met.
 
 ---
-*Last updated: 2026-03-24 after v1.15 Performance milestone start*
+*Last updated: 2026-03-25 after v1.16 JSONL Performance milestone shipped*

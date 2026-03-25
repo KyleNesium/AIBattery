@@ -368,7 +368,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | Pre-filter marker 1a | `"type":"assistant"` (no space) |
 | Pre-filter marker 1b | `"type": "assistant"` (with space) |
 | Pre-filter marker 2 | `"usage"` |
-| Cache max entries | 200 files |
+| Cache | Unbounded per-file (fingerprint + messageIds retained after entry eviction) |
 | Discovery TTL | 60 sec — forces full re-enumeration regardless of dir mod-date (catches new files on filesystems where directory mtime may not update) |
 
 ## Activity Chart

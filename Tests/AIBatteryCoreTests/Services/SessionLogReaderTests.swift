@@ -396,15 +396,17 @@ struct SessionLogReaderTests {
         #expect(first[0].inputTokens == 100)
 
         // Overwrite the file with a different entry.
-        try writeJSONL([assistantLine(messageId: "msg-001", inputTokens: 999)], to: projectsDir)
+        // Sleep ensures mod date changes (APFS has 1-second resolution for some APIs).
+        Thread.sleep(forTimeInterval: 1.0)
+        try writeJSONL([assistantLine(messageId: "msg-001", inputTokens: 9999)], to: projectsDir)
 
-        // invalidate() with no scan running must clear the cache immediately.
+        // invalidate() with no scan running must mark dirty so next read re-scans.
         reader.invalidate()
 
         // Next read should pick up the changed file rather than returning the stale cache.
         let second = reader.readAllUsageEntries()
         #expect(second.count == 1)
-        #expect(second[0].inputTokens == 999)
+        #expect(second[0].inputTokens == 9999)
     }
 
     @Test func invalidate_afterScan_nextReadReturnsFreshData() throws {
@@ -532,5 +534,306 @@ struct SessionLogReaderTests {
         // Must complete well within 5 seconds — any deadlock would hang here.
         let result = group.wait(timeout: .now() + 5)
         #expect(result == .success)
+    }
+
+    // MARK: - Dirty-flag fast path
+
+    @Test func notDirty_returnsCachedImmediately() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL([assistantLine(messageId: "msg-orig", inputTokens: 100)], to: projectsDir)
+        let reader = SessionLogReader(projectsURL: projectsDir)
+
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 1)
+        #expect(first[0].inputTokens == 100)
+
+        // Overwrite file with different tokens — do NOT invalidate
+        Thread.sleep(forTimeInterval: 1.0)
+        try writeJSONL([assistantLine(messageId: "msg-orig", inputTokens: 999)], to: projectsDir)
+
+        // Without invalidation, should return cached result (not 999)
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 1)
+        #expect(second[0].inputTokens == 100, "Should return cached result without invalidation, not re-parse")
+    }
+
+    // MARK: - Incremental cache behavior
+
+    @Test func incrementalRebuild_onlyReParsesChangedFiles() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Write two files with distinct entries
+        try writeJSONL(
+            [assistantLine(messageId: "msg-A", inputTokens: 100)],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        try writeJSONL(
+            [assistantLine(messageId: "msg-B", inputTokens: 200)],
+            to: projectsDir,
+            sessionName: "file-b.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 2)
+
+        // Sleep to ensure mod date changes on APFS
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Overwrite file-a with updated tokens (same messageId)
+        try writeJSONL(
+            [assistantLine(messageId: "msg-A", inputTokens: 999)],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        reader.invalidate()
+
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 2)
+
+        // Changed file re-parsed: msg-A should have updated tokens
+        let entryA = second.first { $0.messageId == "msg-A" }
+        #expect(entryA?.inputTokens == 999)
+
+        // Unchanged file cached: msg-B keeps original tokens
+        let entryB = second.first { $0.messageId == "msg-B" }
+        #expect(entryB?.inputTokens == 200)
+    }
+
+    @Test func cacheUnbounded_noEvictionAt250Files() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Write 250 separate JSONL files, each with one unique entry
+        for i in 0..<250 {
+            try writeJSONL(
+                [assistantLine(messageId: "msg-\(i)", inputTokens: i)],
+                to: projectsDir,
+                sessionName: "session-\(String(format: "%03d", i)).jsonl"
+            )
+        }
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 250, "All 250 entries should be present (no eviction)")
+
+        // Read again — still 250 (no eviction between reads)
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 250, "Cache should hold all 250 entries without eviction")
+    }
+
+    @Test func deletedFile_removedFromResults() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL(
+            [assistantLine(messageId: "msg-A")],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        try writeJSONL(
+            [assistantLine(messageId: "msg-B")],
+            to: projectsDir,
+            sessionName: "file-b.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 2)
+
+        // Delete file-b
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        try FileManager.default.removeItem(at: projectDir.appendingPathComponent("file-b.jsonl"))
+
+        reader.invalidate()
+
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 1)
+        #expect(second[0].messageId == "msg-A")
+    }
+
+    @Test func incrementalRebuild_preservesDeduplication() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Same messageId in two different files
+        try writeJSONL(
+            [assistantLine(messageId: "msg-SHARED", inputTokens: 100)],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        try writeJSONL(
+            [assistantLine(messageId: "msg-SHARED", inputTokens: 200)],
+            to: projectsDir,
+            sessionName: "file-b.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 1, "Duplicate messageId should be deduped")
+
+        // Sleep to ensure mod date changes
+        Thread.sleep(forTimeInterval: 1.0)
+
+        // Modify file-a with same shared messageId but different tokens
+        try writeJSONL(
+            [assistantLine(messageId: "msg-SHARED", inputTokens: 300)],
+            to: projectsDir,
+            sessionName: "file-a.jsonl"
+        )
+        reader.invalidate()
+
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 1, "Deduplication should be preserved after incremental rebuild")
+    }
+
+    // MARK: - Memory eviction: per-file entry arrays released after merge
+
+    /// Simulates an old session file by backdating its modification date to yesterday.
+    private func backdateFile(at url: URL) throws {
+        let yesterday = Date().addingTimeInterval(-86400)
+        try FileManager.default.setAttributes([.modificationDate: yesterday], ofItemAtPath: url.path)
+    }
+
+    @Test func eviction_oldFilesHaveEntriesReleasedAfterMerge() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // Write a file and backdate it so it looks like yesterday's session.
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        let oldFileURL = projectDir.appendingPathComponent("old-session.jsonl")
+        try writeJSONL(
+            [assistantLine(messageId: "msg-old", inputTokens: 100)],
+            to: projectsDir,
+            sessionName: "old-session.jsonl"
+        )
+        try backdateFile(at: oldFileURL)
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let entries = reader.readAllUsageEntries()
+        #expect(entries.count == 1)
+
+        // After readAllUsageEntries(), the old file's raw entries should be released from cache.
+        // The cache should have 0 files with live entries (all evicted for old files).
+        let liveCount = reader.cacheEntriesWithLiveEntriesCountForTesting()
+        #expect(liveCount == 0, "Old file entry arrays should be evicted after merge")
+    }
+
+    @Test func eviction_secondCallReturnsSameTotals() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        let oldFileURL = projectDir.appendingPathComponent("old-session.jsonl")
+        try writeJSONL(
+            [
+                assistantLine(messageId: "msg-1", inputTokens: 100, outputTokens: 50),
+                assistantLine(messageId: "msg-2", inputTokens: 200, outputTokens: 80),
+            ],
+            to: projectsDir,
+            sessionName: "old-session.jsonl"
+        )
+        try backdateFile(at: oldFileURL)
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+
+        // First call — builds cache and evicts old file entries.
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 2)
+        let firstInputTotal = first.reduce(0) { $0 + $1.inputTokens }
+        let firstOutputTotal = first.reduce(0) { $0 + $1.outputTokens }
+        #expect(firstInputTotal == 300)
+        #expect(firstOutputTotal == 130)
+
+        // Second call — should return same totals from cachedAllEntries even though per-file entries are nil.
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 2, "Entry count must be identical after eviction")
+        let secondInputTotal = second.reduce(0) { $0 + $1.inputTokens }
+        let secondOutputTotal = second.reduce(0) { $0 + $1.outputTokens }
+        #expect(secondInputTotal == firstInputTotal, "Input token total unchanged after eviction")
+        #expect(secondOutputTotal == firstOutputTotal, "Output token total unchanged after eviction")
+    }
+
+    @Test func eviction_reparseWhenOldFileTouched() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        let fileURL = projectDir.appendingPathComponent("evolving.jsonl")
+
+        // Write initial content, then backdate to look like yesterday.
+        try writeJSONL(
+            [assistantLine(messageId: "msg-v1", inputTokens: 100)],
+            to: projectsDir,
+            sessionName: "evolving.jsonl"
+        )
+        try backdateFile(at: fileURL)
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 1)
+        #expect(first[0].inputTokens == 100)
+
+        // Verify eviction happened.
+        #expect(reader.cacheEntriesWithLiveEntriesCountForTesting() == 0)
+
+        // Now update the file (change content and bump mod date to now).
+        Thread.sleep(forTimeInterval: 1.0)
+        try writeJSONL(
+            [assistantLine(messageId: "msg-v2", inputTokens: 999)],
+            to: projectsDir,
+            sessionName: "evolving.jsonl"
+        )
+        // File mod date is now "today" — should trigger re-parse.
+        reader.invalidate()
+
+        let second = reader.readAllUsageEntries()
+        // msg-v1 removed (file changed), msg-v2 added
+        #expect(second.count == 1)
+        #expect(second[0].messageId == "msg-v2")
+        #expect(second[0].inputTokens == 999, "Re-parsed file must return fresh entries")
+    }
+
+    @Test func eviction_mixedOldAndTodayFilesDeduplicatesCorrectly() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        let projectDir = projectsDir.appendingPathComponent("-test-project")
+        let oldFileURL = projectDir.appendingPathComponent("old.jsonl")
+
+        // Old file (will be evicted after merge)
+        try writeJSONL(
+            [assistantLine(messageId: "msg-old", inputTokens: 100)],
+            to: projectsDir,
+            sessionName: "old.jsonl"
+        )
+        try backdateFile(at: oldFileURL)
+
+        // Today's file (entries retained after merge since mod date is today)
+        try writeJSONL(
+            [assistantLine(messageId: "msg-today", inputTokens: 200)],
+            to: projectsDir,
+            sessionName: "today.jsonl"
+        )
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let entries = reader.readAllUsageEntries()
+
+        // Both entries present, deduplication intact.
+        #expect(entries.count == 2)
+        let inputTotal = entries.reduce(0) { $0 + $1.inputTokens }
+        #expect(inputTotal == 300, "Total tokens correct across evicted and live files")
+
+        // Old file evicted, today's file retained.
+        // (At minimum, old file entries are released — we can't assert exact count
+        //  without knowing today file's eviction policy, but totals must be correct.)
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 2, "Count preserved on second call")
+        let secondTotal = second.reduce(0) { $0 + $1.inputTokens }
+        #expect(secondTotal == 300, "Totals preserved on second call")
     }
 }

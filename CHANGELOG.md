@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.0.0] — 2026-03-25
+
+### Performance
+- **CPU usage eliminated** — idle CPU dropped from 83% to 0.0% (was consuming an entire core scanning 3,103 JSONL files every polling cycle)
+- **Memory footprint reduced 8×** — RSS dropped from 409 MB to 52 MB by evicting parsed entries for inactive sessions after merge
+- **Aggregation 100× faster** — from seconds to under 100ms via incremental dirty-flag rebuild (only changed files re-parsed)
+- **Chart hover optimized** — replaced Calendar.dateComponents() with TimeInterval comparison in hover snap-to-nearest (fires on every mouse move)
+- **Calendar caching** — cached Calendar.startOfDay() across sorted entries in aggregate loop, avoiding ICU lock contention per-entry
+
+### Added
+- **Incremental JSONL scanning** — per-file fingerprint cache (modDate + fileSize) skips unchanged files entirely; only new or modified session logs are re-parsed
+- **Per-directory discovery** — directory modification dates tracked so unchanged project directories skip enumeration; 60s TTL fallback for filesystems where directory mtime doesn't update
+- **Entry eviction** — after merge into the authoritative array, raw entry arrays are released for files not modified today; fingerprints and message IDs retained for incremental rebuilds
+- **Integration tests** — 8 new tests covering the full incremental scanning and aggregation pipelines end-to-end
+
+### Changed
+- **Cache architecture** — LRU cap of 200 files removed (was causing 94% eviction on a real 3,103-file dataset); cache is now unbounded per-file with fingerprint-only storage after eviction
+- **Test coverage** — 756 → 784 tests across 52 → 54 files
+
+### Fixed
+- **Dead code removed** — legacy `renderBrokenIcon` and supporting geometry (103 lines) replaced by `renderThrottledIcon` in v1.14 but never cleaned up
+- **Stale spec** — CONSTANTS.md still referenced the removed 200-file LRU cache cap
+- **Duplicate comment** — removed repeated doc comment line in MenuBarIcon sparkle section
+- **Comment typo** — fixed duplicate word "hardcoded" in RateLimitFetcher
+
 ## [1.9.9] — 2026-03-25
 
 ### Fixed

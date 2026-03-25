@@ -16,23 +16,43 @@ final class SessionLogReader: @unchecked Sendable {
         self.projectsURL = projectsURL ?? ClaudePaths.projects
     }
 
-    // Cache: filePath -> (modDate, fileSize, entries)
-    private var cache: [String: (Date, UInt64, [AssistantUsageEntry])] = [:]
+    // MARK: - Cache types
 
-    /// Maximum number of cached files before eviction.
-    private let maxCacheEntries = 200
+    /// Per-file cache entry. After a successful merge into cachedAllEntries, `entries` is
+    /// set to nil for files not modified today — releasing raw entry arrays while retaining
+    /// the fingerprint (modDate + fileSize) and messageIds (for stale-entry removal).
+    struct FileCacheEntry {
+        let modDate: Date
+        let fileSize: UInt64
+        /// Raw entries — nil after eviction for old files. Re-populated on re-parse if file changes.
+        var entries: [AssistantUsageEntry]?
+        /// Message IDs contributed by this file — retained after eviction so stale entries
+        /// can be removed from cachedAllEntries when the file is re-parsed.
+        var messageIds: Set<String>
+    }
+
+    // Cache: filePath -> FileCacheEntry (entries may be nil after eviction)
+    private var cache: [String: FileCacheEntry] = [:]
+
+    /// Dirty flag — set by invalidate(), cleared by readAllUsageEntries().
+    /// Starts true so the first read performs a full scan.
+    private var isDirty = true
 
     /// Maximum time between full directory enumerations, regardless of mod-date changes.
     /// Catches new files on filesystems where directory mtime doesn't always update.
     static let discoveryTTL: TimeInterval = 60
 
-    /// Cached result of readAllUsageEntries — invalidated when any file changes.
+    /// Cached result of readAllUsageEntries — the authoritative merged array.
+    /// Preserved across invalidations so incremental rebuilds can add only changed files.
     private var cachedAllEntries: [AssistantUsageEntry]?
 
     /// Cached list of discovered JSONL file URLs.
     private var discoveredFiles: [URL]?
     /// Parent directory mod dates used to invalidate discovery cache.
     private var discoveryDirModDates: [String: Date] = [:]
+    /// Per-directory cached JSONL file URLs — keyed by project directory path.
+    /// Preserved across invalidation cycles so unchanged directories skip enumeration.
+    private var discoveredFilesByDir: [String: [URL]] = [:]
     /// Timestamp of the last full directory enumeration. Used as TTL fallback
     /// when directory mod-dates don't reflect new files (filesystem-dependent).
     private var lastFullEnumerationDate: Date?
@@ -51,13 +71,17 @@ final class SessionLogReader: @unchecked Sendable {
     /// Number of corrupt/skipped lines from the most recent file parse cycle.
     private(set) var lastCorruptLineCount = 0
 
-    /// Called by FileWatcher when files change — invalidates caches so the next read re-scans.
+    /// Called by FileWatcher when files change — marks caches dirty so the next read re-scans.
     /// Non-blocking: if a scan is in progress, sets a flag so the scan result is discarded.
+    /// Does NOT clear per-file cache — unchanged files keep their cached fingerprints.
+    /// Does NOT clear cachedAllEntries — preserved for incremental rebuilds.
     func invalidate() {
         if lock.try() {
-            cachedAllEntries = nil
+            isDirty = true
             discoveredFiles = nil
-            discoveryDirModDates.removeAll()
+            // Keep discoveryDirModDates and discoveredFilesByDir for incremental comparison —
+            // next discovery will only enumerate directories whose mod-date changed.
+            // Clear lastFullEnumerationDate so next call does per-dir check (not TTL shortcut).
             lastFullEnumerationDate = nil
             lock.unlock()
         } else {
@@ -71,68 +95,128 @@ final class SessionLogReader: @unchecked Sendable {
         pendingInvalidation = false
         lastCorruptLineCount = 0
 
-        // Return cached result if available (invalidated by FileWatcher)
-        if let cached = cachedAllEntries { lock.unlock(); return cached }
+        // Fast path: not dirty, return cached result
+        if !isDirty, let cached = cachedAllEntries {
+            lock.unlock()
+            return cached
+        }
+
+        isDirty = false
         let jsonlFiles = discoverJSONLFiles()
-        var allEntries: [AssistantUsageEntry] = []
-        var seenMessageIds = Set<String>()
+
+        // Remove cache entries for deleted files and purge their entries from cachedAllEntries.
+        let currentPaths = Set(jsonlFiles.map(\.path))
+        let staleKeys = cache.keys.filter { !currentPaths.contains($0) }
+        if !staleKeys.isEmpty {
+            // Compute the set of messageIds to remove from cachedAllEntries.
+            var idsToRemove = Set<String>()
+            for key in staleKeys {
+                idsToRemove.formUnion(cache[key]?.messageIds ?? [])
+                cache.removeValue(forKey: key)
+            }
+            if !idsToRemove.isEmpty, let existing = cachedAllEntries {
+                cachedAllEntries = existing.filter { !idsToRemove.contains($0.messageId) }
+            }
+        }
+
+        // Incremental rebuild: use cachedAllEntries as base, only re-parse changed/new files.
+        // For evicted files with unchanged fingerprint, entries already live in cachedAllEntries.
+        let result = rebuild(jsonlFiles: jsonlFiles, base: cachedAllEntries)
+
+        if pendingInvalidation {
+            pendingInvalidation = false
+            isDirty = true
+            lock.unlock()
+            return result
+        }
+
+        cachedAllEntries = result
+        evictOldFileEntries()
+        lock.unlock()
+        return result
+    }
+
+    /// Rebuild the merged entry array, using `base` as a starting point.
+    /// For each file:
+    ///   - Unchanged + evicted (entries == nil): already in base — skip.
+    ///   - Unchanged + live entries: add any not yet in base (handles first-run where base was nil).
+    ///   - Changed or new: remove stale messageIds from base, re-parse, add fresh entries.
+    ///   - base == nil: parse all files from scratch.
+    private func rebuild(jsonlFiles: [URL], base: [AssistantUsageEntry]?) -> [AssistantUsageEntry] {
+        var resultEntries = base ?? []
+        var seenIds = Set(resultEntries.map(\.messageId))
+        var changed = false
 
         for fileURL in jsonlFiles {
-            let entries = cachedRead(fileURL)
+            let path = fileURL.path
+            let fm = FileManager.default
+
+            let attrs = try? fm.attributesOfItem(atPath: path)
+            let modDate = attrs?[.modificationDate] as? Date
+            let fileSize = attrs?[.size] as? UInt64
+
+            if let cached = cache[path],
+               cached.modDate == modDate,
+               cached.fileSize == fileSize {
+                // Unchanged fingerprint.
+                if let liveEntries = cached.entries {
+                    // Entries still in memory (today's file not yet evicted).
+                    // Add any that aren't already in the base (handles nil-base first-run).
+                    for entry in liveEntries {
+                        if seenIds.insert(entry.messageId).inserted {
+                            resultEntries.append(entry)
+                            changed = true
+                        }
+                    }
+                }
+                // entries == nil (evicted, unchanged): already in base — skip.
+                continue
+            }
+
+            // File is new or changed. Remove any stale entries from this file before adding fresh.
+            if let cached = cache[path], !cached.messageIds.isEmpty {
+                let staleIds = cached.messageIds
+                resultEntries.removeAll { staleIds.contains($0.messageId) }
+                seenIds.subtract(staleIds)
+                changed = true
+            }
+
+            // Re-parse (or first-parse for new files).
+            let entries = readSessionFile(at: fileURL)
+            let newIds = Set(entries.map(\.messageId))
+            cache[path] = FileCacheEntry(
+                modDate: modDate ?? Date(),
+                fileSize: fileSize ?? 0,
+                entries: entries,
+                messageIds: newIds
+            )
             for entry in entries {
-                if seenMessageIds.insert(entry.messageId).inserted {
-                    allEntries.append(entry)
+                if seenIds.insert(entry.messageId).inserted {
+                    resultEntries.append(entry)
+                    changed = true
                 }
             }
         }
 
-        allEntries.sort { $0.timestamp < $1.timestamp }
-
-        // If invalidate() was called during the scan, discard cache so next call re-scans.
-        if pendingInvalidation {
-            pendingInvalidation = false
-            lock.unlock()
-            return allEntries
+        if changed || base == nil {
+            resultEntries.sort { $0.timestamp < $1.timestamp }
         }
-        cachedAllEntries = allEntries
-        lock.unlock()
-        return allEntries
+        return resultEntries
     }
 
-    // MARK: - Caching
-
-    private func cachedRead(_ url: URL) -> [AssistantUsageEntry] {
-        let path = url.path
-        let fm = FileManager.default
-
-        guard let attrs = try? fm.attributesOfItem(atPath: path),
-              let modDate = attrs[.modificationDate] as? Date,
-              let fileSize = attrs[.size] as? UInt64 else {
-            return readSessionFile(at: url)
+    /// Release raw entry arrays from per-file cache for files not modified today.
+    /// Only the fingerprint (modDate + fileSize) and messageIds are retained.
+    /// cachedAllEntries remains the authoritative source for these entries.
+    private func evictOldFileEntries() {
+        let today = Calendar.current.startOfDay(for: Date())
+        for (path, entry) in cache where entry.entries != nil && entry.modDate < today {
+            cache[path] = FileCacheEntry(
+                modDate: entry.modDate,
+                fileSize: entry.fileSize,
+                entries: nil,
+                messageIds: entry.messageIds
+            )
         }
-
-        if let cached = cache[path], cached.0 == modDate, cached.1 == fileSize {
-            return cached.2
-        }
-
-        let entries = readSessionFile(at: url)
-        cache[path] = (modDate, fileSize, entries)
-
-        // Evict oldest entries when cache grows too large
-        if cache.count > maxCacheEntries {
-            evictCache()
-        }
-
-        return entries
-    }
-
-    /// Evict the single oldest cache entry (by mod date) to stay at the limit.
-    /// Overflow is always 1 (one entry added before check), so O(n) min-find
-    /// is cheaper than O(n log n) sort.
-    private func evictCache() {
-        guard cache.count > maxCacheEntries,
-              let oldest = cache.min(by: { $0.value.0 < $1.value.0 }) else { return }
-        cache.removeValue(forKey: oldest.key)
     }
 
     /// Exposes discovery for testing the symlink boundary check.
@@ -143,26 +227,43 @@ final class SessionLogReader: @unchecked Sendable {
     /// Force TTL expiry for testing — makes next discoverJSONLFiles() re-enumerate.
     func expireDiscoveryTTLForTesting() {
         lastFullEnumerationDate = .distantPast
+        discoveredFiles = nil
+    }
+
+    /// Returns the number of per-file cache entries that still have live (non-nil) entry arrays.
+    /// Used by tests to verify memory eviction behavior.
+    func cacheEntriesWithLiveEntriesCountForTesting() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache.values.filter { $0.entries != nil }.count
     }
 
     // MARK: - Discovery
 
     private func discoverJSONLFiles() -> [URL] {
-        // Return cached discovery if directory mod dates haven't changed AND TTL hasn't expired
-        if let cached = discoveredFiles, !discoveryDirModDatesChanged() {
-            if let lastEnum = lastFullEnumerationDate,
-               Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
-                return cached
-            }
+        // Fast path: nothing dirty and TTL not expired — return flattened cache
+        if discoveredFiles != nil,
+           !discoveryDirModDatesChanged(),
+           let lastEnum = lastFullEnumerationDate,
+           Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
+            return discoveredFiles!
         }
 
         let fm = FileManager.default
         guard fm.fileExists(atPath: projectsURL.path) else { return [] }
 
-        var jsonlFiles: [URL] = []
+        // Determine if we must do a full enumeration (TTL expired) or can skip unchanged dirs
+        let forceFullEnum: Bool
+        if let lastEnum = lastFullEnumerationDate,
+           Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
+            forceFullEnum = false
+        } else {
+            forceFullEnum = true
+        }
+
         var newDirModDates: [String: Date] = [:]
 
-        // Track projects dir mod date
+        // Track projects root mod date
         if let attrs = try? fm.attributesOfItem(atPath: projectsURL.path),
            let modDate = attrs[.modificationDate] as? Date {
             newDirModDates[projectsURL.path] = modDate
@@ -174,25 +275,43 @@ final class SessionLogReader: @unchecked Sendable {
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
+        let resolvedBase = projectsURL.resolvingSymlinksInPath().path
+        let resolvedBaseSlash = resolvedBase + "/"
+        var currentDirPaths = Set<String>()
+
         for dir in projectDirs {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
 
             // Skip non-Claude-Code project directories (e.g. MCP observer sessions).
             // Claude Code encodes the project's absolute path as the directory name,
             // replacing "/" with "-". Decode back to a path and check if any component
-            // starts with "." (hidden directory). This avoids false positives on project
-            // directories that legitimately contain double hyphens (e.g. "my--project").
+            // starts with "." (hidden directory).
             let decodedPath = "/" + dir.lastPathComponent.dropFirst().replacingOccurrences(of: "-", with: "/")
             if decodedPath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) { continue }
 
-            // Track each project dir mod date
-            if let attrs = try? fm.attributesOfItem(atPath: dir.path),
-               let modDate = attrs[.modificationDate] as? Date {
-                newDirModDates[dir.path] = modDate
+            let dirPath = dir.path
+            currentDirPaths.insert(dirPath)
+
+            // Track directory mod date
+            let dirModDate: Date?
+            if let attrs = try? fm.attributesOfItem(atPath: dirPath) {
+                dirModDate = attrs[.modificationDate] as? Date
+                if let md = dirModDate { newDirModDates[dirPath] = md }
+            } else {
+                dirModDate = nil
             }
 
-            // Enumerate all JSONL files recursively (top-level + session dirs + subagents)
-            // using a single enumerator instead of per-directory contentsOfDirectory calls.
+            // Skip unchanged directories — use cached file list (unless forced full enumeration)
+            if !forceFullEnum,
+               let cachedDate = discoveryDirModDates[dirPath],
+               let currentDate = dirModDate,
+               currentDate == cachedDate,
+               discoveredFilesByDir[dirPath] != nil {
+                continue
+            }
+
+            // Enumerate this directory for JSONL files
+            var dirFiles: [URL] = []
             if let enumerator = fm.enumerator(
                 at: dir,
                 includingPropertiesForKeys: [.isRegularFileKey],
@@ -200,25 +319,27 @@ final class SessionLogReader: @unchecked Sendable {
             ) {
                 for case let fileURL as URL in enumerator {
                     if fileURL.pathExtension == "jsonl" {
-                        jsonlFiles.append(fileURL)
+                        // Symlink boundary + regular file check
+                        let resolved = fileURL.resolvingSymlinksInPath().path
+                        guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
+                        guard (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+                        dirFiles.append(fileURL)
                     }
                 }
             }
+            discoveredFilesByDir[dirPath] = dirFiles
         }
 
-        // Symlink boundary + regular file check in a single pass.
-        // Rejects symlinks escaping the projects directory and non-regular files (pipes, devices, sockets).
-        let resolvedBase = projectsURL.resolvingSymlinksInPath().path
-        let resolvedBaseSlash = resolvedBase + "/"
-        jsonlFiles = jsonlFiles.filter {
-            let resolved = $0.resolvingSymlinksInPath().path
-            guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { return false }
-            return (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
-        }
+        // Remove stale directory entries (deleted project dirs)
+        let staleDirs = discoveredFilesByDir.keys.filter { !currentDirPaths.contains($0) }
+        for key in staleDirs { discoveredFilesByDir.removeValue(forKey: key) }
+
+        // Flatten all per-directory caches into the result
+        let jsonlFiles = Array(discoveredFilesByDir.values.flatMap { $0 })
 
         discoveredFiles = jsonlFiles
         discoveryDirModDates = newDirModDates
-        lastFullEnumerationDate = Date()
+        if forceFullEnum { lastFullEnumerationDate = Date() }
         return jsonlFiles
     }
 
@@ -322,7 +443,7 @@ final class SessionLogReader: @unchecked Sendable {
               let model = message.model else { return nil }
 
         // Stable fallback: deterministic composite key so re-reading the same file
-        // after LRU cache eviction produces the same ID (preserving deduplication).
+        // after cache eviction produces the same ID (preserving deduplication).
         let messageId = message.id ?? entry.uuid
             ?? "\(entry.sessionId ?? ""):\(entry.timestamp ?? ""):\(usage.inputTokens ?? 0):\(usage.outputTokens ?? 0)"
         let timestamp: Date

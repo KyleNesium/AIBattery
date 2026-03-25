@@ -335,7 +335,7 @@ Pricing table (per million tokens):
 - `lastModificationDate: Date?` — exposes cached file modification date (read-only). Used by `UsageAggregator` as a fingerprint component for redundant aggregation skip.
 
 ### SessionLogReader (`Services/SessionLogReader.swift`)
-- `@MainActor`, Singleton: `.shared`
+- NOT `@MainActor` (file I/O must not block UI), Singleton: `.shared`, `@unchecked Sendable` + NSLock
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
 - **Non-Claude-Code directory filter**: skips project directories whose encoded name contains `--` (indicates a hidden/dot-prefixed path component like `.claude-mem`). Filters out MCP observer sessions and other tools that write JSONL to `~/.claude/projects/`.
@@ -344,18 +344,18 @@ Pricing table (per million tokens):
 - Pre-filter: byte search for either assistant marker variant AND `"usage"` before JSON decode
 - **Decode error logging**: when pre-filter matches but JSON decode fails, logs via `AppLogger.files.debug` with filename and error description
 - **Trailing line safety**: remaining data after last newline is only processed if it ends with `}` (skips incomplete/partial writes still being written)
-- Mod-time + file-size cache to skip unchanged files
-- **Result-level caching**: caches the merged `[AssistantUsageEntry]` result; invalidated by FileWatcher via `invalidate()`. Avoids re-sorting and re-deduplicating on every refresh.
+- **Per-file fingerprint cache**: `FileCacheEntry` stores `modDate`, `fileSize`, nullable `entries`, and `messageIds`. Fingerprint (modDate + fileSize) determines whether a file needs re-parsing. After merge into `cachedAllEntries`, raw entry arrays are released (set to nil) for files not modified today — only fingerprints and messageIds retained.
+- **Result-level caching**: `cachedAllEntries` is the authoritative merged array. Preserved across invalidations for incremental rebuilds — only changed files are re-parsed and merged in. Stale entries from deleted/changed files are removed via tracked messageIds.
 - **Symlink boundary check**: after discovery, resolves symlinks on each file URL and filters out any that resolve outside `~/.claude/projects/`. Prevents a symlink inside the projects directory from reading arbitrary files on disk.
-- **Discovery caching**: caches discovered JSONL file list with parent directory modification dates AND a TTL (`discoveryTTL = 60s`). Cache hit requires BOTH unchanged directory mod-dates AND TTL not expired. If either condition fails, a full re-enumeration runs. `lastFullEnumerationDate` tracks when the last full scan occurred. `expireDiscoveryTTLForTesting()` test hook forces TTL expiry by setting `lastFullEnumerationDate = .distantPast`.
-- **Cache eviction**: evicts oldest entries when cache exceeds 200 files (`maxCacheEntries`) using batch-sort O(n log n) to find the oldest entries in a single pass
-- Deduplication by messageId across all files (set-based). Fallback messageId uses a stable composite key (`sessionId:timestamp:inputTokens:outputTokens`) from entry fields — survives LRU cache eviction without inflating counts
+- **Discovery caching**: per-directory file lists (`discoveredFilesByDir`) with parent directory modification dates AND a TTL (`discoveryTTL = 60s`). Unchanged directories skip enumeration entirely. `lastFullEnumerationDate` tracks when the last full scan occurred. `expireDiscoveryTTLForTesting()` test hook forces TTL expiry.
+- **Memory eviction**: after successful merge into `cachedAllEntries`, `evictOldFileEntries()` nils out entry arrays for files with modDate before today. Eliminates double-storage between per-file cache and merged result. On dirty rebuild, evicted files with unchanged fingerprint are skipped (entries already in `cachedAllEntries`).
+- Deduplication by messageId across all files (set-based). Fallback messageId uses a stable composite key (`sessionId:timestamp:inputTokens:outputTokens`) from entry fields — survives cache eviction without inflating counts
 - Sorted by timestamp ascending
 - **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
 - **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each call (before cache check) to avoid stale values on cache hits
 
 ### UsageAggregator (`Services/UsageAggregator.swift`)
-- `@MainActor`, created per-ViewModel (not singleton)
+- `@unchecked Sendable` + NSLock, created per-ViewModel (not singleton)
 - **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
 - `aggregate(rateLimits:accountId:) -> UsageSnapshot`
 - **Redundant aggregation skip**: tracks a lightweight fingerprint (stats-cache modification date, rate limits via `Equatable`, idle session minutes setting, account ID). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods.
