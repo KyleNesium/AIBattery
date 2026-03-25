@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.16
 milestone_name: JSONL Performance
 status: unknown
-stopped_at: Completed 17-02-PLAN.md (per-directory incremental discovery)
-last_updated: "2026-03-25T11:13:49.187Z"
+stopped_at: Completed 19-01-PLAN.md (integration tests + verification)
+last_updated: "2026-03-25T11:26:17.329Z"
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 3
+  total_plans: 4
+  completed_plans: 4
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 18 — memory-optimization
+**Current focus:** Phase 19 — verification
 
 ## Current Position
 
-Phase: 18 (memory-optimization) — EXECUTING
+Phase: 19 (verification) — EXECUTING
 Plan: 1 of 1
 
 ## Accumulated Context
@@ -41,6 +41,7 @@ Plan: 1 of 1
 - [Phase 17-01]: isDirty flag instead of clearing cachedAllEntries — avoids full re-merge when only one file changed
 - [Phase 17-02]: Per-directory file cache (discoveredFilesByDir) enables selective re-enumeration of changed dirs only
 - [Phase 17-02]: Calendar.startOfDay() cached across entries in aggregate loop — ICU lock contention was hidden CPU hotspot
+- [Phase 19-verification]: Integration tests use real FileManager I/O to exercise the full incremental pipeline end-to-end
 
 ### Blockers/Concerns
 
@@ -50,6 +51,6 @@ Plan: 1 of 1
 
 ## Session Continuity
 
-Last session: 2026-03-25
-Stopped at: Completed 17-02-PLAN.md (per-directory incremental discovery)
+Last session: 2026-03-25T11:26:17.326Z
+Stopped at: Completed 19-01-PLAN.md (integration tests + verification)
 Resume file: None

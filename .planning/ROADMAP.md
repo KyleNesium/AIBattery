@@ -28,7 +28,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 16.
 
 - [x] **Phase 17: Incremental Scanning** - Only re-parse JSONL files that changed since last cycle; skip unchanged files via mod-date + size fingerprint (completed 2026-03-25)
 - [x] **Phase 18: Memory Optimization** - Evict parsed entries for old/inactive sessions; store aggregated results not raw entries (completed 2026-03-25)
-- [ ] **Phase 19: Verification** - Confirm CPU and memory targets are met under realistic conditions; integration tests
+- [x] **Phase 19: Verification** - Confirm CPU and memory targets are met under realistic conditions; integration tests (completed 2026-03-25)
 
 ### Phase 17: Incremental Scanning
 **Goal**: Aggregation cycles skip unchanged files entirely, so only new or modified JSONL files are ever re-parsed
@@ -65,7 +65,7 @@ Plans:
   2. CPU stays under 5% during an active polling cycle with popover closed and a live session running
   3. Integration tests reproduce the pre-fix hotspot scenario and assert the performance targets
   4. No correctness regressions — token counts and cost totals match pre-fix values on the same fixture set
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 19-01-PLAN.md — Integration tests for incremental scanning + aggregation pipeline; human-verify CPU/memory targets
 
@@ -80,4 +80,4 @@ Plans:
 | 16. Idle and Lock Detection | v1.15 | 0/? | Complete | 2026-03-25 |
 | 17. Incremental Scanning | v1.16 | Complete    | 2026-03-25 | 2026-03-25 |
 | 18. Memory Optimization | 1/1 | Complete    | 2026-03-25 | - |
-| 19. Verification | v1.16 | 0/1 | Not started | - |
+| 19. Verification | 1/1 | Complete   | 2026-03-25 | - |

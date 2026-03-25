@@ -18,8 +18,8 @@
 
 ### CPU at Idle
 
-- [ ] **CPU-01**: CPU usage stays under 2% when popover is closed and no Claude Code session is active
-- [ ] **CPU-02**: CPU usage stays under 5% during active polling with popover closed
+- [x] **CPU-01**: CPU usage stays under 2% when popover is closed and no Claude Code session is active
+- [x] **CPU-02**: CPU usage stays under 5% during active polling with popover closed
 
 ## Previous Milestone (v1.15 — shipped)
 
@@ -49,8 +49,8 @@
 | SCAN-03 | Phase 17 | Complete |
 | MEM-01 | Phase 18 | Complete |
 | MEM-02 | Phase 18 | Complete |
-| CPU-01 | Phase 19 | Pending |
-| CPU-02 | Phase 19 | Pending |
+| CPU-01 | Phase 19 | Complete |
+| CPU-02 | Phase 19 | Complete |
 
 **Coverage:**
 - v1.16 requirements: 7 total
