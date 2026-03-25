@@ -6,14 +6,14 @@
     <description>AI Battery update feed</description>
     <language>en</language>
     <item>
-      <title>Version 1.9.8</title>
-      <sparkle:version>1.9.8</sparkle:version>
-      <sparkle:shortVersionString>1.9.8</sparkle:shortVersionString>
+      <title>Version 1.9.9</title>
+      <sparkle:version>1.9.9</sparkle:version>
+      <sparkle:shortVersionString>1.9.9</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <enclosure
-        url="https://github.com/KyleNesium/AIBattery/releases/download/v1.9.8/AIBattery.zip"
-        sparkle:edSignature="iCvFO3XR+h3hbXO8COpRzWrnGIMpvs1oFtW5qyt5VfcaC/0Ej9xWqz8IrfOUHTBNY+QHn39m4ya3JXll66kFCQ=="
-        length="2972773"
+        url="https://github.com/KyleNesium/AIBattery/releases/download/v1.9.9/AIBattery.zip"
+        sparkle:edSignature="xF9dB8FOovkLLnvaWqh4WV0uS9xbb4clzAViegS1XDmGQ6PRi7t9RABNbZOocgZJj11CueO/XSjAfUYFUIIADg=="
+        length="2798523"
         type="application/octet-stream" />
     </item>
   </channel>
