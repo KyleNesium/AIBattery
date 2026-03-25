@@ -100,9 +100,7 @@ public struct UsagePopoverView: View {
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))
                 StyledDivider()
-            }
-
-            if let snapshot = viewModel.snapshot {
+            } else if let snapshot = viewModel.snapshot {
                 MetricToggleView(
                     metricModeRaw: $metricModeRaw,
                     autoResolvedBinding: autoResolvedBinding,
@@ -170,7 +168,7 @@ public struct UsagePopoverView: View {
                     InsightsGate(snapshot: snapshot)
                 }
 
-            } else if viewModel.isLoading {
+            } else if !showSettings && viewModel.isLoading {
                 // First load — show minimal loading state
                 HStack {
                     Spacer()
@@ -183,11 +181,11 @@ public struct UsagePopoverView: View {
                     Spacer()
                 }
                 .frame(height: 40)
-            } else if let error = viewModel.errorMessage {
+            } else if !showSettings, let error = viewModel.errorMessage {
                 PopoverErrorView(message: error) {
                     Task { await viewModel.refresh() }
                 }
-            } else {
+            } else if !showSettings {
                 PopoverEmptyView()
             }
 
@@ -225,6 +223,7 @@ public struct UsagePopoverView: View {
             }
         }
         .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
+        .onChange(of: autoMetricMode) { _ in recomputeOrderedModes() }
         .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
             guard let key = notification.object as? String else { return }
             handleKeyPress(key)

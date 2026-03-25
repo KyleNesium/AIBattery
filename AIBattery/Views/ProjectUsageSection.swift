@@ -35,12 +35,13 @@ struct ProjectUsageSection: View {
     private var displayedProjects: [ProjectTokenSummary] {
         let sorted = cachedSorted
 
+        let limit = showAll ? Self.expandedLimit : Self.defaultLimit
+
         if showAll && !searchText.isEmpty {
             let query = searchText.lowercased()
-            return sorted.filter { $0.projectName.lowercased().contains(query) }
+            return Array(sorted.filter { $0.projectName.lowercased().contains(query) }.prefix(limit))
         }
 
-        let limit = showAll ? Self.expandedLimit : Self.defaultLimit
         return Array(sorted.prefix(limit))
     }
 

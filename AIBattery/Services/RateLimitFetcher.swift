@@ -54,12 +54,21 @@ final class RateLimitFetcher {
                 lastWorkingModel[accountId] = model
             }
         }
-        // Also restore observed models from UserDefaults (best-effort — overwritten on first aggregation).
-        let observedPrefix = Self.observedModelsKeyPrefix
-        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(observedPrefix) {
-            if let models = defaults.stringArray(forKey: key), !models.isEmpty {
-                observedModels = models
-                break
+        // Also restore observed models from the active account's persisted list
+        // (best-effort — overwritten on first aggregation).
+        let activeAccountId = OAuthManager.shared.accountStore.activeAccountId
+        if let activeAccountId,
+           let models = defaults.stringArray(forKey: Self.observedModelsKeyPrefix + activeAccountId),
+           !models.isEmpty {
+            observedModels = models
+        } else {
+            // Fallback: try any persisted account's models so fresh fetches have a probe list
+            let observedPrefix = Self.observedModelsKeyPrefix
+            for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(observedPrefix) {
+                if let models = defaults.stringArray(forKey: key), !models.isEmpty {
+                    observedModels = models
+                    break
+                }
             }
         }
     }

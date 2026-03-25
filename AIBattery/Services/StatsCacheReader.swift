@@ -10,6 +10,7 @@ final class StatsCacheReader: @unchecked Sendable {
     static let maxFileSize: UInt64 = 10_000_000
     private let fileURL: URL
     private let checkBoundary: Bool
+    private let lock = NSLock()
 
     init(fileURL: URL? = nil, checkBoundary: Bool? = nil) {
         self.fileURL = fileURL ?? ClaudePaths.statsCache
@@ -25,13 +26,19 @@ final class StatsCacheReader: @unchecked Sendable {
 
     /// Last known modification date of stats-cache.json. Used by UsageAggregator
     /// to detect whether re-aggregation is needed.
-    var lastModificationDate: Date? { cachedModDate }
+    var lastModificationDate: Date? {
+        lock.lock()
+        defer { lock.unlock() }
+        return cachedModDate
+    }
 
     /// Called by FileWatcher when the stats-cache file changes.
     func invalidate() {
+        lock.lock()
         cached = nil
         cachedModDate = nil
         cachedFileSize = nil
+        lock.unlock()
     }
 
     func read() -> StatsCache? {
@@ -68,18 +75,25 @@ final class StatsCacheReader: @unchecked Sendable {
             return nil
         }
 
+        lock.lock()
+
         // Cache hit — skip re-decode when file unchanged
         if let c = cached, let modDate, let fileSize,
            modDate == cachedModDate, fileSize == cachedFileSize {
+            lock.unlock()
             return c
         }
+
+        lock.unlock()
 
         do {
             let data = try Data(contentsOf: fileURL)
             let result = try Self.jsonDecoder.decode(StatsCache.self, from: data)
+            lock.lock()
             cached = result
             cachedModDate = modDate
             cachedFileSize = fileSize
+            lock.unlock()
             return result
         } catch {
             AppLogger.files.error("StatsCacheReader: error reading stats cache: \(error.localizedDescription, privacy: .public)")
