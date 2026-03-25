@@ -1,13 +1,39 @@
 import Foundation
 import os
 
+// MARK: - AtomicBool
+
+extension NSLock {
+    /// Lock-protected boolean for cross-thread flag signaling.
+    final class AtomicBool: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+
+        func set(_ newValue: Bool) {
+            lock.lock()
+            value = newValue
+            lock.unlock()
+        }
+
+        /// Atomically reads the current value, sets it to `newValue`, and returns the old value.
+        func swap(_ newValue: Bool) -> Bool {
+            lock.lock()
+            let old = value
+            value = newValue
+            lock.unlock()
+            return old
+        }
+    }
+}
+
 /// Reads and caches JSONL session log files. NOT MainActor — file I/O must not block the UI.
 /// Thread-safety: mutable state accessed behind `lock`. `invalidate()` uses `tryLock` so
 /// FileWatcher on main never blocks waiting for a long-running background scan.
 final class SessionLogReader: @unchecked Sendable {
     private let lock = NSLock()
     /// Set true by invalidate() when lock is held by a scan — checked after scan completes.
-    private var pendingInvalidation = false
+    /// Atomic: written by FileWatcher (main) without the lock, read by background scan under the lock.
+    private let pendingInvalidation = NSLock.AtomicBool()
     static let shared = SessionLogReader()
 
     private let projectsURL: URL
@@ -85,14 +111,15 @@ final class SessionLogReader: @unchecked Sendable {
             lastFullEnumerationDate = nil
             lock.unlock()
         } else {
-            // Scan in progress — mark for invalidation when it finishes
-            pendingInvalidation = true
+            // Scan in progress — mark for invalidation when it finishes.
+            // Atomic so FileWatcher on main never blocks waiting for the scan lock.
+            pendingInvalidation.set(true)
         }
     }
 
     func readAllUsageEntries() -> [AssistantUsageEntry] {
         lock.lock()
-        pendingInvalidation = false
+        pendingInvalidation.set(false)
         lastCorruptLineCount = 0
 
         // Fast path: not dirty, return cached result
@@ -123,8 +150,7 @@ final class SessionLogReader: @unchecked Sendable {
         // For evicted files with unchanged fingerprint, entries already live in cachedAllEntries.
         let result = rebuild(jsonlFiles: jsonlFiles, base: cachedAllEntries)
 
-        if pendingInvalidation {
-            pendingInvalidation = false
+        if pendingInvalidation.swap(false) {
             isDirty = true
             lock.unlock()
             return result
