@@ -19,8 +19,9 @@ final class SessionLogReader: @unchecked Sendable {
     // Cache: filePath -> (modDate, fileSize, entries)
     private var cache: [String: (Date, UInt64, [AssistantUsageEntry])] = [:]
 
-    /// Maximum number of cached files before eviction.
-    private let maxCacheEntries = 200
+    /// Dirty flag — set by invalidate(), cleared by readAllUsageEntries().
+    /// Starts true so the first read performs a full scan.
+    private var isDirty = true
 
     /// Maximum time between full directory enumerations, regardless of mod-date changes.
     /// Catches new files on filesystems where directory mtime doesn't always update.
@@ -51,11 +52,13 @@ final class SessionLogReader: @unchecked Sendable {
     /// Number of corrupt/skipped lines from the most recent file parse cycle.
     private(set) var lastCorruptLineCount = 0
 
-    /// Called by FileWatcher when files change — invalidates caches so the next read re-scans.
+    /// Called by FileWatcher when files change — marks caches dirty so the next read re-scans.
     /// Non-blocking: if a scan is in progress, sets a flag so the scan result is discarded.
+    /// Does NOT clear per-file cache — unchanged files keep their cached entries (fingerprint handles staleness).
     func invalidate() {
         if lock.try() {
-            cachedAllEntries = nil
+            isDirty = true
+            // Clear discovery cache so new/deleted files are found
             discoveredFiles = nil
             discoveryDirModDates.removeAll()
             lastFullEnumerationDate = nil
@@ -71,9 +74,21 @@ final class SessionLogReader: @unchecked Sendable {
         pendingInvalidation = false
         lastCorruptLineCount = 0
 
-        // Return cached result if available (invalidated by FileWatcher)
-        if let cached = cachedAllEntries { lock.unlock(); return cached }
+        // Fast path: not dirty, return cached result
+        if !isDirty, let cached = cachedAllEntries {
+            lock.unlock()
+            return cached
+        }
+
+        isDirty = false
         let jsonlFiles = discoverJSONLFiles()
+
+        // Remove cache entries for files that no longer exist
+        let currentPaths = Set(jsonlFiles.map(\.path))
+        let staleKeys = cache.keys.filter { !currentPaths.contains($0) }
+        for key in staleKeys { cache.removeValue(forKey: key) }
+
+        // Incremental rebuild: cachedRead returns instantly for unchanged files (fingerprint match)
         var allEntries: [AssistantUsageEntry] = []
         var seenMessageIds = Set<String>()
 
@@ -91,6 +106,7 @@ final class SessionLogReader: @unchecked Sendable {
         // If invalidate() was called during the scan, discard cache so next call re-scans.
         if pendingInvalidation {
             pendingInvalidation = false
+            isDirty = true
             lock.unlock()
             return allEntries
         }
@@ -117,22 +133,7 @@ final class SessionLogReader: @unchecked Sendable {
 
         let entries = readSessionFile(at: url)
         cache[path] = (modDate, fileSize, entries)
-
-        // Evict oldest entries when cache grows too large
-        if cache.count > maxCacheEntries {
-            evictCache()
-        }
-
         return entries
-    }
-
-    /// Evict the single oldest cache entry (by mod date) to stay at the limit.
-    /// Overflow is always 1 (one entry added before check), so O(n) min-find
-    /// is cheaper than O(n log n) sort.
-    private func evictCache() {
-        guard cache.count > maxCacheEntries,
-              let oldest = cache.min(by: { $0.value.0 < $1.value.0 }) else { return }
-        cache.removeValue(forKey: oldest.key)
     }
 
     /// Exposes discovery for testing the symlink boundary check.

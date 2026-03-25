@@ -396,15 +396,17 @@ struct SessionLogReaderTests {
         #expect(first[0].inputTokens == 100)
 
         // Overwrite the file with a different entry.
-        try writeJSONL([assistantLine(messageId: "msg-001", inputTokens: 999)], to: projectsDir)
+        // Sleep ensures mod date changes (APFS has 1-second resolution for some APIs).
+        Thread.sleep(forTimeInterval: 1.0)
+        try writeJSONL([assistantLine(messageId: "msg-001", inputTokens: 9999)], to: projectsDir)
 
-        // invalidate() with no scan running must clear the cache immediately.
+        // invalidate() with no scan running must mark dirty so next read re-scans.
         reader.invalidate()
 
         // Next read should pick up the changed file rather than returning the stale cache.
         let second = reader.readAllUsageEntries()
         #expect(second.count == 1)
-        #expect(second[0].inputTokens == 999)
+        #expect(second[0].inputTokens == 9999)
     }
 
     @Test func invalidate_afterScan_nextReadReturnsFreshData() throws {
@@ -532,5 +534,28 @@ struct SessionLogReaderTests {
         // Must complete well within 5 seconds — any deadlock would hang here.
         let result = group.wait(timeout: .now() + 5)
         #expect(result == .success)
+    }
+
+    // MARK: - Dirty-flag fast path
+
+    @Test func notDirty_returnsCachedImmediately() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL([assistantLine(messageId: "msg-orig", inputTokens: 100)], to: projectsDir)
+        let reader = SessionLogReader(projectsURL: projectsDir)
+
+        let first = reader.readAllUsageEntries()
+        #expect(first.count == 1)
+        #expect(first[0].inputTokens == 100)
+
+        // Overwrite file with different tokens — do NOT invalidate
+        Thread.sleep(forTimeInterval: 1.0)
+        try writeJSONL([assistantLine(messageId: "msg-orig", inputTokens: 999)], to: projectsDir)
+
+        // Without invalidation, should return cached result (not 999)
+        let second = reader.readAllUsageEntries()
+        #expect(second.count == 1)
+        #expect(second[0].inputTokens == 100, "Should return cached result without invalidation, not re-parse")
     }
 }
