@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.2] — 2026-03-25
+
+### Fixed
+- **Settings panel overflow** — settings pushed metric sections off-screen, clipping the panel and making the gear icon unreachable; settings now hide metrics while open
+- **StatsCacheReader data race** — `invalidate()` on main thread raced with `read()` on background aggregation thread; added NSLock
+- **SessionLogReader data race** — `pendingInvalidation` flag written without lock protection; replaced with lock-protected AtomicBool
+- **Wrong account model list** — `observedModels` restored from arbitrary account on launch instead of active account
+- **Stale section order** — toggling auto metric mode didn't recompute section display order until next manual mode change
+- **Unbounded project search** — filtered project list ignored the 10-item cap, returning all matches for broad queries
+
 ## [2.0.1] — 2026-03-25
 
 ### Fixed
