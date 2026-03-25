@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.0.1] — 2026-03-25
+
+### Fixed
+- **Settings panel blank space** — opening settings, then dismissing the popover (click outside, Escape, app switch) left a large blank area at the top when reopening. Root cause: settings state wasn't reset on dismiss, and the panel preserved the expanded frame. Fixed with a dismiss notification that collapses settings immediately, plus a panel refit on show.
+
 ## [2.0.0] — 2026-03-25
 
 ### Performance
