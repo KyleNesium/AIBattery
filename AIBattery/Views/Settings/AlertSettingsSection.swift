@@ -11,7 +11,7 @@ struct AlertSettingsSection: View {
             Text("Alerts")
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 50, alignment: .trailing)
+                .frame(width: Layout.settingsLabel, alignment: .trailing)
             Toggle("Status", isOn: $alertStatus)
                 .toggleStyle(.checkbox)
                 .font(Typography.caption)
@@ -40,7 +40,7 @@ struct AlertSettingsSection: View {
         if alertRateLimit {
             VStack(spacing: 2) {
                 HStack(spacing: 8) {
-                    Spacer().frame(width: 50)
+                    Spacer().frame(width: Layout.settingsLabel)
                     Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
                         .accessibilityLabel("Rate limit alert threshold")
                         .accessibilityValue("\(Int(rateLimitThreshold)) percent")
@@ -49,7 +49,7 @@ struct AlertSettingsSection: View {
                         .font(Typography.monoCaption)
                         .frame(width: 28, alignment: .trailing)
                 }
-                sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: 50)
+                sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: Layout.settingsLabel)
             }
         }
     }

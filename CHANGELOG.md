@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.3] — 2026-03-27
+
+### Fixed
+- **Menu bar countdown desync** — countdown timer in the menu bar lagged behind the popover by up to 60s because it only updated on API refresh cycles; now ticks independently (10s normally, 1s when <60s remain)
+- **Launch at Login lost after updates** — ad-hoc re-signing during Sparkle updates invalidated the SMAppService registration; now re-registers on every launch when the preference is enabled
+- **TokenLedger data race** — concurrent `Task.detached` calls could race on dictionary mutation causing EXC_BAD_ACCESS crashes; added NSLock
+- **SwiftUI AttributeGraph crash** — conditional Binding swap in MetricToggleView caused use-after-free during view teardown; replaced with a single stable binding that routes internally
+
+### Improved
+- **Dark mode panel background** — panel now uses a custom `TransparentHostingView` to suppress NSHostingView's default opaque background, matching the darker tone of native macOS panels (Battery, Wi-Fi)
+- **Health warning severity** — added `.info` tier for low-priority warnings (extended conversation, high input ratio) so they're visually distinct from actionable `.mild`/`.strong` warnings
+- **Design system tokens** — consolidated hardcoded values into `ThemeColors.hoverFill`, `disabledOpacity`, `Layout.settingsLabel`, `Typography.stateIcon`, `panelBackground`
+- **Throttle badge** — throttle count in Insights now shows warning icon with colored pill background
+
 ## [2.0.2] — 2026-03-25
 
 ### Fixed

@@ -9,7 +9,7 @@ struct PopoverErrorView: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.title3)
+                .font(Typography.stateIcon)
                 .foregroundStyle(ThemeColors.caution)
             Text(message)
                 .font(Typography.caption)

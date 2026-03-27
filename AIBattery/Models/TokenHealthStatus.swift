@@ -16,7 +16,12 @@ struct HealthWarning: Identifiable, Equatable {
     let suggestion: String?
 
     enum WarningSeverity {
-        case mild, strong
+        /// Informational — context for awareness, not action required.
+        case info
+        /// Mild — worth noting, may need attention soon.
+        case mild
+        /// Strong — actionable, likely degrading experience now.
+        case strong
     }
 
     static func == (lhs: HealthWarning, rhs: HealthWarning) -> Bool {

@@ -21,7 +21,7 @@ struct SettingsRow: View {
 
             if accountStore.canAddAccount {
                 HStack(spacing: 8) {
-                    Spacer().frame(width: 50)
+                    Spacer().frame(width: Layout.settingsLabel)
                     Button(action: onAddAccount) {
                         HStack(spacing: 3) {
                             Image(systemName: "plus.circle")
@@ -59,7 +59,7 @@ struct SettingsRow: View {
             Text(label)
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 50, alignment: .trailing)
+                .frame(width: Layout.settingsLabel, alignment: .trailing)
             TextField("User \(index + 1)", text: nameBinding(for: account.id))
                 .textFieldStyle(.roundedBorder)
                 .font(Typography.caption)

@@ -170,7 +170,7 @@ final class TokenHealthMonitor {
             ))
         } else if turnCount > config.turnCountMild {
             warnings.append(HealthWarning(
-                severity: .mild,
+                severity: .info,
                 message: "Extended conversation (\(turnCount) turns)",
                 suggestion: "Consider starting a fresh conversation."
             ))
@@ -182,7 +182,7 @@ final class TokenHealthMonitor {
             let ratio = Double(totalInput) / Double(outputTokens)
             if ratio > config.inputOutputRatioThreshold {
                 warnings.append(HealthWarning(
-                    severity: .mild,
+                    severity: .info,
                     message: "High input-to-output ratio (\(Int(ratio)):1)",
                     suggestion: "You may be over-providing context."
                 ))

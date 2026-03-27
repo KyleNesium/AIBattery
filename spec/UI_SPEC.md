@@ -184,13 +184,14 @@ Gate views check data availability and render the section + divider. Sections ow
 
 HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
 
-**Segmented picker**: 3 segments using `MetricMode.shortLabel` — `"5 Hour"`, `"7 Day"`, `"Context"`. Auto mode syncs picker selection to the auto-resolved mode via a read-only binding.
+**Segmented picker**: 3 segments using `MetricMode.shortLabel` — `"5 Hour"`, `"7 Day"`, `"Context"`. Single stable `pickerBinding` routes auto/manual mode internally (avoids SwiftUI AttributeGraph crash from swapping Binding instances). Auto mode syncs picker selection to the auto-resolved mode via this binding.
 
 **Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
-- **Active**: green text, `Color.green.opacity(0.15)` fill, 1.5pt green stroke at 0.6 opacity, green shadow (radius 4pt, 0.5 opacity). Static green styling — no pulse animation. When auto mode is active, the button uses a green fill, stroke, and constant shadow effect. Controlled by the `autoMetricMode` boolean. There is no repeating timer or pulsing opacity — the glow is always-on while active.
+- **Active**: `ThemeColors.action` text, `ThemeColors.action.opacity(0.15)` fill, 1.5pt `ThemeColors.action` stroke at 0.6 opacity, action shadow (radius 4pt, 0.5 opacity). Static styling — no pulse animation. Controlled by the `autoMetricMode` boolean.
+- **Hover** (inactive): `.secondary` text, `ThemeColors.hoverFill` background, `.secondary.opacity(0.4)` stroke.
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
-- Picker dims to 0.4 opacity and is disabled when auto mode is active.
-- **Auto highlight**: when auto mode is active, the picker selection syncs to the auto-resolved mode via a read-only binding, visually highlighting which segment was chosen. The picker is dimmed (0.55 opacity) and disabled.
+- Picker dims to `ThemeColors.disabledOpacity` (0.55) and is disabled when auto mode is active.
+- **Auto highlight**: when auto mode is active, the picker selection syncs to the auto-resolved mode via the single pickerBinding, visually highlighting which segment was chosen.
 - **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (≥95%) → rate limit unconditionally beats context health; **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` with piecewise-linear interpolation (see CONSTANTS.md for anchor points); highest urgency wins, context breaks ties. Applied in both popover and menu bar label.
 
 Padding: H 16, V 8
@@ -372,7 +373,7 @@ Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links r
 - **Active incidents** (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity). Replaces timestamp.
 - **No incidents**: `"Updated {relative time}"` right-aligned (.system 9pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time.
 
-All text: .caption2, .secondary. Padding: H 16, V 6.
+All text: .caption2, .secondary. Padding: H 16, top 8, bottom 16 (sectionHorizontal — extra bottom padding for panel edge).
 
 Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray
 

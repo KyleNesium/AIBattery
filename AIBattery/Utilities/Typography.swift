@@ -72,6 +72,9 @@ enum Typography {
     /// Auth flow icon — 13pt for large SF Symbol in sign-in button.
     static let authIcon: Font = .system(size: 13)
 
+    /// Medium icon for empty/error state views — 20pt SF Symbol.
+    static let stateIcon: Font = .system(size: 20)
+
     /// Large tutorial/onboarding icon — 28pt SF Symbol.
     static let largeIcon: Font = .system(size: 28)
 

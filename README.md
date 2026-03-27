@@ -424,7 +424,7 @@ AI Battery is **free and open source** — always will be. If it helps you get m
 
 ## 🧪 Test Coverage
 
-**784 tests** across 54 test files.
+**776 tests** across 54 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|

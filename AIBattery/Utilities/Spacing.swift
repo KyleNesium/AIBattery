@@ -75,6 +75,9 @@ enum Layout {
 
     /// Column width for token values (e.g. "1.2M").
     static let tokenColumn: CGFloat = 42
+
+    /// Settings label column width (e.g. "Refresh", "Alerts", "Display").
+    static let settingsLabel: CGFloat = 50
 }
 
 /// Animation duration constants for the AI Battery popover.

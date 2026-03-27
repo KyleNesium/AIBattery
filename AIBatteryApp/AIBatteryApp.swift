@@ -16,6 +16,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             _ = SparkleUpdateService.shared
             #endif
             statusBarManager.setup(viewModel: viewModel, oauthManager: oauthManager)
+            LaunchAtLoginManager.reregisterIfNeeded()
         }
     }
 }

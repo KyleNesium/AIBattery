@@ -48,11 +48,24 @@ public struct UsagePopoverView: View {
         return MetricMode(rawValue: metricModeRaw) ?? .fiveHour
     }
 
-    /// Read-only binding that reflects the auto-resolved mode in the segmented picker.
-    private var autoResolvedBinding: Binding<String> {
+    /// Single stable binding for the metric mode picker.
+    /// In auto mode: reads from snapshot's resolved mode, ignores writes (picker is disabled).
+    /// In manual mode: reads/writes the raw AppStorage value.
+    /// Using one binding avoids the SwiftUI AttributeGraph crash caused by swapping
+    /// different Binding instances between evaluations of the same Picker.
+    private var pickerBinding: Binding<String> {
         Binding(
-            get: { viewModel.snapshot?.autoResolvedMode.rawValue ?? metricModeRaw },
-            set: { _ in } // Picker is disabled in auto mode — no-op
+            get: {
+                if autoMetricMode, let snapshot = viewModel.snapshot {
+                    return snapshot.autoResolvedMode.rawValue
+                }
+                return metricModeRaw
+            },
+            set: { newValue in
+                if !autoMetricMode {
+                    metricModeRaw = newValue
+                }
+            }
         )
     }
 
@@ -102,8 +115,7 @@ public struct UsagePopoverView: View {
                 StyledDivider()
             } else if let snapshot = viewModel.snapshot {
                 MetricToggleView(
-                    metricModeRaw: $metricModeRaw,
-                    autoResolvedBinding: autoResolvedBinding,
+                    pickerBinding: pickerBinding,
                     snapshot: snapshot
                 )
 

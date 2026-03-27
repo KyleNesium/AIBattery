@@ -102,16 +102,17 @@ struct TokenHealthSection: View {
                         .help("Recommended minimum tokens to maintain response quality")
                 }
 
-                // Warnings
+                // Warnings — tiered by severity
                 ForEach(health.warnings) { warning in
                     HStack(spacing: 4) {
-                        Image(systemName: warning.severity == .strong ? "exclamationmark.triangle.fill" : "exclamationmark.triangle")
+                        Image(systemName: warningIcon(warning.severity))
                             .font(Typography.tinyLabel)
-                            .foregroundStyle(warning.severity == .strong ? ThemeColors.danger : ThemeColors.caution)
+                            .foregroundStyle(warningIconColor(warning.severity))
                         Text(warning.message)
                             .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.secondaryLabel)
+                            .foregroundStyle(warningTextColor(warning.severity))
                     }
+                    .help(warning.suggestion ?? "")
                 }
 
                 // Suggested action
@@ -311,6 +312,31 @@ struct TokenHealthSection: View {
     private var bandColor: Color {
         ThemeColors.bandColor(health.band)
     }
+
+    // MARK: - Warning severity display helpers
+
+    private func warningIcon(_ severity: HealthWarning.WarningSeverity) -> String {
+        switch severity {
+        case .strong: return "exclamationmark.triangle.fill"
+        case .mild: return "exclamationmark.triangle"
+        case .info: return "info.circle"
+        }
+    }
+
+    private func warningIconColor(_ severity: HealthWarning.WarningSeverity) -> Color {
+        switch severity {
+        case .strong: return ThemeColors.danger
+        case .mild: return ThemeColors.caution
+        case .info: return ThemeColors.tertiaryLabel
+        }
+    }
+
+    private func warningTextColor(_ severity: HealthWarning.WarningSeverity) -> Color {
+        switch severity {
+        case .strong, .mild: return ThemeColors.secondaryLabel
+        case .info: return ThemeColors.tertiaryLabel
+        }
+    }
 }
 
 // MARK: - Chevron button with larger hit target and press highlight
@@ -331,12 +357,12 @@ private struct ChevronButton: View {
                 .frame(width: Layout.chevronFrame, height: Layout.chevronFrame)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(isPressed ? Color.primary.opacity(0.1) : Color.clear)
+                        .fill(isPressed ? ThemeColors.hoverFill : Color.clear)
                 )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(enabled ? Color.primary.opacity(0.6) : Color.primary.opacity(0.25))
+        .foregroundStyle(enabled ? Color.primary.opacity(0.6) : Color.primary.opacity(ThemeColors.disabledDeepOpacity))
         .disabled(!enabled)
         .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
             isPressed = pressing

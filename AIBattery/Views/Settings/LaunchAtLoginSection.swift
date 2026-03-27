@@ -9,7 +9,7 @@ struct LaunchAtLoginSection: View {
             Text("Startup")
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 50, alignment: .trailing)
+                .frame(width: Layout.settingsLabel, alignment: .trailing)
             Toggle("Launch at Login", isOn: $launchAtLogin)
                 .toggleStyle(.checkbox)
                 .font(Typography.caption)

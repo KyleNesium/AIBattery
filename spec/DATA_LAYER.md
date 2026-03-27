@@ -180,7 +180,7 @@ Computed: `suggestedAction` — nil for green/unknown, recommendation text for o
 
 ### HealthWarning
 
-`id: UUID`, `severity: WarningSeverity` (.mild, .strong), `message: String`, `suggestion: String?`
+`id: UUID`, `severity: WarningSeverity` (.info, .mild, .strong), `message: String`, `suggestion: String?`
 
 ### TokenHealthConfig (`Models/TokenHealthConfig.swift`)
 
@@ -375,9 +375,10 @@ Pricing table (per million tokens):
 - Token health via `TokenHealthMonitor.assessSessions` (single-pass: returns both current + top 5)
 
 ### TokenLedger (`Services/TokenLedger.swift`)
-- Singleton: `.shared`, `@MainActor`
+- Singleton: `.shared`, `@unchecked Sendable`
 - Persistent high-water-mark storage for per-model token totals per account
 - File: `~/Library/Application Support/AIBattery/token-ledger.json` (1MB size guard on load)
+- Thread safety: `NSLock` guards all reads/writes to the in-memory ledger — prevents concurrent `Task.detached` calls from racing on dictionary mutation
 - `merge(_ tokens: [ModelTokenSummary], accountId: String) -> [ModelTokenSummary]` — takes max of current vs stored for each token type (input, output, cacheRead, cacheWrite). Restores historical models no longer in current data. Returns sorted by totalTokens descending. Writes to disk only when values increase (background `Task.detached`, atomic write).
 - `LedgerData`: `{ accounts: { accountId: { modelId: ModelTokenRecord } } }` — per-account isolation
 - `ModelTokenRecord`: `Codable, Equatable` struct with 4 Int fields
@@ -461,9 +462,10 @@ Pricing table (per million tokens):
 - Used by `UsageViewModel` to skip network calls when offline
 
 ### LaunchAtLoginManager (`Services/LaunchAtLoginManager.swift`)
-- Enum (no instances)
+- Public enum (no instances)
 - `isEnabled: Bool` — reads `SMAppService.mainApp.status`
 - `setEnabled(_:)` — register/unregister via SMAppService
+- `reregisterIfNeeded()` — public, called on launch. Re-registers if user preference is on but system registration was lost (e.g. after ad-hoc re-signing from a Sparkle update). Reads `UserDefaultsKeys.launchAtLogin` to check intent.
 - Requires installed .app bundle, silently fails during dev builds
 - Logs failures via `AppLogger.general`
 

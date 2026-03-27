@@ -50,7 +50,7 @@ struct PanelToggleState {
 public final class StatusBarManager: NSObject {
     private var statusItem: NSStatusItem?
     private var panel: PopoverPanel?
-    private var hostingView: NSHostingView<PopoverContentView>?
+    private var hostingView: TransparentHostingView<PopoverContentView>?
     private var cancellables = Set<AnyCancellable>()
     private var escapeMonitor: Any?
     private var clickOutsideMonitor: Any?
@@ -79,6 +79,11 @@ public final class StatusBarManager: NSObject {
     private var sparkleTimer: Timer?
     /// Duration of the recovery sparkle effect after throttle clears.
     static let sparkleDuration: TimeInterval = 30
+
+    // Countdown ticker: 1s timer to keep menu bar countdown in sync with popover
+    private var countdownTimer: Timer?
+    /// The reset date currently being counted down to (nil = no active countdown).
+    private var activeResetDate: Date?
 
     public override init() {
         super.init()
@@ -129,9 +134,7 @@ public final class StatusBarManager: NSObject {
             NotificationCenter.default.post(name: .panelDidDismiss, object: nil)
         }
 
-        // SwiftUI content — background color is set in PopoverContentView
-        // using the system's controlBackgroundColor which adapts to light/dark.
-        let hosting = NSHostingView(
+        let hosting = TransparentHostingView(
             rootView: PopoverContentView(viewModel: viewModel, oauthManager: oauthManager)
         )
         hosting.translatesAutoresizingMaskIntoConstraints = false
@@ -271,6 +274,7 @@ public final class StatusBarManager: NSObject {
         if let obs = frameObserver { NotificationCenter.default.removeObserver(obs) }
         appearanceObserver?.invalidate()
         sparkleTimer?.invalidate()
+        countdownTimer?.invalidate()
     }
 
     // MARK: - Button update
@@ -302,6 +306,13 @@ public final class StatusBarManager: NSObject {
         button.setAccessibilityValue(displayText)
         // Never grey out — the icon always shows the last known state.
         // Other menu bar apps (Battery, WiFi) don't dim on stale data.
+
+        // Start or stop the countdown ticker based on whether we have an active countdown.
+        if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
+            startCountdownTimer(resetDate: resetDate, button: button, percent: percent)
+        } else {
+            stopCountdownTimer()
+        }
     }
 
     private func resolveMetricMode(viewModel: UsageViewModel) -> MetricMode {
@@ -387,6 +398,54 @@ public final class StatusBarManager: NSObject {
         isSparkleActive = false
         sparkleTimer?.invalidate()
         sparkleTimer = nil
+    }
+
+    // MARK: - Countdown ticker
+
+    /// Starts (or re-uses) a repeating timer that updates the menu bar countdown text
+    /// every tick. Tick interval adapts: 1s when <60s remain, 10s otherwise.
+    /// This keeps the menu bar countdown in sync with the popover's TimelineView.
+    private func startCountdownTimer(resetDate: Date, button: NSStatusBarButton, percent: Double) {
+        let interval = countdownTickInterval(for: resetDate)
+        // Re-use existing timer if targeting the same reset date at the same interval
+        if activeResetDate == resetDate, countdownTimer?.timeInterval == interval {
+            return
+        }
+        stopCountdownTimer()
+        activeResetDate = resetDate
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self, weak button] _ in
+            MainActor.assumeIsolated {
+                guard let self, let button else { return }
+                let remaining = resetDate.timeIntervalSinceNow
+                if remaining <= 0 {
+                    // Countdown expired — show "soon" until next snapshot refresh resets state
+                    button.title = "soon"
+                    button.setAccessibilityValue("soon")
+                    self.stopCountdownTimer()
+                    return
+                }
+                let text = RateLimitUsage.countdownText(to: resetDate)
+                button.title = text
+                button.setAccessibilityValue(text)
+                // Adapt tick rate: switch to 1s when approaching reset
+                let newInterval = self.countdownTickInterval(for: resetDate)
+                if newInterval != self.countdownTimer?.timeInterval {
+                    self.startCountdownTimer(resetDate: resetDate, button: button, percent: percent)
+                }
+            }
+        }
+    }
+
+    private func stopCountdownTimer() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        activeResetDate = nil
+    }
+
+    /// 1s ticks when <60s remain (live countdown feel), 10s otherwise (low overhead).
+    private func countdownTickInterval(for resetDate: Date) -> TimeInterval {
+        let diff = resetDate.timeIntervalSinceNow
+        return (diff > 0 && diff < 60) ? 1 : 10
     }
 
     // MARK: - Panel toggle
@@ -521,6 +580,19 @@ private struct PopoverContentView: View {
             }
         }
         .frame(width: Layout.popoverWidth)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(ThemeColors.panelBackground)
+    }
+}
+
+// MARK: - Transparent hosting view
+
+/// NSHostingView subclass that suppresses the default opaque background fill,
+/// allowing the SwiftUI-level background to control the panel's appearance.
+final class TransparentHostingView<Content: View>: NSHostingView<Content> {
+    override var isOpaque: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        // Skip super — the default implementation fills with the window background color.
+        // SwiftUI content renders via the layer pipeline, not draw(), so this is safe.
     }
 }

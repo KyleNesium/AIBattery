@@ -14,6 +14,9 @@ final class TokenLedger: @unchecked Sendable {
 
     private let fileURL: URL
     private var ledger: LedgerData
+    /// Guards all reads/writes to `ledger` — prevents concurrent Task.detached calls
+    /// from racing on dictionary mutation (EXC_BAD_ACCESS in Dictionary.subscript.setter).
+    private let lock = NSLock()
 
     init(fileURL: URL? = nil) {
         let url = fileURL ?? Self.defaultFileURL
@@ -28,6 +31,9 @@ final class TokenLedger: @unchecked Sendable {
     /// Includes historical models no longer in current stats-cache/JSONL data.
     /// Writes to disk only when values increase.
     func merge(_ tokens: [ModelTokenSummary], accountId: String) -> [ModelTokenSummary] {
+        lock.lock()
+        defer { lock.unlock() }
+
         var accountData = ledger.accounts[accountId] ?? [:]
         var changed = false
         var result: [ModelTokenSummary] = []
@@ -122,7 +128,10 @@ final class TokenLedger: @unchecked Sendable {
 
     /// Synchronous write for testing — ensures data is on disk before returning.
     func flushForTesting() {
-        guard let encoded = try? JSONEncoder().encode(ledger) else { return }
+        lock.lock()
+        let encoded = try? JSONEncoder().encode(ledger)
+        lock.unlock()
+        guard let encoded else { return }
         try? encoded.write(to: fileURL, options: .atomic)
     }
 }

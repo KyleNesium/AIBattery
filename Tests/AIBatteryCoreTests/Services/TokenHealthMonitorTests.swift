@@ -64,8 +64,8 @@ struct TokenHealthMonitorTests {
 
     // MARK: - Turn count warnings
 
-    @Test func assess_mildTurnWarning() {
-        // 16 turns → mild warning (> 15, ≤ 25)
+    @Test func assess_infoTurnWarning() {
+        // 16 turns → info warning (> 15, ≤ 25) — informational, not actionable
         let entries = (0..<16).map { i in
             makeEntry(sessionId: "s1", input: 1000 * (i + 1), output: 100, timestamp: Date().addingTimeInterval(Double(i) * 60))
         }
@@ -74,7 +74,7 @@ struct TokenHealthMonitorTests {
         #expect(result?.turnCount == 16)
         let turnWarnings = result!.warnings.filter { $0.message.contains("turns") }
         #expect(turnWarnings.count == 1)
-        #expect(turnWarnings.first?.severity == .mild)
+        #expect(turnWarnings.first?.severity == .info)
     }
 
     @Test func assess_strongTurnWarning() {
@@ -103,12 +103,13 @@ struct TokenHealthMonitorTests {
     // MARK: - Input/output ratio warning
 
     @Test func assess_highRatioWarning() {
-        // Input:output ratio > 20:1
+        // Input:output ratio > 20:1 → info severity (informational, not actionable)
         let entries = [makeEntry(sessionId: "s1", input: 50_000, output: 100)]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
         let ratioWarnings = result!.warnings.filter { $0.message.contains("ratio") }
         #expect(ratioWarnings.count == 1)
+        #expect(ratioWarnings.first?.severity == .info)
     }
 
     @Test func assess_normalRatio_noWarning() {

@@ -27,7 +27,7 @@ struct CollapsibleSectionHeader: View {
             .padding(.vertical, Spacing.micro)
             .background(
                 RoundedRectangle(cornerRadius: Spacing.xsmall)
-                    .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+                    .fill(isHovered ? ThemeColors.hoverFill : Color.clear)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.xsmall)

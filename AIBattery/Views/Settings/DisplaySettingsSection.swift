@@ -15,7 +15,7 @@ struct DisplaySettingsSection: View {
                 Text("Hide idle")
                     .font(Typography.caption)
                     .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
+                    .frame(width: Layout.settingsLabel, alignment: .trailing)
                 Slider(value: $idleSliderPosition, in: 1...6, step: 1) { editing in
                     if !editing {
                         // Only write to AppStorage on drag end — avoids cascading redraws per tick
@@ -41,7 +41,7 @@ struct DisplaySettingsSection: View {
                     .frame(width: 28, alignment: .trailing)
                     .help(idleSliderPosition >= 6 ? "Show all sessions" : "Hide sessions idle > \(idleLabelForPosition)")
             }
-            sliderMarks(labels: ["30m", "1h", "2h", "4h", "8h", "\u{221E}"], leadingPad: 50)
+            sliderMarks(labels: ["30m", "1h", "2h", "4h", "8h", "\u{221E}"], leadingPad: Layout.settingsLabel)
         }
 
         // Display toggles
@@ -49,7 +49,7 @@ struct DisplaySettingsSection: View {
             Text("Display")
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 50, alignment: .trailing)
+                .frame(width: Layout.settingsLabel, alignment: .trailing)
             Toggle("Colorblind", isOn: $colorblindMode)
                 .toggleStyle(.checkbox)
                 .font(Typography.caption)

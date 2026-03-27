@@ -213,7 +213,7 @@ struct ProjectUsageSection: View {
         .padding(.vertical, Spacing.xsmall)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.primary.opacity(0.05))
+                .fill(ThemeColors.badgeFill)
         )
     }
 }

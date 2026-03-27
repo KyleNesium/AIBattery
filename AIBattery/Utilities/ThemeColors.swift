@@ -167,6 +167,30 @@ enum ThemeColors {
         dark: NSColor(white: 1.0, alpha: 0.35)
     )
 
+    // MARK: - Interactive state colors
+
+    /// Hover highlight for interactive elements (buttons, chevrons, headers).
+    static let hoverFill: Color = adaptive(
+        light: NSColor(white: 0.0, alpha: 0.06),
+        dark: NSColor(white: 1.0, alpha: 0.06)
+    )
+
+    /// Disabled control opacity multiplier (picker, chevrons).
+    static let disabledOpacity: Double = 0.55
+
+    /// Deeply disabled control opacity (chevron arrows when at boundary).
+    static let disabledDeepOpacity: Double = 0.25
+
+    // MARK: - Panel background
+
+    /// Panel background that matches native macOS dark mode panels (Battery, Wi-Fi).
+    /// Dark mode: rgb(28,28,30) — the standard system dark panel color.
+    /// Light mode: rgb(246,246,246) — standard system light panel color.
+    static let panelBackground: Color = adaptive(
+        light: NSColor(white: 0.965, alpha: 1.0),
+        dark: NSColor(red: 0.11, green: 0.11, blue: 0.118, alpha: 1.0)
+    )
+
     // MARK: - Track & background colors
 
     /// Background for bar gauge tracks. Slightly higher contrast in light mode.

@@ -310,6 +310,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `trendSymbol` | `.system(size: 11, weight: .semibold, design: .monospaced)` |
 | `trendLabelSmall` | `.system(size: 10, weight: .semibold, design: .monospaced)` |
 | `autoModeLabel` | `.system(size: 10, weight: .heavy, design: .rounded)` |
+| `stateIcon` | `.system(size: 20)` — medium icon for empty/error state views |
 | `clipboardIcon` | `.system(size: 9)` |
 
 ### Spacing (`Utilities/Spacing.swift`)
@@ -339,6 +340,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.bannerCornerRadius` | 6pt | Banner corner radius (update banner, search field) |
 | `Layout.costColumn` | 46pt | Compact cost column width (Projects, Insights) |
 | `Layout.tokenColumn` | 42pt | Token value column width (Projects, Insights) |
+| `Layout.settingsLabel` | 50pt | Settings label column width (e.g. "Refresh", "Alerts") |
 
 ### MotionConstants (`Utilities/Spacing.swift`, co-located)
 
@@ -448,6 +450,9 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Tertiary label | black 55% | white 35% |
 | Track fill | black 14% opacity | white 10% opacity |
 | Badge fill | black 9% opacity | white 6% opacity |
+| Hover fill | black 6% opacity | white 6% opacity |
+| Disabled opacity | 0.55 | 0.55 |
+| Disabled deep opacity | 0.25 | 0.25 |
 | Popover background | `controlBackgroundColor` (opaque white) | `controlBackgroundColor` (opaque dark) |
 
 ### Context health bands

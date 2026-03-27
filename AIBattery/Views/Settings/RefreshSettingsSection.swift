@@ -13,7 +13,7 @@ struct RefreshSettingsSection: View {
                 Text("Refresh")
                     .font(Typography.caption)
                     .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
+                    .frame(width: Layout.settingsLabel, alignment: .trailing)
                 Slider(value: $sliderValue, in: 10...60, step: 5) { editing in
                     isDragging = editing
                     if !editing {
@@ -29,19 +29,21 @@ struct RefreshSettingsSection: View {
                     .font(Typography.monoCaption)
                     .frame(width: 28, alignment: .trailing)
             }
-            sliderMarks(labels: ["10s", "20s", "30s", "40s", "50s", "60s"], leadingPad: 50)
+            sliderMarks(labels: ["10s", "20s", "30s", "40s", "50s", "60s"], leadingPad: Layout.settingsLabel)
             Text("~3 tokens/poll to update menu bar")
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
-                .padding(.leading, 58)
+                .padding(.leading, Layout.settingsLabel + Spacing.section)
         }
     }
 }
 
 /// Tick mark labels displayed below a slider. Shared across settings sections.
+/// `leadingPad` = label column width; adds HStack spacing (8pt) to align with slider track.
+/// Trailing spacer accounts for value label (28pt) + HStack spacing (8pt).
 func sliderMarks(labels: [String], leadingPad: CGFloat) -> some View {
     HStack {
-        Spacer().frame(width: leadingPad + 8) // label width + HStack spacing
+        Spacer().frame(width: leadingPad + Spacing.section)
         HStack(spacing: 0) {
             ForEach(Array(labels.enumerated()), id: \.offset) { i, label in
                 Text(label)
@@ -52,6 +54,6 @@ func sliderMarks(labels: [String], leadingPad: CGFloat) -> some View {
                 }
             }
         }
-        Spacer().frame(width: 36) // value label width + spacing
+        Spacer().frame(width: 36)
     }
 }

@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct MetricToggleView: View {
-    @Binding var metricModeRaw: String
-    let autoResolvedBinding: Binding<String>
+    /// Single stable binding that routes auto/manual mode internally.
+    /// Avoids the SwiftUI AttributeGraph crash from swapping Binding instances.
+    let pickerBinding: Binding<String>
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
     let snapshot: UsageSnapshot?
 
@@ -15,13 +16,13 @@ struct MetricToggleView: View {
         HStack(spacing: 8) {
             autoModeButton
 
-            Picker("", selection: autoMetricMode ? autoResolvedBinding : $metricModeRaw) {
+            Picker("", selection: pickerBinding) {
                 ForEach(MetricMode.allCases, id: \.rawValue) { mode in
                     Text(mode.shortLabel).tag(mode.rawValue)
                 }
             }
             .pickerStyle(.segmented)
-            .opacity(autoMetricMode ? 0.55 : 1.0)
+            .opacity(autoMetricMode ? ThemeColors.disabledOpacity : 1.0)
             .disabled(autoMetricMode)
             .accessibilityLabel("Metric mode")
             .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
@@ -31,7 +32,7 @@ struct MetricToggleView: View {
         .padding(.vertical, Spacing.section)
         .background(ThemeColors.badgeFill)
         .onAppear { recomputeOrderedModes() }
-        .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
+        .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
     }
 
     @State private var autoHovered = false
@@ -48,7 +49,7 @@ struct MetricToggleView: View {
                 .frame(width: Layout.autoModeSize, height: Layout.autoModeSize)
                 .background(
                     Circle()
-                        .fill(autoMetricMode ? ThemeColors.action.opacity(0.15) : autoHovered ? Color.primary.opacity(0.06) : Color.clear)
+                        .fill(autoMetricMode ? ThemeColors.action.opacity(0.15) : autoHovered ? ThemeColors.hoverFill : Color.clear)
                 )
                 .overlay(
                     Circle()
@@ -77,12 +78,7 @@ struct MetricToggleView: View {
     }
 
     private func recomputeOrderedModes() {
-        let currentMode: MetricMode
-        if autoMetricMode, let snap = snapshot {
-            currentMode = snap.autoResolvedMode
-        } else {
-            currentMode = MetricMode(rawValue: metricModeRaw) ?? .fiveHour
-        }
+        let currentMode = MetricMode(rawValue: pickerBinding.wrappedValue) ?? .fiveHour
         cachedOrderedModes = [currentMode] + MetricMode.allCases.filter { $0 != currentMode }
     }
 }
