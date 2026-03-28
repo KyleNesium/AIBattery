@@ -29,9 +29,14 @@ public final class UsageViewModel: ObservableObject {
     private var adaptivePolling = AdaptivePollingState()
 
     /// True when timers are suspended due to system idle or screen lock.
-    private var isSuspended = false
+    /// Internal for testing — tests verify suspend/resume lifecycle.
+    private(set) var isSuspended = false
     private var lockObserver: NSObjectProtocol?
     private var unlockObserver: NSObjectProtocol?
+    /// Global event monitor that detects user activity (mouse/keyboard) to resume
+    /// from idle suspension. Only active while suspended — removed on resume.
+    /// Internal for testing — tests verify suspend/resume toggles this.
+    var activityMonitor: Any?
 
     public init() {
         ThemeColors.registerObserver()
@@ -395,21 +400,47 @@ public final class UsageViewModel: ObservableObject {
 
     /// Suspend polling and FileWatcher fallback timer.
     /// Called on screen lock or idle threshold reached.
+    /// Installs a global event monitor so the first user interaction resumes polling.
     private func suspendTimers() {
         guard !isSuspended else { return }
         isSuspended = true
         pollingTimer?.invalidate()
         pollingTimer = nil
         fileWatcher?.suspendFallbackTimer()
+        installActivityMonitor()
     }
 
     /// Resume polling and FileWatcher fallback timer after wake or activity.
     private func resumeTimers() {
         guard isSuspended else { return }
         isSuspended = false
+        removeActivityMonitor()
         adaptivePolling.unchangedCycles = 0
         restartPolling(interval: refreshInterval)
         fileWatcher?.resumeFallbackTimer()
+    }
+
+    /// Install a global event monitor that fires on the first mouse/keyboard event
+    /// after idle suspension. Resumes timers and triggers an immediate refresh.
+    /// Only active while suspended — removed on resume to avoid overhead.
+    private func installActivityMonitor() {
+        guard activityMonitor == nil else { return }
+        activityMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.mouseMoved, .keyDown, .leftMouseDown, .rightMouseDown, .scrollWheel]
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.isSuspended else { return }
+                self.resumeTimers()
+                await self.refresh(skipNetworkCheck: true)
+            }
+        }
+    }
+
+    private func removeActivityMonitor() {
+        if let monitor = activityMonitor {
+            NSEvent.removeMonitor(monitor)
+            activityMonitor = nil
+        }
     }
 
     private func startPolling() {
@@ -435,6 +466,7 @@ public final class UsageViewModel: ObservableObject {
 
     deinit {
         pollingTimer?.invalidate()
+        if let monitor = activityMonitor { NSEvent.removeMonitor(monitor) }
         // FileWatcher.deinit handles its own cleanup (cancels sources, streams, timers)
         for observer in [wakeObserver, sleepObserver, lockObserver, unlockObserver].compactMap({ $0 }) {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)

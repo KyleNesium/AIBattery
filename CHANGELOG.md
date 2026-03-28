@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.4] — 2026-03-28
+
+### Fixed
+- **Idle resume stuck** — after 5 minutes of inactivity, polling suspended and never restarted because the idle check only ran inside the timer callback it just killed; now installs a global NSEvent monitor that resumes on the first mouse/keyboard event
+- **Monthly chart crash** — Swift Charts `EXC_BREAKPOINT` when rendering an empty 12M chart with axis stride configuration; guarded with empty-state fallback
+
 ## [2.0.3] — 2026-03-27
 
 ### Fixed

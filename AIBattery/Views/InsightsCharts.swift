@@ -174,8 +174,22 @@ extension InsightsView {
 
     // MARK: - Monthly Chart (12M)
 
+    @ViewBuilder
     var monthlyChart: some View {
         let data = cachedMonthly
+        if data.isEmpty {
+            Text("No data yet")
+                .font(Typography.caption)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+                .frame(height: Layout.chartHeight)
+                .frame(maxWidth: .infinity)
+        } else {
+            monthlyChartContent(data: data)
+        }
+    }
+
+    /// Extracted chart body — avoids Swift Charts crash on empty ForEach with AxisMarks.
+    private func monthlyChartContent(data: [ActivityChartData.MonthlyPoint]) -> some View {
         let dates = data.map(\.date)
         // Use actual (non-projected) total for accessibility — projected data is only for visual comparison
         let actualTotal = dailyActivity.reduce(0) { $0 + $1.messageCount }
