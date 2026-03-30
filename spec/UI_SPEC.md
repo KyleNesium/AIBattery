@@ -74,8 +74,8 @@ UsagePopoverView (275px, VStack)
 │   ├── AlertSettingsSection — owns alertStatus, alertRateLimit, rateLimitThreshold
 │   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
-├── metricToggle (auto "A" circle button left + segmented picker: 5h | 7d | Ctx)
-│   (auto mode highlights selected segment via read-only binding)
+├── metricToggle (auto "A" circle button left + custom tab bar: 5h | 7d | Ctx)
+│   (auto mode highlights selected tab via read-only binding)
 ├── Divider
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
@@ -182,19 +182,23 @@ Gate views check data availability and render the section + divider. Sections ow
 
 ### Metric Toggle (`MetricToggleView`)
 
-HStack layout: auto mode button (left) + Spacer + segmented picker (190pt, centered) + Spacer.
+Single HStack in a rounded container (`ThemeColors.trackFill` at 0.5 opacity, cornerRadius 6): auto mode button (left) + 1px vertical divider + custom tab buttons (equal-width, ForEach over `MetricMode.allCases`).
 
-**Segmented picker**: 3 segments using `MetricMode.shortLabel` — `"5 Hour"`, `"7 Day"`, `"Context"`. Single stable `pickerBinding` routes auto/manual mode internally (avoids SwiftUI AttributeGraph crash from swapping Binding instances). Auto mode syncs picker selection to the auto-resolved mode via this binding.
+**Custom tab bar**: 3 tab buttons using `MetricMode.shortLabel` — `"5 Hour"`, `"7 Day"`, `"Context"`. Single stable `pickerBinding` routes auto/manual mode internally (avoids SwiftUI AttributeGraph crash from swapping Binding instances). Auto mode syncs picker selection to the auto-resolved mode via this binding.
+- **Selected tab**: `ThemeColors.action` text, `Typography.bodyLabel` font, `ThemeColors.action.opacity(0.2)` background pill (cornerRadius 4), subtle `ThemeColors.action.opacity(0.4)` border (0.5pt).
+- **Unselected tab**: `ThemeColors.secondaryLabel` text, `Typography.base` font, no background.
+- **Hover** (unselected): `ThemeColors.hoverFill` background (cornerRadius 4).
+- **Vertical divider**: `Color.secondary.opacity(0.2)`, 1pt wide, 14pt tall — separates auto button from tab row.
 
-**Auto mode button** ("A"): 20pt circle, `.system(size: 9, weight: .heavy, design: .rounded)`.
+**Auto mode button** ("A"): 20pt circle, `.system(size: 10, weight: .heavy, design: .rounded)`.
 - **Active**: `ThemeColors.action` text, `ThemeColors.action.opacity(0.15)` fill, 1.5pt `ThemeColors.action` stroke at 0.6 opacity, action shadow (radius 4pt, 0.5 opacity). Static styling — no pulse animation. Controlled by the `autoMetricMode` boolean.
 - **Hover** (inactive): `.secondary` text, `ThemeColors.hoverFill` background, `.secondary.opacity(0.4)` stroke.
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
-- Picker dims to `ThemeColors.disabledOpacity` (0.55) and is disabled when auto mode is active.
-- **Auto highlight**: when auto mode is active, the picker selection syncs to the auto-resolved mode via the single pickerBinding, visually highlighting which segment was chosen.
-- **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (≥95%) → rate limit unconditionally beats context health; **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` with piecewise-linear interpolation (see CONSTANTS.md for anchor points); highest urgency wins, context breaks ties. Applied in both popover and menu bar label.
+- Tab buttons dim to `ThemeColors.disabledOpacity` (0.55) and are disabled when auto mode is active.
+- **Auto highlight**: when auto mode is active, the tab selection syncs to the auto-resolved mode via the single pickerBinding, visually highlighting which tab was chosen.
+- **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (>=95%) → rate limit unconditionally beats context health; **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` with piecewise-linear interpolation (see CONSTANTS.md for anchor points); highest urgency wins, context breaks ties. Applied in both popover and menu bar label.
 
-Padding: H 16, V 8
+Padding: outer H 16, V 8; container inner V 4
 
 ### MarqueeText (`Views/MarqueeText.swift`)
 
@@ -484,7 +488,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - **TokenHealthSection**: context gauge ("Percentage of usable context window consumed"), turns label, safe minimum hint, expanded session details tooltip
 - **ActivityChartView**: mode picker ("Switch activity chart time range")
 - **ActivityChartView**: insight rows (All Time/Longest/Period)
-- **MetricToggleView**: metric mode picker, auto mode button
+- **MetricToggleView**: metric mode custom tab bar, auto mode button
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)
 

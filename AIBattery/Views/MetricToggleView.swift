@@ -13,27 +13,64 @@ struct MetricToggleView: View {
     var orderedModes: [MetricMode] { cachedOrderedModes }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.gap) {
             autoModeButton
 
-            Picker("", selection: pickerBinding) {
-                ForEach(MetricMode.allCases, id: \.rawValue) { mode in
-                    Text(mode.shortLabel).tag(mode.rawValue)
-                }
+            ForEach(MetricMode.allCases, id: \.rawValue) { mode in
+                tabButton(for: mode)
             }
-            .pickerStyle(.segmented)
-            .opacity(autoMetricMode ? ThemeColors.disabledOpacity : 1.0)
-            .disabled(autoMetricMode)
-            .accessibilityLabel("Metric mode")
-            .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
-            .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.vertical, Spacing.section)
-        .background(ThemeColors.badgeFill)
+        .padding(.vertical, Spacing.gap)
+        .accessibilityLabel("Metric mode")
+        .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
+        .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         .onAppear { recomputeOrderedModes() }
         .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
     }
+
+    // MARK: - Tab Button
+
+    @State private var hoveredMode: MetricMode?
+
+    /// Raised segment fill — must be visibly brighter than the trackFill container.
+    private static let selectedFill: Color = ThemeColors.adaptive(
+        light: NSColor(white: 1.0, alpha: 0.9),
+        dark: NSColor(white: 1.0, alpha: 0.18)
+    )
+
+    private func tabButton(for mode: MetricMode) -> some View {
+        let isSelected = pickerBinding.wrappedValue == mode.rawValue
+        let isHovered = hoveredMode == mode && !isSelected
+
+        return Button {
+            withAnimation(MotionConstants.snappy) {
+                // Disable auto mode first, then write directly to the raw
+                // AppStorage key — the pickerBinding setter guards on
+                // autoMetricMode which may not have propagated yet.
+                autoMetricMode = false
+                UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.metricMode)
+            }
+        } label: {
+            Text(mode.shortLabel)
+                .font(Typography.caption)
+                .foregroundStyle(isSelected && !autoMetricMode ? .primary : ThemeColors.secondaryLabel)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.small)
+                .background(
+                    RoundedRectangle(cornerRadius: Spacing.small)
+                        .fill(isSelected && !autoMetricMode ? Self.selectedFill : isHovered ? ThemeColors.hoverFill : .clear)
+                        .shadow(color: isSelected && !autoMetricMode ? Color.black.opacity(0.25) : .clear, radius: 1, y: 0.5)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: Spacing.small))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredMode = hovering ? mode : nil
+        }
+    }
+
+    // MARK: - Auto Mode Button
 
     @State private var autoHovered = false
 
@@ -49,7 +86,7 @@ struct MetricToggleView: View {
                 .frame(width: Layout.autoModeSize, height: Layout.autoModeSize)
                 .background(
                     Circle()
-                        .fill(autoMetricMode ? ThemeColors.action.opacity(0.15) : autoHovered ? ThemeColors.hoverFill : Color.clear)
+                        .fill(autoMetricMode ? ThemeColors.action.opacity(0.15) : autoHovered ? ThemeColors.hoverFill : .clear)
                 )
                 .overlay(
                     Circle()
@@ -68,6 +105,8 @@ struct MetricToggleView: View {
             announceAutoMode(active)
         }
     }
+
+    // MARK: - Helpers
 
     private func announceAutoMode(_ active: Bool) {
         NSAccessibility.post(

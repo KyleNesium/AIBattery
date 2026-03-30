@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.5] — 2026-03-30
+
+### Improved
+- **Metric tab picker redesign** — replaced native `NSSegmentedControl` with a custom tab bar matching the app's design language; selected tab shows a raised pill with subtle shadow, unselected tabs use secondary text with hover highlights
+- **CI hardening** — pinned GitHub Actions to immutable commit SHAs to prevent supply chain attacks
+- **Sparkle update verification** — added EdDSA public key to Info.plist for cryptographic signature verification of auto-updates
+- **Reproducible builds** — `Package.resolved` now tracked in version control for deterministic dependency resolution
+
 ## [2.0.4] — 2026-03-28
 
 ### Fixed
