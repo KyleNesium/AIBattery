@@ -132,7 +132,7 @@ The Gatekeeper prompt is one-time. The Keychain prompt appears once on first lau
 
 A minimal API call reads your rate limit headers each cycle. Local JSONL session logs provide token counts and context health — **never your message content**. Click the ✦ icon to open the dashboard.
 
-The segmented toggle picks which metric drives the ✦ icon color:
+The tab picker selects which metric drives the ✦ icon color:
 
 | Mode | Tracks | Best for |
 |---|---|---|
@@ -143,7 +143,7 @@ The segmented toggle picks which metric drives the ✦ icon color:
 
 Selected metric moves to the top. The other two stay visible below.
 
-**Auto mode**: click the **(A)** button next to the toggle. It glows blue when active and automatically selects whichever metric has the highest percentage — so the menu bar always shows your most critical limit.
+**Auto mode**: click the **(A)** button next to the tabs. It glows blue when active and automatically selects whichever metric has the highest percentage — so the menu bar always shows your most critical limit. To switch back to manual, click any tab — auto mode disables and switches in one action.
 
 <div align="center">
 <img src="screenshots/dashboard.png" width="360" alt="Rate limits dashboard" />
