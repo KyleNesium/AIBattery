@@ -13,27 +13,86 @@ struct MetricToggleView: View {
     var orderedModes: [MetricMode] { cachedOrderedModes }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             autoModeButton
+                .padding(.horizontal, Spacing.gap)
 
-            Picker("", selection: pickerBinding) {
+            // Vertical divider between auto button and tabs
+            Color.secondary.opacity(0.2)
+                .frame(width: 1, height: 14)
+
+            // Custom tab buttons
+            HStack(spacing: Spacing.tight) {
                 ForEach(MetricMode.allCases, id: \.rawValue) { mode in
-                    Text(mode.shortLabel).tag(mode.rawValue)
+                    tabButton(for: mode)
                 }
             }
-            .pickerStyle(.segmented)
+            .padding(.horizontal, Spacing.small)
             .opacity(autoMetricMode ? ThemeColors.disabledOpacity : 1.0)
             .disabled(autoMetricMode)
             .accessibilityLabel("Metric mode")
             .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
             .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         }
+        .padding(.vertical, Spacing.small)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(ThemeColors.trackFill.opacity(0.5))
+        )
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
-        .background(ThemeColors.badgeFill)
         .onAppear { recomputeOrderedModes() }
         .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
     }
+
+    // MARK: - Tab Button
+
+    @State private var hoveredMode: MetricMode?
+
+    private func tabButton(for mode: MetricMode) -> some View {
+        let isSelected = pickerBinding.wrappedValue == mode.rawValue
+        let isHovered = hoveredMode == mode && !isSelected
+
+        return Button {
+            withAnimation(MotionConstants.standard) {
+                pickerBinding.wrappedValue = mode.rawValue
+            }
+        } label: {
+            Text(mode.shortLabel)
+                .font(isSelected ? Typography.bodyLabel : Typography.base)
+                .foregroundStyle(isSelected ? ThemeColors.action : ThemeColors.secondaryLabel)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.small)
+                .padding(.horizontal, Spacing.gap)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(tabBackground(isSelected: isSelected, isHovered: isHovered))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(
+                            isSelected ? ThemeColors.action.opacity(0.4) : Color.clear,
+                            lineWidth: 0.5
+                        )
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredMode = hovering ? mode : nil
+        }
+    }
+
+    private func tabBackground(isSelected: Bool, isHovered: Bool) -> Color {
+        if isSelected {
+            return ThemeColors.action.opacity(0.2)
+        } else if isHovered {
+            return ThemeColors.hoverFill
+        }
+        return Color.clear
+    }
+
+    // MARK: - Auto Mode Button
 
     @State private var autoHovered = false
 
@@ -68,6 +127,8 @@ struct MetricToggleView: View {
             announceAutoMode(active)
         }
     }
+
+    // MARK: - Helpers
 
     private func announceAutoMode(_ active: Bool) {
         NSAccessibility.post(
