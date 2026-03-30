@@ -13,34 +13,18 @@ struct MetricToggleView: View {
     var orderedModes: [MetricMode] { cachedOrderedModes }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: Spacing.gap) {
             autoModeButton
-                .padding(.horizontal, Spacing.gap)
 
-            // Vertical divider between auto button and tabs
-            Color.secondary.opacity(0.2)
-                .frame(width: 1, height: 14)
-
-            // Custom tab buttons
-            HStack(spacing: Spacing.tight) {
-                ForEach(MetricMode.allCases, id: \.rawValue) { mode in
-                    tabButton(for: mode)
-                }
+            ForEach(MetricMode.allCases, id: \.rawValue) { mode in
+                tabButton(for: mode)
             }
-            .padding(.horizontal, Spacing.small)
-            .opacity(autoMetricMode ? ThemeColors.disabledOpacity : 1.0)
-            .disabled(autoMetricMode)
-            .accessibilityLabel("Metric mode")
-            .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
-            .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         }
-        .padding(.vertical, Spacing.small)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(ThemeColors.trackFill.opacity(0.5))
-        )
         .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.vertical, Spacing.section)
+        .padding(.vertical, Spacing.gap)
+        .accessibilityLabel("Metric mode")
+        .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
+        .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
         .onAppear { recomputeOrderedModes() }
         .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
     }
@@ -49,47 +33,41 @@ struct MetricToggleView: View {
 
     @State private var hoveredMode: MetricMode?
 
+    /// Raised segment fill — must be visibly brighter than the trackFill container.
+    private static let selectedFill: Color = ThemeColors.adaptive(
+        light: NSColor(white: 1.0, alpha: 0.9),
+        dark: NSColor(white: 1.0, alpha: 0.18)
+    )
+
     private func tabButton(for mode: MetricMode) -> some View {
         let isSelected = pickerBinding.wrappedValue == mode.rawValue
         let isHovered = hoveredMode == mode && !isSelected
 
         return Button {
-            withAnimation(MotionConstants.standard) {
-                pickerBinding.wrappedValue = mode.rawValue
+            withAnimation(MotionConstants.snappy) {
+                // Disable auto mode first, then write directly to the raw
+                // AppStorage key — the pickerBinding setter guards on
+                // autoMetricMode which may not have propagated yet.
+                autoMetricMode = false
+                UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.metricMode)
             }
         } label: {
             Text(mode.shortLabel)
-                .font(isSelected ? Typography.bodyLabel : Typography.base)
-                .foregroundStyle(isSelected ? ThemeColors.action : ThemeColors.secondaryLabel)
+                .font(Typography.caption)
+                .foregroundStyle(isSelected && !autoMetricMode ? .primary : ThemeColors.secondaryLabel)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Spacing.small)
-                .padding(.horizontal, Spacing.gap)
                 .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(tabBackground(isSelected: isSelected, isHovered: isHovered))
+                    RoundedRectangle(cornerRadius: Spacing.small)
+                        .fill(isSelected && !autoMetricMode ? Self.selectedFill : isHovered ? ThemeColors.hoverFill : .clear)
+                        .shadow(color: isSelected && !autoMetricMode ? Color.black.opacity(0.25) : .clear, radius: 1, y: 0.5)
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(
-                            isSelected ? ThemeColors.action.opacity(0.4) : Color.clear,
-                            lineWidth: 0.5
-                        )
-                )
-                .contentShape(RoundedRectangle(cornerRadius: 4))
+                .contentShape(RoundedRectangle(cornerRadius: Spacing.small))
         }
         .buttonStyle(.plain)
         .onHover { hovering in
             hoveredMode = hovering ? mode : nil
         }
-    }
-
-    private func tabBackground(isSelected: Bool, isHovered: Bool) -> Color {
-        if isSelected {
-            return ThemeColors.action.opacity(0.2)
-        } else if isHovered {
-            return ThemeColors.hoverFill
-        }
-        return Color.clear
     }
 
     // MARK: - Auto Mode Button
@@ -108,7 +86,7 @@ struct MetricToggleView: View {
                 .frame(width: Layout.autoModeSize, height: Layout.autoModeSize)
                 .background(
                     Circle()
-                        .fill(autoMetricMode ? ThemeColors.action.opacity(0.15) : autoHovered ? ThemeColors.hoverFill : Color.clear)
+                        .fill(autoMetricMode ? ThemeColors.action.opacity(0.15) : autoHovered ? ThemeColors.hoverFill : .clear)
                 )
                 .overlay(
                     Circle()
