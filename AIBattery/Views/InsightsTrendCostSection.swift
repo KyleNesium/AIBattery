@@ -19,7 +19,7 @@ extension InsightsView {
     // MARK: - Shared trend row builders
 
     func trendRowTop(change: ActivityChangeInfo?, stat: String?) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.gap) {
             if let change {
                 Text(change.symbol)
                     .font(Typography.trendSymbol)
@@ -38,18 +38,15 @@ extension InsightsView {
     }
 
     func trendRowBottom(throttleCount: Int, peak: String?) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Spacing.gap) {
             if throttleCount > 0 {
-                HStack(spacing: 3) {
+                HStack(spacing: Spacing.xsmall) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.decorativeIcon)
                     Text("Throttled: \(throttleCount)×")
                         .font(Typography.monoCaption)
                 }
                 .foregroundStyle(ThemeColors.caution)
-                .padding(.horizontal, Spacing.small)
-                .padding(.vertical, Spacing.micro)
-                .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: Layout.barCornerRadius))
             } else {
                 Text("Throttled: 0×")
                     .font(Typography.monoCaption)

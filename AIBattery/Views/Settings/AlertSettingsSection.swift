@@ -7,7 +7,7 @@ struct AlertSettingsSection: View {
     @AppStorage(UserDefaultsKeys.rateLimitThreshold) private var rateLimitThreshold: Double = 80
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.section) {
             Text("Alerts")
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)
@@ -38,8 +38,8 @@ struct AlertSettingsSection: View {
             }
         }
         if alertRateLimit {
-            VStack(spacing: 2) {
-                HStack(spacing: 8) {
+            VStack(spacing: Spacing.tight) {
+                HStack(spacing: Spacing.section) {
                     Spacer().frame(width: Layout.settingsLabel)
                     Slider(value: $rateLimitThreshold, in: 50...95, step: 5)
                         .accessibilityLabel("Rate limit alert threshold")
@@ -47,7 +47,7 @@ struct AlertSettingsSection: View {
                         .help("Alert when usage exceeds \(Int(rateLimitThreshold))%")
                     Text("\(Int(rateLimitThreshold))%")
                         .font(Typography.monoCaption)
-                        .frame(width: 28, alignment: .trailing)
+                        .frame(width: Layout.sliderValueLabel, alignment: .trailing)
                 }
                 sliderMarks(labels: ["50%", "60%", "70%", "80%", "90%", "95%"], leadingPad: Layout.settingsLabel)
             }

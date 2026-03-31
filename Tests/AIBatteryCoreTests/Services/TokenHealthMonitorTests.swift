@@ -405,6 +405,31 @@ struct TokenHealthMonitorTests {
         #expect(result?.contextWindow == 2_000_000)
     }
 
+    // MARK: - Division by zero safety
+
+    @Test func assess_zeroTokens_validPercentage() {
+        // Zero tokens with a normal context window should produce 0% (not NaN).
+        // Note: Can't easily test zero contextWindow since it's derived from model lookup,
+        // but the guard at TokenHealthMonitor:148 (usableWindow > 0) covers that path.
+        let entries = [makeEntry(sessionId: "s1", input: 0, output: 0)]
+        let result = monitor.assessCurrentSession(entries: entries)
+        if let result {
+            #expect(!result.usagePercentage.isNaN)
+            #expect(!result.usagePercentage.isInfinite)
+            #expect(result.usagePercentage >= 0)
+        }
+    }
+
+    @Test func assess_unknownModel_validResult() {
+        // Unknown model gets default 200K context window — verify no crash
+        let entries = [makeEntry(sessionId: "s1", input: 50_000, output: 5_000, model: "unknown-model-xyz")]
+        let result = monitor.assessCurrentSession(entries: entries)
+        if let result {
+            #expect(!result.usagePercentage.isNaN)
+            #expect(result.contextWindow > 0)
+        }
+    }
+
     // MARK: - Helper
 
     private func makeEntry(

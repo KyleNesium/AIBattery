@@ -70,7 +70,7 @@ struct MarqueeText: View {
                 .opacity(textOpacity)
         }
         .clipped()
-        .frame(height: 14)
+        .frame(height: Layout.marqueeHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(texts.joined(separator: ", "))
         .accessibilityHint(texts.count > 1 ? "Cycles through \(texts.count) items" : "")

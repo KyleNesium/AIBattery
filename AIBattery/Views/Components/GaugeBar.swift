@@ -13,24 +13,29 @@ struct GaugeBar: View {
     let percent: Double
     let barColor: Color
 
+    @ScaledMetric(relativeTo: .caption) private var scaledBarHeight: CGFloat = Layout.barHeight
+
+    /// Cap scaled height to avoid overflow in compact popover.
+    private var barHeight: CGFloat { min(scaledBarHeight, Layout.barHeight * 1.5) }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: Layout.barCornerRadius)
                     .fill(ThemeColors.trackFill)
-                    .frame(height: Layout.barHeight)
+                    .frame(height: barHeight)
 
                 RoundedRectangle(cornerRadius: Layout.barCornerRadius)
                     .fill(barColor)
                     .frame(
                         width: geometry.size.width * Self.clampedPercent(percent),
-                        height: Layout.barHeight
+                        height: barHeight
                     )
                     .animation(MotionConstants.smooth, value: percent)
                     .animation(MotionConstants.smooth, value: barColor)
             }
         }
-        .frame(height: Layout.barHeight)
+        .frame(height: barHeight)
     }
 
     /// Returns a normalized fill fraction in `0.0...1.0` for the given percentage.

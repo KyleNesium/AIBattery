@@ -31,13 +31,13 @@ struct TokenHealthSection: View {
     private var modelDisplay: String { health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.gap) {
             // Header with session toggle
             HStack {
                 CollapsibleSectionHeader(
                     title: "Context",
                     collapsed: $collapsed,
-                    tooltip: "Percentage of usable context window consumed"
+                    tooltip: "Context: \(Int(health.usagePercentage))% used \u{00B7} ~\(remainingText) of \(usableText) remaining\(sessions.count > 1 ? " \u{00B7} \(sessions.count) sessions (← → to browse)" : "")"
                 )
                 Spacer()
 
@@ -60,7 +60,7 @@ struct TokenHealthSection: View {
             }
 
             if !collapsed {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Spacing.gap) {
                 // Session info on its own line for full width
                 sessionInfoLabel
                     .id(selectedIndex)
@@ -104,7 +104,7 @@ struct TokenHealthSection: View {
 
                 // Warnings — tiered by severity
                 ForEach(health.warnings) { warning in
-                    HStack(spacing: 4) {
+                    HStack(spacing: Spacing.inner) {
                         Image(systemName: warningIcon(warning.severity))
                             .font(Typography.tinyLabel)
                             .foregroundStyle(warningIconColor(warning.severity))
@@ -185,7 +185,7 @@ struct TokenHealthSection: View {
 
     /// Chevron buttons to cycle through sessions
     private var sessionToggle: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: Spacing.tight) {
             ChevronButton(
                 direction: .left,
                 enabled: selectedIndex > 0
@@ -210,15 +210,15 @@ struct TokenHealthSection: View {
             }
             .accessibilityLabel("Next session")
         }
-        .help("Browse recent sessions")
+        .help("Browse recent sessions (← → arrow keys)")
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Session \(selectedIndex + 1) of \(sessions.count)")
     }
 
     private var sessionInfoLabel: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Spacing.tight) {
             // Line 1: project · branch · session ID prefix + stale badge
-            HStack(spacing: 4) {
+            HStack(spacing: Spacing.inner) {
                 let labelParts = sessionLabelParts
                 let idPrefix = sessionIdPrefix
                 if labelParts.isEmpty && idPrefix == nil {
@@ -251,7 +251,7 @@ struct TokenHealthSection: View {
                 }
 
                 if let idleMinutes = staleIdleMinutes {
-                    HStack(spacing: 2) {
+                    HStack(spacing: Spacing.tight) {
                         Circle()
                             .fill(ThemeColors.caution)
                             .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
@@ -304,7 +304,6 @@ struct TokenHealthSection: View {
                 .accessibilityLabel("Health: \(health.band == .green ? "good" : health.band == .orange ? "warning" : health.band == .red ? "critical" : "unknown")")
             Text("\(Int(health.usagePercentage))%")
                 .font(Typography.monoValue)
-                .contentTransition(.numericText())
                 .copyable("\(Int(health.usagePercentage))%")
         }
     }
@@ -356,7 +355,7 @@ private struct ChevronButton: View {
                 .font(Typography.chevronIcon)
                 .frame(width: Layout.chevronFrame, height: Layout.chevronFrame)
                 .background(
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
                         .fill(isPressed ? ThemeColors.hoverFill : Color.clear)
                 )
                 .contentShape(Rectangle())

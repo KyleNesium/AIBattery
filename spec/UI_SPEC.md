@@ -94,13 +94,14 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 
 All font sizes, spacing values, layout dimensions, and animation durations are defined as named constants in `Utilities/`:
 - **Typography** — 19 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`, `Typography.trendSymbol`)
-- **Spacing** — 7 spacing constants (`tight` 2pt, `inner` 4pt, `small` 4pt, `gap` 6pt, `section` 8pt, `sectionHorizontal` 16pt, `overlay` 24pt)
-- **Layout** — 11 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `autoModeSize` 20pt, `bannerCornerRadius` 6pt, `costColumn` 46pt, `tokenColumn` 42pt, etc.)
-- **MotionConstants** — 4 animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `expandTransition` opacity+move)
+- **Spacing** — 11 spacing constants (`micro` 1pt, `tight` 2pt, `xsmall` 3pt, `inner` 4pt, `small` 4pt, `gap` 6pt, `section` 8pt, `medium` 10pt, `authGap` 12pt, `sectionHorizontal` 16pt, `overlay` 24pt)
+- **Layout** — 27 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt)
+- **ThemeColors** — surface elevation (`surfaceLevel1`, `surfaceLevel2`), interactive states (`hoverFill`, `copyableHoverFill`), opacity tokens (`dividerOpacity` 0.3, `overlayBackdropOpacity` 0.4, `inactiveIndicatorOpacity` 0.45, `subtleBorderOpacity` 0.2, `hoverBorderOpacity` 0.4, `activeLabelOpacity` 0.5, `focusRingOpacity` 0.6, `shadowOpacity` 0.25, `disabledOpacity` 0.55, `disabledDeepOpacity` 0.25)
+- **MotionConstants** — 7 animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `fadeOut` 0.3s, `dialog` 0.2s, `spin` 0.5s, `expandTransition` opacity+move)
 
 Full token values are listed in `CONSTANTS.md > Design Tokens`.
 
-All visual section dividers use `StyledDivider` — a shared component rendering `Divider()` at 0.3 opacity with `Spacing.tight` (2pt) vertical padding.
+All visual section dividers use `StyledDivider` — a shared component rendering `Divider()` at `ThemeColors.dividerOpacity` (0.3) with `Spacing.tight` (2pt) vertical padding.
 
 ## Section Specs
 

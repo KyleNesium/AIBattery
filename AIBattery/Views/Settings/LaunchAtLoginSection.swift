@@ -5,7 +5,7 @@ struct LaunchAtLoginSection: View {
     @AppStorage(UserDefaultsKeys.launchAtLogin) private var launchAtLogin: Bool = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.section) {
             Text("Startup")
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)

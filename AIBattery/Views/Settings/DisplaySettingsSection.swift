@@ -10,8 +10,8 @@ struct DisplaySettingsSection: View {
 
     var body: some View {
         // Idle session cutoff (slider 1-6; positions map to 30m/1h/2h/4h/8h/Never)
-        VStack(spacing: 2) {
-            HStack(spacing: 8) {
+        VStack(spacing: Spacing.tight) {
+            HStack(spacing: Spacing.section) {
                 Text("Hide idle")
                     .font(Typography.caption)
                     .foregroundStyle(.secondary)
@@ -38,14 +38,14 @@ struct DisplaySettingsSection: View {
                     .accessibilityValue(idleLabelForPosition)
                 Text(idleLabelForPosition)
                     .font(Typography.monoCaption)
-                    .frame(width: 28, alignment: .trailing)
-                    .help(idleSliderPosition >= 6 ? "Show all sessions" : "Hide sessions idle > \(idleLabelForPosition)")
+                    .frame(width: Layout.sliderValueLabel, alignment: .trailing)
             }
+            .help(idleSliderPosition >= 6 ? "Show all sessions regardless of idle time" : "Hide sessions idle longer than \(idleLabelForPosition)")
             sliderMarks(labels: ["30m", "1h", "2h", "4h", "8h", "\u{221E}"], leadingPad: Layout.settingsLabel)
         }
 
         // Display toggles
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.section) {
             Text("Display")
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)

@@ -23,7 +23,7 @@ struct RefreshButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(isHovered ? .primary : .secondary)
         .onHover { isHovered = $0 }
-        .help("Refresh for latest session")
+        .help("Refresh for latest session (R)")
         .accessibilityLabel("Refresh")
     }
 }

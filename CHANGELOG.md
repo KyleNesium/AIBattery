@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.0.6] — 2026-03-31
+
+### Fixed
+- **24H chart empty in morning** — chart data source only included entries from midnight today; now uses a trailing 24-hour window so yesterday evening's activity displays correctly
+- **Cursor flashing on error state** — `NSCursor.push()/pop()` stacked on SwiftUI re-renders causing rapid cursor flashing; replaced with underline-on-hover pattern
+- **Division by zero crash** — `TokenHealthMonitor` percentage now guards against zero usable window
+- **Root path project name** — `cwd: "/"` now maps to "Other" instead of creating a project named `/`
+- **Loading spinner inconsistency** — unified loading spinner from 12pt to 10pt across all states
+
+### Improved
+- **Complete design token system** — all hardcoded spacing, corner radius, opacity, and frame values replaced with named tokens (27 Layout, 11 Spacing, 10 opacity tokens across 32 view files)
+- **Tooltips everywhere** — all settings controls, rate limit bars (%, binding status, reset time), and interactive elements now show contextual tooltips on hover
+- **Keyboard shortcut hints** — tooltips show `(R)` for refresh, `(1, 2, 3)` for metric tabs, `(← →)` for session browsing
+- **Empty state polish** — SF Symbol icons for empty (`tray`), idle (`moon.zzz`), and monthly chart (`calendar.badge.clock`) states
+- **Accessibility** — GaugeBar height scales with Dynamic Type via `@ScaledMetric` (capped at 1.5x)
+- **Throttle count** — removed background pill for cleaner visual weight
+- **Removed `contentTransition(.numericText())`** — from infrequently-updating values to reduce rendering overhead
+
+### Added
+- **ClaudeSystemStatusTests** — 11 tests for status indicator parsing, severity ordering, display names
+- **TokenHealthMonitor tests** — 2 new tests for zero-tokens and unknown model safety
+
 ## [2.0.5] — 2026-03-30
 
 ### Improved

@@ -31,7 +31,7 @@ struct CollapsibleSectionHeader: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.xsmall)
-                    .stroke(isFocused ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
+                    .stroke(isFocused ? Color.accentColor.opacity(ThemeColors.focusRingOpacity) : Color.clear, lineWidth: 1.5)
             )
             .contentShape(Rectangle())
         }

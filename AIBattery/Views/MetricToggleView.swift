@@ -24,7 +24,7 @@ struct MetricToggleView: View {
         .padding(.vertical, Spacing.gap)
         .accessibilityLabel("Metric mode")
         .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
-        .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric for menu bar display")
+        .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric (keys: 1, 2, 3)")
         .onAppear { recomputeOrderedModes() }
         .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
     }
@@ -33,11 +33,8 @@ struct MetricToggleView: View {
 
     @State private var hoveredMode: MetricMode?
 
-    /// Raised segment fill — must be visibly brighter than the trackFill container.
-    private static let selectedFill: Color = ThemeColors.adaptive(
-        light: NSColor(white: 1.0, alpha: 0.9),
-        dark: NSColor(white: 1.0, alpha: 0.18)
-    )
+    /// Raised segment fill — uses the surface elevation token for raised interactive elements.
+    private static let selectedFill: Color = ThemeColors.surfaceLevel2
 
     private func tabButton(for mode: MetricMode) -> some View {
         let isSelected = pickerBinding.wrappedValue == mode.rawValue
@@ -58,11 +55,11 @@ struct MetricToggleView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Spacing.small)
                 .background(
-                    RoundedRectangle(cornerRadius: Spacing.small)
+                    RoundedRectangle(cornerRadius: Layout.tabCornerRadius)
                         .fill(isSelected && !autoMetricMode ? Self.selectedFill : isHovered ? ThemeColors.hoverFill : .clear)
-                        .shadow(color: isSelected && !autoMetricMode ? Color.black.opacity(0.25) : .clear, radius: 1, y: 0.5)
+                        .shadow(color: isSelected && !autoMetricMode ? Color.black.opacity(ThemeColors.shadowOpacity) : .clear, radius: Layout.shadowSmall, y: 0.5)
                 )
-                .contentShape(RoundedRectangle(cornerRadius: Spacing.small))
+                .contentShape(RoundedRectangle(cornerRadius: Layout.tabCornerRadius))
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -82,7 +79,7 @@ struct MetricToggleView: View {
         } label: {
             Text("A")
                 .font(Typography.autoModeLabel)
-                .foregroundStyle(autoMetricMode ? ThemeColors.action : autoHovered ? .secondary : .secondary.opacity(0.5))
+                .foregroundStyle(autoMetricMode ? ThemeColors.action : autoHovered ? .secondary : .secondary.opacity(ThemeColors.activeLabelOpacity))
                 .frame(width: Layout.autoModeSize, height: Layout.autoModeSize)
                 .background(
                     Circle()
@@ -90,9 +87,9 @@ struct MetricToggleView: View {
                 )
                 .overlay(
                     Circle()
-                        .stroke(autoMetricMode ? ThemeColors.action.opacity(0.6) : autoHovered ? Color.secondary.opacity(0.4) : Color.secondary.opacity(0.2), lineWidth: 1.5)
+                        .stroke(autoMetricMode ? ThemeColors.action.opacity(0.6) : autoHovered ? Color.secondary.opacity(ThemeColors.hoverBorderOpacity) : Color.secondary.opacity(ThemeColors.subtleBorderOpacity), lineWidth: 1.5)
                 )
-                .shadow(color: autoMetricMode ? ThemeColors.action.opacity(0.5) : .clear, radius: 4)
+                .shadow(color: autoMetricMode ? ThemeColors.action.opacity(0.5) : .clear, radius: Layout.glowRadius)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

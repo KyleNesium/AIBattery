@@ -21,14 +21,14 @@ public struct AuthView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: Spacing.authGap) {
             // Header
-            VStack(spacing: 4) {
+            VStack(spacing: Spacing.inner) {
                 if let appIcon = NSApp.applicationIconImage {
                     Image(nsImage: appIcon)
                         .resizable()
                         .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: Layout.iconClipRadius))
                 }
                 Text("AI Battery")
                     .font(Typography.sectionHeader)
@@ -41,7 +41,7 @@ public struct AuthView: View {
 
             if !isWaitingForCode {
                 // Step 1: Start auth
-                VStack(spacing: 8) {
+                VStack(spacing: Spacing.section) {
                     Text(isAddingAccount
                         ? "Connect another Claude account to monitor multiple orgs from AI Battery."
                         : "Connect your Anthropic account to see your usage, rate limits, and plan details.")
@@ -50,7 +50,7 @@ public struct AuthView: View {
                         .multilineTextAlignment(.center)
 
                     Button(action: startAuth) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: Spacing.gap) {
                             Image(systemName: "person.crop.circle.badge.checkmark")
                                 .font(Typography.authIcon)
                             Text("Sign In")
@@ -63,11 +63,12 @@ public struct AuthView: View {
                     .tint(.accentColor)
                     .accessibilityLabel("Sign in with Claude")
                     .accessibilityHint("Opens browser to sign in with your Anthropic account")
+                    .help("Opens browser to sign in with your Anthropic account")
                 }
             } else {
                 // Step 2: Paste code
-                VStack(spacing: 8) {
-                    HStack(spacing: 4) {
+                VStack(spacing: Spacing.section) {
+                    HStack(spacing: Spacing.inner) {
                         Image(systemName: "1.circle.fill")
                             .foregroundStyle(ThemeColors.caution)
                             .font(Typography.caption)
@@ -77,7 +78,7 @@ public struct AuthView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    HStack(spacing: 4) {
+                    HStack(spacing: Spacing.inner) {
                         Image(systemName: "2.circle.fill")
                             .foregroundStyle(ThemeColors.caution)
                             .font(Typography.caption)
@@ -87,7 +88,7 @@ public struct AuthView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    HStack(spacing: 4) {
+                    HStack(spacing: Spacing.inner) {
                         Image(systemName: "3.circle.fill")
                             .foregroundStyle(ThemeColors.caution)
                             .font(Typography.caption)
@@ -104,7 +105,7 @@ public struct AuthView: View {
                         .accessibilityLabel("Authorization code")
                         .accessibilityHint("Paste the code from the browser")
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: Spacing.section) {
                         Button("Cancel") {
                             isWaitingForCode = false
                             authCode = ""
@@ -114,6 +115,7 @@ public struct AuthView: View {
                         .font(Typography.caption)
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Cancel authentication")
+                        .help("Go back to sign-in")
 
                         Spacer()
 
@@ -131,12 +133,13 @@ public struct AuthView: View {
                         .disabled(authCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isExchanging)
                         .accessibilityLabel(isExchanging ? "Connecting" : "Connect")
                         .accessibilityHint("Submit authorization code")
+                        .help("Submit authorization code to complete sign-in")
                     }
                 }
             }
 
             if let error = errorMessage {
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.inner) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)

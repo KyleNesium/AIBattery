@@ -87,13 +87,13 @@ struct PopoverHeaderView: View {
             #if ENABLE_VERSION_CHECKER
             // Update status message (appears/disappears below header row)
             if let update = availableUpdate, !updateBannerDismissed {
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.gap) {
                     Button(action: {
                         if let url = URL(string: update.url) {
                             NSWorkspace.shared.open(url)
                         }
                     }) {
-                        HStack(spacing: 3) {
+                        HStack(spacing: Spacing.xsmall) {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(Typography.tinyLabel)
                                 .foregroundStyle(ThemeColors.updateAvailable)
@@ -120,7 +120,7 @@ struct PopoverHeaderView: View {
                         }
                         #endif
                     }) {
-                        HStack(spacing: 3) {
+                        HStack(spacing: Spacing.xsmall) {
                             Image(systemName: "arrow.down.circle")
                                 .font(Typography.monoTiny)
                             Text("Install Update")

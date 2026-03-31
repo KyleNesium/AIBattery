@@ -50,11 +50,11 @@ struct ProjectUsageSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.gap) {
             headerRow
 
             if !collapsed && !snapshot.projectTokens.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Spacing.gap) {
                 // Search field when expanded
                 if showAll {
                     searchField
@@ -138,7 +138,7 @@ struct ProjectUsageSection: View {
 
             if snapshot.projectTokens.count > 1 {
                 Button(action: { sortMode = sortMode.next }) {
-                    HStack(spacing: 3) {
+                    HStack(spacing: Spacing.xsmall) {
                         Image(systemName: sortMode.icon)
                             .font(Typography.decorativeIcon)
                         Text(sortMode.label)
@@ -150,7 +150,7 @@ struct ProjectUsageSection: View {
                 .fixedSize()
                 .foregroundStyle(sortHovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
                 .onHover { sortHovered = $0 }
-                .help("Cycle sort: \(sortMode.next.label)")
+                .help("Sort by \(sortMode.next.label) (click to cycle)")
                 .accessibilityLabel("Sort by \(sortMode.label)")
             }
         }
@@ -162,7 +162,7 @@ struct ProjectUsageSection: View {
         let tokensText = TokenFormatter.format(project.totalTokens)
         let costText = "~\(ModelPricing.formatCompactCost(project.estimatedCost))"
         let copyText = "\(project.projectName) \u{00B7} \(costText) \u{00B7} \(tokensText)"
-        return HStack(spacing: 6) {
+        return HStack(spacing: Spacing.gap) {
             Text("\(index + 1)")
                 .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
@@ -193,7 +193,7 @@ struct ProjectUsageSection: View {
     // MARK: - Search field
 
     private var searchField: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Spacing.inner) {
             Image(systemName: "magnifyingglass")
                 .font(Typography.monoTiny)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
@@ -212,7 +212,7 @@ struct ProjectUsageSection: View {
         .padding(.horizontal, Spacing.gap)
         .padding(.vertical, Spacing.xsmall)
         .background(
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
                 .fill(ThemeColors.badgeFill)
         )
     }

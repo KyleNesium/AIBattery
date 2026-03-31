@@ -68,7 +68,7 @@ extension InsightsView {
                     y: .value("Messages", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .symbolSize(12)
+                .symbolSize(Layout.chartSymbolSize)
             }
 
             if let selectedId = selectedDailyId,
@@ -178,11 +178,16 @@ extension InsightsView {
     var monthlyChart: some View {
         let data = cachedMonthly
         if data.isEmpty {
-            Text("No data yet")
-                .font(Typography.caption)
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-                .frame(height: Layout.chartHeight)
-                .frame(maxWidth: .infinity)
+            VStack(spacing: Spacing.inner) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(Typography.stateIcon)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                Text("Need 30+ days of data for monthly view")
+                    .font(Typography.tinyLabel)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
+            }
+            .frame(height: Layout.chartHeight)
+            .frame(maxWidth: .infinity)
         } else {
             monthlyChartContent(data: data)
         }
@@ -217,7 +222,7 @@ extension InsightsView {
                     y: .value("Messages", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .symbolSize(12)
+                .symbolSize(Layout.chartSymbolSize)
             }
 
             if let selectedId = selectedMonthlyId,

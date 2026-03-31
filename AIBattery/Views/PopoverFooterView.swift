@@ -11,9 +11,9 @@ struct PopoverFooterView: View {
     @State private var quitHovered = false
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Spacing.gap) {
             // Links row
-            HStack(spacing: 10) {
+            HStack(spacing: Spacing.medium) {
                 // Usage Dashboard
                 FooterLink(
                     icon: "chart.bar",
@@ -51,7 +51,7 @@ struct PopoverFooterView: View {
                         onRequestLogout()
                     }
                 }) {
-                    HStack(spacing: 2) {
+                    HStack(spacing: Spacing.tight) {
                         Image(systemName: showLogoutConfirm ? "exclamationmark.triangle" : "rectangle.portrait.and.arrow.right")
                             .font(Typography.monoTiny)
                         Text(showLogoutConfirm ? "Confirm?" : "Logout")
@@ -71,7 +71,7 @@ struct PopoverFooterView: View {
                 Button(action: {
                     NSApplication.shared.terminate(nil)
                 }) {
-                    HStack(spacing: 2) {
+                    HStack(spacing: Spacing.tight) {
                         Image(systemName: "xmark.circle")
                             .font(Typography.monoTiny)
                         Text("Quit")
@@ -89,7 +89,7 @@ struct PopoverFooterView: View {
 
             // Active incident banner replaces timestamp when visible
             if let names = systemStatus?.incidentNames, !names.isEmpty {
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.inner) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(statusColor)
@@ -101,7 +101,7 @@ struct PopoverFooterView: View {
                     if isLoading {
                         ProgressView()
                             .scaleEffect(0.4)
-                            .frame(width: 10, height: 10)
+                            .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)
                     }
                     if let lastFetch = lastFreshFetch {
                         RelativeTimeText(date: lastFetch)
