@@ -1,30 +1,32 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.16
-milestone_name: JSONL Performance
+milestone: v2.0.7
+milestone_name: Smart Auto Mode
 status: unknown
-stopped_at: Completed 19-01-PLAN.md (integration tests + verification)
-last_updated: "2026-03-25T11:43:44.674Z"
+stopped_at: null
+last_updated: "2026-03-31"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 4
-  completed_plans: 4
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-25)
+See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 19 — verification
+**Current focus:** Defining requirements for v2.0.7 Smart Auto Mode
 
 ## Current Position
 
-Phase: 19 (verification) — EXECUTING
-Plan: 1 of 1
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-31 — Milestone v2.0.7 started
 
 ## Accumulated Context
 
@@ -45,12 +47,10 @@ Plan: 1 of 1
 
 ### Blockers/Concerns
 
-- [Phase 17]: ~~LRU cache (200 entries) far too small for 3,103 files~~ RESOLVED — unbounded cache in 17-01
-- [Phase 17]: ~~Collection.firstIndex(of:) byte scanning dominates readSessionFile~~ RESOLVED — bypassed for unchanged files in 17-01
-- [Phase 18]: 409 MB RSS from retaining all parsed entries — Phase 18 must evict inactive session data (note: current RSS measured at 62 MB, may be partially pre-solved)
+(none)
 
 ## Session Continuity
 
-Last session: 2026-03-25T11:26:17.326Z
-Stopped at: Completed 19-01-PLAN.md (integration tests + verification)
+Last session: 2026-03-31
+Stopped at: null
 Resume file: None

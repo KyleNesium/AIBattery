@@ -77,17 +77,12 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-- ✓ PERF-13: Breath timer gated on panel visibility — v1.15
-- ✓ PERF-14: Idle/lock detection suspends all timers — v1.15
-- ✓ PERF-15: Breath animation removed entirely (zero CPU wakeups for icon) — v1.9.9
-- ✓ CRASH-01: Use-after-free from concurrent aggregation (NSLock + task serialization) — v1.9.9
-- ✓ SCAN-01: Aggregation <100ms — v1.16
-- ✓ SCAN-02: Only changed files re-parsed — v1.16
-- ✓ SCAN-03: Directory mod-date skip — v1.16
-- ✓ MEM-01: RSS under 100 MB (measured 44-52 MB) — v1.16
-- ✓ MEM-02: Inactive session entries evicted — v1.16
-- ✓ CPU-01: CPU <2% at idle (measured 0.0%) — v1.16
-- ✓ CPU-02: CPU <5% during polling (measured 0.0-0.1%) — v1.16
+- [ ] AUTO-01: Exclude context health from auto mode when no active session exists
+- [ ] AUTO-02: Default to binding rate limit when nothing is urgent
+- [ ] AUTO-03: Escalation ladder replacing urgency scoring
+- [ ] AUTO-04: Hysteresis to prevent mode flip-flopping between polls
+- [ ] AUTO-05: Active session awareness (stale sessions excluded from competition)
+- [ ] AUTO-06: Remove time-to-limit boost complexity
 
 ### Out of Scope
 
@@ -154,10 +149,17 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - **v1.0–v1.9.2** — pre-GSD
 
 ---
-## Current Milestone: v1.16 JSONL Performance
+## Current Milestone: v2.0.7 Smart Auto Mode
 
-**Goal:** Reduce CPU usage from 83% to <2% at idle — ACHIEVED (0.0% measured)
-**Result:** CPU 83%→0%, RSS 409→52 MB, aggregation seconds→<100ms. All 7 requirements met.
+**Goal:** Make auto mode intelligent — clear escalation logic, session awareness, hysteresis to prevent flip-flopping.
+
+**Target features:**
+- Exclude context health when no active session exists
+- Show binding rate limit by default (not empty context view)
+- Escalation ladder replacing urgency scoring math
+- Hysteresis to prevent mode flip-flopping between polls
+- Active session awareness (stale sessions don't compete)
+- Remove time-to-limit boost complexity
 
 ---
-*Last updated: 2026-03-25 after v1.16 JSONL Performance milestone shipped*
+*Last updated: 2026-03-31 after v2.0.7 Smart Auto Mode milestone started*
