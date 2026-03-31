@@ -45,14 +45,14 @@ struct UsageSnapshotTests {
         )
     }
 
-    private func makeHealth(id: String, usagePercentage: Double, band: HealthBand = .green) -> TokenHealthStatus {
+    private func makeHealth(id: String, usagePercentage: Double, band: HealthBand = .green, lastActivity: Date? = Date()) -> TokenHealthStatus {
         TokenHealthStatus(
             id: id, band: band, usagePercentage: usagePercentage,
             totalUsed: 0, contextWindow: 200_000, usableWindow: 160_000, remainingTokens: 0,
             inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
             model: "claude-sonnet-4-5", turnCount: 1, warnings: [],
             tokensPerMinute: nil, projectName: nil, gitBranch: nil,
-            sessionStart: nil, sessionDuration: nil, lastActivity: nil
+            sessionStart: nil, sessionDuration: nil, lastActivity: lastActivity
         )
     }
 
@@ -245,10 +245,10 @@ struct UsageSnapshotTests {
     }
 
     @Test func autoResolvedMode_nearExhaustion_prioritizesRateLimit() {
-        // Rate limit ≥95% always beats context health, even at 100%
+        // Rate limit >=80% always beats context health, even at 100%
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 0.96,
+            fiveHourUtilization: 0.85,
             fiveHourReset: nil,
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.10,
@@ -261,22 +261,6 @@ struct UsageSnapshotTests {
         #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
-    @Test func autoResolvedMode_belowNearExhaustion_contextWinsIfHigher() {
-        // Below 95% threshold, context health can still win via Tier 3
-        let limits = RateLimitUsage(
-            representativeClaim: "five_hour",
-            fiveHourUtilization: 0.92,
-            fiveHourReset: nil,
-            fiveHourStatus: "allowed",
-            sevenDayUtilization: 0.10,
-            sevenDayReset: nil,
-            sevenDayStatus: "allowed",
-            overallStatus: "allowed"
-        )
-        let session = makeHealth(id: "s1", usagePercentage: 95.0, band: .red)
-        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
-        #expect(snapshot.autoResolvedMode == .contextHealth)
-    }
 
     @Test func autoResolvedMode_throttled_overridesEvenFullContext() {
         let limits = RateLimitUsage(
@@ -297,128 +281,28 @@ struct UsageSnapshotTests {
     @Test func autoResolvedMode_nearExhaustion_bothWindowsHigh_picksHigher() {
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 0.96,
+            fiveHourUtilization: 0.85,
             fiveHourReset: nil,
             fiveHourStatus: "allowed",
-            sevenDayUtilization: 0.98,
+            sevenDayUtilization: 0.90,
             sevenDayReset: nil,
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
         let session = makeHealth(id: "s1", usagePercentage: 100.0, band: .red)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
-        // 7d (98%) > 5h (96%), both ≥95% threshold, beats even 100% context
+        // 7d (90%) > 5h (85%), both >=80% threshold, beats even 100% context
         #expect(snapshot.autoResolvedMode == .sevenDay)
     }
 
-    @Test func autoResolvedMode_belowThreshold_normalBehavior() {
-        let limits = RateLimitUsage(
-            representativeClaim: "five_hour",
-            fiveHourUtilization: 0.85,
-            fiveHourReset: nil,
-            fiveHourStatus: "allowed",
-            sevenDayUtilization: 0.10,
-            sevenDayReset: nil,
-            sevenDayStatus: "allowed",
-            overallStatus: "allowed"
-        )
-        let session = makeHealth(id: "s1", usagePercentage: 88.0, band: .red)
-        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
-        #expect(snapshot.autoResolvedMode == .contextHealth)
-    }
-
-    // MARK: - Urgency scoring
-
-    @Test func urgencyScore_rateLimitGreen() {
-        // 30% rate limit is well below first warning (50%) → low urgency
-        let score = UsageSnapshot.urgencyScore(percent: 30, mode: .fiveHour)
-        #expect(score > 0 && score < 0.25)
-    }
-
-    @Test func urgencyScore_rateLimitYellow() {
-        // 55% rate limit just past first warning → ~0.29
-        let score = UsageSnapshot.urgencyScore(percent: 55, mode: .fiveHour)
-        #expect(score > 0.25 && score < 0.35)
-    }
-
-    @Test func urgencyScore_contextGreen() {
-        // 55% context health is still below first warning (60%) → ~0.23
-        let score = UsageSnapshot.urgencyScore(percent: 55, mode: .contextHealth)
-        #expect(score > 0 && score < 0.25)
-    }
-
-    @Test func urgencyScore_rateLimitHigherThanContextAtSamePercent() {
-        // 55% RL vs 55% context: RL should have higher urgency
-        let rlScore = UsageSnapshot.urgencyScore(percent: 55, mode: .fiveHour)
-        let ctxScore = UsageSnapshot.urgencyScore(percent: 55, mode: .contextHealth)
-        #expect(rlScore > ctxScore)
-    }
-
-    @Test func urgencyScore_rateLimitOrange() {
-        // 85% rate limit is in orange band → ~0.58
-        let score = UsageSnapshot.urgencyScore(percent: 85, mode: .fiveHour)
-        #expect(score > 0.50 && score < 0.70)
-    }
-
-    @Test func urgencyScore_exactThresholds() {
-        // At exact anchor points, score should match exactly
-        #expect(UsageSnapshot.urgencyScore(percent: 0, mode: .fiveHour) == 0)
-        #expect(UsageSnapshot.urgencyScore(percent: 50, mode: .fiveHour) == 0.25)
-        #expect(UsageSnapshot.urgencyScore(percent: 80, mode: .fiveHour) == 0.50)
-        #expect(UsageSnapshot.urgencyScore(percent: 95, mode: .fiveHour) == 0.75)
-        #expect(UsageSnapshot.urgencyScore(percent: 100, mode: .fiveHour) == 1.0)
-
-        #expect(UsageSnapshot.urgencyScore(percent: 0, mode: .contextHealth) == 0)
-        #expect(UsageSnapshot.urgencyScore(percent: 60, mode: .contextHealth) == 0.25)
-        #expect(UsageSnapshot.urgencyScore(percent: 80, mode: .contextHealth) == 0.50)
-        #expect(UsageSnapshot.urgencyScore(percent: 100, mode: .contextHealth) == 1.0)
-    }
-
-    @Test func urgencyScore_clampAboveMax() {
-        // Above 100% for rate limit → clamped to 1.0
-        #expect(UsageSnapshot.urgencyScore(percent: 150, mode: .fiveHour) == 1.0)
-    }
-
-    @Test func autoResolvedMode_urgencyNormalized_rateLimitBeatsContextAtSamePercent() {
-        // 55% RL vs 55% context: RL is in yellow band, context is in green → RL wins
-        let limits = RateLimitUsage(
-            representativeClaim: "five_hour",
-            fiveHourUtilization: 0.55,
-            fiveHourReset: nil,
-            fiveHourStatus: "allowed",
-            sevenDayUtilization: 0.10,
-            sevenDayReset: nil,
-            sevenDayStatus: "allowed",
-            overallStatus: "allowed"
-        )
-        let session = makeHealth(id: "s1", usagePercentage: 55.0)
-        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
-        #expect(snapshot.autoResolvedMode == .fiveHour)
-    }
 
     // MARK: - autoResolvedMode edge cases
 
-    @Test func autoResolvedMode_allZeros_defaultsToContextHealth() {
-        // All metrics at 0 → equal urgency, tie-breaking picks contextHealth
+    @Test func autoResolvedMode_exactly80_triggersRateLimitEscalation() {
+        // Exactly at the threshold (80%) — should activate Tier 2
         let limits = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 0,
-            fiveHourReset: nil,
-            fiveHourStatus: "allowed",
-            sevenDayUtilization: 0,
-            sevenDayReset: nil,
-            sevenDayStatus: "allowed",
-            overallStatus: "allowed"
-        )
-        let snapshot = makeSnapshot(rateLimits: limits)
-        #expect(snapshot.autoResolvedMode == .contextHealth)
-    }
-
-    @Test func autoResolvedMode_exactly95_triggersNearExhaustion() {
-        // Exactly at the threshold (95%) — should activate Tier 2
-        let limits = RateLimitUsage(
-            representativeClaim: "five_hour",
-            fiveHourUtilization: 0.95,
+            fiveHourUtilization: 0.80,
             fiveHourReset: nil,
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.10,
@@ -432,44 +316,144 @@ struct UsageSnapshotTests {
     }
 
     @Test func autoResolvedMode_noRateLimits_contextHealthDefault() {
-        // No rate limits at all → context health is the only mode with data
+        // No rate limits at all, context below 60% → defaults to .fiveHour
         let session = makeHealth(id: "s1", usagePercentage: 30.0)
         let snapshot = makeSnapshot(topSessionHealths: [session])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+
+    // MARK: - autoResolvedMode escalation ladder
+
+    @Test func autoResolvedMode_staleSession_excludesContextHealth() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let stale = makeHealth(id: "s1", usagePercentage: 90.0, band: .red,
+                               lastActivity: Date().addingTimeInterval(-31 * 60))
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [stale])
+        // 90% context but session is stale → falls to tier 4 (binding RL)
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+    @Test func autoResolvedMode_activeSession_showsContextHealth() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 65.0,
+                                lastActivity: Date().addingTimeInterval(-29 * 60))
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
         #expect(snapshot.autoResolvedMode == .contextHealth)
     }
 
-    // MARK: - Urgency scoring edge cases
-
-    @Test func urgencyScore_negativePercent_clampsToZero() {
-        #expect(UsageSnapshot.urgencyScore(percent: -10, mode: .fiveHour) == 0)
+    @Test func autoResolvedMode_noSessions_neverContextHealth() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.10, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.05, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
-    @Test func urgencyScore_sevenDayMatchesFiveHour() {
-        // Both rate limit modes use the same anchor table
-        let fiveHourScore = UsageSnapshot.urgencyScore(percent: 70, mode: .fiveHour)
-        let sevenDayScore = UsageSnapshot.urgencyScore(percent: 70, mode: .sevenDay)
-        #expect(fiveHourScore == sevenDayScore)
+    @Test func autoResolvedMode_nilLastActivity_treatedAsStale() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let nilActivity = makeHealth(id: "s1", usagePercentage: 90.0, band: .red, lastActivity: nil)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [nilActivity])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
-    @Test func urgencyScore_midpointInterpolation_rateLimit() {
-        // 65% is midpoint between anchors (50→0.25, 80→0.50)
-        // t = (65 - 50) / (80 - 50) = 0.5 → 0.25 + 0.5 * 0.25 = 0.375
-        let score = UsageSnapshot.urgencyScore(percent: 65, mode: .fiveHour)
-        #expect(score == 0.375)
+    @Test func autoResolvedMode_rateLimitAt80_beatsActiveContext() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.85, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.40, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 70.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        // 85% RL >= 80% threshold → tier 2 beats tier 3
+        #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
-    @Test func urgencyScore_midpointInterpolation_contextHealth() {
-        // 70% is midpoint between anchors (60→0.25, 80→0.50)
-        // t = (70 - 60) / (80 - 60) = 0.5 → 0.25 + 0.5 * 0.25 = 0.375
-        let score = UsageSnapshot.urgencyScore(percent: 70, mode: .contextHealth)
-        #expect(score == 0.375)
+    @Test func autoResolvedMode_contextAt60_exactThreshold() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.50, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.30, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 60.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        #expect(snapshot.autoResolvedMode == .contextHealth)
     }
 
-    @Test func urgencyScore_contextHealth_90percent() {
-        // 90% is midpoint between anchors (80→0.50, 100→1.0)
-        // t = (90 - 80) / (100 - 80) = 0.5 → 0.50 + 0.5 * 0.50 = 0.75
-        let score = UsageSnapshot.urgencyScore(percent: 90, mode: .contextHealth)
-        #expect(score == 0.75)
+    @Test func autoResolvedMode_contextAt59_fallsToBindingRL() {
+        let limits = RateLimitUsage(
+            representativeClaim: "seven_day",
+            fiveHourUtilization: 0.50, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.30, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 59.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        // Context below 60% → tier 4 (binding RL = seven_day)
+        #expect(snapshot.autoResolvedMode == .sevenDay)
+    }
+
+    @Test func autoResolvedMode_allLow_defaultsToBindingRL_fiveHour() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.10, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.05, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 20.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+    @Test func autoResolvedMode_allLow_defaultsToBindingRL_sevenDay() {
+        let limits = RateLimitUsage(
+            representativeClaim: "seven_day",
+            fiveHourUtilization: 0.10, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.15, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 20.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        #expect(snapshot.autoResolvedMode == .sevenDay)
+    }
+
+    @Test func autoResolvedMode_noRateLimits_defaultsFiveHour() {
+        let snapshot = makeSnapshot(topSessionHealths: [])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
+    }
+
+    @Test func autoResolvedMode_contextHighButStale_rateLimitAt79_defaultsBinding() {
+        // Context at 90% but stale, RL at 79% (below 80% threshold) → tier 4
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.79, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.30, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let stale = makeHealth(id: "s1", usagePercentage: 90.0, band: .red,
+                               lastActivity: Date().addingTimeInterval(-31 * 60))
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [stale])
+        #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
     // MARK: - dailyAverage
