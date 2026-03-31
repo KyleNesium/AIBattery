@@ -66,5 +66,5 @@ Plans:
 | 17. Incremental Scanning | v1.16 | 2/2 | Complete | 2026-03-25 |
 | 18. Memory Optimization | v1.16 | 1/1 | Complete | 2026-03-25 |
 | 19. Verification | v1.16 | 1/1 | Complete | 2026-03-25 |
-| 20. Escalation Logic | 1/1 | Complete   | 2026-03-31 | - |
+| 20. Escalation Logic | 1/1 | Complete    | 2026-03-31 | - |
 | 21. Hysteresis | v2.0.7 | 0/? | Not started | - |
