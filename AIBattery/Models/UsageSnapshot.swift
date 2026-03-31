@@ -88,13 +88,27 @@ struct UsageSnapshot: Equatable {
         }
     }
 
-    /// Rate limit percentage at or above which Tier 2 (near-exhaustion) kicks in.
-    /// At this level, rate limits always take priority over context health.
-    static let nearExhaustionThreshold = 95.0
+    /// Rate limit percentage at or above which Tier 2 (rate limit escalation) kicks in.
+    static let rateLimitEscalationThreshold = 80.0
 
-    /// Auto mode: three-tier priority — throttling > near-exhaustion > urgency-normalized.
-    /// Rate limit exhaustion is a harder constraint than context health (no tokens = no work),
-    /// so it unconditionally supersedes context health at ≥95%.
+    /// Context health percentage at or above which Tier 3 (context escalation) kicks in.
+    static let contextEscalationThreshold = 60.0
+
+    /// Maximum age (in seconds) for a session to be considered active.
+    /// Sessions with no activity within this window are excluded from context health.
+    static let sessionStalenessInterval: TimeInterval = 30 * 60  // 30 minutes
+
+    /// Whether any tracked session has been active within the staleness window.
+    private var hasActiveSession: Bool {
+        let cutoff = Date().addingTimeInterval(-Self.sessionStalenessInterval)
+        return topSessionHealths.contains { health in
+            guard let activity = health.lastActivity else { return false }
+            return activity > cutoff
+        }
+    }
+
+    /// Auto mode: four-tier deterministic escalation ladder.
+    /// Throttle → rate limit >=80% → active context >=60% → binding rate limit.
     var autoResolvedMode: MetricMode {
         // Tier 1: Throttled — hard constraint, tokens are prerequisite for any work
         if let rl = rateLimits, rl.isThrottled {
@@ -102,77 +116,25 @@ struct UsageSnapshot: Equatable {
                 ? .sevenDay : .fiveHour
         }
 
+        // Tier 2: Rate limit >=80% — capacity pressure takes priority
         let fiveHour = percent(for: .fiveHour)
         let sevenDay = percent(for: .sevenDay)
-
-        // Tier 2: Near-exhaustion — rate limits ≥95% always beat everything
         let maxRate = max(fiveHour, sevenDay)
-        if maxRate >= Self.nearExhaustionThreshold {
+        if maxRate >= Self.rateLimitEscalationThreshold {
             return sevenDay >= fiveHour ? .sevenDay : .fiveHour
         }
 
-        // Tier 3: Urgency-normalized — each mode's thresholds map to a shared 0–1 scale.
-        // Rate limit modes get a time-proximity boost when estimated time to limit is short:
-        // a window hitting its cap in minutes is more urgent than one with hours left.
-        // Ties broken by actionability: context > 5h > 7d.
-        let scored: [(MetricMode, Double)] = MetricMode.allCases.map { mode in
-            var score = Self.urgencyScore(percent: percent(for: mode), mode: mode)
-            if let rl = rateLimits {
-                let window = mode == .sevenDay ? RateLimitUsage.sevenDayWindow : RateLimitUsage.fiveHourWindow
-                if mode == .fiveHour || mode == .sevenDay,
-                   let ttl = rl.estimatedTimeToLimit(for: window) {
-                    // Boost: <30min → +0.20, <2h → +0.10, <6h → +0.05
-                    let boost: Double
-                    switch ttl {
-                    case ..<(30 * 60):    boost = 0.20
-                    case ..<(2 * 3600):   boost = 0.10
-                    case ..<(6 * 3600):   boost = 0.05
-                    default:              boost = 0.0
-                    }
-                    score += boost
-                }
-            }
-            return (mode, score)
+        // Tier 3: Active context >=60% — only when a session is actively in use
+        if hasActiveSession, percent(for: .contextHealth) >= Self.contextEscalationThreshold {
+            return .contextHealth
         }
-        let maxUrgency = scored.map(\.1).max() ?? 0
-        // Among tied modes, prefer context > 5h > 7d (most actionable first)
-        let tiePriority: [MetricMode] = [.contextHealth, .fiveHour, .sevenDay]
-        let winner = scored
-            .filter { $0.1 == maxUrgency }
-            .min { (tiePriority.firstIndex(of: $0.0) ?? .max) < (tiePriority.firstIndex(of: $1.0) ?? .max) }
-        return winner?.0 ?? .fiveHour
-    }
 
-    // MARK: - Urgency scoring
-
-    /// Maps a raw percentage to a normalized 0.0–1.0 urgency score using mode-specific
-    /// piecewise-linear interpolation. This ensures "first warning" aligns at 0.25 across
-    /// all modes despite different threshold scales.
-    static func urgencyScore(percent: Double, mode: MetricMode) -> Double {
-        let anchors: [(Double, Double)]
-        switch mode {
-        case .fiveHour, .sevenDay:
-            anchors = [(0, 0), (50, 0.25), (80, 0.50), (95, 0.75), (100, 1.0)]
-        case .contextHealth:
-            anchors = [(0, 0), (60, 0.25), (80, 0.50), (100, 1.0)]
+        // Tier 4: Default — show binding (highest-consumed) rate limit
+        if let rl = rateLimits {
+            return rl.representativeClaim == RateLimitUsage.sevenDayWindow
+                ? .sevenDay : .fiveHour
         }
-        return interpolate(percent, anchors: anchors)
-    }
-
-    /// Piecewise-linear interpolation. Values below first anchor clamp to first y, above last to last y.
-    private static func interpolate(_ value: Double, anchors: [(Double, Double)]) -> Double {
-        guard let first = anchors.first, let last = anchors.last else { return 0 }
-        if value <= first.0 { return first.1 }
-        if value >= last.0 { return last.1 }
-        for i in 0..<(anchors.count - 1) {
-            let (x0, y0) = anchors[i]
-            let (x1, y1) = anchors[i + 1]
-            if value >= x0 && value <= x1 {
-                let t = (value - x0) / (x1 - x0)
-                return y0 + t * (y1 - y0)
-            }
-        }
-        return last.1
+        return .fiveHour
     }
 
     // Daily activity for chart
