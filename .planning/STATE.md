@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0.7
-milestone_name: Smart Auto Mode
-status: ready_to_plan
-stopped_at: null
-last_updated: "2026-03-31"
+milestone: v1.0
+milestone_name: milestone
+status: unknown
+stopped_at: Completed 20-01-PLAN.md
+last_updated: "2026-03-31T22:16:29.777Z"
 progress:
   total_phases: 2
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
 ---
 
 # Project State
@@ -19,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 20 — Escalation Logic
+**Current focus:** Phase 20 — escalation-logic
 
 ## Current Position
 
-Phase: 20 of 21 (Escalation Logic)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-03-31 — Roadmap created for v2.0.7 Smart Auto Mode
-
-Progress: [██░░░░░░░░] ~0% (phases 20–21 not started)
+Phase: 20 (escalation-logic) — COMPLETE
+Plan: 1 of 1 (done)
 
 ## Accumulated Context
 
@@ -40,6 +36,9 @@ Progress: [██░░░░░░░░] ~0% (phases 20–21 not started)
 - [Phase 17-01]: isDirty flag instead of clearing cachedAllEntries — avoids full re-merge when only one file changed
 - [Phase 17-02]: Per-directory discovery cache enables selective re-enumeration of changed dirs only
 - [Phase 19-verification]: Integration tests use real FileManager I/O for full incremental pipeline
+- [Phase 20-01]: 80% RL threshold replaces 95% near-exhaustion — catches capacity pressure earlier
+- [Phase 20-01]: 30-minute session staleness window gates context health display
+- [Phase 20-01]: Deterministic 4-tier escalation ladder replaces opaque urgency scoring
 
 ### Key Context for v2.0.7
 
@@ -55,6 +54,6 @@ Progress: [██░░░░░░░░] ~0% (phases 20–21 not started)
 
 ## Session Continuity
 
-Last session: 2026-03-31
-Stopped at: Roadmap written, ready for /gsd:plan-phase 20
+Last session: 2026-03-31T22:16:29.774Z
+Stopped at: Completed 20-01-PLAN.md
 Resume file: None

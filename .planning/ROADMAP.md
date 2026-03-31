@@ -27,7 +27,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 19.
 
 ## Phase Details
 
-- [ ] **Phase 20: Escalation Logic** - Replace urgency scoring with a deterministic escalation ladder; add session awareness and remove time-to-limit boost
+- [x] **Phase 20: Escalation Logic** - Replace urgency scoring with a deterministic escalation ladder; add session awareness and remove time-to-limit boost (completed 2026-03-31)
 - [ ] **Phase 21: Hysteresis** - Add cross-poll state storage so the selected mode stays stable until a clearly better option emerges
 
 ### Phase 20: Escalation Logic
@@ -40,7 +40,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 19.
   3. When the API is throttled, auto mode shows the throttle countdown regardless of other metrics
   4. When rate limit usage reaches 80% or above, auto mode escalates to the rate limit view
   5. When active context usage reaches 60% or above (and no higher-priority condition applies), auto mode shows the context health view
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 20-01-PLAN.md — Replace urgency scoring with deterministic escalation ladder (TDD)
 
@@ -66,5 +66,5 @@ Plans:
 | 17. Incremental Scanning | v1.16 | 2/2 | Complete | 2026-03-25 |
 | 18. Memory Optimization | v1.16 | 1/1 | Complete | 2026-03-25 |
 | 19. Verification | v1.16 | 1/1 | Complete | 2026-03-25 |
-| 20. Escalation Logic | v2.0.7 | 0/1 | Not started | - |
+| 20. Escalation Logic | 1/1 | Complete   | 2026-03-31 | - |
 | 21. Hysteresis | v2.0.7 | 0/? | Not started | - |
