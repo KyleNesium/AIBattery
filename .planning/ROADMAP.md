@@ -40,7 +40,9 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 19.
   3. When the API is throttled, auto mode shows the throttle countdown regardless of other metrics
   4. When rate limit usage reaches 80% or above, auto mode escalates to the rate limit view
   5. When active context usage reaches 60% or above (and no higher-priority condition applies), auto mode shows the context health view
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 20-01-PLAN.md — Replace urgency scoring with deterministic escalation ladder (TDD)
 
 ### Phase 21: Hysteresis
 **Goal**: Auto mode does not flip between views on consecutive polls when values hover near a threshold
@@ -64,5 +66,5 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 19.
 | 17. Incremental Scanning | v1.16 | 2/2 | Complete | 2026-03-25 |
 | 18. Memory Optimization | v1.16 | 1/1 | Complete | 2026-03-25 |
 | 19. Verification | v1.16 | 1/1 | Complete | 2026-03-25 |
-| 20. Escalation Logic | v2.0.7 | 0/? | Not started | - |
+| 20. Escalation Logic | v2.0.7 | 0/1 | Not started | - |
 | 21. Hysteresis | v2.0.7 | 0/? | Not started | - |
