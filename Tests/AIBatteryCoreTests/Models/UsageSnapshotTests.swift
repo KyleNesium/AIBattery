@@ -456,6 +456,240 @@ struct UsageSnapshotTests {
         #expect(snapshot.autoResolvedMode == .fiveHour)
     }
 
+    // MARK: - applyHysteresis
+
+    @Test func hysteresis_rlAt79_previousFiveHour_staysFiveHour() {
+        // RL at 79%, previous=.fiveHour -> stays .fiveHour (79% > 70% release threshold)
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.79, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.30, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        // At 79% RL (below 80%), autoResolvedMode returns Tier 4 binding (.fiveHour)
+        // But previous was .fiveHour from when RL was >=80% — hysteresis should hold
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: snapshot.autoResolvedMode,
+            previous: .fiveHour,
+            snapshot: snapshot
+        )
+        #expect(result == .fiveHour)
+    }
+
+    @Test func hysteresis_rlAt69_previousFiveHour_releasesToCandidate() {
+        // RL at 69%, previous=.fiveHour -> releases (69% < 70% release threshold)
+        let limits = RateLimitUsage(
+            representativeClaim: "seven_day",
+            fiveHourUtilization: 0.69, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.50, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        let candidate = snapshot.autoResolvedMode  // Tier 4 binding = .sevenDay
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: .fiveHour,
+            snapshot: snapshot
+        )
+        // Should release — 69% < 70% for .fiveHour, so candidate (.sevenDay) wins
+        #expect(result == candidate)
+        #expect(result != .fiveHour)
+    }
+
+    @Test func hysteresis_rlAt70_previousFiveHour_staysFiveHour() {
+        // RL at 70%, previous=.fiveHour -> stays .fiveHour (70% >= 70%, exactly at boundary)
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.70, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.30, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: snapshot.autoResolvedMode,
+            previous: .fiveHour,
+            snapshot: snapshot
+        )
+        #expect(result == .fiveHour)
+    }
+
+    @Test func hysteresis_contextAt58_previousContextHealth_staysContextHealth() {
+        // Context at 58%, previous=.contextHealth -> stays (58% > 50% release threshold)
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 58.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        // At 58% context (below 60%), autoResolvedMode returns Tier 4 binding
+        let candidate = snapshot.autoResolvedMode  // .fiveHour (binding)
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: .contextHealth,
+            snapshot: snapshot
+        )
+        #expect(result == .contextHealth)
+    }
+
+    @Test func hysteresis_contextAt49_previousContextHealth_releasesToCandidate() {
+        // Context at 49%, previous=.contextHealth -> releases (49% < 50% release threshold)
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 49.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        let candidate = snapshot.autoResolvedMode  // .fiveHour (binding)
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: .contextHealth,
+            snapshot: snapshot
+        )
+        #expect(result == .fiveHour)
+    }
+
+    @Test func hysteresis_contextAt50_previousContextHealth_staysContextHealth() {
+        // Context at 50%, previous=.contextHealth -> stays (50% >= 50%, exactly at boundary)
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 50.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        let candidate = snapshot.autoResolvedMode
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: .contextHealth,
+            snapshot: snapshot
+        )
+        #expect(result == .contextHealth)
+    }
+
+    @Test func hysteresis_upwardEscalation_immediateSwitch() {
+        // RL jumps to 85%, previous=.fiveHour at Tier 4 -> immediate escalation to Tier 2
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.85, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        let candidate = snapshot.autoResolvedMode  // .fiveHour (Tier 2, RL >=80%)
+        // previous is also .fiveHour but from Tier 4 — same mode, so no conflict
+        // Test a case where candidate differs: previous was .sevenDay binding, now .fiveHour escalation
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: .fiveHour,
+            previous: .sevenDay,
+            snapshot: snapshot
+        )
+        // Upward escalation: RL at 85% >=80% means candidate is from Tier 2
+        // previous .sevenDay percent is only 10% (below 70% release), so should release to candidate
+        #expect(result == .fiveHour)
+    }
+
+    @Test func hysteresis_throttle_bypassesHysteresis() {
+        // Throttle active, previous=.contextHealth -> returns throttle tier (bypasses hysteresis)
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: Date().addingTimeInterval(300),
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.30, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let active = makeHealth(id: "s1", usagePercentage: 55.0)
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
+        let candidate = snapshot.autoResolvedMode  // .fiveHour (Tier 1 throttle)
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: .contextHealth,
+            snapshot: snapshot
+        )
+        #expect(result == .fiveHour)
+    }
+
+    @Test func hysteresis_noPrevious_returnsCandidateAsIs() {
+        // previous=nil (first poll or after reset) -> returns candidate as-is
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.50, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.30, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        let candidate = snapshot.autoResolvedMode
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: nil,
+            snapshot: snapshot
+        )
+        #expect(result == candidate)
+    }
+
+    @Test func hysteresis_sessionGoesStale_releasesContextHealth() {
+        // Session goes stale while previous=.contextHealth at 55% -> releases
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let stale = makeHealth(id: "s1", usagePercentage: 55.0, band: .orange,
+                               lastActivity: Date().addingTimeInterval(-31 * 60))
+        let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [stale])
+        let candidate = snapshot.autoResolvedMode  // .fiveHour (stale session -> Tier 4)
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: .contextHealth,
+            snapshot: snapshot
+        )
+        // Staleness is a hard gate — even though 55% > 50%, session is stale
+        #expect(result == .fiveHour)
+    }
+
+    @Test func hysteresis_previousSevenDay_rlDropsWithinBand_holds() {
+        // previous=.sevenDay, RL at 75% -> stays .sevenDay (75% > 70% release threshold)
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.75, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        let candidate = snapshot.autoResolvedMode  // .fiveHour (Tier 4 binding, RL<80%)
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: .sevenDay,
+            snapshot: snapshot
+        )
+        #expect(result == .sevenDay)
+    }
+
+    @Test func hysteresis_previousSevenDay_rlDropsBelowRelease_releases() {
+        // previous=.sevenDay, RL drops to 69% -> releases
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.30, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.69, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits)
+        let candidate = snapshot.autoResolvedMode  // .fiveHour (binding)
+        let result = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: .sevenDay,
+            snapshot: snapshot
+        )
+        #expect(result == .fiveHour)
+    }
+
     // MARK: - dailyAverage
 
     @Test func dailyAverage_emptyActivity() {

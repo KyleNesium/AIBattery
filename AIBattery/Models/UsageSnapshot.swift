@@ -88,6 +88,10 @@ struct UsageSnapshot: Equatable {
         }
     }
 
+    /// De-escalation requires the metric to drop this many percentage points below its
+    /// escalation threshold before releasing the held mode.
+    static let hysteresisDeescalationBand = 10.0
+
     /// Rate limit percentage at or above which Tier 2 (rate limit escalation) kicks in.
     static let rateLimitEscalationThreshold = 80.0
 
@@ -135,6 +139,17 @@ struct UsageSnapshot: Equatable {
                 ? .sevenDay : .fiveHour
         }
         return .fiveHour
+    }
+
+    /// Apply hysteresis: if the previous mode still qualifies within its de-escalation band,
+    /// keep it. Upward escalation and throttle bypass hysteresis entirely.
+    /// - Parameters:
+    ///   - candidate: The mode that `autoResolvedMode` selected this poll
+    ///   - previous: The mode that was displayed last poll (nil on first poll or after reset)
+    ///   - snapshot: Current snapshot for reading percentage values
+    /// - Returns: The mode to display (may be `previous` if hysteresis holds)
+    static func applyHysteresis(candidate: MetricMode, previous: MetricMode?, snapshot: UsageSnapshot) -> MetricMode {
+        return candidate  // Stub — tests should fail
     }
 
     // Daily activity for chart
