@@ -77,12 +77,12 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] AUTO-01: Exclude context health from auto mode when no active session exists
-- [ ] AUTO-02: Default to binding rate limit when nothing is urgent
-- [ ] AUTO-03: Escalation ladder replacing urgency scoring
+- ✓ AUTO-01: Exclude context health from auto mode when no active session exists — Phase 20
+- ✓ AUTO-02: Default to binding rate limit when nothing is urgent — Phase 20
+- ✓ AUTO-03: Escalation ladder replacing urgency scoring — Phase 20
 - [ ] AUTO-04: Hysteresis to prevent mode flip-flopping between polls
-- [ ] AUTO-05: Active session awareness (stale sessions excluded from competition)
-- [ ] AUTO-06: Remove time-to-limit boost complexity
+- ✓ AUTO-05: Active session awareness (stale sessions excluded from competition) — Phase 20
+- ✓ AUTO-06: Remove time-to-limit boost complexity — Phase 20
 
 ### Out of Scope
 
@@ -162,4 +162,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - Remove time-to-limit boost complexity
 
 ---
-*Last updated: 2026-03-31 after v2.0.7 Smart Auto Mode milestone started*
+*Last updated: 2026-04-01 after Phase 20 (Escalation Logic) complete*
