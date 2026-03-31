@@ -42,7 +42,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 19.
   5. When active context usage reaches 60% or above (and no higher-priority condition applies), auto mode shows the context health view
 **Plans:** 1/1 plans complete
 Plans:
-- [ ] 20-01-PLAN.md — Replace urgency scoring with deterministic escalation ladder (TDD)
+- [x] 20-01-PLAN.md — Replace urgency scoring with deterministic escalation ladder (TDD)
 
 ### Phase 21: Hysteresis
 **Goal**: Auto mode does not flip between views on consecutive polls when values hover near a threshold
@@ -52,7 +52,9 @@ Plans:
   1. When auto mode is showing the rate limit view and usage dips just below 80%, the view does not immediately switch away — it stays until the gap exceeds 10 percentage points
   2. When auto mode switches to a new view, it does not revert to the previous view on the very next poll unless the new view's condition clearly falls away
   3. All existing auto mode behavior is covered by tests updated to assert the new escalation + hysteresis logic
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 21-01-PLAN.md — Hysteresis logic with 10pp de-escalation band (TDD)
 
 ## Progress
 
@@ -66,5 +68,5 @@ Plans:
 | 17. Incremental Scanning | v1.16 | 2/2 | Complete | 2026-03-25 |
 | 18. Memory Optimization | v1.16 | 1/1 | Complete | 2026-03-25 |
 | 19. Verification | v1.16 | 1/1 | Complete | 2026-03-25 |
-| 20. Escalation Logic | 1/1 | Complete    | 2026-03-31 | - |
-| 21. Hysteresis | v2.0.7 | 0/? | Not started | - |
+| 20. Escalation Logic | v2.0.7 | 1/1 | Complete | 2026-03-31 |
+| 21. Hysteresis | v2.0.7 | 0/1 | Not started | - |
