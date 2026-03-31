@@ -5,7 +5,7 @@ import SwiftUI
 struct StyledDivider: View {
     var body: some View {
         Divider()
-            .opacity(0.3)
+            .opacity(ThemeColors.dividerOpacity)
             .padding(.vertical, Spacing.tight)
     }
 }

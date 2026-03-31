@@ -7,7 +7,7 @@ extension InsightsView {
 
     // MARK: - Insight rows (merged from former Insights section)
 
-    static let insightLabelWidth: CGFloat = 55
+    static let insightLabelWidth: CGFloat = Layout.insightLabel
 
     @ViewBuilder
     func insightRows(_ snapshot: UsageSnapshot) -> some View {
@@ -72,7 +72,7 @@ extension InsightsView {
             .foregroundStyle(ThemeColors.secondaryLabel)
             .padding(.horizontal, Spacing.small)
             .padding(.vertical, Spacing.tight)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Layout.smallCornerRadius))
     }
 
     /// Chart overlay that handles hover detection AND renders the tooltip at the correct X position.

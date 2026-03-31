@@ -145,7 +145,7 @@ final class TokenHealthMonitor {
 
         // Percentage is against the usable window (80% of raw), not the full window.
         // 100% here = Claude Code is about to auto-compact.
-        let usagePercentage = Double(totalUsed) / Double(usableWindow) * 100.0
+        let usagePercentage = usableWindow > 0 ? Double(totalUsed) / Double(usableWindow) * 100.0 : 0
         let remaining = max(usableWindow - totalUsed, 0)
 
         // Determine band

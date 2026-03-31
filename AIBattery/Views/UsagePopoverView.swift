@@ -121,7 +121,7 @@ public struct UsagePopoverView: View {
 
                 // Show inline error when rate limits unavailable (API not reachable)
                 if snapshot.rateLimits == nil, let error = viewModel.errorMessage {
-                    HStack(spacing: 6) {
+                    HStack(spacing: Spacing.gap) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.caution)
@@ -189,10 +189,10 @@ public struct UsagePopoverView: View {
                         .foregroundStyle(.secondary)
                     ProgressView()
                         .scaleEffect(0.5)
-                        .frame(width: 12, height: 12)
+                        .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)
                     Spacer()
                 }
-                .frame(height: 40)
+                .frame(height: Layout.stateHeightLoading)
             } else if !showSettings, let error = viewModel.errorMessage {
                 PopoverErrorView(message: error) {
                     Task { await viewModel.refresh() }

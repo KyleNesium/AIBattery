@@ -46,6 +46,19 @@ struct UsageBar: View {
     var isThrottled: Bool = false
     var estimatedTimeToLimit: TimeInterval?
 
+    private var headerTooltip: String {
+        var parts: [String] = ["\(label) rate limit: \(Int(percent))% used"]
+        if isBinding { parts.append("This window is the binding constraint") }
+        if isThrottled { parts.append("Currently rate limited") }
+        if let reset = resetsAt {
+            let diff = reset.timeIntervalSinceNow
+            if diff > 0 {
+                parts.append("Resets at \(PopoverFooterView.absoluteTime(reset))")
+            }
+        }
+        return parts.joined(separator: "\n")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
             HStack {
@@ -53,6 +66,7 @@ struct UsageBar: View {
                     Text(label)
                         .font(Typography.buttonLabel)
                         .accessibilityAddTraits(.isHeader)
+                        .help(headerTooltip)
                     if isBinding {
                         Text("binding")
                             .font(Typography.badgeLabel)
@@ -74,7 +88,6 @@ struct UsageBar: View {
                 Spacer()
                 Text("\(Int(percent))%")
                     .font(Typography.monoValue)
-                    .contentTransition(.numericText())
                     .copyable("\(Int(percent))%")
             }
 
@@ -91,7 +104,7 @@ struct UsageBar: View {
             HStack {
                 // Left side: time to limit / status
                 if wasExhausted && expired && percent < 1 {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Spacing.inner) {
                         Image(systemName: "sparkles")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.success)
@@ -113,6 +126,7 @@ struct UsageBar: View {
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.caution)
                         .copyable(estimateText)
+                        .help("Estimated time until rate limit based on current burn rate")
                 } else {
                     // No burn rate estimate yet — show remaining percentage
                     let remainingText = "\(max(0, Int(100 - percent)))% remaining"

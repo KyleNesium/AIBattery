@@ -7,7 +7,7 @@ struct PopoverErrorView: View {
     let onRetry: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Spacing.section) {
             Image(systemName: "exclamationmark.triangle")
                 .font(Typography.stateIcon)
                 .foregroundStyle(ThemeColors.caution)
@@ -17,7 +17,7 @@ struct PopoverErrorView: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
             Button(action: onRetry) {
-                HStack(spacing: 4) {
+                HStack(spacing: Spacing.inner) {
                     Image(systemName: "arrow.clockwise")
                         .font(Typography.monoTiny)
                     Text("Retry")
@@ -27,10 +27,14 @@ struct PopoverErrorView: View {
             .buttonStyle(.plain)
             .foregroundStyle(ThemeColors.action)
             .accessibilityHint("Retry loading usage data")
+            .help("Retry loading usage data")
+            .onHover { inside in
+                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .frame(maxWidth: .infinity)
-        .frame(height: 100)
+        .frame(height: Layout.stateHeightError)
     }
 }
 
@@ -38,7 +42,10 @@ struct PopoverErrorView: View {
 
 struct PopoverEmptyView: View {
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: Spacing.inner) {
+            Image(systemName: "tray")
+                .font(Typography.stateIcon)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
             Text("No Claude Code data found")
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)
@@ -49,7 +56,7 @@ struct PopoverEmptyView: View {
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .frame(maxWidth: .infinity)
-        .frame(height: 80)
+        .frame(height: Layout.stateHeightEmpty)
     }
 }
 
@@ -59,7 +66,10 @@ struct PopoverIdleFilteredView: View {
     let idleSessionMinutes: Double
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: Spacing.inner) {
+            Image(systemName: "moon.zzz")
+                .font(Typography.stateIcon)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
             Text("No active sessions")
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)
@@ -71,6 +81,6 @@ struct PopoverIdleFilteredView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.sectionHorizontal * 0.75)
+        .padding(.vertical, Spacing.authGap)
     }
 }

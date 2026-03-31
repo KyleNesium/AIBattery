@@ -25,7 +25,7 @@ struct MenuBarIcon: View {
     // MARK: - Constants
 
     /// Icon canvas size — larger than the star to give the glow room to breathe.
-    static let iconSize: CGFloat = 22
+    static let iconSize: CGFloat = Layout.iconSize
 
     /// Number of discrete pulse steps per breathing cycle.
     /// 8 steps at 4s cycle = 500ms per tick — smooth enough to appear fluid

@@ -18,10 +18,10 @@ enum Spacing {
     /// 2pt — divider micro-gap, dot gap between elements.
     static let tight: CGFloat = 2
 
-    /// 4pt — badge internal padding, minor offset.
+    /// 4pt — padding inside elements (badge internal padding, minor inset offset).
     static let small: CGFloat = 4
 
-    /// 4pt — internal element spacing within a section (header HStack, badge elements).
+    /// 4pt — spacing between sibling elements in a row/stack (header HStack, badge elements).
     static let inner: CGFloat = 4
 
     /// 6pt — VStack section spacing, header/footer vertical padding.
@@ -32,6 +32,12 @@ enum Spacing {
 
     /// 16pt — standard section horizontal outer padding (12 uses in codebase).
     static let sectionHorizontal: CGFloat = 16
+
+    /// 10pt — footer link row spacing.
+    static let medium: CGFloat = 10
+
+    /// 12pt — auth flow card outer spacing.
+    static let authGap: CGFloat = 12
 
     /// 24pt — overlay and tutorial content padding.
     static let overlay: CGFloat = 24
@@ -67,8 +73,20 @@ enum Layout {
     /// Auto mode "A" button circle diameter.
     static let autoModeSize: CGFloat = 20
 
+    /// Metric tab pill corner radius.
+    static let tabCornerRadius: CGFloat = 4
+
+    /// Small element corner radius (search field, tooltip, chevron highlight).
+    static let smallCornerRadius: CGFloat = 4
+
     /// Banner corner radius (update banner, search field).
     static let bannerCornerRadius: CGFloat = 6
+
+    /// Auth app icon clip radius.
+    static let iconClipRadius: CGFloat = 10
+
+    /// Card/overlay corner radius (tutorial card, dialogs).
+    static let cardCornerRadius: CGFloat = 12
 
     /// Column width for compact cost values (e.g. "~$4.0K").
     static let costColumn: CGFloat = 46
@@ -78,6 +96,39 @@ enum Layout {
 
     /// Settings label column width (e.g. "Refresh", "Alerts", "Display").
     static let settingsLabel: CGFloat = 50
+
+    /// Settings slider value label width (e.g. "60s", "30m", "80%").
+    static let sliderValueLabel: CGFloat = 28
+
+    /// Insight row label column width (e.g. "Period", "Longest", "All Time").
+    static let insightLabel: CGFloat = 55
+
+    /// Marquee text line height.
+    static let marqueeHeight: CGFloat = 14
+
+    /// Inline spinner size (footer, loading indicators).
+    static let spinnerSize: CGFloat = 10
+
+    /// Loading state placeholder height.
+    static let stateHeightLoading: CGFloat = 40
+
+    /// Empty state placeholder height.
+    static let stateHeightEmpty: CGFloat = 80
+
+    /// Error state placeholder height.
+    static let stateHeightError: CGFloat = 100
+
+    /// Menu bar icon canvas size.
+    static let iconSize: CGFloat = 22
+
+    /// Chart data point symbol size.
+    static let chartSymbolSize: CGFloat = 12
+
+    /// Subtle raised-element shadow (selected tab pill).
+    static let shadowSmall: CGFloat = 1
+
+    /// Glow radius for active indicator (auto mode button).
+    static let glowRadius: CGFloat = 4
 }
 
 /// Animation duration constants for the AI Battery popover.

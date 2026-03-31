@@ -17,7 +17,7 @@ struct CopyableModifier: ViewModifier {
             .padding(.vertical, Spacing.micro)
             .background(
                 RoundedRectangle(cornerRadius: Spacing.xsmall)
-                    .fill(isHovered ? Color.primary.opacity(0.15) : Color.clear)
+                    .fill(isHovered ? ThemeColors.copyableHoverFill : Color.clear)
             )
             .overlay(alignment: .trailing) {
                 if copied {
@@ -86,7 +86,7 @@ struct LightCopyableModifier: ViewModifier {
             .padding(.vertical, Spacing.micro)
             .background(
                 RoundedRectangle(cornerRadius: Spacing.xsmall)
-                    .fill(isHovered ? Color.primary.opacity(0.15) : Color.clear)
+                    .fill(isHovered ? ThemeColors.copyableHoverFill : Color.clear)
             )
             .onHover { isHovered = $0 }
             .onTapGesture {

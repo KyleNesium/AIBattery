@@ -94,7 +94,7 @@ struct InsightsView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.gap) {
             // Header with toggle
             HStack {
                 CollapsibleSectionHeader(
@@ -129,7 +129,7 @@ struct InsightsView: View {
             if collapsed {
                 // show nothing below header
             } else if isEmpty {
-                VStack(spacing: 4) {
+                VStack(spacing: Spacing.inner) {
                     Image(systemName: "chart.line.flattrend.xyaxis")
                         .font(Typography.heroTitle)
                         .foregroundStyle(ThemeColors.tertiaryLabel)
@@ -141,7 +141,7 @@ struct InsightsView: View {
                 .frame(height: Layout.chartHeight)
                 .transition(MotionConstants.expandTransition)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Spacing.gap) {
                 switch mode {
                 case .daily:
                     dailyChart
@@ -158,7 +158,7 @@ struct InsightsView: View {
 
             // Trend + cost + history — visually grouped
             if !collapsed, let snapshot {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Spacing.gap) {
                 trendSummary(snapshot)
                     .accessibilityElement(children: .combine)
 

@@ -33,7 +33,7 @@ struct FooterLink<Leading: View>: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 2) {
+            HStack(spacing: Spacing.tight) {
                 if Leading.self != EmptyView.self {
                     leading()
                 } else if let icon {

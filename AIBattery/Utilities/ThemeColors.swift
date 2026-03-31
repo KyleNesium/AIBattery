@@ -175,6 +175,36 @@ enum ThemeColors {
         dark: NSColor(white: 1.0, alpha: 0.06)
     )
 
+    /// Stronger hover highlight for copyable elements (signals "click to copy").
+    static let copyableHoverFill: Color = adaptive(
+        light: NSColor(white: 0.0, alpha: 0.15),
+        dark: NSColor(white: 1.0, alpha: 0.15)
+    )
+
+    /// Divider opacity (StyledDivider).
+    static let dividerOpacity: Double = 0.3
+
+    /// Overlay backdrop opacity (tutorial, modal dimming).
+    static let overlayBackdropOpacity: Double = 0.4
+
+    /// Inactive dot/indicator opacity (step indicators, deselected controls).
+    static let inactiveIndicatorOpacity: Double = 0.45
+
+    /// Subtle border opacity for unhovered/inactive outlines.
+    static let subtleBorderOpacity: Double = 0.2
+
+    /// Medium border opacity for hovered outlines.
+    static let hoverBorderOpacity: Double = 0.4
+
+    /// Active-state label opacity for secondary text.
+    static let activeLabelOpacity: Double = 0.5
+
+    /// Focus ring opacity (keyboard focus indicators).
+    static let focusRingOpacity: Double = 0.6
+
+    /// Shadow opacity for raised elements (selected tab pill).
+    static let shadowOpacity: Double = 0.25
+
     /// Disabled control opacity multiplier (picker, chevrons).
     static let disabledOpacity: Double = 0.55
 
@@ -189,6 +219,20 @@ enum ThemeColors {
     static let panelBackground: Color = adaptive(
         light: NSColor(white: 0.965, alpha: 1.0),
         dark: NSColor(red: 0.11, green: 0.11, blue: 0.118, alpha: 1.0)
+    )
+
+    // MARK: - Surface elevation (dark mode depth hierarchy)
+
+    /// Level 1 surface — card/section background. Slightly raised from panel.
+    static let surfaceLevel1: Color = adaptive(
+        light: NSColor(white: 0.0, alpha: 0.03),
+        dark: NSColor(white: 1.0, alpha: 0.03)
+    )
+
+    /// Level 2 surface — raised interactive elements (selected tabs, active controls).
+    static let surfaceLevel2: Color = adaptive(
+        light: NSColor(white: 1.0, alpha: 0.9),
+        dark: NSColor(white: 1.0, alpha: 0.18)
     )
 
     // MARK: - Track & background colors

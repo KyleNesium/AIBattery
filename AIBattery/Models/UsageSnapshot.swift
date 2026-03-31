@@ -280,7 +280,7 @@ struct UsageSnapshot: Equatable {
     // Hourly message distribution (hour "0"-"23" → count, all-time merged)
     let hourCounts: [String: Int]
 
-    // Today's hourly breakdown (hour "0"-"23" → count, from JSONL only)
+    // Trailing 24-hour breakdown (hour "0"-"23" → count, from JSONL only)
     let todayHourCounts: [String: Int]
 
     // Token health for the most recent session (last JSONL entry's session)

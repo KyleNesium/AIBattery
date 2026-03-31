@@ -7,7 +7,7 @@ struct SettingsRow: View {
     let onAddAccount: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.gap) {
             Text("Settings")
                 .font(Typography.caption)
                 .fontWeight(.semibold)
@@ -20,10 +20,10 @@ struct SettingsRow: View {
             }
 
             if accountStore.canAddAccount {
-                HStack(spacing: 8) {
+                HStack(spacing: Spacing.section) {
                     Spacer().frame(width: Layout.settingsLabel)
                     Button(action: onAddAccount) {
-                        HStack(spacing: 3) {
+                        HStack(spacing: Spacing.xsmall) {
                             Image(systemName: "plus.circle")
                                 .font(Typography.tinyLabel)
                             Text("Add Account")
@@ -33,6 +33,7 @@ struct SettingsRow: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(ThemeColors.action)
                     .accessibilityLabel("Add another Claude account")
+                    .help("Sign in with another Claude account")
                 }
             }
 
@@ -55,7 +56,7 @@ struct SettingsRow: View {
         let label = accountStore.accounts.count > 1
             ? (isActive ? "Active" : "Account")
             : "Name"
-        return HStack(spacing: 8) {
+        return HStack(spacing: Spacing.section) {
             Text(label)
                 .font(Typography.caption)
                 .foregroundStyle(.secondary)

@@ -34,11 +34,11 @@ struct TutorialOverlay: View {
     private var content: some View {
         ZStack {
             // Semi-transparent backdrop
-            Color.black.opacity(0.4)
+            Color.black.opacity(ThemeColors.overlayBackdropOpacity)
                 .ignoresSafeArea()
 
             // Centered card
-            VStack(spacing: 16) {
+            VStack(spacing: Spacing.sectionHorizontal) {
                 Image(systemName: steps[step].icon)
                     .font(Typography.largeIcon)
                     .foregroundStyle(ThemeColors.action)
@@ -54,11 +54,11 @@ struct TutorialOverlay: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 // Step indicators
-                HStack(spacing: 6) {
+                HStack(spacing: Spacing.gap) {
                     ForEach(0..<steps.count, id: \.self) { i in
                         Circle()
-                            .fill(i == step ? ThemeColors.action : Color.secondary.opacity(0.45))
-                            .frame(width: 6, height: 6)
+                            .fill(i == step ? ThemeColors.action : Color.secondary.opacity(ThemeColors.inactiveIndicatorOpacity))
+                            .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
                             .accessibilityHidden(true)
                     }
                 }
@@ -76,6 +76,10 @@ struct TutorialOverlay: View {
                         .foregroundStyle(.secondary)
                         .keyboardShortcut(.cancelAction)
                         .accessibilityLabel("Skip tutorial")
+                        .help("Skip the tutorial walkthrough")
+                        .onHover { inside in
+                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
                     }
 
                     Spacer()
@@ -94,7 +98,7 @@ struct TutorialOverlay: View {
             }
             .padding(Spacing.overlay)
             .frame(maxWidth: 280)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Tutorial: \(steps[step].title)")
         }

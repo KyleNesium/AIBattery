@@ -82,10 +82,12 @@ final class UsageAggregator: @unchecked Sendable {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         let todayDate = Self.dateFormatter.string(from: now)
+        let twentyFourHoursAgo = now.addingTimeInterval(-86400)
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
         let twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today
 
         var todayEntries: [AssistantUsageEntry] = []
+        var trailing24hEntries: [AssistantUsageEntry] = []
         var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
         var jsonlTodayToolCalls = 0
 
@@ -137,12 +139,15 @@ final class UsageAggregator: @unchecked Sendable {
                 todayEntries.append(entry)
                 jsonlTodayToolCalls += entry.toolCallCount
             }
+            if ts >= twentyFourHoursAgo {
+                trailing24hEntries.append(entry)
+            }
 
             // --- Project accumulation ---
             if entry.model.hasPrefix("claude-") {
                 let projKey: String
                 let projName: String
-                if let cwd = entry.cwd, !cwd.isEmpty {
+                if let cwd = entry.cwd, !cwd.isEmpty, (cwd as NSString).lastPathComponent != "/" {
                     projKey = cwd
                     projName = (cwd as NSString).lastPathComponent
                 } else {
@@ -289,16 +294,25 @@ final class UsageAggregator: @unchecked Sendable {
             }
         }
 
-        // Build today's hourly breakdown from JSONL (for 12H chart).
+        // Build trailing 24-hour breakdown from JSONL (for 24H chart).
+        // Uses entries from the past 24 hours (not just today) so the chart
+        // correctly shows yesterday evening's activity in the morning.
         var todayHourCounts: [String: Int] = [:]
-        for entry in todayEntries {
+        for entry in trailing24hEntries {
             let hour = String(calendar.component(.hour, from: entry.timestamp))
             todayHourCounts[hour, default: 0] += 1
         }
 
-        // Merge today's JSONL into all-time hourCounts for peak hour stat.
+        // Merge today-only JSONL into all-time hourCounts for peak hour stat.
+        // Uses todayEntries (not trailing24h) to avoid inflating peaks by
+        // combining yesterday + today counts for the same hour.
+        var todayOnlyHourCounts: [String: Int] = [:]
+        for entry in todayEntries {
+            let hour = String(calendar.component(.hour, from: entry.timestamp))
+            todayOnlyHourCounts[hour, default: 0] += 1
+        }
         var hourCounts = statsCache?.hourCounts ?? [:]
-        for (hour, count) in todayHourCounts {
+        for (hour, count) in todayOnlyHourCounts {
             hourCounts[hour] = max(hourCounts[hour] ?? 0, count)
         }
 
