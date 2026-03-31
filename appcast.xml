@@ -12,8 +12,8 @@
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <enclosure
         url="https://github.com/KyleNesium/AIBattery/releases/download/v2.0.6/AIBattery.zip"
-        sparkle:edSignature="jIwWunfbxcfE44uSCrq9I2Noq4gBHR6+vgmDiHwk/wsa9b20T7tlzhZPQ6DdLQKcriI/0rVfMddA3hcbJfbrBQ=="
-        length="2835583"
+        sparkle:edSignature="OcgP+jqnE/T3sNX792UqA3tpy7xPcXAbQg81Dq1eMj+nOqLL7VH82AUe7L/SPuqvpFzHMBTKx2E5pBwzQKGGBQ=="
+        length="3009672"
         type="application/octet-stream" />
     </item>
   </channel>
