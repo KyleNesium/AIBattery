@@ -9,65 +9,48 @@
 - ✅ **v1.13 Responsiveness** - Phase 12 (shipped 2026-03-20)
 - ✅ **v1.14 Visual Polish** - Phases 13–14 (shipped 2026-03-24)
 - ✅ **v1.15 Performance** - Phases 15–16 (shipped 2026-03-25)
-- 🚧 **v1.16 JSONL Performance** - Phases 17–19 (in progress)
+- ✅ **v1.16 JSONL Performance** - Phases 17–19 (shipped 2026-03-25)
+- 🚧 **v2.0.7 Smart Auto Mode** - Phases 20–21 (in progress)
 
 ## Phases
 
 <details>
-<summary>✅ v1.10–v1.15 (Phases 1–16) - SHIPPED 2026-03-25</summary>
+<summary>✅ v1.10–v1.16 (Phases 1–19) - SHIPPED 2026-03-25</summary>
 
-Previous milestones tracked in MILESTONES.md. Phase numbering continues from 16.
+Previous milestones tracked in MILESTONES.md. Phase numbering continues from 19.
 
 </details>
 
-### 🚧 v1.16 JSONL Performance (In Progress)
+### 🚧 v2.0.7 Smart Auto Mode (In Progress)
 
-**Milestone Goal:** Reduce CPU usage from 83% to <2% at idle — SessionLogReader scans 3,103 JSONL files (2 GB) on every polling cycle, consuming an entire CPU core continuously.
+**Milestone Goal:** Make auto mode intelligent — replace urgency scoring with a clear escalation ladder, add active session awareness, and add hysteresis to prevent flip-flopping between polls.
 
 ## Phase Details
 
-- [x] **Phase 17: Incremental Scanning** - Only re-parse JSONL files that changed since last cycle; skip unchanged files via mod-date + size fingerprint (completed 2026-03-25)
-- [x] **Phase 18: Memory Optimization** - Evict parsed entries for old/inactive sessions; store aggregated results not raw entries (completed 2026-03-25)
-- [x] **Phase 19: Verification** - Confirm CPU and memory targets are met under realistic conditions; integration tests (completed 2026-03-25)
+- [ ] **Phase 20: Escalation Logic** - Replace urgency scoring with a deterministic escalation ladder; add session awareness and remove time-to-limit boost
+- [ ] **Phase 21: Hysteresis** - Add cross-poll state storage so the selected mode stays stable until a clearly better option emerges
 
-### Phase 17: Incremental Scanning
-**Goal**: Aggregation cycles skip unchanged files entirely, so only new or modified JSONL files are ever re-parsed
-**Depends on**: Phase 16
-**Requirements**: SCAN-01, SCAN-02, SCAN-03
+### Phase 20: Escalation Logic
+**Goal**: Auto mode selects the right metric to display via a deterministic ladder instead of scoring math, and only considers context health when a session is actively in use
+**Depends on**: Phase 19
+**Requirements**: AUTO-01, AUTO-02, AUTO-03, AUTO-05, AUTO-06
 **Success Criteria** (what must be TRUE):
-  1. Opening the popover and seeing fresh data takes under 100ms for aggregation (currently takes seconds)
-  2. On a polling cycle with no new Claude Code activity, zero JSONL files are re-parsed
-  3. On a polling cycle where one session is active, only that session's file(s) are re-parsed
-  4. Directory traversal uses mod-date comparison to skip unchanged subdirectories without opening them
-**Plans:** 2/2 plans complete
-Plans:
-- [x] 17-01-PLAN.md — Remove LRU cache cap and implement incremental dirty-flag merge
-- [x] 17-02-PLAN.md — Per-directory incremental discovery and performance verification
+  1. When no Claude Code session has been active in the last 30 minutes, auto mode never shows the context health view
+  2. When no metric is urgent, auto mode shows the binding (highest-consumed) rate limit — not an empty or default state
+  3. When the API is throttled, auto mode shows the throttle countdown regardless of other metrics
+  4. When rate limit usage reaches 80% or above, auto mode escalates to the rate limit view
+  5. When active context usage reaches 60% or above (and no higher-priority condition applies), auto mode shows the context health view
+**Plans**: TBD
 
-### Phase 18: Memory Optimization
-**Goal**: AIBattery holds under 100 MB RSS during normal operation by not retaining parsed entries from old sessions
-**Depends on**: Phase 17
-**Requirements**: MEM-01, MEM-02
+### Phase 21: Hysteresis
+**Goal**: Auto mode does not flip between views on consecutive polls when values hover near a threshold
+**Depends on**: Phase 20
+**Requirements**: AUTO-04
 **Success Criteria** (what must be TRUE):
-  1. RSS stays under 100 MB after a full aggregation cycle across all 3,103 files (currently 409 MB)
-  2. Sessions not accessed in the current polling window do not have raw parsed entries in memory
-  3. Evicting old session data does not cause a correctness regression — totals remain accurate
-**Plans:** 1/1 plans complete
-Plans:
-- [ ] 18-01-PLAN.md — Eliminate double-storage: release per-file entry arrays after merge into cachedAllEntries
-
-### Phase 19: Verification
-**Goal**: CPU and memory targets are confirmed met under realistic load; any remaining hotspots are caught before release
-**Depends on**: Phase 18
-**Requirements**: CPU-01, CPU-02
-**Success Criteria** (what must be TRUE):
-  1. CPU stays under 2% for at least 5 minutes with popover closed and no active Claude Code session
-  2. CPU stays under 5% during an active polling cycle with popover closed and a live session running
-  3. Integration tests reproduce the pre-fix hotspot scenario and assert the performance targets
-  4. No correctness regressions — token counts and cost totals match pre-fix values on the same fixture set
-**Plans:** 1/1 plans complete
-Plans:
-- [ ] 19-01-PLAN.md — Integration tests for incremental scanning + aggregation pipeline; human-verify CPU/memory targets
+  1. When auto mode is showing the rate limit view and usage dips just below 80%, the view does not immediately switch away — it stays until the gap exceeds 10 percentage points
+  2. When auto mode switches to a new view, it does not revert to the previous view on the very next poll unless the new view's condition clearly falls away
+  3. All existing auto mode behavior is covered by tests updated to assert the new escalation + hysteresis logic
+**Plans**: TBD
 
 ## Progress
 
@@ -78,6 +61,8 @@ Plans:
 | 14. Layout Consistency | v1.14 | 0/0 | Complete | 2026-03-24 |
 | 15. Breath Timer Fix | v1.15 | 1/1 | Complete | 2026-03-24 |
 | 16. Idle and Lock Detection | v1.15 | 0/? | Complete | 2026-03-25 |
-| 17. Incremental Scanning | v1.16 | Complete    | 2026-03-25 | 2026-03-25 |
-| 18. Memory Optimization | 1/1 | Complete    | 2026-03-25 | - |
-| 19. Verification | 1/1 | Complete    | 2026-03-25 | - |
+| 17. Incremental Scanning | v1.16 | 2/2 | Complete | 2026-03-25 |
+| 18. Memory Optimization | v1.16 | 1/1 | Complete | 2026-03-25 |
+| 19. Verification | v1.16 | 1/1 | Complete | 2026-03-25 |
+| 20. Escalation Logic | v2.0.7 | 0/? | Not started | - |
+| 21. Hysteresis | v2.0.7 | 0/? | Not started | - |

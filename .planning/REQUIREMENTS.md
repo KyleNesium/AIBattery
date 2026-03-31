@@ -32,18 +32,18 @@ Requirements for Smart Auto Mode. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTO-01 | — | Pending |
-| AUTO-02 | — | Pending |
-| AUTO-03 | — | Pending |
-| AUTO-04 | — | Pending |
-| AUTO-05 | — | Pending |
-| AUTO-06 | — | Pending |
+| AUTO-01 | Phase 20 | Pending |
+| AUTO-02 | Phase 20 | Pending |
+| AUTO-03 | Phase 20 | Pending |
+| AUTO-04 | Phase 21 | Pending |
+| AUTO-05 | Phase 20 | Pending |
+| AUTO-06 | Phase 20 | Pending |
 
 **Coverage:**
 - v2.0.7 requirements: 6 total
-- Mapped to phases: 0
-- Unmapped: 6 ⚠️
+- Mapped to phases: 6
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-31*
-*Last updated: 2026-03-31 after initial definition*
+*Last updated: 2026-03-31 after roadmap creation*
