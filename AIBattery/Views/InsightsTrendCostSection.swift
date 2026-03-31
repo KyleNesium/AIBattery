@@ -47,9 +47,6 @@ extension InsightsView {
                         .font(Typography.monoCaption)
                 }
                 .foregroundStyle(ThemeColors.caution)
-                .padding(.horizontal, Spacing.small)
-                .padding(.vertical, Spacing.micro)
-                .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: Layout.barCornerRadius))
             } else {
                 Text("Throttled: 0×")
                     .font(Typography.monoCaption)
