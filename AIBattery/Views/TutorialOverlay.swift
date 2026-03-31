@@ -77,9 +77,6 @@ struct TutorialOverlay: View {
                         .keyboardShortcut(.cancelAction)
                         .accessibilityLabel("Skip tutorial")
                         .help("Skip the tutorial walkthrough")
-                        .onHover { inside in
-                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                        }
                     }
 
                     Spacer()

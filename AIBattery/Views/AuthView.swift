@@ -116,9 +116,6 @@ public struct AuthView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityLabel("Cancel authentication")
                         .help("Go back to sign-in")
-                        .onHover { inside in
-                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                        }
 
                         Spacer()
 

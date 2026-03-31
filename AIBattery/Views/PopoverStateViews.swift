@@ -5,6 +5,7 @@ import SwiftUI
 struct PopoverErrorView: View {
     let message: String
     let onRetry: () -> Void
+    @State private var retryHovered = false
 
     var body: some View {
         VStack(spacing: Spacing.section) {
@@ -22,15 +23,14 @@ struct PopoverErrorView: View {
                         .font(Typography.monoTiny)
                     Text("Retry")
                         .font(Typography.caption)
+                        .underline(retryHovered)
                 }
             }
             .buttonStyle(.plain)
             .foregroundStyle(ThemeColors.action)
+            .onHover { retryHovered = $0 }
             .accessibilityHint("Retry loading usage data")
             .help("Retry loading usage data")
-            .onHover { inside in
-                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-            }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .frame(maxWidth: .infinity)
