@@ -140,17 +140,18 @@ struct UsageBar: View {
 
                 // Right side: reset countdown (always shown when available)
                 if let diff = resetDiff {
-                    if diff <= 0 && wasExhausted && percent >= 1 {
-                        Text("Resets soon")
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.caution)
-                            .help("Rate limit window is resetting")
-                    } else if diff > 0 {
+                    if diff > 0 {
                         let resetText = "Resets in \(DurationFormatter.compact(diff))"
                         Text(resetText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .copyable(resetText)
+                    } else {
+                        // Reset time is in the past — window is rolling over
+                        Text("Resetting…")
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.caution)
+                            .help("Rate limit window is rolling over — values update shortly")
                     }
                 }
             }
