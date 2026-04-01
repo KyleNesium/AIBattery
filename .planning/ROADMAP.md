@@ -28,7 +28,7 @@ Previous milestones tracked in MILESTONES.md. Phase numbering continues from 19.
 ## Phase Details
 
 - [x] **Phase 20: Escalation Logic** - Replace urgency scoring with a deterministic escalation ladder; add session awareness and remove time-to-limit boost (completed 2026-03-31)
-- [ ] **Phase 21: Hysteresis** - Add cross-poll state storage so the selected mode stays stable until a clearly better option emerges
+- [x] **Phase 21: Hysteresis** - Add cross-poll state storage so the selected mode stays stable until a clearly better option emerges (completed 2026-04-01)
 
 ### Phase 20: Escalation Logic
 **Goal**: Auto mode selects the right metric to display via a deterministic ladder instead of scoring math, and only considers context health when a session is actively in use
@@ -52,7 +52,7 @@ Plans:
   1. When auto mode is showing the rate limit view and usage dips just below 80%, the view does not immediately switch away — it stays until the gap exceeds 10 percentage points
   2. When auto mode switches to a new view, it does not revert to the previous view on the very next poll unless the new view's condition clearly falls away
   3. All existing auto mode behavior is covered by tests updated to assert the new escalation + hysteresis logic
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 21-01-PLAN.md — Hysteresis logic with 10pp de-escalation band (TDD)
 
@@ -69,4 +69,4 @@ Plans:
 | 18. Memory Optimization | v1.16 | 1/1 | Complete | 2026-03-25 |
 | 19. Verification | v1.16 | 1/1 | Complete | 2026-03-25 |
 | 20. Escalation Logic | v2.0.7 | 1/1 | Complete | 2026-03-31 |
-| 21. Hysteresis | v2.0.7 | 0/1 | Not started | - |
+| 21. Hysteresis | 1/1 | Complete   | 2026-04-01 | - |

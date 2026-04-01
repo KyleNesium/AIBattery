@@ -4,11 +4,11 @@ milestone: v1.0
 milestone_name: milestone
 status: unknown
 stopped_at: Completed 20-01-PLAN.md
-last_updated: "2026-03-31T22:18:55.713Z"
+last_updated: "2026-03-31T22:38:37.944Z"
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 1
+  total_plans: 2
   completed_plans: 1
 ---
 
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Show Claude API usage clearly and instantly from the menu bar
-**Current focus:** Phase 20 — escalation-logic
+**Current focus:** Phase 21 — hysteresis
 
 ## Current Position
 
-Phase: 20 (escalation-logic) — COMPLETE
-Plan: 1 of 1 (done)
+Phase: 21 (hysteresis) — EXECUTING
+Plan: 1 of 1
 
 ## Accumulated Context
 
