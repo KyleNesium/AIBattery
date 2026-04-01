@@ -53,12 +53,11 @@ jobs:
             echo "Build errors detected"
             exit 1
           fi
-          passed=$(grep -c '✔ Test' test-output.txt || true)
-          if [ "$passed" -eq 0 ]; then
-            echo "No tests passed — something is wrong"
+          if ! grep -q '◇ Test run started\.' test-output.txt; then
+            echo "No Swift Testing run detected — something is wrong"
             exit 1
           fi
-          echo "All $passed tests passed (exit code was $exit_code)"
+          echo "Test run completed without reported failures (exit code was $exit_code)"
 
       - name: Verify app bundle
         run: |

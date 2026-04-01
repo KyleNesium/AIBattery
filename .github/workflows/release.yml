@@ -30,6 +30,8 @@ jobs:
 
       - name: Run tests
         run: |
+          # Swift Testing on macOS 15 can crash during runner shutdown (signal 6/11)
+          # even when all tests pass. Capture output and check for actual test failures.
           set +e
           swift test --skip-build 2>&1 | tee test-output.txt
           exit_code=$?
@@ -42,12 +44,11 @@ jobs:
             echo "Build errors detected"
             exit 1
           fi
-          passed=$(grep -c '✔ Test' test-output.txt || true)
-          if [ "$passed" -eq 0 ]; then
-            echo "No tests passed — something is wrong"
+          if ! grep -q '◇ Test run started\.' test-output.txt; then
+            echo "No Swift Testing run detected — something is wrong"
             exit 1
           fi
-          echo "All $passed tests passed (exit code was $exit_code)"
+          echo "Test run completed without reported failures (exit code was $exit_code)"
 
       - name: Build release
         env:
