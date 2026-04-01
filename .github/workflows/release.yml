@@ -29,7 +29,25 @@ jobs:
         run: swift build
 
       - name: Run tests
-        run: swift test --skip-build
+        run: |
+          set +e
+          swift test --skip-build 2>&1 | tee test-output.txt
+          exit_code=$?
+          set -e
+          if grep -q '✘ Test' test-output.txt; then
+            echo "Test failures detected"
+            exit 1
+          fi
+          if grep -q 'error: build' test-output.txt; then
+            echo "Build errors detected"
+            exit 1
+          fi
+          passed=$(grep -c '✔ Test' test-output.txt || true)
+          if [ "$passed" -eq 0 ]; then
+            echo "No tests passed — something is wrong"
+            exit 1
+          fi
+          echo "All $passed tests passed (exit code was $exit_code)"
 
       - name: Build release
         env:
