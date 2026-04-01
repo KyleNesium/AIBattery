@@ -200,6 +200,7 @@ Single HStack in a rounded container (`ThemeColors.trackFill` at 0.5 opacity, co
 - **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (>=95%) → rate limit unconditionally beats context health; **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` with piecewise-linear interpolation (see CONSTANTS.md for anchor points); highest urgency wins, context breaks ties. Applied in both popover and menu bar label.
 
 Padding: outer H 16, V 8; container inner V 4
+Spacing: auto mode button has 8pt trailing padding (`Spacing.section`); tab buttons spaced 4pt (`Spacing.small`)
 
 ### MarqueeText (`Views/MarqueeText.swift`)
 
