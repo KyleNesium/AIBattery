@@ -69,6 +69,22 @@ struct RateLimitUsage: Equatable, Codable {
             || sevenDayStatus == "throttled"
     }
 
+    /// Force a throttled state when the HTTP response proves the account is rate limited
+    /// but the unified headers lag behind and still report an allowed status/utilization.
+    func markedThrottled(bindingWindow: String? = nil) -> RateLimitUsage {
+        let window = bindingWindow ?? representativeClaim
+        return RateLimitUsage(
+            representativeClaim: representativeClaim,
+            fiveHourUtilization: fiveHourUtilization,
+            fiveHourReset: fiveHourReset,
+            fiveHourStatus: window == Self.fiveHourWindow ? "throttled" : fiveHourStatus,
+            sevenDayUtilization: sevenDayUtilization,
+            sevenDayReset: sevenDayReset,
+            sevenDayStatus: window == Self.sevenDayWindow ? "throttled" : sevenDayStatus,
+            overallStatus: "throttled"
+        )
+    }
+
     // MARK: - Countdown formatter
 
     /// Compact countdown string for menu bar: "2h 15m", "45m", "soon"

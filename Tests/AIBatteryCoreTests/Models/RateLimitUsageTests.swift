@@ -28,6 +28,26 @@ struct RateLimitUsageTests {
         #expect(usage?.sevenDayStatus == "allowed")
     }
 
+    @Test func parse_mixedCaseHeaders() {
+        let headers: [AnyHashable: Any] = [
+            "Anthropic-Ratelimit-Unified-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-Representative-Claim": "seven_day",
+            "Anthropic-Ratelimit-Unified-5H-Utilization": "0.42",
+            "Anthropic-Ratelimit-Unified-5H-Reset": "1700000000",
+            "Anthropic-Ratelimit-Unified-5H-Status": "allowed",
+            "Anthropic-Ratelimit-Unified-7D-Utilization": "0.15",
+            "Anthropic-Ratelimit-Unified-7D-Reset": "1700500000",
+            "Anthropic-Ratelimit-Unified-7D-Status": "throttled",
+        ]
+        let usage = RateLimitUsage.parse(headers: headers)
+        #expect(usage != nil)
+        #expect(usage?.representativeClaim == "seven_day")
+        #expect(usage?.fiveHourUtilization == 0.42)
+        #expect(usage?.sevenDayUtilization == 0.15)
+        #expect(usage?.overallStatus == "allowed")
+        #expect(usage?.sevenDayStatus == "throttled")
+    }
+
     @Test func parse_missingStatusReturnsNil() {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-5h-utilization": "0.42",
@@ -172,6 +192,36 @@ struct RateLimitUsageTests {
             status: "allowed"
         )
         #expect(noneThrottled.isThrottled == false)
+    }
+
+    @Test func markedThrottled_bindingWindowMarksRepresentativeWindow() {
+        let usage = makeUsage(
+            claim: "seven_day",
+            fiveHourUtil: 0.57,
+            sevenDayUtil: 0.99,
+            fiveHourStatus: "allowed",
+            sevenDayStatus: "allowed",
+            status: "allowed"
+        ).markedThrottled()
+
+        #expect(usage.isThrottled == true)
+        #expect(usage.overallStatus == "throttled")
+        #expect(usage.fiveHourStatus == "allowed")
+        #expect(usage.sevenDayStatus == "throttled")
+        #expect(usage.sevenDayPercent == 99.0)
+    }
+
+    @Test func markedThrottled_explicitBindingWindowOverridesRepresentativeClaim() {
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourStatus: "allowed",
+            sevenDayStatus: "allowed",
+            status: "allowed"
+        ).markedThrottled(bindingWindow: "seven_day")
+
+        #expect(usage.overallStatus == "throttled")
+        #expect(usage.fiveHourStatus == "allowed")
+        #expect(usage.sevenDayStatus == "throttled")
     }
 
     // MARK: - Predictive estimate

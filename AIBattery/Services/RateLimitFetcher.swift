@@ -206,9 +206,10 @@ final class RateLimitFetcher {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
                 if rateLimits != nil || profile != nil {
+                    let throttledRateLimits = rateLimits?.markedThrottled()
                     saveWorkingModel(model, accountId: accountId)
                     return .success(APIFetchResult(
-                        rateLimits: rateLimits ?? cached?.rateLimits,
+                        rateLimits: throttledRateLimits ?? cached?.rateLimits,
                         profile: profile ?? cached?.profile
                     ))
                 }
