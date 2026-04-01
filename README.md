@@ -19,9 +19,11 @@ Monitor rate limits, context health, and token usage — always visible in your 
 
 <br/>
 
-<img src="screenshots/full-popover.png" width="440" alt="AI Battery — full dashboard view" />
+<img src="screenshots/menubar.png" width="440" alt="Menu bar showing AI Battery icon and rate limit percentage" />
 
+<br/>
 
+<img src="screenshots/dashboard.png" width="360" alt="AI Battery dashboard showing 5-hour and 7-day rate limits with reset countdowns" />
 
 </div>
 
@@ -146,7 +148,7 @@ Selected metric moves to the top. The other two stay visible below.
 **Auto mode**: click the **(A)** button next to the tabs. It glows blue when active and automatically selects whichever metric has the highest percentage — so the menu bar always shows your most critical limit. To switch back to manual, click any tab — auto mode disables and switches in one action.
 
 <div align="center">
-<img src="screenshots/dashboard.png" width="360" alt="Rate limits dashboard" />
+<img src="screenshots/dashboard.png" width="360" alt="AI Battery dashboard showing 5-hour and 7-day rate limits with reset countdowns" />
 </div>
 
 ---
@@ -166,7 +168,7 @@ Percentages are relative to the **usable window** — 80% of the model's raw con
 | 🔴 Red | > 80% | Start a fresh session |
 
 <div align="center">
-<img src="screenshots/context.png" width="360" alt="Context Health view" />
+<img src="screenshots/context.png" width="360" alt="Context health view showing session context window fullness, model, and turn count" />
 </div>
 
 <details>
@@ -210,7 +212,7 @@ Click ⚙️ in the header to configure:
 | 🚀 **Launch at Login** | Start automatically when you log in |
 
 <div align="center">
-<img src="screenshots/settings.png" width="360" alt="Settings view" />
+<img src="screenshots/settings.png" width="360" alt="Settings panel with refresh interval, idle session cutoff, colorblind mode, alerts, and launch at login" />
 </div>
 
 > [!TIP]
@@ -231,7 +233,9 @@ Interactive charts across three time windows:
 Below the chart: API-equivalent cost per model, throttle count, and cumulative stats (All Time messages/sessions, Longest session, Period date range).
 
 <div align="center">
-<img src="screenshots/activity.png" width="360" alt="Activity chart and insights" />
+<img src="screenshots/activity.png" width="360" alt="24-hour activity chart with trend arrows, throttle count, and cost breakdown by model" />
+&nbsp;&nbsp;
+<img src="screenshots/activity-7d.png" width="360" alt="7-day activity chart with daily usage trend" />
 </div>
 
 ---
@@ -239,6 +243,10 @@ Below the chart: API-equivalent cost per model, throttle count, and cumulative s
 ## 💰 API Cost Equivalent
 
 Dollar amounts show what your usage **would have cost on Anthropic's pay-per-token API** — not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee. When the API-equivalent exceeds your monthly fee, your subscription is saving you money. The bigger the gap, the better the deal. Pricing uses Anthropic's published per-million-token rates.
+
+<div align="center">
+<img src="screenshots/projects.png" width="360" alt="Per-project token usage breakdown with costs" />
+</div>
 
 <details>
 <summary><strong>How token tracking works</strong></summary>
