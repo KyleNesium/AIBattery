@@ -201,7 +201,7 @@ final class RateLimitFetcher {
                 return .authFailed
             }
 
-            // Rate limited — parse headers from the 429 itself (they're always present)
+            // Rate limited — parse headers from the 429 itself
             if http.statusCode == 429 {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
@@ -212,14 +212,38 @@ final class RateLimitFetcher {
                         profile: profile ?? cached?.profile
                     ))
                 }
-                // No headers on 429 (unexpected) — fall through to retry
-            }
 
-            // Server error or headerless 429 — honor Retry-After if present
-            if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
+                // 429 without rate limit headers — Anthropic strips them during
+                // heavy throttling. Log for diagnostics.
+                AppLogger.network.warning("429 without rate limit headers (model=\(model))")
+
+                // Honor Retry-After if present
                 if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {
                     try? await Task.sleep(for: .seconds(delay))
-                    // Bail if the task was cancelled during sleep (account switch, app sleep, etc.)
+                    guard !Task.isCancelled else { return cached.map { .success($0) } ?? .networkError }
+                    if let (retryData, retryResp) = try? await SecureNetworking.data(for: request),
+                       let retryHttp = retryResp as? HTTPURLResponse {
+                        let retryRL = RateLimitUsage.parse(headers: retryHttp.allHeaderFields)
+                        let retryProfile = APIProfile.parse(headers: retryHttp.allHeaderFields)
+                        if retryRL != nil || retryProfile != nil {
+                            saveWorkingModel(model, accountId: accountId)
+                            return .success(APIFetchResult(
+                                rateLimits: retryRL ?? cached?.rateLimits,
+                                profile: retryProfile ?? cached?.profile
+                            ))
+                        }
+                    }
+                }
+
+                // Try next model — headerless 429 on this model doesn't mean
+                // all models are throttled. Lighter models may still respond.
+                return .modelUnavailable
+            }
+
+            // Server error — honor Retry-After if present, then try next model
+            if http.statusCode >= 500 && http.statusCode < 600 {
+                if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {
+                    try? await Task.sleep(for: .seconds(delay))
                     guard !Task.isCancelled else { return cached.map { .success($0) } ?? .networkError }
                     if let (_, retryResp) = try? await SecureNetworking.data(for: request),
                        let retryHttp = retryResp as? HTTPURLResponse,
