@@ -51,6 +51,7 @@ public final class StatusBarManager: NSObject {
     private var statusItem: NSStatusItem?
     private var panel: PopoverPanel?
     private var hostingView: TransparentHostingView<PopoverContentView>?
+    private weak var viewModel: UsageViewModel?
     private var cancellables = Set<AnyCancellable>()
     private var escapeMonitor: Any?
     private var clickOutsideMonitor: Any?
@@ -90,6 +91,7 @@ public final class StatusBarManager: NSObject {
     }
 
     public func setup(viewModel: UsageViewModel, oauthManager: OAuthManager) {
+        self.viewModel = viewModel
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
@@ -455,6 +457,14 @@ public final class StatusBarManager: NSObject {
         guard now.timeIntervalSince(lastClickAt) > 0.1 else { return }
         lastClickAt = now
         guard let panel, let button = statusItem?.button else { return }
+
+        // Resume from idle suspension when user clicks the menu bar icon.
+        // Global event monitors may not fire without Accessibility permission,
+        // so this direct interaction is the reliable resume path.
+        if let vm = viewModel, vm.isSuspended {
+            vm.resumeFromUserInteraction()
+        }
+
         let action = toggleState.toggle()
         switch action {
         case .hide:

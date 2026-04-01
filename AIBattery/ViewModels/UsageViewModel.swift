@@ -438,6 +438,14 @@ public final class UsageViewModel: ObservableObject {
         installActivityMonitor()
     }
 
+    /// Resume from user interaction (e.g., clicking the menu bar icon).
+    /// Public entry point for StatusBarManager — the global event monitor may not
+    /// fire without Accessibility permission, so direct interaction is the reliable path.
+    func resumeFromUserInteraction() {
+        resumeTimers()
+        Task { await refresh(skipNetworkCheck: true) }
+    }
+
     /// Resume polling and FileWatcher fallback timer after wake or activity.
     private func resumeTimers() {
         guard isSuspended else { return }
