@@ -34,7 +34,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 |----------|-------|
 | Messages API | `https://api.anthropic.com/v1/messages?beta=true` |
 | Status API | `https://status.claude.com/api/v2/summary.json` |
-| Usage Dashboard | `https://platform.claude.com/usage` |
+| Usage Dashboard | `https://claude.ai/settings/usage` |
 | Status Page | `https://status.claude.com` |
 | GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
 | Sparkle Appcast | `https://kylenesium.github.io/AIBattery/appcast.xml` |

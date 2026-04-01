@@ -206,6 +206,7 @@ public struct UsagePopoverView: View {
                 systemStatus: viewModel.systemStatus,
                 isLoading: viewModel.isLoading,
                 lastFreshFetch: viewModel.lastFreshFetch,
+                isShowingCachedData: viewModel.isShowingCachedData,
                 showLogoutConfirm: $showLogoutConfirm,
                 onLogout: {
                     logoutRevertTask?.cancel()
