@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.7] — 2026-04-01
+
+### Added
+- **Smart Auto Mode** — deterministic 4-tier escalation ladder (Throttle > RL>=80% > Context>=60% > Binding RL) replaces urgency scoring for auto metric selection
+- **Hysteresis** — 10pp de-escalation band prevents mode flip-flopping (e.g., RL holds until 70%, context holds until 50%)
+- **Stale data indicator** — footer shows "Cached Xm ago" in orange when rate limits come from cache instead of fresh API data
+
+### Fixed
+- **Empty bars after sleep** — rate limit cache no longer expires; stale data persists across app restarts and long sleep/wake cycles
+- **Idle suspension not resuming** — clicking the menu bar icon now resumes polling even without Accessibility permission
+- **Reset countdown for past timestamps** — shows "Resetting..." instead of negative countdown when API reset time is in the past
+- **Headerless 429 recovery** — when Anthropic returns 429 without rate limit headers, the app now tries lighter probe models instead of giving up
+- **Usage link** — footer "Usage" link now points to `claude.ai/settings/usage`
+
+### Known Issues
+- **Stale API rate limit headers** — Anthropic's `anthropic-ratelimit-unified-*` headers may return frozen utilization values that don't match the claude.ai dashboard. This is an API-side issue affecting all consumers.
+
 ## [2.0.6] — 2026-03-31
 
 ### Fixed

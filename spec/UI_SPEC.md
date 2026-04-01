@@ -366,7 +366,7 @@ Padding: H 16, V 8
 ### ❻ Footer (`PopoverFooterView`)
 
 Links row in HStack (spacing 10):
-1. **Usage**: chart.bar icon (9pt) + "Usage" + arrow.up.right (6pt) → opens `platform.claude.com/usage`
+1. **Usage**: chart.bar icon (9pt) + "Usage" + arrow.up.right (6pt) → opens `claude.ai/settings/usage`
 2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (6pt) → opens `status.claude.com`
 3. _(Spacer)_
 4. **Logout**: rectangle.portrait.and.arrow.right icon (9pt) + "Logout" → two-tap confirmation (first tap shows "Confirm?" in red, auto-reverts after 3s, second tap clears OAuth tokens)

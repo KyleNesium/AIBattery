@@ -4,6 +4,7 @@ struct PopoverFooterView: View {
     let systemStatus: ClaudeSystemStatus?
     let isLoading: Bool
     let lastFreshFetch: Date?
+    var isShowingCachedData: Bool = false
     @Binding var showLogoutConfirm: Bool
     let onLogout: () -> Void
     let onRequestLogout: () -> Void
@@ -20,7 +21,7 @@ struct PopoverFooterView: View {
                     label: "Usage",
                     tooltip: "Open usage dashboard in browser"
                 ) {
-                    if let url = URL(string: "https://platform.claude.com/usage") {
+                    if let url = URL(string: "https://claude.ai/settings/usage") {
                         NSWorkspace.shared.open(url)
                     }
                 }
@@ -104,7 +105,7 @@ struct PopoverFooterView: View {
                             .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)
                     }
                     if let lastFetch = lastFreshFetch {
-                        RelativeTimeText(date: lastFetch)
+                        RelativeTimeText(date: lastFetch, isStale: isShowingCachedData)
                     } else if isLoading {
                         Text("Updating…")
                             .font(Typography.monoTiny)
@@ -159,15 +160,23 @@ struct PopoverFooterView: View {
 
 /// Displays "Updated Xs/Xm/Xh ago" — uses TimelineView (only renders while in view hierarchy).
 /// The popover's orderOut removes the view from the hierarchy, so this naturally stops ticking.
+/// When `isStale` is true, shows "Cached" prefix to indicate rate limits may be outdated
+/// (e.g., when API returns 429 without rate limit headers during heavy throttling).
 private struct RelativeTimeText: View {
     let date: Date
+    var isStale: Bool = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 10)) { _ in
-            Text("Updated \(PopoverFooterView.relativeTime(date))")
+            let text = isStale
+                ? "Cached \(PopoverFooterView.relativeTime(date))"
+                : "Updated \(PopoverFooterView.relativeTime(date))"
+            Text(text)
                 .font(Typography.monoTiny)
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-                .help("Last fetched: \(PopoverFooterView.absoluteTime(date))")
+                .foregroundStyle(isStale ? ThemeColors.caution : ThemeColors.tertiaryLabel)
+                .help(isStale
+                    ? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))"
+                    : "Last fetched: \(PopoverFooterView.absoluteTime(date))")
         }
     }
 }
