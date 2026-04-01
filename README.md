@@ -19,7 +19,7 @@ Monitor rate limits, context health, and token usage — always visible in your 
 
 <br/>
 
-<img src="screenshots/full-popover-v2.0.8.png" width="700" alt="AI Battery open in the menu bar showing 5-hour and 7-day rate limits, throttling status, context health, projects, and insights" />
+<img src="screenshots/full-popover-v2.0.8.png" width="520" alt="AI Battery open in the menu bar showing 5-hour and 7-day rate limits, throttling status, context health, projects, and insights" />
 
 <p><strong>Live rate limits, context health, and usage trends without leaving the menu bar.</strong></p>
 
