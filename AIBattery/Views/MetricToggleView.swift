@@ -13,14 +13,11 @@ struct MetricToggleView: View {
     var orderedModes: [MetricMode] { cachedOrderedModes }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: Spacing.gap) {
             autoModeButton
-                .padding(.trailing, Spacing.section)
 
-            HStack(spacing: Spacing.small) {
-                ForEach(MetricMode.allCases, id: \.rawValue) { mode in
-                    tabButton(for: mode)
-                }
+            ForEach(MetricMode.allCases, id: \.rawValue) { mode in
+                tabButton(for: mode)
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)

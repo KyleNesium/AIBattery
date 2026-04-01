@@ -113,31 +113,18 @@ struct RateLimitUsage: Equatable, Codable {
     // MARK: - Parsing
 
     /// Parse unified rate limit headers from an HTTP response.
-    /// Uses case-insensitive lookup to handle server-side casing changes
-    /// (HTTPURLResponse.allHeaderFields bridging to Swift can lose case-insensitivity).
     static func parse(headers: [AnyHashable: Any]) -> RateLimitUsage? {
-        // Build a lowercased lookup table for reliable case-insensitive access.
-        let normalized: [String: String] = {
-            var map = [String: String]()
-            for (key, value) in headers {
-                if let k = key as? String, let v = value as? String {
-                    map[k.lowercased()] = v
-                }
-            }
-            return map
-        }()
-
         func stringHeader(_ key: String) -> String? {
-            normalized[key.lowercased()]
+            headers[key] as? String
         }
 
         func doubleHeader(_ key: String) -> Double {
-            guard let val = normalized[key.lowercased()] else { return 0 }
+            guard let val = headers[key] as? String else { return 0 }
             return Double(val) ?? 0
         }
 
         func dateFromUnix(_ key: String) -> Date? {
-            guard let val = normalized[key.lowercased()],
+            guard let val = headers[key] as? String,
                   let ts = TimeInterval(val) else { return nil }
             return Date(timeIntervalSince1970: ts)
         }
