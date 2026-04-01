@@ -235,7 +235,10 @@ public struct UsagePopoverView: View {
             }
         }
         .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
-        .onChange(of: autoMetricMode) { _ in recomputeOrderedModes() }
+        .onChange(of: autoMetricMode) { _ in
+            recomputeOrderedModes()
+            if !autoMetricMode { viewModel.resetHysteresis() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
             guard let key = notification.object as? String else { return }
             handleKeyPress(key)
