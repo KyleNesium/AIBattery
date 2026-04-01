@@ -103,7 +103,7 @@ struct UsageSnapshot: Equatable {
     static let sessionStalenessInterval: TimeInterval = 30 * 60  // 30 minutes
 
     /// Whether any tracked session has been active within the staleness window.
-    private var hasActiveSession: Bool {
+    var hasActiveSession: Bool {
         let cutoff = Date().addingTimeInterval(-Self.sessionStalenessInterval)
         return topSessionHealths.contains { health in
             guard let activity = health.lastActivity else { return false }
@@ -149,7 +149,35 @@ struct UsageSnapshot: Equatable {
     ///   - snapshot: Current snapshot for reading percentage values
     /// - Returns: The mode to display (may be `previous` if hysteresis holds)
     static func applyHysteresis(candidate: MetricMode, previous: MetricMode?, snapshot: UsageSnapshot) -> MetricMode {
-        return candidate  // Stub — tests should fail
+        // No previous state — first poll or after reset
+        guard let previous = previous else { return candidate }
+
+        // Throttle always wins immediately (Tier 1 bypass)
+        if let rl = snapshot.rateLimits, rl.isThrottled { return candidate }
+
+        // If candidate equals previous, no change needed
+        if candidate == previous { return candidate }
+
+        // Check if previous mode still qualifies within its de-escalation band
+        switch previous {
+        case .fiveHour, .sevenDay:
+            // Previous was a rate limit mode — hold if RL still above release threshold
+            let releaseThreshold = rateLimitEscalationThreshold - hysteresisDeescalationBand
+            let currentPercent = snapshot.percent(for: previous)
+            if currentPercent >= releaseThreshold {
+                return previous
+            }
+        case .contextHealth:
+            // Previous was context escalation — hold if context above release AND session active
+            let releaseThreshold = contextEscalationThreshold - hysteresisDeescalationBand
+            let currentPercent = snapshot.percent(for: .contextHealth)
+            if snapshot.hasActiveSession, currentPercent >= releaseThreshold {
+                return previous
+            }
+        }
+
+        // Previous mode's metric dropped below release threshold, or upward escalation
+        return candidate
     }
 
     // Daily activity for chart

@@ -109,7 +109,10 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 | Rapid consumption seconds | 60 sec | `config.rapidConsumptionSeconds` |
 | Rapid consumption tokens | 50,000 | `config.rapidConsumptionTokens` |
 | Velocity min duration | 60 sec | `config.velocityMinDuration` |
-| Auto mode near-exhaustion | 95% | Rate limit ≥ threshold unconditionally supersedes context health in `autoResolvedMode` |
+| Auto mode rate limit escalation | 80% | Rate limit ≥ threshold triggers Tier 2 escalation in `autoResolvedMode` |
+| Auto mode context escalation | 60% | Context health ≥ threshold triggers Tier 3 escalation in `autoResolvedMode` |
+| Session staleness interval | 30 min | Sessions idle longer are excluded from context health escalation |
+| Hysteresis de-escalation band | 10pp | Mode must drop this far below its escalation threshold before releasing |
 
 ## Rate Limit Alerts
 

@@ -42,8 +42,8 @@ public struct UsagePopoverView: View {
     }
 
     private var metricMode: MetricMode {
-        if autoMetricMode, let snapshot = viewModel.snapshot {
-            return snapshot.autoResolvedMode
+        if autoMetricMode {
+            return viewModel.resolvedMetricMode
         }
         return MetricMode(rawValue: metricModeRaw) ?? .fiveHour
     }
@@ -56,8 +56,8 @@ public struct UsagePopoverView: View {
     private var pickerBinding: Binding<String> {
         Binding(
             get: {
-                if autoMetricMode, let snapshot = viewModel.snapshot {
-                    return snapshot.autoResolvedMode.rawValue
+                if autoMetricMode {
+                    return viewModel.resolvedMetricMode.rawValue
                 }
                 return metricModeRaw
             },
@@ -264,10 +264,13 @@ public struct UsagePopoverView: View {
     private func handleKeyPress(_ key: String) {
         switch key {
         case "1":
+            viewModel.resetHysteresis()
             withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.fiveHour.rawValue }
         case "2":
+            viewModel.resetHysteresis()
             withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.sevenDay.rawValue }
         case "3":
+            viewModel.resetHysteresis()
             withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.contextHealth.rawValue }
         case "r":
             Task { await viewModel.refresh() }

@@ -11,10 +11,17 @@ public final class UsageViewModel: ObservableObject {
     @Published var lastFreshFetch: Date?
     /// Whether the most recent API result was served from cache.
     @Published var isShowingCachedData = false
+    /// The hysteresis-filtered metric mode for auto mode consumers.
+    @Published private(set) var resolvedMetricMode: MetricMode = .fiveHour
+
     #if ENABLE_VERSION_CHECKER
     /// Available update from GitHub Releases (nil if up-to-date or not checked).
     @Published var availableUpdate: VersionChecker.UpdateInfo?
     #endif
+
+    /// Cross-poll hysteresis state — the mode displayed on the previous poll.
+    /// Reset on manual mode override and account switch.
+    private var lastResolvedMode: MetricMode?
 
     private let aggregator = UsageAggregator()
     /// Serializes concurrent aggregateOffMain calls — only one detached task runs at a time.
@@ -220,6 +227,17 @@ public final class UsageViewModel: ObservableObject {
             totalMessages: result.totalMessages
         )
         if result != snapshot { snapshot = result }
+
+        // Apply hysteresis to auto-resolved mode
+        let candidate = result.autoResolvedMode
+        let filtered = UsageSnapshot.applyHysteresis(
+            candidate: candidate,
+            previous: lastResolvedMode,
+            snapshot: result
+        )
+        lastResolvedMode = filtered
+        resolvedMetricMode = filtered
+
         isLoading = false
     }
 
@@ -251,9 +269,15 @@ public final class UsageViewModel: ObservableObject {
         #endif
     }
 
+    /// Reset hysteresis state — called when user manually selects a mode or switches accounts.
+    func resetHysteresis() {
+        lastResolvedMode = nil
+    }
+
     /// Switch to a different account and refresh data.
     func switchAccount(to accountId: String) {
         OAuthManager.shared.accountStore.setActive(id: accountId)
+        lastResolvedMode = nil
         snapshot = nil
         isShowingCachedData = false
         lastFreshFetch = nil

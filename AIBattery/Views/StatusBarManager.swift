@@ -317,8 +317,8 @@ public final class StatusBarManager: NSObject {
 
     private func resolveMetricMode(viewModel: UsageViewModel) -> MetricMode {
         let autoMetricMode = UserDefaults.standard.bool(forKey: UserDefaultsKeys.autoMetricMode)
-        if autoMetricMode, let snapshot = viewModel.snapshot {
-            return snapshot.autoResolvedMode
+        if autoMetricMode {
+            return viewModel.resolvedMetricMode
         }
         let raw = UserDefaults.standard.string(forKey: UserDefaultsKeys.metricMode) ?? "5h"
         return MetricMode(rawValue: raw) ?? .fiveHour
