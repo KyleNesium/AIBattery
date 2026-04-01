@@ -11,7 +11,7 @@ struct FiveHourBarSection: View {
             resetsAt: limits.fiveHourReset,
             isBinding: limits.representativeClaim == RateLimitUsage.fiveHourWindow,
             isThrottled: limits.fiveHourStatus == "throttled"
-                || (limits.isThrottled && limits.fiveHourPercent >= 100),
+                || (limits.isThrottled && limits.representativeClaim == RateLimitUsage.fiveHourWindow),
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow)
         )
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -30,7 +30,7 @@ struct SevenDayBarSection: View {
             resetsAt: limits.sevenDayReset,
             isBinding: limits.representativeClaim == RateLimitUsage.sevenDayWindow,
             isThrottled: limits.sevenDayStatus == "throttled"
-                || (limits.isThrottled && limits.sevenDayPercent >= 100),
+                || (limits.isThrottled && limits.representativeClaim == RateLimitUsage.sevenDayWindow),
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow)
         )
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -46,8 +46,11 @@ struct UsageBar: View {
     var isThrottled: Bool = false
     var estimatedTimeToLimit: TimeInterval?
 
+    /// Display percent — clamps to 100 when throttled so the UI doesn't show "99% Throttled".
+    private var displayPercent: Double { isThrottled ? max(percent, 100) : percent }
+
     private var headerTooltip: String {
-        var parts: [String] = ["\(label) rate limit: \(Int(percent))% used"]
+        var parts: [String] = ["\(label) rate limit: \(Int(displayPercent))% used"]
         if isBinding { parts.append("This window is the binding constraint") }
         if isThrottled { parts.append("Currently rate limited") }
         if let reset = resetsAt {
@@ -86,15 +89,15 @@ struct UsageBar: View {
                     }
                 }
                 Spacer()
-                Text("\(Int(percent))%")
+                Text("\(Int(displayPercent))%")
                     .font(Typography.monoValue)
-                    .copyable("\(Int(percent))%")
+                    .copyable("\(Int(displayPercent))%")
             }
 
-            GaugeBar(percent: percent, barColor: ThemeColors.barColor(percent: percent))
+            GaugeBar(percent: displayPercent, barColor: ThemeColors.barColor(percent: displayPercent))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(label) rate limit usage \(Int(percent)) percent")
-            .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - percent))) percent remaining")
+            .accessibilityLabel("\(label) rate limit usage \(Int(displayPercent)) percent")
+            .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - displayPercent))) percent remaining")
 
             // TimelineView ticks every second when reset is <60s away for live countdown.
             TimelineView(.periodic(from: .now, by: resetTickInterval)) { context in
@@ -103,7 +106,7 @@ struct UsageBar: View {
             let expired = (resetDiff ?? 1) <= 0
             HStack {
                 // Left side: time to limit / status
-                if wasExhausted && expired && percent < 1 {
+                if wasExhausted && expired && displayPercent < 1 {
                     HStack(spacing: Spacing.inner) {
                         Image(systemName: "sparkles")
                             .font(Typography.tinyLabel)
@@ -116,7 +119,7 @@ struct UsageBar: View {
                     Text("Throttled")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
-                } else if percent >= 100 {
+                } else if displayPercent >= 100 {
                     Text("Limit reached")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
@@ -129,7 +132,7 @@ struct UsageBar: View {
                         .help("Estimated time until rate limit based on current burn rate")
                 } else {
                     // No burn rate estimate yet — show remaining percentage
-                    let remainingText = "\(max(0, Int(100 - percent)))% remaining"
+                    let remainingText = "\(max(0, Int(100 - displayPercent)))% remaining"
                     Text(remainingText)
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.secondaryLabel)
@@ -169,6 +172,6 @@ struct UsageBar: View {
     /// Whether the window was at or near exhaustion (throttled or 100%+).
     /// Reset celebration/soon states only make sense after high usage.
     private var wasExhausted: Bool {
-        isThrottled || percent >= 100
+        isThrottled || displayPercent >= 100
     }
 }

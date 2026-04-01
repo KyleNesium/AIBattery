@@ -386,11 +386,14 @@ public final class UsageViewModel: ObservableObject {
     }
 
     /// Determine the error message to show after a refresh where the API returned no data.
-    /// Returns nil when the API did return data (no error to show).
+    /// Returns nil when rate limits are present (no error to show).
     nonisolated static func refreshErrorMessage(hasRateLimits: Bool, hasProfile: Bool, totalMessages: Int) -> String? {
-        guard !hasRateLimits && !hasProfile else { return nil }
-        if totalMessages == 0 {
+        if hasRateLimits { return nil }
+        if !hasProfile && totalMessages == 0 {
             return "No usage data yet. Start a Claude Code session to see your stats."
+        }
+        if hasProfile {
+            return "Rate limit headers unavailable. Anthropic may have changed the API format."
         }
         return "Unable to reach Anthropic API. Check your internet connection and try again."
     }

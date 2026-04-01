@@ -53,9 +53,10 @@ struct UsageViewModelTests {
         #expect(msg == nil)
     }
 
-    @Test func refreshErrorMessage_hasProfile_returnsNil() {
+    @Test func refreshErrorMessage_hasProfileOnly_returnsHeadersUnavailable() {
         let msg = UsageViewModel.refreshErrorMessage(hasRateLimits: false, hasProfile: true, totalMessages: 0)
-        #expect(msg == nil)
+        #expect(msg != nil)
+        #expect(msg!.contains("Rate limit headers unavailable"))
     }
 
     @Test func refreshErrorMessage_hasBothData_returnsNil() {

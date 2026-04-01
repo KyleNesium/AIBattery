@@ -23,6 +23,15 @@ struct APIProfileTests {
         #expect(profile?.organizationId == "org-456")
     }
 
+    @Test func parse_mixedCaseOrgIdHeader() {
+        let headers: [AnyHashable: Any] = [
+            "Anthropic-Organization-Id": "org-789",
+        ]
+        let profile = APIProfile.parse(headers: headers)
+        #expect(profile != nil)
+        #expect(profile?.organizationId == "org-789")
+    }
+
     @Test func parse_onlyOrgName_returnsNil() {
         let headers: [AnyHashable: Any] = [
             "x-organization-name": "Test Org",

@@ -206,9 +206,11 @@ final class RateLimitFetcher {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
                 if rateLimits != nil || profile != nil {
+                    let throttledRateLimits = rateLimits?.markedThrottled()
+                        ?? cached?.rateLimits?.markedThrottled()
                     saveWorkingModel(model, accountId: accountId)
                     return .success(APIFetchResult(
-                        rateLimits: rateLimits ?? cached?.rateLimits,
+                        rateLimits: throttledRateLimits ?? cached?.rateLimits,
                         profile: profile ?? cached?.profile
                     ))
                 }
@@ -221,14 +223,17 @@ final class RateLimitFetcher {
                 if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {
                     try? await Task.sleep(for: .seconds(delay))
                     guard !Task.isCancelled else { return cached.map { .success($0) } ?? .networkError }
-                    if let (retryData, retryResp) = try? await SecureNetworking.data(for: request),
+                    if let (_, retryResp) = try? await SecureNetworking.data(for: request),
                        let retryHttp = retryResp as? HTTPURLResponse {
                         let retryRL = RateLimitUsage.parse(headers: retryHttp.allHeaderFields)
                         let retryProfile = APIProfile.parse(headers: retryHttp.allHeaderFields)
                         if retryRL != nil || retryProfile != nil {
+                            let throttledRetryRL = retryHttp.statusCode == 429
+                                ? (retryRL?.markedThrottled() ?? cached?.rateLimits?.markedThrottled())
+                                : retryRL
                             saveWorkingModel(model, accountId: accountId)
                             return .success(APIFetchResult(
-                                rateLimits: retryRL ?? cached?.rateLimits,
+                                rateLimits: throttledRetryRL ?? cached?.rateLimits,
                                 profile: retryProfile ?? cached?.profile
                             ))
                         }
@@ -289,6 +294,16 @@ final class RateLimitFetcher {
             // Parse both rate limits and org info from the same response headers
             let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
             let profile = APIProfile.parse(headers: http.allHeaderFields)
+
+            if rateLimits == nil {
+                let rlHeaders = http.allHeaderFields.keys
+                    .compactMap { $0 as? String }
+                    .filter { $0.lowercased().contains("ratelimit") }
+                let found = rlHeaders.isEmpty ? "none" : rlHeaders.joined(separator: ", ")
+                AppLogger.network.warning(
+                    "No unified rate limit headers in \(http.statusCode) response (model=\(model)). Rate limit headers: \(found)"
+                )
+            }
 
             let result = APIFetchResult(
                 rateLimits: rateLimits ?? cached?.rateLimits,
