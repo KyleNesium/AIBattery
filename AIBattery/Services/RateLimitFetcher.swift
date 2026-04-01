@@ -290,6 +290,16 @@ final class RateLimitFetcher {
             let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
             let profile = APIProfile.parse(headers: http.allHeaderFields)
 
+            if rateLimits == nil {
+                let rlHeaders = http.allHeaderFields.keys
+                    .compactMap { $0 as? String }
+                    .filter { $0.lowercased().contains("ratelimit") }
+                let found = rlHeaders.isEmpty ? "none" : rlHeaders.joined(separator: ", ")
+                AppLogger.network.warning(
+                    "No unified rate limit headers in \(http.statusCode) response (model=\(model)). Rate limit headers: \(found)"
+                )
+            }
+
             let result = APIFetchResult(
                 rateLimits: rateLimits ?? cached?.rateLimits,
                 profile: profile ?? cached?.profile
