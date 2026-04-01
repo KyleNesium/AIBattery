@@ -80,7 +80,7 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ AUTO-01: Exclude context health from auto mode when no active session exists — Phase 20
 - ✓ AUTO-02: Default to binding rate limit when nothing is urgent — Phase 20
 - ✓ AUTO-03: Escalation ladder replacing urgency scoring — Phase 20
-- [ ] AUTO-04: Hysteresis to prevent mode flip-flopping between polls
+- ✓ AUTO-04: Hysteresis to prevent mode flip-flopping between polls — Phase 21
 - ✓ AUTO-05: Active session awareness (stale sessions excluded from competition) — Phase 20
 - ✓ AUTO-06: Remove time-to-limit boost complexity — Phase 20
 
@@ -162,4 +162,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - Remove time-to-limit boost complexity
 
 ---
-*Last updated: 2026-04-01 after Phase 20 (Escalation Logic) complete*
+*Last updated: 2026-04-01 after Phase 21 (Hysteresis) complete — all v2.0.7 phases done*
