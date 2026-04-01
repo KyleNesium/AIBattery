@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.8] — 2026-04-01
+
+### Fixed
+- **Case-insensitive Anthropic header parsing** — rate limit and organization headers now parse correctly even when `HTTPURLResponse.allHeaderFields` returns mixed-case header names
+- **429 throttle state fallback** — when Anthropic returns a real `429` but the unified rate-limit headers lag behind or are partially missing, the app now forces the binding window into a throttled state instead of reusing a normal `99%` display
+- **Rate limit diagnostics** — when profile data arrives without parseable unified rate-limit headers, the app now surfaces an explicit API-format warning and logs the header names present for debugging
+
 ## [2.0.7] — 2026-04-01
 
 ### Added
