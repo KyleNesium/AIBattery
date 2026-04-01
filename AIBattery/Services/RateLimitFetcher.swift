@@ -17,10 +17,9 @@ final class RateLimitFetcher {
     static let shared = RateLimitFetcher()
 
     private let messagesURL = URL(string: "https://api.anthropic.com/v1/messages?beta=true")!
-    /// Per-account cache of API results.
+    /// Per-account cache of API results. Never expires — stale data is better than empty bars.
+    /// Fresh fetches replace cached data on success.
     private var cachedResults: [String: APIFetchResult] = [:]
-    /// Maximum age of cached result before it's considered stale and discarded.
-
 
     /// UserDefaults key prefix for persisted rate limits.
     private static let persistKeyPrefix = "aibattery_rateLimits_"
