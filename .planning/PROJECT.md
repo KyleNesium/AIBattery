@@ -73,16 +73,18 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - ✓ CHART-01: 12M axis labels use quarterly stride (no overlap) — v1.14
 - ✓ LAYOUT-01: Rate limit sections have equal vertical padding — v1.14
 
+- ✓ AUTO-01: Exclude context health when no active session — v2.0.7
+- ✓ AUTO-02: Default to binding rate limit when nothing urgent — v2.0.7
+- ✓ AUTO-03: Escalation ladder replacing urgency scoring — v2.0.7
+- ✓ AUTO-04: Hysteresis prevents mode flip-flopping — v2.0.7
+- ✓ AUTO-05: Session staleness excluded from competition — v2.0.7
+- ✓ AUTO-06: Time-to-limit boost complexity removed — v2.0.7
+
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- ✓ AUTO-01: Exclude context health from auto mode when no active session exists — Phase 20
-- ✓ AUTO-02: Default to binding rate limit when nothing is urgent — Phase 20
-- ✓ AUTO-03: Escalation ladder replacing urgency scoring — Phase 20
-- ✓ AUTO-04: Hysteresis to prevent mode flip-flopping between polls — Phase 21
-- ✓ AUTO-05: Active session awareness (stale sessions excluded from competition) — Phase 20
-- ✓ AUTO-06: Remove time-to-limit boost complexity — Phase 20
+(None — next milestone not yet planned)
 
 ### Out of Scope
 
@@ -92,8 +94,8 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 
 ## Context
 
-- **Version:** v1.16 (2026-03-25) — JSONL Performance milestone shipped
-- **Tests:** 764+ across 54 files (8 new integration tests in v1.16)
+- **Version:** v2.0.7 (2026-04-01) — Smart Auto Mode milestone shipped
+- **Tests:** 780+ across 54 files (23 escalation/hysteresis tests in v2.0.7)
 - **CI:** GitHub Actions on macos-15 (build → test → bundle)
 - **Distribution:** Homebrew cask + GitHub Releases + Sparkle appcast
 - **Spec-driven:** `spec/` folder is source of truth (ARCHITECTURE, DATA_LAYER, UI_SPEC, CONSTANTS)
@@ -135,10 +137,16 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 | Per-directory discovery cache | Selective re-enumeration of changed dirs only | ✓ Good |
 | Calendar.startOfDay() caching | ICU lock contention was hidden CPU hotspot | ✓ Good |
 | FileCacheEntry with eviction | Fingerprint-only after merge; eliminates double-storage | ✓ Good |
+| Deterministic escalation ladder | Replaces opaque urgency scoring with 4-tier priority: throttle > RL>=80% > context>=60% > binding RL | ✓ Good |
+| 30-min session staleness window | Context health excluded when no session active within 30 min — prevents stale sessions competing | ✓ Good |
+| Hysteresis as static pure function | `applyHysteresis` on UsageSnapshot keeps it testable; ViewModel owns cross-poll state | ✓ Good |
+| 10pp de-escalation band | Mode holds until metric drops 10pp below threshold (RL: 70%, context: 50%) — prevents flip-flopping | ✓ Good |
+| Never-expire rate limit cache | Stale cached rate limits shown rather than empty bars after long sleep — fresh data replaces on success | ✓ Good |
 
 ---
 ## Milestone History
 
+- **v2.0.7 Smart Auto Mode** — shipped 2026-04-01 (Phases 20-21): Deterministic escalation ladder, hysteresis, session awareness
 - **v1.16 JSONL Performance** — shipped 2026-03-25 (Phases 17-19): CPU 83%→0%, RSS 409→52 MB
 - **v1.15 Performance** — shipped 2026-03-25 (Phases 15-16)
 - **v1.14 Visual Polish** — shipped 2026-03-24 (Phases 13-14)
@@ -149,17 +157,4 @@ Show Claude API usage clearly and instantly from the menu bar — the user glanc
 - **v1.0–v1.9.2** — pre-GSD
 
 ---
-## Current Milestone: v2.0.7 Smart Auto Mode
-
-**Goal:** Make auto mode intelligent — clear escalation logic, session awareness, hysteresis to prevent flip-flopping.
-
-**Target features:**
-- Exclude context health when no active session exists
-- Show binding rate limit by default (not empty context view)
-- Escalation ladder replacing urgency scoring math
-- Hysteresis to prevent mode flip-flopping between polls
-- Active session awareness (stale sessions don't compete)
-- Remove time-to-limit boost complexity
-
----
-*Last updated: 2026-04-01 after Phase 21 (Hysteresis) complete — all v2.0.7 phases done*
+*Last updated: 2026-04-01 after v2.0.7 Smart Auto Mode milestone shipped*

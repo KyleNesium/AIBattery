@@ -1,5 +1,15 @@
 # Milestones
 
+## v2.0.7 Smart Auto Mode (Shipped: 2026-04-01)
+
+**Phases completed:** 2 phases, 2 plans, 0 tasks
+
+**Key accomplishments:**
+
+- (none recorded)
+
+---
+
 ## v1.16 JSONL Performance (Shipped: 2026-03-25)
 
 **Phases completed:** 3 phases, 4 plans, 0 tasks
