@@ -20,7 +20,7 @@ final class RateLimitFetcher {
     /// Per-account cache of API results.
     private var cachedResults: [String: APIFetchResult] = [:]
     /// Maximum age of cached result before it's considered stale and discarded.
-    static let cacheMaxAge: TimeInterval = 3600 // 1 hour
+
 
     /// UserDefaults key prefix for persisted rate limits.
     private static let persistKeyPrefix = "aibattery_rateLimits_"
@@ -132,20 +132,17 @@ final class RateLimitFetcher {
     }
 
     /// Return cached result marked as stale, or an empty result.
-    /// Expires cache after `cacheMaxAge` to avoid showing very old data.
+    /// Always returns cached data when available — stale rate limits are better
+    /// than empty bars (e.g., after waking from long sleep with expired token).
+    /// Fresh fetches replace the cache naturally on success.
     func cachedOrEmpty(accountId: String) -> APIFetchResult {
         if let cached = cachedResults[accountId] {
-            let age = Date().timeIntervalSince(cached.fetchedAt)
-            if age < Self.cacheMaxAge {
-                return APIFetchResult(
-                    rateLimits: cached.rateLimits,
-                    profile: cached.profile,
-                    fetchedAt: cached.fetchedAt,
-                    isCached: true
-                )
-            }
-            // Cache too old — discard it
-            cachedResults.removeValue(forKey: accountId)
+            return APIFetchResult(
+                rateLimits: cached.rateLimits,
+                profile: cached.profile,
+                fetchedAt: cached.fetchedAt,
+                isCached: true
+            )
         }
         return APIFetchResult(rateLimits: nil, profile: nil)
     }
@@ -299,7 +296,8 @@ final class RateLimitFetcher {
     }
 
     /// Restore persisted rate limits into the in-memory cache on launch.
-    /// Only restores if within cacheMaxAge — stale persisted data is discarded.
+    /// Always restores — stale data is better than empty bars on wake from sleep.
+    /// Fresh fetches replace stale data naturally on the first successful poll.
     private func restorePersistedRateLimits() {
         let defaults = UserDefaults.standard
         let prefix = Self.persistKeyPrefix
@@ -310,17 +308,12 @@ final class RateLimitFetcher {
                 defaults.removeObject(forKey: key)
                 continue
             }
-            let age = Date().timeIntervalSince(persisted.fetchedAt)
-            if age < Self.cacheMaxAge {
-                cachedResults[accountId] = APIFetchResult(
-                    rateLimits: persisted.rateLimits,
-                    profile: nil,
-                    fetchedAt: persisted.fetchedAt,
-                    isCached: true
-                )
-            } else {
-                defaults.removeObject(forKey: key)
-            }
+            cachedResults[accountId] = APIFetchResult(
+                rateLimits: persisted.rateLimits,
+                profile: nil,
+                fetchedAt: persisted.fetchedAt,
+                isCached: true
+            )
         }
     }
 

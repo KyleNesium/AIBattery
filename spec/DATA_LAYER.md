@@ -308,7 +308,7 @@ Pricing table (per million tokens):
 - Caller provides token and account ID. Per-account caching: `cachedResults: [String: APIFetchResult]` and `lastWorkingModel: [String: String]` keyed by account ID.
 - Timeout: 15 sec
 - Parses `anthropic-ratelimit-unified-*` response headers via `RateLimitUsage.parse(headers:)` and `APIProfile.parse(headers:)` from the same response
-- Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache expires after 1 hour (`cacheMaxAge = 3600s`) to avoid showing very old data.
+- Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache never expires — stale rate limits are shown rather than empty bars (e.g., after long sleep). Fresh fetches replace stale data on success.
 - Model unavailable (400/404 with model/access error message) → tries next model in list
 - **429 handling**: parses rate limit headers directly from the 429 response (they're always present on throttled responses). Returns as success so the UI continues showing usage bars and reset times while the user is rate limited. Falls through to Retry-After logic only if headers are missing (unexpected).
 - Non-model 400/404 errors: extracts rate limit headers if present and returns as success; otherwise returns `.networkError` (never silently falls through to header-less success)

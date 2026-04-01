@@ -169,7 +169,11 @@ public final class UsageViewModel: ObservableObject {
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits)
 
-        let result = await aggregateOffMain(rateLimits: api.rateLimits, accountId: accountId)
+        // Preserve existing rate limits when the API fails to return them
+        // (e.g., after wake from sleep with expired token). Stale bars are
+        // better than empty bars — fresh data replaces them on next success.
+        let effectiveRateLimits = api.rateLimits ?? snapshot?.rateLimits
+        let result = await aggregateOffMain(rateLimits: effectiveRateLimits, accountId: accountId)
         logCorruptionMetrics()
         updateAdaptivePolling(result)
         updateSnapshot(result, api: api)

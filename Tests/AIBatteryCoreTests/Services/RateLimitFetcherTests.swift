@@ -5,13 +5,6 @@ import Foundation
 @Suite("RateLimitFetcher")
 struct RateLimitFetcherTests {
 
-    // MARK: - Cache max age
-
-    @Test @MainActor func cacheMaxAge_isOneHour() {
-        // Verify constant hasn't been accidentally changed
-        #expect(RateLimitFetcher.cacheMaxAge == 3600)
-    }
-
     // MARK: - Fetch with no token returns empty
 
     @Test @MainActor func fetch_emptyToken_returnsEmptyResult() async {
@@ -64,10 +57,10 @@ struct RateLimitFetcherTests {
         #expect(result.profile?.organizationId == "org-test")
     }
 
-    @Test @MainActor func cachedOrEmpty_expiredCache_returnsEmpty() {
+    @Test @MainActor func cachedOrEmpty_staleCache_returnsStaleData() {
         let fetcher = RateLimitFetcher()
 
-        // Inject an old cached result (2 hours ago)
+        // Inject an old cached result (2 hours ago) — stale data is better than empty bars
         let rateLimits = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 0.5,
@@ -87,8 +80,9 @@ struct RateLimitFetcherTests {
 
         let result = fetcher.cachedOrEmpty(accountId: "test-account")
 
-        #expect(result.rateLimits == nil)
-        #expect(result.isCached == false)
+        #expect(result.rateLimits != nil)
+        #expect(result.rateLimits?.fiveHourPercent == 50.0)
+        #expect(result.isCached == true)
     }
 
     @Test @MainActor func cachedOrEmpty_noCache_returnsEmpty() {
