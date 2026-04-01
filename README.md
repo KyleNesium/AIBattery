@@ -19,11 +19,7 @@ Monitor rate limits, context health, and token usage — always visible in your 
 
 <br/>
 
-<img src="screenshots/menubar.png" width="440" alt="Menu bar showing AI Battery icon and rate limit percentage" />
-
-<br/>
-
-<img src="screenshots/dashboard.png" width="360" alt="AI Battery dashboard showing 5-hour and 7-day rate limits with reset countdowns" />
+<img src="screenshots/full-popover.png" width="680" alt="AI Battery open in the menu bar showing 5-hour and 7-day rate limits, context health, projects, and insights" />
 
 </div>
 
@@ -234,8 +230,6 @@ Below the chart: API-equivalent cost per model, throttle count, and cumulative s
 
 <div align="center">
 <img src="screenshots/activity.png" width="360" alt="24-hour activity chart with trend arrows, throttle count, and cost breakdown by model" />
-&nbsp;&nbsp;
-<img src="screenshots/activity-7d.png" width="360" alt="7-day activity chart with daily usage trend" />
 </div>
 
 ---
