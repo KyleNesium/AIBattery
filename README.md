@@ -19,7 +19,29 @@ Monitor rate limits, context health, and token usage — always visible in your 
 
 <br/>
 
-<img src="screenshots/full-popover.png" width="680" alt="AI Battery open in the menu bar showing 5-hour and 7-day rate limits, context health, projects, and insights" />
+<img src="screenshots/full-popover-v2.0.8.png" width="700" alt="AI Battery open in the menu bar showing 5-hour and 7-day rate limits, throttling status, context health, projects, and insights" />
+
+<p><strong>Live rate limits, context health, and usage trends without leaving the menu bar.</strong></p>
+
+<table>
+<tr>
+<td align="center" width="33.33%">
+<img src="screenshots/dashboard.png" width="220" alt="Dashboard view showing 5-hour and 7-day rate limits" /><br/>
+<strong>Rate limits</strong><br/>
+Burst and weekly limits with reset timing
+</td>
+<td align="center" width="33.33%">
+<img src="screenshots/context.png" width="220" alt="Context health view showing session fullness and model details" /><br/>
+<strong>Context health</strong><br/>
+See when sessions are getting too full
+</td>
+<td align="center" width="33.33%">
+<img src="screenshots/activity.png" width="220" alt="Insights view showing activity trends, throttles, and cost breakdown" /><br/>
+<strong>Insights</strong><br/>
+Track trends, throttles, and API-equivalent cost
+</td>
+</tr>
+</table>
 
 </div>
 
