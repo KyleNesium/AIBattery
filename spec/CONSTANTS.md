@@ -33,6 +33,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Constant | Value |
 |----------|-------|
 | Messages API | `https://api.anthropic.com/v1/messages?beta=true` |
+| Claude Code Client Data | `https://api.anthropic.com/api/oauth/claude_cli/client_data` |
 | Status API | `https://status.claude.com/api/v2/summary.json` |
 | Usage Dashboard | `https://claude.ai/settings/usage` |
 | Status Page | `https://status.claude.com` |
@@ -53,7 +54,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 
 ## Rate Limit Headers
 
-Headers parsed from `/v1/messages` responses (only endpoint that returns them):
+Legacy Claude Code-style usage headers still accepted by the app:
 
 | Header | Type | Notes |
 |--------|------|-------|
@@ -65,6 +66,8 @@ Headers parsed from `/v1/messages` responses (only endpoint that returns them):
 | `anthropic-ratelimit-unified-7d-utilization` | Double | 0.0–1.0 (clamped on parse) |
 | `anthropic-ratelimit-unified-7d-reset` | Unix timestamp | Seconds since epoch |
 | `anthropic-ratelimit-unified-7d-status` | String | `"allowed"` or `"throttled"` |
+
+Current public Anthropic API responses may instead expose standard `anthropic-ratelimit-*` headers (request/token oriented, often with RFC 3339 reset timestamps). These are detected for diagnostics but are not mapped onto the app's Claude Code 5-hour / 7-day bars.
 
 ## Statuspage Component IDs
 

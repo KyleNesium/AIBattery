@@ -80,7 +80,7 @@ AIBattery/
   Services/
     AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, token storage, auto-refresh
-    RateLimitFetcher.swift        — POST /v1/messages, parse unified headers + org profile
+    RateLimitFetcher.swift        — Claude Code client-data fetch + legacy/public header fallbacks
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
     SessionLogReader.swift        — JSONL streaming reader (FileHandle, 64KB chunks)
     FileWatcher.swift             — DispatchSource + FSEventStream for live updates
@@ -230,10 +230,11 @@ CHANGELOG.md                      — Release notes per version
 
 ## Network Calls (exhaustive)
 
-1. `POST https://api.anthropic.com/v1/messages?beta=true` — unified rate limit headers + org profile (every refresh interval)
-2. `GET https://status.claude.com/api/v2/summary.json` — system status (every refresh interval)
-3. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
-4. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)
+1. `GET https://api.anthropic.com/api/oauth/claude_cli/client_data` — Claude Code usage windows + account metadata (preferred when available)
+2. `POST https://api.anthropic.com/v1/messages?beta=true` — legacy unified/public rate-limit headers + org profile fallback
+3. `GET https://status.claude.com/api/v2/summary.json` — system status (every refresh interval)
+4. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
+5. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)
 5. `GET https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` — update check (once per 24h)
 6. `GET https://kylenesium.github.io/AIBattery/appcast.xml` — Sparkle update feed (on user-initiated update check)
 

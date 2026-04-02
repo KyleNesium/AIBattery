@@ -124,6 +124,62 @@ struct RateLimitUsageTests {
         #expect(usage.sevenDayUtilization == 0.0)
     }
 
+    @Test func parse_clientDataJSON_withWindowObjects() throws {
+        let data = try #require("""
+        {
+          "rate_limits": {
+            "status": "allowed",
+            "representative_claim": "seven_day",
+            "five_hour": {
+              "utilization": 0.42,
+              "reset_at": 1700000000,
+              "status": "allowed"
+            },
+            "seven_day": {
+              "utilization": 0.85,
+              "reset_at": "2026-04-09T12:00:00Z",
+              "status": "throttled"
+            }
+          }
+        }
+        """.data(using: .utf8))
+
+        let usage = RateLimitUsage.parse(clientData: data)
+        #expect(usage != nil)
+        #expect(usage?.representativeClaim == "seven_day")
+        #expect(usage?.fiveHourUtilization == 0.42)
+        #expect(usage?.sevenDayUtilization == 0.85)
+        #expect(usage?.fiveHourReset?.timeIntervalSince1970 == 1700000000)
+        #expect(usage?.sevenDayStatus == "throttled")
+        #expect(usage?.isThrottled == true)
+    }
+
+    @Test func parse_clientDataJSON_withPercentValues_infersBindingWindow() throws {
+        let data = try #require("""
+        {
+          "usage": {
+            "5h": {
+              "usage": 37,
+              "reset": 1700000000000
+            },
+            "7d": {
+              "usage": 61,
+              "reset": 1700500000000
+            }
+          }
+        }
+        """.data(using: .utf8))
+
+        let usage = RateLimitUsage.parse(clientData: data)
+        #expect(usage != nil)
+        #expect(usage?.representativeClaim == "seven_day")
+        #expect(usage?.fiveHourUtilization == 0.37)
+        #expect(usage?.sevenDayUtilization == 0.61)
+        #expect(usage?.fiveHourReset?.timeIntervalSince1970 == 1700000000)
+        #expect(usage?.sevenDayReset?.timeIntervalSince1970 == 1700500000)
+        #expect(usage?.overallStatus == "allowed")
+    }
+
     // MARK: - Computed properties
 
     @Test func fiveHourPercent() {

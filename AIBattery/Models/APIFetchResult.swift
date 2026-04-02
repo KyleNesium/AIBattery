@@ -5,6 +5,9 @@ struct APIFetchResult {
     let rateLimits: RateLimitUsage?
     let rateLimitSource: RateLimitSource?
     let profile: APIProfile?
+    /// True when the response included standard public API ratelimit headers but not
+    /// Claude Code's 5-hour / 7-day usage windows.
+    let hasStandardRateLimitHeaders: Bool
     /// When this result was fetched (or when the cached result was originally fetched).
     let fetchedAt: Date
     /// Whether this result came from cache rather than a fresh API response.
@@ -14,12 +17,14 @@ struct APIFetchResult {
         rateLimits: RateLimitUsage?,
         rateLimitSource: RateLimitSource? = nil,
         profile: APIProfile?,
+        hasStandardRateLimitHeaders: Bool = false,
         fetchedAt: Date = Date(),
         isCached: Bool = false
     ) {
         self.rateLimits = rateLimits
         self.rateLimitSource = rateLimits == nil ? nil : (rateLimitSource ?? .anthropicAPIHeaders)
         self.profile = profile
+        self.hasStandardRateLimitHeaders = hasStandardRateLimitHeaders
         self.fetchedAt = fetchedAt
         self.isCached = isCached
     }

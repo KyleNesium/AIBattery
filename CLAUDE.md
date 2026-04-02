@@ -60,8 +60,8 @@ CI runs on every push via GitHub Actions (`macos-15` runner): build → test →
 
 These aren't obvious from reading the code — know them before making changes:
 
-- Rate limit headers use unified `anthropic-ratelimit-unified-*` format (5h + 7d windows, not per-resource)
-- Only `/v1/messages` returns rate limit headers — `count_tokens` does not
+- Claude Code 5-hour / 7-day usage may come from Claude Code client metadata rather than public `/v1/messages` headers
+- Legacy unified `anthropic-ratelimit-unified-*` headers still exist in some paths, but public Anthropic API docs now describe standard `anthropic-ratelimit-*` headers instead
 - JSONL must be streamed via `FileHandle` (never load full file into memory)
 - JSONL tokens must not double-count with `stats-cache.json` (see DATA_LAYER.md)
 - `OAuthManager.exchangeCode()` returns `Result<Void, AuthError>` — callers handle typed errors. Validates state parameter for CSRF protection.

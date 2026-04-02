@@ -319,7 +319,7 @@ Token usage, context health, and activity stats come from Claude Code's local se
 2. Run `/stats` inside Claude Code — this generates the stats cache
 3. AI Battery refreshes automatically every polling cycle
 
-Rate limits (5-hour / 7-day) always work immediately since they come from the API.
+Claude Code usage windows (5-hour / 7-day) are fetched from Anthropic account metadata. If Anthropic changes that response shape, AI Battery falls back to cached values and may show a warning until fresh usage data is available again.
 
 </details>
 

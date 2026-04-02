@@ -249,6 +249,7 @@ public final class UsageViewModel: ObservableObject {
         errorMessage = Self.refreshErrorMessage(
             hasRateLimits: api.rateLimits != nil,
             hasProfile: api.profile != nil,
+            hasStandardRateLimitHeaders: api.hasStandardRateLimitHeaders,
             totalMessages: result.totalMessages
         )
         if result != snapshot { snapshot = result }
@@ -412,13 +413,21 @@ public final class UsageViewModel: ObservableObject {
 
     /// Determine the error message to show after a refresh where the API returned no data.
     /// Returns nil when rate limits are present (no error to show).
-    nonisolated static func refreshErrorMessage(hasRateLimits: Bool, hasProfile: Bool, totalMessages: Int) -> String? {
+    nonisolated static func refreshErrorMessage(
+        hasRateLimits: Bool,
+        hasProfile: Bool,
+        hasStandardRateLimitHeaders: Bool,
+        totalMessages: Int
+    ) -> String? {
         if hasRateLimits { return nil }
         if !hasProfile && totalMessages == 0 {
             return "No usage data yet. Start a Claude Code session to see your stats."
         }
+        if hasStandardRateLimitHeaders {
+            return "Public API rate-limit headers are available, but Claude Code 5-hour / 7-day usage is unavailable."
+        }
         if hasProfile {
-            return "Rate limit headers unavailable. Anthropic may have changed the API format."
+            return "Claude Code usage unavailable. Anthropic may have changed the API response format."
         }
         return "Unable to reach Anthropic API. Check your internet connection and try again."
     }

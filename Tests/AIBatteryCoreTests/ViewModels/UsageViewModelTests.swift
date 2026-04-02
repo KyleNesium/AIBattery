@@ -39,28 +39,63 @@ struct UsageViewModelTests {
     // MARK: - refreshErrorMessage
 
     @Test func refreshErrorMessage_noDataNoMessages_returnsNoUsage() {
-        let msg = UsageViewModel.refreshErrorMessage(hasRateLimits: false, hasProfile: false, totalMessages: 0)
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false,
+            hasProfile: false,
+            hasStandardRateLimitHeaders: false,
+            totalMessages: 0
+        )
         #expect(msg == "No usage data yet. Start a Claude Code session to see your stats.")
     }
 
     @Test func refreshErrorMessage_noDataWithMessages_returnsAPIError() {
-        let msg = UsageViewModel.refreshErrorMessage(hasRateLimits: false, hasProfile: false, totalMessages: 50)
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false,
+            hasProfile: false,
+            hasStandardRateLimitHeaders: false,
+            totalMessages: 50
+        )
         #expect(msg == "Unable to reach Anthropic API. Check your internet connection and try again.")
     }
 
     @Test func refreshErrorMessage_hasRateLimits_returnsNil() {
-        let msg = UsageViewModel.refreshErrorMessage(hasRateLimits: true, hasProfile: false, totalMessages: 0)
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: true,
+            hasProfile: false,
+            hasStandardRateLimitHeaders: false,
+            totalMessages: 0
+        )
         #expect(msg == nil)
     }
 
     @Test func refreshErrorMessage_hasProfileOnly_returnsHeadersUnavailable() {
-        let msg = UsageViewModel.refreshErrorMessage(hasRateLimits: false, hasProfile: true, totalMessages: 0)
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false,
+            hasProfile: true,
+            hasStandardRateLimitHeaders: false,
+            totalMessages: 0
+        )
         #expect(msg != nil)
-        #expect(msg!.contains("Rate limit headers unavailable"))
+        #expect(msg!.contains("Claude Code usage unavailable"))
+    }
+
+    @Test func refreshErrorMessage_publicAPIHeadersOnly_returnsSpecificMessage() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false,
+            hasProfile: true,
+            hasStandardRateLimitHeaders: true,
+            totalMessages: 0
+        )
+        #expect(msg == "Public API rate-limit headers are available, but Claude Code 5-hour / 7-day usage is unavailable.")
     }
 
     @Test func refreshErrorMessage_hasBothData_returnsNil() {
-        let msg = UsageViewModel.refreshErrorMessage(hasRateLimits: true, hasProfile: true, totalMessages: 100)
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: true,
+            hasProfile: true,
+            hasStandardRateLimitHeaders: true,
+            totalMessages: 100
+        )
         #expect(msg == nil)
     }
 

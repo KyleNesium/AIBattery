@@ -46,7 +46,7 @@ struct RateLimitFetcherTests {
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
-        let profile = APIProfile(organizationId: "org-test")
+        let profile = APIProfile(organizationId: "org-test", workspaceId: nil, workspaceName: nil)
         let cached = APIFetchResult(rateLimits: rateLimits, profile: profile, fetchedAt: Date())
         fetcher.setCachedResult(cached, for: "test-account")
 

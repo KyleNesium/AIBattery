@@ -23,7 +23,7 @@ struct APIFetchResultTests {
     }
 
     @Test func preserves_rateLimitsAndProfile() {
-        let profile = APIProfile(organizationId: "org-1")
+        let profile = APIProfile(organizationId: "org-1", workspaceId: nil, workspaceName: nil)
         let result = APIFetchResult(rateLimits: nil, profile: profile)
         #expect(result.profile?.organizationId == "org-1")
         #expect(result.rateLimits == nil)
@@ -44,5 +44,14 @@ struct APIFetchResultTests {
             profile: nil
         )
         #expect(result.rateLimitSource == .anthropicAPIHeaders)
+    }
+
+    @Test func preserves_standardHeaderDetectionFlag() {
+        let result = APIFetchResult(
+            rateLimits: nil,
+            profile: nil,
+            hasStandardRateLimitHeaders: true
+        )
+        #expect(result.hasStandardRateLimitHeaders == true)
     }
 }

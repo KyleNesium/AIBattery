@@ -17,6 +17,7 @@ final class RateLimitFetcher {
     static let shared = RateLimitFetcher()
 
     private let messagesURL = URL(string: "https://api.anthropic.com/v1/messages?beta=true")!
+    private let clientDataURL = URL(string: "https://api.anthropic.com/api/oauth/claude_cli/client_data")!
     /// Per-account cache of API results. Never expires — stale data is better than empty bars.
     /// Fresh fetches replace cached data on success.
     private var cachedResults: [String: APIFetchResult] = [:]
@@ -140,6 +141,7 @@ final class RateLimitFetcher {
                 rateLimits: cached.rateLimits,
                 rateLimitSource: cached.rateLimitSource,
                 profile: cached.profile,
+                hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
                 fetchedAt: cached.fetchedAt,
                 isCached: true
             )
@@ -196,6 +198,7 @@ final class RateLimitFetcher {
             guard let http = response as? HTTPURLResponse else {
                 return .networkError
             }
+            let hasStandardRateLimitHeaders = Self.containsStandardRateLimitHeaders(http.allHeaderFields)
 
             // Auth failed — token may be expired/revoked
             if http.statusCode == 401 || http.statusCode == 403 {
@@ -213,7 +216,8 @@ final class RateLimitFetcher {
                     return .success(APIFetchResult(
                         rateLimits: throttledRateLimits ?? cached?.rateLimits,
                         rateLimitSource: (throttledRateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
-                        profile: profile ?? cached?.profile
+                        profile: profile ?? cached?.profile,
+                        hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
                     ))
                 }
 
@@ -237,7 +241,8 @@ final class RateLimitFetcher {
                             return .success(APIFetchResult(
                                 rateLimits: throttledRetryRL ?? cached?.rateLimits,
                                 rateLimitSource: (throttledRetryRL ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
-                                profile: retryProfile ?? cached?.profile
+                                profile: retryProfile ?? cached?.profile,
+                                hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
                             ))
                         }
                     }
@@ -263,7 +268,8 @@ final class RateLimitFetcher {
                             return .success(APIFetchResult(
                                 rateLimits: rateLimits ?? cached?.rateLimits,
                                 rateLimitSource: (rateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
-                                profile: profile ?? cached?.profile
+                                profile: profile ?? cached?.profile,
+                                hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
                             ))
                         }
                     }
@@ -289,7 +295,8 @@ final class RateLimitFetcher {
                     return .success(APIFetchResult(
                         rateLimits: rateLimits,
                         rateLimitSource: .anthropicAPIHeaders,
-                        profile: profile ?? cached?.profile
+                        profile: profile ?? cached?.profile,
+                        hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
                     ))
                 }
                 // No headers — treat as model unavailable so we try the next model.
@@ -308,17 +315,86 @@ final class RateLimitFetcher {
                 AppLogger.network.warning(
                     "No unified rate limit headers in \(http.statusCode) response (model=\(model)). Rate limit headers: \(found)"
                 )
+
+                if let fallback = await fetchClaudeCodeClientData(
+                    accessToken: accessToken,
+                    cached: cached,
+                    accountId: accountId,
+                    model: model
+                ) {
+                    return .success(fallback)
+                }
             }
 
             let result = APIFetchResult(
                 rateLimits: rateLimits ?? cached?.rateLimits,
                 rateLimitSource: (rateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
-                profile: profile ?? cached?.profile
+                profile: profile ?? cached?.profile,
+                hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
             )
             return .success(result)
         } catch {
             return .networkError
         }
+    }
+
+    /// Claude Code now uses a separate OAuth-backed endpoint for client metadata
+    /// and usage state. When the Messages API stops returning unified headers,
+    /// fall back to that endpoint and parse either headers or a structured JSON body.
+    private func fetchClaudeCodeClientData(
+        accessToken: String,
+        cached: APIFetchResult?,
+        accountId: String,
+        model: String
+    ) async -> APIFetchResult? {
+        var request = URLRequest(url: clientDataURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 15
+
+        do {
+            let (data, response) = try await SecureNetworking.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return nil }
+
+            if http.statusCode == 401 || http.statusCode == 403 { return nil }
+            guard (200..<300).contains(http.statusCode) || http.statusCode == 429 else { return nil }
+
+            let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
+                ?? RateLimitUsage.parse(clientData: data)
+            let profile = APIProfile.parse(headers: http.allHeaderFields)
+                ?? APIProfile.parse(clientData: data)
+                ?? cached?.profile
+
+            guard let finalRateLimits = rateLimits ?? cached?.rateLimits else { return nil }
+
+            if rateLimits != nil {
+                saveWorkingModel(model, accountId: accountId)
+            }
+
+            let normalizedRateLimits = http.statusCode == 429
+                ? finalRateLimits.markedThrottled()
+                : finalRateLimits
+
+            return APIFetchResult(
+                rateLimits: normalizedRateLimits,
+                rateLimitSource: .claudeCodeClientData,
+                profile: profile,
+                hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(http.allHeaderFields)
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private static func containsStandardRateLimitHeaders(_ headers: [AnyHashable: Any]) -> Bool {
+        headers.keys
+            .compactMap { $0 as? String }
+            .map { $0.lowercased() }
+            .contains { key in
+                key.hasPrefix("anthropic-ratelimit-") && !key.hasPrefix("anthropic-ratelimit-unified-")
+            }
     }
 
     // MARK: - Rate limit persistence (survive app restart)

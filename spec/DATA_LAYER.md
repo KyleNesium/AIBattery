@@ -132,7 +132,7 @@ Combined result from a single Messages API call.
 
 ### RateLimitUsage (`Models/RateLimitUsage.swift`)
 
-Parsed from Anthropic's unified rate limit headers (`anthropic-ratelimit-unified-*`). The API uses a unified sliding-window system with two windows: 5-hour (short-term burst) and 7-day (long-term usage). Each reports a utilization fraction (0.0–1.0) and a reset timestamp. The `representative-claim` tells which window is the binding constraint. Conforms to `Equatable` (used by `UsageAggregator` for redundant aggregation skip).
+Parsed from Claude Code usage metadata or Anthropic's legacy unified rate limit headers (`anthropic-ratelimit-unified-*`). The app's 5-hour and 7-day bars are specifically Claude Code usage windows, not generic public API request/token limits. Conforms to `Equatable` (used by `UsageAggregator` for redundant aggregation skip).
 
 | Field | Type |
 |-------|------|
@@ -149,7 +149,7 @@ Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPe
 
 Static: `countdownText(to date: Date, from now: Date = .now) -> String` — compact countdown for menu bar display. Pure function with injectable `now` for testing. Delegates to `DurationFormatter.compact()`. Used by `StatusBarManager` when throttled.
 
-`parse(headers:)` static method: reads `anthropic-ratelimit-unified-status`, `anthropic-ratelimit-unified-representative-claim`, `anthropic-ratelimit-unified-5h-utilization`, `anthropic-ratelimit-unified-5h-reset`, `anthropic-ratelimit-unified-5h-status`, and equivalent `7d` headers. Reset timestamps are parsed as Unix epoch seconds.
+`parse(headers:)` reads legacy unified headers. `parse(clientData:)` reads Claude Code client-data JSON with tolerant key-path matching, accepts percent or fractional utilization, and parses reset timestamps from Unix epoch or ISO-8601/RFC 3339 strings.
 
 ### TokenHealthStatus (`Models/TokenHealthStatus.swift`) — `Identifiable`
 
@@ -296,8 +296,9 @@ Pricing table (per million tokens):
 
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`
-- `fetch(accessToken:accountId:) async -> APIFetchResult` — returns both rate limits and org profile from a single API call
-- POST `/v1/messages?beta=true` with `max_tokens: 1`, content `"."`
+- `fetch(accessToken:accountId:) async -> APIFetchResult` — returns Claude Code usage windows plus account/profile metadata when available
+- Preferred endpoint: `GET /api/oauth/claude_cli/client_data`
+- Fallback endpoint: `POST /v1/messages?beta=true` with `max_tokens: 1`, content `"."`
 - **Dynamic probe order** (deduped): `activeUserModel` (from latest JSONL entry) → `lastWorkingModel[accountId]` (persisted per account) → `observedModels` (JSONL-observed models, most recent first) → `ultimateFallback` (single newest Sonnet for fresh installs). Self-heals when Anthropic deprecates model IDs — no hardcoded list.
 - `observedModels: [String]` — dynamic list populated by `UsageAggregator.setObservedModels(_:accountId:)` after each aggregation cycle; persisted to UserDefaults under `aibattery_observedModels_{accountId}`. Restored on launch (best-effort, overwritten on first aggregation).
 - `static let ultimateFallback = "claude-sonnet-4-6-20250929"` — single model for fresh installs with no JSONL data.
@@ -307,8 +308,9 @@ Pricing table (per million tokens):
 - Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/{version} (macOS)` (dynamic from bundle)
 - Caller provides token and account ID. Per-account caching: `cachedResults: [String: APIFetchResult]` and `lastWorkingModel: [String: String]` keyed by account ID.
 - Timeout: 15 sec
-- Parses `anthropic-ratelimit-unified-*` response headers via `RateLimitUsage.parse(headers:)` and `APIProfile.parse(headers:)` from the same response. Both parsers use case-insensitive header lookup (lowercased key map) to handle `HTTPURLResponse` bridging inconsistencies.
-- Logs a warning when no rate limit headers are found in a successful response (lists any `ratelimit`-containing header names for debugging)
+- Parses Claude Code 5-hour / 7-day usage from `client_data` first. Falls back to `anthropic-ratelimit-unified-*` response headers when present. Detects standard public `anthropic-ratelimit-*` headers for diagnostics but does not map them onto the 5-hour / 7-day UI.
+- `APIProfile` parsing accepts org/workspace metadata from headers or `client_data` JSON.
+- Logs a warning when no Claude Code-compatible usage data is found in a successful response (lists any `ratelimit`-containing header names for debugging)
 - Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache never expires — stale rate limits are shown rather than empty bars (e.g., after long sleep). Fresh fetches replace stale data on success.
 - Model unavailable (400/404 with model/access error message) → tries next model in list
 - **429 handling**: parses rate limit headers directly from the 429 response (they're always present on throttled responses). Returns as success so the UI continues showing usage bars and reset times while the user is rate limited. Falls through to Retry-After logic only if headers are missing (unexpected).
@@ -477,7 +479,7 @@ Pricing table (per million tokens):
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
 - Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
-- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:totalMessages:)` (error string or nil — three-tier: rate limits present → nil; profile present but no rate limits → "Rate limit headers unavailable" API-format warning; neither present + no messages → first-use prompt; neither present → network error), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
+- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:hasStandardRateLimitHeaders:totalMessages:)` (error string or nil — rate limits present → nil; public API headers without Claude Code windows → explicit mismatch warning; profile present but no windows → API-format warning; neither present + no messages → first-use prompt; neither present → network error), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
 - **Throttle tracking** (delegates to `ThrottleTracker`): `recordThrottleEvent(_:)` uses `ThrottleTracker.evaluate(_:)` to detect the normal→throttled/exhausted transition (detects both explicit `isThrottled` AND 100% utilization on either window), records timestamp to UserDefaults `aibattery_throttleTimestamps` via `ThrottleTracker.appendAndPrune`. `throttleCount(days:)` reads timestamps from UserDefaults, parses via `ThrottleTracker.parseTimestamps(_:)` (handles Double/String/Int storage variants), counts via `ThrottleTracker.count(timestamps:days:)`.
 - `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.

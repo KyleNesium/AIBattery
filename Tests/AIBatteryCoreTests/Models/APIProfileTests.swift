@@ -12,6 +12,7 @@ struct APIProfileTests {
         let profile = APIProfile.parse(headers: headers)
         #expect(profile != nil)
         #expect(profile?.organizationId == "org-123")
+        #expect(profile?.workspaceId == nil)
     }
 
     @Test func parse_onlyOrgId() {
@@ -81,5 +82,31 @@ struct APIProfileTests {
         let profile = APIProfile.parse(headers: headers)
         #expect(profile != nil)
         #expect(profile?.organizationId == "my-org_123")
+    }
+
+    @Test func parse_workspaceHeaders() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-workspace-id": "ws_123",
+            "anthropic-workspace-name": "Product Eng",
+        ]
+        let profile = APIProfile.parse(headers: headers)
+        #expect(profile != nil)
+        #expect(profile?.organizationId == nil)
+        #expect(profile?.workspaceId == "ws_123")
+        #expect(profile?.workspaceName == "Product Eng")
+    }
+
+    @Test func parse_clientData_withWorkspaceAndOrg() throws {
+        let data = try #require("""
+        {
+          "organization": { "id": "org_abc" },
+          "workspace": { "id": "ws_123", "name": "Platform" }
+        }
+        """.data(using: .utf8))
+        let profile = APIProfile.parse(clientData: data)
+        #expect(profile != nil)
+        #expect(profile?.organizationId == "org_abc")
+        #expect(profile?.workspaceId == "ws_123")
+        #expect(profile?.workspaceName == "Platform")
     }
 }
