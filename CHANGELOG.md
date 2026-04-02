@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.0.9] — 2026-04-02
+
+### Improved
+- **Rate-limit semantics messaging** — the app now keeps Anthropic API header semantics explicit without permanently occupying the top of the popover; the note rotates in the footer alongside the refresh timestamp
+
+### Fixed
+- **False resetting state** — partially used windows no longer show `Resetting…` when the reset timestamp is stale or rolling over
+- **Claude `/usage` mismatch framing** — 5-hour and 7-day bars now describe Anthropic API header semantics more clearly so the UI does not imply exact parity with Claude Code `/usage`
+
 ## [2.0.8] — 2026-04-01
 
 ### Fixed

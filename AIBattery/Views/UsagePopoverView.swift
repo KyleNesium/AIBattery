@@ -142,10 +142,6 @@ public struct UsagePopoverView: View {
                     StyledDivider()
                 }
 
-                if let source = snapshot.rateLimitSource {
-                    RateLimitSourceNote(source: source)
-                }
-
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
@@ -211,6 +207,7 @@ public struct UsagePopoverView: View {
                 isLoading: viewModel.isLoading,
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isShowingCachedData: viewModel.isShowingCachedData,
+                rateLimitSource: viewModel.snapshot?.rateLimitSource,
                 showLogoutConfirm: $showLogoutConfirm,
                 onLogout: {
                     logoutRevertTask?.cancel()
