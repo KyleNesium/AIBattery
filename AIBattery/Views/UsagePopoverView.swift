@@ -142,6 +142,10 @@ public struct UsagePopoverView: View {
                     StyledDivider()
                 }
 
+                if let source = snapshot.rateLimitSource {
+                    RateLimitSourceNote(source: source)
+                }
+
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
