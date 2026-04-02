@@ -130,7 +130,7 @@ The Gatekeeper prompt is one-time. The Keychain prompt appears once on first lau
 
 ## 📐 Metrics
 
-A minimal API call reads Anthropic's unified rate-limit headers each cycle. Local JSONL session logs provide token counts and context health — **never your message content**. Click the ✦ icon to open the dashboard.
+A minimal API fetch reads Claude Code account metadata for 5-hour and 7-day usage, with legacy header fallback when available. Local JSONL session logs provide token counts and context health — **never your message content**. Click the ✦ icon to open the dashboard.
 
 The tab picker selects which metric drives the ✦ icon color:
 
@@ -347,7 +347,7 @@ Anthropic is actively limiting your requests. Wait for the reset timer.
 <details>
 <summary><strong>Why can AI Battery differ from Claude Code `/usage`?</strong></summary>
 
-AI Battery shows Anthropic API unified 5-hour and 7-day sliding-window headers. Claude Code `/usage` uses Claude-local plan usage semantics, so percentages and reset times can differ even when both are working correctly.
+AI Battery primarily shows Claude Code 5-hour and 7-day usage from Claude Code account metadata. It may fall back to legacy Anthropic headers or cached values when those windows are temporarily unavailable, so percentages and reset times can still differ from Claude Code `/usage` during API transitions or stale-data fallback.
 
 </details>
 

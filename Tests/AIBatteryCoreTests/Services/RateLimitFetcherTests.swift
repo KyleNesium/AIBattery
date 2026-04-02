@@ -47,14 +47,19 @@ struct RateLimitFetcherTests {
             overallStatus: "allowed"
         )
         let profile = APIProfile(organizationId: "org-test", workspaceId: nil, workspaceName: nil)
-        let cached = APIFetchResult(rateLimits: rateLimits, profile: profile, fetchedAt: Date())
+        let cached = APIFetchResult(
+            rateLimits: rateLimits,
+            rateLimitSource: .claudeCodeClientData,
+            profile: profile,
+            fetchedAt: Date()
+        )
         fetcher.setCachedResult(cached, for: "test-account")
 
         let result = fetcher.cachedOrEmpty(accountId: "test-account")
 
         #expect(result.isCached == true)
         #expect(result.rateLimits?.fiveHourPercent == 50.0)
-        #expect(result.rateLimitSource == .anthropicAPIHeaders)
+        #expect(result.rateLimitSource == .claudeCodeClientData)
         #expect(result.profile?.organizationId == "org-test")
     }
 

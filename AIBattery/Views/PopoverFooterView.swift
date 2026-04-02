@@ -6,6 +6,7 @@ struct PopoverFooterView: View {
     let lastFreshFetch: Date?
     var isShowingCachedData: Bool = false
     let rateLimitSource: RateLimitSource?
+    let footerMessage: String?
     @Binding var showLogoutConfirm: Bool
     let onLogout: () -> Void
     let onRequestLogout: () -> Void
@@ -98,24 +99,37 @@ struct PopoverFooterView: View {
                     MarqueeText(texts: names, color: statusColor)
                 }
             } else {
-                HStack {
-                    Spacer()
-                    if isLoading {
-                        ProgressView()
-                            .scaleEffect(0.4)
-                            .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)
+                VStack(alignment: .leading, spacing: Spacing.micro) {
+                    HStack {
+                        Spacer()
+                        if isLoading {
+                            ProgressView()
+                                .scaleEffect(0.4)
+                                .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)
+                        }
+                        if let lastFetch = lastFreshFetch {
+                            RelativeTimeText(
+                                date: lastFetch,
+                                isStale: isShowingCachedData,
+                                alternateText: rateLimitSource?.shortLabel,
+                                alternateTooltip: rateLimitSource?.explanation
+                            )
+                        } else if isLoading {
+                            Text("Updating…")
+                                .font(Typography.monoTiny)
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
+                        }
                     }
-                    if let lastFetch = lastFreshFetch {
-                        RelativeTimeText(
-                            date: lastFetch,
-                            isStale: isShowingCachedData,
-                            alternateText: rateLimitSource?.shortLabel,
-                            alternateTooltip: rateLimitSource?.explanation
-                        )
-                    } else if isLoading {
-                        Text("Updating…")
-                            .font(Typography.monoTiny)
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                    if let footerMessage {
+                        HStack(spacing: Spacing.gap) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.caution)
+                            Text(footerMessage)
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.secondaryLabel)
+                        }
+                        .copyable(footerMessage)
                     }
                 }
             }

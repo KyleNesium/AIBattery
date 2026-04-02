@@ -209,13 +209,29 @@ final class RateLimitFetcher {
             if http.statusCode == 429 {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
-                if rateLimits != nil || profile != nil {
-                    let throttledRateLimits = rateLimits?.markedThrottled()
-                        ?? cached?.rateLimits?.markedThrottled()
+                if let rateLimits {
+                    let throttledRateLimits = rateLimits.markedThrottled()
                     saveWorkingModel(model, accountId: accountId)
                     return .success(APIFetchResult(
-                        rateLimits: throttledRateLimits ?? cached?.rateLimits,
-                        rateLimitSource: (throttledRateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
+                        rateLimits: throttledRateLimits,
+                        rateLimitSource: .anthropicAPIHeaders,
+                        profile: profile ?? cached?.profile,
+                        hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
+                    ))
+                }
+
+                if let fallback = await fetchClaudeCodeClientData(
+                    accessToken: accessToken,
+                    cached: cached,
+                    accountId: accountId,
+                    model: model
+                ) {
+                    return .success(fallback)
+                }
+
+                if profile != nil || hasStandardRateLimitHeaders {
+                    return .success(APIFetchResult(
+                        rateLimits: nil,
                         profile: profile ?? cached?.profile,
                         hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
                     ))
@@ -233,14 +249,31 @@ final class RateLimitFetcher {
                        let retryHttp = retryResp as? HTTPURLResponse {
                         let retryRL = RateLimitUsage.parse(headers: retryHttp.allHeaderFields)
                         let retryProfile = APIProfile.parse(headers: retryHttp.allHeaderFields)
-                        if retryRL != nil || retryProfile != nil {
+                        if let retryRL {
                             let throttledRetryRL = retryHttp.statusCode == 429
-                                ? (retryRL?.markedThrottled() ?? cached?.rateLimits?.markedThrottled())
+                                ? retryRL.markedThrottled()
                                 : retryRL
                             saveWorkingModel(model, accountId: accountId)
                             return .success(APIFetchResult(
-                                rateLimits: throttledRetryRL ?? cached?.rateLimits,
-                                rateLimitSource: (throttledRetryRL ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
+                                rateLimits: throttledRetryRL,
+                                rateLimitSource: .anthropicAPIHeaders,
+                                profile: retryProfile ?? cached?.profile,
+                                hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
+                            ))
+                        }
+
+                        if let fallback = await fetchClaudeCodeClientData(
+                            accessToken: accessToken,
+                            cached: cached,
+                            accountId: accountId,
+                            model: model
+                        ) {
+                            return .success(fallback)
+                        }
+
+                        if retryProfile != nil || Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields) {
+                            return .success(APIFetchResult(
+                                rateLimits: nil,
                                 profile: retryProfile ?? cached?.profile,
                                 hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
                             ))
@@ -266,8 +299,8 @@ final class RateLimitFetcher {
                         if rateLimits != nil || profile != nil {
                             saveWorkingModel(model, accountId: accountId)
                             return .success(APIFetchResult(
-                                rateLimits: rateLimits ?? cached?.rateLimits,
-                                rateLimitSource: (rateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
+                                rateLimits: rateLimits,
+                                rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
                                 profile: profile ?? cached?.profile,
                                 hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
                             ))
@@ -327,8 +360,8 @@ final class RateLimitFetcher {
             }
 
             let result = APIFetchResult(
-                rateLimits: rateLimits ?? cached?.rateLimits,
-                rateLimitSource: (rateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
+                rateLimits: rateLimits,
+                rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
                 profile: profile ?? cached?.profile,
                 hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
             )
@@ -366,22 +399,22 @@ final class RateLimitFetcher {
             let profile = APIProfile.parse(headers: http.allHeaderFields)
                 ?? APIProfile.parse(clientData: data)
                 ?? cached?.profile
-
-            guard let finalRateLimits = rateLimits ?? cached?.rateLimits else { return nil }
+            let hasStandardRateLimitHeaders = Self.containsStandardRateLimitHeaders(http.allHeaderFields)
+            guard rateLimits != nil || profile != nil || hasStandardRateLimitHeaders else { return nil }
 
             if rateLimits != nil {
                 saveWorkingModel(model, accountId: accountId)
             }
 
-            let normalizedRateLimits = http.statusCode == 429
-                ? finalRateLimits.markedThrottled()
-                : finalRateLimits
+            let normalizedRateLimits = rateLimits.map {
+                http.statusCode == 429 ? $0.markedThrottled() : $0
+            }
 
             return APIFetchResult(
                 rateLimits: normalizedRateLimits,
-                rateLimitSource: .claudeCodeClientData,
+                rateLimitSource: normalizedRateLimits == nil ? nil : .claudeCodeClientData,
                 profile: profile,
-                hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(http.allHeaderFields)
+                hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
             )
         } catch {
             return nil
@@ -402,6 +435,7 @@ final class RateLimitFetcher {
     /// Wrapper for persisting rate limits + fetch timestamp.
     private struct PersistedRateLimits: Codable {
         let rateLimits: RateLimitUsage
+        let rateLimitSource: RateLimitSource?
         let fetchedAt: Date
     }
 
@@ -409,7 +443,11 @@ final class RateLimitFetcher {
     private func persistRateLimits(_ rateLimits: RateLimitUsage?, fetchedAt: Date, accountId: String) {
         guard let rateLimits else { return }
         let key = Self.persistKeyPrefix + accountId
-        let persisted = PersistedRateLimits(rateLimits: rateLimits, fetchedAt: fetchedAt)
+        let persisted = PersistedRateLimits(
+            rateLimits: rateLimits,
+            rateLimitSource: cachedResults[accountId]?.rateLimitSource,
+            fetchedAt: fetchedAt
+        )
         if let data = try? JSONEncoder().encode(persisted) {
             UserDefaults.standard.set(data, forKey: key)
         }
@@ -430,6 +468,7 @@ final class RateLimitFetcher {
             }
             cachedResults[accountId] = APIFetchResult(
                 rateLimits: persisted.rateLimits,
+                rateLimitSource: persisted.rateLimitSource,
                 profile: nil,
                 fetchedAt: persisted.fetchedAt,
                 isCached: true

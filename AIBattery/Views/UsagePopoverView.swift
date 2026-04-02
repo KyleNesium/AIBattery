@@ -119,29 +119,6 @@ public struct UsagePopoverView: View {
                     snapshot: snapshot
                 )
 
-                // Show inline error when rate limits unavailable (API not reachable)
-                if snapshot.rateLimits == nil, let error = viewModel.errorMessage {
-                    HStack(spacing: Spacing.gap) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.caution)
-                        Text(error)
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.secondaryLabel)
-                        Spacer()
-                        Button("Retry") {
-                            Task { await viewModel.refresh() }
-                        }
-                        .font(Typography.tinyLabel)
-                        .buttonStyle(.plain)
-                        .foregroundStyle(ThemeColors.action)
-                    }
-                    .copyable(error)
-                    .padding(.horizontal, Spacing.sectionHorizontal)
-                    .padding(.vertical, Spacing.section)
-                    StyledDivider()
-                }
-
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
@@ -208,6 +185,7 @@ public struct UsagePopoverView: View {
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isShowingCachedData: viewModel.isShowingCachedData,
                 rateLimitSource: viewModel.snapshot?.rateLimitSource,
+                footerMessage: viewModel.errorMessage,
                 showLogoutConfirm: $showLogoutConfirm,
                 onLogout: {
                     logoutRevertTask?.cancel()

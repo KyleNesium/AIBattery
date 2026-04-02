@@ -99,6 +99,16 @@ struct UsageViewModelTests {
         #expect(msg == nil)
     }
 
+    @Test func refreshErrorMessage_profileAndMessages_stillReturnsClaudeCodeWarning() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false,
+            hasProfile: true,
+            hasStandardRateLimitHeaders: false,
+            totalMessages: 100
+        )
+        #expect(msg == "Claude Code usage unavailable. Anthropic may have changed the API response format.")
+    }
+
     // MARK: - hasDataChanged
 
     @Test func hasDataChanged_firstLoad_returnsTrue() {

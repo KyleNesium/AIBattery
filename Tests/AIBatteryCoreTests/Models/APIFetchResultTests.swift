@@ -54,4 +54,22 @@ struct APIFetchResultTests {
         )
         #expect(result.hasStandardRateLimitHeaders == true)
     }
+
+    @Test func preserves_explicitRateLimitSource() {
+        let result = APIFetchResult(
+            rateLimits: RateLimitUsage(
+                representativeClaim: "five_hour",
+                fiveHourUtilization: 0.42,
+                fiveHourReset: nil,
+                fiveHourStatus: "allowed",
+                sevenDayUtilization: 0.15,
+                sevenDayReset: nil,
+                sevenDayStatus: "allowed",
+                overallStatus: "allowed"
+            ),
+            rateLimitSource: .claudeCodeClientData,
+            profile: nil
+        )
+        #expect(result.rateLimitSource == .claudeCodeClientData)
+    }
 }
