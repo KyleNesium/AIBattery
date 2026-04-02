@@ -49,7 +49,11 @@ final class UsageAggregator: @unchecked Sendable {
         cachedSnapshot = nil
     }
 
-    func aggregate(rateLimits: RateLimitUsage?, accountId: String? = nil) -> (UsageSnapshot, SideEffects) {
+    func aggregate(
+        rateLimits: RateLimitUsage?,
+        rateLimitSource: RateLimitSource? = nil,
+        accountId: String? = nil
+    ) -> (UsageSnapshot, SideEffects) {
         // Idle session cutoff for context health (0 = never hide)
         let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
 
@@ -331,6 +335,7 @@ final class UsageAggregator: @unchecked Sendable {
         let snapshot = UsageSnapshot(
             lastUpdated: now,
             rateLimits: rateLimits,
+            rateLimitSource: rateLimitSource,
             firstSessionDate: firstSessionDate,
             totalSessions: (statsCache?.totalSessions ?? 0) + additionalSessions,
             totalMessages: (statsCache?.totalMessages ?? 0) + additionalMessages,

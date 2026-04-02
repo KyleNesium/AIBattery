@@ -5,6 +5,7 @@ struct UsageSnapshot: Equatable {
     /// Prevents unnecessary SwiftUI diffs when polling returns identical data.
     static func == (lhs: UsageSnapshot, rhs: UsageSnapshot) -> Bool {
         lhs.rateLimits == rhs.rateLimits
+            && lhs.rateLimitSource == rhs.rateLimitSource
             && lhs.totalSessions == rhs.totalSessions
             && lhs.totalMessages == rhs.totalMessages
             && lhs.todayMessages == rhs.todayMessages
@@ -41,6 +42,7 @@ struct UsageSnapshot: Equatable {
 
     // Rate limit usage (from unified API response headers)
     let rateLimits: RateLimitUsage?
+    let rateLimitSource: RateLimitSource?
 
     // From stats-cache.json
     let firstSessionDate: Date?
@@ -317,4 +319,3 @@ struct ModelTokenSummary: Identifiable, Equatable {
         return Double(cacheReadTokens) / Double(denominator) * 100
     }
 }
-

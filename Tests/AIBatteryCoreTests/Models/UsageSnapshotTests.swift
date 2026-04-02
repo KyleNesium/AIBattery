@@ -17,6 +17,7 @@ struct UsageSnapshotTests {
         return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
+            rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -28,6 +29,7 @@ struct UsageSnapshotTests {
             todaySessions: 0,
             todayToolCalls: 0,
             modelTokens: modelTokens,
+            projectTokens: [],
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
             totalProjectTokens: 0,
             totalProjectCost: 0,
@@ -80,6 +82,52 @@ struct UsageSnapshotTests {
         ]
         let snapshot = makeSnapshot(modelTokens: models)
         #expect(snapshot.totalTokens == 495) // (100+50+10+5) + (200+100+20+10)
+    }
+
+    @Test func equality_rateLimitSourceMismatch_isDifferent() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.42,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.15,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let lhs = makeSnapshot(rateLimits: limits)
+        let rhs = UsageSnapshot(
+            lastUpdated: Date(),
+            rateLimits: limits,
+            rateLimitSource: nil,
+            firstSessionDate: nil,
+            totalSessions: 0,
+            totalMessages: 0,
+            longestSessionDuration: nil,
+            longestSessionMessages: 0,
+            peakHour: nil,
+            peakHourCount: 0,
+            todayMessages: 0,
+            todaySessions: 0,
+            todayToolCalls: 0,
+            modelTokens: [],
+            projectTokens: [],
+            totalTokens: 0,
+            totalProjectTokens: 0,
+            totalProjectCost: 0,
+            todayModelTokens: [],
+            weekModelTokens: [],
+            monthModelTokens: [],
+            dailyActivity: [],
+            dailyAverage: 0,
+            trendDirection: .flat,
+            busiestDayOfWeek: nil,
+            hourCounts: [:],
+            todayHourCounts: [:],
+            tokenHealth: nil,
+            topSessionHealths: []
+        )
+        #expect(lhs != rhs)
     }
 
     // MARK: - percent(for:)

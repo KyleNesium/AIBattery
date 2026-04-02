@@ -111,6 +111,7 @@ struct ActivityTrendTests {
         return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: nil,
+            rateLimitSource: nil,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -122,6 +123,7 @@ struct ActivityTrendTests {
             todaySessions: 0,
             todayToolCalls: 0,
             modelTokens: [],
+            projectTokens: [],
             totalTokens: 0,
             totalProjectTokens: 0,
             totalProjectCost: 0,
