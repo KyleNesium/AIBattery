@@ -183,23 +183,3 @@ struct UsageBar: View {
         isThrottled || displayPercent >= 100
     }
 }
-
-struct RateLimitSourceNote: View {
-    let source: RateLimitSource
-
-    var body: some View {
-        HStack(spacing: Spacing.inner) {
-            Image(systemName: "info.circle")
-                .font(Typography.tinyLabel)
-                .foregroundStyle(ThemeColors.secondaryLabel)
-            Text(source.shortLabel)
-                .font(Typography.tinyLabel)
-                .foregroundStyle(ThemeColors.secondaryLabel)
-            Spacer()
-        }
-        .help(source.explanation)
-        .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.top, Spacing.section)
-        .padding(.bottom, Spacing.inner)
-    }
-}
