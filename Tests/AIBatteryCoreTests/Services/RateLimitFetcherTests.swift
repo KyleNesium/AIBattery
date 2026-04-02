@@ -54,6 +54,7 @@ struct RateLimitFetcherTests {
 
         #expect(result.isCached == true)
         #expect(result.rateLimits?.fiveHourPercent == 50.0)
+        #expect(result.rateLimitSource == .anthropicAPIHeaders)
         #expect(result.profile?.organizationId == "org-test")
     }
 

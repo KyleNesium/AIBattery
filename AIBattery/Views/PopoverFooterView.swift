@@ -5,6 +5,7 @@ struct PopoverFooterView: View {
     let isLoading: Bool
     let lastFreshFetch: Date?
     var isShowingCachedData: Bool = false
+    let rateLimitSource: RateLimitSource?
     @Binding var showLogoutConfirm: Bool
     let onLogout: () -> Void
     let onRequestLogout: () -> Void
@@ -105,7 +106,12 @@ struct PopoverFooterView: View {
                             .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)
                     }
                     if let lastFetch = lastFreshFetch {
-                        RelativeTimeText(date: lastFetch, isStale: isShowingCachedData)
+                        RelativeTimeText(
+                            date: lastFetch,
+                            isStale: isShowingCachedData,
+                            alternateText: rateLimitSource?.shortLabel,
+                            alternateTooltip: rateLimitSource?.explanation
+                        )
                     } else if isLoading {
                         Text("Updating…")
                             .font(Typography.monoTiny)
@@ -165,18 +171,26 @@ struct PopoverFooterView: View {
 private struct RelativeTimeText: View {
     let date: Date
     var isStale: Bool = false
+    var alternateText: String? = nil
+    var alternateTooltip: String? = nil
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 10)) { _ in
-            let text = isStale
-                ? "Cached \(PopoverFooterView.relativeTime(date))"
-                : "Updated \(PopoverFooterView.relativeTime(date))"
+            let showAlternate = alternateText != nil
+                && Int(Date().timeIntervalSinceReferenceDate / 10).isMultiple(of: 2)
+            let text = showAlternate
+                ? alternateText!
+                : (isStale
+                    ? "Cached \(PopoverFooterView.relativeTime(date))"
+                    : "Updated \(PopoverFooterView.relativeTime(date))")
             Text(text)
                 .font(Typography.monoTiny)
                 .foregroundStyle(isStale ? ThemeColors.caution : ThemeColors.tertiaryLabel)
-                .help(isStale
-                    ? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))"
-                    : "Last fetched: \(PopoverFooterView.absoluteTime(date))")
+                .help(showAlternate
+                    ? (alternateTooltip ?? "")
+                    : (isStale
+                        ? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))"
+                        : "Last fetched: \(PopoverFooterView.absoluteTime(date))"))
         }
     }
 }

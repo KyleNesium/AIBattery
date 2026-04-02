@@ -138,6 +138,7 @@ final class RateLimitFetcher {
         if let cached = cachedResults[accountId] {
             return APIFetchResult(
                 rateLimits: cached.rateLimits,
+                rateLimitSource: cached.rateLimitSource,
                 profile: cached.profile,
                 fetchedAt: cached.fetchedAt,
                 isCached: true
@@ -211,6 +212,7 @@ final class RateLimitFetcher {
                     saveWorkingModel(model, accountId: accountId)
                     return .success(APIFetchResult(
                         rateLimits: throttledRateLimits ?? cached?.rateLimits,
+                        rateLimitSource: (throttledRateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
                         profile: profile ?? cached?.profile
                     ))
                 }
@@ -234,6 +236,7 @@ final class RateLimitFetcher {
                             saveWorkingModel(model, accountId: accountId)
                             return .success(APIFetchResult(
                                 rateLimits: throttledRetryRL ?? cached?.rateLimits,
+                                rateLimitSource: (throttledRetryRL ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
                                 profile: retryProfile ?? cached?.profile
                             ))
                         }
@@ -259,6 +262,7 @@ final class RateLimitFetcher {
                             saveWorkingModel(model, accountId: accountId)
                             return .success(APIFetchResult(
                                 rateLimits: rateLimits ?? cached?.rateLimits,
+                                rateLimitSource: (rateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
                                 profile: profile ?? cached?.profile
                             ))
                         }
@@ -284,6 +288,7 @@ final class RateLimitFetcher {
                     saveWorkingModel(model, accountId: accountId)
                     return .success(APIFetchResult(
                         rateLimits: rateLimits,
+                        rateLimitSource: .anthropicAPIHeaders,
                         profile: profile ?? cached?.profile
                     ))
                 }
@@ -307,6 +312,7 @@ final class RateLimitFetcher {
 
             let result = APIFetchResult(
                 rateLimits: rateLimits ?? cached?.rateLimits,
+                rateLimitSource: (rateLimits ?? cached?.rateLimits) == nil ? nil : .anthropicAPIHeaders,
                 profile: profile ?? cached?.profile
             )
             return .success(result)

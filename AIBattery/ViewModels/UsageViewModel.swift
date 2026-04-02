@@ -60,7 +60,11 @@ public final class UsageViewModel: ObservableObject {
                 let rl = cached.rateLimits
                 Task { [weak self] in
                     guard let self else { return }
-                    let result = await self.aggregateOffMain(rateLimits: rl, accountId: accountId)
+                    let result = await self.aggregateOffMain(
+                        rateLimits: rl,
+                        rateLimitSource: cached.rateLimitSource,
+                        accountId: accountId
+                    )
                     self.snapshot = result
                     self.isShowingCachedData = true
                     self.isLoading = false
@@ -82,13 +86,19 @@ public final class UsageViewModel: ObservableObject {
     /// Best-effort serialization: waits for any in-flight aggregation before starting
     /// a new one. UsageAggregator's internal lock is the primary guard against concurrent
     /// mutation; this layer reduces redundant overlapping work.
-    private func aggregateOffMain(rateLimits: RateLimitUsage?, accountId: String? = nil) async -> UsageSnapshot {
+    private func aggregateOffMain(
+        rateLimits: RateLimitUsage?,
+        rateLimitSource: RateLimitSource? = nil,
+        accountId: String? = nil
+    ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
             _ = await inflight.value
         }
 
         let agg = aggregator
-        let task = Task.detached { agg.aggregate(rateLimits: rateLimits, accountId: accountId) }
+        let task = Task.detached {
+            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, accountId: accountId)
+        }
         inflightAggregation = task
         let (result, effects) = await task.value
 
@@ -132,7 +142,10 @@ public final class UsageViewModel: ObservableObject {
 
         // Skip network when offline — show local data with cached rate limits.
         guard skipNetworkCheck || NetworkMonitor.shared.isConnected else {
-            let result = await aggregateOffMain(rateLimits: apiResult?.rateLimits)
+            let result = await aggregateOffMain(
+                rateLimits: apiResult?.rateLimits,
+                rateLimitSource: apiResult?.rateLimitSource
+            )
             if result != snapshot { snapshot = result }
             isLoading = false
             errorMessage = "No internet connection"
@@ -147,7 +160,11 @@ public final class UsageViewModel: ObservableObject {
         if wasEmpty, let accountId {
             let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil {
-                let earlyResult = await aggregateOffMain(rateLimits: cached.rateLimits, accountId: accountId)
+                let earlyResult = await aggregateOffMain(
+                    rateLimits: cached.rateLimits,
+                    rateLimitSource: cached.rateLimitSource,
+                    accountId: accountId
+                )
                 snapshot = earlyResult
                 isShowingCachedData = true
             } else {
@@ -173,7 +190,11 @@ public final class UsageViewModel: ObservableObject {
         // (e.g., after wake from sleep with expired token). Stale bars are
         // better than empty bars — fresh data replaces them on next success.
         let effectiveRateLimits = api.rateLimits ?? snapshot?.rateLimits
-        let result = await aggregateOffMain(rateLimits: effectiveRateLimits, accountId: accountId)
+        let result = await aggregateOffMain(
+            rateLimits: effectiveRateLimits,
+            rateLimitSource: api.rateLimitSource ?? snapshot?.rateLimitSource,
+            accountId: accountId
+        )
         logCorruptionMetrics()
         updateAdaptivePolling(result)
         updateSnapshot(result, api: api)
@@ -331,7 +352,11 @@ public final class UsageViewModel: ObservableObject {
                 if let accountId {
                     let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
                     if cached.rateLimits != nil {
-                        let result = await self.aggregateOffMain(rateLimits: cached.rateLimits, accountId: accountId)
+                        let result = await self.aggregateOffMain(
+                            rateLimits: cached.rateLimits,
+                            rateLimitSource: cached.rateLimitSource,
+                            accountId: accountId
+                        )
                         if result != self.snapshot { self.snapshot = result }
                         self.isShowingCachedData = true
                     }

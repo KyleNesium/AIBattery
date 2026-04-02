@@ -3,12 +3,14 @@ import SwiftUI
 /// Shows the 5-hour rate limit bar.
 struct FiveHourBarSection: View {
     let limits: RateLimitUsage
+    let source: RateLimitSource?
 
     var body: some View {
         UsageBar(
             label: "5-Hour",
             percent: limits.fiveHourPercent,
             resetsAt: limits.fiveHourReset,
+            source: source,
             isBinding: limits.representativeClaim == RateLimitUsage.fiveHourWindow,
             isThrottled: limits.fiveHourStatus == "throttled"
                 || (limits.isThrottled && limits.representativeClaim == RateLimitUsage.fiveHourWindow),
@@ -22,12 +24,14 @@ struct FiveHourBarSection: View {
 /// Shows the 7-day rate limit bar.
 struct SevenDayBarSection: View {
     let limits: RateLimitUsage
+    let source: RateLimitSource?
 
     var body: some View {
         UsageBar(
             label: "7-Day",
             percent: limits.sevenDayPercent,
             resetsAt: limits.sevenDayReset,
+            source: source,
             isBinding: limits.representativeClaim == RateLimitUsage.sevenDayWindow,
             isThrottled: limits.sevenDayStatus == "throttled"
                 || (limits.isThrottled && limits.representativeClaim == RateLimitUsage.sevenDayWindow),
@@ -42,6 +46,7 @@ struct UsageBar: View {
     let label: String
     let percent: Double
     let resetsAt: Date?
+    let source: RateLimitSource?
     var isBinding: Bool = false
     var isThrottled: Bool = false
     var estimatedTimeToLimit: TimeInterval?
@@ -58,6 +63,9 @@ struct UsageBar: View {
             if diff > 0 {
                 parts.append("Resets at \(PopoverFooterView.absoluteTime(reset))")
             }
+        }
+        if let source {
+            parts.append(source.explanation)
         }
         return parts.joined(separator: "\n")
     }
@@ -149,7 +157,7 @@ struct UsageBar: View {
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .copyable(resetText)
-                    } else {
+                    } else if wasExhausted {
                         // Reset time is in the past — window is rolling over
                         Text("Resetting…")
                             .font(Typography.tinyLabel)

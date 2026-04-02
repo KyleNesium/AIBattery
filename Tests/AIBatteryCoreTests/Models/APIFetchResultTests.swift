@@ -28,4 +28,21 @@ struct APIFetchResultTests {
         #expect(result.profile?.organizationId == "org-1")
         #expect(result.rateLimits == nil)
     }
+
+    @Test func defaults_rateLimitSourceToAPIHeadersWhenRateLimitsPresent() {
+        let result = APIFetchResult(
+            rateLimits: RateLimitUsage(
+                representativeClaim: "five_hour",
+                fiveHourUtilization: 0.42,
+                fiveHourReset: nil,
+                fiveHourStatus: "allowed",
+                sevenDayUtilization: 0.15,
+                sevenDayReset: nil,
+                sevenDayStatus: "allowed",
+                overallStatus: "allowed"
+            ),
+            profile: nil
+        )
+        #expect(result.rateLimitSource == .anthropicAPIHeaders)
+    }
 }

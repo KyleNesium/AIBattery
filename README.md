@@ -130,7 +130,7 @@ The Gatekeeper prompt is one-time. The Keychain prompt appears once on first lau
 
 ## 📐 Metrics
 
-A minimal API call reads your rate limit headers each cycle. Local JSONL session logs provide token counts and context health — **never your message content**. Click the ✦ icon to open the dashboard.
+A minimal API call reads Anthropic's unified rate-limit headers each cycle. Local JSONL session logs provide token counts and context health — **never your message content**. Click the ✦ icon to open the dashboard.
 
 The tab picker selects which metric drives the ✦ icon color:
 
@@ -142,6 +142,9 @@ The tab picker selects which metric drives the ✦ icon color:
 | **(A) Auto** | Highest urgency metric | Always seeing the most critical metric |
 
 Selected metric moves to the top. The other two stay visible below.
+
+> [!NOTE]
+> The 5-hour and 7-day bars come from Anthropic API sliding-window headers. They may differ from Claude Code `/usage`, which uses different plan-usage semantics and reset timings.
 
 **Auto mode**: click the **(A)** button next to the tabs. It glows blue when active and automatically selects whichever metric has the highest percentage — so the menu bar always shows your most critical limit. To switch back to manual, click any tab — auto mode disables and switches in one action.
 
@@ -338,6 +341,13 @@ Whichever rate limit window is currently the active constraint. The binding wind
 <summary><strong>What's ⚠️ "throttled"?</strong></summary>
 
 Anthropic is actively limiting your requests. Wait for the reset timer.
+
+</details>
+
+<details>
+<summary><strong>Why can AI Battery differ from Claude Code `/usage`?</strong></summary>
+
+AI Battery shows Anthropic API unified 5-hour and 7-day sliding-window headers. Claude Code `/usage` uses Claude-local plan usage semantics, so percentages and reset times can differ even when both are working correctly.
 
 </details>
 

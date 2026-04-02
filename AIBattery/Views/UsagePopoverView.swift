@@ -146,12 +146,12 @@ public struct UsagePopoverView: View {
                     switch mode {
                     case .fiveHour:
                         if let limits = snapshot.rateLimits {
-                            FiveHourBarSection(limits: limits)
+                            FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource)
                             StyledDivider()
                         }
                     case .sevenDay:
                         if let limits = snapshot.rateLimits {
-                            SevenDayBarSection(limits: limits)
+                            SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource)
                             StyledDivider()
                         }
                     case .contextHealth:
@@ -207,6 +207,7 @@ public struct UsagePopoverView: View {
                 isLoading: viewModel.isLoading,
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isShowingCachedData: viewModel.isShowingCachedData,
+                rateLimitSource: viewModel.snapshot?.rateLimitSource,
                 showLogoutConfirm: $showLogoutConfirm,
                 onLogout: {
                     logoutRevertTask?.cancel()
