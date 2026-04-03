@@ -353,13 +353,16 @@ AI Battery primarily shows Claude Code 5-hour and 7-day usage from Claude Code a
 
 ---
 
-## 🔒 Privacy
+## 🔒 Privacy & Security
 
 | | |
 |---|---|
 | 📂 **Local only** | Reads JSONL for token counts — **never your message content** |
+| 🔑 **Keychain** | OAuth refresh token stored in macOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) — access token is memory-only, never written to disk |
 | 🌐 **Network** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast) |
 | 🚫 **No tracking** | No analytics. No telemetry. No data collection. Period. |
+| 🔍 **Open source** | Every line is auditable — [review the code](https://github.com/KyleNesium/AIBattery) |
+| ✅ **Release checks** | Each release runs [`verify-release.sh`](scripts/verify-release.sh) — validates codesign, Sparkle signatures, version consistency, and bundle integrity before publish |
 
 ---
 
