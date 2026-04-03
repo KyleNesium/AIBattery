@@ -8,18 +8,18 @@ enum RateLimitSource: String, Equatable, Codable {
     var shortLabel: String {
         switch self {
         case .claudeCodeClientData:
-            return "Claude Code usage"
+            return "Via Claude Code"
         case .anthropicAPIHeaders:
-            return "Public API headers"
+            return "Via Anthropic API"
         }
     }
 
     var explanation: String {
         switch self {
         case .claudeCodeClientData:
-            return "These values come from Claude Code account metadata and reflect the 5-hour and 7-day usage windows shown in Claude Code."
+            return "Usage data from Claude Code account metadata."
         case .anthropicAPIHeaders:
-            return "These values come from public Anthropic API headers. They may not match Claude Code's 5-hour and 7-day usage windows."
+            return "Usage data from Anthropic API response headers."
         }
     }
 }

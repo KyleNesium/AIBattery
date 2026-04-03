@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.0] — 2026-04-03
+
+### Added
+- **Standard rate limit fallback** — when Anthropic's unified 5-hour / 7-day usage headers are unavailable, the app now parses standard per-minute API rate limit headers and displays request and token utilization bars as a fallback
+- **Standard limits persistence** — standard rate limits survive app restarts and are shown instantly on launch
+
+### Improved
+- **Client data diagnostic logging** — the Claude Code client_data endpoint now logs response status and body preview for easier debugging of API format changes
+- **Smarter cache display on launch** — cached standard limits show immediately on wake/restart, even when unified 5h/7d data is unavailable
+
+### Fixed
+- **Warning suppression with standard limits** — "Claude Code usage unavailable" warning no longer shows when the app has standard rate limit data to display
+- **Client data fallback preserves standard limits** — the client_data fallback path no longer drops standard rate limit headers parsed from the original Messages API response
+
 ## [2.0.9] — 2026-04-02
 
 ### Improved

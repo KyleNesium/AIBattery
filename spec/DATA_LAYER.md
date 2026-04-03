@@ -126,9 +126,29 @@ Combined result from a single Messages API call.
 | Field | Type |
 |-------|------|
 | `rateLimits` | `RateLimitUsage?` |
+| `rateLimitSource` | `RateLimitSource?` — `.anthropicAPIHeaders` or `.claudeCodeClientData` |
+| `standardLimits` | `StandardRateLimits?` — per-minute API limits (fallback when 5h/7d unavailable) |
 | `profile` | `APIProfile?` |
+| `hasStandardRateLimitHeaders` | `Bool` — true when standard `anthropic-ratelimit-*` headers present |
 | `fetchedAt` | `Date` — when this result was fetched (defaults to `Date()`) |
 | `isCached` | `Bool` — whether this result came from cache rather than a fresh API response (defaults to `false`) |
+
+### StandardRateLimits (`Models/StandardRateLimits.swift`)
+
+Parsed from standard Anthropic API rate limit headers (`anthropic-ratelimit-requests-*`, `anthropic-ratelimit-tokens-*`). Used as a fallback display when unified 5h/7d usage windows are unavailable.
+
+| Field | Type |
+|-------|------|
+| `requestsLimit` | `Int` |
+| `requestsRemaining` | `Int` |
+| `requestsReset` | `Date?` |
+| `tokensLimit` | `Int` |
+| `tokensRemaining` | `Int` |
+| `tokensReset` | `Date?` |
+
+Computed: `requestsPercent` (utilization × 100), `tokensPercent`, `isRequestsExhausted`, `isTokensExhausted`.
+
+`parse(headers:)` reads standard headers with case-insensitive key matching. Returns nil if `requests-limit` or `requests-remaining` headers are missing. Accepts ISO 8601 and Unix timestamp formats for reset dates.
 
 ### RateLimitUsage (`Models/RateLimitUsage.swift`)
 

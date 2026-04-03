@@ -6,6 +6,7 @@ struct UsageSnapshot: Equatable {
     static func == (lhs: UsageSnapshot, rhs: UsageSnapshot) -> Bool {
         lhs.rateLimits == rhs.rateLimits
             && lhs.rateLimitSource == rhs.rateLimitSource
+            && lhs.standardLimits == rhs.standardLimits
             && lhs.totalSessions == rhs.totalSessions
             && lhs.totalMessages == rhs.totalMessages
             && lhs.todayMessages == rhs.todayMessages
@@ -43,6 +44,8 @@ struct UsageSnapshot: Equatable {
     // Rate limit usage (from unified API response headers)
     let rateLimits: RateLimitUsage?
     let rateLimitSource: RateLimitSource?
+    /// Standard per-minute API rate limits (fallback when unified 5h/7d unavailable).
+    let standardLimits: StandardRateLimits?
 
     // From stats-cache.json
     let firstSessionDate: Date?

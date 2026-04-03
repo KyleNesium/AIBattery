@@ -4,6 +4,7 @@ import Foundation
 struct APIFetchResult {
     let rateLimits: RateLimitUsage?
     let rateLimitSource: RateLimitSource?
+    let standardLimits: StandardRateLimits?
     let profile: APIProfile?
     /// True when the response included standard public API ratelimit headers but not
     /// Claude Code's 5-hour / 7-day usage windows.
@@ -16,6 +17,7 @@ struct APIFetchResult {
     init(
         rateLimits: RateLimitUsage?,
         rateLimitSource: RateLimitSource? = nil,
+        standardLimits: StandardRateLimits? = nil,
         profile: APIProfile?,
         hasStandardRateLimitHeaders: Bool = false,
         fetchedAt: Date = Date(),
@@ -23,6 +25,7 @@ struct APIFetchResult {
     ) {
         self.rateLimits = rateLimits
         self.rateLimitSource = rateLimits == nil ? nil : (rateLimitSource ?? .anthropicAPIHeaders)
+        self.standardLimits = standardLimits
         self.profile = profile
         self.hasStandardRateLimitHeaders = hasStandardRateLimitHeaders
         self.fetchedAt = fetchedAt

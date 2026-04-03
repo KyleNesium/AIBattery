@@ -125,10 +125,16 @@ public struct UsagePopoverView: View {
                         if let limits = snapshot.rateLimits {
                             FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource)
                             StyledDivider()
+                        } else if mode == metricMode, let stdLimits = snapshot.standardLimits {
+                            StandardLimitsSection(limits: stdLimits)
+                            StyledDivider()
                         }
                     case .sevenDay:
                         if let limits = snapshot.rateLimits {
                             SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource)
+                            StyledDivider()
+                        } else if mode == metricMode, let stdLimits = snapshot.standardLimits {
+                            StandardLimitsSection(limits: stdLimits)
                             StyledDivider()
                         }
                     case .contextHealth:
@@ -184,7 +190,7 @@ public struct UsagePopoverView: View {
                 isLoading: viewModel.isLoading,
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isShowingCachedData: viewModel.isShowingCachedData,
-                rateLimitSource: viewModel.snapshot?.rateLimitSource,
+                rateLimitSource: viewModel.snapshot?.rateLimits != nil ? viewModel.snapshot?.rateLimitSource : nil,
                 footerMessage: viewModel.errorMessage,
                 showLogoutConfirm: $showLogoutConfirm,
                 onLogout: {

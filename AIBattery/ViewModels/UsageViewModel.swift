@@ -56,13 +56,13 @@ public final class UsageViewModel: ObservableObject {
         let accountId = OAuthManager.shared.accountStore.activeAccountId
         if let accountId {
             let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
-            if cached.rateLimits != nil {
-                let rl = cached.rateLimits
+            if cached.rateLimits != nil || cached.standardLimits != nil {
                 Task { [weak self] in
                     guard let self else { return }
                     let result = await self.aggregateOffMain(
-                        rateLimits: rl,
+                        rateLimits: cached.rateLimits,
                         rateLimitSource: cached.rateLimitSource,
+                        standardLimits: cached.standardLimits,
                         accountId: accountId
                     )
                     self.snapshot = result
@@ -89,6 +89,7 @@ public final class UsageViewModel: ObservableObject {
     private func aggregateOffMain(
         rateLimits: RateLimitUsage?,
         rateLimitSource: RateLimitSource? = nil,
+        standardLimits: StandardRateLimits? = nil,
         accountId: String? = nil
     ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
@@ -97,7 +98,7 @@ public final class UsageViewModel: ObservableObject {
 
         let agg = aggregator
         let task = Task.detached {
-            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, accountId: accountId)
+            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId)
         }
         inflightAggregation = task
         let (result, effects) = await task.value
@@ -144,7 +145,8 @@ public final class UsageViewModel: ObservableObject {
         guard skipNetworkCheck || NetworkMonitor.shared.isConnected else {
             let result = await aggregateOffMain(
                 rateLimits: apiResult?.rateLimits,
-                rateLimitSource: apiResult?.rateLimitSource
+                rateLimitSource: apiResult?.rateLimitSource,
+                standardLimits: apiResult?.standardLimits
             )
             if result != snapshot { snapshot = result }
             isLoading = false
@@ -159,10 +161,11 @@ public final class UsageViewModel: ObservableObject {
         // This eliminates the empty-bars delay on launch.
         if wasEmpty, let accountId {
             let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
-            if cached.rateLimits != nil {
+            if cached.rateLimits != nil || cached.standardLimits != nil {
                 let earlyResult = await aggregateOffMain(
                     rateLimits: cached.rateLimits,
                     rateLimitSource: cached.rateLimitSource,
+                    standardLimits: cached.standardLimits,
                     accountId: accountId
                 )
                 snapshot = earlyResult
@@ -193,6 +196,7 @@ public final class UsageViewModel: ObservableObject {
         let result = await aggregateOffMain(
             rateLimits: effectiveRateLimits,
             rateLimitSource: api.rateLimitSource ?? snapshot?.rateLimitSource,
+            standardLimits: api.standardLimits ?? snapshot?.standardLimits,
             accountId: accountId
         )
         logCorruptionMetrics()
@@ -248,6 +252,7 @@ public final class UsageViewModel: ObservableObject {
     private func updateSnapshot(_ result: UsageSnapshot, api: APIFetchResult) {
         errorMessage = Self.refreshErrorMessage(
             hasRateLimits: api.rateLimits != nil,
+            hasStandardLimits: api.standardLimits != nil,
             hasProfile: api.profile != nil,
             hasStandardRateLimitHeaders: api.hasStandardRateLimitHeaders,
             totalMessages: result.totalMessages
@@ -352,10 +357,11 @@ public final class UsageViewModel: ObservableObject {
                 let accountId = OAuthManager.shared.accountStore.activeAccountId
                 if let accountId {
                     let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
-                    if cached.rateLimits != nil {
+                    if cached.rateLimits != nil || cached.standardLimits != nil {
                         let result = await self.aggregateOffMain(
                             rateLimits: cached.rateLimits,
                             rateLimitSource: cached.rateLimitSource,
+                            standardLimits: cached.standardLimits,
                             accountId: accountId
                         )
                         if result != self.snapshot { self.snapshot = result }
@@ -415,20 +421,20 @@ public final class UsageViewModel: ObservableObject {
     /// Returns nil when rate limits are present (no error to show).
     nonisolated static func refreshErrorMessage(
         hasRateLimits: Bool,
+        hasStandardLimits: Bool,
         hasProfile: Bool,
         hasStandardRateLimitHeaders: Bool,
         totalMessages: Int
     ) -> String? {
         if hasRateLimits { return nil }
+        // Standard limits provide useful fallback data — no error needed
+        if hasStandardLimits { return nil }
+        // Standard headers detected — API is working, just no 5h/7d data
+        if hasStandardRateLimitHeaders { return nil }
         if !hasProfile && totalMessages == 0 {
             return "No usage data yet. Start a Claude Code session to see your stats."
         }
-        if hasStandardRateLimitHeaders {
-            return "Public API rate-limit headers are available, but Claude Code 5-hour / 7-day usage is unavailable."
-        }
-        if hasProfile {
-            return "Claude Code usage unavailable. Anthropic may have changed the API response format."
-        }
+        if hasProfile { return nil }
         return "Unable to reach Anthropic API. Check your internet connection and try again."
     }
 

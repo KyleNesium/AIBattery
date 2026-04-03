@@ -116,7 +116,7 @@ final class RateLimitFetcher {
             case .success(let fetchResult):
                 saveWorkingModel(model, accountId: accountId)
                 cachedResults[accountId] = fetchResult
-                persistRateLimits(fetchResult.rateLimits, fetchedAt: fetchResult.fetchedAt, accountId: accountId)
+                persistRateLimits(fetchResult, accountId: accountId)
                 return fetchResult
             case .modelUnavailable:
                 continue
@@ -140,6 +140,7 @@ final class RateLimitFetcher {
             return APIFetchResult(
                 rateLimits: cached.rateLimits,
                 rateLimitSource: cached.rateLimitSource,
+                standardLimits: cached.standardLimits,
                 profile: cached.profile,
                 hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
                 fetchedAt: cached.fetchedAt,
@@ -199,6 +200,7 @@ final class RateLimitFetcher {
                 return .networkError
             }
             let hasStandardRateLimitHeaders = Self.containsStandardRateLimitHeaders(http.allHeaderFields)
+            let standardLimits = StandardRateLimits.parse(headers: http.allHeaderFields)
 
             // Auth failed — token may be expired/revoked
             if http.statusCode == 401 || http.statusCode == 403 {
@@ -215,6 +217,7 @@ final class RateLimitFetcher {
                     return .success(APIFetchResult(
                         rateLimits: throttledRateLimits,
                         rateLimitSource: .anthropicAPIHeaders,
+                        standardLimits: standardLimits,
                         profile: profile ?? cached?.profile,
                         hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
                     ))
@@ -224,7 +227,8 @@ final class RateLimitFetcher {
                     accessToken: accessToken,
                     cached: cached,
                     accountId: accountId,
-                    model: model
+                    model: model,
+                    callerStandardLimits: standardLimits
                 ) {
                     return .success(fallback)
                 }
@@ -232,6 +236,7 @@ final class RateLimitFetcher {
                 if profile != nil || hasStandardRateLimitHeaders {
                     return .success(APIFetchResult(
                         rateLimits: nil,
+                        standardLimits: standardLimits,
                         profile: profile ?? cached?.profile,
                         hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
                     ))
@@ -249,6 +254,7 @@ final class RateLimitFetcher {
                        let retryHttp = retryResp as? HTTPURLResponse {
                         let retryRL = RateLimitUsage.parse(headers: retryHttp.allHeaderFields)
                         let retryProfile = APIProfile.parse(headers: retryHttp.allHeaderFields)
+                        let retryStdLimits = StandardRateLimits.parse(headers: retryHttp.allHeaderFields)
                         if let retryRL {
                             let throttledRetryRL = retryHttp.statusCode == 429
                                 ? retryRL.markedThrottled()
@@ -257,6 +263,7 @@ final class RateLimitFetcher {
                             return .success(APIFetchResult(
                                 rateLimits: throttledRetryRL,
                                 rateLimitSource: .anthropicAPIHeaders,
+                                standardLimits: retryStdLimits,
                                 profile: retryProfile ?? cached?.profile,
                                 hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
                             ))
@@ -266,7 +273,8 @@ final class RateLimitFetcher {
                             accessToken: accessToken,
                             cached: cached,
                             accountId: accountId,
-                            model: model
+                            model: model,
+                            callerStandardLimits: retryStdLimits ?? standardLimits
                         ) {
                             return .success(fallback)
                         }
@@ -274,6 +282,7 @@ final class RateLimitFetcher {
                         if retryProfile != nil || Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields) {
                             return .success(APIFetchResult(
                                 rateLimits: nil,
+                                standardLimits: retryStdLimits,
                                 profile: retryProfile ?? cached?.profile,
                                 hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
                             ))
@@ -296,11 +305,13 @@ final class RateLimitFetcher {
                        retryHttp.statusCode == 200 || retryHttp.statusCode == 400 {
                         let rateLimits = RateLimitUsage.parse(headers: retryHttp.allHeaderFields)
                         let profile = APIProfile.parse(headers: retryHttp.allHeaderFields)
+                        let retryStdLimits = StandardRateLimits.parse(headers: retryHttp.allHeaderFields)
                         if rateLimits != nil || profile != nil {
                             saveWorkingModel(model, accountId: accountId)
                             return .success(APIFetchResult(
                                 rateLimits: rateLimits,
                                 rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
+                                standardLimits: retryStdLimits,
                                 profile: profile ?? cached?.profile,
                                 hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
                             ))
@@ -328,6 +339,7 @@ final class RateLimitFetcher {
                     return .success(APIFetchResult(
                         rateLimits: rateLimits,
                         rateLimitSource: .anthropicAPIHeaders,
+                        standardLimits: standardLimits,
                         profile: profile ?? cached?.profile,
                         hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
                     ))
@@ -345,15 +357,17 @@ final class RateLimitFetcher {
                     .compactMap { $0 as? String }
                     .filter { $0.lowercased().contains("ratelimit") }
                 let found = rlHeaders.isEmpty ? "none" : rlHeaders.joined(separator: ", ")
+                let stdInfo = standardLimits.map { "req=\($0.requestsRemaining)/\($0.requestsLimit) tok=\($0.tokensRemaining)/\($0.tokensLimit)" } ?? "nil"
                 AppLogger.network.warning(
-                    "No unified rate limit headers in \(http.statusCode) response (model=\(model)). Rate limit headers: \(found)"
+                    "No unified headers in \(http.statusCode) (model=\(model)). RL headers: \(found). Standard: \(stdInfo)"
                 )
 
                 if let fallback = await fetchClaudeCodeClientData(
                     accessToken: accessToken,
                     cached: cached,
                     accountId: accountId,
-                    model: model
+                    model: model,
+                    callerStandardLimits: standardLimits
                 ) {
                     return .success(fallback)
                 }
@@ -362,6 +376,7 @@ final class RateLimitFetcher {
             let result = APIFetchResult(
                 rateLimits: rateLimits,
                 rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
+                standardLimits: standardLimits,
                 profile: profile ?? cached?.profile,
                 hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
             )
@@ -378,7 +393,8 @@ final class RateLimitFetcher {
         accessToken: String,
         cached: APIFetchResult?,
         accountId: String,
-        model: String
+        model: String,
+        callerStandardLimits: StandardRateLimits? = nil
     ) async -> APIFetchResult? {
         var request = URLRequest(url: clientDataURL)
         request.httpMethod = "GET"
@@ -390,6 +406,11 @@ final class RateLimitFetcher {
         do {
             let (data, response) = try await SecureNetworking.data(for: request)
             guard let http = response as? HTTPURLResponse else { return nil }
+
+            AppLogger.network.info("client_data response: status=\(http.statusCode), bodySize=\(data.count)")
+            if let bodyPreview = String(data: data.prefix(512), encoding: .utf8) {
+                AppLogger.network.debug("client_data body preview: \(bodyPreview)")
+            }
 
             if http.statusCode == 401 || http.statusCode == 403 { return nil }
             guard (200..<300).contains(http.statusCode) || http.statusCode == 429 else { return nil }
@@ -413,6 +434,7 @@ final class RateLimitFetcher {
             return APIFetchResult(
                 rateLimits: normalizedRateLimits,
                 rateLimitSource: normalizedRateLimits == nil ? nil : .claudeCodeClientData,
+                standardLimits: callerStandardLimits,
                 profile: profile,
                 hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
             )
@@ -434,19 +456,21 @@ final class RateLimitFetcher {
 
     /// Wrapper for persisting rate limits + fetch timestamp.
     private struct PersistedRateLimits: Codable {
-        let rateLimits: RateLimitUsage
+        let rateLimits: RateLimitUsage?
         let rateLimitSource: RateLimitSource?
+        let standardLimits: StandardRateLimits?
         let fetchedAt: Date
     }
 
     /// Save rate limits to UserDefaults for instant display on next launch.
-    private func persistRateLimits(_ rateLimits: RateLimitUsage?, fetchedAt: Date, accountId: String) {
-        guard let rateLimits else { return }
+    private func persistRateLimits(_ result: APIFetchResult, accountId: String) {
+        guard result.rateLimits != nil || result.standardLimits != nil else { return }
         let key = Self.persistKeyPrefix + accountId
         let persisted = PersistedRateLimits(
-            rateLimits: rateLimits,
-            rateLimitSource: cachedResults[accountId]?.rateLimitSource,
-            fetchedAt: fetchedAt
+            rateLimits: result.rateLimits,
+            rateLimitSource: result.rateLimitSource,
+            standardLimits: result.standardLimits,
+            fetchedAt: result.fetchedAt
         )
         if let data = try? JSONEncoder().encode(persisted) {
             UserDefaults.standard.set(data, forKey: key)
@@ -469,6 +493,7 @@ final class RateLimitFetcher {
             cachedResults[accountId] = APIFetchResult(
                 rateLimits: persisted.rateLimits,
                 rateLimitSource: persisted.rateLimitSource,
+                standardLimits: persisted.standardLimits,
                 profile: nil,
                 fetchedAt: persisted.fetchedAt,
                 isCached: true

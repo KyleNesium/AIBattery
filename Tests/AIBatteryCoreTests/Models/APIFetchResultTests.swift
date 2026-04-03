@@ -72,4 +72,27 @@ struct APIFetchResultTests {
         )
         #expect(result.rateLimitSource == .claudeCodeClientData)
     }
+
+    @Test func preserves_standardLimits() {
+        let stdLimits = StandardRateLimits(
+            requestsLimit: 50,
+            requestsRemaining: 45,
+            requestsReset: nil,
+            tokensLimit: 80000,
+            tokensRemaining: 75000,
+            tokensReset: nil
+        )
+        let result = APIFetchResult(
+            rateLimits: nil,
+            standardLimits: stdLimits,
+            profile: nil
+        )
+        #expect(result.standardLimits?.requestsLimit == 50)
+        #expect(result.standardLimits?.requestsRemaining == 45)
+    }
+
+    @Test func standardLimits_defaultsToNil() {
+        let result = APIFetchResult(rateLimits: nil, profile: nil)
+        #expect(result.standardLimits == nil)
+    }
 }
