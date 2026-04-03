@@ -162,6 +162,37 @@ struct PopoverHeaderView: View {
                 }
                 .transition(.opacity)
             }
+            #if ENABLE_SPARKLE
+            if let sparkleError = SparkleUpdateService.shared.lastError {
+                HStack(spacing: Spacing.gap) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(Typography.tinyLabel)
+                        .foregroundStyle(ThemeColors.danger)
+                    Text("Update failed")
+                        .font(Typography.tinyLabel)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(action: {
+                        if let url = URL(string: "https://github.com/KyleNesium/AIBattery/releases/latest") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }) {
+                        Text("Download")
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.action)
+                    }
+                    .buttonStyle(.plain)
+                    Button(action: { SparkleUpdateService.shared.clearError() }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(Typography.monoTiny)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .help(sparkleError)
+                .transition(.opacity)
+            }
+            #endif
             #endif
         }
         .padding(.horizontal, Spacing.sectionHorizontal)

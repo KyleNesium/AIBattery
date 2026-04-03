@@ -9,12 +9,13 @@ public final class SparkleUpdateService {
     public static let shared = SparkleUpdateService()
 
     private let updaterController: SPUStandardUpdaterController
+    let delegate = SparkleUpdateDelegate()
 
     private init() {
         // startingUpdater: false — we configure settings before starting
         updaterController = SPUStandardUpdaterController(
             startingUpdater: false,
-            updaterDelegate: nil,
+            updaterDelegate: delegate,
             userDriverDelegate: nil
         )
 
@@ -36,16 +37,28 @@ public final class SparkleUpdateService {
         updaterController.updater.canCheckForUpdates
     }
 
+    /// Last error from Sparkle, if any.
+    public var lastError: String? { delegate.lastError }
+
+    /// Clear the Sparkle error state.
+    public func clearError() { delegate.clearError() }
+
     /// Trigger the Sparkle update flow. Temporarily becomes a regular app
     /// so Sparkle's dialog appears in front (LSUIElement apps have no dock presence).
+    /// Activation policy reverts via the delegate's didFinishUpdateCycleFor callback,
+    /// with a 60-second safety timeout as fallback.
     public func checkForUpdates() {
+        delegate.clearError()
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         updaterController.checkForUpdates(nil)
 
-        // Revert to accessory (menu bar only) after Sparkle has time to present its dialog
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-            NSApp.setActivationPolicy(.accessory)
+        // Safety timeout — delegate normally reverts policy, but guard against
+        // cases where the callback doesn't fire (e.g., user dismisses immediately).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            if NSApp.activationPolicy() == .regular {
+                NSApp.setActivationPolicy(.accessory)
+            }
         }
     }
 
