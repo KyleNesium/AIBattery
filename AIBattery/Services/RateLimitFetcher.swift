@@ -242,8 +242,9 @@ final class RateLimitFetcher {
                     ))
                 }
 
-                // 429 without rate limit headers — Anthropic strips them during
-                // heavy throttling. Log for diagnostics.
+                // 429 without any rate limit data — Anthropic may have removed
+                // unified headers. Return success with nil rateLimits so the UI
+                // shows the unavailable state rather than spinning forever.
                 AppLogger.network.warning("429 without rate limit headers (model=\(model))")
 
                 // Honor Retry-After if present
@@ -290,9 +291,16 @@ final class RateLimitFetcher {
                     }
                 }
 
-                // Try next model — headerless 429 on this model doesn't mean
-                // all models are throttled. Lighter models may still respond.
-                return .modelUnavailable
+                // 429 with no data at all — return success with nil rateLimits
+                // so the caller knows the API is reachable but usage data is unavailable.
+                // This prevents cycling through all probe models for no reason.
+                saveWorkingModel(model, accountId: accountId)
+                return .success(APIFetchResult(
+                    rateLimits: nil,
+                    standardLimits: nil,
+                    profile: profile ?? cached?.profile,
+                    hasStandardRateLimitHeaders: false
+                ))
             }
 
             // Server error — honor Retry-After if present, then try next model
@@ -415,8 +423,22 @@ final class RateLimitFetcher {
             if http.statusCode == 401 || http.statusCode == 403 { return nil }
             guard (200..<300).contains(http.statusCode) || http.statusCode == 429 else { return nil }
 
-            let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
-                ?? RateLimitUsage.parse(clientData: data)
+            let headerRL = RateLimitUsage.parse(headers: http.allHeaderFields)
+            let bodyRL = RateLimitUsage.parse(clientData: data)
+            let rateLimits = headerRL ?? bodyRL
+
+            if rateLimits == nil {
+                // Log top-level keys to help diagnose client_data format changes
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    let keys = json.keys.sorted().joined(separator: ", ")
+                    AppLogger.network.warning("client_data: no rate limits parsed. Top-level keys: [\(keys, privacy: .public)]")
+                } else if let bodyStr = String(data: data.prefix(256), encoding: .utf8) {
+                    AppLogger.network.warning("client_data: not a JSON object. Body: \(bodyStr, privacy: .public)")
+                } else {
+                    AppLogger.network.warning("client_data: response is not a JSON object")
+                }
+            }
+
             let profile = APIProfile.parse(headers: http.allHeaderFields)
                 ?? APIProfile.parse(clientData: data)
                 ?? cached?.profile

@@ -119,13 +119,44 @@ public struct UsagePopoverView: View {
                     snapshot: snapshot
                 )
 
+                // Local estimate header — shown once when API rate limits are unavailable
+                if snapshot.rateLimits == nil && snapshot.isUsingLocalEstimate {
+                    HStack(spacing: Spacing.inner) {
+                        Text(LocalUsageEstimate.isCalibrated ? "Estimated from local data" : "Local token usage")
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                        Button(action: {
+                            if let url = URL(string: "https://github.com/KyleNesium/AIBattery/issues/141") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }) {
+                            Image(systemName: "info.circle.fill")
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.caution)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Anthropic removed usage headers from their API. Tap for details.")
+                        Spacer()
+                    }
+                    .padding(.horizontal, Spacing.sectionHorizontal)
+                    .padding(.top, Spacing.section)
+                }
+
+                // All 3 sections always render (selected mode first via orderedModes).
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
                         if let limits = snapshot.rateLimits {
                             FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource)
                             StyledDivider()
-                        } else if mode == metricMode, let stdLimits = snapshot.standardLimits {
+                        } else if snapshot.isUsingLocalEstimate {
+                            LocalEstimateSection(
+                                fiveHourTokens: snapshot.fiveHourTokens,
+                                sevenDayTokens: snapshot.sevenDayTokens,
+                                window: .fiveHour
+                            )
+                            StyledDivider()
+                        } else if let stdLimits = snapshot.standardLimits {
                             StandardLimitsSection(limits: stdLimits)
                             StyledDivider()
                         }
@@ -133,7 +164,14 @@ public struct UsagePopoverView: View {
                         if let limits = snapshot.rateLimits {
                             SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource)
                             StyledDivider()
-                        } else if mode == metricMode, let stdLimits = snapshot.standardLimits {
+                        } else if snapshot.isUsingLocalEstimate {
+                            LocalEstimateSection(
+                                fiveHourTokens: snapshot.fiveHourTokens,
+                                sevenDayTokens: snapshot.sevenDayTokens,
+                                window: .sevenDay
+                            )
+                            StyledDivider()
+                        } else if let stdLimits = snapshot.standardLimits {
                             StandardLimitsSection(limits: stdLimits)
                             StyledDivider()
                         }

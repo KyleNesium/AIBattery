@@ -32,18 +32,18 @@ enum ActivityTrendComputation {
         let now = Date()
 
         switch mode {
-        case .hourly:
+        case .fiveHour:
             return ActivityTrendData(
                 change: changeVsYesterday(snapshot, cal: cal, now: now),
-                stat: "\(snapshot.todayMessages) msgs today",
+                stat: "\(InsightsView.compactCount(snapshot.fiveHourTokens)) tokens in 5h",
                 throttleCount: UsageViewModel.throttleCount(days: 1),
                 peak: snapshot.peakHour.map { "Peak: \(InsightsView.formatHourLabel($0)):00" },
                 throttleDays: 1
             )
-        case .daily:
+        case .sevenDay:
             return ActivityTrendData(
                 change: changeVsLastWeek(snapshot, cal: cal, now: now),
-                stat: snapshot.dailyAverage > 0 ? "\(snapshot.dailyAverage) avg/day" : nil,
+                stat: snapshot.sevenDayTokens > 0 ? "\(InsightsView.compactCount(snapshot.sevenDayTokens)) tokens in 7d" : nil,
                 throttleCount: UsageViewModel.throttleCount(days: 7),
                 peak: snapshot.busiestDayOfWeek.map { "Peak: \($0.name)s" },
                 throttleDays: 7

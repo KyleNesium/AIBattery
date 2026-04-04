@@ -436,6 +436,29 @@ struct RateLimitUsageTests {
         #expect(RateLimitUsage.countdownText(to: future, from: now) == "1h 0m")
     }
 
+    // MARK: - parse(clientData:) edge cases
+
+    @Test func parse_clientData_emptyData_returnsNil() {
+        #expect(RateLimitUsage.parse(clientData: Data()) == nil)
+    }
+
+    @Test func parse_clientData_invalidJSON_returnsNil() {
+        let garbage = Data([0xFF, 0xFE, 0x00, 0x01])
+        #expect(RateLimitUsage.parse(clientData: garbage) == nil)
+    }
+
+    @Test func parse_clientData_emptyObject_returnsNil() throws {
+        let data = try #require("{}".data(using: .utf8))
+        #expect(RateLimitUsage.parse(clientData: data) == nil)
+    }
+
+    @Test func parse_clientData_noUtilizationFields_returnsNil() throws {
+        let data = try #require("""
+        {"rate_limits": {"status": "allowed"}}
+        """.data(using: .utf8))
+        #expect(RateLimitUsage.parse(clientData: data) == nil)
+    }
+
     // MARK: - Helpers
 
     private func makeUsage(

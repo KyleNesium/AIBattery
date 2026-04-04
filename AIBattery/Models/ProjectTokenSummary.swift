@@ -12,4 +12,9 @@ struct ProjectTokenSummary: Identifiable, Equatable {
     var totalTokens: Int {
         inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
     }
+
+    /// Input + output only — actual consumption excluding cache.
+    var usageTokens: Int {
+        inputTokens + outputTokens
+    }
 }

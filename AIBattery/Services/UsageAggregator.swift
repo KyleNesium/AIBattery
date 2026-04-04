@@ -38,6 +38,8 @@ final class UsageAggregator: @unchecked Sendable {
     private var cachedEffects: SideEffects?
     private var lastStatsCacheModDate: Date?
     private var lastRateLimits: RateLimitUsage?
+    private var lastStandardLimits: StandardRateLimits?
+    private var lastRateLimitSource: RateLimitSource?
     private var lastIdleSessionMinutes: Int = -1
     private var lastAccountId: String?
 
@@ -65,6 +67,8 @@ final class UsageAggregator: @unchecked Sendable {
         if let cached = cachedSnapshot,
            statsCacheModDate == lastStatsCacheModDate,
            rateLimits == lastRateLimits,
+           standardLimits == lastStandardLimits,
+           rateLimitSource == lastRateLimitSource,
            idleSessionMinutes == lastIdleSessionMinutes,
            accountId == lastAccountId {
             let effects = cachedEffects ?? SideEffects(activeUserModel: nil, observedModels: [], accountId: accountId)
@@ -87,13 +91,24 @@ final class UsageAggregator: @unchecked Sendable {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         let todayDate = Self.dateFormatter.string(from: now)
+        let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)
         let twentyFourHoursAgo = now.addingTimeInterval(-86400)
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
         let twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today
 
         var todayEntries: [AssistantUsageEntry] = []
         var trailing24hEntries: [AssistantUsageEntry] = []
+        // 5-hour and 7-day token totals for local usage estimation
+        var fiveHourTokens = 0
+        var sevenDayTokens = 0
+        // 5-hour 15-minute token buckets for the insights chart (bucket 0 = oldest)
+        var fiveHourTokenBuckets: [Int: Int] = [:]
+        // Per-date token totals for 7D and 12M chart modes
+        var dailyTokenTotals: [String: Int] = [:]
         var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
+        // All-time model tokens from JSONL entries not covered by stats-cache
+        let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
+        var uncachedModelTokensMap: TokenMap = [:]
         var jsonlTodayToolCalls = 0
 
         // Project accumulators (keyed by cwd → model → tokens)
@@ -146,6 +161,34 @@ final class UsageAggregator: @unchecked Sendable {
             }
             if ts >= twentyFourHoursAgo {
                 trailing24hEntries.append(entry)
+            }
+
+            // --- 5-hour and 7-day token totals for local usage estimation ---
+            let entryTokens = entry.inputTokens + entry.outputTokens
+            if ts >= fiveHoursAgo {
+                fiveHourTokens += entryTokens
+                // 15-minute bucket: offset 0 = 5h ago, offset 19 = now
+                let secondsAgo = now.timeIntervalSince(ts)
+                let bucket = min(19, Int((5 * 3600 - secondsAgo) / 900))
+                if bucket >= 0 {
+                    fiveHourTokenBuckets[bucket, default: 0] += entryTokens
+                }
+            }
+            if ts >= sevenDaysAgo {
+                sevenDayTokens += entryTokens
+            }
+            // Daily token totals (all dates, for 7D and 12M charts)
+            dailyTokenTotals[dateKey, default: 0] += entryTokens
+
+            // All-time model tokens from dates not in stats-cache
+            if !cachedDates.contains(dateKey) {
+                let e = uncachedModelTokensMap[entry.model] ?? (0, 0, 0, 0)
+                uncachedModelTokensMap[entry.model] = (
+                    e.input + entry.inputTokens,
+                    e.output + entry.outputTokens,
+                    e.cacheRead + entry.cacheReadTokens,
+                    e.cacheWrite + entry.cacheWriteTokens
+                )
             }
 
             // --- Project accumulation ---
@@ -214,7 +257,6 @@ final class UsageAggregator: @unchecked Sendable {
         let monthModelTokens = Self.buildModelTokens(from: monthTokenMap)
 
         // All-time model tokens: stats cache + uncached JSONL
-        let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
         var modelTokensMap: TokenMap = [:]
         if let cache = statsCache {
             for (modelId, usage) in cache.modelUsage {
@@ -226,17 +268,16 @@ final class UsageAggregator: @unchecked Sendable {
                 )
             }
         }
-        let todayIsCached = cachedDates.contains(todayDate)
-        if !todayIsCached {
-            for entry in todayEntries {
-                let existing = modelTokensMap[entry.model] ?? (0, 0, 0, 0)
-                modelTokensMap[entry.model] = (
-                    input: existing.input + entry.inputTokens,
-                    output: existing.output + entry.outputTokens,
-                    cacheRead: existing.cacheRead + entry.cacheReadTokens,
-                    cacheWrite: existing.cacheWrite + entry.cacheWriteTokens
-                )
-            }
+        // Add JSONL entries from dates not covered by stats-cache.
+        // Uses uncachedModelTokensMap accumulated during the single-pass loop.
+        for (model, tokens) in uncachedModelTokensMap {
+            let existing = modelTokensMap[model] ?? (0, 0, 0, 0)
+            modelTokensMap[model] = (
+                input: existing.input + tokens.input,
+                output: existing.output + tokens.output,
+                cacheRead: existing.cacheRead + tokens.cacheRead,
+                cacheWrite: existing.cacheWrite + tokens.cacheWrite
+            )
         }
         let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
 
@@ -351,8 +392,14 @@ final class UsageAggregator: @unchecked Sendable {
             modelTokens: modelTokens,
             projectTokens: projectTokens,
             totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
+            totalUsageTokens: modelTokens.reduce(0) { $0 + $1.usageTokens },
             totalProjectTokens: projectTokens.reduce(0) { $0 + $1.totalTokens },
+            totalProjectUsageTokens: projectTokens.reduce(0) { $0 + $1.usageTokens },
             totalProjectCost: projectTokens.reduce(0.0) { $0 + $1.estimatedCost },
+            fiveHourTokens: fiveHourTokens,
+            sevenDayTokens: sevenDayTokens,
+            fiveHourTokenBuckets: fiveHourTokenBuckets,
+            dailyTokenTotals: dailyTokenTotals,
             todayModelTokens: todayModelTokens,
             weekModelTokens: weekModelTokens,
             monthModelTokens: monthModelTokens,
@@ -379,6 +426,8 @@ final class UsageAggregator: @unchecked Sendable {
         cachedEffects = effects
         lastStatsCacheModDate = statsCacheModDate
         lastRateLimits = rateLimits
+        lastStandardLimits = standardLimits
+        lastRateLimitSource = rateLimitSource
         lastIdleSessionMinutes = idleSessionMinutes
         lastAccountId = accountId
         lock.unlock()

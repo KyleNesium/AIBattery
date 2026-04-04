@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.1.1] — 2026-04-04
+
+### Added
+- **Local token usage estimation** — when Anthropic's unified rate limit headers are unavailable, the app estimates 5-hour and 7-day usage from local JSONL session data (input + output tokens)
+- **Auto-calibration** — when API headers return, the app derives and persists token limits so future estimates show accurate percentages
+- **5-hour token chart** — Insights chart now shows 20 x 15-minute token buckets with clock-time x-axis labels (replaces 24H message chart)
+- **LocalUsageEstimate model** — calibration storage for derived 5h/7d token limits with manual override support
+
+### Changed
+- **Insights charts show tokens** — all three chart modes (5H, 7D, 12M) now display token counts instead of message counts
+- **Chart windows** — segmented control changed from 24H|7D|12M to 5H|7D|12M, aligning with rate limit windows
+- **All Time row** — shows input + output tokens (excluding cache) instead of message count
+- **Project totals** — display input + output tokens (excluding cache) for consistent numbers
+- **Mode selector works with estimates** — 5H/7D/Context toggle and auto-mode all function with local token estimates
+- **All sections always visible** — 5-hour, 7-day, and context health sections render regardless of selected mode
+
+### Fixed
+- **Stale rate limit treadmill** — API returning nil rate limits no longer carries forward stale data indefinitely; TTL-based expiry (5 min) transitions to local estimates
+- **Aggregator cache fingerprint** — added standardLimits and rateLimitSource to the cache-skip comparison so changes in fallback data trigger snapshot rebuilds
+- **All Time < Projects bug** — model tokens now include all uncached JSONL dates, not just today's; previously missed weeks of data when stats-cache was stale
+- **Bare 429 handling** — API returning 429 with no headers now returns immediately instead of cycling through all probe models
+- **Token display consistency** — all user-facing token counts use input + output only, excluding cache read/write inflation
+
 ## [2.1.0] — 2026-04-03
 
 ### Added

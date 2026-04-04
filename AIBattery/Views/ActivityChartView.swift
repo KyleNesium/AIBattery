@@ -4,8 +4,8 @@ import Charts
 // MARK: - Chart Mode
 
 enum ActivityChartMode: String, CaseIterable {
-    case hourly = "24H"
-    case daily = "7D"
+    case fiveHour = "5H"
+    case sevenDay = "7D"
     case monthly = "12M"
 }
 
@@ -18,31 +18,31 @@ struct InsightsView: View {
     var activeModelId: String?
     @AppStorage(UserDefaultsKeys.activityCollapsed) private var collapsed: Bool = true
 
-    @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.hourly.rawValue
+    @AppStorage(UserDefaultsKeys.chartMode) private var modeRaw: String = ActivityChartMode.fiveHour.rawValue
 
     var mode: ActivityChartMode {
-        ActivityChartMode(rawValue: modeRaw) ?? .hourly
+        ActivityChartMode(rawValue: modeRaw) ?? .fiveHour
     }
 
     // MARK: - Hover selection state
 
     @State var selectedDailyId: String?
-    @State var selectedHourlyOffset: Int?
+    @State var selectedFiveHourOffset: Int?
     @State var selectedMonthlyId: String?
 
     // MARK: - Cached data transforms
 
     /// Cached chart data — recomputed only when source data or mode changes.
     /// Eliminates O(n) transforms from the SwiftUI render path.
-    @State var cachedDaily: [ActivityChartData.DailyPoint] = []
-    @State var cachedHourly: [ActivityChartData.HourlyPoint] = []
+    @State var cachedSevenDay: [ActivityChartData.DailyPoint] = []
+    @State var cachedFiveHour: [ActivityChartData.FiveHourPoint] = []
     @State var cachedMonthly: [ActivityChartData.MonthlyPoint] = []
     @State var cachedMonthTotals: [String: Int] = [:]
 
     /// Per-mode fingerprint to skip recomputation when toggling back to a mode
-    /// whose underlying data hasn't changed (e.g. 24H → 7D → 24H).
-    @State private var lastHourlyFingerprint: Int = 0
-    @State private var lastDailyFingerprint: Int = 0
+    /// whose underlying data hasn't changed (e.g. 5H → 7D → 5H).
+    @State private var lastFiveHourFingerprint: Int = 0
+    @State private var lastSevenDayFingerprint: Int = 0
     @State private var lastMonthlyFingerprint: Int = 0
 
     /// Recompute cached data for the active mode only. Called from body via .onChange.
@@ -55,19 +55,19 @@ struct InsightsView: View {
     func ensureCachedData(for chartMode: ActivityChartMode, force: Bool = false) {
         let fp = dataFingerprint
         switch chartMode {
-        case .hourly:
-            guard force || fp != lastHourlyFingerprint else { return }
-            cachedHourly = ActivityChartData.hourlyData(from: todayHourCounts)
-            lastHourlyFingerprint = fp
-        case .daily:
-            guard force || fp != lastDailyFingerprint else { return }
-            cachedDaily = ActivityChartData.dailyData(from: dailyActivity)
-            lastDailyFingerprint = fp
+        case .fiveHour:
+            guard force || fp != lastFiveHourFingerprint else { return }
+            cachedFiveHour = ActivityChartData.fiveHourData(from: snapshot?.fiveHourTokenBuckets ?? [:])
+            lastFiveHourFingerprint = fp
+        case .sevenDay:
+            guard force || fp != lastSevenDayFingerprint else { return }
+            cachedSevenDay = ActivityChartData.sevenDayData(from: snapshot?.dailyTokenTotals ?? [:])
+            lastSevenDayFingerprint = fp
         case .monthly:
             guard force || fp != lastMonthlyFingerprint else { return }
-            let totals = ActivityChartData.monthTotals(from: dailyActivity)
+            let totals = ActivityChartData.monthTokenTotals(from: snapshot?.dailyTokenTotals ?? [:])
             cachedMonthTotals = totals
-            cachedMonthly = ActivityChartData.monthlyData(from: dailyActivity, monthTotals: totals)
+            cachedMonthly = ActivityChartData.monthlyData(from: totals)
             lastMonthlyFingerprint = fp
         }
     }
@@ -76,18 +76,18 @@ struct InsightsView: View {
     /// When any underlying data changes, the fingerprint changes, triggering one refresh.
     var dataFingerprint: Int {
         var hasher = Hasher()
-        hasher.combine(dailyActivity.count)
-        hasher.combine(snapshot?.totalMessages)
-        hasher.combine(todayHourCounts.values.reduce(0, +))
+        hasher.combine(snapshot?.fiveHourTokens)
+        hasher.combine(snapshot?.sevenDayTokens)
+        hasher.combine(snapshot?.totalTokens)
         return hasher.finalize()
     }
 
     /// Check source data directly — avoids recomputing chart data just for an emptiness check.
     private var isEmpty: Bool {
         switch mode {
-        case .daily: return dailyActivity.allSatisfy { $0.messageCount == 0 }
-        case .hourly: return Self.isHourlyEmpty(todayHourCounts: todayHourCounts, dailyActivity: dailyActivity)
-        case .monthly: return dailyActivity.allSatisfy { $0.messageCount == 0 }
+        case .fiveHour: return snapshot?.fiveHourTokens ?? 0 == 0
+        case .sevenDay: return snapshot?.sevenDayTokens ?? 0 == 0
+        case .monthly: return snapshot?.dailyTokenTotals.values.reduce(0, +) ?? 0 == 0
         }
     }
 
@@ -121,7 +121,7 @@ struct InsightsView: View {
                     .frame(width: 120)
                     .scaleEffect(0.8, anchor: .trailing)
                     .accessibilityLabel("Activity time range")
-                    .accessibilityHint("Switch between 24 hour, 7 day, and 12 month views")
+                    .accessibilityHint("Switch between 5 hour, 7 day, and 12 month views")
                     .help("Switch activity chart time range")
                 }
             }
@@ -143,10 +143,10 @@ struct InsightsView: View {
             } else {
                 VStack(alignment: .leading, spacing: Spacing.gap) {
                 switch mode {
-                case .daily:
+                case .sevenDay:
                     dailyChart
-                case .hourly:
-                    hourlyChart
+                case .fiveHour:
+                    fiveHourChart
                 case .monthly:
                     monthlyChart
                 }
@@ -179,7 +179,7 @@ struct InsightsView: View {
         .onChange(of: dataFingerprint) { _ in refreshCachedData() }
         .onChange(of: modeRaw) { _ in
             selectedDailyId = nil
-            selectedHourlyOffset = nil
+            selectedFiveHourOffset = nil
             selectedMonthlyId = nil
             ensureCachedData(for: mode)
         }

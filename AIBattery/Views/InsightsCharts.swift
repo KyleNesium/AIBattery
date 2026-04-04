@@ -7,7 +7,7 @@ extension InsightsView {
 
     // MARK: - Shared chart styling
 
-    /// Shared area gradient used by all three chart modes (daily/hourly/monthly).
+    /// Shared area gradient used by all three chart modes.
     static let areaGradient: LinearGradient = .linearGradient(
         colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
         startPoint: .top,
@@ -35,29 +35,29 @@ extension InsightsView {
     // MARK: - Daily Chart (7D)
 
     var dailyChart: some View {
-        let data = cachedDaily
+        let data = cachedSevenDay
         let dates = data.map(\.date)
         let total = data.reduce(0) { $0 + $1.count }
         let peak = data.max(by: { $0.count < $1.count })
         let a11yLabel: String = {
             if let peak, peak.count > 0 {
-                return "7-day activity chart. \(total) messages this week. Peak: \(peak.count) on \(Self.dayShortLabel(peak.date))"
+                return "7-day token chart. \(Self.compactCount(total)) tokens this week. Peak: \(Self.compactCount(peak.count)) on \(Self.dayShortLabel(peak.date))"
             }
-            return "7-day activity chart. \(total) messages this week"
+            return "7-day token chart. \(Self.compactCount(total)) tokens this week"
         }()
 
         return Chart {
             ForEach(data) { point in
                 AreaMark(
                     x: .value("Day", point.date, unit: .day),
-                    y: .value("Messages", point.count)
+                    y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
                     x: .value("Day", point.date, unit: .day),
-                    y: .value("Messages", point.count)
+                    y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
                 .lineStyle(Self.chartLineStyle)
@@ -65,7 +65,7 @@ extension InsightsView {
 
                 PointMark(
                     x: .value("Day", point.date, unit: .day),
-                    y: .value("Messages", point.count)
+                    y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
                 .symbolSize(Layout.chartSymbolSize)
@@ -108,38 +108,32 @@ extension InsightsView {
         .accessibilityLabel(a11yLabel)
     }
 
-    // MARK: - Hourly Chart (24H)
+    // MARK: - 5-Hour Chart
 
-    var hourlyChart: some View {
-        let data = cachedHourly
+    var fiveHourChart: some View {
+        let data = cachedFiveHour
         let total = data.reduce(0) { $0 + $1.count }
-        let peak = data.max(by: { $0.count < $1.count })
-        let a11yLabel: String = {
-            if let peak, peak.count > 0 {
-                return "24-hour activity chart. \(total) messages in trailing window. Peak hour: \(Self.formatHourLabel(peak.hour)) with \(peak.count) messages"
-            }
-            return "24-hour activity chart. \(total) messages in trailing window"
-        }()
+        let a11yLabel = "5-hour token chart. \(Self.compactCount(total)) tokens in trailing 5 hours"
 
         return Chart {
             ForEach(data) { point in
                 AreaMark(
-                    x: .value("Hour", point.id),
-                    y: .value("Messages", point.count)
+                    x: .value("Bucket", point.id),
+                    y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
-                    x: .value("Hour", point.id),
-                    y: .value("Messages", point.count)
+                    x: .value("Bucket", point.id),
+                    y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
                 .lineStyle(Self.chartLineStyle)
                 .interpolationMethod(.catmullRom)
             }
 
-            if let selectedOffset = selectedHourlyOffset,
+            if let selectedOffset = selectedFiveHourOffset,
                let point = data.first(where: { $0.id == selectedOffset }) {
                 RuleMark(x: .value("Selected", point.id))
                     .foregroundStyle(ThemeColors.tertiaryLabel)
@@ -147,29 +141,41 @@ extension InsightsView {
             }
         }
         .chartXAxis {
-            AxisMarks(values: [0, 6, 12, 18]) { value in
+            // Show 4 evenly-spaced clock times: -5h, -3h45m, -2h30m, -1h15m, now
+            AxisMarks(values: [0, 5, 10, 15, 19]) { value in
                 AxisValueLabel {
-                    if let offset = value.as(Int.self), offset >= 0, offset < data.count {
-                        Text(Self.formatHourLabelFull(data[offset].hour))
+                    if let offset = value.as(Int.self) {
+                        Text(Self.fiveHourAxisLabel(offset: offset))
                             .font(Typography.decorativeIcon)
                     }
                 }
             }
         }
-        .chartXScale(domain: 0...23)
+        .chartXScale(domain: 0...19)
         .chartYAxis { sharedYAxis }
         .chartPlotStyle { plot in plot.background(.clear) }
         .chartOverlay { proxy in
             chartHoverOverlay(proxy: proxy, tooltipText: hoverTooltipText) { x in
                 guard let value: Double = proxy.value(atX: x) else { return }
-                selectedHourlyOffset = max(0, min(23, Int(value.rounded())))
+                selectedFiveHourOffset = max(0, min(19, Int(value.rounded())))
             } onEnd: {
-                selectedHourlyOffset = nil
+                selectedFiveHourOffset = nil
             }
         }
         .frame(height: Layout.chartHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
+    }
+
+    /// Clock-time label for a 5-hour chart bucket offset.
+    /// offset 0 = 5h ago, offset 19 = now. Shows "HH:MM" format.
+    static func fiveHourAxisLabel(offset: Int, now: Date = .now) -> String {
+        if offset == 19 { return "Now" }
+        let minutesAgo = Double(19 - offset) * 15
+        let date = now.addingTimeInterval(-minutesAgo * 60)
+        let hour = Calendar.current.component(.hour, from: date)
+        let minute = Calendar.current.component(.minute, from: date)
+        return String(format: "%02d:%02d", hour, minute)
     }
 
     // MARK: - Monthly Chart (12M)
@@ -195,23 +201,21 @@ extension InsightsView {
 
     /// Extracted chart body — avoids Swift Charts crash on empty ForEach with AxisMarks.
     private func monthlyChartContent(data: [ActivityChartData.MonthlyPoint]) -> some View {
-        let dates = data.map(\.date)
-        // Use actual (non-projected) total for accessibility — projected data is only for visual comparison
-        let actualTotal = dailyActivity.reduce(0) { $0 + $1.messageCount }
-        let a11yLabel = "12-month activity chart. \(actualTotal) messages total"
+        let total = data.reduce(0) { $0 + $1.count }
+        let a11yLabel = "12-month token chart. \(Self.compactCount(total)) tokens total"
 
         return Chart {
             ForEach(data) { point in
                 AreaMark(
                     x: .value("Month", point.date, unit: .month),
-                    y: .value("Messages", point.count)
+                    y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(Self.areaGradient)
                 .interpolationMethod(.catmullRom)
 
                 LineMark(
                     x: .value("Month", point.date, unit: .month),
-                    y: .value("Messages", point.count)
+                    y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
                 .lineStyle(Self.chartLineStyle)
@@ -219,7 +223,7 @@ extension InsightsView {
 
                 PointMark(
                     x: .value("Month", point.date, unit: .month),
-                    y: .value("Messages", point.count)
+                    y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
                 .symbolSize(Layout.chartSymbolSize)

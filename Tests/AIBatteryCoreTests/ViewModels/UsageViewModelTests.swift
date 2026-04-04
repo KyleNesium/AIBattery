@@ -292,4 +292,168 @@ struct UsageViewModelTests {
         #expect(UsageViewModel.throttleCount(days: 30) == 2)
         UserDefaults.standard.removeObject(forKey: key)
     }
+
+    // MARK: - effectiveRateLimits (TTL-based stale fallback)
+
+    @Test func effectiveRateLimits_freshData_returnsFresh() {
+        let fresh = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.6,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let stale = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.1,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.05,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let result = UsageViewModel.effectiveRateLimits(
+            fresh: fresh,
+            stale: stale,
+            lastFreshAt: Date(),
+            ttl: 300
+        )
+        #expect(result?.fiveHourUtilization == 0.6)
+    }
+
+    @Test func effectiveRateLimits_noFresh_withinTTL_returnsStale() {
+        let stale = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let now = Date()
+        let result = UsageViewModel.effectiveRateLimits(
+            fresh: nil,
+            stale: stale,
+            lastFreshAt: now.addingTimeInterval(-120), // 2 min ago, within 5 min TTL
+            ttl: 300,
+            now: now
+        )
+        #expect(result?.fiveHourUtilization == 0.5)
+    }
+
+    @Test func effectiveRateLimits_noFresh_expiredTTL_returnsNil() {
+        let stale = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let now = Date()
+        let result = UsageViewModel.effectiveRateLimits(
+            fresh: nil,
+            stale: stale,
+            lastFreshAt: now.addingTimeInterval(-600), // 10 min ago, past 5 min TTL
+            ttl: 300,
+            now: now
+        )
+        #expect(result == nil)
+    }
+
+    @Test func effectiveRateLimits_noFresh_noLastFreshAt_returnsNil() {
+        let stale = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let result = UsageViewModel.effectiveRateLimits(
+            fresh: nil,
+            stale: stale,
+            lastFreshAt: nil,
+            ttl: 300
+        )
+        #expect(result == nil)
+    }
+
+    @Test func effectiveRateLimits_noFresh_noStale_returnsNil() {
+        let result = UsageViewModel.effectiveRateLimits(
+            fresh: nil,
+            stale: nil,
+            lastFreshAt: Date(),
+            ttl: 300
+        )
+        #expect(result == nil)
+    }
+
+    @Test func effectiveRateLimits_exactlyAtTTL_returnsStale() {
+        let stale = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let now = Date()
+        let result = UsageViewModel.effectiveRateLimits(
+            fresh: nil,
+            stale: stale,
+            lastFreshAt: now.addingTimeInterval(-300), // exactly 5 min
+            ttl: 300,
+            now: now
+        )
+        #expect(result != nil) // boundary: <= ttl includes exact match
+    }
+
+    // MARK: - effectiveValue (generic TTL guard)
+
+    @Test func effectiveValue_freshPresent_returnsFresh() {
+        let result: RateLimitSource? = UsageViewModel.effectiveValue(
+            fresh: .claudeCodeClientData,
+            stale: .anthropicAPIHeaders,
+            lastFreshAt: Date(),
+            ttl: 300
+        )
+        #expect(result == .claudeCodeClientData)
+    }
+
+    @Test func effectiveValue_noFresh_withinTTL_returnsStale() {
+        let now = Date()
+        let result: RateLimitSource? = UsageViewModel.effectiveValue(
+            fresh: nil,
+            stale: .anthropicAPIHeaders,
+            lastFreshAt: now.addingTimeInterval(-60),
+            ttl: 300,
+            now: now
+        )
+        #expect(result == .anthropicAPIHeaders)
+    }
+
+    @Test func effectiveValue_noFresh_expiredTTL_returnsNil() {
+        let now = Date()
+        let result: RateLimitSource? = UsageViewModel.effectiveValue(
+            fresh: nil,
+            stale: .anthropicAPIHeaders,
+            lastFreshAt: now.addingTimeInterval(-600),
+            ttl: 300,
+            now: now
+        )
+        #expect(result == nil)
+    }
 }
