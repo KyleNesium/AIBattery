@@ -175,17 +175,6 @@ extension InsightsView {
         return hourLabels[hour]
     }
 
-    /// Testable isEmpty logic for the hourly chart mode.
-    /// Returns false when dailyActivity has records for today (loading signal),
-    /// even if todayHourCounts is empty or all-zero (JSONL scan still in progress).
-    static func isHourlyEmpty(todayHourCounts: [String: Int], dailyActivity: [DailyActivity]) -> Bool {
-        let todayKey = DateFormatters.dateKey.string(from: Date())
-        if dailyActivity.contains(where: { $0.date == todayKey && $0.messageCount > 0 }) {
-            return false
-        }
-        return todayHourCounts.values.allSatisfy { $0 == 0 }
-    }
-
     /// Full HH:00 format for chart x-axis labels (e.g. "06:00", "18:00").
     /// Distinct from formatHourLabel which returns "HH" only (used in tooltips/trend with manual :00 suffix).
     static func formatHourLabelFull(_ hour: Int) -> String {

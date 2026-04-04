@@ -473,10 +473,6 @@ public final class UsageViewModel: ObservableObject {
             return "No usage data yet. Start a Claude Code session to see your stats."
         }
         if hasProfile { return nil }
-        // No profile AND has messages — network/auth issue
-        if totalMessages > 0 {
-            return "Unable to reach Anthropic API. Check your internet connection and try again."
-        }
         return "Unable to reach Anthropic API. Check your internet connection and try again."
     }
 

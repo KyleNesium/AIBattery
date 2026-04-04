@@ -48,20 +48,25 @@ enum LocalUsageEstimate {
         localFiveHourTokens: Int,
         localSevenDayTokens: Int
     ) {
+        var updated = false
         if fiveHourUtilization >= 0.05, fiveHourUtilization <= 0.95, localFiveHourTokens > 0 {
             let derived = Int(Double(localFiveHourTokens) / fiveHourUtilization)
             // Sanity check: limit should be > 100K tokens
             if derived > 100_000 {
                 fiveHourLimit = derived
+                updated = true
             }
         }
         if sevenDayUtilization >= 0.05, sevenDayUtilization <= 0.95, localSevenDayTokens > 0 {
             let derived = Int(Double(localSevenDayTokens) / sevenDayUtilization)
             if derived > 100_000 {
                 sevenDayLimit = derived
+                updated = true
             }
         }
-        UserDefaults.standard.set(Date().timeIntervalSinceReferenceDate, forKey: calibratedAtKey)
+        if updated {
+            UserDefaults.standard.set(Date().timeIntervalSinceReferenceDate, forKey: calibratedAtKey)
+        }
     }
 
     /// Estimate 5-hour utilization from local tokens (0–100, or nil if uncalibrated).

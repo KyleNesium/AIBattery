@@ -55,7 +55,10 @@ enum ActivityChartData {
     static func monthTokenTotals(from dailyTokens: [String: Int]) -> [String: Int] {
         var result: [String: Int] = [:]
         for (dateKey, tokens) in dailyTokens {
-            // dateKey format is "yyyy-MM-dd", extract "yyyy-MM"
+            // dateKey must be "yyyy-MM-dd" format — skip malformed keys
+            guard dateKey.count >= 7,
+                  dateKey[dateKey.index(dateKey.startIndex, offsetBy: 4)] == "-"
+            else { continue }
             let monthKey = String(dateKey.prefix(7))
             result[monthKey, default: 0] += tokens
         }

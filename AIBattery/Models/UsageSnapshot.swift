@@ -13,7 +13,9 @@ struct UsageSnapshot: Equatable {
             && lhs.todaySessions == rhs.todaySessions
             && lhs.todayToolCalls == rhs.todayToolCalls
             && lhs.totalTokens == rhs.totalTokens
+            && lhs.totalUsageTokens == rhs.totalUsageTokens
             && lhs.totalProjectTokens == rhs.totalProjectTokens
+            && lhs.totalProjectUsageTokens == rhs.totalProjectUsageTokens
             && lhs.totalProjectCost == rhs.totalProjectCost
             && lhs.modelTokens == rhs.modelTokens
             && lhs.projectTokens == rhs.projectTokens
