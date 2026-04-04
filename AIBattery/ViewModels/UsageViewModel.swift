@@ -35,6 +35,16 @@ public final class UsageViewModel: ObservableObject {
     /// Adaptive polling state machine — delegates interval logic to a pure struct.
     private var adaptivePolling = AdaptivePollingState()
 
+    /// Timestamp of the last API response that included fresh (non-nil) rate limits.
+    /// Used to expire stale fallback data — after `rateLimitStaleTTL` seconds without
+    /// fresh data, the fallback is dropped so the UI transitions to StandardRateLimits.
+    private var lastFreshRateLimitsAt: Date?
+
+    /// How long stale rate limits are carried forward before expiring (seconds).
+    /// 5 minutes handles transient network failures (1-2 poll cycles) without
+    /// showing frozen percentages indefinitely when unified headers are gone.
+    static let rateLimitStaleTTL: TimeInterval = 300
+
     /// True when timers are suspended due to system idle or screen lock.
     /// Internal for testing — tests verify suspend/resume lifecycle.
     private(set) var isSuspended = false
@@ -189,17 +199,45 @@ public final class UsageViewModel: ObservableObject {
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits)
 
-        // Preserve existing rate limits when the API fails to return them
-        // (e.g., after wake from sleep with expired token). Stale bars are
-        // better than empty bars — fresh data replaces them on next success.
-        let effectiveRateLimits = api.rateLimits ?? snapshot?.rateLimits
+        // Preserve existing rate limits briefly when the API fails to return them
+        // (e.g., after wake from sleep with expired token). Stale bars are better
+        // than empty bars for transient failures. After rateLimitStaleTTL (5 min),
+        // stale data expires so the UI transitions to StandardRateLimits fallback
+        // instead of showing frozen percentages indefinitely.
+        if api.rateLimits != nil && !api.isCached {
+            lastFreshRateLimitsAt = Date()
+        }
+        let effectiveRateLimits = Self.effectiveRateLimits(
+            fresh: api.rateLimits,
+            stale: snapshot?.rateLimits,
+            lastFreshAt: lastFreshRateLimitsAt,
+            ttl: Self.rateLimitStaleTTL
+        )
+        let effectiveSource = Self.effectiveValue(
+            fresh: api.rateLimitSource,
+            stale: snapshot?.rateLimitSource,
+            lastFreshAt: lastFreshRateLimitsAt,
+            ttl: Self.rateLimitStaleTTL
+        )
         let result = await aggregateOffMain(
             rateLimits: effectiveRateLimits,
-            rateLimitSource: api.rateLimitSource ?? snapshot?.rateLimitSource,
+            rateLimitSource: effectiveSource,
             standardLimits: api.standardLimits ?? snapshot?.standardLimits,
             accountId: accountId
         )
         logCorruptionMetrics()
+
+        // Auto-calibrate local usage limits when API returns fresh utilization data.
+        // This lets us estimate percentages from local tokens when the API is unavailable.
+        if let rl = api.rateLimits, !api.isCached {
+            LocalUsageEstimate.calibrate(
+                fiveHourUtilization: rl.fiveHourUtilization,
+                sevenDayUtilization: rl.sevenDayUtilization,
+                localFiveHourTokens: result.fiveHourTokens,
+                localSevenDayTokens: result.sevenDayTokens
+            )
+        }
+
         updateAdaptivePolling(result)
         updateSnapshot(result, api: api)
         await handlePostFetchAlerts(api: api, status: status)
@@ -435,6 +473,10 @@ public final class UsageViewModel: ObservableObject {
             return "No usage data yet. Start a Claude Code session to see your stats."
         }
         if hasProfile { return nil }
+        // No profile AND has messages — network/auth issue
+        if totalMessages > 0 {
+            return "Unable to reach Anthropic API. Check your internet connection and try again."
+        }
         return "Unable to reach Anthropic API. Check your internet connection and try again."
     }
 
@@ -442,6 +484,38 @@ public final class UsageViewModel: ObservableObject {
     /// Returns true on first load (previousTotal < 0) or when totals differ.
     nonisolated static func hasDataChanged(previousTotal: Int, previousToday: Int, newTotal: Int, newToday: Int) -> Bool {
         previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
+    }
+
+    /// Return fresh rate limits, or stale ones if within the TTL window, or nil if expired.
+    /// Pure function — injectable `now` for testing.
+    nonisolated static func effectiveRateLimits(
+        fresh: RateLimitUsage?,
+        stale: RateLimitUsage?,
+        lastFreshAt: Date?,
+        ttl: TimeInterval,
+        now: Date = .now
+    ) -> RateLimitUsage? {
+        if let fresh { return fresh }
+        guard let stale, let lastFreshAt else { return nil }
+        let age = now.timeIntervalSince(lastFreshAt)
+        if age <= ttl {
+            return stale
+        }
+        AppLogger.network.info("Rate limit stale fallback expired after \(Int(age))s (TTL=\(Int(ttl))s)")
+        return nil
+    }
+
+    /// Generic TTL guard for optional values that ride alongside rate limits.
+    nonisolated static func effectiveValue<T>(
+        fresh: T?,
+        stale: T?,
+        lastFreshAt: Date?,
+        ttl: TimeInterval,
+        now: Date = .now
+    ) -> T? {
+        if let fresh { return fresh }
+        guard let stale, let lastFreshAt else { return nil }
+        return now.timeIntervalSince(lastFreshAt) <= ttl ? stale : nil
     }
 
     /// Throttle transition tracker — pure struct, side-effects handled here.

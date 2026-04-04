@@ -29,6 +29,10 @@ struct UsageSnapshot: Equatable {
             && lhs.firstSessionDate == rhs.firstSessionDate
             && lhs.dailyAverage == rhs.dailyAverage
             && lhs.trendDirection == rhs.trendDirection
+            && lhs.fiveHourTokens == rhs.fiveHourTokens
+            && lhs.sevenDayTokens == rhs.sevenDayTokens
+            && lhs.fiveHourTokenBuckets == rhs.fiveHourTokenBuckets
+            && lhs.dailyTokenTotals == rhs.dailyTokenTotals
             && lhs.todayModelTokens == rhs.todayModelTokens
             && lhs.weekModelTokens == rhs.weekModelTokens
             && lhs.monthModelTokens == rhs.monthModelTokens
@@ -69,10 +73,22 @@ struct UsageSnapshot: Equatable {
 
     // Total tokens (pre-computed at construction to avoid per-render reduce)
     let totalTokens: Int
+    /// Input + output only — excludes cache tokens for meaningful usage display.
+    let totalUsageTokens: Int
 
     // Total project tokens (pre-computed at construction to avoid per-render reduce)
     let totalProjectTokens: Int
+    /// Input + output only — excludes cache tokens for meaningful usage display.
+    let totalProjectUsageTokens: Int
     let totalProjectCost: Double
+
+    // Local token totals for 5h/7d usage estimation (sum of input+output across all models)
+    let fiveHourTokens: Int
+    let sevenDayTokens: Int
+    /// 5-hour 15-minute token buckets for the chart (bucket 0 = oldest, 19 = now).
+    let fiveHourTokenBuckets: [Int: Int]
+    /// Per-date token totals for 7D and 12M chart modes (date-key → input+output tokens).
+    let dailyTokenTotals: [String: Int]
 
     // Windowed model tokens for Insights cost breakdown (JSONL-only, not ledger-merged)
     let todayModelTokens: [ModelTokenSummary]
@@ -80,17 +96,29 @@ struct UsageSnapshot: Equatable {
     let monthModelTokens: [ModelTokenSummary]
 
     /// The percentage for a given metric mode — shared by menu bar and popover.
+    /// Falls back to local token estimates when API rate limit data is unavailable.
     /// Context health uses the highest usage across all tracked sessions (not just
     /// the most recent), so auto mode and the menu bar reflect the most critical session.
     func percent(for mode: MetricMode) -> Double {
         switch mode {
-        case .fiveHour: return rateLimits?.fiveHourPercent ?? 0
-        case .sevenDay: return rateLimits?.sevenDayPercent ?? 0
+        case .fiveHour:
+            return rateLimits?.fiveHourPercent
+                ?? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens)
+                ?? 0
+        case .sevenDay:
+            return rateLimits?.sevenDayPercent
+                ?? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens)
+                ?? 0
         case .contextHealth:
             return topSessionHealths.first?.usagePercentage
                 ?? tokenHealth?.usagePercentage
                 ?? 0
         }
+    }
+
+    /// Whether the 5h/7d data comes from local token estimation (no API data).
+    var isUsingLocalEstimate: Bool {
+        rateLimits == nil && (fiveHourTokens > 0 || sevenDayTokens > 0)
     }
 
     /// De-escalation requires the metric to drop this many percentage points below its
@@ -138,12 +166,13 @@ struct UsageSnapshot: Equatable {
             return .contextHealth
         }
 
-        // Tier 4: Default — show binding (highest-consumed) rate limit
+        // Tier 4: Default — show binding (highest-consumed) rate limit window
         if let rl = rateLimits {
             return rl.representativeClaim == RateLimitUsage.sevenDayWindow
                 ? .sevenDay : .fiveHour
         }
-        return .fiveHour
+        // No API data — use local estimates to pick the higher-consumed window
+        return sevenDay >= fiveHour && sevenDay > 0 ? .sevenDay : .fiveHour
     }
 
     /// Apply hysteresis: if the previous mode still qualifies within its de-escalation band,
@@ -313,6 +342,11 @@ struct ModelTokenSummary: Identifiable, Equatable {
 
     var totalTokens: Int {
         inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
+    }
+
+    /// Input + output only — actual consumption excluding cache.
+    var usageTokens: Int {
+        inputTokens + outputTokens
     }
 
     /// Cache hit rate as percentage (0–100). Returns nil when there are no input or cache tokens.

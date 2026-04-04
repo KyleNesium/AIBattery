@@ -1,6 +1,7 @@
 import Foundation
 
 /// Pure data transformations for activity charts — extracted from InsightsView for testability.
+/// All chart modes show token counts (input+output) rather than message counts.
 enum ActivityChartData {
 
     struct DailyPoint: Identifiable {
@@ -10,11 +11,10 @@ enum ActivityChartData {
         let count: Int
     }
 
-    struct HourlyPoint: Identifiable {
+    struct FiveHourPoint: Identifiable {
         var id: Int { offset }
-        let offset: Int
-        let hour: Int
-        let count: Int
+        let offset: Int  // 0 = oldest (5h ago), 19 = most recent
+        let count: Int   // tokens in this 15-minute bucket
     }
 
     struct MonthlyPoint: Identifiable {
@@ -24,57 +24,48 @@ enum ActivityChartData {
         let count: Int
     }
 
-    // MARK: - Daily (7D)
+    // MARK: - 5-Hour (20 × 15-minute buckets)
+
+    /// Generates 20 five-hour data points from pre-bucketed token data.
+    /// Bucket 0 = oldest (5h ago), bucket 19 = most recent 15 minutes.
+    static func fiveHourData(from buckets: [Int: Int]) -> [FiveHourPoint] {
+        (0..<20).map { offset in
+            FiveHourPoint(offset: offset, count: buckets[offset] ?? 0)
+        }
+    }
+
+    // MARK: - 7-Day (daily token totals)
 
     /// Generates 7 daily data points (6 days ago through today), filling gaps with zero.
-    static func dailyData(from activity: [DailyActivity], now: Date = .now) -> [DailyPoint] {
+    /// Uses token totals per date instead of message counts.
+    static func sevenDayData(from dailyTokens: [String: Int], now: Date = .now) -> [DailyPoint] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: now)
-
-        var lookup: [String: Int] = [:]
-        for day in activity {
-            lookup[day.date] = day.messageCount
-        }
 
         return (0..<7).compactMap { offset in
             guard let date = cal.date(byAdding: .day, value: -(6 - offset), to: today) else { return nil }
             let key = DateFormatters.dateKey.string(from: date)
-            return DailyPoint(key: key, date: date, count: lookup[key] ?? 0)
+            return DailyPoint(key: key, date: date, count: dailyTokens[key] ?? 0)
         }
     }
 
-    // MARK: - Hourly (24H)
+    // MARK: - Monthly (12M token totals)
 
-    /// Generates 24 hourly data points for the trailing 24-hour window.
-    static func hourlyData(from hourCounts: [String: Int], now: Date = .now) -> [HourlyPoint] {
-        let currentHour = Calendar.current.component(.hour, from: now)
-        return (0..<24).map { offset in
-            let hour = (currentHour - 23 + offset + 24) % 24
-            return HourlyPoint(offset: offset, hour: hour, count: hourCounts[String(hour)] ?? 0)
-        }
-    }
-
-    // MARK: - Monthly (12M)
-
-    /// Single-pass aggregation of daily activity into month-keyed totals (e.g. "2026-03" → 142).
-    static func monthTotals(from activity: [DailyActivity]) -> [String: Int] {
-        let cal = Calendar.current
+    /// Single-pass aggregation of daily token totals into month-keyed totals.
+    static func monthTokenTotals(from dailyTokens: [String: Int]) -> [String: Int] {
         var result: [String: Int] = [:]
-        for day in activity {
-            guard let date = day.parsedDate else { continue }
-            let comps = cal.dateComponents([.year, .month], from: date)
-            guard let y = comps.year, let m = comps.month else { continue }
-            let key = String(format: "%04d-%02d", y, m)
-            result[key, default: 0] += day.messageCount
+        for (dateKey, tokens) in dailyTokens {
+            // dateKey format is "yyyy-MM-dd", extract "yyyy-MM"
+            let monthKey = String(dateKey.prefix(7))
+            result[monthKey, default: 0] += tokens
         }
         return result
     }
 
     /// Generates 12 monthly data points with current-month projection.
-    /// Accepts pre-computed month totals to avoid recomputation when the caller already has them.
-    static func monthlyData(from activity: [DailyActivity], monthTotals lookup: [String: Int]? = nil, now: Date = .now) -> [MonthlyPoint] {
+    /// Accepts pre-computed month totals.
+    static func monthlyData(from lookup: [String: Int], now: Date = .now) -> [MonthlyPoint] {
         let cal = Calendar.current
-        let lookup = lookup ?? monthTotals(from: activity)
 
         let nowComps = cal.dateComponents([.year, .month], from: now)
         guard let thisMonth = cal.date(from: nowComps) else { return [] }

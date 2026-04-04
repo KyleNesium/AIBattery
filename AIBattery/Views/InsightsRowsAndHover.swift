@@ -26,18 +26,18 @@ extension InsightsView {
         if let duration = snapshot.longestSessionDuration, snapshot.longestSessionMessages > 0 {
             insightRow(
                 label: "Longest",
-                value: "\(duration) \u{00B7} \(snapshot.longestSessionMessages) msgs",
+                value: "\(duration) \u{00B7} \(snapshot.longestSessionMessages) turns",
                 tooltip: "Longest single session by duration"
             )
         }
 
-        // All Time (at bottom)
+        // All Time (at bottom) — uses usageTokens (input+output) to exclude cache inflation
         insightRow(
             label: "All Time",
-            value: "\(snapshot.totalMessages) msgs \u{00B7} \(snapshot.totalSessions) sessions",
-            tooltip: "Cumulative activity across all sessions"
+            value: "\(TokenFormatter.format(snapshot.totalUsageTokens)) tokens \u{00B7} \(snapshot.totalSessions) sessions",
+            tooltip: "Cumulative input + output tokens across all sessions"
         )
-        .accessibilityLabel("All time: \(snapshot.totalMessages) messages, \(snapshot.totalSessions) sessions")
+        .accessibilityLabel("All time: \(TokenFormatter.format(snapshot.totalUsageTokens)) tokens, \(snapshot.totalSessions) sessions")
     }
 
     func insightRow(
@@ -107,13 +107,13 @@ extension InsightsView {
     /// Current hover X position within the plot area, derived from selection state.
     func currentHoverX(proxy: ChartProxy, plotFrame: CGRect) -> CGFloat? {
         switch mode {
-        case .daily:
+        case .sevenDay:
             guard let id = selectedDailyId,
-                  let point = cachedDaily.first(where: { $0.id == id }),
+                  let point = cachedSevenDay.first(where: { $0.id == id }),
                   let x = proxy.position(forX: point.date) else { return nil }
             return x
-        case .hourly:
-            guard let offset = selectedHourlyOffset,
+        case .fiveHour:
+            guard let offset = selectedFiveHourOffset,
                   let x = proxy.position(forX: offset) else { return nil }
             return x
         case .monthly:
@@ -127,18 +127,19 @@ extension InsightsView {
     /// Tooltip text for the currently hovered point, or nil if nothing selected.
     var hoverTooltipText: String? {
         switch mode {
-        case .daily:
+        case .sevenDay:
             guard let id = selectedDailyId,
-                  let point = cachedDaily.first(where: { $0.id == id }) else { return nil }
-            return "\(point.count) msgs"
-        case .hourly:
-            guard let offset = selectedHourlyOffset,
-                  let point = cachedHourly.first(where: { $0.id == offset }) else { return nil }
-            return "\(Self.formatHourLabel(point.hour)):00 — \(point.count) msgs"
+                  let point = cachedSevenDay.first(where: { $0.id == id }) else { return nil }
+            return "\(Self.compactCount(point.count)) tokens"
+        case .fiveHour:
+            guard let offset = selectedFiveHourOffset,
+                  let point = cachedFiveHour.first(where: { $0.id == offset }) else { return nil }
+            let timeLabel = Self.fiveHourAxisLabel(offset: point.offset)
+            return "\(timeLabel) — \(Self.compactCount(point.count)) tokens"
         case .monthly:
             guard let id = selectedMonthlyId,
                   let point = cachedMonthly.first(where: { $0.id == id }) else { return nil }
-            return "\(Self.monthAbbrev(point.date)) — \(Self.compactCount(point.count)) msgs"
+            return "\(Self.monthAbbrev(point.date)) — \(Self.compactCount(point.count)) tokens"
         }
     }
 

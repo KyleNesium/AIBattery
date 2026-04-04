@@ -72,8 +72,8 @@ extension InsightsView {
     var windowedModelTokens: [ModelTokenSummary] {
         guard let snapshot else { return [] }
         switch mode {
-        case .hourly: return snapshot.todayModelTokens
-        case .daily: return snapshot.weekModelTokens
+        case .fiveHour: return snapshot.todayModelTokens
+        case .sevenDay: return snapshot.weekModelTokens
         case .monthly: return snapshot.monthModelTokens
         }
     }
