@@ -122,28 +122,21 @@ public struct UsagePopoverView: View {
                 // Local estimate header — shown once when API rate limits are unavailable
                 if snapshot.rateLimits == nil && snapshot.isUsingLocalEstimate {
                     HStack(spacing: Spacing.inner) {
-                        Image(systemName: "chart.bar.fill")
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
                         Text(LocalUsageEstimate.isCalibrated ? "Estimated from local data" : "Local token usage")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
-                        Spacer()
                         Button(action: {
                             if let url = URL(string: "https://github.com/KyleNesium/AIBattery/issues/141") {
                                 NSWorkspace.shared.open(url)
                             }
                         }) {
-                            HStack(spacing: Spacing.inner) {
-                                Image(systemName: "info.circle")
-                                    .font(Typography.decorativeIcon)
-                                Image(systemName: "arrow.up.right")
-                                    .font(Typography.decorativeIcon)
-                            }
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            Image(systemName: "info.circle.fill")
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.caution)
                         }
                         .buttonStyle(.plain)
                         .help("Anthropic removed usage headers from their API. Tap for details.")
+                        Spacer()
                     }
                     .padding(.horizontal, Spacing.sectionHorizontal)
                     .padding(.top, Spacing.section)
