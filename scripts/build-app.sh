@@ -11,6 +11,10 @@ swift build -c release
 
 APP_DIR=".build/AIBattery.app"
 
+# Clear release artifacts that are only valid for the current build.
+# Otherwise stale signatures/appcasts can survive and make verification misleading.
+rm -f .build/sparkle-signature.txt .build/appcast.xml
+
 # Kill any existing instance before replacing the binary (skip in CI)
 if [ -z "${CI:-}" ]; then
   echo "Stopping existing AI Battery instances..."
