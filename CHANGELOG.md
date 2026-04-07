@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.1.2] — 2026-04-08
+
+### Changed
+- **Release candidate refresh** — bumped the app version metadata and release notes for the `v2.1.2` draft build so the packaged app and PR tracking stay aligned for local verification
+
 ## [2.1.1] — 2026-04-04
 
 ### Added

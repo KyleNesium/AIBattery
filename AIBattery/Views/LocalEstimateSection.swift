@@ -9,8 +9,6 @@ struct LocalEstimateSection: View {
     let sevenDayTokens: Int
     let window: MetricMode
 
-    private var isCalibrated: Bool { LocalUsageEstimate.isCalibrated }
-
     private var activeTokens: Int {
         window == .fiveHour ? fiveHourTokens : sevenDayTokens
     }
@@ -19,6 +17,16 @@ struct LocalEstimateSection: View {
         window == .fiveHour
             ? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens)
             : LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens)
+    }
+
+    private var activeLimit: Int? {
+        window == .fiveHour
+            ? LocalUsageEstimate.effectiveFiveHourLimit
+            : LocalUsageEstimate.effectiveSevenDayLimit
+    }
+
+    private var limitSource: LocalUsageEstimate.LimitSource? {
+        LocalUsageEstimate.limitSource(for: window)
     }
 
     private var activeLabel: String {
@@ -30,7 +38,8 @@ struct LocalEstimateSection: View {
             localUsageBar(
                 label: activeLabel,
                 tokens: activeTokens,
-                percent: activePercent
+                percent: activePercent,
+                limit: activeLimit
             )
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -38,7 +47,7 @@ struct LocalEstimateSection: View {
     }
 
     @ViewBuilder
-    private func localUsageBar(label: String, tokens: Int, percent: Double?) -> some View {
+    private func localUsageBar(label: String, tokens: Int, percent: Double?, limit: Int?) -> some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
             HStack {
                 Text("\(label) Usage")
@@ -49,15 +58,40 @@ struct LocalEstimateSection: View {
                         .font(Typography.monoValue)
                         .copyable("\(Int(pct))%")
                 }
-                Text(TokenFormatter.format(tokens) + " tokens")
-                    .font(Typography.monoValue)
-                    .foregroundStyle(percent != nil ? ThemeColors.secondaryLabel : .primary)
-                    .copyable("\(tokens)")
+                tokenLabel(tokens: tokens, limit: limit)
             }
 
             if let pct = percent {
                 GaugeBar(percent: pct, barColor: ThemeColors.barColor(percent: pct))
             }
+
+            // Remaining tokens
+            if let limit, limit > tokens {
+                let remaining = limit - tokens
+                let prefix = limitSource == .planEstimate ? "~" : ""
+                HStack {
+                    Spacer()
+                    Text("\(prefix)\(TokenFormatter.format(remaining)) remaining")
+                        .font(Typography.tinyLabel)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tokenLabel(tokens: Int, limit: Int?) -> some View {
+        if let limit {
+            let prefix = limitSource == .planEstimate ? "~" : ""
+            Text("\(TokenFormatter.format(tokens)) / \(prefix)\(TokenFormatter.format(limit))")
+                .font(Typography.monoValue)
+                .foregroundStyle(ThemeColors.secondaryLabel)
+                .copyable("\(tokens) / \(limit)")
+        } else {
+            Text(TokenFormatter.format(tokens) + " tokens")
+                .font(Typography.monoValue)
+                .foregroundStyle(.primary)
+                .copyable("\(tokens)")
         }
     }
 }

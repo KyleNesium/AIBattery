@@ -3,8 +3,8 @@ import SwiftUI
 /// Refresh interval slider.
 struct RefreshSettingsSection: View {
     let viewModel: UsageViewModel
-    @AppStorage(UserDefaultsKeys.refreshInterval) private var refreshInterval: Double = 60
-    @State private var sliderValue: Double = 60
+    @AppStorage(UserDefaultsKeys.refreshInterval) private var refreshInterval: Double = 120
+    @State private var sliderValue: Double = 120
     @State private var isDragging = false
 
     var body: some View {
@@ -14,28 +14,37 @@ struct RefreshSettingsSection: View {
                     .font(Typography.caption)
                     .foregroundStyle(.secondary)
                     .frame(width: Layout.settingsLabel, alignment: .trailing)
-                Slider(value: $sliderValue, in: 10...60, step: 5) { editing in
+                Slider(value: $sliderValue, in: 30...300, step: 30) { editing in
                     isDragging = editing
                     if !editing {
-                        // Only update polling when drag ends — avoids timer restarts per tick
                         refreshInterval = sliderValue
                         viewModel.updatePollingInterval(sliderValue)
                     }
                 }
                     .onAppear { sliderValue = refreshInterval }
                     .accessibilityLabel("Refresh interval")
-                    .accessibilityValue("\(Int(sliderValue)) seconds")
-                Text("\(Int(sliderValue))s")
+                    .accessibilityValue(refreshLabel)
+                Text(refreshLabel)
                     .font(Typography.monoCaption)
                     .frame(width: Layout.sliderValueLabel, alignment: .trailing)
             }
-            .help("How often to poll the API for updated usage data (\(Int(sliderValue))s)")
-            sliderMarks(labels: ["10s", "20s", "30s", "40s", "50s", "60s"], leadingPad: Layout.settingsLabel)
-            Text("~3 tokens/poll to update menu bar")
+            .help("How often to poll the API for updated usage data (\(refreshLabel))")
+            sliderMarks(labels: ["30s", "1m", "2m", "3m", "4m", "5m"], leadingPad: Layout.settingsLabel)
+            Text("~3 tokens/poll · API data kept until next update")
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, Layout.settingsLabel + Spacing.section)
         }
+    }
+
+    private var refreshLabel: String {
+        let secs = Int(sliderValue)
+        if secs >= 60 {
+            let mins = secs / 60
+            let remainder = secs % 60
+            return remainder == 0 ? "\(mins)m" : "\(mins)m\(remainder)s"
+        }
+        return "\(secs)s"
     }
 }
 

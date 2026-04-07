@@ -21,6 +21,7 @@ enum UserDefaultsKeys {
     static let hasSeenTutorial = "aibattery_hasSeenTutorial"
     static let idleSessionMinutes = "aibattery_idleSessionMinutes"
     static let throttleTimestamps = "aibattery_throttleTimestamps"
+    static let planTier = "aibattery_planTier"
     static let contextCollapsed = "aibattery_contextCollapsed"
     // tokensCollapsed removed — Tokens section merged into Insights since v1.9.0
     static let projectsCollapsed = "aibattery_projectsCollapsed"

@@ -31,13 +31,14 @@ extension InsightsView {
             )
         }
 
-        // All Time (at bottom) — uses usageTokens (input+output) to exclude cache inflation
+        // All Time — uses usageTokens (input+output) to exclude cache inflation
         insightRow(
             label: "All Time",
             value: "\(TokenFormatter.format(snapshot.totalUsageTokens)) tokens \u{00B7} \(snapshot.totalSessions) sessions",
             tooltip: "Cumulative input + output tokens across all sessions"
         )
         .accessibilityLabel("All time: \(TokenFormatter.format(snapshot.totalUsageTokens)) tokens, \(snapshot.totalSessions) sessions")
+
     }
 
     func insightRow(

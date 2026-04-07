@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Estimates 5h/7d usage percentages from local JSONL token counts when
 /// Anthropic's unified rate limit headers are unavailable.
@@ -8,20 +9,37 @@ import Foundation
 /// Future polls use the calibrated limit to compute percentages locally.
 ///
 /// Without calibration, shows raw token counts (no percentage).
+@MainActor
 enum LocalUsageEstimate {
     /// UserDefaults keys for calibrated limits.
     private static let fiveHourLimitKey = "aibattery_calibrated_5h_limit"
     private static let sevenDayLimitKey = "aibattery_calibrated_7d_limit"
     private static let calibratedAtKey = "aibattery_calibrated_at"
+    /// Tracks whether calibration includes cache tokens (v2.2+ methodology).
+    private static let calibrationVersionKey = "aibattery_calibration_version"
+    private static let currentCalibrationVersion = 2
+
+    /// Clear stale calibrations from before cache-inclusive counting (v2.2).
+    /// Called once at launch — if the stored version is older, wipe the limits.
+    static func migrateIfNeeded() {
+        let stored = UserDefaults.standard.integer(forKey: calibrationVersionKey)
+        if stored < currentCalibrationVersion {
+            fiveHourLimit = 0
+            sevenDayLimit = 0
+            UserDefaults.standard.removeObject(forKey: calibratedAtKey)
+            UserDefaults.standard.set(currentCalibrationVersion, forKey: calibrationVersionKey)
+        }
+    }
 
     /// Calibrated 5-hour token limit (0 = uncalibrated).
-    static var fiveHourLimit: Int {
+    /// UserDefaults is thread-safe — reads are nonisolated for use from views/snapshots.
+    nonisolated static var fiveHourLimit: Int {
         get { UserDefaults.standard.integer(forKey: fiveHourLimitKey) }
         set { UserDefaults.standard.set(newValue, forKey: fiveHourLimitKey) }
     }
 
     /// Calibrated 7-day token limit (0 = uncalibrated).
-    static var sevenDayLimit: Int {
+    nonisolated static var sevenDayLimit: Int {
         get { UserDefaults.standard.integer(forKey: sevenDayLimitKey) }
         set { UserDefaults.standard.set(newValue, forKey: sevenDayLimitKey) }
     }
@@ -32,9 +50,42 @@ enum LocalUsageEstimate {
         return ts > 0 ? Date(timeIntervalSinceReferenceDate: ts) : nil
     }
 
-    /// Whether we have calibrated limits to estimate percentages.
-    static var isCalibrated: Bool {
+    /// Whether we have calibrated limits (from API or 429 event).
+    nonisolated static var isCalibrated: Bool {
         fiveHourLimit > 0 || sevenDayLimit > 0
+    }
+
+    /// Effective 5-hour limit: calibrated > plan-based > nil.
+    nonisolated static var effectiveFiveHourLimit: Int? {
+        if fiveHourLimit > 0 { return fiveHourLimit }
+        return PlanTier.current?.estimatedFiveHourLimit
+    }
+
+    /// Effective 7-day limit: calibrated > plan-based > nil.
+    nonisolated static var effectiveSevenDayLimit: Int? {
+        if sevenDayLimit > 0 { return sevenDayLimit }
+        return PlanTier.current?.estimatedSevenDayLimit
+    }
+
+    /// Whether the active limit comes from calibration (exact) vs plan estimate (approximate).
+    nonisolated static func limitSource(for window: MetricMode) -> LimitSource? {
+        switch window {
+        case .fiveHour:
+            if fiveHourLimit > 0 { return .calibrated }
+            if PlanTier.current != nil { return .planEstimate }
+            return nil
+        case .sevenDay:
+            if sevenDayLimit > 0 { return .calibrated }
+            if PlanTier.current != nil { return .planEstimate }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    enum LimitSource {
+        case calibrated
+        case planEstimate
     }
 
     /// Calibrate limits from API utilization + local token counts.
@@ -69,17 +120,48 @@ enum LocalUsageEstimate {
         }
     }
 
-    /// Estimate 5-hour utilization from local tokens (0–100, or nil if uncalibrated).
-    static func fiveHourPercent(tokens: Int) -> Double? {
-        guard fiveHourLimit > 0 else { return nil }
-        return min(Double(tokens) / Double(fiveHourLimit) * 100.0, 100.0)
+    /// Estimate 5-hour utilization from local tokens (0–100, or nil if no limit known).
+    nonisolated static func fiveHourPercent(tokens: Int) -> Double? {
+        guard let limit = effectiveFiveHourLimit, limit > 0 else { return nil }
+        return min(Double(tokens) / Double(limit) * 100.0, 100.0)
     }
 
-    /// Estimate 7-day utilization from local tokens (0–100, or nil if uncalibrated).
-    static func sevenDayPercent(tokens: Int) -> Double? {
-        guard sevenDayLimit > 0 else { return nil }
-        return min(Double(tokens) / Double(sevenDayLimit) * 100.0, 100.0)
+    /// Estimate 7-day utilization from local tokens (0–100, or nil if no limit known).
+    nonisolated static func sevenDayPercent(tokens: Int) -> Double? {
+        guard let limit = effectiveSevenDayLimit, limit > 0 else { return nil }
+        return min(Double(tokens) / Double(limit) * 100.0, 100.0)
     }
+
+    // MARK: - Latest Token Counts (for 429 calibration)
+
+    /// Updated each refresh cycle by UsageViewModel so 429 calibration can snapshot them.
+    static var latestFiveHourTokens: Int = 0
+    static var latestSevenDayTokens: Int = 0
+
+    /// Called when a 429 is received without unified headers.
+    /// The current local token count is at or near the real limit.
+    /// Applies a small buffer (95%) since the 429 may fire slightly before 100%.
+    static func calibrateFrom429() {
+        let buffer = 0.95
+        var updated = false
+        if latestFiveHourTokens > 100_000 {
+            let derived = Int(Double(latestFiveHourTokens) / buffer)
+            fiveHourLimit = derived
+            updated = true
+            AppLogger.network.info("429 auto-calibrated 5h limit: \(derived) tokens")
+        }
+        if latestSevenDayTokens > 100_000 {
+            let derived = Int(Double(latestSevenDayTokens) / buffer)
+            sevenDayLimit = derived
+            updated = true
+            AppLogger.network.info("429 auto-calibrated 7d limit: \(derived) tokens")
+        }
+        if updated {
+            UserDefaults.standard.set(Date().timeIntervalSinceReferenceDate, forKey: calibratedAtKey)
+        }
+    }
+
+    // MARK: - Manual Overrides
 
     /// Allow user to manually set their 5-hour token limit.
     static func setManualFiveHourLimit(_ limit: Int) {
