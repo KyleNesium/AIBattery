@@ -250,6 +250,19 @@ struct RateLimitUsageTests {
         #expect(noneThrottled.isThrottled == false)
     }
 
+    @Test func isWindowThrottled_onlyFlagsMatchingWindow() {
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourStatus: "throttled",
+            sevenDayStatus: "allowed",
+            status: "throttled"
+        )
+
+        #expect(usage.isThrottled == true)
+        #expect(usage.isWindowThrottled(RateLimitUsage.fiveHourWindow) == true)
+        #expect(usage.isWindowThrottled(RateLimitUsage.sevenDayWindow) == false)
+    }
+
     @Test func markedThrottled_bindingWindowMarksRepresentativeWindow() {
         let usage = makeUsage(
             claim: "seven_day",

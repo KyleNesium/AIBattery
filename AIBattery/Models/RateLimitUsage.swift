@@ -69,6 +69,17 @@ struct RateLimitUsage: Equatable, Codable {
             || sevenDayStatus == "throttled"
     }
 
+    /// Whether a specific window is currently throttled.
+    /// A global throttled status alone is not enough to mark every window as throttled.
+    func isWindowThrottled(_ window: String) -> Bool {
+        switch window {
+        case Self.sevenDayWindow:
+            return sevenDayStatus == "throttled"
+        default:
+            return fiveHourStatus == "throttled"
+        }
+    }
+
     /// Force a throttled state when the HTTP response proves the account is rate limited
     /// but the unified headers lag behind and still report an allowed status/utilization.
     func markedThrottled(bindingWindow: String? = nil) -> RateLimitUsage {
