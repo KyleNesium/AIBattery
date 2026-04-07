@@ -91,6 +91,18 @@ struct InsightsView: View {
         }
     }
 
+    /// Brief summary shown in the collapsed header when no trend data is available.
+    private func collapsedSummary(_ snap: UsageSnapshot) -> String {
+        let todayTokens = snap.todayModelTokens.reduce(0) { $0 + $1.inputTokens + $1.outputTokens }
+        if todayTokens > 0 {
+            return "\(TokenFormatter.format(todayTokens)) today"
+        }
+        if snap.totalTokens > 0 {
+            return "\(TokenFormatter.format(snap.totalTokens)) total"
+        }
+        return "No activity"
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -103,13 +115,19 @@ struct InsightsView: View {
                     tooltip: "Activity, cost, and usage insights"
                 )
                 Spacer()
-                if collapsed, let snapshot, let change = ActivityTrendComputation.changeVsYesterday(snapshot) {
-                    Text(change.symbol)
-                        .font(Typography.trendLabelSmall)
-                        .foregroundStyle(change.color)
-                    Text(change.label)
-                        .font(Typography.monoCaptionSmall)
-                        .foregroundStyle(change.color)
+                if collapsed, let snapshot {
+                    if let change = ActivityTrendComputation.changeVsYesterday(snapshot) {
+                        Text(change.symbol)
+                            .font(Typography.trendLabelSmall)
+                            .foregroundStyle(change.color)
+                        Text(change.label)
+                            .font(Typography.monoCaptionSmall)
+                            .foregroundStyle(change.color)
+                    } else {
+                        Text(collapsedSummary(snapshot))
+                            .font(Typography.monoCaptionSmall)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                    }
                 }
                 if !collapsed {
                     Picker("", selection: $modeRaw) {

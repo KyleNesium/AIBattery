@@ -41,6 +41,16 @@ public struct UsagePopoverView: View {
         self.accountStore = OAuthManager.shared.accountStore
     }
 
+    private var localEstimateHeaderText: String {
+        if LocalUsageEstimate.isCalibrated {
+            return "Estimated from local data"
+        }
+        if PlanTier.current != nil {
+            return "Estimated from plan tier"
+        }
+        return "Local token usage"
+    }
+
     private var metricMode: MetricMode {
         if autoMetricMode {
             return viewModel.resolvedMetricMode
@@ -122,7 +132,7 @@ public struct UsagePopoverView: View {
                 // Local estimate header — shown once when API rate limits are unavailable
                 if snapshot.rateLimits == nil && snapshot.isUsingLocalEstimate {
                     HStack(spacing: Spacing.inner) {
-                        Text(LocalUsageEstimate.isCalibrated ? "Estimated from local data" : "Local token usage")
+                        Text(localEstimateHeaderText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
                         Button(action: {

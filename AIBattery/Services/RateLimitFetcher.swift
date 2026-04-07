@@ -16,6 +16,7 @@ import Foundation
 final class RateLimitFetcher {
     static let shared = RateLimitFetcher()
 
+    private let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     private let messagesURL = URL(string: "https://api.anthropic.com/v1/messages?beta=true")!
     private let clientDataURL = URL(string: "https://api.anthropic.com/api/oauth/claude_cli/client_data")!
     /// Per-account cache of API results. Never expires — stale data is better than empty bars.
@@ -96,11 +97,17 @@ final class RateLimitFetcher {
     var activeUserModel: String?
 
     /// Fetches rate limits + org profile for a specific account.
-    /// Probe order: user's active model → last working model → observedModels (JSONL) → ultimateFallback.
+    /// Primary: dedicated `/api/oauth/usage` endpoint (structured JSON, always returns data).
+    /// Fallback: Messages API probe with unified headers (intermittent, ~10% hit rate).
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
-        // Build probe list: active model first, then persisted working model,
-        // then observed models from JSONL (most recent first), then the ultimate fallback.
-        // Dedup so we don't try the same model twice.
+        // Primary: dedicated usage endpoint — no model probe needed, always returns data.
+        if let usageResult = await fetchUsageEndpoint(accessToken: accessToken, accountId: accountId) {
+            cachedResults[accountId] = usageResult
+            persistRateLimits(usageResult, accountId: accountId)
+            return usageResult
+        }
+
+        // Fallback: Messages API probe with unified headers.
         var probeModels: [String] = []
         var seen = Set<String>()
         for candidate in [activeUserModel, lastWorkingModel[accountId]].compactMap({ $0 }) + observedModels + [Self.ultimateFallback] {
@@ -127,7 +134,6 @@ final class RateLimitFetcher {
             }
         }
 
-        // All models failed — return cached
         return cachedOrEmpty(accountId: accountId)
     }
 
@@ -242,10 +248,10 @@ final class RateLimitFetcher {
                     ))
                 }
 
-                // 429 without any rate limit data — Anthropic may have removed
-                // unified headers. Return success with nil rateLimits so the UI
-                // shows the unavailable state rather than spinning forever.
+                // 429 without unified headers — the user hit a rate limit.
+                // Signal for auto-calibration: the current local token count ≈ the real limit.
                 AppLogger.network.warning("429 without rate limit headers (model=\(model))")
+                await MainActor.run { LocalUsageEstimate.calibrateFrom429() }
 
                 // Honor Retry-After if present
                 if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {
@@ -393,6 +399,66 @@ final class RateLimitFetcher {
             return .networkError
         }
     }
+
+    // MARK: - Dedicated Usage Endpoint (Primary)
+
+    /// Fetches usage data from Anthropic's dedicated OAuth usage endpoint.
+    /// Returns structured JSON with five_hour/seven_day utilization — no model probe needed.
+    /// This is the same endpoint that CodexBar and other tools use.
+    private func fetchUsageEndpoint(accessToken: String, accountId: String) async -> APIFetchResult? {
+        var request = URLRequest(url: usageURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 30
+
+        do {
+            let (data, response) = try await SecureNetworking.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return nil }
+
+            AppLogger.network.info("usage endpoint: status=\(http.statusCode), bodySize=\(data.count)")
+
+            if http.statusCode == 401 || http.statusCode == 403 { return nil }
+            guard (200..<300).contains(http.statusCode) else {
+                if let bodyStr = String(data: data.prefix(256), encoding: .utf8) {
+                    AppLogger.network.warning("usage endpoint error \(http.statusCode): \(bodyStr)")
+                }
+                return nil
+            }
+
+            let rateLimits = RateLimitUsage.parse(clientData: data)
+            let profile = APIProfile.parse(headers: http.allHeaderFields)
+                ?? APIProfile.parse(clientData: data)
+                ?? cachedResults[accountId]?.profile
+
+            guard rateLimits != nil else {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    let keys = json.keys.sorted().joined(separator: ", ")
+                    AppLogger.network.warning("usage endpoint: no rate limits parsed. Keys: [\(keys, privacy: .public)]")
+                }
+                return nil
+            }
+
+            let normalizedRateLimits = rateLimits.map {
+                http.statusCode == 429 ? $0.markedThrottled() : $0
+            }
+
+            return APIFetchResult(
+                rateLimits: normalizedRateLimits,
+                rateLimitSource: .oauthUsageEndpoint,
+                profile: profile,
+                hasStandardRateLimitHeaders: false
+            )
+        } catch {
+            AppLogger.network.warning("usage endpoint failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    // MARK: - Claude Code Client Data Fallback
 
     /// Claude Code now uses a separate OAuth-backed endpoint for client metadata
     /// and usage state. When the Messages API stops returning unified headers,

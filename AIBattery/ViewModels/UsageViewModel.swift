@@ -43,7 +43,11 @@ public final class UsageViewModel: ObservableObject {
     /// How long stale rate limits are carried forward before expiring (seconds).
     /// 5 minutes handles transient network failures (1-2 poll cycles) without
     /// showing frozen percentages indefinitely when unified headers are gone.
-    static let rateLimitStaleTTL: TimeInterval = 300
+    /// Keep the last good API rate limit data until replaced by a newer API response.
+    /// The unified headers arrive intermittently (~10% of polls) — expiring them
+    /// causes the UI to flip between API data and local estimates.
+    /// 24 hours ensures we hold through overnight sleep cycles.
+    static let rateLimitStaleTTL: TimeInterval = 86400
 
     /// True when timers are suspended due to system idle or screen lock.
     /// Internal for testing — tests verify suspend/resume lifecycle.
@@ -56,6 +60,7 @@ public final class UsageViewModel: ObservableObject {
     var activityMonitor: Any?
 
     public init() {
+        LocalUsageEstimate.migrateIfNeeded()
         ThemeColors.registerObserver()
         NetworkMonitor.shared.start()
 
@@ -67,6 +72,11 @@ public final class UsageViewModel: ObservableObject {
         if let accountId {
             let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
+                // Persisted rate limits from last session — treat as still-valid
+                // so the stale TTL keeps them alive until a fresh API response.
+                if cached.rateLimits != nil {
+                    lastFreshRateLimitsAt = cached.fetchedAt
+                }
                 Task { [weak self] in
                     guard let self else { return }
                     let result = await self.aggregateOffMain(
@@ -198,12 +208,10 @@ public final class UsageViewModel: ObservableObject {
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits)
-
-        // Preserve existing rate limits briefly when the API fails to return them
-        // (e.g., after wake from sleep with expired token). Stale bars are better
-        // than empty bars for transient failures. After rateLimitStaleTTL (5 min),
-        // stale data expires so the UI transitions to StandardRateLimits fallback
-        // instead of showing frozen percentages indefinitely.
+        // Hold the last good API rate limit data until replaced by a newer API response.
+        // With only ~10% of polls returning unified headers, expiring quickly causes
+        // the UI to flip between API data and local estimates. Stale API data (with
+        // real utilization %) is always more useful than local token estimates.
         if api.rateLimits != nil && !api.isCached {
             lastFreshRateLimitsAt = Date()
         }
@@ -226,6 +234,10 @@ public final class UsageViewModel: ObservableObject {
             accountId: accountId
         )
         logCorruptionMetrics()
+
+        // Keep latest token counts available for 429 auto-calibration.
+        LocalUsageEstimate.latestFiveHourTokens = result.fiveHourTokens
+        LocalUsageEstimate.latestSevenDayTokens = result.sevenDayTokens
 
         // Auto-calibrate local usage limits when API returns fresh utilization data.
         // This lets us estimate percentages from local tokens when the API is unavailable.
@@ -451,8 +463,8 @@ public final class UsageViewModel: ObservableObject {
 
     /// Clamp a stored refresh interval to the valid range [10, 60]. Zero/negative → 60 (default).
     nonisolated static func clampedRefreshInterval(_ stored: Double) -> TimeInterval {
-        let interval = stored > 0 ? stored : 60
-        return min(max(interval, 10), 60)
+        let interval = stored > 0 ? stored : 120
+        return min(max(interval, 30), 300)
     }
 
     /// Determine the error message to show after a refresh where the API returned no data.

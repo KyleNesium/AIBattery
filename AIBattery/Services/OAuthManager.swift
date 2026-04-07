@@ -356,7 +356,7 @@ public final class OAuthManager: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15
+        request.timeoutInterval = 30
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
             return .failure(.unknownError("Failed to serialize request body"))
         }
@@ -400,7 +400,30 @@ public final class OAuthManager: ObservableObject {
                 }
 
                 guard http.statusCode == 200 else {
-                    return .failure(.unknownError("Server returned status \(http.statusCode)"))
+                    let bodyStr = String(data: data, encoding: .utf8) ?? "(no body)"
+                    AppLogger.oauth.error("Token endpoint returned \(http.statusCode): \(bodyStr)")
+                    // Parse OAuth error response for specific feedback.
+                    // Anthropic wraps errors as {"error":{"type":"...","message":"..."}}
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        // Standard OAuth: top-level "error" string + "error_description"
+                        let oauthError = json["error"] as? String
+                        let desc = json["error_description"] as? String
+                        // Anthropic nested: {"error":{"type":"...","message":"..."}}
+                        let nested = json["error"] as? [String: Any]
+                        let nestedType = nested?["type"] as? String
+                        let nestedMsg = nested?["message"] as? String
+
+                        let errorType = oauthError ?? nestedType ?? ""
+                        let errorMsg = desc ?? nestedMsg
+
+                        if errorType == "invalid_grant" {
+                            return .failure(.expired)
+                        }
+                        if let errorMsg {
+                            return .failure(.unknownError("Auth failed: \(errorMsg)"))
+                        }
+                    }
+                    return .failure(.unknownError("Server returned status \(http.statusCode). Check Console.app for details."))
                 }
 
                 guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -418,6 +441,7 @@ public final class OAuthManager: ObservableObject {
                     expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn))
                 ))
             } catch {
+                AppLogger.oauth.error("Token exchange network error: \(error)")
                 lastError = .networkError
                 continue
             }
