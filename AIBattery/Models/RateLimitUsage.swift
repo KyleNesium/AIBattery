@@ -12,6 +12,17 @@ struct RateLimitUsage: Equatable, Codable {
     static let fiveHourWindow = "five_hour"
     static let sevenDayWindow = "seven_day"
 
+    private static func inferredWindowStatus(
+        explicitStatus: String?,
+        overallStatus: String,
+        representativeClaim: String,
+        window: String
+    ) -> String {
+        if let explicitStatus { return explicitStatus }
+        guard overallStatus == "throttled" else { return overallStatus }
+        return representativeClaim == window ? "throttled" : "allowed"
+    }
+
     /// The binding constraint: "five_hour" or "seven_day"
     let representativeClaim: String
 
@@ -174,14 +185,26 @@ struct RateLimitUsage: Equatable, Codable {
             return nil
         }
 
+        let representativeClaim = stringHeader("anthropic-ratelimit-unified-representative-claim") ?? fiveHourWindow
+
         return RateLimitUsage(
-            representativeClaim: stringHeader("anthropic-ratelimit-unified-representative-claim") ?? fiveHourWindow,
+            representativeClaim: representativeClaim,
             fiveHourUtilization: min(max(doubleHeader("anthropic-ratelimit-unified-5h-utilization"), 0), 1),
             fiveHourReset: dateFromUnix("anthropic-ratelimit-unified-5h-reset"),
-            fiveHourStatus: stringHeader("anthropic-ratelimit-unified-5h-status") ?? status,
+            fiveHourStatus: inferredWindowStatus(
+                explicitStatus: stringHeader("anthropic-ratelimit-unified-5h-status"),
+                overallStatus: status,
+                representativeClaim: representativeClaim,
+                window: fiveHourWindow
+            ),
             sevenDayUtilization: min(max(doubleHeader("anthropic-ratelimit-unified-7d-utilization"), 0), 1),
             sevenDayReset: dateFromUnix("anthropic-ratelimit-unified-7d-reset"),
-            sevenDayStatus: stringHeader("anthropic-ratelimit-unified-7d-status") ?? status,
+            sevenDayStatus: inferredWindowStatus(
+                explicitStatus: stringHeader("anthropic-ratelimit-unified-7d-status"),
+                overallStatus: status,
+                representativeClaim: representativeClaim,
+                window: sevenDayWindow
+            ),
             overallStatus: status
         )
     }
@@ -373,14 +396,26 @@ struct RateLimitUsage: Equatable, Codable {
             return overallStatus ?? "allowed"
         }()
 
+        let normalizedRepresentativeClaim = representativeClaim == sevenDayWindow ? sevenDayWindow : fiveHourWindow
+
         return RateLimitUsage(
-            representativeClaim: representativeClaim == sevenDayWindow ? sevenDayWindow : fiveHourWindow,
+            representativeClaim: normalizedRepresentativeClaim,
             fiveHourUtilization: fiveHourUtilization ?? 0,
             fiveHourReset: fiveHourReset,
-            fiveHourStatus: fiveHourStatus ?? inferredOverallStatus,
+            fiveHourStatus: inferredWindowStatus(
+                explicitStatus: fiveHourStatus,
+                overallStatus: inferredOverallStatus,
+                representativeClaim: normalizedRepresentativeClaim,
+                window: fiveHourWindow
+            ),
             sevenDayUtilization: sevenDayUtilization ?? 0,
             sevenDayReset: sevenDayReset,
-            sevenDayStatus: sevenDayStatus ?? inferredOverallStatus,
+            sevenDayStatus: inferredWindowStatus(
+                explicitStatus: sevenDayStatus,
+                overallStatus: inferredOverallStatus,
+                representativeClaim: normalizedRepresentativeClaim,
+                window: sevenDayWindow
+            ),
             overallStatus: inferredOverallStatus
         )
     }
