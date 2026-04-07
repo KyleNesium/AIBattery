@@ -120,7 +120,7 @@ struct MenuBarIcon: View {
     /// `isSparkle` triggers the recovery sparkle effect (30s after throttle clears).
     /// Inset to trim left-side canvas padding so the icon sits tight against the title text.
     /// macOS battery has ~1pt between text and icon; our 22pt canvas has ~4pt whitespace on each side.
-    private static let iconAlignmentInsets = NSEdgeInsets(top: 0, left: 3, bottom: 0, right: 0)
+    private static let iconAlignmentInsets = NSEdgeInsets(top: 0, left: 1, bottom: 0, right: 5)
 
     static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, isSparkle: Bool = false, pulseStep: Int = 0) -> NSImage {
         cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)

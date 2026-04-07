@@ -102,6 +102,21 @@ struct RateLimitUsageTests {
         #expect(usage?.fiveHourStatus == "throttled")
     }
 
+    @Test func parse_throttledHeaders_withoutWindowStatuses_onlyMarksBindingWindow() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "throttled",
+            "anthropic-ratelimit-unified-representative-claim": "five_hour",
+            "anthropic-ratelimit-unified-5h-utilization": "1.0",
+            "anthropic-ratelimit-unified-7d-utilization": "1.0",
+        ]
+
+        let usage = try #require(RateLimitUsage.parse(headers: headers))
+        #expect(usage.fiveHourStatus == "throttled")
+        #expect(usage.sevenDayStatus == "allowed")
+        #expect(usage.isWindowThrottled(RateLimitUsage.fiveHourWindow) == true)
+        #expect(usage.isWindowThrottled(RateLimitUsage.sevenDayWindow) == false)
+    }
+
     @Test func parse_clampsUtilizationAboveOne() {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "allowed",
@@ -180,6 +195,29 @@ struct RateLimitUsageTests {
         #expect(usage?.overallStatus == "allowed")
     }
 
+    @Test func parse_clientDataJSON_overallThrottledWithoutWindowStatuses_onlyMarksBindingWindow() throws {
+        let data = try #require("""
+        {
+          "rate_limits": {
+            "status": "throttled",
+            "representative_claim": "five_hour",
+            "five_hour": {
+              "utilization": 1.0
+            },
+            "seven_day": {
+              "utilization": 1.0
+            }
+          }
+        }
+        """.data(using: .utf8))
+
+        let usage = try #require(RateLimitUsage.parse(clientData: data))
+        #expect(usage.fiveHourStatus == "throttled")
+        #expect(usage.sevenDayStatus == "allowed")
+        #expect(usage.isWindowThrottled(RateLimitUsage.fiveHourWindow) == true)
+        #expect(usage.isWindowThrottled(RateLimitUsage.sevenDayWindow) == false)
+    }
+
     // MARK: - Computed properties
 
     @Test func fiveHourPercent() {
@@ -248,6 +286,19 @@ struct RateLimitUsageTests {
             status: "allowed"
         )
         #expect(noneThrottled.isThrottled == false)
+    }
+
+    @Test func isWindowThrottled_onlyFlagsMatchingWindow() {
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourStatus: "throttled",
+            sevenDayStatus: "allowed",
+            status: "throttled"
+        )
+
+        #expect(usage.isThrottled == true)
+        #expect(usage.isWindowThrottled(RateLimitUsage.fiveHourWindow) == true)
+        #expect(usage.isWindowThrottled(RateLimitUsage.sevenDayWindow) == false)
     }
 
     @Test func markedThrottled_bindingWindowMarksRepresentativeWindow() {

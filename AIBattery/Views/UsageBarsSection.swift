@@ -12,8 +12,7 @@ struct FiveHourBarSection: View {
             resetsAt: limits.fiveHourReset,
             source: source,
             isBinding: limits.representativeClaim == RateLimitUsage.fiveHourWindow,
-            isThrottled: limits.fiveHourStatus == "throttled"
-                || (limits.isThrottled && limits.representativeClaim == RateLimitUsage.fiveHourWindow),
+            isThrottled: limits.isWindowThrottled(RateLimitUsage.fiveHourWindow),
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow)
         )
         .padding(.horizontal, Spacing.sectionHorizontal)
@@ -33,8 +32,7 @@ struct SevenDayBarSection: View {
             resetsAt: limits.sevenDayReset,
             source: source,
             isBinding: limits.representativeClaim == RateLimitUsage.sevenDayWindow,
-            isThrottled: limits.sevenDayStatus == "throttled"
-                || (limits.isThrottled && limits.representativeClaim == RateLimitUsage.sevenDayWindow),
+            isThrottled: limits.isWindowThrottled(RateLimitUsage.sevenDayWindow),
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow)
         )
         .padding(.horizontal, Spacing.sectionHorizontal)

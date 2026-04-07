@@ -110,9 +110,7 @@ struct PopoverFooterView: View {
                         if let lastFetch = lastFreshFetch {
                             RelativeTimeText(
                                 date: lastFetch,
-                                isStale: isShowingCachedData,
-                                alternateText: rateLimitSource?.shortLabel,
-                                alternateTooltip: rateLimitSource?.explanation
+                                isStale: isShowingCachedData
                             )
                         } else if isLoading {
                             Text("Updating…")

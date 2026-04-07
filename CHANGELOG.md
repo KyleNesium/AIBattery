@@ -1,9 +1,13 @@
 # Changelog
 
-## [2.1.2] — 2026-04-08
+## [2.1.3] — 2026-04-08
+
+### Fixed
+- **7-day false throttle state** — when Anthropic reports an overall throttled state without explicit per-window statuses, the app now marks only the binding window as throttled instead of showing both 5-hour and 7-day as blocked
+- **Footer source rotation** — the footer now stays on `Updated …` / `Cached …` instead of alternating to `Via Anthropic API`
 
 ### Changed
-- **Release candidate refresh** — bumped the app version metadata and release notes for the `v2.1.2` draft build so the packaged app and PR tracking stay aligned for local verification
+- **Menu bar pill spacing** — tightened the trailing icon inset so the menu bar capsule hugs the content more closely
 
 ## [2.1.1] — 2026-04-04
 

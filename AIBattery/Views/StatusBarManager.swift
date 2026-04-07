@@ -306,6 +306,7 @@ public final class StatusBarManager: NSObject {
         let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
         button.title = displayText
         button.setAccessibilityValue(displayText)
+        updateStatusItemWidth(button: button, displayText: displayText)
         // Never grey out — the icon always shows the last known state.
         // Other menu bar apps (Battery, WiFi) don't dim on stale data.
 
@@ -324,6 +325,15 @@ public final class StatusBarManager: NSObject {
         }
         let raw = UserDefaults.standard.string(forKey: UserDefaultsKeys.metricMode) ?? "5h"
         return MetricMode(rawValue: raw) ?? .fiveHour
+    }
+
+    private func updateStatusItemWidth(button: NSStatusBarButton, displayText: String) {
+        guard let statusItem else { return }
+        let font = button.font ?? .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        let titleWidth = ceil((displayText as NSString).size(withAttributes: [.font: font]).width)
+        let iconWidth = max(12, button.image?.alignmentRect.size.width ?? 12)
+        // Tight width: title + icon + small gap + minimal capsule padding.
+        statusItem.length = titleWidth + iconWidth + 6
     }
 
     private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool) -> NSColor {
