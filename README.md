@@ -441,15 +441,15 @@ AI Battery is **free and open source** — always will be. If it helps you get m
 
 ## 🧪 Test Coverage
 
-**845 tests** across 57 test files.
+**830 tests** across 57 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 239 | Token summaries, rate limit parsing (unified + standard + client data edge cases), health status, metric modes, API profiles, usage snapshots (incl. escalation ladder, hysteresis), model pricing, Claude system status indicators, standard rate limits |
 | Services | 297 | Token ledger, version checker, Sparkle updates, notifications, health monitor (incl. zero-window safety), status checker, session log reader (incl. NSLock/pendingInvalidation concurrency, incremental scanning, entry eviction), account store, stats cache, usage aggregator (incl. side-effects, integration tests), rate limit fetcher, OAuth |
-| Views | 86 | Activity chart data transforms (5H/7D/12M token-based), trend computation, session info formatting, GaugeBar clamping, deferred rendering, status bar toggle, insights view formatting, metric toggle ordering |
+| Views | 78 | Activity chart data transforms (5H/7D/12M token-based), trend computation (token-based), session info formatting, GaugeBar clamping, deferred rendering, status bar toggle, insights view formatting, metric toggle ordering |
 | ViewModels | 44 | Refresh interval clamping, error messages (incl. standard limits fallback), adaptive polling, throttle tracking, idle threshold constants, TTL-based stale rate limit expiry, effective value generic guard |
-| Utilities | 175 | Token/duration formatting, model name mapping, theme colors, secure networking, menu bar icon animations, throttle tracker, typography, spacing, idle suspension policy |
+| Utilities | 175 | Token/duration formatting (incl. billion-scale), model name mapping, theme colors, secure networking, menu bar icon animations, throttle tracker, typography, spacing, idle suspension policy |
 
 ---
 

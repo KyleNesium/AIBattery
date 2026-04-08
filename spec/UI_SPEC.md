@@ -47,9 +47,9 @@
 │   ⌨ scripts        ~$1  1.2M      │
 │        ▾ Show all (8)              │
 ├──────────────────────────────────────┤
-│ Activity      [24H] [7D] [12M]      │  ← ❺ Chart
+│ Insights  515M  [5H] [7D] [12M]     │  ← ❺ Chart
 │ ~~~ area chart ~~~                   │
-│ HH  HH  HH  HH  HH (trailing 24h)  │
+│ HH:MM  HH:MM  HH:MM  (trailing 5h)  │
 │   All Time  1,247 msgs · 89 sess   │     (insight rows
 │   Longest  2h 15m · 42 msgs        │      below trend)
 │   Period   Nov 6 – Mar 10, 2026    │
@@ -216,7 +216,8 @@ News-ticker style scrolling text view. Supports single or multiple texts.
 `FiveHourBarSection` + `SevenDayBarSection`, each wrapping a shared `UsageBar` view.
 
 Each bar:
-- **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + percentage (.headline, monospaced, semibold)
+- **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + token total (monoCaption, white 70% opacity, tokenColumn-width trailing) + percentage (.headline, monospaced, semibold)
+  - Token total shows tokens consumed in the active rate limit window, aligned to the window boundary via `resetsAt`. Uses `fiveHourWindowTokens(resetsAt:)` / `sevenDayWindowTokens(resetsAt:)` — sums only buckets/days within the actual window so the count resets when the window resets.
 - **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
 - **Detail row**: left status + reset countdown on right
   - Normal: `"X% remaining"` (.caption2, secondaryLabel) + `"Resets in Xh Ym"` (.caption2, .tertiary)
@@ -305,7 +306,7 @@ Padding: H 16, V 8
 Unified section combining activity chart, API-equivalent cost breakdown, and cumulative stats. Positioned below Projects section.
 
 - Header row: `"Activity"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
-- Toggle modes: `"24H"` (Hourly), `"7D"` (Daily), `"12M"` (Monthly)
+- Toggle modes: `"5H"` (5-hour), `"7D"` (7-day), `"12M"` (12-month)
 - **Mode persistence**: `@AppStorage("aibattery_chartMode")` — persists across popover close/reopen
 - **Collapsed summary**: vs-yesterday change indicator (arrow + delta, colored) — inline right of header
 - Empty state: centered VStack with `chart.line.flattrend.xyaxis` icon (14pt, .tertiary) + `"No activity in {mode} window"` (.caption2, .tertiary), 50pt height
@@ -319,20 +320,20 @@ Chart styling (all modes):
   - Height: 50pt
 
 X-axis per mode:
-  - **24H**: Trailing 24-hour window ending at current hour. X-axis uses offset 0–23; labels at offsets [0, 4, 8, 12, 16, 20, 23] show actual clock hours (zero-padded). Domain 0...23. Font: `.system(size: 8)`.
+  - **5H**: 20 × 15-minute token buckets. X-axis shows clock times at offsets [0, 5, 10, 15, 19]. Domain 0...19. Font: `.system(size: 8)`.
   - **7D**: Rolling 7-day window. Day abbreviation (`.system(size: 9)`) for all days including today
   - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `.system(size: 9)`
 
 Data per mode (cached per-mode with fingerprint — toggling back to a mode skips recomputation if underlying data unchanged):
-  - **24H**: `todayHourCounts` trailing 24 hours (`(currentHour - 23)` through `currentHour`, wrapping via `% 24`)
-  - **7D**: `dailyActivity` last 7 days (rolling window) → daily message counts
+  - **5H**: `fiveHourTokenBuckets` — 20 × 15-minute token buckets (all 4 token types)
+  - **7D**: `dailyTokenTotals` last 7 days (rolling window) → daily token totals (all 4 types)
   - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
 
 **Trend summary** (below chart, mode-aware, two rows of two stats each):
 
-- **24H** — Row 1: vs-yesterday change (↑/↓/→ + delta, colored) + msgs today. Row 2: throttle count today + peak hour.
-- **7D** — Row 1: weekly trend arrow + vs-yesterday change + avg/day. Row 2: throttle count this week + busiest day.
-- **12M** — Row 1: vs-last-month change (projected, ±10% threshold) + this month total (compactCount). Row 2: throttle count this month + busiest month.
+- **5H** — Row 1: vs-yesterday token change (↑/↓/→ + %, colored) + tokens in 5h (compactCount). Row 2: throttle count today + peak hour.
+- **7D** — Row 1: vs-last-week token change (%) + tokens in 7d (compactCount). Row 2: throttle count this week + busiest day.
+- **12M** — Row 1: vs-last-month token change (projected, ±10% threshold) + 12-month total (compactCount). Row 2: throttle count this month + busiest month.
 
 Throttle label: `"Throttled: 0×"` (ThemeColors.secondaryLabel) or `"Throttled: N×"` (ThemeColors.caution). Reads `UsageViewModel.throttleCount(days:)`.
 
@@ -345,7 +346,7 @@ All trend stats use `.caption` monospaced font with `ThemeColors.secondaryLabel`
 Mode-aware cost breakdown showing what the usage would cost on the pay-per-token API.
 - Header: `"API Equivalent"` (.caption, ThemeColors.secondaryLabel) + total cost (.caption monospaced semibold, `.copyable()`)
 - Per-model rows: display name (.caption2) + `"▶"` if active (.green) + cost (.caption2 monospaced, 54pt width) + tokens (.caption2 monospaced, 42pt width)
-- Data source: `todayModelTokens` (24H), `weekModelTokens` (7D), `monthModelTokens` (12M) — JSONL entries filtered by time window
+- Data source: `todayModelTokens` (5H), `weekModelTokens` (7D), `monthModelTokens` (12M) — JSONL entries filtered by time window
 - Cost uses `formatCompactCost` (no cents) everywhere
 
 **Insight rows** (below cost, separated by subtle divider):

@@ -149,7 +149,7 @@ AIBattery/
     KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
 Tests/AIBatteryCoreTests/
   Utilities/
-    TokenFormatterTests.swift     — format() for 0, 500, 1K, 2.5K, 15K, 1M, 3.2M, 150M + negatives + boundaries
+    TokenFormatterTests.swift     — format() for 0, 500, 1K, 2.5K, 15K, 1M, 3.2M, 150M, 1B, 3.2B, 10B + negatives + boundaries
     ModelNameMapperTests.swift    — displayName() for all model families, edge cases, empty, multi-hyphens
     UserDefaultsKeysTests.swift   — prefix validation, uniqueness
     ClaudePathsTests.swift        — path suffixes, URL↔path consistency, absolute paths

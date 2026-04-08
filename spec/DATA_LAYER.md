@@ -225,7 +225,7 @@ Codable struct matching `~/.claude/stats-cache.json`:
 - `modelUsage: [String: ModelUsageEntry]` — total per-model usage (includes `webSearchRequests?`, `contextWindow?`, `maxOutputTokens?`)
 - `totalSessions`, `totalMessages`
 - `longestSession: LongestSession?` — sessionId, duration (ms), messageCount, timestamp
-- `hourCounts: [String: Int]` — message counts per hour of day
+- `hourCounts: [String: Int]` — message counts per hour of day (from stats-cache)
 - `firstSessionDate: String?`
 - `totalSpeculationTimeSavedMs: Int?`
 
@@ -532,7 +532,8 @@ Pricing table (per million tokens):
 - Used by FileWatcher, StatsCacheReader, SessionLogReader, UsageAggregator
 
 ### TokenFormatter (`Utilities/TokenFormatter.swift`)
-- `format(_ count: Int) -> String` — 500 → "500", 2500 → "2.5K", 15000 → "15K", 3200000 → "3.2M"
+- `format(_ count: Int) -> String` — 500 → "500", 2500 → "2.5K", 15000 → "15K", 3200000 → "3.2M", 1500000000 → "1.5B"
+- Supports K/M/B suffixes with rollover (999.5K → "1.0M", 999.5M → "1.0B")
 - Guards against negative input (returns "0")
 
 ### ModelNameMapper (`Utilities/ModelNameMapper.swift`)
