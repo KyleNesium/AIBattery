@@ -109,6 +109,9 @@ final class UsageAggregator: @unchecked Sendable {
         // All-time model tokens from JSONL entries not covered by stats-cache
         let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
         var uncachedModelTokensMap: TokenMap = [:]
+        // All JSONL model tokens (all dates) — used as a floor for all-time totals
+        // so that Projects (JSONL-only) never exceeds All Time.
+        var allJsonlModelTokensMap: TokenMap = [:]
         var jsonlTodayToolCalls = 0
 
         // Project accumulators (keyed by cwd → model → tokens)
@@ -192,6 +195,17 @@ final class UsageAggregator: @unchecked Sendable {
                     e.output + entry.outputTokens,
                     e.cacheRead + entry.cacheReadTokens,
                     e.cacheWrite + entry.cacheWriteTokens
+                )
+            }
+
+            // Accumulate all JSONL model tokens (all dates) as a floor for all-time totals.
+            if entry.model.hasPrefix("claude-") {
+                let j = allJsonlModelTokensMap[entry.model] ?? (0, 0, 0, 0)
+                allJsonlModelTokensMap[entry.model] = (
+                    j.input + entry.inputTokens,
+                    j.output + entry.outputTokens,
+                    j.cacheRead + entry.cacheReadTokens,
+                    j.cacheWrite + entry.cacheWriteTokens
                 )
             }
 
@@ -281,6 +295,18 @@ final class UsageAggregator: @unchecked Sendable {
                 output: existing.output + tokens.output,
                 cacheRead: existing.cacheRead + tokens.cacheRead,
                 cacheWrite: existing.cacheWrite + tokens.cacheWrite
+            )
+        }
+        // Ensure all-time per-model totals are never less than JSONL-only totals.
+        // Stats-cache can be stale (not rebuilt since new JSONL entries were added for
+        // a cached date), which would make Projects (all JSONL) exceed All Time.
+        for (model, jsonl) in allJsonlModelTokensMap {
+            let existing = modelTokensMap[model] ?? (0, 0, 0, 0)
+            modelTokensMap[model] = (
+                input: max(existing.input, jsonl.input),
+                output: max(existing.output, jsonl.output),
+                cacheRead: max(existing.cacheRead, jsonl.cacheRead),
+                cacheWrite: max(existing.cacheWrite, jsonl.cacheWrite)
             )
         }
         let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
