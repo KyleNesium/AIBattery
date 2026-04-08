@@ -57,6 +57,7 @@ enum ActivityTrendComputation {
             }
             let thisMonth = thisMonthKey.flatMap { monthTotals[$0] } ?? 0
             let lastMonth = lastMonthKey.flatMap { monthTotals[$0] } ?? 0
+            let twelveMonthTotal = monthTotals.values.reduce(0, +)
             let busiestLabel: String? = {
                 guard let peak = monthTotals.max(by: { $0.value < $1.value }),
                       let date = DateFormatters.dateKey.date(from: peak.key + "-01") else { return nil }
@@ -64,7 +65,7 @@ enum ActivityTrendComputation {
             }()
             return ActivityTrendData(
                 change: monthChangeInfo(thisMonth: thisMonth, lastMonth: lastMonth, cal: cal, now: now),
-                stat: thisMonth > 0 ? "\(InsightsView.compactCount(thisMonth)) this month" : nil,
+                stat: twelveMonthTotal > 0 ? "\(InsightsView.compactCount(twelveMonthTotal)) in 12m" : nil,
                 throttleCount: UsageViewModel.throttleCount(days: 30),
                 peak: busiestLabel.map { "Peak: \($0)" },
                 throttleDays: 30
