@@ -57,6 +57,7 @@ enum ActivityTrendComputation {
             }
             let thisMonth = thisMonthKey.flatMap { monthTotals[$0] } ?? 0
             let lastMonth = lastMonthKey.flatMap { monthTotals[$0] } ?? 0
+            let twelveMonthTotal = monthTotals.values.reduce(0, +)
             let busiestLabel: String? = {
                 guard let peak = monthTotals.max(by: { $0.value < $1.value }),
                       let date = DateFormatters.dateKey.date(from: peak.key + "-01") else { return nil }
@@ -64,7 +65,7 @@ enum ActivityTrendComputation {
             }()
             return ActivityTrendData(
                 change: monthChangeInfo(thisMonth: thisMonth, lastMonth: lastMonth, cal: cal, now: now),
-                stat: thisMonth > 0 ? "\(InsightsView.compactCount(thisMonth)) this month" : nil,
+                stat: twelveMonthTotal > 0 ? "\(InsightsView.compactCount(twelveMonthTotal)) in 12m" : nil,
                 throttleCount: UsageViewModel.throttleCount(days: 30),
                 peak: busiestLabel.map { "Peak: \($0)" },
                 throttleDays: 30
@@ -84,16 +85,15 @@ enum ActivityTrendComputation {
     // MARK: - Comparison helpers
 
     static func changeVsYesterday(_ snapshot: UsageSnapshot, cal: Calendar = .current, now: Date = .init()) -> ActivityChangeInfo? {
+        let todayStr = DateFormatters.dateKey.string(from: now)
         let yesterdayStr = DateFormatters.dateKey.string(
             from: cal.date(byAdding: .day, value: -1, to: now) ?? now
         )
 
-        guard let yesterday = snapshot.dailyActivity.first(where: { $0.date == yesterdayStr }) else {
-            return nil
-        }
-
-        let diff = snapshot.todayMessages - yesterday.messageCount
-        return changeInfo(diff: diff, suffix: "vs yesterday")
+        let todayTokens = snapshot.dailyTokenTotals[todayStr] ?? 0
+        let yesterdayTokens = snapshot.dailyTokenTotals[yesterdayStr]
+        guard let yesterdayTokens, yesterdayTokens > 0 else { return nil }
+        return percentChangeInfo(current: todayTokens, previous: yesterdayTokens, suffix: "vs yesterday")
     }
 
     static func changeVsLastWeek(_ snapshot: UsageSnapshot, cal: Calendar = .current, now: Date = .init()) -> ActivityChangeInfo? {
@@ -109,14 +109,14 @@ enum ActivityTrendComputation {
         let thisWeekRange = DateFormatters.dateKey.string(from: thisWeekStart)...DateFormatters.dateKey.string(from: today)
         let lastWeekRange = DateFormatters.dateKey.string(from: lastWeekStart)...DateFormatters.dateKey.string(from: lastWeekSameDay)
 
-        // Single pass: accumulate both week totals simultaneously
+        // Single pass: accumulate both week token totals simultaneously
         var thisWeekTotal = 0
         var lastWeekTotal = 0
-        for day in snapshot.dailyActivity {
-            if thisWeekRange.contains(day.date) {
-                thisWeekTotal += day.messageCount
-            } else if lastWeekRange.contains(day.date) {
-                lastWeekTotal += day.messageCount
+        for (date, tokens) in snapshot.dailyTokenTotals {
+            if thisWeekRange.contains(date) {
+                thisWeekTotal += tokens
+            } else if lastWeekRange.contains(date) {
+                lastWeekTotal += tokens
             }
         }
 

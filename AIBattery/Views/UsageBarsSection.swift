@@ -4,6 +4,7 @@ import SwiftUI
 struct FiveHourBarSection: View {
     let limits: RateLimitUsage
     let source: RateLimitSource?
+    var tokenTotal: Int = 0
 
     var body: some View {
         UsageBar(
@@ -13,7 +14,8 @@ struct FiveHourBarSection: View {
             source: source,
             isBinding: limits.representativeClaim == RateLimitUsage.fiveHourWindow,
             isThrottled: limits.isWindowThrottled(RateLimitUsage.fiveHourWindow),
-            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow)
+            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow),
+            tokenTotal: tokenTotal
         )
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
@@ -24,6 +26,7 @@ struct FiveHourBarSection: View {
 struct SevenDayBarSection: View {
     let limits: RateLimitUsage
     let source: RateLimitSource?
+    var tokenTotal: Int = 0
 
     var body: some View {
         UsageBar(
@@ -33,7 +36,8 @@ struct SevenDayBarSection: View {
             source: source,
             isBinding: limits.representativeClaim == RateLimitUsage.sevenDayWindow,
             isThrottled: limits.isWindowThrottled(RateLimitUsage.sevenDayWindow),
-            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow)
+            estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow),
+            tokenTotal: tokenTotal
         )
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
@@ -48,6 +52,7 @@ struct UsageBar: View {
     var isBinding: Bool = false
     var isThrottled: Bool = false
     var estimatedTimeToLimit: TimeInterval?
+    var tokenTotal: Int = 0
 
     /// Display percent — clamps to 100 when throttled so the UI doesn't show "99% Throttled".
     private var displayPercent: Double { isThrottled ? max(percent, 100) : percent }
@@ -95,6 +100,13 @@ struct UsageBar: View {
                     }
                 }
                 Spacer()
+                if tokenTotal > 0 {
+                    Text(TokenFormatter.format(tokenTotal))
+                        .font(Typography.monoCaption)
+                        .foregroundStyle(.white.opacity(0.7))
+                        .frame(width: Layout.tokenColumn, alignment: .trailing)
+                        .copyable("\(tokenTotal) tokens")
+                }
                 Text("\(Int(displayPercent))%")
                     .font(Typography.monoValue)
                     .copyable("\(Int(displayPercent))%")

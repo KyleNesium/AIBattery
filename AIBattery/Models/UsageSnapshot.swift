@@ -89,7 +89,7 @@ struct UsageSnapshot: Equatable {
     let sevenDayTokens: Int
     /// 5-hour 15-minute token buckets for the chart (bucket 0 = oldest, 19 = now).
     let fiveHourTokenBuckets: [Int: Int]
-    /// Per-date token totals for 7D and 12M chart modes (date-key → input+output tokens).
+    /// Per-date token totals for 7D and 12M chart modes (date-key → all token types).
     let dailyTokenTotals: [String: Int]
 
     // Windowed model tokens for Insights cost breakdown (JSONL-only, not ledger-merged)
@@ -115,6 +115,36 @@ struct UsageSnapshot: Equatable {
             return topSessionHealths.first?.usagePercentage
                 ?? tokenHealth?.usagePercentage
                 ?? 0
+        }
+    }
+
+    /// Token total for the 5-hour rate limit window, aligned to the actual window boundary.
+    /// Uses the reset time to determine when the current window started, then sums only
+    /// the 15-minute buckets within that window. Falls back to the full trailing sum.
+    func fiveHourWindowTokens(resetsAt: Date?) -> Int {
+        guard let resetsAt else { return fiveHourTokens }
+        let remaining = resetsAt.timeIntervalSinceNow
+        guard remaining > 0 else { return fiveHourTokens }
+        let elapsed = 5 * 3600.0 - remaining
+        guard elapsed > 0 else { return 0 }
+        // Each bucket = 15 min. Bucket 19 = now, bucket 0 = 5h ago.
+        let bucketsElapsed = min(20, Int(elapsed / 900) + 1)
+        let startBucket = 20 - bucketsElapsed
+        return (startBucket..<20).reduce(0) { $0 + (fiveHourTokenBuckets[$1] ?? 0) }
+    }
+
+    /// Token total for the 7-day rate limit window, aligned to the actual window boundary.
+    /// Sums daily token totals from the window start date onward.
+    func sevenDayWindowTokens(resetsAt: Date?) -> Int {
+        guard let resetsAt else { return sevenDayTokens }
+        let remaining = resetsAt.timeIntervalSinceNow
+        guard remaining > 0 else { return sevenDayTokens }
+        let elapsed = 7 * 24 * 3600.0 - remaining
+        guard elapsed > 0 else { return 0 }
+        let windowStart = Date().addingTimeInterval(-elapsed)
+        let windowStartKey = DateFormatters.dateKey.string(from: windowStart)
+        return dailyTokenTotals.reduce(0) { total, entry in
+            entry.key >= windowStartKey ? total + entry.value : total
         }
     }
 

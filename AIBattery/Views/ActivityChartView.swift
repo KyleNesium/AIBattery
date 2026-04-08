@@ -93,7 +93,7 @@ struct InsightsView: View {
 
     /// Brief summary shown in the collapsed header when no trend data is available.
     private func collapsedSummary(_ snap: UsageSnapshot) -> String {
-        let todayTokens = snap.todayModelTokens.reduce(0) { $0 + $1.inputTokens + $1.outputTokens }
+        let todayTokens = snap.todayModelTokens.reduce(0) { $0 + $1.totalTokens }
         if todayTokens > 0 {
             return "\(TokenFormatter.format(todayTokens)) today"
         }

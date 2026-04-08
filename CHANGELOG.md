@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.4] — 2026-04-08
+
+### Fixed
+- **Consistent token counting** — all display areas (charts, summaries, model breakdown, projects, All Time) now use the same token counting method (all 4 types: input, output, cache read, cache write), fixing massive discrepancies where 7D chart showed 200K while the summary said 515.9M
+- **"vs yesterday"/"vs last week" compared messages, not tokens** — trend comparisons now use token counts matching the charts
+- **12M stat showed current month only** — now shows full 12-month total to match 5H/7D pattern
+- **Projects could exceed All Time** — added JSONL floor guarantee so All Time is never less than Projects
+- **Billion formatting** — TokenFormatter and chart axes now handle billion-scale values (previously 1.5B displayed as "1500M")
+
+### Added
+- **Token totals on rate limit bars** — 5-Hour and 7-Day bars show total tokens consumed in the active window, aligned to the actual rate limit boundary so the count resets with the window
+
 ## [2.1.3] — 2026-04-08
 
 ### Fixed
