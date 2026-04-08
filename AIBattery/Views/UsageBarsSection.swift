@@ -104,6 +104,7 @@ struct UsageBar: View {
                     Text(TokenFormatter.format(tokenTotal))
                         .font(Typography.monoCaption)
                         .foregroundStyle(ThemeColors.secondaryLabel)
+                        .frame(width: Layout.tokenColumn, alignment: .trailing)
                         .copyable("\(tokenTotal) tokens")
                 }
                 Text("\(Int(displayPercent))%")
