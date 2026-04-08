@@ -103,7 +103,7 @@ struct UsageBar: View {
                 if tokenTotal > 0 {
                     Text(TokenFormatter.format(tokenTotal))
                         .font(Typography.monoCaption)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
                         .frame(width: Layout.tokenColumn, alignment: .trailing)
                         .copyable("\(tokenTotal) tokens")
                 }
