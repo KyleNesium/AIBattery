@@ -157,7 +157,7 @@ public struct UsagePopoverView: View {
                     switch mode {
                     case .fiveHour:
                         if let limits = snapshot.rateLimits {
-                            FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource)
+                            FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.fiveHourTokens)
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(
@@ -172,7 +172,7 @@ public struct UsagePopoverView: View {
                         }
                     case .sevenDay:
                         if let limits = snapshot.rateLimits {
-                            SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource)
+                            SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayTokens)
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(

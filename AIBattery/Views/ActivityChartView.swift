@@ -91,26 +91,6 @@ struct InsightsView: View {
         }
     }
 
-    /// Formatted token total for the current time window, shown next to the mode picker.
-    private var windowTokenTotal: String? {
-        guard let snap = snapshot else { return nil }
-        let total: Int
-        switch mode {
-        case .fiveHour:
-            total = snap.fiveHourTokens
-        case .sevenDay:
-            total = snap.sevenDayTokens
-        case .monthly:
-            let cal = Calendar.current
-            let comps = cal.dateComponents([.year, .month], from: Date())
-            guard let y = comps.year, let m = comps.month else { return nil }
-            let key = String(format: "%04d-%02d", y, m)
-            total = cachedMonthTotals[key] ?? 0
-        }
-        guard total > 0 else { return nil }
-        return TokenFormatter.format(total)
-    }
-
     /// Brief summary shown in the collapsed header when no trend data is available.
     private func collapsedSummary(_ snap: UsageSnapshot) -> String {
         let todayTokens = snap.todayModelTokens.reduce(0) { $0 + $1.totalTokens }
@@ -150,11 +130,6 @@ struct InsightsView: View {
                     }
                 }
                 if !collapsed {
-                    if let windowTotal = windowTokenTotal {
-                        Text(windowTotal)
-                            .font(Typography.monoCaption)
-                            .foregroundStyle(ThemeColors.secondaryLabel)
-                    }
                     Picker("", selection: $modeRaw) {
                         ForEach(ActivityChartMode.allCases, id: \.rawValue) { m in
                             Text(m.rawValue).tag(m.rawValue)
