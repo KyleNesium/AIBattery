@@ -157,8 +157,13 @@ extension InsightsView {
     /// Compact integer counts for chart axes (e.g. 1500 → "2K").
     /// Differs from TokenFormatter which formats fractional token values (e.g. 1500 → "1.5K").
     static func compactCount(_ value: Int) -> String {
+        if value >= 1_000_000_000 {
+            let b = Double(value) / 1_000_000_000
+            return b == b.rounded() ? "\(Int(b))B" : String(format: "%.1fB", b)
+        }
         if value >= 1_000_000 {
             let m = Double(value) / 1_000_000
+            if m >= 999.5 { return "1.0B" }
             return m == m.rounded() ? "\(Int(m))M" : String(format: "%.1fM", m)
         }
         if value >= 1_000 {

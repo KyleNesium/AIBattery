@@ -11,40 +11,37 @@ struct ActivityTrendTests {
     @Test func changeVsYesterday_positive() {
         let cal = Calendar.current
         let now = Date()
+        let todayStr = DateFormatters.dateKey.string(from: now)
         let yesterdayStr = DateFormatters.dateKey.string(from: cal.date(byAdding: .day, value: -1, to: now)!)
-        let snapshot = makeSnapshot(todayMessages: 15, dailyActivity: [
-            DailyActivity(date: yesterdayStr, messageCount: 10, sessionCount: 1, toolCallCount: 0)
-        ])
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 15000, yesterdayStr: 10000])
         let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
         #expect(change?.symbol == "↑")
-        #expect(change?.label == "+5 vs yesterday")
+        #expect(change?.label == "+50% vs yesterday")
     }
 
     @Test func changeVsYesterday_negative() {
         let cal = Calendar.current
         let now = Date()
+        let todayStr = DateFormatters.dateKey.string(from: now)
         let yesterdayStr = DateFormatters.dateKey.string(from: cal.date(byAdding: .day, value: -1, to: now)!)
-        let snapshot = makeSnapshot(todayMessages: 5, dailyActivity: [
-            DailyActivity(date: yesterdayStr, messageCount: 10, sessionCount: 1, toolCallCount: 0)
-        ])
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 5000, yesterdayStr: 10000])
         let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
         #expect(change?.symbol == "↓")
-        #expect(change?.label == "-5 vs yesterday")
+        #expect(change?.label == "-50% vs yesterday")
     }
 
     @Test func changeVsYesterday_same() {
         let cal = Calendar.current
         let now = Date()
+        let todayStr = DateFormatters.dateKey.string(from: now)
         let yesterdayStr = DateFormatters.dateKey.string(from: cal.date(byAdding: .day, value: -1, to: now)!)
-        let snapshot = makeSnapshot(todayMessages: 10, dailyActivity: [
-            DailyActivity(date: yesterdayStr, messageCount: 10, sessionCount: 1, toolCallCount: 0)
-        ])
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 10000, yesterdayStr: 10000])
         let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
         #expect(change?.symbol == "→")
     }
 
     @Test func changeVsYesterday_nilWhenNoYesterdayData() {
-        let snapshot = makeSnapshot(todayMessages: 10, dailyActivity: [])
+        let snapshot = makeSnapshot(dailyTokenTotals: [:])
         let change = ActivityTrendComputation.changeVsYesterday(snapshot)
         #expect(change == nil)
     }
@@ -105,7 +102,8 @@ struct ActivityTrendTests {
 
     private func makeSnapshot(
         todayMessages: Int = 0,
-        dailyActivity: [DailyActivity] = []
+        dailyActivity: [DailyActivity] = [],
+        dailyTokenTotals: [String: Int] = [:]
     ) -> UsageSnapshot {
         let stats = UsageSnapshot.computeActivityStats(dailyActivity)
         return UsageSnapshot(
@@ -132,7 +130,7 @@ struct ActivityTrendTests {
             fiveHourTokens: 0,
             sevenDayTokens: 0,
             fiveHourTokenBuckets: [:],
-            dailyTokenTotals: [:],
+            dailyTokenTotals: dailyTokenTotals,
             todayModelTokens: [],
             weekModelTokens: [],
             monthModelTokens: [],

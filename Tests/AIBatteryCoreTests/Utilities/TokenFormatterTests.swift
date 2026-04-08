@@ -60,6 +60,24 @@ struct TokenFormatterTests {
         #expect(TokenFormatter.format(150_000_000) == "150M")
     }
 
+    @Test func format_999M() {
+        #expect(TokenFormatter.format(999_999_999) == "1.0B")
+    }
+
+    // MARK: - Billions (B)
+
+    @Test func format_exactly1B() {
+        #expect(TokenFormatter.format(1_000_000_000) == "1.0B")
+    }
+
+    @Test func format_3_2B() {
+        #expect(TokenFormatter.format(3_200_000_000) == "3.2B")
+    }
+
+    @Test func format_10B() {
+        #expect(TokenFormatter.format(10_000_000_000) == "10B")
+    }
+
     // MARK: - Edge cases
 
     @Test func format_1() {
@@ -90,5 +108,15 @@ struct TokenFormatterTests {
     @Test func format_boundaryAt10M() {
         #expect(TokenFormatter.format(9_999_999) == "10.0M")
         #expect(TokenFormatter.format(10_000_000) == "10M")
+    }
+
+    @Test func format_boundaryAt1B() {
+        #expect(TokenFormatter.format(999_999_999) == "1.0B")
+        #expect(TokenFormatter.format(1_000_000_000) == "1.0B")
+    }
+
+    @Test func format_boundaryAt10B() {
+        #expect(TokenFormatter.format(9_999_999_999) == "10.0B")
+        #expect(TokenFormatter.format(10_000_000_000) == "10B")
     }
 }

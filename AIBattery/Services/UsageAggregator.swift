@@ -169,8 +169,7 @@ final class UsageAggregator: @unchecked Sendable {
             // --- 5-hour and 7-day token totals for local usage estimation ---
             // Include all token types: Anthropic's unified rate limit counts input, output,
             // cache read, and cache write tokens toward the 5h/7d budget.
-            let entryTokens = entry.inputTokens + entry.outputTokens
-            let entryAllTokens = entryTokens + entry.cacheReadTokens + entry.cacheWriteTokens
+            let entryAllTokens = entry.inputTokens + entry.outputTokens + entry.cacheReadTokens + entry.cacheWriteTokens
             if ts >= fiveHoursAgo {
                 fiveHourTokens += entryAllTokens
                 // 15-minute bucket: offset 0 = 5h ago, offset 19 = now
