@@ -89,7 +89,7 @@ struct UsageSnapshot: Equatable {
     let sevenDayTokens: Int
     /// 5-hour 15-minute token buckets for the chart (bucket 0 = oldest, 19 = now).
     let fiveHourTokenBuckets: [Int: Int]
-    /// Per-date token totals for 7D and 12M chart modes (date-key → input+output tokens).
+    /// Per-date token totals for 7D and 12M chart modes (date-key → all token types).
     let dailyTokenTotals: [String: Int]
 
     // Windowed model tokens for Insights cost breakdown (JSONL-only, not ledger-merged)

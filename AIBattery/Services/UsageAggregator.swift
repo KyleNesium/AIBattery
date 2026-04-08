@@ -181,7 +181,8 @@ final class UsageAggregator: @unchecked Sendable {
                 sevenDayTokens += entryAllTokens
             }
             // Daily token totals (all dates, for 7D and 12M charts)
-            dailyTokenTotals[dateKey, default: 0] += entryTokens
+            // Uses all token types to match 5h/7d summary totals and model breakdowns.
+            dailyTokenTotals[dateKey, default: 0] += entryAllTokens
 
             // All-time model tokens from dates not in stats-cache
             if !cachedDates.contains(dateKey) {

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Pure data transformations for activity charts — extracted from InsightsView for testability.
-/// All chart modes show token counts (input+output) rather than message counts.
+/// All chart modes show token counts (all types) rather than message counts.
 enum ActivityChartData {
 
     struct DailyPoint: Identifiable {

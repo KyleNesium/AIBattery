@@ -31,13 +31,13 @@ extension InsightsView {
             )
         }
 
-        // All Time — uses usageTokens (input+output) to exclude cache inflation
+        // All Time — uses totalTokens (all types) to match model breakdown and chart data
         insightRow(
             label: "All Time",
-            value: "\(TokenFormatter.format(snapshot.totalUsageTokens)) tokens \u{00B7} \(snapshot.totalSessions) sessions",
-            tooltip: "Cumulative input + output tokens across all sessions"
+            value: "\(TokenFormatter.format(snapshot.totalTokens)) tokens \u{00B7} \(snapshot.totalSessions) sessions",
+            tooltip: "Cumulative tokens across all sessions"
         )
-        .accessibilityLabel("All time: \(TokenFormatter.format(snapshot.totalUsageTokens)) tokens, \(snapshot.totalSessions) sessions")
+        .accessibilityLabel("All time: \(TokenFormatter.format(snapshot.totalTokens)) tokens, \(snapshot.totalSessions) sessions")
 
     }
 
