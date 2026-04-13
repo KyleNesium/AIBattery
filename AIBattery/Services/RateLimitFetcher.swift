@@ -41,7 +41,7 @@ final class RateLimitFetcher {
     private var lastWorkingModel: [String: String] = [:]
     private static let workingModelKeyPrefix = "aibattery_probeModel_"
 
-    private init() {
+    init() {
         restorePersistedRateLimits()
         restoreWorkingModels()
     }
@@ -176,6 +176,28 @@ final class RateLimitFetcher {
         case networkError
     }
 
+    /// Build an APIFetchResult from parsed rate limit headers.
+    /// Saves the working model and constructs the result with `.anthropicAPIHeaders` source.
+    private func buildHeaderResult(
+        rateLimits: RateLimitUsage,
+        headers: [AnyHashable: Any],
+        cached: APIFetchResult?,
+        model: String,
+        accountId: String,
+        standardLimits: StandardRateLimits?,
+        markThrottled: Bool = false
+    ) -> APIFetchResult {
+        let profile = APIProfile.parse(headers: headers)
+        saveWorkingModel(model, accountId: accountId)
+        return APIFetchResult(
+            rateLimits: markThrottled ? rateLimits.markedThrottled() : rateLimits,
+            rateLimitSource: .anthropicAPIHeaders,
+            standardLimits: standardLimits,
+            profile: profile ?? cached?.profile,
+            hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(headers)
+        )
+    }
+
     private func tryFetch(accessToken: String, model: String, accountId: String) async -> FetchResult {
         var request = URLRequest(url: messagesURL)
         request.httpMethod = "POST"
@@ -218,14 +240,10 @@ final class RateLimitFetcher {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
                 if let rateLimits {
-                    let throttledRateLimits = rateLimits.markedThrottled()
-                    saveWorkingModel(model, accountId: accountId)
-                    return .success(APIFetchResult(
-                        rateLimits: throttledRateLimits,
-                        rateLimitSource: .anthropicAPIHeaders,
-                        standardLimits: standardLimits,
-                        profile: profile ?? cached?.profile,
-                        hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
+                    return .success(buildHeaderResult(
+                        rateLimits: rateLimits, headers: http.allHeaderFields,
+                        cached: cached, model: model, accountId: accountId,
+                        standardLimits: standardLimits, markThrottled: true
                     ))
                 }
 
@@ -263,16 +281,10 @@ final class RateLimitFetcher {
                         let retryProfile = APIProfile.parse(headers: retryHttp.allHeaderFields)
                         let retryStdLimits = StandardRateLimits.parse(headers: retryHttp.allHeaderFields)
                         if let retryRL {
-                            let throttledRetryRL = retryHttp.statusCode == 429
-                                ? retryRL.markedThrottled()
-                                : retryRL
-                            saveWorkingModel(model, accountId: accountId)
-                            return .success(APIFetchResult(
-                                rateLimits: throttledRetryRL,
-                                rateLimitSource: .anthropicAPIHeaders,
-                                standardLimits: retryStdLimits,
-                                profile: retryProfile ?? cached?.profile,
-                                hasStandardRateLimitHeaders: Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields)
+                            return .success(buildHeaderResult(
+                                rateLimits: retryRL, headers: retryHttp.allHeaderFields,
+                                cached: cached, model: model, accountId: accountId,
+                                standardLimits: retryStdLimits, markThrottled: retryHttp.statusCode == 429
                             ))
                         }
 
@@ -348,14 +360,10 @@ final class RateLimitFetcher {
                 // Try to extract rate limit headers even from error responses.
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 if let rateLimits {
-                    let profile = APIProfile.parse(headers: http.allHeaderFields)
-                    saveWorkingModel(model, accountId: accountId)
-                    return .success(APIFetchResult(
-                        rateLimits: rateLimits,
-                        rateLimitSource: .anthropicAPIHeaders,
-                        standardLimits: standardLimits,
-                        profile: profile ?? cached?.profile,
-                        hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
+                    return .success(buildHeaderResult(
+                        rateLimits: rateLimits, headers: http.allHeaderFields,
+                        cached: cached, model: model, accountId: accountId,
+                        standardLimits: standardLimits
                     ))
                 }
                 // No headers — treat as model unavailable so we try the next model.
