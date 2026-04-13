@@ -1040,14 +1040,11 @@ struct UsageAggregatorTests {
         let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
 
         // No accountId — should not persist observed models
-        let fetcher = RateLimitFetcher()
-        let beforeModels = fetcher.observedModels
+        let (_, effects) = aggregator.aggregate(rateLimits: nil)
 
-        let (_, _) = aggregator.aggregate(rateLimits: nil)
-
-        // RateLimitFetcher.shared may be updated but no accountId-keyed persistence happened
-        // (We can't easily verify shared state, but we verify the code path doesn't crash)
-        _ = beforeModels // suppress unused warning
+        // Without accountId, observed models are still computed but not persisted
+        // Verify the code path doesn't crash and returns valid effects
+        #expect(effects.accountId == nil)
     }
 
     // MARK: - Tool call count merge

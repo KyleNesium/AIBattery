@@ -20,4 +20,9 @@ enum MetricMode: String, CaseIterable {
         case .contextHealth: return "Context"
         }
     }
+
+    /// Returns all modes ordered with `current` first, remaining in `allCases` order.
+    static func orderedModes(current: MetricMode) -> [MetricMode] {
+        [current] + allCases.filter { $0 != current }
+    }
 }

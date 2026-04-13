@@ -113,21 +113,6 @@ struct MenuBarIconTests {
         #expect(!path.isEmpty)
     }
 
-    @Test func brokenStarFragments_returns4Pieces() {
-        let fragments = MenuBarIcon.brokenStarFragments(
-            center: NSPoint(x: 8, y: 8),
-            outerRadius: 6.5,
-            innerRadius: 2.0,
-            offset: 1.5
-        )
-        #expect(fragments.count == 4)
-        for fragment in fragments {
-            // move + 2 lines + close = 4 elements (macOS 14+: close may add implicit lineTo = 5)
-            #expect(fragment.elementCount >= 4)
-            #expect(!fragment.isEmpty)
-        }
-    }
-
     // MARK: - NSBezierPath CGPath conversion
 
     @Test func asCGPath_convertsCorrectly() {

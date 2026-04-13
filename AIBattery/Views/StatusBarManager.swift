@@ -66,7 +66,11 @@ public final class StatusBarManager: NSObject {
     private var frameObserver: Any?
     /// Absolute Y coordinate of the panel's top edge (just below the menu bar).
     /// Set by `positionPanel` and used by the resize observer to keep the top anchored.
+    /// Re-derived in the resize observer so display/geometry changes don't detach the panel.
     private var panelTopY: CGFloat = 0
+
+    /// Gap between the menu bar button and the panel's top edge.
+    private static let panelMargin: CGFloat = 4
 
     // Snapshot of current render state
     private var currentPercent: Double = 0
@@ -169,10 +173,16 @@ public final class StatusBarManager: NSObject {
                     let newHeight = max(fittingHeight, 100)
                     // Skip no-op frame updates to avoid layout feedback loops
                     guard abs(newHeight - panel.frame.height) > 0.5 else { return }
-                    // Grow downward from fixed top anchor (set by positionPanel)
+                    // Re-derive the top anchor from the status button's current screen
+                    // position. `panelTopY` can go stale across display/geometry changes,
+                    // which caused the panel to float detached from the menu bar after
+                    // a settings expand/collapse cycle.
+                    let topAnchor = self.currentTopAnchor() ?? self.panelTopY
+                    self.panelTopY = topAnchor
+                    // Grow downward from top anchor
                     let newOrigin = NSPoint(
                         x: panel.frame.origin.x,
-                        y: self.panelTopY - newHeight
+                        y: topAnchor - newHeight
                     )
                     let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
                     panel.setFrame(
@@ -224,9 +234,8 @@ public final class StatusBarManager: NSObject {
             // On LSUIElement apps, the status bar click also fires as a global event.
             // Check if the click landed on the status item — if so, statusItemClicked handles it.
             if let buttonWindow = self.statusItem?.button?.window {
-                let screenPoint = event.window == nil
-                    ? event.locationInWindow
-                    : event.window!.convertPoint(toScreen: event.locationInWindow)
+                let screenPoint = event.window.map { $0.convertPoint(toScreen: event.locationInWindow) }
+                    ?? event.locationInWindow
                 if buttonWindow.frame.contains(screenPoint) { return }
             }
             // Ignore clicks on our own panel
@@ -504,7 +513,7 @@ public final class StatusBarManager: NSObject {
 
         let panelWidth = panel.frame.width
         let panelHeight = panel.frame.height
-        let margin: CGFloat = 4
+        let margin = Self.panelMargin
 
         // Prefer left-align to status item; flip to right-align if panel would overflow
         var x: CGFloat
@@ -529,6 +538,17 @@ public final class StatusBarManager: NSObject {
         panelTopY = screenRect.minY - margin
 
         panel.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    /// Returns the panel's ideal top Y coordinate derived from the status button's
+    /// current screen position. Nil if the button is not attached to a window.
+    private func currentTopAnchor() -> CGFloat? {
+        guard let button = statusItem?.button, let buttonWindow = button.window else {
+            return nil
+        }
+        let buttonRect = button.convert(button.bounds, to: nil)
+        let screenRect = buttonWindow.convertToScreen(buttonRect)
+        return screenRect.minY - Self.panelMargin
     }
 }
 

@@ -43,7 +43,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 
 | Trigger | Interval | Source |
 |---------|----------|--------|
-| Timer | refreshInterval (default 60s, user-configurable 10–60s) | UsageViewModel.pollingTimer |
+| Timer | refreshInterval (default 120s, user-configurable 30–300s) | UsageViewModel.pollingTimer |
 | Stats cache write | 2 sec debounce | FileWatcher (DispatchSource on stats-cache.json) |
 | JSONL file change | 2 sec FSEvent latency | FileWatcher (FSEventStream on ~/.claude/projects/) |
 | Fallback | 60 sec | FileWatcher fallback timer |
@@ -77,6 +77,10 @@ AIBattery/
     TokenHealthConfig.swift       — Health thresholds + context window lookup
     TokenHealthStatus.swift       — HealthBand, HealthWarning, TokenHealthStatus (Identifiable by sessionId)
     ModelPricing.swift            — Per-model pricing lookup + cost calculation
+    LocalUsageEstimate.swift      — Fallback token estimation when unified headers unavailable (calibration + plan tier)
+    PlanTier.swift                — Claude plan tiers (Pro/Max 5×/Max 20×/Team) with estimated 5h/7d limits
+    RateLimitSource.swift         — Enum tracking where rate limit data came from (API / local estimate / standard)
+    StandardRateLimits.swift      — Standard per-model request/token rate limits from API headers
   Services/
     AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, token storage, auto-refresh
@@ -94,6 +98,7 @@ AIBattery/
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
     VersionChecker.swift          — GitHub Releases update checker (24h cadence)
     SparkleUpdateService.swift     — Sparkle 2 wrapper for user-initiated auto-update
+    SparkleUpdateDelegate.swift   — SPUUpdaterDelegate: error tracking + update cycle logging
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
@@ -117,6 +122,8 @@ AIBattery/
     Components/
       GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
+    LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable
+    StandardLimitsSection.swift   — Standard per-model API rate limit display (fallback)
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting, clipboard export
     ProjectUsageSection.swift     — Per-project token breakdown with cost (top 5 default, expand to 10)
@@ -144,10 +151,12 @@ AIBattery/
     DurationFormatter.swift       — Compact time duration formatting ("2h 5m", "1d 1h", "soon")
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette
     ThrottleTracker.swift         — Pure value type tracking throttle event transitions for trend display
+    IdleSuspendPolicy.swift       — Pure idle-suspension policy (5-min threshold) — used by UsageViewModel to skip polling when machine idle
     Typography.swift              — Named font style tokens (sectionHeader, monoValue, tinyLabel, decorativeIcon, etc.) — caseless enum namespace
     Spacing.swift                 — Spacing/Layout/MotionConstants enums — caseless enum namespaces co-located
     KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
 Tests/AIBatteryCoreTests/
+  MetricToggleViewTests.swift     — orderedModes ordering, allCases completeness, stable remaining order
   Utilities/
     TokenFormatterTests.swift     — format() for 0, 500, 1K, 2.5K, 15K, 1M, 3.2M, 150M, 1B, 3.2B, 10B + negatives + boundaries
     ModelNameMapperTests.swift    — displayName() for all model families, edge cases, empty, multi-hyphens
@@ -159,6 +168,10 @@ Tests/AIBatteryCoreTests/
     SecureNetworkingTests.swift   — Ephemeral session config, singleton, size limit constant
     DurationFormatterTests.swift  — compact format, boundaries, days/hours/minutes
     ThrottleTrackerTests.swift    — Throttle transition detection, timestamp parsing, pruning, counting
+    IdleSuspendPolicyTests.swift  — idle threshold, suspend policy edge cases
+    MenuBarIconTests.swift        — cache key collisions, all pulse steps, boundary values
+    SpacingTests.swift            — spacing constant values
+    TypographyTests.swift         — typography token values
   Models/
     AccountRecordTests.swift      — Codable round-trip, pending identity, equatable
     MetricModeTests.swift         — rawValues, labels, allCases
@@ -173,6 +186,8 @@ Tests/AIBatteryCoreTests/
     SessionEntryTests.swift       — Codable decode from real JSONL, minimal entry, round-trip
     UsageSnapshotTests.swift      — totalTokens, percent(for:), projections, trends, busiest day
     ModelPricingTests.swift       — pricing lookup, cost calculation, formatCost, edge cases
+    ClaudeSystemStatusTests.swift — status indicator parsing, severity, display names
+    StandardRateLimitsTests.swift — standard rate limit header parsing + computed properties
   Services/
     AccountStoreTests.swift       — Add/remove/update/merge, persistence, migration
     StatusIndicatorTests.swift    — from() all status strings, severity ordering, displayName
@@ -180,6 +195,7 @@ Tests/AIBatteryCoreTests/
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
     SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
     SessionLogReaderDiscoveryTests.swift — TTL-based discovery fallback, cache expiry
+    SessionLogReaderIntegrationTests.swift — End-to-end JSONL scanning + merge behavior
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity, rapid consumption, custom config
     TokenLedgerTests.swift        — high-water-mark merge, historical model restoration, per-account isolation, persistence, sort, file size guard
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
@@ -188,7 +204,20 @@ Tests/AIBatteryCoreTests/
     RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation, Retry-After parsing
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload, file size guard
     UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup, project grouping
+    UsageAggregatorIntegrationTests.swift — Full pipeline integration tests
     OAuthManagerTests.swift       — AuthError user messages, transient error classification
+  ViewModels/
+    UsageViewModelTests.swift     — Refresh interval clamping, error messages, effective value guard
+    UsageViewModelIdleTests.swift — Idle threshold constants, suspend policy
+  Views/
+    ActivityChartDataTests.swift  — 5H/7D/12M chart data transforms
+    ActivityChartIsEmptyTests.swift — Empty state detection for chart modes
+    ActivityTrendTests.swift      — Token-based trend computation (vs-yesterday/week/month)
+    DeferredRenderingTests.swift  — Deferred rendering state machine
+    GaugeBarTests.swift           — Percent clamping, bar rendering edge cases
+    InsightsViewFormatterTests.swift — Insights section formatting helpers
+    SessionInfoFormatterTests.swift — Session detail formatting, idle detection, time
+    StatusBarToggleTests.swift    — Status bar show/dismiss state transitions
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)

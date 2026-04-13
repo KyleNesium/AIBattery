@@ -24,7 +24,8 @@ struct TokenLedgerTests {
             inputTokens: input,
             outputTokens: output,
             cacheReadTokens: cacheRead,
-            cacheWriteTokens: cacheWrite
+            cacheWriteTokens: cacheWrite,
+            estimatedCost: 0
         )
     }
 

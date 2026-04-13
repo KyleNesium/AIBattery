@@ -26,6 +26,34 @@ final class UsageAggregator: @unchecked Sendable {
     private static let dateFormatter = DateFormatters.dateKey
     private static let isoFormatter = DateFormatters.iso8601
 
+    // MARK: - Time window constants
+
+    /// 5-hour sliding window for rate limit estimation (seconds).
+    private static let fiveHourWindow: TimeInterval = 5 * 3600
+    /// 24-hour trailing window for chart display (seconds).
+    private static let twentyFourHourWindow: TimeInterval = 86400
+    /// Number of 15-minute buckets in the 5-hour insights chart.
+    private static let fiveHourBucketCount = 20
+    /// Duration of each insights chart bucket (seconds).
+    private static let bucketDuration: TimeInterval = 900
+
+    /// Per-model token accumulator: input, output, cacheRead, cacheWrite.
+    private typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
+
+    /// Accumulate an entry's tokens into a per-model map.
+    private static func accumulate(into map: inout TokenMap, key: String, entry: AssistantUsageEntry) {
+        let e = map[key] ?? (0, 0, 0, 0)
+        map[key] = (e.input + entry.inputTokens, e.output + entry.outputTokens,
+                    e.cacheRead + entry.cacheReadTokens, e.cacheWrite + entry.cacheWriteTokens)
+    }
+
+    /// Merge pre-accumulated token totals into a per-model map.
+    private static func accumulate(into map: inout TokenMap, key: String, tokens: TokenMap.Value) {
+        let e = map[key] ?? (0, 0, 0, 0)
+        map[key] = (e.input + tokens.input, e.output + tokens.output,
+                    e.cacheRead + tokens.cacheRead, e.cacheWrite + tokens.cacheWrite)
+    }
+
     /// Per-project per-model token accumulator used by unified pass and buildProjectTokensFromMap.
     fileprivate struct ProjectAccum {
         var displayName: String
@@ -91,8 +119,8 @@ final class UsageAggregator: @unchecked Sendable {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         let todayDate = Self.dateFormatter.string(from: now)
-        let fiveHoursAgo = now.addingTimeInterval(-5 * 3600)
-        let twentyFourHoursAgo = now.addingTimeInterval(-86400)
+        let fiveHoursAgo = now.addingTimeInterval(-Self.fiveHourWindow)
+        let twentyFourHoursAgo = now.addingTimeInterval(-Self.twentyFourHourWindow)
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
         let twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today
 
@@ -122,7 +150,6 @@ final class UsageAggregator: @unchecked Sendable {
         var lastSeenByModel: [String: Date] = [:]
 
         // Windowed model token accumulators
-        typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
         var todayTokenMap: TokenMap = [:]
         var weekTokenMap: TokenMap = [:]
         var monthTokenMap: TokenMap = [:]
@@ -144,7 +171,7 @@ final class UsageAggregator: @unchecked Sendable {
             } else {
                 let entryDay = calendar.startOfDay(for: ts)
                 lastDayStart = entryDay
-                lastDayEnd = calendar.date(byAdding: .day, value: 1, to: entryDay) ?? entryDay.addingTimeInterval(86400)
+                lastDayEnd = calendar.date(byAdding: .day, value: 1, to: entryDay) ?? entryDay.addingTimeInterval(Self.twentyFourHourWindow)
                 dateKey = Self.dateFormatter.string(from: ts)
                 lastDateKey = dateKey
             }
@@ -172,9 +199,9 @@ final class UsageAggregator: @unchecked Sendable {
             let entryAllTokens = entry.inputTokens + entry.outputTokens + entry.cacheReadTokens + entry.cacheWriteTokens
             if ts >= fiveHoursAgo {
                 fiveHourTokens += entryAllTokens
-                // 15-minute bucket: offset 0 = 5h ago, offset 19 = now
+                // 15-minute bucket: offset 0 = 5h ago, offset (bucketCount-1) = now
                 let secondsAgo = now.timeIntervalSince(ts)
-                let bucket = min(19, Int((5 * 3600 - secondsAgo) / 900))
+                let bucket = min(Self.fiveHourBucketCount - 1, Int((Self.fiveHourWindow - secondsAgo) / Self.bucketDuration))
                 if bucket >= 0 {
                     fiveHourTokenBuckets[bucket, default: 0] += entryAllTokens
                 }
@@ -188,24 +215,12 @@ final class UsageAggregator: @unchecked Sendable {
 
             // All-time model tokens from dates not in stats-cache
             if !cachedDates.contains(dateKey) {
-                let e = uncachedModelTokensMap[entry.model] ?? (0, 0, 0, 0)
-                uncachedModelTokensMap[entry.model] = (
-                    e.input + entry.inputTokens,
-                    e.output + entry.outputTokens,
-                    e.cacheRead + entry.cacheReadTokens,
-                    e.cacheWrite + entry.cacheWriteTokens
-                )
+                Self.accumulate(into: &uncachedModelTokensMap, key: entry.model, entry: entry)
             }
 
             // Accumulate all JSONL model tokens (all dates) as a floor for all-time totals.
             if entry.model.hasPrefix("claude-") {
-                let j = allJsonlModelTokensMap[entry.model] ?? (0, 0, 0, 0)
-                allJsonlModelTokensMap[entry.model] = (
-                    j.input + entry.inputTokens,
-                    j.output + entry.outputTokens,
-                    j.cacheRead + entry.cacheReadTokens,
-                    j.cacheWrite + entry.cacheWriteTokens
-                )
+                Self.accumulate(into: &allJsonlModelTokensMap, key: entry.model, entry: entry)
             }
 
             // --- Project accumulation ---
@@ -231,28 +246,16 @@ final class UsageAggregator: @unchecked Sendable {
 
             // --- Windowed model tokens ---
             if ts >= today {
-                let e = todayTokenMap[entry.model] ?? (0, 0, 0, 0)
-                todayTokenMap[entry.model] = (e.input + entry.inputTokens, e.output + entry.outputTokens,
-                                              e.cacheRead + entry.cacheReadTokens, e.cacheWrite + entry.cacheWriteTokens)
-                let w = weekTokenMap[entry.model] ?? (0, 0, 0, 0)
-                weekTokenMap[entry.model] = (w.input + entry.inputTokens, w.output + entry.outputTokens,
-                                             w.cacheRead + entry.cacheReadTokens, w.cacheWrite + entry.cacheWriteTokens)
-                let mn = monthTokenMap[entry.model] ?? (0, 0, 0, 0)
-                monthTokenMap[entry.model] = (mn.input + entry.inputTokens, mn.output + entry.outputTokens,
-                                              mn.cacheRead + entry.cacheReadTokens, mn.cacheWrite + entry.cacheWriteTokens)
+                Self.accumulate(into: &todayTokenMap, key: entry.model, entry: entry)
+                Self.accumulate(into: &weekTokenMap, key: entry.model, entry: entry)
+                Self.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
             } else if ts >= sevenDaysAgo {
-                let w = weekTokenMap[entry.model] ?? (0, 0, 0, 0)
-                weekTokenMap[entry.model] = (w.input + entry.inputTokens, w.output + entry.outputTokens,
-                                             w.cacheRead + entry.cacheReadTokens, w.cacheWrite + entry.cacheWriteTokens)
+                Self.accumulate(into: &weekTokenMap, key: entry.model, entry: entry)
                 if ts >= twelveMonthsAgo {
-                    let mn = monthTokenMap[entry.model] ?? (0, 0, 0, 0)
-                    monthTokenMap[entry.model] = (mn.input + entry.inputTokens, mn.output + entry.outputTokens,
-                                                  mn.cacheRead + entry.cacheReadTokens, mn.cacheWrite + entry.cacheWriteTokens)
+                    Self.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
                 }
             } else if ts >= twelveMonthsAgo {
-                let mn = monthTokenMap[entry.model] ?? (0, 0, 0, 0)
-                monthTokenMap[entry.model] = (mn.input + entry.inputTokens, mn.output + entry.outputTokens,
-                                              mn.cacheRead + entry.cacheReadTokens, mn.cacheWrite + entry.cacheWriteTokens)
+                Self.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
             }
         }
 
@@ -288,13 +291,7 @@ final class UsageAggregator: @unchecked Sendable {
         // Add JSONL entries from dates not covered by stats-cache.
         // Uses uncachedModelTokensMap accumulated during the single-pass loop.
         for (model, tokens) in uncachedModelTokensMap {
-            let existing = modelTokensMap[model] ?? (0, 0, 0, 0)
-            modelTokensMap[model] = (
-                input: existing.input + tokens.input,
-                output: existing.output + tokens.output,
-                cacheRead: existing.cacheRead + tokens.cacheRead,
-                cacheWrite: existing.cacheWrite + tokens.cacheWrite
-            )
+            Self.accumulate(into: &modelTokensMap, key: model, tokens: tokens)
         }
         // Ensure all-time per-model totals are never less than JSONL-only totals.
         // Stats-cache can be stale (not rebuilt since new JSONL entries were added for
@@ -497,9 +494,7 @@ final class UsageAggregator: @unchecked Sendable {
         }.sorted { $0.totalTokens > $1.totalTokens }
     }
 
-    private static func buildModelTokens(
-        from map: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
-    ) -> [ModelTokenSummary] {
+    private static func buildModelTokens(from map: TokenMap) -> [ModelTokenSummary] {
         map.compactMap { modelId, tokens in
             guard modelId.hasPrefix("claude-") else { return nil }
             let cost = ModelPricing.pricing(for: modelId)?.cost(

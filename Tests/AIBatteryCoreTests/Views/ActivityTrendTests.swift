@@ -110,6 +110,7 @@ struct ActivityTrendTests {
             lastUpdated: Date(),
             rateLimits: nil,
             rateLimitSource: nil,
+            standardLimits: nil,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,

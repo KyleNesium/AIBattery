@@ -130,7 +130,8 @@ struct SessionEntryTests {
                     cacheReadInputTokens: 50,
                     serviceTier: nil
                 ),
-                id: "msg-rt"
+                id: "msg-rt",
+                content: nil
             ),
             uuid: "u1",
             cwd: "/tmp",

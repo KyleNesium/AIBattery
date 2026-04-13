@@ -6,7 +6,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 
 | Constant | Value | File |
 |----------|-------|------|
-| Polling interval | 60 sec default (configurable 10–60s via Settings) | UsageViewModel |
+| Polling interval | 120 sec default (configurable 30–300s via Settings) | UsageViewModel |
 | File watcher debounce | 2 sec | FileWatcher |
 | FSEvent latency | 2.0 sec | FileWatcher |
 | Fallback timer | 60 sec | FileWatcher |
@@ -24,9 +24,15 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Notification batch delay | 500 ms | NotificationManager |
 | Identity timeout | 3600 sec (1 hour) — pending account identity | UsageViewModel |
 | Retry-After max delay | 30 sec (caps parsed Retry-After header) | RateLimitFetcher |
+| Initial poll delay | 2 sec — fast first data without blocking launch | UsageViewModel |
+| Rate limit stale TTL | 86400 sec (24 hours) — hold unified header data through overnight sleep | UsageViewModel |
 | Sleep pause / wake resume | Immediate (NSWorkspace notifications) | UsageViewModel |
 | Menu bar staleness threshold | 300 sec (5 min) | StatusBarManager |
 | Menu bar countdown update | Per polling cycle (10–60 sec) | StatusBarManager |
+| 5-hour aggregation window | 18000 sec (5 × 3600) | UsageAggregator |
+| 24-hour trailing window | 86400 sec | UsageAggregator |
+| Insights chart bucket count | 20 (fifteen-minute buckets over 5 hours) | UsageAggregator |
+| Insights chart bucket duration | 900 sec (15 min) | UsageAggregator |
 
 ## URLs
 
@@ -156,12 +162,12 @@ Pricing per million tokens:
 
 | Model | Input | Output | Cache Write | Cache Read |
 |-------|-------|--------|-------------|------------|
-| Opus 4 | $15 | $75 | $1.875 | $1.50 |
-| Sonnet 4 | $3 | $15 | $0.375 | $0.30 |
-| Haiku 4 | $0.80 | $4 | $0.10 | $0.08 |
-| Sonnet 3.5 | $3 | $15 | $0.375 | $0.30 |
-| Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
-| Opus 3 | $15 | $75 | $1.875 | $1.50 |
+| Opus 4 | $15 | $75 | $18.75 | $1.50 |
+| Sonnet 4 | $3 | $15 | $3.75 | $0.30 |
+| Haiku 4 | $0.80 | $4 | $1.00 | $0.08 |
+| Sonnet 3.5 | $3 | $15 | $3.75 | $0.30 |
+| Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
+| Opus 3 | $15 | $75 | $18.75 | $1.50 |
 
 ## Display Settings
 

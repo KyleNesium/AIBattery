@@ -12,7 +12,9 @@ import AppKit
 public enum SingleInstanceGuard {
 
     private static let lockPath: String = {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory unavailable")
+        }
         return appSupport.appendingPathComponent("AIBattery/aibattery.lock").path
     }()
 

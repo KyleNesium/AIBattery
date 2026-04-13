@@ -11,7 +11,8 @@ struct ModelTokenSummaryTests {
             inputTokens: 1000,
             outputTokens: 500,
             cacheReadTokens: 200,
-            cacheWriteTokens: 100
+            cacheWriteTokens: 100,
+            estimatedCost: 0
         )
         #expect(summary.totalTokens == 1800)
     }
@@ -23,7 +24,8 @@ struct ModelTokenSummaryTests {
             inputTokens: 0,
             outputTokens: 0,
             cacheReadTokens: 0,
-            cacheWriteTokens: 0
+            cacheWriteTokens: 0,
+            estimatedCost: 0
         )
         #expect(summary.totalTokens == 0)
     }
@@ -35,7 +37,8 @@ struct ModelTokenSummaryTests {
             inputTokens: 5000,
             outputTokens: 0,
             cacheReadTokens: 0,
-            cacheWriteTokens: 0
+            cacheWriteTokens: 0,
+            estimatedCost: 0
         )
         #expect(summary.totalTokens == 5000)
     }
@@ -47,7 +50,8 @@ struct ModelTokenSummaryTests {
             inputTokens: 0,
             outputTokens: 0,
             cacheReadTokens: 0,
-            cacheWriteTokens: 0
+            cacheWriteTokens: 0,
+            estimatedCost: 0
         )
         #expect(summary.id == "claude-sonnet-4-5-20250929")
     }

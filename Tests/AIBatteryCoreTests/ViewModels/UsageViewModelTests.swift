@@ -9,31 +9,31 @@ struct UsageViewModelTests {
     // MARK: - clampedRefreshInterval
 
     @Test func clampedRefreshInterval_zero_returnsDefault() {
-        #expect(UsageViewModel.clampedRefreshInterval(0) == 60)
+        #expect(UsageViewModel.clampedRefreshInterval(0) == 120)
     }
 
     @Test func clampedRefreshInterval_negative_returnsDefault() {
-        #expect(UsageViewModel.clampedRefreshInterval(-10) == 60)
+        #expect(UsageViewModel.clampedRefreshInterval(-10) == 120)
     }
 
     @Test func clampedRefreshInterval_belowMin_clampsToMin() {
-        #expect(UsageViewModel.clampedRefreshInterval(5) == 10)
+        #expect(UsageViewModel.clampedRefreshInterval(5) == 30)
     }
 
     @Test func clampedRefreshInterval_aboveMax_clampsToMax() {
-        #expect(UsageViewModel.clampedRefreshInterval(120) == 60)
+        #expect(UsageViewModel.clampedRefreshInterval(500) == 300)
     }
 
     @Test func clampedRefreshInterval_inRange_returnsAsIs() {
-        #expect(UsageViewModel.clampedRefreshInterval(30) == 30)
+        #expect(UsageViewModel.clampedRefreshInterval(120) == 120)
     }
 
     @Test func clampedRefreshInterval_exactMin_returnsMin() {
-        #expect(UsageViewModel.clampedRefreshInterval(10) == 10)
+        #expect(UsageViewModel.clampedRefreshInterval(30) == 30)
     }
 
     @Test func clampedRefreshInterval_exactMax_returnsMax() {
-        #expect(UsageViewModel.clampedRefreshInterval(60) == 60)
+        #expect(UsageViewModel.clampedRefreshInterval(300) == 300)
     }
 
     // MARK: - refreshErrorMessage

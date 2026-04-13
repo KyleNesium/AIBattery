@@ -26,15 +26,27 @@ Main aggregated data struct consumed by all views.
 | `todayHourCounts` | `[String: Int]` | Today-only hourly breakdown from JSONL (hour "0"-"23" → message count) |
 | `modelTokens` | `[ModelTokenSummary]` | Merged stats-cache + JSONL |
 | `projectTokens` | `[ProjectTokenSummary]` | JSONL entries grouped by full cwd path |
+| `totalTokens` | `Int` | Sum of all `modelTokens.totalTokens` |
+| `totalUsageTokens` | `Int` | Input + output only — excludes cache tokens |
+| `totalProjectTokens` | `Int` | Sum of all `projectTokens.totalTokens` |
+| `totalProjectUsageTokens` | `Int` | Input + output only — excludes cache tokens |
+| `totalProjectCost` | `Double` | Sum of all `projectTokens.estimatedCost` |
+| `fiveHourTokens` | `Int` | Local token total for 5h window estimation |
+| `sevenDayTokens` | `Int` | Local token total for 7d window estimation |
+| `fiveHourTokenBuckets` | `[Int: Int]` | 20 × 15-min token buckets for 5H chart (0=oldest, 19=now) |
+| `dailyTokenTotals` | `[String: Int]` | Per-date token totals for 7D/12M chart modes |
+| `todayModelTokens` | `[ModelTokenSummary]` | JSONL entries from today (cost breakdown) |
+| `weekModelTokens` | `[ModelTokenSummary]` | Last 7 days (cost breakdown) |
+| `monthModelTokens` | `[ModelTokenSummary]` | Current calendar month (cost breakdown) |
 | `dailyActivity` | `[DailyActivity]` | stats-cache + all JSONL dates merged (fills gaps between stale cache rebuild and today) |
 | `tokenHealth` | `TokenHealthStatus?` | Most recent session assessment |
 | `topSessionHealths` | `[TokenHealthStatus]` | Top 5 sessions by highest usagePercentage (descending) |
 
-Stored (pre-computed at construction): `totalTokens: Int` (sum of all `modelTokens.totalTokens`), `totalProjectTokens: Int` (sum of all `projectTokens.totalTokens`), `totalProjectCost: Double` (sum of all `projectTokens.estimatedCost`), `todayModelTokens: [ModelTokenSummary]` (JSONL entries from today), `weekModelTokens: [ModelTokenSummary]` (last 7 days), `monthModelTokens: [ModelTokenSummary]` (current calendar month) — windowed model tokens for Insights cost breakdown (JSONL-only, not ledger-merged), `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (requires 14+ days of activity for a symmetric 7-vs-7 comparison; ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
+Stored (pre-computed at construction): `dailyAverage: Int` (average messages/day from last 7 days of `dailyActivity`), `trendDirection: TrendDirection` (requires 14+ days of activity for a symmetric 7-vs-7 comparison; ±10% threshold → `.up`/`.down`/`.flat`), `busiestDayOfWeek: (name: String, averageCount: Int)?` (highest average from `dailyActivity` by weekday).
 
 Static factory method: `computeActivityStats(_:)` — single-pass computation of all three metrics (average, trend, busiest day), called by `UsageAggregator` at construction time to avoid per-render iteration. Uses `private static let weekdaySymbols = Calendar.current.weekdaySymbols` for day-name lookup.
 
-Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover — context health uses `topSessionHealths.first?.usagePercentage` as primary, falls back to `tokenHealth?.usagePercentage`, so auto mode reflects the most critical session, not just the most recent), `autoResolvedMode: MetricMode` (four-tier deterministic escalation ladder: **Tier 1** — if throttled, always shows the binding rate limit window; **Tier 2** — if either rate limit >= 80%, shows the higher rate limit window; **Tier 3** — if any active session has context >= 60%, shows context health; **Tier 4** — default shows binding (highest-consumed) rate limit. Used by `UsageViewModel` to derive the candidate for hysteresis filtering), `hasActiveSession: Bool` (whether any tracked session has been active within the staleness window — used by `autoResolvedMode` Tier 3 and `applyHysteresis` context hold check).
+Computed: `percent(for: MetricMode) -> Double` (shared metric percentage calculation used by both menu bar and popover — rate limit modes fall back to `LocalUsageEstimate.fiveHourPercent`/`sevenDayPercent` when API data unavailable; context health uses `topSessionHealths.first?.usagePercentage` as primary, falls back to `tokenHealth?.usagePercentage`, so auto mode reflects the most critical session, not just the most recent), `isUsingLocalEstimate: Bool` (true when no API rate limits and local estimate can provide percentages — drives conditional rendering of `LocalEstimateSection`), `autoResolvedMode: MetricMode` (four-tier deterministic escalation ladder: **Tier 1** — if throttled, always shows the binding rate limit window; **Tier 2** — if either rate limit >= 80%, shows the higher rate limit window; **Tier 3** — if any active session has context >= 60%, shows context health; **Tier 4** — default shows binding (highest-consumed) rate limit. Used by `UsageViewModel` to derive the candidate for hysteresis filtering), `hasActiveSession: Bool` (whether any tracked session has been active within the staleness window — used by `autoResolvedMode` Tier 3 and `applyHysteresis` context hold check).
 
 Static: `applyHysteresis(candidate:previous:snapshot:) -> MetricMode` — pure function that applies a 10pp de-escalation band to prevent mode flip-flopping near thresholds. When `previous` mode's metric is still above its release threshold (escalation threshold minus `hysteresisDeescalationBand`), holds the previous mode. Throttle (Tier 1) always bypasses hysteresis. Context health hold requires an active session (staleness is a hard gate). Called by `UsageViewModel.updateSnapshot` after each poll.
 
@@ -84,6 +96,8 @@ Which metric drives the menu bar icon percentage and color.
 | `.contextHealth` | `"context"` | `"Context"` | `"Context"` |
 
 `shortLabel` is a computed property used by the 3-segment picker.
+
+Static: `orderedModes(current:) -> [MetricMode]` — returns all modes with `current` first, remaining in `allCases` order. Shared by `MetricToggleView` and `UsagePopoverView` for cached ordered mode lists.
 
 ### TrendDirection (`Models/TrendDirection.swift`)
 
@@ -269,6 +283,59 @@ Pricing table (per million tokens):
 | Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
 | Opus 3 | $15 | $75 | $1.875 | $1.50 |
 
+### LocalUsageEstimate (`Models/LocalUsageEstimate.swift`)
+
+Fallback estimation when Anthropic's unified rate limit headers are unavailable. `@MainActor` enum (no instances).
+
+**Calibration**: when the API returns both utilization and local token counts are available, derives the window's token limit (`limit = localTokens / utilization`) and persists to UserDefaults. Subsequent polls compute percentages locally. Only calibrates when utilization is 5–95% (edges are noisy) and derived limit exceeds 100K tokens.
+
+| Static Property | Type | Notes |
+|-----------------|------|-------|
+| `fiveHourLimit` | `Int` | Calibrated 5h token limit (0 = uncalibrated). `nonisolated` — UserDefaults is thread-safe |
+| `sevenDayLimit` | `Int` | Calibrated 7d token limit (0 = uncalibrated). `nonisolated` |
+| `calibratedAt` | `Date?` | When limits were last calibrated |
+| `isCalibrated` | `Bool` | `nonisolated` — true when either limit > 0 |
+| `effectiveFiveHourLimit` | `Int?` | Fallback chain: calibrated > `PlanTier.current` > nil |
+| `effectiveSevenDayLimit` | `Int?` | Fallback chain: calibrated > `PlanTier.current` > nil |
+| `latestFiveHourTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot |
+| `latestSevenDayTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot |
+
+Methods:
+- `migrateIfNeeded()` — clears stale pre-v2 calibrations (before cache-inclusive counting). Called once at launch.
+- `calibrate(fiveHourUtilization:sevenDayUtilization:localFiveHourTokens:localSevenDayTokens:)` — derives limits from API utilization + local counts
+- `calibrateFrom429()` — when a 429 is received without headers, uses current local token count as the limit (with 95% buffer)
+- `fiveHourPercent(tokens:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
+- `sevenDayPercent(tokens:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
+- `limitSource(for:) -> LimitSource?` — `.calibrated` or `.planEstimate` or nil
+- `setManualFiveHourLimit(_:)` / `setManualSevenDayLimit(_:)` — user overrides
+
+Nested: `LimitSource` enum (`.calibrated`, `.planEstimate`)
+
+### PlanTier (`Models/PlanTier.swift`)
+
+Claude subscription plan tiers with estimated 5h/7d token limits. Community-derived estimates — auto-calibrated when a 429 is detected.
+
+| Case | rawValue | displayName | estimated5hLimit | estimated7dLimit |
+|------|----------|-------------|------------------|------------------|
+| `.pro` | `"pro"` | `"Pro"` | 7M | 35M |
+| `.max5x` | `"max5x"` | `"Max 5×"` | 35M | 175M |
+| `.max20x` | `"max20x"` | `"Max 20×"` | 140M | 700M |
+| `.team` | `"team"` | `"Team"` | 10M | 50M |
+
+Static: `current: PlanTier?` — persisted to UserDefaults (`UserDefaultsKeys.planTier`).
+
+Conforms to `CaseIterable`, `Codable`.
+
+### RateLimitSource (`Models/RateLimitSource.swift`)
+
+Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
+
+| Case | shortLabel | Explanation |
+|------|-----------|-------------|
+| `.oauthUsageEndpoint` | `"Via Anthropic API"` | OAuth usage endpoint |
+| `.claudeCodeClientData` | `"Via Claude Code"` | Claude Code account metadata |
+| `.anthropicAPIHeaders` | `"Via Anthropic API"` | Anthropic API response headers |
+
 ### ClaudeSystemStatus + StatusIndicator (`Models/ClaudeSystemStatus.swift`)
 
 `ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentNames: [String]`, `statusPageURL: String`, `componentStatuses: [String: StatusIndicator]` (keyed by Statuspage component ID, default empty). Computed: `incidentName: String?` (first incident, convenience accessor).
@@ -325,6 +392,7 @@ Pricing table (per million tokens):
 - `setObservedModels(_ models: [String], accountId: String)` — updates `observedModels` and persists to UserDefaults. Called by `UsageAggregator`.
 - `restoreWorkingModels()` — restores `lastWorkingModel` dictionary and `observedModels` from UserDefaults on init.
 - `saveWorkingModel` called on **all 4 success paths** in `tryFetch`: 200-OK, 429+headers, retry-after (200/400 after sleep), and 400+headers. Structural invariant — any response with parseable headers records the working model.
+- **`buildHeaderResult` helper**: builds an `APIFetchResult` from parsed rate limit headers with `.anthropicAPIHeaders` source. Saves working model, applies optional throttle marking. Used by 429, retry-after, and 400/404 code paths in `tryFetch`.
 - Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/{version} (macOS)` (dynamic from bundle)
 - Caller provides token and account ID. Per-account caching: `cachedResults: [String: APIFetchResult]` and `lastWorkingModel: [String: String]` keyed by account ID.
 - Timeout: 15 sec
@@ -382,6 +450,9 @@ Pricing table (per million tokens):
 ### UsageAggregator (`Services/UsageAggregator.swift`)
 - `@unchecked Sendable` + NSLock, created per-ViewModel (not singleton)
 - **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
+- **Time window constants**: `fiveHourWindow` (18,000s), `twentyFourHourWindow` (86,400s), `fiveHourBucketCount` (20), `bucketDuration` (900s) — named constants replacing magic numbers in the aggregation loop
+- **TokenMap typealias**: `private typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]` — class-level type used by accumulator methods and `buildModelTokens`
+- **`accumulate(into:key:entry:)`** and **`accumulate(into:key:tokens:)`**: static helpers for per-model token accumulation — replaces 9 inline patterns in the single-pass loop and post-loop merge
 - `aggregate(rateLimits:accountId:) -> UsageSnapshot`
 - **Redundant aggregation skip**: tracks a lightweight fingerprint (stats-cache modification date, rate limits via `Equatable`, standard limits via `Equatable`, rate limit source, idle session minutes setting, account ID). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods.
 - **Single-pass filtering**: iterates all entries once to extract today's entries (avoids separate `.filter()` passes)
@@ -479,6 +550,15 @@ Pricing table (per million tokens):
 - Feed URL: `https://kylenesium.github.io/AIBattery/appcast.xml`
 - EdDSA verification: Sparkle verifies download signature against `SUPublicEDKey` before installing
 
+### SparkleUpdateDelegate (`Services/SparkleUpdateDelegate.swift`)
+- `@MainActor`, conforms to `SPUUpdaterDelegate`
+- Guarded by `#if ENABLE_SPARKLE`
+- `lastError: String?` — last Sparkle error, surfaced for UI display
+- `updater(_:didFinishUpdateCycleFor:error:)` — logs error/success, reverts activation policy to `.accessory`
+- `updater(_:didAbortWithError:)` — logs abort, sets `lastError`
+- `clearError()` — resets error state (e.g., user dismissal)
+- Without this delegate, Sparkle fails silently — users see "nothing happens" when update download/verification/installation fails
+
 ### NetworkMonitor (`Services/NetworkMonitor.swift`)
 - Singleton: `.shared`, `@MainActor ObservableObject`
 - Published: `isConnected: Bool` (default true)
@@ -498,14 +578,15 @@ Pricing table (per million tokens):
 
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
-- Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`
-- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [10, 60], zero/negative → 60), `refreshErrorMessage(hasRateLimits:hasProfile:hasStandardRateLimitHeaders:totalMessages:)` (error string or nil — rate limits present → nil; public API headers without Claude Code windows → explicit mismatch warning; profile present but no windows → API-format warning; neither present + no messages → first-use prompt; neither present → network error), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
+- Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`, `resolvedMetricMode: MetricMode` (hysteresis-filtered auto-mode output — drives the active metric in auto mode)
+- **Polling constants**: `defaultRefreshInterval` (120s), `minRefreshInterval` (30s), `maxRefreshInterval` (300s), `initialPollDelay` (2s)
+- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [min, max], zero/negative → default), `refreshErrorMessage(hasRateLimits:hasStandardLimits:hasProfile:hasStandardRateLimitHeaders:totalMessages:)` (error string or nil — rate limits present → nil; standard limits present → nil; public API headers without Claude Code windows → nil; profile present but no windows → nil; neither present + no messages → first-use prompt; neither present → network error), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
 - **Throttle tracking** (delegates to `ThrottleTracker`): `recordThrottleEvent(_:)` uses `ThrottleTracker.evaluate(_:)` to detect the normal→throttled/exhausted transition (detects both explicit `isThrottled` AND 100% utilization on either window), records timestamp to UserDefaults `aibattery_throttleTimestamps` via `ThrottleTracker.appendAndPrune`. `throttleCount(days:)` reads timestamps from UserDefaults, parses via `ThrottleTracker.parseTimestamps(_:)` (handles Double/String/Int storage variants), counts via `ThrottleTracker.count(timestamps:days:)`.
 - `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
-- **Rate limit stale TTL**: when the API returns nil rate limits, previously-fetched values are carried forward for up to `rateLimitStaleTTL` (300s / 5 min). After expiry, nil is passed to the aggregator so the UI transitions to `StandardRateLimits` fallback. `effectiveRateLimits(fresh:stale:lastFreshAt:ttl:now:)` is a pure static function with injectable `now` for testing. `effectiveValue(fresh:stale:lastFreshAt:ttl:now:)` is the generic version used for `rateLimitSource`. Prevents the "stale data treadmill" where frozen percentages were carried forward indefinitely.
+- **Rate limit stale TTL**: when the API returns nil rate limits, previously-fetched values are carried forward for up to `rateLimitStaleTTL` (86,400s / 24 hours — holds through overnight sleep cycles). After expiry, nil is passed to the aggregator so the UI transitions to `StandardRateLimits` fallback. `effectiveRateLimits(fresh:stale:lastFreshAt:ttl:now:)` is a pure static function with injectable `now` for testing. `effectiveValue(fresh:stale:lastFreshAt:ttl:now:)` is the generic version used for `rateLimitSource`. Prevents the "stale data treadmill" where frozen percentages were carried forward indefinitely.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh.
 - `updatePollingInterval(_:)`: invalidates and recreates polling timer
-- Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 60s), triggers async refresh
+- Init: synchronous local data load (shows data immediately if available), then sets up file watcher, starts polling timer (interval from `aibattery_refreshInterval` UserDefaults, default 120s), triggers async refresh
 - Deinit: invalidates polling timer, removes sleep/wake observers (FileWatcher's own deinit handles its cleanup)
 - **Adaptive polling**: delegates to `AdaptivePollingState` struct. Compares `totalMessages`/`todayMessages` before and after refresh. After 3 unchanged cycles, doubles polling interval (up to 5 min max). Any data change or file watcher trigger resets to configured interval.
 - **Idle/lock suspension**: `isSuspended: Bool` tracks whether timers are paused. Idle check piggybacks on each polling tick via `IdleSuspendPolicy.shouldSuspend(secondsIdle:)` — no new timer. `suspendTimers()` invalidates polling timer and calls `FileWatcher.suspendFallbackTimer()`. `resumeTimers()` restarts polling and calls `FileWatcher.resumeFallbackTimer()`.

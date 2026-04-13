@@ -118,6 +118,6 @@ struct MetricToggleView: View {
 
     private func recomputeOrderedModes() {
         let currentMode = MetricMode(rawValue: pickerBinding.wrappedValue) ?? .fiveHour
-        cachedOrderedModes = [currentMode] + MetricMode.allCases.filter { $0 != currentMode }
+        cachedOrderedModes = MetricMode.orderedModes(current: currentMode)
     }
 }

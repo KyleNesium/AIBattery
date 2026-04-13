@@ -49,6 +49,9 @@ public final class UsageViewModel: ObservableObject {
     /// 24 hours ensures we hold through overnight sleep cycles.
     static let rateLimitStaleTTL: TimeInterval = 86400
 
+    /// Short delay before the first API poll so data appears quickly without blocking launch.
+    private static let initialPollDelay: TimeInterval = 2
+
     /// True when timers are suspended due to system idle or screen lock.
     /// Internal for testing — tests verify suspend/resume lifecycle.
     private(set) var isSuspended = false
@@ -93,8 +96,7 @@ public final class UsageViewModel: ObservableObject {
         }
 
         // Start polling — first tick fires at the configured interval and does a full refresh.
-        // Use a short initial delay (2s) so data appears quickly without blocking launch.
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { [weak self] _ in
+        pollingTimer = Timer.scheduledTimer(withTimeInterval: Self.initialPollDelay, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.refresh()
                 self?.startPolling()
@@ -461,10 +463,17 @@ public final class UsageViewModel: ObservableObject {
 
     // MARK: - Testable static helpers
 
-    /// Clamp a stored refresh interval to the valid range [10, 60]. Zero/negative → 60 (default).
+    /// Default polling interval when no user preference is set (seconds).
+    nonisolated static let defaultRefreshInterval: TimeInterval = 120
+    /// Minimum allowed polling interval (seconds).
+    nonisolated static let minRefreshInterval: TimeInterval = 30
+    /// Maximum allowed polling interval (seconds).
+    nonisolated static let maxRefreshInterval: TimeInterval = 300
+
+    /// Clamp a stored refresh interval to the valid range [30, 300]. Zero/negative → 120 (default).
     nonisolated static func clampedRefreshInterval(_ stored: Double) -> TimeInterval {
-        let interval = stored > 0 ? stored : 120
-        return min(max(interval, 30), 300)
+        let interval = stored > 0 ? stored : defaultRefreshInterval
+        return min(max(interval, minRefreshInterval), maxRefreshInterval)
     }
 
     /// Determine the error message to show after a refresh where the API returned no data.

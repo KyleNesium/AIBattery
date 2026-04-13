@@ -295,7 +295,7 @@ public struct UsagePopoverView: View {
     }
 
     private func recomputeOrderedModes() {
-        cachedOrderedModes = [metricMode] + MetricMode.allCases.filter { $0 != metricMode }
+        cachedOrderedModes = MetricMode.orderedModes(current: metricMode)
     }
 
     private func handleKeyPress(_ key: String) {

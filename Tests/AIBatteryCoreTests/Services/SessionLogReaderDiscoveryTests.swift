@@ -35,7 +35,7 @@ struct SessionLogReaderDiscoveryTests {
     }
 
     /// Adds a JSONL file to a specific project directory.
-    private func addJSONLFile(to projectDir: URL, name: String) throws -> URL {
+    private func addJSONLFileToProject(in projectDir: URL, name: String) throws -> URL {
         let file = projectDir.appendingPathComponent(name)
         try Data("{}".utf8).write(to: file)
         return file
@@ -120,8 +120,8 @@ struct SessionLogReaderDiscoveryTests {
 
         let dirA = try makeProjectDir(in: projectsDir, name: "-project-a")
         let dirB = try makeProjectDir(in: projectsDir, name: "-project-b")
-        try addJSONLFile(to: dirA, name: "a.jsonl")
-        try addJSONLFile(to: dirB, name: "b.jsonl")
+        try addJSONLFileToProject(in: dirA, name: "a.jsonl")
+        try addJSONLFileToProject(in: dirB, name: "b.jsonl")
 
         let reader = SessionLogReader(projectsURL: projectsDir)
 
@@ -146,7 +146,7 @@ struct SessionLogReaderDiscoveryTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let dirA = try makeProjectDir(in: projectsDir, name: "-project-a")
-        try addJSONLFile(to: dirA, name: "a.jsonl")
+        try addJSONLFileToProject(in: dirA, name: "a.jsonl")
 
         let reader = SessionLogReader(projectsURL: projectsDir)
 
@@ -155,7 +155,7 @@ struct SessionLogReaderDiscoveryTests {
 
         // Add a new project directory with a file
         let dirB = try makeProjectDir(in: projectsDir, name: "-project-b")
-        try addJSONLFile(to: dirB, name: "b.jsonl")
+        try addJSONLFileToProject(in: dirB, name: "b.jsonl")
 
         // Invalidate so discovery re-checks
         reader.invalidate()
@@ -174,8 +174,8 @@ struct SessionLogReaderDiscoveryTests {
 
         let dirA = try makeProjectDir(in: projectsDir, name: "-project-a")
         let dirB = try makeProjectDir(in: projectsDir, name: "-project-b")
-        try addJSONLFile(to: dirA, name: "a.jsonl")
-        try addJSONLFile(to: dirB, name: "b.jsonl")
+        try addJSONLFileToProject(in: dirA, name: "a.jsonl")
+        try addJSONLFileToProject(in: dirB, name: "b.jsonl")
 
         let reader = SessionLogReader(projectsURL: projectsDir)
 
