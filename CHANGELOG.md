@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.1.5] — 2026-04-13
+
+### Fixed
+- **Popover detaching from the menu bar** — after expanding Settings (or any content resize) the popover sometimes floated mid-screen instead of staying pinned to the menu bar icon; the resize observer now re-derives the top anchor from the status button's current position each time instead of relying on a cached value
+- **Crash risks from force unwraps** — replaced three `!` sites (`StatusBarManager` global mouse monitor, `SingleInstanceGuard` + `TokenLedger` Application Support lookups) with guarded paths that fail loudly instead of crashing silently
+
+### Changed
+- **Token-accumulation dedup** — `UsageAggregator` collapses nine identical `(input + output + cacheRead + cacheWrite)` blocks into two `accumulate()` overloads, and `RateLimitFetcher` replaces three duplicate header-parse paths with a shared `buildHeaderResult()` helper
+- **Named time constants** — `5 * 3600`, `86400`, `900`, `19` replaced with `fiveHourSeconds`, `oneDaySeconds`, `fifteenMinuteSeconds`, `maxBucketsPerDay`
+- **Shared mode ordering** — `MetricMode.orderedModes(current:)` replaces duplicated inline "current first" ordering in `MetricToggleView` and `UsagePopoverView`
+- **Refresh interval constants** — `UsageViewModel` exposes `defaultRefreshInterval` / `minRefreshInterval` / `maxRefreshInterval` / `initialPollDelay` as `nonisolated` statics to keep `clampedRefreshInterval` warning-free under Swift 6 isolation
+
+### Docs
+- **Spec drift** — `CONSTANTS.md` cache-write pricing corrected (six entries were 10× too low; code had been right since 2.1.4), `DATA_LAYER.md` `rateLimitStaleTTL` fixed (300s → 86,400s), `ARCHITECTURE.md` now includes `IdleSuspendPolicy.swift` in the Utilities tree, `README.md` concurrency-fix version reference corrected (v1.2.3+ → v2.0.3+)
+- **New helpers documented** — `TokenMap` typealias, `accumulate()` overloads, `buildHeaderResult()`, and `MetricMode.orderedModes(current:)` now appear in the relevant specs
+
+### Tests
+- **Suite compiles again** — repaired 13 test files against recent model-layer changes: `estimatedCost` on `ModelTokenSummary`, `standardLimits` on `UsageSnapshot`, `content` on `SessionEntry.SessionMessage`, internal visibility on `RateLimitFetcher.init()`, renamed `addJSONLFileToProject` helper
+- **Test hygiene** — removed stale `MenuBarIcon.brokenStarFragments` test (API deleted), updated `ModelPricingTests` to seed non-zero `estimatedCost`
+
 ## [2.1.4] — 2026-04-08
 
 ### Fixed
