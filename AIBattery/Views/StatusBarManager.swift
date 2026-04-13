@@ -224,9 +224,8 @@ public final class StatusBarManager: NSObject {
             // On LSUIElement apps, the status bar click also fires as a global event.
             // Check if the click landed on the status item — if so, statusItemClicked handles it.
             if let buttonWindow = self.statusItem?.button?.window {
-                let screenPoint = event.window == nil
-                    ? event.locationInWindow
-                    : event.window!.convertPoint(toScreen: event.locationInWindow)
+                let screenPoint = event.window.map { $0.convertPoint(toScreen: event.locationInWindow) }
+                    ?? event.locationInWindow
                 if buttonWindow.frame.contains(screenPoint) { return }
             }
             // Ignore clicks on our own panel
