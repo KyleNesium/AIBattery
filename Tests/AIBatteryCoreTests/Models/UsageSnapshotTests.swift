@@ -84,8 +84,8 @@ struct UsageSnapshotTests {
 
     @Test func totalTokens_sumsAllModels() {
         let models = [
-            ModelTokenSummary(id: "a", displayName: "A", inputTokens: 100, outputTokens: 50, cacheReadTokens: 10, cacheWriteTokens: 5),
-            ModelTokenSummary(id: "b", displayName: "B", inputTokens: 200, outputTokens: 100, cacheReadTokens: 20, cacheWriteTokens: 10),
+            ModelTokenSummary(id: "a", displayName: "A", inputTokens: 100, outputTokens: 50, cacheReadTokens: 10, cacheWriteTokens: 5, estimatedCost: 0),
+            ModelTokenSummary(id: "b", displayName: "B", inputTokens: 200, outputTokens: 100, cacheReadTokens: 20, cacheWriteTokens: 10, estimatedCost: 0),
         ]
         let snapshot = makeSnapshot(modelTokens: models)
         #expect(snapshot.totalTokens == 495) // (100+50+10+5) + (200+100+20+10)

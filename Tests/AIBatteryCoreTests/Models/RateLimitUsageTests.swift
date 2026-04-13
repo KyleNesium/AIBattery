@@ -102,7 +102,7 @@ struct RateLimitUsageTests {
         #expect(usage?.fiveHourStatus == "throttled")
     }
 
-    @Test func parse_throttledHeaders_withoutWindowStatuses_onlyMarksBindingWindow() {
+    @Test func parse_throttledHeaders_withoutWindowStatuses_onlyMarksBindingWindow() throws {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "throttled",
             "anthropic-ratelimit-unified-representative-claim": "five_hour",

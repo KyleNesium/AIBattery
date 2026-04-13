@@ -96,21 +96,21 @@ struct ModelPricingTests {
     }
 
     @Test func totalCost_unknownModel() {
-        let model = ModelTokenSummary(id: "unknown", displayName: "Unknown", inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 0, cacheWriteTokens: 0)
+        let model = ModelTokenSummary(id: "unknown", displayName: "Unknown", inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0)
         #expect(ModelPricing.totalCost(for: [model]) == 0)
     }
 
     @Test func totalCost_mixedKnownAndUnknown() {
-        let known = ModelTokenSummary(id: "claude-sonnet-4-5-20250929", displayName: "Sonnet 4.5", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0)
-        let unknown = ModelTokenSummary(id: "unknown", displayName: "Unknown", inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 0, cacheWriteTokens: 0)
+        let known = ModelTokenSummary(id: "claude-sonnet-4-5-20250929", displayName: "Sonnet 4.5", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 3.0)
+        let unknown = ModelTokenSummary(id: "unknown", displayName: "Unknown", inputTokens: 1_000_000, outputTokens: 1_000_000, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0)
         let total = ModelPricing.totalCost(for: [known, unknown])
         // Only Sonnet input: $3/M × 1M = $3
         #expect(abs(total - 3.0) < 0.001)
     }
 
     @Test func totalCost_multipleKnownModels() {
-        let opus = ModelTokenSummary(id: "claude-opus-4-6-20250929", displayName: "Opus 4.6", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0)
-        let sonnet = ModelTokenSummary(id: "claude-sonnet-4-5-20250929", displayName: "Sonnet 4.5", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0)
+        let opus = ModelTokenSummary(id: "claude-opus-4-6-20250929", displayName: "Opus 4.6", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 15.0)
+        let sonnet = ModelTokenSummary(id: "claude-sonnet-4-5-20250929", displayName: "Sonnet 4.5", inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 3.0)
         let total = ModelPricing.totalCost(for: [opus, sonnet])
         // Opus input: $15 + Sonnet input: $3 = $18
         #expect(abs(total - 18.0) < 0.001)

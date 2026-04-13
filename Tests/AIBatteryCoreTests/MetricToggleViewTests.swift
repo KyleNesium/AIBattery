@@ -20,10 +20,10 @@ struct MetricToggleViewTests {
         #expect(MetricMode.contextHealth.shortLabel == "Context")
     }
 
-    @Test("recomputeOrderedModes places current mode first",
+    @Test("orderedModes places current mode first",
           arguments: MetricMode.allCases)
     func orderedModesStartsWithCurrent(currentMode: MetricMode) {
-        let ordered = recomputeOrderedModes(current: currentMode)
+        let ordered = MetricMode.orderedModes(current: currentMode)
         #expect(ordered.first == currentMode)
         #expect(ordered.count == MetricMode.allCases.count)
         // All modes present
@@ -34,19 +34,13 @@ struct MetricToggleViewTests {
         #expect(Set(ordered).count == ordered.count)
     }
 
-    @Test("recomputeOrderedModes remaining modes follow in stable order")
+    @Test("orderedModes remaining modes follow in stable order")
     func orderedModesRemainingOrder() {
-        let ordered = recomputeOrderedModes(current: .sevenDay)
+        let ordered = MetricMode.orderedModes(current: .sevenDay)
         #expect(ordered[0] == .sevenDay)
         // Remaining should be in allCases order minus current
         let remaining = Array(ordered.dropFirst())
         let expected = MetricMode.allCases.filter { $0 != .sevenDay }
         #expect(remaining == expected)
     }
-}
-
-/// Extracted pure function matching the logic in MetricToggleView.
-/// This must be kept in sync with the view's recomputeOrderedModes.
-private func recomputeOrderedModes(current: MetricMode) -> [MetricMode] {
-    [current] + MetricMode.allCases.filter { $0 != current }
 }
