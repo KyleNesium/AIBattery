@@ -14,7 +14,7 @@
 │  Active: [________]                 │     (gear toggle)
 │  Account: [________] (×)            │
 │  + Add Account                      │
-│  Refresh: [slider 10-60s]           │
+│  Refresh: [slider 30-300s]          │
 │  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
 ├──────────────────────────────────────┤
@@ -79,6 +79,8 @@ UsagePopoverView (275px, VStack)
 ├── Divider
 ├── ForEach(orderedModes) ← selected metric first, then others
 │   ├── FiveHourBarSection / SevenDayBarSection (if rateLimits)
+│   ├── LocalEstimateSection (if !rateLimits && isUsingLocalEstimate)
+│   ├── StandardLimitsSection (if !rateLimits && !isUsingLocalEstimate && standardLimits)
 │   └── TokenHealthSection — collapsible (if topSessionHealths or tokenHealth)
 │   └── .animation(MotionConstants.snappy, value: metricModeRaw) ← scoped to ForEach only
 ├── ProjectUsageGate (data check, ProjectUsageSection owns collapsed @AppStorage)
@@ -134,9 +136,10 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 **Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body. Subtle dividers (`Divider().opacity(0.5)`) separate account names, refresh, display, alerts, and startup sub-sections.
 
 **`RefreshSettingsSection`** (owns `refreshInterval`):
-- **Refresh**: Slider (10–60s, step 5) → `aibattery_refreshInterval`
+- **Refresh**: Slider (30–300s, step 30) → `aibattery_refreshInterval`
   - Calls `viewModel.updatePollingInterval()` on change
-  - Hint: `"~3 tokens per poll"` (.caption2, .tertiary)
+  - Marks: 30s, 1m, 2m, 3m, 4m, 5m
+  - Hint: `"~3 tokens/poll · API data kept until next update"` (.tinyLabel, .tertiaryLabel)
 
 **`DisplaySettingsSection`** (owns `idleSessionMinutes`, `colorblindMode`):
 - **Idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never)
