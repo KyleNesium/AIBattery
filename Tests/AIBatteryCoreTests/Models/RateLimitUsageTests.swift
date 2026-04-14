@@ -466,7 +466,7 @@ struct RateLimitUsageTests {
     @Test func countdownText_pastDate() {
         let now = Date()
         let past = now.addingTimeInterval(-60)
-        #expect(RateLimitUsage.countdownText(to: past, from: now) == "soon")
+        #expect(RateLimitUsage.countdownText(to: past, from: now) == "0s")
     }
 
     @Test func countdownText_multiDay() {

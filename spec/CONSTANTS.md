@@ -17,7 +17,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx | OAuthManager |
-| Token endpoint timeout | 15 sec | OAuthManager |
+| Token endpoint timeout | 30 sec | OAuthManager |
 | Adaptive polling threshold | 3 unchanged cycles | AdaptivePollingState |
 | Adaptive polling escalation | Progressive doubling: base × 2^(cycles past threshold) | AdaptivePollingState |
 | Adaptive polling max | 300 sec (5 min) | AdaptivePollingState |
@@ -38,7 +38,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 
 | Constant | Value |
 |----------|-------|
-| Messages API | `https://api.anthropic.com/v1/messages?beta=true` |
+| OAuth Usage (primary) | `https://api.anthropic.com/api/oauth/usage` |
+| Messages API (fallback) | `https://api.anthropic.com/v1/messages?beta=true` |
 | Claude Code Client Data | `https://api.anthropic.com/api/oauth/claude_cli/client_data` |
 | Status API | `https://status.claude.com/api/v2/summary.json` |
 | Usage Dashboard | `https://claude.ai/settings/usage` |

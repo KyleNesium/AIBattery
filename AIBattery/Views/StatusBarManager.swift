@@ -380,27 +380,33 @@ public final class StatusBarManager: NSObject {
 
     /// Returns the reset date for countdown display when throttled or any window hits 100%.
     /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
+    /// Returns nil for past dates — the window has already reset, so show percentage instead.
     private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
+        let candidate: Date?
         if rateLimits.isThrottled {
-            return rateLimits.bindingReset
-        }
+            candidate = rateLimits.bindingReset
+        } else {
+            let fiveExhausted = rateLimits.fiveHourPercent >= 100
+            let sevenExhausted = rateLimits.sevenDayPercent >= 100
 
-        let fiveExhausted = rateLimits.fiveHourPercent >= 100
-        let sevenExhausted = rateLimits.sevenDayPercent >= 100
-
-        if fiveExhausted && sevenExhausted {
-            // Both exhausted — show earliest reset
-            if let f = rateLimits.fiveHourReset, let s = rateLimits.sevenDayReset {
-                return min(f, s)
+            if fiveExhausted && sevenExhausted {
+                // Both exhausted — show earliest reset
+                if let f = rateLimits.fiveHourReset, let s = rateLimits.sevenDayReset {
+                    candidate = min(f, s)
+                } else {
+                    candidate = rateLimits.fiveHourReset ?? rateLimits.sevenDayReset
+                }
+            } else if fiveExhausted {
+                candidate = rateLimits.fiveHourReset
+            } else if sevenExhausted {
+                candidate = rateLimits.sevenDayReset
+            } else {
+                candidate = nil
             }
-            return rateLimits.fiveHourReset ?? rateLimits.sevenDayReset
-        } else if fiveExhausted {
-            return rateLimits.fiveHourReset
-        } else if sevenExhausted {
-            return rateLimits.sevenDayReset
         }
-
-        return nil
+        // Only count down to future dates — past dates mean the reset has occurred
+        guard let date = candidate, date.timeIntervalSinceNow > 0 else { return nil }
+        return date
     }
 
     // MARK: - Recovery sparkle (throttle → green transition)
@@ -439,10 +445,11 @@ public final class StatusBarManager: NSObject {
                 guard let self, let button else { return }
                 let remaining = resetDate.timeIntervalSinceNow
                 if remaining <= 0 {
-                    // Countdown expired — show "soon" until next snapshot refresh resets state
-                    button.title = "soon"
-                    button.setAccessibilityValue("soon")
+                    // Countdown expired — refresh display to show percentage
                     self.stopCountdownTimer()
+                    if let vm = self.viewModel {
+                        self.updateButton(button, viewModel: vm)
+                    }
                     return
                 }
                 let text = RateLimitUsage.countdownText(to: resetDate)

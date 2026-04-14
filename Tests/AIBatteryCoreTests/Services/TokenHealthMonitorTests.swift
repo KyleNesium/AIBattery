@@ -18,30 +18,30 @@ struct TokenHealthMonitorTests {
     }
 
     @Test func assess_orangeBand() {
-        // 60%+ of usable window (160K) → orange
-        // Need totalUsed > 96K. Input=95K + output across entries
+        // 60%+ of usable window (1M) → orange
+        // Need totalUsed > 600K
         let entries = [
-            makeEntry(sessionId: "s1", input: 90_000, output: 3_000),
-            makeEntry(sessionId: "s1", input: 95_000, output: 3_000),
+            makeEntry(sessionId: "s1", input: 580_000, output: 30_000),
+            makeEntry(sessionId: "s1", input: 595_000, output: 15_000),
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        // totalUsed = input(95K) + cacheRead(0) + cacheWrite(0) + latestOutput(3K) = 98K
-        // percentage = 98K / 160K * 100 = 61.25% → orange
+        // totalUsed = input(595K) + latestOutput(15K) = 610K
+        // percentage = 610K / 1M * 100 = 61% → orange
         #expect(result?.band == .orange)
     }
 
     @Test func assess_redBand() {
         // 80%+ of usable window → red
-        // Need totalUsed > 128K
+        // Need totalUsed > 800K
         let entries = [
-            makeEntry(sessionId: "s1", input: 120_000, output: 5_000),
-            makeEntry(sessionId: "s1", input: 125_000, output: 5_000),
+            makeEntry(sessionId: "s1", input: 780_000, output: 15_000),
+            makeEntry(sessionId: "s1", input: 790_000, output: 15_000),
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        // totalUsed = 125K + 5K latestOutput = 130K
-        // percentage = 130K / 160K * 100 = 81.25% → red
+        // totalUsed = 790K + 15K latestOutput = 805K
+        // percentage = 805K / 1M * 100 = 80.5% → red
         #expect(result?.band == .red)
     }
 
@@ -263,10 +263,11 @@ struct TokenHealthMonitorTests {
 
     @Test func assess_staleSession_nonGreenBand() {
         // Session with last activity 45 min ago and orange band → stale warning
+        // Need totalUsed > 60% of 1M = 600K for orange band
         let staleTime = Date().addingTimeInterval(-45 * 60)
         let entries = [
-            makeEntry(sessionId: "s1", input: 100_000, output: 5_000, timestamp: staleTime.addingTimeInterval(-60)),
-            makeEntry(sessionId: "s1", input: 100_000, output: 5_000, timestamp: staleTime),
+            makeEntry(sessionId: "s1", input: 590_000, output: 15_000, timestamp: staleTime.addingTimeInterval(-60)),
+            makeEntry(sessionId: "s1", input: 595_000, output: 15_000, timestamp: staleTime),
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
@@ -301,8 +302,8 @@ struct TokenHealthMonitorTests {
         let customMonitor = TokenHealthMonitor(config: config)
 
         // 40% usage → with default would be green, with custom thresholds → orange
-        // usable window = 160K. 40% = 64K.
-        let entries = [makeEntry(sessionId: "s1", input: 60_000, output: 4_000)]
+        // usable window = 1M. 40% = 400K.
+        let entries = [makeEntry(sessionId: "s1", input: 395_000, output: 5_000)]
         let result = customMonitor.assessCurrentSession(entries: entries)
         #expect(result?.band == .orange)
     }
@@ -421,7 +422,7 @@ struct TokenHealthMonitorTests {
     }
 
     @Test func assess_unknownModel_validResult() {
-        // Unknown model gets default 200K context window — verify no crash
+        // Unknown model gets default 1M context window — verify no crash
         let entries = [makeEntry(sessionId: "s1", input: 50_000, output: 5_000, model: "unknown-model-xyz")]
         let result = monitor.assessCurrentSession(entries: entries)
         if let result {

@@ -653,8 +653,8 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 ### DurationFormatter (`Utilities/DurationFormatter.swift`)
 - Enum (no instances) — shared compact time duration formatting
 - `static func compact(_ seconds: TimeInterval) -> String` — formats a duration into the shortest human-readable form
-  - `≤ 0` → `"soon"`
-  - `< 60s` → `"1m"` (minimum 1 minute)
+  - `≤ 0` → `"0s"`
+  - `< 60s` → `"Xs"` (actual seconds, minimum `"1s"`)
   - `1–59 min` → `"Xm"`
   - `1h–23h 59m` → `"Xh Ym"`
   - `≥ 24 hours` → `"Xd Yh"`

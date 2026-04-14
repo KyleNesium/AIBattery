@@ -37,17 +37,17 @@ struct TypographyTests {
     @Test func monoCaptionSmall_isCaption2Mono() {
         #expect(Typography.monoCaptionSmall == Font.system(.caption2, design: .monospaced))
     }
-    @Test func monoTiny_isSize9Mono() {
-        #expect(Typography.monoTiny == Font.system(size: 9, design: .monospaced))
+    @Test func monoTiny_isSize10Mono() {
+        #expect(Typography.monoTiny == Font.system(size: 10, design: .monospaced))
     }
-    @Test func badgeLabel_isSize9MediumMono() {
-        #expect(Typography.badgeLabel == Font.system(size: 9, weight: .medium, design: .monospaced))
+    @Test func badgeLabel_isSize10MediumMono() {
+        #expect(Typography.badgeLabel == Font.system(size: 10, weight: .medium, design: .monospaced))
     }
     @Test func buttonLabel_isSubheadlineMedium() {
         #expect(Typography.buttonLabel == Font.subheadline.weight(.medium))
     }
     @Test func decorativeIcon_meetsMinimumSize() {
-        // UI-05: minimum 8pt floor — no font below 8pt
-        #expect(Typography.decorativeIcon == Font.system(size: 8))
+        // UI-05: minimum 9pt floor — decorativeIcon aliases iconSmall
+        #expect(Typography.decorativeIcon == Font.system(size: 9))
     }
 }
