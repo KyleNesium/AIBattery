@@ -181,4 +181,17 @@ struct ThemeColorsTests {
         #expect(at50 != at80)
         #expect(at80 != at95)
     }
+
+    // MARK: - Context health color (moved from MenuBarIconTests to avoid races)
+
+    @Test func contextHealthNSColor_matchesHealthBandThresholds() {
+        setColorblind(false)
+        let green = ThemeColors.contextHealthNSColor(percent: 50)
+        let orange = ThemeColors.contextHealthNSColor(percent: 70)
+        let red = ThemeColors.contextHealthNSColor(percent: 85)
+        #expect(green != orange)
+        #expect(orange != red)
+        #expect(green == .systemGreen)
+        #expect(red == .systemRed)
+    }
 }

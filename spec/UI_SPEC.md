@@ -397,26 +397,27 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 
 ### StatusBarManager (`Views/StatusBarManager.swift`)
 
-Native AppKit `NSStatusItem` with `button.image` (star icon) + `button.title` (percentage/countdown). Replaces SwiftUI's `MenuBarExtra` to gain full control over popover lifecycle.
+Native AppKit `NSStatusItem` with a single combined `button.image` — percentage/countdown text and the star icon are baked into one `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)`. This bypasses the per-side bezel padding AppKit applies around a separate `title + image` layout, so the menu bar pill hugs the content like Battery / WiFi / Control Center.
 
 **Button rendering** (native AppKit, no NSHostingView):
-- `button.image` = `MenuBarIcon.statusBarImage(for: percent)` — star icon colored by usage band
-- `button.title` = percentage or countdown text
-- `button.imagePosition = .imageTrailing` — text left, icon right (matches macOS battery layout)
-- `button.imageHugsTitle = true` — tight spacing between text and icon
-- `button.font` = `.monospacedDigitSystemFont(ofSize: 12, weight: .regular)` — 12pt monospaced, matches macOS menu bar status items
+- `button.image` = `MenuBarIcon.combinedStatusBarImage(text:percent:color:...)` — text + star rendered into one tightly-packed image (text in `.white`/`.black` based on effective menu bar appearance, then 2pt gap, then the colored star with its 4pt canvas padding trimmed from both sides)
+- `button.title = ""` — leaving it set would add AppKit's bezel padding back around the text
+- `statusItem.length = image.size.width` — sizing the button exactly to the image makes `NSButtonCell.imageRect(forBounds:)` return `origin.x = 0`, so the image is flush against both button edges with no centering gap
+- `button.font` = `.monospacedDigitSystemFont(ofSize: 11, weight: .medium)` — used for text measurement inside `combinedStatusBarImage`, matches macOS menu bar status items
 
-**Countdown display**: title shows countdown to reset instead of percentage when any of these conditions are met:
+**macOS window chrome constraint (unavoidable):** `NSStatusBarWindow` wraps every third-party status item in a window that is exactly **`length + 16`pt wide** (8pt on each side), independent of content. This was verified empirically by probing `button.window?.frame` against `statusItem.length` at multiple sizes — the 16pt delta is invariant. System items (Battery, WiFi, Clock) live inside `ControlCenter`'s private content view and bypass this chrome, which is why they can appear tighter. For third-party `NSStatusItem` users, this 16pt is a floor we can't reduce via public API; the minimum pill width is therefore `content_width + 16`.
+
+**Countdown display**: the baked text in the combined image shows countdown to reset instead of percentage when any of these conditions are met:
 - `rateLimits.isThrottled == true` → shows binding reset countdown
 - `fiveHourPercent >= 100` → shows 5-hour window reset countdown
 - `sevenDayPercent >= 100` → shows 7-day window reset countdown
-- Both windows exhausted → shows earliest reset
+- Both windows exhausted → shows earliest **future** reset (past dates are filtered out per-window, so once the earlier window has reset the still-valid later window's countdown takes over instead of the display dropping back to `"100%"`)
 
-This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when capacity is exhausted. Overrides the selected metric mode entirely. Updates on each polling cycle.
+This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when capacity is exhausted. Overrides the selected metric mode entirely. Refreshes every **1 s when <60 s remain, every 10 s otherwise** via an adaptive `Timer.scheduledTimer` in `StatusBarManager.startCountdownTimer` — the menu bar is kept in sync with the popover's `TimelineView` rather than the longer rate-limit polling cycle.
 
 **Normal mode**: shows `"{percent}%"` driven by selected metric mode (reads `UserDefaults` directly since `@AppStorage` requires SwiftUI View context).
 
-**Staleness**: `button.appearsDisabled = true` when last fresh fetch > 5 minutes ago (native dimming).
+**Staleness**: the icon always renders the last known state — no grey-out. Other menu bar apps (Battery, WiFi) also don't dim on stale data.
 
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
 - Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`, handles Cmd+Q) with `NSHostingView` content (10pt corner radius via layer)
@@ -438,7 +439,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Fill: solid color from caller (matches active metric mode — rate limit or context health thresholds)
 - Stroke: high-contrast → black 0.8 / 1.0pt; light mode → black 0.3 / 0.75pt; dark mode → color 0.6 / 0.5pt
 - `isTemplate = false`
-- `alignmentRect` inset 3pt from left — pulls icon closer to percentage text for tighter macOS battery-style spacing
+- `alignmentRect` inset `(left: 1, right: 5)` — still set on the per-icon `NSImage` for anywhere the star is used outside the menu bar button (SwiftUI previews, tests). The menu bar pill no longer relies on it — `combinedStatusBarImage` positions the star directly by trimming the 3pt canvas padding on each side
 
 **Three render modes** based on state:
 

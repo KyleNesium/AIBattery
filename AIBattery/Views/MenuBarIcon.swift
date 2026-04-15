@@ -126,6 +126,65 @@ struct MenuBarIcon: View {
         cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
     }
 
+    /// Horizontal whitespace trimmed from each side of the `iconSize` canvas when
+    /// compositing into `combinedStatusBarImage`. Larger value = narrower visible icon.
+    /// The star's outer vertex (including max breathing) sits at ~center ± 7.5pt, and
+    /// the halo at 95%+ reaches ~center ± 8.6pt. Trimming 4pt on each side keeps the
+    /// star fully visible and only cuts ~0.6pt off the outer ring of the red-band halo,
+    /// which is drawn at < 15% alpha and thus imperceptible.
+    private static let iconCanvasPadding: CGFloat = 4
+
+    /// Renders the percentage/countdown text and the star into a single tightly-packed
+    /// `NSImage`. Assigning this to `NSStatusBarButton.image` (with `title = ""`) avoids
+    /// the bezel padding that AppKit applies around a title + image button layout, giving
+    /// the menu bar pill a width matching other system items like Battery and WiFi.
+    static func combinedStatusBarImage(
+        text: String,
+        percent: Double,
+        color: NSColor,
+        isBroken: Bool = false,
+        isSparkle: Bool = false
+    ) -> NSImage {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        let isDarkMenuBar = NSApp?.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let textColor: NSColor = isDarkMenuBar ? .white : .black
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: textColor
+        ]
+        let attributed = NSAttributedString(string: text, attributes: attributes)
+        let textSize = attributed.size()
+        let textWidth = ceil(textSize.width)
+
+        let icon = statusBarImage(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: 0)
+        let canvasSize = icon.size.width // 22pt, contains star + halo with ~3pt padding each side
+        let iconVisibleWidth = canvasSize - 2 * iconCanvasPadding
+        let gap: CGFloat = 2
+
+        // Total width = text + gap + visible icon. We shift the icon left by its own
+        // leading canvas padding so the visible star begins right after `gap`, and
+        // trim the trailing canvas padding from the right side the same way.
+        let totalWidth = ceil(textWidth + gap + iconVisibleWidth)
+        let height = canvasSize
+
+        let image = NSImage(size: NSSize(width: totalWidth, height: height), flipped: false) { _ in
+            let textY = (height - ceil(textSize.height)) / 2
+            attributed.draw(at: NSPoint(x: 0, y: textY))
+
+            let iconX = textWidth + gap - iconCanvasPadding
+            icon.draw(
+                at: NSPoint(x: iconX, y: 0),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 1.0
+            )
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
     static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> NSImage {
         registerAccessibilityObserverIfNeeded()
 

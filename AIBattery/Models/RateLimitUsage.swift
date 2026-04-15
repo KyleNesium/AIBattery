@@ -109,7 +109,7 @@ struct RateLimitUsage: Equatable, Codable {
 
     // MARK: - Countdown formatter
 
-    /// Compact countdown string for menu bar: "2h 15m", "45m", "soon"
+    /// Compact countdown string for menu bar: "2h 15m", "45m", "0s"
     static func countdownText(to date: Date, from now: Date = .now) -> String {
         DurationFormatter.compact(date.timeIntervalSince(now))
     }

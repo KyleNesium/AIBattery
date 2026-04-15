@@ -243,9 +243,23 @@ public final class StatusBarManager: NSObject {
             self.panel?.orderOut(nil)
         }
 
-        // Track system appearance changes so the panel follows light/dark mode
-        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak panel] _, _ in
-            panel?.appearance = NSApp.effectiveAppearance
+        // Track system appearance changes so the panel follows light/dark mode.
+        // Also rebuild the menu bar image: `combinedStatusBarImage` bakes the text color
+        // (black/white) at render time from the then-current effective appearance, so a
+        // dark/light or "Increase Contrast" switch leaves stale text until the next poll
+        // unless we force a redraw here.
+        //
+        // KVO callbacks for `effectiveAppearance` are not contractually main-thread, so
+        // hop explicitly via `Task { @MainActor in ... }` rather than asserting isolation.
+        // Both the panel mutation and the status-bar redraw are AppKit UI work.
+        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak self, weak panel] _, _ in
+            Task { @MainActor in
+                panel?.appearance = NSApp.effectiveAppearance
+                guard let self,
+                      let button = self.statusItem?.button,
+                      let viewModel = self.viewModel else { return }
+                self.updateButton(button, viewModel: viewModel)
+            }
         }
 
         // Close panel when app loses focus (Cmd+Tab, click another app's window).
@@ -304,24 +318,25 @@ public final class StatusBarManager: NSObject {
         updateSparkleState(isThrottled: isExhausted)
         updateRenderState(percent: percent, color: starColor, isThrottled: isExhausted)
 
-        button.image = MenuBarIcon.statusBarImage(
-            for: percent,
+        let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
+        button.image = MenuBarIcon.combinedStatusBarImage(
+            text: displayText,
+            percent: percent,
             color: starColor,
             isBroken: isExhausted,
-            isSparkle: isSparkleActive,
-            pulseStep: 0
+            isSparkle: isSparkleActive
         )
-
-        let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
-        button.title = displayText
+        // Title is baked into the image — leaving it set would add AppKit's bezel padding
+        // back around the text, which is exactly what we're avoiding here.
+        button.title = ""
         button.setAccessibilityValue(displayText)
-        updateStatusItemWidth(button: button, displayText: displayText)
+        updateStatusItemWidth(button: button)
         // Never grey out — the icon always shows the last known state.
         // Other menu bar apps (Battery, WiFi) don't dim on stale data.
 
         // Start or stop the countdown ticker based on whether we have an active countdown.
         if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
-            startCountdownTimer(resetDate: resetDate, button: button, percent: percent)
+            startCountdownTimer(resetDate: resetDate, button: button)
         } else {
             stopCountdownTimer()
         }
@@ -336,13 +351,18 @@ public final class StatusBarManager: NSObject {
         return MetricMode(rawValue: raw) ?? .fiveHour
     }
 
-    private func updateStatusItemWidth(button: NSStatusBarButton, displayText: String) {
-        guard let statusItem else { return }
-        let font = button.font ?? .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        let titleWidth = ceil((displayText as NSString).size(withAttributes: [.font: font]).width)
-        let iconWidth = max(12, button.image?.alignmentRect.size.width ?? 12)
-        // Tight width: title + icon + small gap + minimal capsule padding.
-        statusItem.length = titleWidth + iconWidth + 6
+    private func updateStatusItemWidth(button: NSStatusBarButton) {
+        guard let statusItem, let image = button.image else { return }
+        // Setting `statusItem.length = image.size.width` (rather than + 2) eliminates
+        // the 1pt-per-side `NSButton` image-centering padding: when button width equals
+        // image width, `imageRect(forBounds:)` returns origin.x = 0 and the image is
+        // flush against both edges.
+        //
+        // The remaining `NSStatusBarWindow` chrome of 8pt on each side (total window
+        // width = length + 16) is enforced by AppKit for third-party `NSStatusItem`s
+        // and cannot be eliminated via public API — system items like Battery / WiFi
+        // render inside ControlCenter's private content view which bypasses it.
+        statusItem.length = image.size.width
     }
 
     private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool) -> NSColor {
@@ -379,28 +399,38 @@ public final class StatusBarManager: NSObject {
     }
 
     /// Returns the reset date for countdown display when throttled or any window hits 100%.
-    /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
+    /// Priority: binding reset when throttled, otherwise earliest *future* reset of any
+    /// exhausted window. Past dates are filtered out — the window has already reset, so
+    /// another (still-future) window's countdown should take over instead of dropping to
+    /// a stale percentage.
     private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
+        Self.countdownResetDate(for: rateLimits, now: .now)
+    }
+
+    /// Pure, deterministic version of `countdownResetDate(for:)` — exposed at file scope
+    /// and parameterized on `now` so tests can assert handoff behaviour between the
+    /// 5-hour and 7-day windows without having to pin wall-clock time.
+    /// `nonisolated` because the implementation only reads its arguments — no shared
+    /// state — so tests can call it synchronously from outside the MainActor.
+    nonisolated static func countdownResetDate(for rateLimits: RateLimitUsage, now: Date) -> Date? {
+        // Keeps only reset timestamps that are still in the future; the 5-hour reset
+        // can fire while the 7-day window is still exhausted, and we want the valid
+        // 7-day countdown to take over rather than `min()` locking onto the past one.
+        let future: (Date?) -> Date? = { date in
+            guard let date, date.timeIntervalSince(now) > 0 else { return nil }
+            return date
+        }
+
         if rateLimits.isThrottled {
-            return rateLimits.bindingReset
+            return future(rateLimits.bindingReset)
         }
 
         let fiveExhausted = rateLimits.fiveHourPercent >= 100
         let sevenExhausted = rateLimits.sevenDayPercent >= 100
+        let futureFive = fiveExhausted ? future(rateLimits.fiveHourReset) : nil
+        let futureSeven = sevenExhausted ? future(rateLimits.sevenDayReset) : nil
 
-        if fiveExhausted && sevenExhausted {
-            // Both exhausted — show earliest reset
-            if let f = rateLimits.fiveHourReset, let s = rateLimits.sevenDayReset {
-                return min(f, s)
-            }
-            return rateLimits.fiveHourReset ?? rateLimits.sevenDayReset
-        } else if fiveExhausted {
-            return rateLimits.fiveHourReset
-        } else if sevenExhausted {
-            return rateLimits.sevenDayReset
-        }
-
-        return nil
+        return [futureFive, futureSeven].compactMap { $0 }.min()
     }
 
     // MARK: - Recovery sparkle (throttle → green transition)
@@ -426,7 +456,7 @@ public final class StatusBarManager: NSObject {
     /// Starts (or re-uses) a repeating timer that updates the menu bar countdown text
     /// every tick. Tick interval adapts: 1s when <60s remain, 10s otherwise.
     /// This keeps the menu bar countdown in sync with the popover's TimelineView.
-    private func startCountdownTimer(resetDate: Date, button: NSStatusBarButton, percent: Double) {
+    private func startCountdownTimer(resetDate: Date, button: NSStatusBarButton) {
         let interval = countdownTickInterval(for: resetDate)
         // Re-use existing timer if targeting the same reset date at the same interval
         if activeResetDate == resetDate, countdownTimer?.timeInterval == interval {
@@ -436,23 +466,18 @@ public final class StatusBarManager: NSObject {
         activeResetDate = resetDate
         countdownTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self, weak button] _ in
             MainActor.assumeIsolated {
-                guard let self, let button else { return }
+                guard let self, let button, let vm = self.viewModel else { return }
                 let remaining = resetDate.timeIntervalSinceNow
                 if remaining <= 0 {
-                    // Countdown expired — show "soon" until next snapshot refresh resets state
-                    button.title = "soon"
-                    button.setAccessibilityValue("soon")
+                    // Countdown expired — refresh display to show percentage
                     self.stopCountdownTimer()
+                    self.updateButton(button, viewModel: vm)
                     return
                 }
-                let text = RateLimitUsage.countdownText(to: resetDate)
-                button.title = text
-                button.setAccessibilityValue(text)
-                // Adapt tick rate: switch to 1s when approaching reset
-                let newInterval = self.countdownTickInterval(for: resetDate)
-                if newInterval != self.countdownTimer?.timeInterval {
-                    self.startCountdownTimer(resetDate: resetDate, button: button, percent: percent)
-                }
+                // Rebuild the combined image so the baked countdown text updates.
+                // `updateButton` also re-evaluates the tick interval via `startCountdownTimer`,
+                // which short-circuits when interval/resetDate are unchanged.
+                self.updateButton(button, viewModel: vm)
             }
         }
     }

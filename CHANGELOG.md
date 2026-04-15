@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.1.6] — 2026-04-15
+
+### Changed
+- **Tighter menu bar pill** — text and the star are now baked into a single `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)` with `button.title = ""`, which eliminates AppKit's bezel padding around a separate `title + image` layout. `statusItem.length` is set to exactly `image.size.width` (makes `NSButtonCell.imageRect(forBounds:)` return `origin.x = 0`, flush against both edges), and the icon's canvas trim bumped 3pt → 4pt on each side (star still fully visible; only ~0.6pt of the red-band halo's outermost <15% alpha ring is clipped). A further 16pt of `NSStatusBarWindow` chrome (8pt per side) is enforced by AppKit for third-party status items and cannot be removed via public API — documented in `spec/UI_SPEC.md`
+
+### Fixed
+- **Menu bar `"soon"` text** — when a rate-limit window hit 100% the countdown ticked to `"soon"`, which truncated to `"so"` in the narrow menu bar; `DurationFormatter` now returns `"0s"` for zero/negative durations, and `StatusBarManager` filters past reset dates and refreshes the display on expiry instead of setting a stale countdown title
+- **`TokenLedger` write race** — `flushForTesting()` always wrote the file even when no merge had mutated state, and raced the async `save()` Task which also wrote unconditionally; both paths now share a `flushIfDirty()` helper gated on an `isDirty` flag, so back-to-back no-op merges stop touching the file twice
+- **`TokenLedger` silent data loss on write failure** — `flushIfDirty()` cleared `isDirty` before the atomic write, so a transient disk-full / permissions / FS error left the flag false and every subsequent `save()` became a no-op until the next merge mutated state, silently dropping high-water marks on restart; write failures now re-acquire the lock and restore `isDirty = true` so the next flush retries
+- **Dual-exhausted countdown regression** — in `countdownResetDate`, when both 5-hour and 7-day windows were exhausted the code applied `min(fiveHourReset, sevenDayReset)` *before* filtering past dates, so once the earlier 5-hour reset fired the menu bar dropped to `"100%"` instead of handing off to the still-valid 7-day countdown; the helper now filters past dates per-window before selecting the earliest future reset
+- **Menu bar text colour stale on appearance change** — `combinedStatusBarImage` bakes the text colour (black / white) from `NSApp.effectiveAppearance` at render time, and the `appearanceObserver` only repainted the popover panel, so switching light / dark or "Increase Contrast" while the app was idle left the baked text in the wrong colour until the next VM poll; the observer now also rebuilds the status-bar image via `updateButton(...)` and hops onto MainActor via `Task { @MainActor in ... }` instead of `MainActor.assumeIsolated { }` — the KVO callback isn't contractually on main, so an explicit hop is safer than an assertion
+- **`TokenLedger` flush ordering race** — two rapid merges could race: flush A encodes state A and releases the lock, merge B mutates state to B, flush B encodes and writes state B, then flush A's later atomic write overwrites the disk with the older snapshot. All flushes now run on a dedicated serial `DispatchQueue` ("TokenLedger.write"), so encoding order == write order — the latest state always lands last on disk
+- **Force-unwrap crash risks** — replaced `SessionLogReader` `discoveredFiles!` and `PopoverFooterView` `alternateText!` with guarded paths that fall through cleanly instead of crashing
+
+### Docs
+- **Spec drift** — `CONSTANTS.md` token-endpoint timeout corrected 15s → 30s (matches `OAuthManager.swift:359`); OAuth usage URL added as the primary fetch URL with the Messages API entry re-labelled `(fallback)`; `DATA_LAYER.md` `DurationFormatter` docs now match code (`"soon"` → `"0s"`, `"1m" minimum` → `"Xs" (min "1s")`)
+- **`RateLimitUsage.countdownText()` docstring** — updated to reflect the `"0s"` behaviour
+- **`UI_SPEC.md` / `ARCHITECTURE.md`** — menu bar section rewritten to describe the single-combined-image approach (previous `button.image + button.title` description drifted from code)
+- **Countdown refresh cadence** — `CONSTANTS.md` and `UI_SPEC.md` updated from "Per polling cycle (10–60 sec)" to the actual behaviour (`Timer.scheduledTimer` ticking every 1 s when <60 s remain, 10 s otherwise) so future readers don't expect a slower refresh
+- **`project.yml`** — `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` bumped 2.1.3 → 2.1.6 to match `Info.plist` (the Xcode-project generator config had drifted three releases behind)
+
+### Tests
+- **16 pre-existing drift failures repaired** — `TokenHealthConfig` / `TokenHealthMonitor` rescaled for 1M context windows + `usableContextRatio` 0.8 → 1.0; `ActivityChartData` month-key format corrected (daily → month lookup); `Typography` font sizes updated (10pt mono, 9pt icon)
+- **Test isolation** — `RateLimitFetcherTests.setObservedModels_updatesInMemoryList` now uses a unique account ID + defer cleanup so `["model-a", "model-b"]` no longer leaks into the `aibattery_observedModels_*` fallback used by three downstream tests; `MenuBarIconTests.contextHealthColor_matchesHealthBandThresholds` relocated into the `.serialized` `ThemeColorsTests` suite so it no longer races parallel colorblind-flag flips
+- **`claude-sonnet-4-6-20250929` coverage** — added to `TokenHealthConfigTests.contextWindow_allKnownModels_4x`; it was present in `TokenHealthConfig.contextWindows` but untested
+- **`countdownResetDate` handoff regression pinned** — new `StatusBarCountdownResetDateTests` suite (11 tests) locks in dual-exhausted past/future handoff, throttled binding-reset handling, and nil edge cases. The static helper on `StatusBarManager` is now `nonisolated` so the tests can call it synchronously
+- **`TokenLedger` write-failure retry pinned** — new `flush_retriesAfterWriteFailure` test creates a ledger with a missing parent directory, merges, flushes (write fails), creates the dir, flushes again, and verifies the merge actually persisted on retry — catching any future regression of the "silent no-op after failure" bug
+- **866 tests across 58 files — all 12 new tests pass individually**; a clean full-suite run was verified before the pre-landing polish fixes
+
 ## [2.1.5] — 2026-04-13
 
 ### Fixed

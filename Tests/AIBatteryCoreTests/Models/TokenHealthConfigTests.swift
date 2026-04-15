@@ -7,15 +7,15 @@ struct TokenHealthConfigTests {
     // MARK: - Context window lookup
 
     @Test func contextWindow_exactMatch() {
-        #expect(TokenHealthConfig.contextWindow(for: "claude-opus-4-6") == 200_000)
+        #expect(TokenHealthConfig.contextWindow(for: "claude-opus-4-6") == 1_000_000)
     }
 
     @Test func contextWindow_datedModel() {
-        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20250929") == 200_000)
+        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20250929") == 1_000_000)
     }
 
     @Test func contextWindow_prefixMatch() {
-        // Should match "claude-3-5-sonnet-*" via prefix
+        // Should match "claude-3-5-sonnet-*" via prefix — 3.x models retain 200K
         #expect(TokenHealthConfig.contextWindow(for: "claude-3-5-sonnet-20241022") == 200_000)
     }
 
@@ -39,21 +39,34 @@ struct TokenHealthConfigTests {
     }
 
     @Test func usableContextRatio() {
-        #expect(TokenHealthConfig.usableContextRatio == 0.80)
+        #expect(TokenHealthConfig.usableContextRatio == 1.0)
     }
 
     @Test func defaultContextWindow() {
-        #expect(TokenHealthConfig.defaultContextWindow == 200_000)
+        #expect(TokenHealthConfig.defaultContextWindow == 1_000_000)
     }
 
     // MARK: - Extended context window lookup
 
-    @Test func contextWindow_allKnownModels() {
-        // Every model in contextWindows should return 200_000
+    @Test func contextWindow_allKnownModels_4x() {
+        // Claude 4.x models have 1M context windows
         let models = [
             "claude-opus-4-6",
             "claude-sonnet-4-5-20250929",
+            "claude-sonnet-4-6-20250929",
             "claude-haiku-4-5-20251001",
+        ]
+        for model in models {
+            #expect(
+                TokenHealthConfig.contextWindow(for: model) == 1_000_000,
+                "Expected 1M for \(model)"
+            )
+        }
+    }
+
+    @Test func contextWindow_allKnownModels_3x() {
+        // Claude 3.x models retain 200K context windows
+        let models = [
             "claude-3-5-sonnet-20241022",
             "claude-3-5-haiku-20241022",
             "claude-3-opus-20240229",
@@ -70,7 +83,7 @@ struct TokenHealthConfigTests {
 
     @Test func contextWindow_prefixMatch_futureDate() {
         // Same model family with a different date suffix should match via prefix
-        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20260101") == 200_000)
+        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20260101") == 1_000_000)
     }
 
     @Test func contextWindow_prefixMatch_haiku35_futureDate() {

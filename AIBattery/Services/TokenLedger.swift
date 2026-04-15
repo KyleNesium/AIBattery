@@ -14,9 +14,18 @@ final class TokenLedger: @unchecked Sendable {
 
     private let fileURL: URL
     private var ledger: LedgerData
+    /// Tracks whether `ledger` has unflushed changes since the last write.
+    /// `flushForTesting()` checks this so a no-op merge doesn't touch the file.
+    private var isDirty = false
     /// Guards all reads/writes to `ledger` — prevents concurrent Task.detached calls
     /// from racing on dictionary mutation (EXC_BAD_ACCESS in Dictionary.subscript.setter).
     private let lock = NSLock()
+    /// Serial queue for encode-then-write. Two rapid merges used to be able to race:
+    /// flush A would encode, release the lock, merge B would mutate, flush B would
+    /// encode and write, then flush A's later write would overwrite with its stale
+    /// snapshot. Running every flush on one serial queue makes encoding order ==
+    /// write order, so the latest encoded state always lands last on disk.
+    private let writeQueue = DispatchQueue(label: "com.KyleNesium.AIBattery.TokenLedger.write", qos: .utility)
 
     init(fileURL: URL? = nil) {
         let url = fileURL ?? Self.defaultFileURL
@@ -88,6 +97,7 @@ final class TokenLedger: @unchecked Sendable {
 
         if changed {
             ledger.accounts[accountId] = accountData
+            isDirty = true
             save()
         }
 
@@ -117,24 +127,43 @@ final class TokenLedger: @unchecked Sendable {
     }
 
     private func save() {
-        guard let encoded = try? JSONEncoder().encode(ledger) else { return }
-        let url = fileURL
-        Task.detached(priority: .utility) {
-            do {
-                try encoded.write(to: url, options: .atomic)
-            } catch {
-                AppLogger.general.warning("TokenLedger save failed: \(error.localizedDescription, privacy: .public)")
-            }
+        writeQueue.async { [weak self] in
+            self?.flushIfDirty()
         }
     }
 
     /// Synchronous write for testing — ensures data is on disk before returning.
+    /// Runs on `writeQueue` so any pending async flushes drain first, matching
+    /// the production ordering guarantee.
     func flushForTesting() {
+        writeQueue.sync {
+            self.flushIfDirty()
+        }
+    }
+
+    /// Shared flush path for both async `save()` and sync `flushForTesting()`.
+    /// **Must only be called from `writeQueue`** — running on the serial queue is
+    /// what guarantees encoding order == write order across rapid successive merges.
+    /// No-op when no merge has mutated the ledger since the last flush — prevents
+    /// duplicate writes from racing `save` Tasks and test flushes.
+    private func flushIfDirty() {
         lock.lock()
+        guard isDirty else { lock.unlock(); return }
         let encoded = try? JSONEncoder().encode(ledger)
+        isDirty = false
         lock.unlock()
         guard let encoded else { return }
-        try? encoded.write(to: fileURL, options: .atomic)
+        do {
+            try encoded.write(to: fileURL, options: .atomic)
+        } catch {
+            // Write failed (disk full, permissions, transient FS error). Re-mark dirty so
+            // the next flush retries — without this, every subsequent `save()` becomes a
+            // no-op until a new merge mutates state, silently losing high-water marks.
+            lock.lock()
+            isDirty = true
+            lock.unlock()
+            AppLogger.general.warning("TokenLedger save failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 

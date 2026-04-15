@@ -170,14 +170,8 @@ struct MenuBarIconTests {
     }
 
     // MARK: - Context health color
-
-    @Test func contextHealthColor_matchesHealthBandThresholds() {
-        let green = ThemeColors.contextHealthNSColor(percent: 50)
-        let orange = ThemeColors.contextHealthNSColor(percent: 70)
-        let red = ThemeColors.contextHealthNSColor(percent: 85)
-        #expect(green != orange)
-        #expect(orange != red)
-        #expect(green == .systemGreen)
-        #expect(red == .systemRed)
-    }
+    // Note: test for `ThemeColors.contextHealthNSColor` with specific color assertions
+    // lives in ThemeColorsTests — that suite is `.serialized` and controls the global
+    // `isColorblind` flag deterministically. Asserting here races with the parallel
+    // ThemeColors suite and produces flaky Blue/Purple reads from the colorblind palette.
 }

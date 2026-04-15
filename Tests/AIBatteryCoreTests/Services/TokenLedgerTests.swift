@@ -272,4 +272,40 @@ struct TokenLedgerTests {
         let result = ledger.merge([makeToken(input: 42)], accountId: "acc1")
         #expect(result[0].inputTokens == 42)
     }
+
+    // MARK: - Write failure retry (v2.1.6)
+
+    /// A transient write failure must not strand the ledger in a "clean" state. If the
+    /// atomic write throws (disk full, permission denied, missing parent directory, etc.)
+    /// the next `save()` / `flushForTesting()` must retry and persist the pending state.
+    @Test @MainActor func flush_retriesAfterWriteFailure() throws {
+        // Use a URL whose parent doesn't exist so the first write will throw.
+        let badParent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TokenLedgerTests-missing-\(UUID().uuidString)")
+        let url = badParent.appendingPathComponent("ledger.json")
+        defer { try? FileManager.default.removeItem(at: badParent) }
+
+        let ledger = TokenLedger(fileURL: url)
+        _ = ledger.merge([makeToken(input: 1000, output: 500)], accountId: "acc1")
+        ledger.flushForTesting() // first write fails silently — parent dir missing
+
+        // File must not exist yet — write failed.
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+
+        // Create the parent so the retry can succeed.
+        try FileManager.default.createDirectory(at: badParent, withIntermediateDirectories: true)
+
+        // Second flush MUST retry the pending merge. If `isDirty` had been incorrectly
+        // stranded at `false` after the failure, this would be a no-op and the file
+        // would stay missing — regressing the high-water mark to disk.
+        ledger.flushForTesting()
+        #expect(FileManager.default.fileExists(atPath: url.path))
+
+        // Reload a fresh ledger and verify the pending state actually persisted,
+        // not just that an empty file was created.
+        let fresh = TokenLedger(fileURL: url)
+        let result = fresh.merge([makeToken(input: 0, output: 0)], accountId: "acc1")
+        #expect(result.first?.inputTokens == 1000)
+        #expect(result.first?.outputTokens == 500)
+    }
 }

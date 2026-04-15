@@ -106,11 +106,11 @@ struct ActivityChartDataTests {
         let cal = Calendar.current
         // Fix to March 10, 2026 — so dayOfMonth=10, daysInMonth=31
         let fixedDate = cal.date(from: DateComponents(year: 2026, month: 3, day: 10))!
-        let daily: [String: Int] = [
-            "2026-03-01": 10000,
-            "2026-03-05": 20000,
+        // monthlyData expects pre-aggregated month keys (from monthTokenTotals)
+        let monthTotals: [String: Int] = [
+            "2026-03": 30000,
         ]
-        let data = ActivityChartData.monthlyData(from: daily, now: fixedDate)
+        let data = ActivityChartData.monthlyData(from: monthTotals, now: fixedDate)
         let march = data.first(where: { $0.key == "2026-03" })!
 
         // Total is 30000, projected = 30000 * 31 / 10 = 93000
@@ -120,10 +120,10 @@ struct ActivityChartDataTests {
     @Test func monthlyData_noProjectionFirstThreeDays() {
         let cal = Calendar.current
         let fixedDate = cal.date(from: DateComponents(year: 2026, month: 3, day: 2))!
-        let daily: [String: Int] = [
-            "2026-03-01": 10000,
+        let monthTotals: [String: Int] = [
+            "2026-03": 10000,
         ]
-        let data = ActivityChartData.monthlyData(from: daily, now: fixedDate)
+        let data = ActivityChartData.monthlyData(from: monthTotals, now: fixedDate)
         let march = data.first(where: { $0.key == "2026-03" })!
 
         // Day 2 < 4, so no projection — raw total
@@ -133,10 +133,10 @@ struct ActivityChartDataTests {
     @Test func monthlyData_pastMonthsNotProjected() {
         let cal = Calendar.current
         let fixedDate = cal.date(from: DateComponents(year: 2026, month: 3, day: 15))!
-        let daily: [String: Int] = [
-            "2026-02-10": 50000,
+        let monthTotals: [String: Int] = [
+            "2026-02": 50000,
         ]
-        let data = ActivityChartData.monthlyData(from: daily, now: fixedDate)
+        let data = ActivityChartData.monthlyData(from: monthTotals, now: fixedDate)
         let feb = data.first(where: { $0.key == "2026-02" })!
 
         // Past month — no projection

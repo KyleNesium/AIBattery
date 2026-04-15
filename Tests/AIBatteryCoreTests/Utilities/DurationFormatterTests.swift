@@ -5,11 +5,11 @@ import Testing
 struct DurationFormatterTests {
 
     @Test func compact_zeroSeconds() {
-        #expect(DurationFormatter.compact(0) == "soon")
+        #expect(DurationFormatter.compact(0) == "0s")
     }
 
     @Test func compact_negativeSeconds() {
-        #expect(DurationFormatter.compact(-100) == "soon")
+        #expect(DurationFormatter.compact(-100) == "0s")
     }
 
     @Test func compact_underOneMinute_showsSeconds() {

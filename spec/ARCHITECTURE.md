@@ -6,7 +6,7 @@
 @main AIBatteryApp: App
   └─ AppDelegate (NSApplicationDelegateAdaptor)
        └─ StatusBarManager.setup(viewModel:oauthManager:)
-            ├─ NSStatusItem: native button.image + button.title (no NSHostingView)
+            ├─ NSStatusItem: native button with a single combined button.image (text + star baked in)
             └─ PopoverPanel (floating NSPanel, borderless)
                  └─ NSHostingView → PopoverContentView (controlBackgroundColor background)
                       └─ Group { UsagePopoverView | AuthView }

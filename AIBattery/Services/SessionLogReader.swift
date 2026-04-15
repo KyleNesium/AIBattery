@@ -272,7 +272,7 @@ final class SessionLogReader: @unchecked Sendable {
            !discoveryDirModDatesChanged(),
            let lastEnum = lastFullEnumerationDate,
            Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
-            return discoveredFiles!
+            return discoveredFiles ?? []
         }
 
         let fm = FileManager.default
