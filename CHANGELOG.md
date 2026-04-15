@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.1.7] — 2026-04-16
+## [2.1.6] — 2026-04-15
 
 ### Changed
 - **Tighter menu bar pill** — text and the star are now baked into a single `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)` with `button.title = ""`, which eliminates AppKit's bezel padding around a separate `title + image` layout. `statusItem.length` is set to exactly `image.size.width` (makes `NSButtonCell.imageRect(forBounds:)` return `origin.x = 0`, flush against both edges), and the icon's canvas trim bumped 3pt → 4pt on each side (star still fully visible; only ~0.6pt of the red-band halo's outermost <15% alpha ring is clipped). A further 16pt of `NSStatusBarWindow` chrome (8pt per side) is enforced by AppKit for third-party status items and cannot be removed via public API — documented in `spec/UI_SPEC.md`
