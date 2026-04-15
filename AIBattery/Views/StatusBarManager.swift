@@ -304,24 +304,25 @@ public final class StatusBarManager: NSObject {
         updateSparkleState(isThrottled: isExhausted)
         updateRenderState(percent: percent, color: starColor, isThrottled: isExhausted)
 
-        button.image = MenuBarIcon.statusBarImage(
-            for: percent,
+        let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
+        button.image = MenuBarIcon.combinedStatusBarImage(
+            text: displayText,
+            percent: percent,
             color: starColor,
             isBroken: isExhausted,
-            isSparkle: isSparkleActive,
-            pulseStep: 0
+            isSparkle: isSparkleActive
         )
-
-        let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
-        button.title = displayText
+        // Title is baked into the image — leaving it set would add AppKit's bezel padding
+        // back around the text, which is exactly what we're avoiding here.
+        button.title = ""
         button.setAccessibilityValue(displayText)
-        updateStatusItemWidth(button: button, displayText: displayText)
+        updateStatusItemWidth(button: button)
         // Never grey out — the icon always shows the last known state.
         // Other menu bar apps (Battery, WiFi) don't dim on stale data.
 
         // Start or stop the countdown ticker based on whether we have an active countdown.
         if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
-            startCountdownTimer(resetDate: resetDate, button: button, percent: percent)
+            startCountdownTimer(resetDate: resetDate, button: button)
         } else {
             stopCountdownTimer()
         }
@@ -336,13 +337,12 @@ public final class StatusBarManager: NSObject {
         return MetricMode(rawValue: raw) ?? .fiveHour
     }
 
-    private func updateStatusItemWidth(button: NSStatusBarButton, displayText: String) {
-        guard let statusItem else { return }
-        let font = button.font ?? .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        let titleWidth = ceil((displayText as NSString).size(withAttributes: [.font: font]).width)
-        let iconWidth = max(12, button.image?.alignmentRect.size.width ?? 12)
-        // Tight width: title + icon + small gap + minimal capsule padding.
-        statusItem.length = titleWidth + iconWidth + 6
+    private func updateStatusItemWidth(button: NSStatusBarButton) {
+        guard let statusItem, let image = button.image else { return }
+        // Baked text + icon lives entirely in `button.image`; set the item width to the
+        // image width plus a 2pt click-area margin so the pill hugs the content the same
+        // way Battery / WiFi / Control Center do.
+        statusItem.length = image.size.width + 2
     }
 
     private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool) -> NSColor {
@@ -432,7 +432,7 @@ public final class StatusBarManager: NSObject {
     /// Starts (or re-uses) a repeating timer that updates the menu bar countdown text
     /// every tick. Tick interval adapts: 1s when <60s remain, 10s otherwise.
     /// This keeps the menu bar countdown in sync with the popover's TimelineView.
-    private func startCountdownTimer(resetDate: Date, button: NSStatusBarButton, percent: Double) {
+    private func startCountdownTimer(resetDate: Date, button: NSStatusBarButton) {
         let interval = countdownTickInterval(for: resetDate)
         // Re-use existing timer if targeting the same reset date at the same interval
         if activeResetDate == resetDate, countdownTimer?.timeInterval == interval {
@@ -442,24 +442,18 @@ public final class StatusBarManager: NSObject {
         activeResetDate = resetDate
         countdownTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self, weak button] _ in
             MainActor.assumeIsolated {
-                guard let self, let button else { return }
+                guard let self, let button, let vm = self.viewModel else { return }
                 let remaining = resetDate.timeIntervalSinceNow
                 if remaining <= 0 {
                     // Countdown expired — refresh display to show percentage
                     self.stopCountdownTimer()
-                    if let vm = self.viewModel {
-                        self.updateButton(button, viewModel: vm)
-                    }
+                    self.updateButton(button, viewModel: vm)
                     return
                 }
-                let text = RateLimitUsage.countdownText(to: resetDate)
-                button.title = text
-                button.setAccessibilityValue(text)
-                // Adapt tick rate: switch to 1s when approaching reset
-                let newInterval = self.countdownTickInterval(for: resetDate)
-                if newInterval != self.countdownTimer?.timeInterval {
-                    self.startCountdownTimer(resetDate: resetDate, button: button, percent: percent)
-                }
+                // Rebuild the combined image so the baked countdown text updates.
+                // `updateButton` also re-evaluates the tick interval via `startCountdownTimer`,
+                // which short-circuits when interval/resetDate are unchanged.
+                self.updateButton(button, viewModel: vm)
             }
         }
     }

@@ -2,6 +2,9 @@
 
 ## [2.1.6] — 2026-04-15
 
+### Changed
+- **Tighter menu bar pill** — text and the star are now baked into a single `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)` with `button.title = ""`; this eliminates AppKit's bezel padding around a separate `title + image` layout, so the pill hugs its content. `statusItem.length` is set to `image.width + 2` (click-area margin only)
+
 ### Fixed
 - **Menu bar `"soon"` text** — when a rate-limit window hit 100% the countdown ticked to `"soon"`, which truncated to `"so"` in the narrow menu bar; `DurationFormatter` now returns `"0s"` for zero/negative durations, and `StatusBarManager` filters past reset dates and refreshes the display on expiry instead of setting a stale countdown title
 - **`TokenLedger` write race** — `flushForTesting()` always wrote the file even when no merge had mutated state, and raced the async `save()` Task which also wrote unconditionally; both paths now share a `flushIfDirty()` helper gated on an `isDirty` flag, so back-to-back no-op merges stop touching the file twice
@@ -10,6 +13,7 @@
 ### Docs
 - **Spec drift** — `CONSTANTS.md` token-endpoint timeout corrected 15s → 30s (matches `OAuthManager.swift:359`); OAuth usage URL added as the primary fetch URL with the Messages API entry re-labelled `(fallback)`; `DATA_LAYER.md` `DurationFormatter` docs now match code (`"soon"` → `"0s"`, `"1m" minimum` → `"Xs" (min "1s")`)
 - **`RateLimitUsage.countdownText()` docstring** — updated to reflect the `"0s"` behaviour
+- **`UI_SPEC.md` / `ARCHITECTURE.md`** — menu bar section rewritten to describe the single-combined-image approach (previous `button.image + button.title` description drifted from code)
 
 ### Tests
 - **16 pre-existing drift failures repaired** — `TokenHealthConfig` / `TokenHealthMonitor` rescaled for 1M context windows + `usableContextRatio` 0.8 → 1.0; `ActivityChartData` month-key format corrected (daily → month lookup); `Typography` font sizes updated (10pt mono, 9pt icon)
