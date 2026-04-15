@@ -143,8 +143,12 @@ struct RateLimitFetcherTests {
     }
 
     @Test @MainActor func setObservedModels_updatesInMemoryList() {
+        let accountId = "test-updates-\(UUID().uuidString)"
+        let key = "aibattery_observedModels_\(accountId)"
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+
         let fetcher = RateLimitFetcher()
-        fetcher.setObservedModels(["model-a", "model-b"], accountId: "acct-1")
+        fetcher.setObservedModels(["model-a", "model-b"], accountId: accountId)
         #expect(fetcher.observedModels == ["model-a", "model-b"])
     }
 
