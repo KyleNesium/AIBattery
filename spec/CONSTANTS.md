@@ -28,7 +28,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Rate limit stale TTL | 86400 sec (24 hours) — hold unified header data through overnight sleep | UsageViewModel |
 | Sleep pause / wake resume | Immediate (NSWorkspace notifications) | UsageViewModel |
 | Menu bar staleness threshold | 300 sec (5 min) | StatusBarManager |
-| Menu bar countdown update | Per polling cycle (10–60 sec) | StatusBarManager |
+| Menu bar countdown tick | 1 sec when <60 s remain, 10 sec otherwise (adaptive `Timer.scheduledTimer`) | StatusBarManager.startCountdownTimer |
 | 5-hour aggregation window | 18000 sec (5 × 3600) | UsageAggregator |
 | 24-hour trailing window | 86400 sec | UsageAggregator |
 | Insights chart bucket count | 20 (fifteen-minute buckets over 5 hours) | UsageAggregator |

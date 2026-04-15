@@ -411,9 +411,9 @@ Native AppKit `NSStatusItem` with a single combined `button.image` — percentag
 - `rateLimits.isThrottled == true` → shows binding reset countdown
 - `fiveHourPercent >= 100` → shows 5-hour window reset countdown
 - `sevenDayPercent >= 100` → shows 7-day window reset countdown
-- Both windows exhausted → shows earliest reset
+- Both windows exhausted → shows earliest **future** reset (past dates are filtered out per-window, so once the earlier window has reset the still-valid later window's countdown takes over instead of the display dropping back to `"100%"`)
 
-This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when capacity is exhausted. Overrides the selected metric mode entirely. Updates on each polling cycle.
+This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when capacity is exhausted. Overrides the selected metric mode entirely. Refreshes every **1 s when <60 s remain, every 10 s otherwise** via an adaptive `Timer.scheduledTimer` in `StatusBarManager.startCountdownTimer` — the menu bar is kept in sync with the popover's `TimelineView` rather than the longer rate-limit polling cycle.
 
 **Normal mode**: shows `"{percent}%"` driven by selected metric mode (reads `UserDefaults` directly since `@AppStorage` requires SwiftUI View context).
 

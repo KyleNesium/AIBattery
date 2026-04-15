@@ -248,9 +248,13 @@ public final class StatusBarManager: NSObject {
         // (black/white) at render time from the then-current effective appearance, so a
         // dark/light or "Increase Contrast" switch leaves stale text until the next poll
         // unless we force a redraw here.
+        //
+        // KVO callbacks for `effectiveAppearance` are not contractually main-thread, so
+        // hop explicitly via `Task { @MainActor in ... }` rather than asserting isolation.
+        // Both the panel mutation and the status-bar redraw are AppKit UI work.
         appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak self, weak panel] _, _ in
-            panel?.appearance = NSApp.effectiveAppearance
-            MainActor.assumeIsolated {
+            Task { @MainActor in
+                panel?.appearance = NSApp.effectiveAppearance
                 guard let self,
                       let button = self.statusItem?.button,
                       let viewModel = self.viewModel else { return }
@@ -400,11 +404,20 @@ public final class StatusBarManager: NSObject {
     /// another (still-future) window's countdown should take over instead of dropping to
     /// a stale percentage.
     private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
+        Self.countdownResetDate(for: rateLimits, now: .now)
+    }
+
+    /// Pure, deterministic version of `countdownResetDate(for:)` — exposed at file scope
+    /// and parameterized on `now` so tests can assert handoff behaviour between the
+    /// 5-hour and 7-day windows without having to pin wall-clock time.
+    /// `nonisolated` because the implementation only reads its arguments — no shared
+    /// state — so tests can call it synchronously from outside the MainActor.
+    nonisolated static func countdownResetDate(for rateLimits: RateLimitUsage, now: Date) -> Date? {
         // Keeps only reset timestamps that are still in the future; the 5-hour reset
         // can fire while the 7-day window is still exhausted, and we want the valid
         // 7-day countdown to take over rather than `min()` locking onto the past one.
         let future: (Date?) -> Date? = { date in
-            guard let date, date.timeIntervalSinceNow > 0 else { return nil }
+            guard let date, date.timeIntervalSince(now) > 0 else { return nil }
             return date
         }
 
