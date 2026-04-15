@@ -243,9 +243,19 @@ public final class StatusBarManager: NSObject {
             self.panel?.orderOut(nil)
         }
 
-        // Track system appearance changes so the panel follows light/dark mode
-        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak panel] _, _ in
+        // Track system appearance changes so the panel follows light/dark mode.
+        // Also rebuild the menu bar image: `combinedStatusBarImage` bakes the text color
+        // (black/white) at render time from the then-current effective appearance, so a
+        // dark/light or "Increase Contrast" switch leaves stale text until the next poll
+        // unless we force a redraw here.
+        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak self, weak panel] _, _ in
             panel?.appearance = NSApp.effectiveAppearance
+            MainActor.assumeIsolated {
+                guard let self,
+                      let button = self.statusItem?.button,
+                      let viewModel = self.viewModel else { return }
+                self.updateButton(button, viewModel: viewModel)
+            }
         }
 
         // Close panel when app loses focus (Cmd+Tab, click another app's window).
@@ -385,34 +395,29 @@ public final class StatusBarManager: NSObject {
     }
 
     /// Returns the reset date for countdown display when throttled or any window hits 100%.
-    /// Priority: binding reset when throttled, otherwise earliest reset of any exhausted window.
-    /// Returns nil for past dates — the window has already reset, so show percentage instead.
+    /// Priority: binding reset when throttled, otherwise earliest *future* reset of any
+    /// exhausted window. Past dates are filtered out — the window has already reset, so
+    /// another (still-future) window's countdown should take over instead of dropping to
+    /// a stale percentage.
     private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
-        let candidate: Date?
-        if rateLimits.isThrottled {
-            candidate = rateLimits.bindingReset
-        } else {
-            let fiveExhausted = rateLimits.fiveHourPercent >= 100
-            let sevenExhausted = rateLimits.sevenDayPercent >= 100
-
-            if fiveExhausted && sevenExhausted {
-                // Both exhausted — show earliest reset
-                if let f = rateLimits.fiveHourReset, let s = rateLimits.sevenDayReset {
-                    candidate = min(f, s)
-                } else {
-                    candidate = rateLimits.fiveHourReset ?? rateLimits.sevenDayReset
-                }
-            } else if fiveExhausted {
-                candidate = rateLimits.fiveHourReset
-            } else if sevenExhausted {
-                candidate = rateLimits.sevenDayReset
-            } else {
-                candidate = nil
-            }
+        // Keeps only reset timestamps that are still in the future; the 5-hour reset
+        // can fire while the 7-day window is still exhausted, and we want the valid
+        // 7-day countdown to take over rather than `min()` locking onto the past one.
+        let future: (Date?) -> Date? = { date in
+            guard let date, date.timeIntervalSinceNow > 0 else { return nil }
+            return date
         }
-        // Only count down to future dates — past dates mean the reset has occurred
-        guard let date = candidate, date.timeIntervalSinceNow > 0 else { return nil }
-        return date
+
+        if rateLimits.isThrottled {
+            return future(rateLimits.bindingReset)
+        }
+
+        let fiveExhausted = rateLimits.fiveHourPercent >= 100
+        let sevenExhausted = rateLimits.sevenDayPercent >= 100
+        let futureFive = fiveExhausted ? future(rateLimits.fiveHourReset) : nil
+        let futureSeven = sevenExhausted ? future(rateLimits.sevenDayReset) : nil
+
+        return [futureFive, futureSeven].compactMap { $0 }.min()
     }
 
     // MARK: - Recovery sparkle (throttle → green transition)

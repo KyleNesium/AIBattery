@@ -8,6 +8,9 @@
 ### Fixed
 - **Menu bar `"soon"` text** — when a rate-limit window hit 100% the countdown ticked to `"soon"`, which truncated to `"so"` in the narrow menu bar; `DurationFormatter` now returns `"0s"` for zero/negative durations, and `StatusBarManager` filters past reset dates and refreshes the display on expiry instead of setting a stale countdown title
 - **`TokenLedger` write race** — `flushForTesting()` always wrote the file even when no merge had mutated state, and raced the async `save()` Task which also wrote unconditionally; both paths now share a `flushIfDirty()` helper gated on an `isDirty` flag, so back-to-back no-op merges stop touching the file twice
+- **`TokenLedger` silent data loss on write failure** — `flushIfDirty()` cleared `isDirty` before the atomic write, so a transient disk-full / permissions / FS error left the flag false and every subsequent `save()` became a no-op until the next merge mutated state, silently dropping high-water marks on restart; write failures now re-acquire the lock and restore `isDirty = true` so the next flush retries
+- **Dual-exhausted countdown regression** — in `countdownResetDate`, when both 5-hour and 7-day windows were exhausted the code applied `min(fiveHourReset, sevenDayReset)` *before* filtering past dates, so once the earlier 5-hour reset fired the menu bar dropped to `"100%"` instead of handing off to the still-valid 7-day countdown; the helper now filters past dates per-window before selecting the earliest future reset
+- **Menu bar text colour stale on appearance change** — `combinedStatusBarImage` bakes the text colour (black / white) from `NSApp.effectiveAppearance` at render time, and the `appearanceObserver` only repainted the popover panel, so switching light / dark or "Increase Contrast" while the app was idle left the baked text in the wrong colour until the next VM poll; the observer now also rebuilds the status-bar image via `updateButton(...)`
 - **Force-unwrap crash risks** — replaced `SessionLogReader` `discoveredFiles!` and `PopoverFooterView` `alternateText!` with guarded paths that fall through cleanly instead of crashing
 
 ### Docs
@@ -18,6 +21,7 @@
 ### Tests
 - **16 pre-existing drift failures repaired** — `TokenHealthConfig` / `TokenHealthMonitor` rescaled for 1M context windows + `usableContextRatio` 0.8 → 1.0; `ActivityChartData` month-key format corrected (daily → month lookup); `Typography` font sizes updated (10pt mono, 9pt icon)
 - **Test isolation** — `RateLimitFetcherTests.setObservedModels_updatesInMemoryList` now uses a unique account ID + defer cleanup so `["model-a", "model-b"]` no longer leaks into the `aibattery_observedModels_*` fallback used by three downstream tests; `MenuBarIconTests.contextHealthColor_matchesHealthBandThresholds` relocated into the `.serialized` `ThemeColorsTests` suite so it no longer races parallel colorblind-flag flips
+- **`claude-sonnet-4-6-20250929` coverage** — added to `TokenHealthConfigTests.contextWindow_allKnownModels_4x`; it was present in `TokenHealthConfig.contextWindows` but untested
 - **854 tests across 59 suites, 57 files — all green** on three consecutive clean runs
 
 ## [2.1.5] — 2026-04-13

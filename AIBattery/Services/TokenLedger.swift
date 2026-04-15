@@ -144,6 +144,12 @@ final class TokenLedger: @unchecked Sendable {
         do {
             try encoded.write(to: fileURL, options: .atomic)
         } catch {
+            // Write failed (disk full, permissions, transient FS error). Re-mark dirty so
+            // the next flush retries — without this, every subsequent `save()` becomes a
+            // no-op until a new merge mutates state, silently losing high-water marks.
+            lock.lock()
+            isDirty = true
+            lock.unlock()
             AppLogger.general.warning("TokenLedger save failed: \(error.localizedDescription, privacy: .public)")
         }
     }
