@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.1.6] — 2026-04-15
+
+### Fixed
+- **Menu bar `"soon"` text** — when a rate-limit window hit 100% the countdown ticked to `"soon"`, which truncated to `"so"` in the narrow menu bar; `DurationFormatter` now returns `"0s"` for zero/negative durations, and `StatusBarManager` filters past reset dates and refreshes the display on expiry instead of setting a stale countdown title
+- **`TokenLedger` write race** — `flushForTesting()` always wrote the file even when no merge had mutated state, and raced the async `save()` Task which also wrote unconditionally; both paths now share a `flushIfDirty()` helper gated on an `isDirty` flag, so back-to-back no-op merges stop touching the file twice
+- **Force-unwrap crash risks** — replaced `SessionLogReader` `discoveredFiles!` and `PopoverFooterView` `alternateText!` with guarded paths that fall through cleanly instead of crashing
+
+### Docs
+- **Spec drift** — `CONSTANTS.md` token-endpoint timeout corrected 15s → 30s (matches `OAuthManager.swift:359`); OAuth usage URL added as the primary fetch URL with the Messages API entry re-labelled `(fallback)`; `DATA_LAYER.md` `DurationFormatter` docs now match code (`"soon"` → `"0s"`, `"1m" minimum` → `"Xs" (min "1s")`)
+- **`RateLimitUsage.countdownText()` docstring** — updated to reflect the `"0s"` behaviour
+
+### Tests
+- **16 pre-existing drift failures repaired** — `TokenHealthConfig` / `TokenHealthMonitor` rescaled for 1M context windows + `usableContextRatio` 0.8 → 1.0; `ActivityChartData` month-key format corrected (daily → month lookup); `Typography` font sizes updated (10pt mono, 9pt icon)
+- **Test isolation** — `RateLimitFetcherTests.setObservedModels_updatesInMemoryList` now uses a unique account ID + defer cleanup so `["model-a", "model-b"]` no longer leaks into the `aibattery_observedModels_*` fallback used by three downstream tests; `MenuBarIconTests.contextHealthColor_matchesHealthBandThresholds` relocated into the `.serialized` `ThemeColorsTests` suite so it no longer races parallel colorblind-flag flips
+- **854 tests across 59 suites, 57 files — all green** on three consecutive clean runs
+
 ## [2.1.5] — 2026-04-13
 
 ### Fixed
