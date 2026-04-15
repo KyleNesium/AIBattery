@@ -400,10 +400,12 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 Native AppKit `NSStatusItem` with a single combined `button.image` — percentage/countdown text and the star icon are baked into one `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)`. This bypasses the per-side bezel padding AppKit applies around a separate `title + image` layout, so the menu bar pill hugs the content like Battery / WiFi / Control Center.
 
 **Button rendering** (native AppKit, no NSHostingView):
-- `button.image` = `MenuBarIcon.combinedStatusBarImage(text:percent:color:...)` — text + star rendered into one tightly-packed image (text in `.white`/`.black` based on effective menu bar appearance, then 2pt gap, then the colored star with its 3pt canvas padding trimmed from both sides)
+- `button.image` = `MenuBarIcon.combinedStatusBarImage(text:percent:color:...)` — text + star rendered into one tightly-packed image (text in `.white`/`.black` based on effective menu bar appearance, then 2pt gap, then the colored star with its 4pt canvas padding trimmed from both sides)
 - `button.title = ""` — leaving it set would add AppKit's bezel padding back around the text
-- `statusItem.length = image.size.width + 2` — click-area margin only
+- `statusItem.length = image.size.width` — sizing the button exactly to the image makes `NSButtonCell.imageRect(forBounds:)` return `origin.x = 0`, so the image is flush against both button edges with no centering gap
 - `button.font` = `.monospacedDigitSystemFont(ofSize: 11, weight: .medium)` — used for text measurement inside `combinedStatusBarImage`, matches macOS menu bar status items
+
+**macOS window chrome constraint (unavoidable):** `NSStatusBarWindow` wraps every third-party status item in a window that is exactly **`length + 16`pt wide** (8pt on each side), independent of content. This was verified empirically by probing `button.window?.frame` against `statusItem.length` at multiple sizes — the 16pt delta is invariant. System items (Battery, WiFi, Clock) live inside `ControlCenter`'s private content view and bypass this chrome, which is why they can appear tighter. For third-party `NSStatusItem` users, this 16pt is a floor we can't reduce via public API; the minimum pill width is therefore `content_width + 16`.
 
 **Countdown display**: the baked text in the combined image shows countdown to reset instead of percentage when any of these conditions are met:
 - `rateLimits.isThrottled == true` → shows binding reset countdown

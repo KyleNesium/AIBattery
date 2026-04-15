@@ -3,7 +3,7 @@
 ## [2.1.6] — 2026-04-15
 
 ### Changed
-- **Tighter menu bar pill** — text and the star are now baked into a single `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)` with `button.title = ""`; this eliminates AppKit's bezel padding around a separate `title + image` layout, so the pill hugs its content. `statusItem.length` is set to `image.width + 2` (click-area margin only)
+- **Tighter menu bar pill** — text and the star are now baked into a single `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)` with `button.title = ""`, which eliminates AppKit's bezel padding around a separate `title + image` layout. `statusItem.length` is set to exactly `image.size.width` (makes `NSButtonCell.imageRect(forBounds:)` return `origin.x = 0`, flush against both edges), and the icon's canvas trim bumped 3pt → 4pt on each side (star still fully visible; only ~0.6pt of the red-band halo's outermost <15% alpha ring is clipped). A further 16pt of `NSStatusBarWindow` chrome (8pt per side) is enforced by AppKit for third-party status items and cannot be removed via public API — documented in `spec/UI_SPEC.md`
 
 ### Fixed
 - **Menu bar `"soon"` text** — when a rate-limit window hit 100% the countdown ticked to `"soon"`, which truncated to `"so"` in the narrow menu bar; `DurationFormatter` now returns `"0s"` for zero/negative durations, and `StatusBarManager` filters past reset dates and refreshes the display on expiry instead of setting a stale countdown title

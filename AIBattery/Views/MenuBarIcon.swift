@@ -126,11 +126,13 @@ struct MenuBarIcon: View {
         cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
     }
 
-    /// Horizontal whitespace inside the `iconSize` canvas on each side of the star/halo.
-    /// The star's outer radius is 6.5pt with up to 1.25× halo expansion, so the visible
-    /// content occupies roughly `(iconSize - 2·iconCanvasPadding)` pt around the center.
-    /// Used by `combinedStatusBarImage` to eliminate that whitespace when packing text + icon.
-    private static let iconCanvasPadding: CGFloat = 3
+    /// Horizontal whitespace trimmed from each side of the `iconSize` canvas when
+    /// compositing into `combinedStatusBarImage`. Larger value = narrower visible icon.
+    /// The star's outer vertex (including max breathing) sits at ~center ± 7.5pt, and
+    /// the halo at 95%+ reaches ~center ± 8.6pt. Trimming 4pt on each side keeps the
+    /// star fully visible and only cuts ~0.6pt off the outer ring of the red-band halo,
+    /// which is drawn at < 15% alpha and thus imperceptible.
+    private static let iconCanvasPadding: CGFloat = 4
 
     /// Renders the percentage/countdown text and the star into a single tightly-packed
     /// `NSImage`. Assigning this to `NSStatusBarButton.image` (with `title = ""`) avoids

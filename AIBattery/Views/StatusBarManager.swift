@@ -339,10 +339,16 @@ public final class StatusBarManager: NSObject {
 
     private func updateStatusItemWidth(button: NSStatusBarButton) {
         guard let statusItem, let image = button.image else { return }
-        // Baked text + icon lives entirely in `button.image`; set the item width to the
-        // image width plus a 2pt click-area margin so the pill hugs the content the same
-        // way Battery / WiFi / Control Center do.
-        statusItem.length = image.size.width + 2
+        // Setting `statusItem.length = image.size.width` (rather than + 2) eliminates
+        // the 1pt-per-side `NSButton` image-centering padding: when button width equals
+        // image width, `imageRect(forBounds:)` returns origin.x = 0 and the image is
+        // flush against both edges.
+        //
+        // The remaining `NSStatusBarWindow` chrome of 8pt on each side (total window
+        // width = length + 16) is enforced by AppKit for third-party `NSStatusItem`s
+        // and cannot be eliminated via public API — system items like Battery / WiFi
+        // render inside ControlCenter's private content view which bypasses it.
+        statusItem.length = image.size.width
     }
 
     private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool) -> NSColor {
