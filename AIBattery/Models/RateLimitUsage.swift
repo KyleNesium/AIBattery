@@ -177,7 +177,7 @@ struct RateLimitUsage: Equatable, Codable {
         func dateFromUnix(_ key: String) -> Date? {
             guard let val = normalized[key.lowercased()],
                   let ts = TimeInterval(val),
-                  ts > 0, ts < Date().timeIntervalSince1970 + 30 * 86400 else { return nil }
+                  ts > 0, ts < Date().timeIntervalSince1970 + 8 * 86400 else { return nil }
             return Date(timeIntervalSince1970: ts)
         }
 
