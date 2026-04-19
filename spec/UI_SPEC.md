@@ -97,7 +97,7 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 All font sizes, spacing values, layout dimensions, and animation durations are defined as named constants in `Utilities/`:
 - **Typography** — 19 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`, `Typography.trendSymbol`)
 - **Spacing** — 11 spacing constants (`micro` 1pt, `tight` 2pt, `xsmall` 3pt, `inner` 4pt, `small` 4pt, `gap` 6pt, `section` 8pt, `medium` 10pt, `authGap` 12pt, `sectionHorizontal` 16pt, `overlay` 24pt)
-- **Layout** — 27 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt)
+- **Layout** — 28 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `borderWidth` 1.5pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt)
 - **ThemeColors** — surface elevation (`surfaceLevel1`, `surfaceLevel2`), interactive states (`hoverFill`, `copyableHoverFill`), opacity tokens (`dividerOpacity` 0.3, `overlayBackdropOpacity` 0.4, `inactiveIndicatorOpacity` 0.45, `subtleBorderOpacity` 0.2, `hoverBorderOpacity` 0.4, `activeLabelOpacity` 0.5, `focusRingOpacity` 0.6, `shadowOpacity` 0.25, `disabledOpacity` 0.55, `disabledDeepOpacity` 0.25)
 - **MotionConstants** — 7 animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `fadeOut` 0.3s, `dialog` 0.2s, `spin` 0.5s, `expandTransition` opacity+move)
 
@@ -264,20 +264,33 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 
 Padding: H 16, V 8
 
-### ❹ Tokens (`Views/TokenUsageSection.swift`)
+### ❷b Local Estimate Fallback (`Views/LocalEstimateSection.swift`)
 
-Efficiency-focused dashboard showing cache hit rates and API-equivalent cost.
+Shown when Anthropic's unified 5h/7d rate limit headers are unavailable (e.g., API header removal — see issue #141). Renders one window (5h or 7d) based on the active metric mode, so the mode selector and auto-mode work identically to the API data path.
 
-- Header: `"Tokens"` (.subheadline.bold) + aggregate cache hit rate (`"X% cached"`, .system 9pt monospaced, green when ≥80%) + total cost (`"~$X.XX"`, .caption monospaced, ThemeColors.secondaryLabel, 54pt width) + total tokens (.subheadline, monospaced, semibold, 42pt width)
-- **Cost always visible** — prefixed with `"~"` to indicate API-equivalent estimate (Pro/Max/Teams aren't billed per-token). Shows what the usage would cost on the pay-per-token API, helping subscription users see the value they're getting.
-- Per-model breakdown via `ForEach` over sorted models (active first via prefix matching, then by totalTokens descending)
-- Per model row: display name (.caption) + `"▶"` badge if active (.caption2, green) + cost (`"~$X.XX"`, .caption2 monospaced, 54pt width) + total tokens (.caption monospaced, ThemeColors.secondaryLabel, 42pt width)
-- Efficiency summary row (below model name): cache hit rate (`"X% cached"`, .caption2 monospaced, ThemeColors.tertiaryLabel) + output tokens (`"Y out"`, .caption2 monospaced, ThemeColors.tertiaryLabel). Cache rate omitted when model has no input/cache tokens.
-- All cost and token values have `.copyable()` modifier
+- **Label row**: `"{Window} Usage"` (.buttonLabel) + percentage (.monoValue, copyable) + token count with limit (`"X / Y"`, .monoValue, ThemeColors.secondaryLabel, copyable)
+- **Gauge bar**: same style as rate limit bars (GaugeBar, 8pt height, 3pt radius), colored by percent via `ThemeColors.barColor`
+- **Remaining row**: `"~X remaining"` (.tinyLabel, ThemeColors.secondaryLabel) — `~` prefix when limit is estimated from plan tier
+- **Limit sources**: calibrated from prior API headers (exact) or inferred from `PlanTier` (estimated). `limitSource` property distinguishes the two.
+- Renders via `ForEach(orderedModes)` — same slot as `FiveHourBarSection`/`SevenDayBarSection`
+- Condition: `snapshot.rateLimits == nil && snapshot.isUsingLocalEstimate`
 
 Padding: H 16, V 8
 
-### ❹b Projects (`Views/ProjectUsageSection.swift`)
+### ❷c Standard Limits Fallback (`Views/StandardLimitsSection.swift`)
+
+Last-resort fallback when both unified 5h/7d headers and local estimate are unavailable. Shows per-minute request and token limits from standard Anthropic API headers (`anthropic-ratelimit-*`).
+
+- **Info banner**: info.circle icon (.tinyLabel, ThemeColors.tertiaryLabel) + `"Showing API rate limits (5h/7d usage unavailable)"` (.tinyLabel, ThemeColors.secondaryLabel)
+- **Per-limit bar** (requests and/or tokens, via `StandardLimitBar`):
+  - Label row: label (.buttonLabel) + warning triangle if exhausted + `"remaining/limit"` (.monoValue, copyable)
+  - Gauge bar: same shared GaugeBar component
+  - Detail row (TimelineView, 10s tick): remaining count (.tinyLabel, ThemeColors.secondaryLabel) or `"Limit reached"` (.tinyLabel, ThemeColors.danger) + reset countdown (.tinyLabel, ThemeColors.tertiaryLabel)
+- Condition: `snapshot.rateLimits == nil && !snapshot.isUsingLocalEstimate && snapshot.standardLimits != nil`
+
+Padding: H 16, V 8
+
+### ❹ Projects (`Views/ProjectUsageSection.swift`)
 
 Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Token Usage section but without per-token-type breakdown rows.
 

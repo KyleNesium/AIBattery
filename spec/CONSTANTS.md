@@ -353,6 +353,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.bannerCornerRadius` | 6pt | Banner corner radius (update banner, search field) |
 | `Layout.costColumn` | 46pt | Compact cost column width (Projects, Insights) |
 | `Layout.tokenColumn` | 42pt | Token value column width (Projects, Insights) |
+| `Layout.borderWidth` | 1.5pt | Standard stroke width for borders and focus rings |
 | `Layout.settingsLabel` | 50pt | Settings label column width (e.g. "Refresh", "Alerts") |
 
 ### MotionConstants (`Utilities/Spacing.swift`, co-located)
