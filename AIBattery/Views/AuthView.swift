@@ -29,6 +29,7 @@ public struct AuthView: View {
                         .resizable()
                         .frame(width: 48, height: 48)
                         .clipShape(RoundedRectangle(cornerRadius: Layout.iconClipRadius))
+                        .accessibilityHidden(true)
                 }
                 Text("AI Battery")
                     .font(Typography.sectionHeader)

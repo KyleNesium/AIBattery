@@ -12,6 +12,7 @@ struct PopoverErrorView: View {
             Image(systemName: "exclamationmark.triangle")
                 .font(Typography.stateIcon)
                 .foregroundStyle(ThemeColors.caution)
+                .accessibilityHidden(true)
             Text(message)
                 .font(Typography.caption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
@@ -21,6 +22,7 @@ struct PopoverErrorView: View {
                 HStack(spacing: Spacing.inner) {
                     Image(systemName: "arrow.clockwise")
                         .font(Typography.monoTiny)
+                        .accessibilityHidden(true)
                     Text("Retry")
                         .font(Typography.caption)
                         .underline(retryHovered)
@@ -29,6 +31,7 @@ struct PopoverErrorView: View {
             .buttonStyle(.plain)
             .foregroundStyle(ThemeColors.action)
             .onHover { retryHovered = $0 }
+            .accessibilityLabel("Retry")
             .accessibilityHint("Retry loading usage data")
             .help("Retry loading usage data")
         }
@@ -46,6 +49,7 @@ struct PopoverEmptyView: View {
             Image(systemName: "tray")
                 .font(Typography.stateIcon)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
+                .accessibilityHidden(true)
             Text("No Claude Code data found")
                 .font(Typography.caption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
@@ -70,6 +74,7 @@ struct PopoverIdleFilteredView: View {
             Image(systemName: "moon.zzz")
                 .font(Typography.stateIcon)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
+                .accessibilityHidden(true)
             Text("No active sessions")
                 .font(Typography.caption)
                 .foregroundStyle(ThemeColors.secondaryLabel)

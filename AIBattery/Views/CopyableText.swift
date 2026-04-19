@@ -25,6 +25,7 @@ struct CopyableModifier: ViewModifier {
                         .font(Typography.clipboardIcon)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .transition(.scale.combined(with: .opacity))
+                        .accessibilityHidden(true)
                         .padding(.trailing, -13)
                 }
             }
