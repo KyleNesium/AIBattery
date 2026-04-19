@@ -100,7 +100,7 @@ public final class StatusBarManager: NSObject {
 
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
         if let button = item.button {
-            button.image = MenuBarIcon.statusBarImage(for: 0, color: ThemeColors.barNSColor(percent: 0))
+            button.image = MenuBarIcon.statusBarImage(for: 0, color: ThemeColors.barNSColor(percent: 0), menuBarAppearance: button.effectiveAppearance)
             // Text left, icon right — matches macOS battery layout
             button.imagePosition = .imageTrailing
             button.imageHugsTitle = true
@@ -324,7 +324,8 @@ public final class StatusBarManager: NSObject {
             percent: percent,
             color: starColor,
             isBroken: isExhausted,
-            isSparkle: isSparkleActive
+            isSparkle: isSparkleActive,
+            menuBarAppearance: button.effectiveAppearance
         )
         // Title is baked into the image — leaving it set would add AppKit's bezel padding
         // back around the text, which is exactly what we're avoiding here.

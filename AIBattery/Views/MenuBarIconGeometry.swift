@@ -44,22 +44,6 @@ extension MenuBarIcon {
         path.close()
         return path
     }
-
-    /// Shared stroke drawing via CGContext.
-    static func drawStroke(ctx: CGContext, path: CGPath, color: NSColor, highContrast: Bool, isDarkMode: Bool) {
-        if highContrast {
-            ctx.setStrokeColor(NSColor.black.withAlphaComponent(0.8).cgColor)
-            ctx.setLineWidth(1.0)
-        } else if !isDarkMode {
-            ctx.setStrokeColor(NSColor.black.withAlphaComponent(0.3).cgColor)
-            ctx.setLineWidth(0.75)
-        } else {
-            ctx.setStrokeColor(color.withAlphaComponent(0.6).cgColor)
-            ctx.setLineWidth(0.5)
-        }
-        ctx.addPath(path)
-        ctx.strokePath()
-    }
 }
 
 // MARK: - NSBezierPath → CGPath
