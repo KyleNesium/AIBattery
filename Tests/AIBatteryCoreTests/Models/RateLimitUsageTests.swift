@@ -82,6 +82,46 @@ struct RateLimitUsageTests {
         #expect(usage.fiveHourReset!.timeIntervalSince1970 == 1700000000)
     }
 
+    @Test func parse_resetDate_zeroTimestamp_returnsNil() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "allowed",
+            "anthropic-ratelimit-unified-5h-reset": "0",
+        ]
+        let usage = RateLimitUsage.parse(headers: headers)!
+        #expect(usage.fiveHourReset == nil)
+    }
+
+    @Test func parse_resetDate_negativeTimestamp_returnsNil() {
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "allowed",
+            "anthropic-ratelimit-unified-5h-reset": "-1000",
+        ]
+        let usage = RateLimitUsage.parse(headers: headers)!
+        #expect(usage.fiveHourReset == nil)
+    }
+
+    @Test func parse_resetDate_farFuture_returnsNil() {
+        // 9 days from now exceeds the 8-day tolerance
+        let farFuture = String(Int(Date().timeIntervalSince1970 + 9 * 86400))
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "allowed",
+            "anthropic-ratelimit-unified-7d-reset": farFuture,
+        ]
+        let usage = RateLimitUsage.parse(headers: headers)!
+        #expect(usage.sevenDayReset == nil)
+    }
+
+    @Test func parse_resetDate_7dayFuture_accepted() {
+        // 7 days from now is within the 8-day tolerance
+        let sevenDays = String(Int(Date().timeIntervalSince1970 + 7 * 86400))
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "allowed",
+            "anthropic-ratelimit-unified-7d-reset": sevenDays,
+        ]
+        let usage = RateLimitUsage.parse(headers: headers)!
+        #expect(usage.sevenDayReset != nil)
+    }
+
     @Test func parse_throttledHeaders_returnsUsageWithResetDates() {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "throttled",

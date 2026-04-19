@@ -5,7 +5,7 @@
 ### Fixed
 - **Menu bar star invisible on light backgrounds** — the 50–80% usage band used `systemYellow`, which washes out against a light or wallpaper-tinted menu bar. A dedicated `menuBarGold` (#B88F00) now renders when `isDarkMenuBar` is false; dark menu bars and colorblind mode retain their existing system colors
 - **Menu bar colors wrong on wallpaper-tinted bars** — `MenuBarIcon` derived light/dark mode from `NSApp.effectiveAppearance` (system-wide), which doesn't reflect the actual menu bar backdrop. All icon rendering now uses `button.effectiveAppearance` from the status item, matching the real bar appearance
-- **Timestamp edge cases** — `dateFromUnix()` rejects timestamps ≤ 0 or > 30 days in the future; `restorePersistedRateLimits()` clamps `fetchedAt` to `Date()` when the system clock has drifted backward; daily activity bucketing uses fixed 86400s intervals instead of `Calendar.date(byAdding: .day)` to avoid DST boundary misalignment
+- **Timestamp edge cases** — `dateFromUnix()` rejects timestamps ≤ 0 or > 8 days in the future (longest rate limit window is 7 days); `restorePersistedRateLimits()` clamps `fetchedAt` to `Date()` when the system clock has drifted backward; daily activity bucketing uses fixed 86400s intervals instead of `Calendar.date(byAdding: .day)` to avoid DST boundary misalignment
 
 ### Changed
 - **Design system consistency** — replaced 31 uses of `.foregroundStyle(.secondary)` across 12 view files with `ThemeColors.secondaryLabel` for better contrast on light backgrounds (black 70% vs system secondary). Interactive hover states intentionally keep hierarchical `.secondary`
