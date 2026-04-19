@@ -14,7 +14,7 @@ struct PopoverErrorView: View {
                 .foregroundStyle(ThemeColors.caution)
             Text(message)
                 .font(Typography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
             Button(action: onRetry) {
@@ -48,7 +48,7 @@ struct PopoverEmptyView: View {
                 .foregroundStyle(ThemeColors.tertiaryLabel)
             Text("No Claude Code data found")
                 .font(Typography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
             Text("Start a Claude Code session to populate usage data.\nData appears automatically once Claude Code is running.")
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
@@ -72,7 +72,7 @@ struct PopoverIdleFilteredView: View {
                 .foregroundStyle(ThemeColors.tertiaryLabel)
             Text("No active sessions")
                 .font(Typography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
             let idleMinutes = Int(idleSessionMinutes)
             if idleMinutes > 0 {
                 Text("Idle cutoff: \(idleMinutes)m")

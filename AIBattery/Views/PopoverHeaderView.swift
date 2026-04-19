@@ -99,7 +99,7 @@ struct PopoverHeaderView: View {
                                 .foregroundStyle(ThemeColors.updateAvailable)
                             Text("v\(update.version)")
                                 .font(Typography.tinyLabel)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ThemeColors.secondaryLabel)
                             Image(systemName: "arrow.up.right")
                                 .font(Typography.decorativeIcon)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
@@ -134,7 +134,7 @@ struct PopoverHeaderView: View {
                     Button(action: { updateBannerDismissed = true }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(Typography.heroTitle)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .buttonStyle(.plain)
                     .help("Dismiss")
@@ -158,7 +158,7 @@ struct PopoverHeaderView: View {
                         .foregroundStyle(ThemeColors.success)
                     Text(msg)
                         .font(Typography.tinyLabel)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                 }
                 .transition(.opacity)
             }
@@ -170,7 +170,7 @@ struct PopoverHeaderView: View {
                         .foregroundStyle(ThemeColors.danger)
                     Text("Update failed")
                         .font(Typography.tinyLabel)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                     Spacer()
                     Button(action: {
                         if let url = URL(string: "https://github.com/KyleNesium/AIBattery/releases/latest") {
@@ -185,7 +185,7 @@ struct PopoverHeaderView: View {
                     Button(action: { SparkleUpdateService.shared.clearError() }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(Typography.monoTiny)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .buttonStyle(.plain)
                 }
@@ -235,12 +235,12 @@ struct PopoverHeaderView: View {
             if let activeIndex = accountStore.accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
                 Text(accountLabel(accountStore.accounts[activeIndex], index: activeIndex))
                     .font(Typography.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .lineLimit(1)
             } else {
                 Text("Account")
                     .font(Typography.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .lineLimit(1)
             }
         }

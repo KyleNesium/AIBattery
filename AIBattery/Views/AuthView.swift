@@ -34,7 +34,7 @@ public struct AuthView: View {
                     .font(Typography.sectionHeader)
                 Text(isAddingAccount ? "Add another Claude account" : "Sign in with your Claude account")
                     .font(Typography.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
             }
 
             StyledDivider()
@@ -46,7 +46,7 @@ public struct AuthView: View {
                         ? "Connect another Claude account to monitor multiple orgs from AI Battery."
                         : "Connect your Anthropic account to see your usage, rate limits, and plan details.")
                         .font(Typography.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                         .multilineTextAlignment(.center)
 
                     Button(action: startAuth) {
@@ -74,7 +74,7 @@ public struct AuthView: View {
                             .font(Typography.caption)
                         Text("Sign in via the browser window that just opened")
                             .font(Typography.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -84,7 +84,7 @@ public struct AuthView: View {
                             .font(Typography.caption)
                         Text("Copy the authorization code shown after signing in")
                             .font(Typography.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -94,7 +94,7 @@ public struct AuthView: View {
                             .font(Typography.caption)
                         Text("Paste it below:")
                             .font(Typography.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -113,7 +113,7 @@ public struct AuthView: View {
                         }
                         .buttonStyle(.plain)
                         .font(Typography.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                         .accessibilityLabel("Cancel authentication")
                         .help("Go back to sign-in")
 
@@ -157,13 +157,13 @@ public struct AuthView: View {
                     Button("Cancel") { onCancel() }
                         .buttonStyle(.plain)
                         .font(Typography.tinyLabel)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                         .accessibilityLabel("Cancel adding account")
                 } else {
                     Button("Quit") { NSApplication.shared.terminate(nil) }
                         .buttonStyle(.plain)
                         .font(Typography.tinyLabel)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                         .keyboardShortcut("q", modifiers: .command)
                 }
                 Spacer()
