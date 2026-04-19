@@ -111,7 +111,7 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 
 - Title: `"✦ AI Battery"` (.headline)
 - **Account picker**: always-visible dropdown Menu next to title
-  - Label: display name if set, otherwise `"Account N"` for multi-account / `"Account"` for single (.caption, .secondary)
+  - Label: display name if set, otherwise `"Account N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
   - Menu items: display name or `"Account N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
   - "Add Account" item (plus.circle icon) below divider when `canAddAccount` (< max) — triggers AuthView overlay
   - `.menuStyle(.borderlessButton)`, `.fixedSize()`
@@ -123,9 +123,9 @@ All visual section dividers use `StyledDivider` — a shared component rendering
   - **Default**: `.secondary` color. Clicking triggers `forceCheckForUpdate()`.
 - **Update banner** (below header, when `availableUpdate` exists and not dismissed): bordered card, single-row HStack
   - Background: `RoundedRectangle(cornerRadius: 6)` with `Color.yellow.opacity(0.08)` fill and `Color.yellow.opacity(0.25)` 1pt stroke, 8pt padding
-  - Yellow circle icon + **"vX.Y.Z ↗"** (.caption2, .secondary) — clickable, opens GitHub release page
+  - Yellow circle icon + **"vX.Y.Z ↗"** (.caption2, ThemeColors.secondaryLabel) — clickable, opens GitHub release page
   - **"↓ Install Update"** (.caption2, .blue) — tries Sparkle in-app update; falls back to opening GitHub release if Sparkle not ready
-  - **"✕"** dismiss button (xmark.circle.fill, 14pt, .secondary) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
+  - **"✕"** dismiss button (xmark.circle.fill, 14pt, ThemeColors.secondaryLabel) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
   - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
 - Padding: H 16, V 6
 
@@ -313,7 +313,7 @@ Padding: H 16, V 8
 `CopyableModifier` ViewModifier applied via `.copyable(_ value:)` extension:
 - Copies formatted display value to `NSPasteboard.general` on tap
 - Hover feedback: pointer cursor (`NSCursor.pointingHand`) + subtle background highlight (`.primary.opacity(0.10)`)
-- Brief clipboard icon overlay (`doc.on.clipboard.fill`, 9pt, `.secondary`, 1.2s duration, `.scale.combined(with: .opacity)` transition, offset right of content)
+- Brief clipboard icon overlay (`doc.on.clipboard.fill`, 9pt, ThemeColors.secondaryLabel, 1.2s duration, `.scale.combined(with: .opacity)` transition, offset right of content)
 - `.help` tooltip shows the value
 - Applied to: usage percentages, token counts, health stats, insight summaries, cost values, session ID prefix
 
@@ -396,7 +396,7 @@ Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links r
 - **Active incidents** (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity). Replaces timestamp.
 - **No incidents**: `"Updated {relative time}"` right-aligned (.system 9pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time.
 
-All text: .caption2, .secondary. Padding: H 16, top 8, bottom 16 (sectionHorizontal — extra bottom padding for panel edge).
+All text: .caption2, ThemeColors.secondaryLabel. Padding: H 16, V 8 (section).
 
 Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray
 
@@ -413,7 +413,7 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 Native AppKit `NSStatusItem` with a single combined `button.image` — percentage/countdown text and the star icon are baked into one `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)`. This bypasses the per-side bezel padding AppKit applies around a separate `title + image` layout, so the menu bar pill hugs the content like Battery / WiFi / Control Center.
 
 **Button rendering** (native AppKit, no NSHostingView):
-- `button.image` = `MenuBarIcon.combinedStatusBarImage(text:percent:color:...)` — text + star rendered into one tightly-packed image (text in `.white`/`.black` based on effective menu bar appearance, then 2pt gap, then the colored star with its 4pt canvas padding trimmed from both sides)
+- `button.image` = `MenuBarIcon.combinedStatusBarImage(text:percent:color:...:menuBarAppearance:)` — text + star rendered into one tightly-packed image (text in `.white`/`.black` based on `menuBarAppearance` — the status bar button's `effectiveAppearance`, which reflects the actual menu bar backdrop including wallpaper tint and translucency, rather than `NSApp.effectiveAppearance` which only tracks the system-wide Light/Dark setting; then 2pt gap, then the colored star with its 4pt canvas padding trimmed from both sides)
 - `button.title = ""` — leaving it set would add AppKit's bezel padding back around the text
 - `statusItem.length = image.size.width` — sizing the button exactly to the image makes `NSButtonCell.imageRect(forBounds:)` return `origin.x = 0`, so the image is flush against both button edges with no centering gap
 - `button.font` = `.monospacedDigitSystemFont(ofSize: 11, weight: .medium)` — used for text measurement inside `combinedStatusBarImage`, matches macOS menu bar status items
@@ -435,10 +435,10 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
 - Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`, handles Cmd+Q) with `NSHostingView` content (10pt corner radius via layer)
 - **Dynamic height**: panel resizes to fit SwiftUI content (via `NSView.frameDidChangeNotification` on hosting view), max height is screen-relative (`screen.visibleFrame.height - 40pt`) so all sections fit on most displays, grows downward from fixed top anchor (`panelTopY` set by `positionPanel`)
-- `hidesOnDeactivate = false`, `level = .floating`
+- `hidesOnDeactivate = false`, `level = .statusBar`
 - Closes on: (1) clicking the status item again, (2) pressing Escape, or (3) clicking outside the panel / switching apps
 - Positioned below the status item, left-aligned to the status item's left edge, clamped to screen edges (multi-monitor safe)
-- `NSApp.activate(ignoringOtherApps: true)` after showing ensures keyboard events reach it (LSUIElement app)
+- Panel uses `.statusBar` level + `orderFrontRegardless` — no `NSApp.activate()` needed (LSUIElement app, avoids stealing focus from the active app)
 - `NSEvent.addLocalMonitorForEvents(matching: .keyDown)` for Escape key dismissal
 - `NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown])` for click-outside dismissal
 
@@ -449,8 +449,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - 22×22 NSImage canvas (extra room for glow/sparkles), CGContext-based drawing
 - 4-pointed star: 8 vertices alternating outer (6.5pt) / inner (2.0pt) radius
 - Centered at (11, 11), rotation offset -π/2 (starts from top)
-- Fill: solid color from caller (matches active metric mode — rate limit or context health thresholds)
-- Stroke: high-contrast → black 0.8 / 1.0pt; light mode → black 0.3 / 0.75pt; dark mode → color 0.6 / 0.5pt
+- Fill: solid color from caller (matches active metric mode — rate limit or context health thresholds), no stroke
 - `isTemplate = false`
 - `alignmentRect` inset `(left: 1, right: 5)` — still set on the per-icon `NSImage` for anywhere the star is used outside the menu bar button (SwiftUI previews, tests). The menu bar pill no longer relies on it — `combinedStatusBarImage` positions the star directly by trimming the 3pt canvas padding on each side
 
@@ -489,9 +488,9 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
 - Throttled: always red/critical band
 
-**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–7) for normal, `10_100 + pulseStep` for broken (static, always step 0 → 1 entry), `10_200 + pulseStep` for sparkle. Max entries: 21×8 + 1 + 8 = 177. Cache invalidates on colorblind/appearance/contrast change.
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–7) for normal, `10_100 + pulseStep` for broken (static, always step 0 → 1 entry), `10_200 + pulseStep` for sparkle. Max entries: 21×8 + 1 + 8 = 177. Cache invalidates on colorblind or appearance change.
 
-- **`statusBarImage(for:color:isBroken:isSparkle:pulseStep:)`**: public static method for StatusBarManager's native AppKit button.
+- **`statusBarImage(for:color:isBroken:isSparkle:pulseStep:menuBarAppearance:)`**: public static method for StatusBarManager's native AppKit button. `menuBarAppearance` defaults to `nil` (falls back to `NSApp.effectiveAppearance`); StatusBarManager passes `button.effectiveAppearance` for accurate wallpaper-tinted rendering.
 
 ## Accessibility
 
@@ -521,7 +520,7 @@ Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` �
 - Semi-transparent backdrop (`Color.black.opacity(0.4)`)
 - Centered card with `.regularMaterial` background, 12pt corner radius, max 280pt width
 - Step indicators: 3 dots (active = blue, inactive = secondary 0.3)
-- Action button: "Next" / "Get Started" (`.borderedProminent`), "Skip" (.plain, .secondary) on non-final steps
+- Action button: "Next" / "Get Started" (`.borderedProminent`), "Skip" (.plain, ThemeColors.secondaryLabel) on non-final steps
 - Sets `hasSeenTutorial = true` on dismiss
 
 ## Color Rules
