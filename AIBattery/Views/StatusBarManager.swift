@@ -313,7 +313,8 @@ public final class StatusBarManager: NSObject {
         let isExhausted = isThrottled
             || (rateLimits?.fiveHourPercent ?? 0) >= 100
             || (rateLimits?.sevenDayPercent ?? 0) >= 100
-        let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isExhausted)
+        let isDarkMenuBar = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isExhausted, isDarkMenuBar: isDarkMenuBar)
 
         updateSparkleState(isThrottled: isExhausted)
         updateRenderState(percent: percent, color: starColor, isThrottled: isExhausted)
@@ -366,13 +367,13 @@ public final class StatusBarManager: NSObject {
         statusItem.length = image.size.width
     }
 
-    private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool) -> NSColor {
+    private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool, isDarkMenuBar: Bool) -> NSColor {
         if isThrottled {
             return ThemeColors.barNSColor(percent: 100)
         } else if metricMode == .contextHealth {
             return ThemeColors.contextHealthNSColor(percent: percent)
         } else {
-            return ThemeColors.barNSColor(percent: percent)
+            return ThemeColors.barNSColor(percent: percent, isDarkMenuBar: isDarkMenuBar)
         }
     }
 
