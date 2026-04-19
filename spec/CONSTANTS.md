@@ -458,7 +458,7 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Chart accent | `.systemOrange` | `.systemOrange` |
 | Trend ↑ | `.orange` | `.orange` |
 | Trend ↓ | `.green` | `.green` |
-| Menu bar gold | `.systemYellow` | `.systemYellow` |
+| Menu bar gold | `menuBarGold` (#B88F00) | `.systemYellow` |
 | Menu bar orange | `.systemOrange` | `.systemOrange` |
 | Secondary label | black 70% | white 55% |
 | Tertiary label | black 55% | white 35% |

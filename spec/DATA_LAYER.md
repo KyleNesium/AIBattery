@@ -671,9 +671,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - `barColor(percent:) -> Color` — usage bar fill color
 - `bandColor(_: HealthBand) -> Color` — context health band color
 - `statusColor(_: StatusIndicator) -> Color` — system status dot color
-- `barNSColor(percent:) -> NSColor` — menu bar icon fill color
-- Standard palette: green → yellow → orange → red
-- Colorblind palette: blue → cyan → amber → purple (deuteranopia/protanopia safe)
+- `barNSColor(percent:isDarkMenuBar:) -> NSColor` — menu bar icon fill color. Optional `isDarkMenuBar` flag: when `false`, the 50–80% band uses `menuBarGold` (#B88F00) instead of `systemYellow`/`systemTeal` to maintain contrast on light menu bars
+- Standard palette: green → yellow/gold → orange → red
+- Colorblind palette: blue → teal/gold → amber → purple (deuteranopia/protanopia safe)
 
 ### IdleSuspendPolicy (`Utilities/IdleSuspendPolicy.swift`)
 - Pure enum — no instances, fully `nonisolated`, no side effects

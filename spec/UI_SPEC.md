@@ -484,7 +484,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Timer callback uses `MainActor.assumeIsolated` (no async dispatch overhead)
 
 **Star color selection** (by `StatusBarManager`):
-- Rate limit modes: `ThemeColors.barNSColor` (green < 50%, yellow 50–80%, orange 80–95%, red ≥ 95%)
+- Rate limit modes: `ThemeColors.barNSColor(percent:isDarkMenuBar:)` (green < 50%, yellow/gold 50–80%, orange 80–95%, red ≥ 95%). On light menu bars (`isDarkMenuBar == false`) the 50–80% band uses `menuBarGold` (#B88F00) instead of `systemYellow`, which washes out against a light backdrop
 - Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
 - Throttled: always red/critical band
 
