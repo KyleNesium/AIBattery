@@ -586,12 +586,14 @@ final class RateLimitFetcher {
                 defaults.removeObject(forKey: key)
                 continue
             }
+            // Discard cache entries with future fetchedAt (system clock went backward)
+            let fetchedAt = persisted.fetchedAt <= Date() ? persisted.fetchedAt : Date()
             cachedResults[accountId] = APIFetchResult(
                 rateLimits: persisted.rateLimits,
                 rateLimitSource: persisted.rateLimitSource,
                 standardLimits: persisted.standardLimits,
                 profile: nil,
-                fetchedAt: persisted.fetchedAt,
+                fetchedAt: fetchedAt,
                 isCached: true
             )
         }
