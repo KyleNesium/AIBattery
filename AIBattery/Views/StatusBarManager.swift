@@ -145,7 +145,7 @@ public final class StatusBarManager: NSObject {
         )
         hosting.translatesAutoresizingMaskIntoConstraints = false
         hosting.wantsLayer = true
-        hosting.layer?.cornerRadius = 10
+        hosting.layer?.cornerRadius = Layout.iconClipRadius
         hosting.layer?.masksToBounds = true
 
         panel.contentView = hosting
