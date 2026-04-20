@@ -354,7 +354,15 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.costColumn` | 46pt | Compact cost column width (Projects, Insights) |
 | `Layout.tokenColumn` | 42pt | Token value column width (Projects, Insights) |
 | `Layout.borderWidth` | 1.5pt | Standard stroke width for borders and focus rings |
+| `Layout.subtleBorderWidth` | 1pt | Subtle stroke width for banner borders and chart ticks |
 | `Layout.settingsLabel` | 50pt | Settings label column width (e.g. "Refresh", "Alerts") |
+| `Layout.sliderValueLabel` | 28pt | Settings slider value label width (e.g. "60s", "30m") |
+| `Layout.appIconSize` | 48pt | App icon size in auth view |
+| `Layout.activityModePickerWidth` | 120pt | Activity mode segmented picker width |
+| `Layout.indexColumn` | 14pt | Project list index column width |
+| `Layout.tutorialCardMaxWidth` | 280pt | Tutorial card max width |
+| `Layout.accountPickerMaxWidth` | 100pt | Account picker max width in header |
+| `Layout.clipboardIconOffset` | 13pt | Clipboard icon trailing offset (negative for overlay) |
 
 ### MotionConstants (`Utilities/Spacing.swift`, co-located)
 
