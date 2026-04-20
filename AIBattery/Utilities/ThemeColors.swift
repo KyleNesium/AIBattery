@@ -211,6 +211,27 @@ enum ThemeColors {
     /// Deeply disabled control opacity (chevron arrows when at boundary).
     static let disabledDeepOpacity: Double = 0.25
 
+    /// Subtle element fill opacity (banner backgrounds, auto mode fills).
+    static let subtleElementOpacity: Double = 0.12
+
+    /// Subtle border/stroke opacity (banner outlines).
+    static let subtleStrokeOpacity: Double = 0.35
+
+    /// Chart gradient start opacity.
+    static let chartGradientStartOpacity: Double = 0.3
+
+    /// Chart gradient end opacity.
+    static let chartGradientEndOpacity: Double = 0.1
+
+    /// Active element accent opacity (auto mode stroke, active glow).
+    static let activeAccentOpacity: Double = 0.6
+
+    /// Active element fill opacity (auto mode selected background).
+    static let activeElementFillOpacity: Double = 0.15
+
+    /// Enabled control opacity (chevron buttons, active controls).
+    static let enabledControlOpacity: Double = 0.6
+
     // MARK: - Panel background
 
     /// Panel background that matches native macOS dark mode panels (Battery, Wi-Fi).

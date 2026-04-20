@@ -143,10 +143,10 @@ struct PopoverHeaderView: View {
                 .padding(Spacing.section)
                 .background(
                     RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                        .fill(ThemeColors.updateAvailable.opacity(0.12))
+                        .fill(ThemeColors.updateAvailable.opacity(ThemeColors.subtleElementOpacity))
                         .overlay(
                             RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                                .stroke(ThemeColors.updateAvailable.opacity(0.35), lineWidth: Layout.subtleBorderWidth)
+                                .stroke(ThemeColors.updateAvailable.opacity(ThemeColors.subtleStrokeOpacity), lineWidth: Layout.subtleBorderWidth)
                         )
                 )
                 .padding(.horizontal, -Spacing.tight)

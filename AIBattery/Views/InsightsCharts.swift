@@ -9,13 +9,13 @@ extension InsightsView {
 
     /// Shared area gradient used by all three chart modes.
     static let areaGradient: LinearGradient = .linearGradient(
-        colors: [ThemeColors.chartAccent.opacity(0.3), ThemeColors.chartAccent.opacity(0.1)],
+        colors: [ThemeColors.chartAccent.opacity(ThemeColors.chartGradientStartOpacity), ThemeColors.chartAccent.opacity(ThemeColors.chartGradientEndOpacity)],
         startPoint: .top,
         endPoint: .bottom
     )
 
     /// Shared line style used by all chart modes.
-    static let chartLineStyle = StrokeStyle(lineWidth: 1.5)
+    static let chartLineStyle = StrokeStyle(lineWidth: Layout.borderWidth)
 
     /// Standard Y-axis for all chart modes: trailing position, 3 ticks, compact count labels.
     var sharedYAxis: some AxisContent {
