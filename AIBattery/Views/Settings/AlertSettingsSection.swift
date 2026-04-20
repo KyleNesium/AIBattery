@@ -10,7 +10,7 @@ struct AlertSettingsSection: View {
         HStack(spacing: Spacing.section) {
             Text("Alerts")
                 .font(Typography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Layout.settingsLabel, alignment: .trailing)
             Toggle("Status", isOn: $alertStatus)
                 .toggleStyle(.checkbox)

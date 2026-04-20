@@ -197,6 +197,7 @@ struct ProjectUsageSection: View {
             Image(systemName: "magnifyingglass")
                 .font(Typography.monoTiny)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
+                .accessibilityHidden(true)
             TextField("Filter projects", text: $searchText)
                 .font(Typography.caption)
                 .textFieldStyle(.plain)
@@ -207,6 +208,7 @@ struct ProjectUsageSection: View {
                         .foregroundStyle(ThemeColors.tertiaryLabel)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, Spacing.gap)

@@ -217,7 +217,7 @@ public struct UsagePopoverView: View {
                     Spacer()
                     Text("Fetching usage data…")
                         .font(Typography.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                     ProgressView()
                         .scaleEffect(0.5)
                         .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)

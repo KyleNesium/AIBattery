@@ -11,7 +11,7 @@ struct SettingsRow: View {
             Text("Settings")
                 .font(Typography.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
                 .accessibilityAddTraits(.isHeader)
 
             // Per-account names
@@ -59,7 +59,7 @@ struct SettingsRow: View {
         return HStack(spacing: Spacing.section) {
             Text(label)
                 .font(Typography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Layout.settingsLabel, alignment: .trailing)
             TextField("User \(index + 1)", text: nameBinding(for: account.id))
                 .textFieldStyle(.roundedBorder)
@@ -71,7 +71,7 @@ struct SettingsRow: View {
                 }) {
                     Image(systemName: "xmark.circle")
                         .font(Typography.tinyLabel)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                 }
                 .buttonStyle(.plain)
                 .help("Remove this account")

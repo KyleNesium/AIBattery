@@ -90,7 +90,7 @@ struct MetricToggleView: View {
                 )
                 .overlay(
                     Circle()
-                        .stroke(autoMetricMode ? ThemeColors.action.opacity(0.6) : autoHovered ? Color.secondary.opacity(ThemeColors.hoverBorderOpacity) : Color.secondary.opacity(ThemeColors.subtleBorderOpacity), lineWidth: 1.5)
+                        .stroke(autoMetricMode ? ThemeColors.action.opacity(0.6) : autoHovered ? Color.secondary.opacity(ThemeColors.hoverBorderOpacity) : Color.secondary.opacity(ThemeColors.subtleBorderOpacity), lineWidth: Layout.borderWidth)
                 )
                 .shadow(color: autoMetricMode ? ThemeColors.action.opacity(0.5) : .clear, radius: Layout.glowRadius)
                 .contentShape(Circle())

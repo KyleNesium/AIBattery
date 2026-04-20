@@ -249,19 +249,24 @@ enum ThemeColors {
         dark: NSColor(white: 1.0, alpha: 0.06)
     )
 
+    /// Deep gold for the menu bar star on light backgrounds where systemYellow washes out.
+    static let menuBarGold = NSColor(red: 0.72, green: 0.56, blue: 0.0, alpha: 1.0)
+
     /// NSColor variant for menu bar icon — rate limit thresholds (50/80/95).
-    static func barNSColor(percent: Double) -> NSColor {
+    /// When `isDarkMenuBar` is provided, the 50-79% band uses a darker gold on light
+    /// backgrounds for contrast (systemYellow is nearly invisible on a light menu bar).
+    static func barNSColor(percent: Double, isDarkMenuBar: Bool? = nil) -> NSColor {
         if isColorblind {
             switch percent {
             case 0..<50: return .systemBlue
-            case 50..<80: return .systemTeal
+            case 50..<80: return isDarkMenuBar == false ? menuBarGold : .systemTeal
             case 80..<95: return NSColor(red: 1.0, green: 0.75, blue: 0.0, alpha: 1.0)
             default: return .systemPurple
             }
         }
         switch percent {
         case 0..<50: return .systemGreen
-        case 50..<80: return .systemYellow
+        case 50..<80: return isDarkMenuBar == false ? menuBarGold : .systemYellow
         case 80..<95: return .systemOrange
         default: return .systemRed
         }

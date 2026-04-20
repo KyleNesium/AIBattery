@@ -129,6 +129,9 @@ enum Layout {
 
     /// Glow radius for active indicator (auto mode button).
     static let glowRadius: CGFloat = 4
+
+    /// Standard stroke width for borders and focus rings.
+    static let borderWidth: CGFloat = 1.5
 }
 
 /// Animation duration constants for the AI Battery popover.

@@ -12,7 +12,7 @@ struct RefreshSettingsSection: View {
             HStack(spacing: Spacing.section) {
                 Text("Refresh")
                     .font(Typography.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .frame(width: Layout.settingsLabel, alignment: .trailing)
                 Slider(value: $sliderValue, in: 30...300, step: 30) { editing in
                     isDragging = editing

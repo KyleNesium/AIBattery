@@ -116,6 +116,49 @@ struct ThemeColorsTests {
         #expect(high != critical)
     }
 
+    // MARK: - isDarkMenuBar gold override
+
+    @Test func barNSColor_lightMenuBar_usesGoldInMidBand() {
+        setColorblind(false)
+        let color = ThemeColors.barNSColor(percent: 65, isDarkMenuBar: false)
+        #expect(color == ThemeColors.menuBarGold)
+    }
+
+    @Test func barNSColor_darkMenuBar_usesSystemYellowInMidBand() {
+        setColorblind(false)
+        let color = ThemeColors.barNSColor(percent: 65, isDarkMenuBar: true)
+        #expect(color == .systemYellow)
+    }
+
+    @Test func barNSColor_nilMenuBar_usesSystemYellowInMidBand() {
+        setColorblind(false)
+        let color = ThemeColors.barNSColor(percent: 65)
+        #expect(color == .systemYellow)
+    }
+
+    @Test func barNSColor_colorblind_lightMenuBar_usesGoldInMidBand() {
+        setColorblind(true)
+        defer { setColorblind(false) }
+        let color = ThemeColors.barNSColor(percent: 65, isDarkMenuBar: false)
+        #expect(color == ThemeColors.menuBarGold)
+    }
+
+    @Test func barNSColor_colorblind_darkMenuBar_usesSystemTealInMidBand() {
+        setColorblind(true)
+        defer { setColorblind(false) }
+        let color = ThemeColors.barNSColor(percent: 65, isDarkMenuBar: true)
+        #expect(color == .systemTeal)
+    }
+
+    @Test func barNSColor_lightMenuBar_outsideMidBand_ignoresFlag() {
+        setColorblind(false)
+        // Low band still green, critical band still red — isDarkMenuBar only affects 50-80
+        let low = ThemeColors.barNSColor(percent: 25, isDarkMenuBar: false)
+        let critical = ThemeColors.barNSColor(percent: 96, isDarkMenuBar: false)
+        #expect(low == .systemGreen)
+        #expect(critical == .systemRed)
+    }
+
     // MARK: - Semantic colors
 
     @Test func chartAccent_standard_notBlue() {

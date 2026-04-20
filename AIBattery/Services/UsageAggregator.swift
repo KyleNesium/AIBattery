@@ -171,7 +171,7 @@ final class UsageAggregator: @unchecked Sendable {
             } else {
                 let entryDay = calendar.startOfDay(for: ts)
                 lastDayStart = entryDay
-                lastDayEnd = calendar.date(byAdding: .day, value: 1, to: entryDay) ?? entryDay.addingTimeInterval(Self.twentyFourHourWindow)
+                lastDayEnd = entryDay.addingTimeInterval(86400)
                 dateKey = Self.dateFormatter.string(from: ts)
                 lastDateKey = dateKey
             }

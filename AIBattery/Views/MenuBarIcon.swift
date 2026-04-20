@@ -89,31 +89,7 @@ struct MenuBarIcon: View {
     private static let cacheLock = NSLock()
     private static var iconCache: [Int: NSImage] = [:]
     private static var cachedColorblindFlag: Bool = ThemeColors.isColorblind
-    private static var cachedHighContrastFlag: Bool = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-    private static var cachedAppearanceName: String = NSApp?.effectiveAppearance.name.rawValue ?? ""
-
-    /// Observe accessibility changes instead of polling every frame.
-    /// Registered lazily on first icon render. Appearance (light/dark) is already
-    /// checked per-call via `cachedAppearanceName` (cheap string compare).
-    private static var accessibilityObserverRegistered = false
-
-    private static func registerAccessibilityObserverIfNeeded() {
-        cacheLock.withLock {
-            guard !accessibilityObserverRegistered else { return }
-            accessibilityObserverRegistered = true
-        }
-
-        let ws = NSWorkspace.shared
-        ws.notificationCenter.addObserver(
-            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
-            object: nil, queue: .main
-        ) { _ in
-            cacheLock.withLock {
-                cachedHighContrastFlag = ws.accessibilityDisplayShouldIncreaseContrast
-                iconCache.removeAll()
-            }
-        }
-    }
+    private static var cachedAppearanceName: String = ""
 
     /// Returns the cached status bar NSImage. Color is provided by the caller so it can
     /// match the active metric mode (rate limit thresholds vs context health thresholds).
@@ -122,8 +98,8 @@ struct MenuBarIcon: View {
     /// macOS battery has ~1pt between text and icon; our 22pt canvas has ~4pt whitespace on each side.
     private static let iconAlignmentInsets = NSEdgeInsets(top: 0, left: 1, bottom: 0, right: 5)
 
-    static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, isSparkle: Bool = false, pulseStep: Int = 0) -> NSImage {
-        cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
+    static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, isSparkle: Bool = false, pulseStep: Int = 0, menuBarAppearance: NSAppearance? = nil) -> NSImage {
+        cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep, menuBarAppearance: menuBarAppearance)
     }
 
     /// Horizontal whitespace trimmed from each side of the `iconSize` canvas when
@@ -143,11 +119,15 @@ struct MenuBarIcon: View {
         percent: Double,
         color: NSColor,
         isBroken: Bool = false,
-        isSparkle: Bool = false
+        isSparkle: Bool = false,
+        menuBarAppearance: NSAppearance? = nil
     ) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        let isDarkMenuBar = NSApp?.effectiveAppearance
-            .bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        // Use the status bar button's appearance — it reflects the actual menu bar
+        // backdrop (wallpaper tint, translucency) rather than NSApp.effectiveAppearance
+        // which only tracks the system-wide Light/Dark setting.
+        let appearance = menuBarAppearance ?? NSApp?.effectiveAppearance
+        let isDarkMenuBar = appearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor: NSColor = isDarkMenuBar ? .white : .black
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
@@ -157,7 +137,7 @@ struct MenuBarIcon: View {
         let textSize = attributed.size()
         let textWidth = ceil(textSize.width)
 
-        let icon = statusBarImage(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: 0)
+        let icon = statusBarImage(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: 0, menuBarAppearance: menuBarAppearance)
         let canvasSize = icon.size.width // 22pt, contains star + halo with ~3pt padding each side
         let iconVisibleWidth = canvasSize - 2 * iconCanvasPadding
         let gap: CGFloat = 2
@@ -185,16 +165,14 @@ struct MenuBarIcon: View {
         return image
     }
 
-    static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> NSImage {
-        registerAccessibilityObserverIfNeeded()
-
-        let currentAppearance = NSApp?.effectiveAppearance
+    static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, pulseStep: Int, menuBarAppearance: NSAppearance? = nil) -> NSImage {
+        let currentAppearance = menuBarAppearance ?? NSApp?.effectiveAppearance
         let appearanceName = currentAppearance?.name.rawValue ?? ""
         let currentColorblind = ThemeColors.isColorblind
 
         // Check cache under lock; render outside lock to avoid holding it during image creation
         let colorHash = color.hash
-        let (key, cached, highContrast, isDarkMode): (Int, NSImage?, Bool, Bool) = cacheLock.withLock {
+        let (key, cached): (Int, NSImage?) = cacheLock.withLock {
             if cachedColorblindFlag != currentColorblind
                 || cachedAppearanceName != appearanceName {
                 iconCache.removeAll()
@@ -204,9 +182,7 @@ struct MenuBarIcon: View {
 
             let qPercent = quantizedPercent(percent)
             let k = cacheKey(quantizedPercent: qPercent, colorHash: colorHash, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
-            let hc = cachedHighContrastFlag
-            let dm = currentAppearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            return (k, iconCache[k], hc, dm)
+            return (k, iconCache[k])
         }
 
         if let cached { return cached }
@@ -216,11 +192,11 @@ struct MenuBarIcon: View {
         let icon: NSImage
         if isBroken {
             // Throttled: static multi-pointed star at peak intensity (no animation)
-            icon = renderThrottledIcon(color: color, highContrast: highContrast, isDarkMode: isDarkMode)
+            icon = renderThrottledIcon(color: color)
         } else if isSparkle {
-            icon = renderSparkleIcon(color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+            icon = renderSparkleIcon(color: color, pulseStep: pulseStep)
         } else {
-            icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep, highContrast: highContrast, isDarkMode: isDarkMode)
+            icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep)
         }
 
         // Bake alignment rect into the icon so statusBarImage can return
@@ -237,7 +213,7 @@ struct MenuBarIcon: View {
 
     // MARK: - Normal star rendering
 
-    static func renderIcon(percent: Double, color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
+    static func renderIcon(percent: Double, color: NSColor, pulseStep: Int) -> NSImage {
         let size = iconSize
         let outerRadius: CGFloat = 6.5
         let innerRadius: CGFloat = 2.0
@@ -297,9 +273,6 @@ struct MenuBarIcon: View {
             ctx.addPath(path.asCGPath)
             ctx.fillPath()
 
-            // Outline
-            drawStroke(ctx: ctx, path: path.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
-
             return true
         }
         image.isTemplate = false
@@ -310,7 +283,7 @@ struct MenuBarIcon: View {
 
     /// Static many-pointed star for throttled state — no animation, no fragments.
     /// Uses a 12-pointed star shape with the normal 4-pointed star overlaid for depth.
-    static func renderThrottledIcon(color: NSColor, highContrast: Bool, isDarkMode: Bool) -> NSImage {
+    static func renderThrottledIcon(color: NSColor) -> NSImage {
         let size = iconSize
         let outerRadius: CGFloat = 6.5
         let innerRadius: CGFloat = 2.0
@@ -335,8 +308,6 @@ struct MenuBarIcon: View {
             ctx.setFillColor(color.cgColor)
             ctx.addPath(starFill.asCGPath)
             ctx.fillPath()
-
-            drawStroke(ctx: ctx, path: starFill.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
 
             return true
         }
@@ -366,7 +337,7 @@ struct MenuBarIcon: View {
         [0, 3, 6],  [1, 5],     [2, 4, 7],  [0, 6],
     ]
 
-    static func renderSparkleIcon(color: NSColor, pulseStep: Int, highContrast: Bool, isDarkMode: Bool) -> NSImage {
+    static func renderSparkleIcon(color: NSColor, pulseStep: Int) -> NSImage {
         let size = iconSize
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
@@ -380,8 +351,6 @@ struct MenuBarIcon: View {
             ctx.setFillColor(color.cgColor)
             ctx.addPath(path.asCGPath)
             ctx.fillPath()
-            drawStroke(ctx: ctx, path: path.asCGPath, color: color, highContrast: highContrast, isDarkMode: isDarkMode)
-
             // Draw sparkles — subtle cross shapes that slowly twinkle around the star
             let frameIndex = (pulseStep / 2) % sparkleFrames.count
             let activeIndices = sparkleFrames[frameIndex]

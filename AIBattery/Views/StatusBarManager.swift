@@ -100,7 +100,7 @@ public final class StatusBarManager: NSObject {
 
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
         if let button = item.button {
-            button.image = MenuBarIcon.statusBarImage(for: 0, color: ThemeColors.barNSColor(percent: 0))
+            button.image = MenuBarIcon.statusBarImage(for: 0, color: ThemeColors.barNSColor(percent: 0), menuBarAppearance: button.effectiveAppearance)
             // Text left, icon right — matches macOS battery layout
             button.imagePosition = .imageTrailing
             button.imageHugsTitle = true
@@ -313,7 +313,8 @@ public final class StatusBarManager: NSObject {
         let isExhausted = isThrottled
             || (rateLimits?.fiveHourPercent ?? 0) >= 100
             || (rateLimits?.sevenDayPercent ?? 0) >= 100
-        let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isExhausted)
+        let isDarkMenuBar = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isExhausted, isDarkMenuBar: isDarkMenuBar)
 
         updateSparkleState(isThrottled: isExhausted)
         updateRenderState(percent: percent, color: starColor, isThrottled: isExhausted)
@@ -324,7 +325,8 @@ public final class StatusBarManager: NSObject {
             percent: percent,
             color: starColor,
             isBroken: isExhausted,
-            isSparkle: isSparkleActive
+            isSparkle: isSparkleActive,
+            menuBarAppearance: button.effectiveAppearance
         )
         // Title is baked into the image — leaving it set would add AppKit's bezel padding
         // back around the text, which is exactly what we're avoiding here.
@@ -365,13 +367,13 @@ public final class StatusBarManager: NSObject {
         statusItem.length = image.size.width
     }
 
-    private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool) -> NSColor {
+    private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool, isDarkMenuBar: Bool) -> NSColor {
         if isThrottled {
             return ThemeColors.barNSColor(percent: 100)
         } else if metricMode == .contextHealth {
             return ThemeColors.contextHealthNSColor(percent: percent)
         } else {
-            return ThemeColors.barNSColor(percent: percent)
+            return ThemeColors.barNSColor(percent: percent, isDarkMenuBar: isDarkMenuBar)
         }
     }
 

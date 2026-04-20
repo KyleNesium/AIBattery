@@ -11,6 +11,7 @@ struct StandardLimitsSection: View {
                 Image(systemName: "info.circle")
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .accessibilityHidden(true)
                 Text("Showing API rate limits (5h/7d usage unavailable)")
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.secondaryLabel)
@@ -66,6 +67,7 @@ private struct StandardLimitBar: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
+                        .accessibilityHidden(true)
                 }
                 Spacer()
                 Text("\(TokenFormatter.format(remaining))/\(TokenFormatter.format(limit))")

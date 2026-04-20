@@ -49,7 +49,7 @@ struct TutorialOverlay: View {
 
                 Text(steps[step].description)
                     .font(Typography.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -73,7 +73,7 @@ struct TutorialOverlay: View {
                         }
                         .buttonStyle(.plain)
                         .font(Typography.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                         .keyboardShortcut(.cancelAction)
                         .accessibilityLabel("Skip tutorial")
                         .help("Skip the tutorial walkthrough")

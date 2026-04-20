@@ -8,7 +8,7 @@ struct LaunchAtLoginSection: View {
         HStack(spacing: Spacing.section) {
             Text("Startup")
                 .font(Typography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Layout.settingsLabel, alignment: .trailing)
             Toggle("Launch at Login", isOn: $launchAtLogin)
                 .toggleStyle(.checkbox)

@@ -23,8 +23,9 @@ struct CopyableModifier: ViewModifier {
                 if copied {
                     Image(systemName: "doc.on.clipboard.fill")
                         .font(Typography.clipboardIcon)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
                         .transition(.scale.combined(with: .opacity))
+                        .accessibilityHidden(true)
                         .padding(.trailing, -13)
                 }
             }

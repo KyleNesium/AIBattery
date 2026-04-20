@@ -104,7 +104,7 @@ AIBattery/
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
-    MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, brokenStarFragments, drawStroke) + NSBezierPath→CGPath
+    MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, multiPointStarPath) + NSBezierPath→CGPath
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
     PopoverHeaderView.swift       — Header row, account picker, update banner (ENABLE_VERSION_CHECKER)
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache

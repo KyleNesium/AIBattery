@@ -14,7 +14,7 @@ struct DisplaySettingsSection: View {
             HStack(spacing: Spacing.section) {
                 Text("Hide idle")
                     .font(Typography.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
                     .frame(width: Layout.settingsLabel, alignment: .trailing)
                 Slider(value: $idleSliderPosition, in: 1...6, step: 1) { editing in
                     if !editing {
@@ -48,7 +48,7 @@ struct DisplaySettingsSection: View {
         HStack(spacing: Spacing.section) {
             Text("Display")
                 .font(Typography.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Layout.settingsLabel, alignment: .trailing)
             Toggle("Colorblind", isOn: $colorblindMode)
                 .toggleStyle(.checkbox)

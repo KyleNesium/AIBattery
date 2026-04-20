@@ -84,7 +84,7 @@ struct PopoverFooterView: View {
                     .fixedSize()
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ThemeColors.secondaryLabel)
                 .onHover { quitHovered = $0 }
                 .help("Quit (⌘Q)")
                 .accessibilityLabel("Quit AI Battery")

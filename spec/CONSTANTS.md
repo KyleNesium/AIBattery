@@ -353,6 +353,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.bannerCornerRadius` | 6pt | Banner corner radius (update banner, search field) |
 | `Layout.costColumn` | 46pt | Compact cost column width (Projects, Insights) |
 | `Layout.tokenColumn` | 42pt | Token value column width (Projects, Insights) |
+| `Layout.borderWidth` | 1.5pt | Standard stroke width for borders and focus rings |
 | `Layout.settingsLabel` | 50pt | Settings label column width (e.g. "Refresh", "Alerts") |
 
 ### MotionConstants (`Utilities/Spacing.swift`, co-located)
@@ -457,7 +458,7 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Chart accent | `.systemOrange` | `.systemOrange` |
 | Trend ↑ | `.orange` | `.orange` |
 | Trend ↓ | `.green` | `.green` |
-| Menu bar gold | `.systemYellow` | `.systemYellow` |
+| Menu bar gold | `menuBarGold` (#B88F00) | `.systemYellow` |
 | Menu bar orange | `.systemOrange` | `.systemOrange` |
 | Secondary label | black 70% | white 55% |
 | Tertiary label | black 55% | white 35% |
