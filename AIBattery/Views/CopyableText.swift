@@ -26,7 +26,7 @@ struct CopyableModifier: ViewModifier {
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .transition(.scale.combined(with: .opacity))
                         .accessibilityHidden(true)
-                        .padding(.trailing, -13)
+                        .padding(.trailing, -Layout.clipboardIconOffset)
                 }
             }
             .onHover { hovering in

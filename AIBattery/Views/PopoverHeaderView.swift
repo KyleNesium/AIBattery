@@ -146,7 +146,7 @@ struct PopoverHeaderView: View {
                         .fill(ThemeColors.updateAvailable.opacity(0.12))
                         .overlay(
                             RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                                .stroke(ThemeColors.updateAvailable.opacity(0.35), lineWidth: 1)
+                                .stroke(ThemeColors.updateAvailable.opacity(0.35), lineWidth: Layout.subtleBorderWidth)
                         )
                 )
                 .padding(.horizontal, -Spacing.tight)
@@ -245,7 +245,7 @@ struct PopoverHeaderView: View {
             }
         }
         .menuStyle(.borderlessButton)
-        .frame(maxWidth: 100)
+        .frame(maxWidth: Layout.accountPickerMaxWidth)
         .accessibilityLabel("Switch account")
         .accessibilityHint("Select which Claude account to display")
     }

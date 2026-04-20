@@ -27,7 +27,7 @@ public struct AuthView: View {
                 if let appIcon = NSApp.applicationIconImage {
                     Image(nsImage: appIcon)
                         .resizable()
-                        .frame(width: 48, height: 48)
+                        .frame(width: Layout.appIconSize, height: Layout.appIconSize)
                         .clipShape(RoundedRectangle(cornerRadius: Layout.iconClipRadius))
                         .accessibilityHidden(true)
                 }

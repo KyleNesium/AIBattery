@@ -132,6 +132,27 @@ enum Layout {
 
     /// Standard stroke width for borders and focus rings.
     static let borderWidth: CGFloat = 1.5
+
+    /// Subtle stroke width for banner borders and chart ticks.
+    static let subtleBorderWidth: CGFloat = 1
+
+    /// App icon size in auth view.
+    static let appIconSize: CGFloat = 48
+
+    /// Activity mode segmented picker width.
+    static let activityModePickerWidth: CGFloat = 120
+
+    /// Project list index column width.
+    static let indexColumn: CGFloat = 14
+
+    /// Tutorial card max width.
+    static let tutorialCardMaxWidth: CGFloat = 280
+
+    /// Account picker max width in header.
+    static let accountPickerMaxWidth: CGFloat = 100
+
+    /// Clipboard icon trailing offset (negative for overlay positioning).
+    static let clipboardIconOffset: CGFloat = 13
 }
 
 /// Animation duration constants for the AI Battery popover.

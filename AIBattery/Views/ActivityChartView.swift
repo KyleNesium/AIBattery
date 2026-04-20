@@ -136,7 +136,7 @@ struct InsightsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 120)
+                    .frame(width: Layout.activityModePickerWidth)
                     .scaleEffect(0.8, anchor: .trailing)
                     .accessibilityLabel("Activity time range")
                     .accessibilityHint("Switch between 5 hour, 7 day, and 12 month views")
