@@ -45,7 +45,7 @@ struct PopoverHeaderView: View {
                                 updateCheckMessage = "Up to date"
                                 updateCheckDismissTask?.cancel()
                                 updateCheckDismissTask = Task {
-                                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                    try? await Task.sleep(nanoseconds: MotionConstants.updateCheckMessageNs)
                                     guard !Task.isCancelled else { return }
                                     updateCheckMessage = nil
                                 }
