@@ -20,7 +20,7 @@ extension InsightsView {
     /// Standard Y-axis for all chart modes: trailing position, 3 ticks, compact count labels.
     var sharedYAxis: some AxisContent {
         AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-            AxisTick(stroke: StrokeStyle(lineWidth: 0.5))
+            AxisTick(stroke: StrokeStyle(lineWidth: Layout.chartTickWidth))
                 .foregroundStyle(ThemeColors.tertiaryLabel)
             AxisValueLabel {
                 if let v = value.as(Int.self) {
