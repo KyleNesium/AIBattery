@@ -193,7 +193,7 @@ struct MarqueeText: View {
             textWidth = 0
 
             // Fade in
-            withAnimation(.easeIn(duration: 0.3)) {
+            withAnimation(MotionConstants.fadeIn) {
                 textOpacity = 1.0
             }
 
