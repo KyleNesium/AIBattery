@@ -42,3 +42,9 @@ build/
 *.swo
 *~
 package-lock.json
+
+# Local agent + planning scratch (not checked in)
+.build-local/
+.claude/
+.gstack/
+.planning/quick/
