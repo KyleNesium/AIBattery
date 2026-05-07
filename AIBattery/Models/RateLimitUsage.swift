@@ -107,6 +107,35 @@ struct RateLimitUsage: Equatable, Codable {
         )
     }
 
+    /// Return a copy with any windows whose reset is in the past normalized:
+    /// utilization → 0, reset → nil, status → "allowed". Used when restoring
+    /// persisted cache after a long absence (e.g. user returns from leave).
+    /// The persisted "throttled" flag is stale once the window has rolled over,
+    /// and showing it would mislead the user until the first fresh fetch lands.
+    func withClearedExpiredWindows(now: Date = .now) -> RateLimitUsage {
+        let fiveHourExpired = (fiveHourReset.map { $0 <= now } ?? false)
+        let sevenDayExpired = (sevenDayReset.map { $0 <= now } ?? false)
+        guard fiveHourExpired || sevenDayExpired else { return self }
+
+        let bindingExpired: Bool = {
+            switch representativeClaim {
+            case Self.sevenDayWindow: return sevenDayExpired
+            default: return fiveHourExpired
+            }
+        }()
+
+        return RateLimitUsage(
+            representativeClaim: representativeClaim,
+            fiveHourUtilization: fiveHourExpired ? 0 : fiveHourUtilization,
+            fiveHourReset: fiveHourExpired ? nil : fiveHourReset,
+            fiveHourStatus: fiveHourExpired ? "allowed" : fiveHourStatus,
+            sevenDayUtilization: sevenDayExpired ? 0 : sevenDayUtilization,
+            sevenDayReset: sevenDayExpired ? nil : sevenDayReset,
+            sevenDayStatus: sevenDayExpired ? "allowed" : sevenDayStatus,
+            overallStatus: bindingExpired ? "allowed" : overallStatus
+        )
+    }
+
     // MARK: - Countdown formatter
 
     /// Compact countdown string for menu bar: "2h 15m", "45m", "0s"

@@ -616,8 +616,12 @@ final class RateLimitFetcher {
             }
             // Discard cache entries with future fetchedAt (system clock went backward)
             let fetchedAt = persisted.fetchedAt <= Date() ? persisted.fetchedAt : Date()
+            // Clear expired windows so a stale "throttled" flag from before a long
+            // absence (e.g. user returns from leave) doesn't display as if they
+            // hit the limit. The window has rolled over; status must reset.
+            let normalizedRateLimits = persisted.rateLimits?.withClearedExpiredWindows()
             cachedResults[accountId] = APIFetchResult(
-                rateLimits: persisted.rateLimits,
+                rateLimits: normalizedRateLimits,
                 rateLimitSource: persisted.rateLimitSource,
                 standardLimits: persisted.standardLimits,
                 profile: nil,
