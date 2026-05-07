@@ -146,6 +146,7 @@ Combined result from a single Messages API call.
 | `hasStandardRateLimitHeaders` | `Bool` — true when standard `anthropic-ratelimit-*` headers present |
 | `fetchedAt` | `Date` — when this result was fetched (defaults to `Date()`) |
 | `isCached` | `Bool` — whether this result came from cache rather than a fresh API response (defaults to `false`) |
+| `authError` | `Bool` — true when the Messages API has returned ≥ 3 consecutive 401/403 for this account (defaults to `false`). `UsageViewModel.refreshErrorMessage` overrides all other messages with a reconnect prompt when set. |
 
 ### StandardRateLimits (`Models/StandardRateLimits.swift`)
 
@@ -184,6 +185,10 @@ Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPe
 Static: `countdownText(to date: Date, from now: Date = .now) -> String` — compact countdown for menu bar display. Pure function with injectable `now` for testing. Delegates to `DurationFormatter.compact()`. Used by `StatusBarManager` when throttled.
 
 `parse(headers:)` reads legacy unified headers. `parse(clientData:)` reads Claude Code client-data JSON with tolerant key-path matching, accepts percent or fractional utilization, and parses reset timestamps from Unix epoch or ISO-8601/RFC 3339 strings.
+
+`markedThrottled(bindingWindow:)` forces throttled status on the binding (or named) window — used as an override when an HTTP 429 proves throttling but the headers haven't caught up. Callers must guard with `RateLimitFetcher.quotaThrottleLikely(_:)` so a non-quota 429 (per-minute, IP block, upstream incident) does not falsely flip the bar to `Throttled`.
+
+`withClearedExpiredWindows(now:)` returns a copy with any window whose `reset` is in the past normalized to utilization `0`, reset `nil`, status `"allowed"`. If the binding window expires, `overallStatus` is reset too. Applied at cache-restore time so a stale `"throttled"` flag from before a long absence does not persist into the next launch.
 
 ### TokenHealthStatus (`Models/TokenHealthStatus.swift`) — `Identifiable`
 
@@ -402,6 +407,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache never expires — stale rate limits are shown rather than empty bars (e.g., after long sleep). Fresh fetches replace stale data on success.
 - Model unavailable (400/404 with model/access error message) → tries next model in list
 - **429 handling**: parses rate limit headers directly from the 429 response (they're always present on throttled responses). Returns as success so the UI continues showing usage bars and reset times while the user is rate limited. Falls through to Retry-After logic only if headers are missing (unexpected).
+- **`quotaThrottleLikely(_:)`** (`nonisolated static`) — gates whether a 429 should call `markedThrottled()` on the parsed headers. Returns `true` when the parsed `RateLimitUsage.isThrottled` is already set OR the binding window utilization is ≥ `quotaExhaustionThreshold` (0.95). Below that, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block — the bar must not flip to `Throttled`.
+- **Consecutive auth-failure tracking** — `consecutiveAuthFailures: [String: Int]` keyed by account. Incremented on each 401/403, reset on any success. At or above `authErrorThreshold` (3) the returned `APIFetchResult.authError = true`. Network errors do NOT count as auth failures and do NOT reset the counter (a flaky network shouldn't trigger reconnect prompts but also shouldn't mask a persistent auth problem).
+- **`restorePersistedRateLimits`** applies `RateLimitUsage.withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence does not display until the first fresh fetch lands.
 - Non-model 400/404 errors: extracts rate limit headers if present and returns as success; otherwise returns `.networkError` (never silently falls through to header-less success)
 - `static parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double?` — parses `Retry-After` header; returns nil for nil/non-numeric/zero/negative; caps at `maxDelay`
 

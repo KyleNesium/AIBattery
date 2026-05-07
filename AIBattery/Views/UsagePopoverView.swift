@@ -250,7 +250,7 @@ public struct UsagePopoverView: View {
                     showLogoutConfirm = true
                     logoutRevertTask?.cancel()
                     logoutRevertTask = Task {
-                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        try? await Task.sleep(nanoseconds: MotionConstants.logoutConfirmNs)
                         guard !Task.isCancelled else { return }
                         showLogoutConfirm = false
                     }

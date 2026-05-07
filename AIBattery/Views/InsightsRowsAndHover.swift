@@ -64,7 +64,7 @@ extension InsightsView {
 
     // MARK: - Hover helpers
 
-    static let selectionRuleStyle = StrokeStyle(lineWidth: 0.5, dash: [3, 3])
+    static let selectionRuleStyle = StrokeStyle(lineWidth: Layout.chartTickWidth, dash: [3, 3])
 
     /// Tooltip label styling.
     func tooltipLabel(_ text: String) -> some View {

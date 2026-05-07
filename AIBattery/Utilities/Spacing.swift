@@ -132,6 +132,42 @@ enum Layout {
 
     /// Standard stroke width for borders and focus rings.
     static let borderWidth: CGFloat = 1.5
+
+    /// Subtle stroke width for banner borders and chart ticks.
+    static let subtleBorderWidth: CGFloat = 1
+
+    /// App icon size in auth view.
+    static let appIconSize: CGFloat = 48
+
+    /// Activity mode segmented picker width.
+    static let activityModePickerWidth: CGFloat = 120
+
+    /// Project list index column width.
+    static let indexColumn: CGFloat = 14
+
+    /// Tutorial card max width.
+    static let tutorialCardMaxWidth: CGFloat = 280
+
+    /// Account picker max width in header.
+    static let accountPickerMaxWidth: CGFloat = 100
+
+    /// Clipboard icon trailing offset (negative for overlay positioning).
+    static let clipboardIconOffset: CGFloat = 13
+
+    /// Panel initial height (overwritten by resize observer on first layout).
+    static let panelInitialHeight: CGFloat = 700
+
+    /// Panel minimum height (prevents collapsed state from disappearing).
+    static let panelMinHeight: CGFloat = 100
+
+    /// Menu bar inset subtracted from screen height for panel max height.
+    static let menuBarInset: CGFloat = 40
+
+    /// Fallback screen height when panel.screen is nil.
+    static let fallbackScreenHeight: CGFloat = 900
+
+    /// Chart axis tick stroke width.
+    static let chartTickWidth: CGFloat = 0.5
 }
 
 /// Animation duration constants for the AI Battery popover.
@@ -148,8 +184,11 @@ enum MotionConstants {
     /// Smooth data-driven animation (gauge fill, chart transition): 0.4s easeInOut.
     static let smooth: Animation = .easeInOut(duration: 0.4)
 
-    /// Cross-fade text transition (marquee): 0.3s easeOut.
+    /// Cross-fade text out (marquee): 0.3s easeOut.
     static let fadeOut: Animation = .easeOut(duration: 0.3)
+
+    /// Cross-fade text in (marquee): 0.3s easeIn.
+    static let fadeIn: Animation = .easeIn(duration: 0.3)
 
     /// Dialog/overlay enter/exit: 0.2s easeInOut.
     static let dialog: Animation = .easeInOut(duration: 0.2)
@@ -161,4 +200,15 @@ enum MotionConstants {
     static var expandTransition: AnyTransition {
         .opacity.combined(with: .move(edge: .top))
     }
+
+    // MARK: - State timing (non-animation durations)
+
+    /// Clipboard "copied" feedback icon display duration (nanoseconds).
+    static let clipboardFeedbackNs: UInt64 = 1_500_000_000
+
+    /// Logout confirmation revert timeout (nanoseconds).
+    static let logoutConfirmNs: UInt64 = 3_000_000_000
+
+    /// Update check success message display duration (nanoseconds).
+    static let updateCheckMessageNs: UInt64 = 2_500_000_000
 }

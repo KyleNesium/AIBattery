@@ -86,13 +86,13 @@ struct MetricToggleView: View {
                 .frame(width: Layout.autoModeSize, height: Layout.autoModeSize)
                 .background(
                     Circle()
-                        .fill(autoMetricMode ? ThemeColors.action.opacity(0.15) : autoHovered ? ThemeColors.hoverFill : .clear)
+                        .fill(autoMetricMode ? ThemeColors.action.opacity(ThemeColors.activeElementFillOpacity) : autoHovered ? ThemeColors.hoverFill : .clear)
                 )
                 .overlay(
                     Circle()
-                        .stroke(autoMetricMode ? ThemeColors.action.opacity(0.6) : autoHovered ? Color.secondary.opacity(ThemeColors.hoverBorderOpacity) : Color.secondary.opacity(ThemeColors.subtleBorderOpacity), lineWidth: Layout.borderWidth)
+                        .stroke(autoMetricMode ? ThemeColors.action.opacity(ThemeColors.activeAccentOpacity) : autoHovered ? Color.secondary.opacity(ThemeColors.hoverBorderOpacity) : Color.secondary.opacity(ThemeColors.subtleBorderOpacity), lineWidth: Layout.borderWidth)
                 )
-                .shadow(color: autoMetricMode ? ThemeColors.action.opacity(0.5) : .clear, radius: Layout.glowRadius)
+                .shadow(color: autoMetricMode ? ThemeColors.action.opacity(ThemeColors.activeLabelOpacity) : .clear, radius: Layout.glowRadius)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

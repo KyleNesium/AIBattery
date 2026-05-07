@@ -145,11 +145,11 @@ public final class StatusBarManager: NSObject {
         )
         hosting.translatesAutoresizingMaskIntoConstraints = false
         hosting.wantsLayer = true
-        hosting.layer?.cornerRadius = 10
+        hosting.layer?.cornerRadius = Layout.iconClipRadius
         hosting.layer?.masksToBounds = true
 
         panel.contentView = hosting
-        panel.setContentSize(NSSize(width: Layout.popoverWidth, height: 700))
+        panel.setContentSize(NSSize(width: Layout.popoverWidth, height: Layout.panelInitialHeight))
 
         // Resize panel when SwiftUI content changes height.
         // Max height is screen-relative so all sections fit on most displays.
@@ -167,10 +167,10 @@ public final class StatusBarManager: NSObject {
                 MainActor.assumeIsolated {
                     guard let panel, let hosting, let self else { return }
                     guard self.toggleState.isShowing else { return }
-                    let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
-                    let maxPanelHeight = screenMaxHeight - 40
+                    let screenMaxHeight = panel.screen?.visibleFrame.height ?? Layout.fallbackScreenHeight
+                    let maxPanelHeight = screenMaxHeight - Layout.menuBarInset
                     let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
-                    let newHeight = max(fittingHeight, 100)
+                    let newHeight = max(fittingHeight, Layout.panelMinHeight)
                     // Skip no-op frame updates to avoid layout feedback loops
                     guard abs(newHeight - panel.frame.height) > 0.5 else { return }
                     // Re-derive the top anchor from the status button's current screen
@@ -521,7 +521,7 @@ public final class StatusBarManager: NSObject {
             if let hosting = hostingView {
                 let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
                 let maxPanelHeight = screenMaxHeight - 40
-                let fittingHeight = min(max(hosting.fittingSize.height, 100), maxPanelHeight)
+                let fittingHeight = min(max(hosting.fittingSize.height, Layout.panelMinHeight), maxPanelHeight)
                 let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
                 panel.setContentSize(NSSize(width: fittingWidth, height: fittingHeight))
             }

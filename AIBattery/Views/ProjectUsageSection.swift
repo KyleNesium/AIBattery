@@ -166,7 +166,7 @@ struct ProjectUsageSection: View {
             Text("\(index + 1)")
                 .font(Typography.monoCaptionSmall)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
-                .frame(width: 14, alignment: .trailing)
+                .frame(width: Layout.indexColumn, alignment: .trailing)
 
             Text(project.projectName)
                 .font(Typography.caption)

@@ -361,7 +361,7 @@ private struct ChevronButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(enabled ? Color.primary.opacity(0.6) : Color.primary.opacity(ThemeColors.disabledDeepOpacity))
+        .foregroundStyle(enabled ? Color.primary.opacity(ThemeColors.enabledControlOpacity) : Color.primary.opacity(ThemeColors.disabledDeepOpacity))
         .disabled(!enabled)
         .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
             isPressed = pressing

@@ -45,7 +45,7 @@ struct PopoverHeaderView: View {
                                 updateCheckMessage = "Up to date"
                                 updateCheckDismissTask?.cancel()
                                 updateCheckDismissTask = Task {
-                                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                    try? await Task.sleep(nanoseconds: MotionConstants.updateCheckMessageNs)
                                     guard !Task.isCancelled else { return }
                                     updateCheckMessage = nil
                                 }
@@ -143,10 +143,10 @@ struct PopoverHeaderView: View {
                 .padding(Spacing.section)
                 .background(
                     RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                        .fill(ThemeColors.updateAvailable.opacity(0.12))
+                        .fill(ThemeColors.updateAvailable.opacity(ThemeColors.subtleElementOpacity))
                         .overlay(
                             RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                                .stroke(ThemeColors.updateAvailable.opacity(0.35), lineWidth: 1)
+                                .stroke(ThemeColors.updateAvailable.opacity(ThemeColors.subtleStrokeOpacity), lineWidth: Layout.subtleBorderWidth)
                         )
                 )
                 .padding(.horizontal, -Spacing.tight)
@@ -245,7 +245,7 @@ struct PopoverHeaderView: View {
             }
         }
         .menuStyle(.borderlessButton)
-        .frame(maxWidth: 100)
+        .frame(maxWidth: Layout.accountPickerMaxWidth)
         .accessibilityLabel("Switch account")
         .accessibilityHint("Select which Claude account to display")
     }

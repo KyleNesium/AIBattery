@@ -26,7 +26,7 @@ struct CopyableModifier: ViewModifier {
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .transition(.scale.combined(with: .opacity))
                         .accessibilityHidden(true)
-                        .padding(.trailing, -13)
+                        .padding(.trailing, -Layout.clipboardIconOffset)
                 }
             }
             .onHover { hovering in
@@ -63,7 +63,7 @@ struct CopyableModifier: ViewModifier {
                     copied = true
                 }
                 feedbackTask = Task {
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    try? await Task.sleep(nanoseconds: MotionConstants.clipboardFeedbackNs)
                     guard !Task.isCancelled else { return }
                     withAnimation(MotionConstants.standard) {
                         copied = false

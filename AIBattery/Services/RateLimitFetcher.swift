@@ -41,6 +41,13 @@ final class RateLimitFetcher {
     private var lastWorkingModel: [String: String] = [:]
     private static let workingModelKeyPrefix = "aibattery_probeModel_"
 
+    /// Per-account count of consecutive 401/403 responses from the Messages API.
+    /// Reset on any non-auth-failure result. At or above `authErrorThreshold`,
+    /// surface `authError = true` on returned APIFetchResults so the UI can
+    /// prompt the user to reconnect instead of silently showing cached data.
+    private var consecutiveAuthFailures: [String: Int] = [:]
+    static let authErrorThreshold = 3
+
     init() {
         restorePersistedRateLimits()
         restoreWorkingModels()
@@ -122,14 +129,24 @@ final class RateLimitFetcher {
             switch result {
             case .success(let fetchResult):
                 saveWorkingModel(model, accountId: accountId)
+                consecutiveAuthFailures[accountId] = 0
                 cachedResults[accountId] = fetchResult
                 persistRateLimits(fetchResult, accountId: accountId)
                 return fetchResult
             case .modelUnavailable:
                 continue
             case .authFailed:
-                return cachedOrEmpty(accountId: accountId)
+                let count = (consecutiveAuthFailures[accountId] ?? 0) + 1
+                consecutiveAuthFailures[accountId] = count
+                let surfaceAuthError = count >= Self.authErrorThreshold
+                if surfaceAuthError {
+                    AppLogger.network.error("Messages API auth failed \(count) consecutive times for account \(accountId, privacy: .public) — surfacing authError to UI")
+                }
+                return cachedOrEmpty(accountId: accountId, authError: surfaceAuthError)
             case .networkError:
+                // Network errors don't reset auth-failure count — a flaky network
+                // shouldn't mask a persistent auth problem, but it shouldn't
+                // count as one either.
                 return cachedOrEmpty(accountId: accountId)
             }
         }
@@ -141,7 +158,7 @@ final class RateLimitFetcher {
     /// Always returns cached data when available — stale rate limits are better
     /// than empty bars (e.g., after waking from long sleep with expired token).
     /// Fresh fetches replace the cache naturally on success.
-    func cachedOrEmpty(accountId: String) -> APIFetchResult {
+    func cachedOrEmpty(accountId: String, authError: Bool = false) -> APIFetchResult {
         if let cached = cachedResults[accountId] {
             return APIFetchResult(
                 rateLimits: cached.rateLimits,
@@ -150,10 +167,11 @@ final class RateLimitFetcher {
                 profile: cached.profile,
                 hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
                 fetchedAt: cached.fetchedAt,
-                isCached: true
+                isCached: true,
+                authError: authError
             )
         }
-        return APIFetchResult(rateLimits: nil, profile: nil)
+        return APIFetchResult(rateLimits: nil, profile: nil, authError: authError)
     }
 
     /// Inject a cached result for testing.
@@ -167,6 +185,28 @@ final class RateLimitFetcher {
     nonisolated static func parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double? {
         guard let value, let delay = Double(value), delay > 0 else { return nil }
         return min(delay, maxDelay)
+    }
+
+    /// Threshold above which a 429 with header-reported "allowed" status is still
+    /// treated as a quota throttle (covers the rare case of header lag near the cap).
+    nonisolated static let quotaExhaustionThreshold: Double = 0.95
+
+    /// Whether an HTTP 429 should be treated as the user's 5h/7d quota throttle.
+    ///
+    /// A 429 alone is not enough — Anthropic returns 429 for several reasons:
+    ///   - The user's 5h/7d quota is exhausted (the case we want to surface)
+    ///   - Per-minute API rate limits
+    ///   - IP/org-level restrictions or upstream incidents
+    ///
+    /// Trust the parsed headers: if they explicitly say "throttled", it's a quota
+    /// throttle; if they say "allowed" with low utilization, the 429 is from another
+    /// source and we must not pretend the user hit their quota.
+    nonisolated static func quotaThrottleLikely(_ rl: RateLimitUsage) -> Bool {
+        if rl.isThrottled { return true }
+        let bindingUtilization = rl.representativeClaim == RateLimitUsage.sevenDayWindow
+            ? rl.sevenDayUtilization
+            : rl.fiveHourUtilization
+        return bindingUtilization >= quotaExhaustionThreshold
     }
 
     private enum FetchResult {
@@ -240,10 +280,14 @@ final class RateLimitFetcher {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
                 if let rateLimits {
+                    let quotaLikely = Self.quotaThrottleLikely(rateLimits)
+                    if !quotaLikely {
+                        AppLogger.network.warning("HTTP 429 received but headers indicate quota allowed (binding util=\(rateLimits.representativeClaim == RateLimitUsage.sevenDayWindow ? rateLimits.sevenDayUtilization : rateLimits.fiveHourUtilization)) — treating as upstream/per-minute throttle, not displaying as quota throttle")
+                    }
                     return .success(buildHeaderResult(
                         rateLimits: rateLimits, headers: http.allHeaderFields,
                         cached: cached, model: model, accountId: accountId,
-                        standardLimits: standardLimits, markThrottled: true
+                        standardLimits: standardLimits, markThrottled: quotaLikely
                     ))
                 }
 
@@ -281,10 +325,12 @@ final class RateLimitFetcher {
                         let retryProfile = APIProfile.parse(headers: retryHttp.allHeaderFields)
                         let retryStdLimits = StandardRateLimits.parse(headers: retryHttp.allHeaderFields)
                         if let retryRL {
+                            let retryQuotaLikely = retryHttp.statusCode == 429
+                                && Self.quotaThrottleLikely(retryRL)
                             return .success(buildHeaderResult(
                                 rateLimits: retryRL, headers: retryHttp.allHeaderFields,
                                 cached: cached, model: model, accountId: accountId,
-                                standardLimits: retryStdLimits, markThrottled: retryHttp.statusCode == 429
+                                standardLimits: retryStdLimits, markThrottled: retryQuotaLikely
                             ))
                         }
 
@@ -451,7 +497,7 @@ final class RateLimitFetcher {
             }
 
             let normalizedRateLimits = rateLimits.map {
-                http.statusCode == 429 ? $0.markedThrottled() : $0
+                (http.statusCode == 429 && Self.quotaThrottleLikely($0)) ? $0.markedThrottled() : $0
             }
 
             return APIFetchResult(
@@ -524,7 +570,7 @@ final class RateLimitFetcher {
             }
 
             let normalizedRateLimits = rateLimits.map {
-                http.statusCode == 429 ? $0.markedThrottled() : $0
+                (http.statusCode == 429 && Self.quotaThrottleLikely($0)) ? $0.markedThrottled() : $0
             }
 
             return APIFetchResult(
@@ -588,8 +634,12 @@ final class RateLimitFetcher {
             }
             // Discard cache entries with future fetchedAt (system clock went backward)
             let fetchedAt = persisted.fetchedAt <= Date() ? persisted.fetchedAt : Date()
+            // Clear expired windows so a stale "throttled" flag from before a long
+            // absence (e.g. user returns from leave) doesn't display as if they
+            // hit the limit. The window has rolled over; status must reset.
+            let normalizedRateLimits = persisted.rateLimits?.withClearedExpiredWindows()
             cachedResults[accountId] = APIFetchResult(
-                rateLimits: persisted.rateLimits,
+                rateLimits: normalizedRateLimits,
                 rateLimitSource: persisted.rateLimitSource,
                 standardLimits: persisted.standardLimits,
                 profile: nil,

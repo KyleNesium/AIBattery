@@ -371,6 +371,98 @@ struct RateLimitUsageTests {
         #expect(usage.sevenDayStatus == "throttled")
     }
 
+    // MARK: - withClearedExpiredWindows
+
+    @Test func withClearedExpiredWindows_bothExpired_clearsAll() {
+        let now = Date()
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 0.99,
+            sevenDayUtil: 0.50,
+            fiveHourReset: now.addingTimeInterval(-3600),    // 1h ago
+            sevenDayReset: now.addingTimeInterval(-86400),   // 1d ago
+            fiveHourStatus: "throttled",
+            sevenDayStatus: "throttled",
+            status: "throttled"
+        )
+
+        let cleared = usage.withClearedExpiredWindows(now: now)
+
+        #expect(cleared.fiveHourUtilization == 0)
+        #expect(cleared.fiveHourReset == nil)
+        #expect(cleared.fiveHourStatus == "allowed")
+        #expect(cleared.sevenDayUtilization == 0)
+        #expect(cleared.sevenDayReset == nil)
+        #expect(cleared.sevenDayStatus == "allowed")
+        #expect(cleared.overallStatus == "allowed")
+        #expect(cleared.isThrottled == false)
+    }
+
+    @Test func withClearedExpiredWindows_onlyFiveHourExpired_keepsSevenDay() {
+        let now = Date()
+        let sevenDayResetFuture = now.addingTimeInterval(86400)
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 0.99,
+            sevenDayUtil: 0.50,
+            fiveHourReset: now.addingTimeInterval(-3600),
+            sevenDayReset: sevenDayResetFuture,
+            fiveHourStatus: "throttled",
+            sevenDayStatus: "allowed",
+            status: "throttled"
+        )
+
+        let cleared = usage.withClearedExpiredWindows(now: now)
+
+        #expect(cleared.fiveHourUtilization == 0)
+        #expect(cleared.fiveHourStatus == "allowed")
+        #expect(cleared.sevenDayUtilization == 0.50)
+        #expect(cleared.sevenDayReset == sevenDayResetFuture)
+        // Binding window (five_hour) expired → overall must reset too
+        #expect(cleared.overallStatus == "allowed")
+    }
+
+    @Test func withClearedExpiredWindows_bindingNotExpired_preservesOverall() {
+        let now = Date()
+        let usage = makeUsage(
+            claim: "seven_day",
+            fiveHourUtil: 0.10,
+            sevenDayUtil: 0.99,
+            fiveHourReset: now.addingTimeInterval(-3600),    // expired
+            sevenDayReset: now.addingTimeInterval(86400),    // future, binding
+            fiveHourStatus: "allowed",
+            sevenDayStatus: "throttled",
+            status: "throttled"
+        )
+
+        let cleared = usage.withClearedExpiredWindows(now: now)
+
+        #expect(cleared.fiveHourUtilization == 0)
+        #expect(cleared.sevenDayStatus == "throttled")
+        // Binding (seven_day) is still valid → overall preserved
+        #expect(cleared.overallStatus == "throttled")
+    }
+
+    @Test func withClearedExpiredWindows_neitherExpired_returnsUnchanged() {
+        let now = Date()
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 0.50,
+            sevenDayUtil: 0.20,
+            fiveHourReset: now.addingTimeInterval(3600),
+            sevenDayReset: now.addingTimeInterval(86400),
+            status: "allowed"
+        )
+
+        #expect(usage.withClearedExpiredWindows(now: now) == usage)
+    }
+
+    @Test func withClearedExpiredWindows_nilResetDates_returnsUnchanged() {
+        // No reset date means we don't know — don't clear on speculation.
+        let usage = makeUsage(claim: "five_hour", fiveHourUtil: 0.50, status: "allowed")
+        #expect(usage.withClearedExpiredWindows() == usage)
+    }
+
     // MARK: - Predictive estimate
 
     @Test func estimatedTimeToLimit_lowUtilization_returnsNil() {

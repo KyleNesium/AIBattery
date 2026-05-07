@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.1.8] — 2026-05-07
+
+### Fixed
+- **False "Throttled" display when the API returns a non-quota 429** — `RateLimitFetcher` previously called `markedThrottled()` unconditionally on any HTTP 429, even when the parsed unified headers reported the binding window as `allowed` with low utilization. The active Anthropic incident "Connection failures for organizations restricting GitHub access by IP address" was returning 429s on probe requests, and the 5-Hour bar locked into a fake `Throttled` / `100%` state with `7-Day` simultaneously at `0%` (the smoking gun). New helper `RateLimitFetcher.quotaThrottleLikely(_:)` only treats a 429 as a quota throttle when headers explicitly say so or the binding utilization is ≥ 95% (`quotaExhaustionThreshold`). Applied at all four 429 call sites.
+- **Stale persisted `throttled` flag survived across launch** — `restorePersistedRateLimits()` always restored the cached `RateLimitUsage` verbatim, including a `fiveHourStatus: "throttled"` left over from before a long absence. New helper `RateLimitUsage.withClearedExpiredWindows(now:)` normalizes any window whose reset is in the past to utilization 0 / status "allowed", so the bar reflects reality on first launch instead of waiting for the first fresh fetch.
+- **`LocalUsageEstimate.calibrateFrom429()` silently ratcheted precise calibrations down** — when a 429 fires without rate-limit headers (which is exactly the case where we have no signal it's a quota throttle), the function previously overwrote the existing calibrated limit with a guess derived from local tokens. Policy change: only seed *uncalibrated* limits (== 0). Once `calibrate()` has run against real utilization headers, that number is treated as authoritative and never overwritten by a header-less 429.
+- **Persistent Messages API auth failures were silent** — when the Messages API rejected the access token (token revoked server-side, org access changed) but OAuth refresh kept succeeding, the user saw stale data forever with no signal that they needed to reconnect. `RateLimitFetcher` now tracks consecutive 401/403s per account; at or above `authErrorThreshold` (3), the returned `APIFetchResult.authError = true` and the popover footer shows: *"Authentication failed — please log out and reconnect this account."*
+- **Marquee initial pause** — the footer incident banner paused 2.0s before scrolling, long enough that a screenshot or quick glance caught the static truncated head of a long incident name (e.g., the GitHub-IP-restriction one truncating mid-word). Pause shortened to 0.5s.
+
+### Changed
+- **`.gitignore`** — added `.build-local/`, `.claude/`, `.gstack/`, and `.planning/quick/` so local agent + planning scratch dirs no longer surface in `git status` on every checkout.
+- **Swift 6 warnings cleared** — `LocalUsageEstimate.fiveHourLimitKey` / `sevenDayLimitKey` are now `nonisolated`, matching the nonisolated getters that read them (4 main-actor isolation warnings silenced).
+
+### Tests
+- 17 new tests across 4 suites (893 total, +17): `RateLimitUsageTests` (5 cases for `withClearedExpiredWindows`), `LocalUsageEstimateTests` (4 cases for the calibration policy, new file), `RateLimitFetcherTests` (6 cases for `quotaThrottleLikely`), `UsageViewModelTests` (2 cases for the `authError` reconnect message).
+
+### Docs
+- **`spec/CONSTANTS.md`** — added `quotaExhaustionThreshold` (0.95) and `authErrorThreshold` (3).
+- **`spec/DATA_LAYER.md`** — documented `RateLimitUsage.withClearedExpiredWindows`, `RateLimitFetcher.quotaThrottleLikely`, and the new `APIFetchResult.authError` field.
+- **`README.md`** — test count + per-area breakdown brought back in sync with code (also reconciles drift that pre-dated this release).
+
 ## [2.1.7] — 2026-04-19
 
 ### Fixed

@@ -11,9 +11,11 @@ import os
 /// Without calibration, shows raw token counts (no percentage).
 @MainActor
 enum LocalUsageEstimate {
-    /// UserDefaults keys for calibrated limits.
-    private static let fiveHourLimitKey = "aibattery_calibrated_5h_limit"
-    private static let sevenDayLimitKey = "aibattery_calibrated_7d_limit"
+    /// UserDefaults keys for calibrated limits. Marked nonisolated so the
+    /// nonisolated `fiveHourLimit` / `sevenDayLimit` getters can read them
+    /// without crossing actor boundaries (silences Swift 6 warnings).
+    nonisolated private static let fiveHourLimitKey = "aibattery_calibrated_5h_limit"
+    nonisolated private static let sevenDayLimitKey = "aibattery_calibrated_7d_limit"
     private static let calibratedAtKey = "aibattery_calibrated_at"
     /// Tracks whether calibration includes cache tokens (v2.2+ methodology).
     private static let calibrationVersionKey = "aibattery_calibration_version"
@@ -139,25 +141,34 @@ enum LocalUsageEstimate {
     static var latestSevenDayTokens: Int = 0
 
     /// Called when a 429 is received without unified headers.
-    /// The current local token count is at or near the real limit.
+    /// The 429 *may* mean the user's quota is at the real limit, but a 429 with
+    /// no rate limit headers also fires for upstream incidents, IP/org blocks,
+    /// and per-minute throttles — none of which carry quota signal. We must not
+    /// silently ratchet a precise prior calibration *down* from such a 429.
+    ///
+    /// Policy: only seed an *uncalibrated* limit (0 == uncalibrated). Once
+    /// `calibrate()` has run against real utilization headers, we treat that
+    /// number as authoritative and never overwrite it from a header-less 429.
     /// Applies a small buffer (95%) since the 429 may fire slightly before 100%.
     static func calibrateFrom429() {
         let buffer = 0.95
         var updated = false
-        if latestFiveHourTokens > 100_000 {
+        if fiveHourLimit == 0, latestFiveHourTokens > 100_000 {
             let derived = Int(Double(latestFiveHourTokens) / buffer)
             fiveHourLimit = derived
             updated = true
-            AppLogger.network.info("429 auto-calibrated 5h limit: \(derived) tokens")
+            AppLogger.network.info("429 seeded uncalibrated 5h limit: \(derived) tokens")
         }
-        if latestSevenDayTokens > 100_000 {
+        if sevenDayLimit == 0, latestSevenDayTokens > 100_000 {
             let derived = Int(Double(latestSevenDayTokens) / buffer)
             sevenDayLimit = derived
             updated = true
-            AppLogger.network.info("429 auto-calibrated 7d limit: \(derived) tokens")
+            AppLogger.network.info("429 seeded uncalibrated 7d limit: \(derived) tokens")
         }
         if updated {
             UserDefaults.standard.set(Date().timeIntervalSinceReferenceDate, forKey: calibratedAtKey)
+        } else {
+            AppLogger.network.info("429 calibration skipped — limits already set or local tokens too low")
         }
     }
 

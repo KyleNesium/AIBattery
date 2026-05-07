@@ -49,6 +49,31 @@ struct UsageViewModelTests {
         #expect(msg == "No usage data yet. Start a Claude Code session to see your stats.")
     }
 
+    @Test func refreshErrorMessage_authError_returnsReconnectMessage() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: true,           // even with all data present,
+            hasStandardLimits: true,       // an authError must take precedence —
+            hasProfile: true,              // the data is stale and the user needs
+            hasStandardRateLimitHeaders: true,
+            totalMessages: 100,
+            authError: true
+        )
+        #expect(msg == "Authentication failed — please log out and reconnect this account.")
+    }
+
+    @Test func refreshErrorMessage_noAuthError_unchangedFromBefore() {
+        // Default authError: false should match the existing behavior.
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false,
+            hasStandardLimits: false,
+            hasProfile: false,
+            hasStandardRateLimitHeaders: false,
+            totalMessages: 0,
+            authError: false
+        )
+        #expect(msg == "No usage data yet. Start a Claude Code session to see your stats.")
+    }
+
     @Test func refreshErrorMessage_noDataWithMessages_returnsAPIError() {
         let msg = UsageViewModel.refreshErrorMessage(
             hasRateLimits: false,

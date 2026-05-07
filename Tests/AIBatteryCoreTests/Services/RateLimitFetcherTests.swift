@@ -135,6 +135,66 @@ struct RateLimitFetcherTests {
         #expect(RateLimitFetcher.parseRetryAfter("5", maxDelay: 10) == 5.0)
     }
 
+    // MARK: - quotaThrottleLikely
+
+    private func makeUsage(
+        claim: String = "five_hour",
+        fiveHourUtil: Double = 0,
+        sevenDayUtil: Double = 0,
+        fiveHourStatus: String = "allowed",
+        sevenDayStatus: String = "allowed",
+        overallStatus: String = "allowed"
+    ) -> RateLimitUsage {
+        RateLimitUsage(
+            representativeClaim: claim,
+            fiveHourUtilization: fiveHourUtil,
+            fiveHourReset: nil,
+            fiveHourStatus: fiveHourStatus,
+            sevenDayUtilization: sevenDayUtil,
+            sevenDayReset: nil,
+            sevenDayStatus: sevenDayStatus,
+            overallStatus: overallStatus
+        )
+    }
+
+    @Test func quotaThrottleLikely_headersExplicitlyThrottled_returnsTrue() {
+        let usage = makeUsage(fiveHourStatus: "throttled", overallStatus: "throttled")
+        #expect(RateLimitFetcher.quotaThrottleLikely(usage) == true)
+    }
+
+    @Test func quotaThrottleLikely_headersAllowedZeroUtilization_returnsFalse() {
+        // The reported bug: 429 from upstream incident, headers say allowed/0%.
+        // We must NOT pretend the user hit their quota.
+        let usage = makeUsage(fiveHourUtil: 0, sevenDayUtil: 0)
+        #expect(RateLimitFetcher.quotaThrottleLikely(usage) == false)
+    }
+
+    @Test func quotaThrottleLikely_headersAllowedHighBindingUtilization_returnsTrue() {
+        // Header lag near the cap — trust that 429 is plausibly the quota.
+        let usage = makeUsage(claim: "five_hour", fiveHourUtil: 0.97)
+        #expect(RateLimitFetcher.quotaThrottleLikely(usage) == true)
+    }
+
+    @Test func quotaThrottleLikely_headersAllowedMidBindingUtilization_returnsFalse() {
+        // 50% utilization isn't plausibly a quota throttle when headers say allowed.
+        let usage = makeUsage(claim: "five_hour", fiveHourUtil: 0.5)
+        #expect(RateLimitFetcher.quotaThrottleLikely(usage) == false)
+    }
+
+    @Test func quotaThrottleLikely_sevenDayBinding_usesSevenDayUtilization() {
+        // Binding window is 7-day, only 7-day utilization should drive the decision.
+        let usage = makeUsage(claim: "seven_day", fiveHourUtil: 0.99, sevenDayUtil: 0.10)
+        #expect(RateLimitFetcher.quotaThrottleLikely(usage) == false)
+    }
+
+    @Test func quotaThrottleLikely_atThreshold_returnsTrue() {
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: RateLimitFetcher.quotaExhaustionThreshold
+        )
+        #expect(RateLimitFetcher.quotaThrottleLikely(usage) == true)
+    }
+
     // MARK: - Dynamic observed models
 
     @Test @MainActor func observedModels_defaultsToEmpty() {

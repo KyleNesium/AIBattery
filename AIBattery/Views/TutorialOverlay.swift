@@ -94,7 +94,7 @@ struct TutorialOverlay: View {
                 }
             }
             .padding(Spacing.overlay)
-            .frame(maxWidth: 280)
+            .frame(maxWidth: Layout.tutorialCardMaxWidth)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Layout.cardCornerRadius))
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Tutorial: \(steps[step].title)")
