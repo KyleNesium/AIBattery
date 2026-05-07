@@ -13,6 +13,9 @@ struct APIFetchResult {
     let fetchedAt: Date
     /// Whether this result came from cache rather than a fresh API response.
     let isCached: Bool
+    /// True when the Messages API persistently rejects the access token (≥3 consecutive
+    /// 401/403 responses). Surface to the user so they can reconnect the account.
+    let authError: Bool
 
     init(
         rateLimits: RateLimitUsage?,
@@ -21,7 +24,8 @@ struct APIFetchResult {
         profile: APIProfile?,
         hasStandardRateLimitHeaders: Bool = false,
         fetchedAt: Date = Date(),
-        isCached: Bool = false
+        isCached: Bool = false,
+        authError: Bool = false
     ) {
         self.rateLimits = rateLimits
         self.rateLimitSource = rateLimits == nil ? nil : (rateLimitSource ?? .anthropicAPIHeaders)
@@ -30,5 +34,6 @@ struct APIFetchResult {
         self.hasStandardRateLimitHeaders = hasStandardRateLimitHeaders
         self.fetchedAt = fetchedAt
         self.isCached = isCached
+        self.authError = authError
     }
 }

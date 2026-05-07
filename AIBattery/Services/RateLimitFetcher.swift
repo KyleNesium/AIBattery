@@ -41,6 +41,13 @@ final class RateLimitFetcher {
     private var lastWorkingModel: [String: String] = [:]
     private static let workingModelKeyPrefix = "aibattery_probeModel_"
 
+    /// Per-account count of consecutive 401/403 responses from the Messages API.
+    /// Reset on any non-auth-failure result. At or above `authErrorThreshold`,
+    /// surface `authError = true` on returned APIFetchResults so the UI can
+    /// prompt the user to reconnect instead of silently showing cached data.
+    private var consecutiveAuthFailures: [String: Int] = [:]
+    static let authErrorThreshold = 3
+
     init() {
         restorePersistedRateLimits()
         restoreWorkingModels()
@@ -122,14 +129,24 @@ final class RateLimitFetcher {
             switch result {
             case .success(let fetchResult):
                 saveWorkingModel(model, accountId: accountId)
+                consecutiveAuthFailures[accountId] = 0
                 cachedResults[accountId] = fetchResult
                 persistRateLimits(fetchResult, accountId: accountId)
                 return fetchResult
             case .modelUnavailable:
                 continue
             case .authFailed:
-                return cachedOrEmpty(accountId: accountId)
+                let count = (consecutiveAuthFailures[accountId] ?? 0) + 1
+                consecutiveAuthFailures[accountId] = count
+                let surfaceAuthError = count >= Self.authErrorThreshold
+                if surfaceAuthError {
+                    AppLogger.network.error("Messages API auth failed \(count) consecutive times for account \(accountId, privacy: .public) — surfacing authError to UI")
+                }
+                return cachedOrEmpty(accountId: accountId, authError: surfaceAuthError)
             case .networkError:
+                // Network errors don't reset auth-failure count — a flaky network
+                // shouldn't mask a persistent auth problem, but it shouldn't
+                // count as one either.
                 return cachedOrEmpty(accountId: accountId)
             }
         }
@@ -141,7 +158,7 @@ final class RateLimitFetcher {
     /// Always returns cached data when available — stale rate limits are better
     /// than empty bars (e.g., after waking from long sleep with expired token).
     /// Fresh fetches replace the cache naturally on success.
-    func cachedOrEmpty(accountId: String) -> APIFetchResult {
+    func cachedOrEmpty(accountId: String, authError: Bool = false) -> APIFetchResult {
         if let cached = cachedResults[accountId] {
             return APIFetchResult(
                 rateLimits: cached.rateLimits,
@@ -150,10 +167,11 @@ final class RateLimitFetcher {
                 profile: cached.profile,
                 hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
                 fetchedAt: cached.fetchedAt,
-                isCached: true
+                isCached: true,
+                authError: authError
             )
         }
-        return APIFetchResult(rateLimits: nil, profile: nil)
+        return APIFetchResult(rateLimits: nil, profile: nil, authError: authError)
     }
 
     /// Inject a cached result for testing.

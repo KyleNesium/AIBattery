@@ -307,7 +307,8 @@ public final class UsageViewModel: ObservableObject {
             hasStandardLimits: api.standardLimits != nil,
             hasProfile: api.profile != nil,
             hasStandardRateLimitHeaders: api.hasStandardRateLimitHeaders,
-            totalMessages: result.totalMessages
+            totalMessages: result.totalMessages,
+            authError: api.authError
         )
         if result != snapshot { snapshot = result }
 
@@ -478,13 +479,19 @@ public final class UsageViewModel: ObservableObject {
 
     /// Determine the error message to show after a refresh where the API returned no data.
     /// Returns nil when rate limits are present (no error to show).
+    /// `authError` takes precedence — a persistent auth failure means stale data
+    /// is misleading; tell the user to reconnect.
     nonisolated static func refreshErrorMessage(
         hasRateLimits: Bool,
         hasStandardLimits: Bool,
         hasProfile: Bool,
         hasStandardRateLimitHeaders: Bool,
-        totalMessages: Int
+        totalMessages: Int,
+        authError: Bool = false
     ) -> String? {
+        if authError {
+            return "Authentication failed — please log out and reconnect this account."
+        }
         if hasRateLimits { return nil }
         // Standard limits provide useful fallback data — no error needed
         if hasStandardLimits { return nil }
