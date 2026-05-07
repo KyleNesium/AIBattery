@@ -11,9 +11,11 @@ import os
 /// Without calibration, shows raw token counts (no percentage).
 @MainActor
 enum LocalUsageEstimate {
-    /// UserDefaults keys for calibrated limits.
-    private static let fiveHourLimitKey = "aibattery_calibrated_5h_limit"
-    private static let sevenDayLimitKey = "aibattery_calibrated_7d_limit"
+    /// UserDefaults keys for calibrated limits. Marked nonisolated so the
+    /// nonisolated `fiveHourLimit` / `sevenDayLimit` getters can read them
+    /// without crossing actor boundaries (silences Swift 6 warnings).
+    nonisolated private static let fiveHourLimitKey = "aibattery_calibrated_5h_limit"
+    nonisolated private static let sevenDayLimitKey = "aibattery_calibrated_7d_limit"
     private static let calibratedAtKey = "aibattery_calibrated_at"
     /// Tracks whether calibration includes cache tokens (v2.2+ methodology).
     private static let calibrationVersionKey = "aibattery_calibration_version"

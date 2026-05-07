@@ -58,6 +58,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
 | Keychain service (OAuth) | `"AIBattery"` |
 | Max accounts | 3 |
+| Quota throttle threshold | `0.95` (`RateLimitFetcher.quotaExhaustionThreshold`) — binding utilization at/above which a header-less 429 is still treated as a quota throttle. Below this, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block. |
+| Auth-failure threshold | `3` consecutive 401/403 (`RateLimitFetcher.authErrorThreshold`) — at or above this the returned `APIFetchResult.authError` flips to `true` and the popover footer surfaces *"Authentication failed — please log out and reconnect this account."* |
 
 ## Rate Limit Headers
 

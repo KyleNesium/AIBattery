@@ -16,8 +16,11 @@ struct MarqueeText: View {
     @State private var textOpacity: Double = 1.0
     @State private var pendingWork: DispatchWorkItem?
 
-    /// Pause at each end before scrolling.
-    private let pauseDuration: Double = 2.0
+    /// Pause at each end before scrolling. Kept short so a glance at the
+    /// footer banner doesn't catch a long static-truncation pose before the
+    /// scroll starts (the leading text would otherwise look like the whole
+    /// message, mid-truncation, on first reveal).
+    private let pauseDuration: Double = 0.5
     /// Points per second scroll speed.
     private let scrollSpeed: Double = 30.0
     /// How long a non-scrolling text stays before cycling to the next.
