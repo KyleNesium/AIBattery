@@ -169,6 +169,28 @@ final class RateLimitFetcher {
         return min(delay, maxDelay)
     }
 
+    /// Threshold above which a 429 with header-reported "allowed" status is still
+    /// treated as a quota throttle (covers the rare case of header lag near the cap).
+    nonisolated static let quotaExhaustionThreshold: Double = 0.95
+
+    /// Whether an HTTP 429 should be treated as the user's 5h/7d quota throttle.
+    ///
+    /// A 429 alone is not enough — Anthropic returns 429 for several reasons:
+    ///   - The user's 5h/7d quota is exhausted (the case we want to surface)
+    ///   - Per-minute API rate limits
+    ///   - IP/org-level restrictions or upstream incidents
+    ///
+    /// Trust the parsed headers: if they explicitly say "throttled", it's a quota
+    /// throttle; if they say "allowed" with low utilization, the 429 is from another
+    /// source and we must not pretend the user hit their quota.
+    nonisolated static func quotaThrottleLikely(_ rl: RateLimitUsage) -> Bool {
+        if rl.isThrottled { return true }
+        let bindingUtilization = rl.representativeClaim == RateLimitUsage.sevenDayWindow
+            ? rl.sevenDayUtilization
+            : rl.fiveHourUtilization
+        return bindingUtilization >= quotaExhaustionThreshold
+    }
+
     private enum FetchResult {
         case success(APIFetchResult)
         case modelUnavailable
@@ -240,10 +262,14 @@ final class RateLimitFetcher {
                 let rateLimits = RateLimitUsage.parse(headers: http.allHeaderFields)
                 let profile = APIProfile.parse(headers: http.allHeaderFields)
                 if let rateLimits {
+                    let quotaLikely = Self.quotaThrottleLikely(rateLimits)
+                    if !quotaLikely {
+                        AppLogger.network.warning("HTTP 429 received but headers indicate quota allowed (binding util=\(rateLimits.representativeClaim == RateLimitUsage.sevenDayWindow ? rateLimits.sevenDayUtilization : rateLimits.fiveHourUtilization)) — treating as upstream/per-minute throttle, not displaying as quota throttle")
+                    }
                     return .success(buildHeaderResult(
                         rateLimits: rateLimits, headers: http.allHeaderFields,
                         cached: cached, model: model, accountId: accountId,
-                        standardLimits: standardLimits, markThrottled: true
+                        standardLimits: standardLimits, markThrottled: quotaLikely
                     ))
                 }
 
@@ -281,10 +307,12 @@ final class RateLimitFetcher {
                         let retryProfile = APIProfile.parse(headers: retryHttp.allHeaderFields)
                         let retryStdLimits = StandardRateLimits.parse(headers: retryHttp.allHeaderFields)
                         if let retryRL {
+                            let retryQuotaLikely = retryHttp.statusCode == 429
+                                && Self.quotaThrottleLikely(retryRL)
                             return .success(buildHeaderResult(
                                 rateLimits: retryRL, headers: retryHttp.allHeaderFields,
                                 cached: cached, model: model, accountId: accountId,
-                                standardLimits: retryStdLimits, markThrottled: retryHttp.statusCode == 429
+                                standardLimits: retryStdLimits, markThrottled: retryQuotaLikely
                             ))
                         }
 
@@ -451,7 +479,7 @@ final class RateLimitFetcher {
             }
 
             let normalizedRateLimits = rateLimits.map {
-                http.statusCode == 429 ? $0.markedThrottled() : $0
+                (http.statusCode == 429 && Self.quotaThrottleLikely($0)) ? $0.markedThrottled() : $0
             }
 
             return APIFetchResult(
@@ -524,7 +552,7 @@ final class RateLimitFetcher {
             }
 
             let normalizedRateLimits = rateLimits.map {
-                http.statusCode == 429 ? $0.markedThrottled() : $0
+                (http.statusCode == 429 && Self.quotaThrottleLikely($0)) ? $0.markedThrottled() : $0
             }
 
             return APIFetchResult(
