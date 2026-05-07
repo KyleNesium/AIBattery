@@ -35,7 +35,7 @@ jobs:
         run: swift --version
 
       - name: Build
-        run: swift build
+        run: swift build --build-tests
 
       - name: Run tests
         run: |

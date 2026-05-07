@@ -26,7 +26,7 @@ jobs:
           restore-keys: spm-${{ runner.os }}-
 
       - name: Build
-        run: swift build
+        run: swift build --build-tests
 
       - name: Run tests
         run: |
