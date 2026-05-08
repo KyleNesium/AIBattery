@@ -196,11 +196,26 @@ public final class StatusBarManager: NSObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.016, execute: work)
         }
 
-        // React to snapshot or staleness changes — debounced to avoid rapid-fire redraws
+        // React to snapshot, staleness, or per-account map changes — debounced to avoid rapid-fire redraws.
+        // The third publisher (perAccountRateLimits) ensures the menu bar redraws when the
+        // multi-account fan-out completes, even when the active-account snapshot is unchanged.
         viewModel.$snapshot
-            .combineLatest(viewModel.$lastFreshFetch)
+            .combineLatest(viewModel.$lastFreshFetch, viewModel.$perAccountRateLimits)
             .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
-            .sink { [weak self, weak item, weak viewModel] _, _ in
+            .sink { [weak self, weak item, weak viewModel] _ in
+                guard let self, let button = item?.button, let viewModel else { return }
+                self.updateButton(button, viewModel: viewModel)
+            }
+            .store(in: &cancellables)
+
+        // Toggle observer: when the user flips "Show all accounts in menu bar", redraw
+        // the button immediately rather than waiting for the next refresh tick (up to 30 s).
+        // The view model has its own observer that triggers a fan-out fetch; this one
+        // repaints the existing maps. Both are debounced so settings interactions stay quiet.
+        NotificationCenter.default
+            .publisher(for: UserDefaults.didChangeNotification)
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .sink { [weak self, weak item, weak viewModel] _ in
                 guard let self, let button = item?.button, let viewModel else { return }
                 self.updateButton(button, viewModel: viewModel)
             }
@@ -306,20 +321,54 @@ public final class StatusBarManager: NSObject {
 
     private func updateButton(_ button: NSStatusBarButton, viewModel: UsageViewModel) {
         let metricMode = resolveMetricMode(viewModel: viewModel)
-        let percent = viewModel.snapshot?.percent(for: metricMode) ?? 0
-        let rateLimits = viewModel.snapshot?.rateLimits
-        let isThrottled = rateLimits?.isThrottled ?? false
+        let activePercent = viewModel.snapshot?.percent(for: metricMode) ?? 0
+        let activeRateLimits = viewModel.snapshot?.rateLimits
+        let activeIsThrottled = activeRateLimits?.isThrottled ?? false
         // Show broken star when throttled OR any window hits 100%.
-        let isExhausted = isThrottled
-            || (rateLimits?.fiveHourPercent ?? 0) >= 100
-            || (rateLimits?.sevenDayPercent ?? 0) >= 100
+        let activeIsExhausted = activeIsThrottled
+            || (activeRateLimits?.fiveHourPercent ?? 0) >= 100
+            || (activeRateLimits?.sevenDayPercent ?? 0) >= 100
+
+        // Multi-account branch: when toggle is on and ≥2 accounts have data, render
+        // text from the per-account map and key the icon visuals to the worst account.
+        let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
+        let perAccount = viewModel.perAccountRateLimits
+        let useMulti = MenuBarMultiAccountText.shouldRender(toggleOn: showAll, accountCount: perAccount.count)
+
+        let percent: Double
+        let isExhausted: Bool
+        let displayText: String
+        let countdownReset: Date?
+        if useMulti {
+            let order = OAuthManager.shared.accountStore.accounts.map(\.id)
+            let multi = MenuBarMultiAccountText.build(order: order, limits: perAccount, metricMode: metricMode)
+            // Worst across accounts drives star color/breath. Floor at active so the active
+            // account's icon doesn't visually shrink when secondaries are present.
+            percent = max(multi.worstPercent, activePercent)
+            isExhausted = multi.anyThrottled || activeIsExhausted
+            // Countdown when worst reset is imminent, prioritising worst over active.
+            let now = Date()
+            let multiReset = MenuBarMultiAccountText.worstResetDate(limits: perAccount, metricMode: metricMode, now: now)
+            let activeReset = activeRateLimits.flatMap { countdownResetDate(for: $0) }
+            countdownReset = [multiReset, activeReset].compactMap { $0 }.min()
+            if let reset = countdownReset {
+                displayText = RateLimitUsage.countdownText(to: reset)
+            } else {
+                displayText = multi.text
+            }
+        } else {
+            percent = activePercent
+            isExhausted = activeIsExhausted
+            displayText = resolveDisplayText(rateLimits: activeRateLimits, percent: activePercent)
+            countdownReset = activeRateLimits.flatMap { countdownResetDate(for: $0) }
+        }
+
         let isDarkMenuBar = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isExhausted, isDarkMenuBar: isDarkMenuBar)
 
         updateSparkleState(isThrottled: isExhausted)
         updateRenderState(percent: percent, color: starColor, isThrottled: isExhausted)
 
-        let displayText = resolveDisplayText(rateLimits: rateLimits, percent: percent)
         button.image = MenuBarIcon.combinedStatusBarImage(
             text: displayText,
             percent: percent,
@@ -337,7 +386,7 @@ public final class StatusBarManager: NSObject {
         // Other menu bar apps (Battery, WiFi) don't dim on stale data.
 
         // Start or stop the countdown ticker based on whether we have an active countdown.
-        if let rl = rateLimits, let resetDate = countdownResetDate(for: rl) {
+        if let resetDate = countdownReset {
             startCountdownTimer(resetDate: resetDate, button: button)
         } else {
             stopCountdownTimer()

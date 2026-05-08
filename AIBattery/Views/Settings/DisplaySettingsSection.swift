@@ -4,6 +4,7 @@ import SwiftUI
 struct DisplaySettingsSection: View {
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
+    @AppStorage(UserDefaultsKeys.showAllAccountsInMenuBar) private var showAllAccountsInMenuBar: Bool = false
     @State private var idleSliderPosition: Double = 6
     /// Slider positions (1-6) mapped to minutes: 30, 60, 120, 240, 480, 0 (never).
     private static let idleSteps: [Double] = [30, 60, 120, 240, 480, 0]
@@ -45,15 +46,26 @@ struct DisplaySettingsSection: View {
         }
 
         // Display toggles
-        HStack(spacing: Spacing.section) {
-            Text("Display")
-                .font(Typography.caption)
-                .foregroundStyle(ThemeColors.secondaryLabel)
-                .frame(width: Layout.settingsLabel, alignment: .trailing)
-            Toggle("Colorblind", isOn: $colorblindMode)
-                .toggleStyle(.checkbox)
-                .font(Typography.caption)
-                .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
+        VStack(alignment: .leading, spacing: Spacing.tight) {
+            HStack(spacing: Spacing.section) {
+                Text("Display")
+                    .font(Typography.caption)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
+                    .frame(width: Layout.settingsLabel, alignment: .trailing)
+                Toggle("Colorblind", isOn: $colorblindMode)
+                    .toggleStyle(.checkbox)
+                    .font(Typography.caption)
+                    .help("Use colorblind-safe palette (blue/cyan/amber/purple)")
+            }
+            HStack(spacing: Spacing.section) {
+                Text("")
+                    .font(Typography.caption)
+                    .frame(width: Layout.settingsLabel, alignment: .trailing)
+                Toggle("All accounts in menu bar", isOn: $showAllAccountsInMenuBar)
+                    .toggleStyle(.checkbox)
+                    .font(Typography.caption)
+                    .help("Show every connected account's usage in the menu bar (e.g. 42% | 23%). Star color and countdown reflect the worst account.")
+            }
         }
     }
 

@@ -179,6 +179,7 @@ Pricing per million tokens:
 | Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
 | Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
+| Show all accounts in menu bar | `aibattery_showAllAccountsInMenuBar` (Bool, default false) — when true and ≥2 authenticated accounts exist, the menu bar shows percentages for every account joined by `\u{00A0}|\u{00A0}` (e.g. `42% | 23%`). Star color, broken-star state, and countdown reset are driven by the worst account. `MetricMode.contextHealth` falls back to `.fiveHour` for per-account percents (context health is per-session, not per-account). |
 
 ## Dynamic Probe Model Storage
 

@@ -102,9 +102,10 @@ AIBattery/
   ViewModels/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
   Views/
-    StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates
+    StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates; multi-account text path gated on `aibattery_showAllAccountsInMenuBar`
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
     MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, multiPointStarPath) + NSBezierPath→CGPath
+    MenuBarMultiAccountText.swift — Pure builder for multi-account menu bar text (`42% | 23%`); worst-account percent + throttle + reset selection. Unit-tested without AppKit.
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
     PopoverHeaderView.swift       — Header row, account picker, update banner (ENABLE_VERSION_CHECKER)
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
