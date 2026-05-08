@@ -53,6 +53,9 @@ public final class StatusBarManager: NSObject {
     private var hostingView: TransparentHostingView<PopoverContentView>?
     private weak var viewModel: UsageViewModel?
     private var cancellables = Set<AnyCancellable>()
+    /// Last observed value of the multi-account toggle — used to filter the
+    /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
+    private var lastObservedShowAllAccounts: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
     private var escapeMonitor: Any?
     private var clickOutsideMonitor: Any?
     /// Toggle state machine — tracks intended panel visibility.
@@ -210,13 +213,17 @@ public final class StatusBarManager: NSObject {
 
         // Toggle observer: when the user flips "Show all accounts in menu bar", redraw
         // the button immediately rather than waiting for the next refresh tick (up to 30 s).
-        // The view model has its own observer that triggers a fan-out fetch; this one
-        // repaints the existing maps. Both are debounced so settings interactions stay quiet.
+        // Filter to actual toggle flips — `UserDefaults.didChangeNotification` fires
+        // on every preference write, and we don't want unrelated changes (slider drags,
+        // colorblind toggle) to thrash the menu bar redraw path.
         NotificationCenter.default
             .publisher(for: UserDefaults.didChangeNotification)
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .sink { [weak self, weak item, weak viewModel] _ in
                 guard let self, let button = item?.button, let viewModel else { return }
+                let current = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
+                guard current != self.lastObservedShowAllAccounts else { return }
+                self.lastObservedShowAllAccounts = current
                 self.updateButton(button, viewModel: viewModel)
             }
             .store(in: &cancellables)
@@ -340,7 +347,12 @@ public final class StatusBarManager: NSObject {
         let displayText: String
         let countdownReset: Date?
         if useMulti {
-            let order = OAuthManager.shared.accountStore.accounts.map(\.id)
+            // Skip pending accounts — their fan-out is filtered out (no real org ID),
+            // so including them would render a "—" placeholder for an account the user
+            // hasn't even authenticated yet.
+            let order = OAuthManager.shared.accountStore.accounts
+                .filter { !$0.isPendingIdentity }
+                .map(\.id)
             let multi = MenuBarMultiAccountText.build(order: order, limits: perAccount, metricMode: metricMode)
             // Worst across accounts drives star color/breath. Floor at active so the active
             // account's icon doesn't visually shrink when secondaries are present.

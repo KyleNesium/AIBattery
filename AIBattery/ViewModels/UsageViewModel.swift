@@ -38,6 +38,9 @@ public final class UsageViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     /// Coalesces UserDefaults change notifications into a single fan-out.
     private var pendingFanOut: Task<Void, Never>?
+    /// Last observed value of the multi-account toggle — used to filter the
+    /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
+    private var lastObservedShowAllAccounts: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
 
     /// Adaptive polling state machine — delegates interval logic to a pure struct.
     private var adaptivePolling = AdaptivePollingState()
@@ -112,14 +115,19 @@ public final class UsageViewModel: ObservableObject {
 
         // Toggle observer: the "Show all accounts in menu bar" preference doesn't
         // emit a Combine signal on its own (UserDefaults / @AppStorage writes don't),
-        // so we listen on UserDefaults.didChangeNotification and fan out / clear the
-        // multi-account map immediately. Debounced + coalesced so settings interactions
-        // don't trigger redundant network bursts.
+        // so we watch `UserDefaults.didChangeNotification` and react only when the
+        // toggle key actually changed. Filtering here matters: the notification fires
+        // on every UserDefaults write (slider drags, every other @AppStorage), and
+        // each spurious fan-out triggers (N-1) API calls when the toggle is on.
         NotificationCenter.default
             .publisher(for: UserDefaults.didChangeNotification)
             .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.scheduleFanOut()
+                guard let self else { return }
+                let current = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
+                guard current != self.lastObservedShowAllAccounts else { return }
+                self.lastObservedShowAllAccounts = current
+                self.scheduleFanOut()
             }
             .store(in: &cancellables)
     }
@@ -135,9 +143,13 @@ public final class UsageViewModel: ObservableObject {
 
     /// Fan-out: fetch rate limits for every authenticated, identity-resolved account.
     /// Runs only when the "show all accounts" toggle is on. Idempotent: clears state if off.
-    /// Active account is included in the loop — `RateLimitFetcher`'s per-account cache
-    /// makes the duplicate call a free cache hit, so net cost stays N requests for N accounts.
-    func fetchAllAccounts() async {
+    ///
+    /// - Parameter seed: optional `(accountId, rateLimits)` pair to inject into the
+    ///   result map without re-fetching. Used by `refresh()` to reuse the active
+    ///   account's just-fetched data — `RateLimitFetcher.fetch` does NOT short-circuit
+    ///   on cache, so without seeding we'd issue an extra network call for the active
+    ///   account every refresh cycle (N+1 total instead of N).
+    func fetchAllAccounts(seed: (accountId: String, rateLimits: RateLimitUsage)? = nil) async {
         let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
         guard showAll else {
             if !perAccountRateLimits.isEmpty {
@@ -146,30 +158,43 @@ public final class UsageViewModel: ObservableObject {
             return
         }
         let oauth = OAuthManager.shared
-        let records = oauth.accountStore.accounts
+        let candidates = oauth.accountStore.accounts
             .filter { !$0.isPendingIdentity }
             .filter { oauth.isAuthenticated(accountId: $0.id) }
-        guard !records.isEmpty else {
+        // Skip any account already provided by seed — we already have fresh data
+        // for it and re-fetching would cost an extra API call per cycle.
+        let recordsToFetch = candidates.filter { $0.id != seed?.accountId }
+
+        // If nothing to fetch and nothing to seed, treat as empty.
+        if recordsToFetch.isEmpty && seed == nil {
             if !perAccountRateLimits.isEmpty { perAccountRateLimits = [:] }
             return
         }
-        let results = await withTaskGroup(of: (String, RateLimitUsage?).self) { group -> [String: RateLimitUsage] in
-            for record in records {
-                group.addTask {
-                    guard let token = await oauth.getAccessToken(for: record.id) else {
-                        return (record.id, nil)
+
+        var collected: [String: RateLimitUsage] = [:]
+        if let seed { collected[seed.accountId] = seed.rateLimits }
+
+        if !recordsToFetch.isEmpty {
+            let fetched = await withTaskGroup(of: (String, RateLimitUsage?).self) { group -> [String: RateLimitUsage] in
+                for record in recordsToFetch {
+                    group.addTask {
+                        guard let token = await oauth.getAccessToken(for: record.id) else {
+                            return (record.id, nil)
+                        }
+                        let api = await RateLimitFetcher.shared.fetch(accessToken: token, accountId: record.id)
+                        return (record.id, api.rateLimits)
                     }
-                    let api = await RateLimitFetcher.shared.fetch(accessToken: token, accountId: record.id)
-                    return (record.id, api.rateLimits)
                 }
+                var inner: [String: RateLimitUsage] = [:]
+                for await (id, limits) in group {
+                    if let limits { inner[id] = limits }
+                }
+                return inner
             }
-            var collected: [String: RateLimitUsage] = [:]
-            for await (id, limits) in group {
-                if let limits { collected[id] = limits }
-            }
-            return collected
+            for (id, limits) in fetched { collected[id] = limits }
         }
-        perAccountRateLimits = results
+
+        perAccountRateLimits = collected
     }
 
     /// Run aggregate off the main thread, then apply @MainActor side effects.
@@ -324,8 +349,14 @@ public final class UsageViewModel: ObservableObject {
         updateSnapshot(result, api: api)
         await handlePostFetchAlerts(api: api, status: status)
         // Multi-account menu bar fan-out (no-op when toggle is off).
-        // Runs after the active-account update so the active path is never blocked.
-        await fetchAllAccounts()
+        // Seed with the active account's just-fetched data — RateLimitFetcher does
+        // not short-circuit on cache, so seeding is what keeps net cost at N
+        // requests per cycle for N accounts (instead of N+1).
+        let seed: (String, RateLimitUsage)? = {
+            guard let id = accountId, let rl = api.rateLimits, !api.isCached else { return nil }
+            return (id, rl)
+        }()
+        await fetchAllAccounts(seed: seed)
     }
 
     // MARK: - Refresh helpers
