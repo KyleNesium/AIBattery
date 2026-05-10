@@ -336,31 +336,39 @@ public final class StatusBarManager: NSObject {
             || (activeRateLimits?.fiveHourPercent ?? 0) >= 100
             || (activeRateLimits?.sevenDayPercent ?? 0) >= 100
 
-        // Multi-account branch: when toggle is on and ≥2 accounts have data, render
-        // text from the per-account map and key the icon visuals to the worst account.
+        // Multi-account branch: when toggle is on and ≥2 authenticated accounts exist,
+        // render text from the per-account map and key the icon visuals to the worst
+        // account. Gating on the *authenticated* count (not perAccount.count) means a
+        // second account whose fan-out hasn't completed yet still gets a "—" slot
+        // instead of dropping us back to the single-account renderer.
         let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
         let perAccount = viewModel.perAccountRateLimits
-        let useMulti = MenuBarMultiAccountText.shouldRender(toggleOn: showAll, accountCount: perAccount.count)
+        // Skip pending accounts — their fan-out is filtered out (no real org ID), so
+        // including them would render a "—" for an account the user hasn't even
+        // authenticated yet.
+        let order = OAuthManager.shared.accountStore.accounts
+            .filter { !$0.isPendingIdentity }
+            .map(\.id)
+        let useMulti = MenuBarMultiAccountText.shouldRender(toggleOn: showAll, accountCount: order.count)
 
         let percent: Double
         let isExhausted: Bool
         let displayText: String
         let countdownReset: Date?
         if useMulti {
-            // Skip pending accounts — their fan-out is filtered out (no real org ID),
-            // so including them would render a "—" placeholder for an account the user
-            // hasn't even authenticated yet.
-            let order = OAuthManager.shared.accountStore.accounts
-                .filter { !$0.isPendingIdentity }
-                .map(\.id)
             let multi = MenuBarMultiAccountText.build(order: order, limits: perAccount, metricMode: metricMode)
             // Worst across accounts drives star color/breath. Floor at active so the active
             // account's icon doesn't visually shrink when secondaries are present.
             percent = max(multi.worstPercent, activePercent)
             isExhausted = multi.anyThrottled || activeIsExhausted
-            // Countdown when worst reset is imminent, prioritising worst over active.
+            // Countdown only when an account is actually exhausted — `countdownResetDate`
+            // returns nil for healthy accounts. Without this filter, a healthy account's
+            // future 5H reset would pin the menu bar into countdown mode and hide the
+            // new "X% | Y%" text entirely.
             let now = Date()
-            let multiReset = MenuBarMultiAccountText.worstResetDate(limits: perAccount, metricMode: metricMode, now: now)
+            let multiReset = perAccount.values
+                .compactMap { Self.countdownResetDate(for: $0, now: now) }
+                .min()
             let activeReset = activeRateLimits.flatMap { countdownResetDate(for: $0) }
             countdownReset = [multiReset, activeReset].compactMap { $0 }.min()
             if let reset = countdownReset {

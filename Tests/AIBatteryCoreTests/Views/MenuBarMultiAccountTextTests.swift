@@ -203,54 +203,9 @@ struct MenuBarMultiAccountTextTests {
         #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, accountCount: 3) == true)
     }
 
-    // MARK: - worstResetDate
-
-    @Test("worstResetDate returns earliest future reset across accounts")
-    func worstResetDateEarliestFuture() {
-        let now = Date(timeIntervalSince1970: 1_000_000)
-        let earlier = now.addingTimeInterval(60)
-        let later = now.addingTimeInterval(120)
-        let limits: [String: RateLimitUsage] = [
-            "a": Self.usage(fiveHourReset: later),
-            "b": Self.usage(fiveHourReset: earlier),
-        ]
-        let result = MenuBarMultiAccountText.worstResetDate(limits: limits, metricMode: .fiveHour, now: now)
-        #expect(result == earlier)
-    }
-
-    @Test("worstResetDate filters out past dates")
-    func worstResetDateFiltersPast() {
-        let now = Date(timeIntervalSince1970: 1_000_000)
-        let past = now.addingTimeInterval(-60)
-        let future = now.addingTimeInterval(120)
-        let limits: [String: RateLimitUsage] = [
-            "a": Self.usage(fiveHourReset: past),
-            "b": Self.usage(fiveHourReset: future),
-        ]
-        let result = MenuBarMultiAccountText.worstResetDate(limits: limits, metricMode: .fiveHour, now: now)
-        #expect(result == future)
-    }
-
-    @Test("worstResetDate returns nil when no future resets exist")
-    func worstResetDateNoneFuture() {
-        let now = Date(timeIntervalSince1970: 1_000_000)
-        let past = now.addingTimeInterval(-60)
-        let limits: [String: RateLimitUsage] = [
-            "a": Self.usage(fiveHourReset: past),
-        ]
-        let result = MenuBarMultiAccountText.worstResetDate(limits: limits, metricMode: .fiveHour, now: now)
-        #expect(result == nil)
-    }
-
-    @Test("worstResetDate respects metric mode (uses sevenDayReset for .sevenDay)")
-    func worstResetDateRespectsMode() {
-        let now = Date(timeIntervalSince1970: 1_000_000)
-        let fiveH = now.addingTimeInterval(60)
-        let sevenD = now.addingTimeInterval(180)
-        let limits: [String: RateLimitUsage] = [
-            "a": Self.usage(fiveHourReset: fiveH, sevenDayReset: sevenD),
-        ]
-        #expect(MenuBarMultiAccountText.worstResetDate(limits: limits, metricMode: .fiveHour, now: now) == fiveH)
-        #expect(MenuBarMultiAccountText.worstResetDate(limits: limits, metricMode: .sevenDay, now: now) == sevenD)
-    }
+    // Note: per-account countdown selection lives in `StatusBarManager.countdownResetDate`
+    // and is covered by `StatusBarCountdownResetDateTests`. The multi-account branch
+    // composes that helper via `.compactMap { ... }.min()`, which only emits a date
+    // when an account is actually exhausted — healthy future resets never pin the menu
+    // bar into countdown mode.
 }

@@ -449,7 +449,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Order: `AccountStore.accounts` order (user-controlled, mirrors the popover account picker).
 - Star color & breath: driven by the **worst** account's percent (max across `perAccountRateLimits.values`).
 - Broken star: triggered if any account has `isThrottled == true` OR any account has 100%+ utilization.
-- Countdown mode: triggered by the worst account's reset; renders a single countdown (no per-slot countdown). Source resolved by `MenuBarMultiAccountText.worstResetDate(...)` over per-account reset dates.
+- Countdown mode: triggered only when **at least one account is actually exhausted** (throttled or 100%+ on a window). `StatusBarManager` calls the existing `countdownResetDate(for:now:)` per account and picks `.min()`. Healthy accounts with normal future resets never pin the menu bar into countdown mode — the new `42% | 23%` text remains visible.
 - Empty/missing slot: `"—"` (e.g. account fetched but data not yet present).
 - `MetricMode.contextHealth`: falls back to `.fiveHour` for per-account percents (context health is per-session, not per-account).
 - Single-account fallback: when only 1 account is authenticated even with toggle ON, falls back to the single-account renderer (no separator).

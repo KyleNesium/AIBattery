@@ -51,28 +51,6 @@ enum MenuBarMultiAccountText {
         return Output(text: text, worstPercent: worstPercent, anyThrottled: anyThrottled)
     }
 
-    /// Earliest **future** reset Date across all known accounts, for the resolved mode.
-    /// Past resets are filtered (a window that already reset shouldn't pin the
-    /// countdown to a stale date when another window is still exhausted).
-    static func worstResetDate(
-        limits: [String: RateLimitUsage],
-        metricMode: MetricMode,
-        now: Date
-    ) -> Date? {
-        let resolvedMode: MetricMode = (metricMode == .contextHealth) ? .fiveHour : metricMode
-        let candidates: [Date] = limits.values.compactMap { usage -> Date? in
-            let reset: Date?
-            switch resolvedMode {
-            case .fiveHour: reset = usage.fiveHourReset
-            case .sevenDay: reset = usage.sevenDayReset
-            case .contextHealth: reset = usage.fiveHourReset // unreached after fallback above
-            }
-            guard let r = reset, r > now else { return nil }
-            return r
-        }
-        return candidates.min()
-    }
-
     /// Whether the toggle would render a multi-account display given current state.
     /// Encapsulates the gate so callers don't repeat the conditions.
     static func shouldRender(
