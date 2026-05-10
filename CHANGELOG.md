@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.2.0] — 2026-05-10
+
+### Added
+- **"All accounts in menu bar" Display setting** — when enabled with ≥2 connected OAuth accounts, the menu bar text becomes a per-account percent strip (e.g. `42% | 23%`) instead of a single percentage. Off by default; preserves single-account behaviour bit-identically. Star color, breath, broken-star state, and countdown reset are driven by the **worst** account so one icon still communicates the most actionable signal. Per-account fan-out is `O(N)` requests per refresh: the active account's just-fetched data is reused as a seed instead of triggering a duplicate network call. Toggle flips propagate within ~150 ms via a `UserDefaults.didChangeNotification` observer (no need to wait for the next refresh tick). New `MenuBarMultiAccountText` builder is pure (no AppKit) and unit-tested for ordering, missing slots (em-dash fallback), worst-percent selection, throttle detection, metric-mode handling, and rendering gates.
+
+### Fixed
+- **Doubled divider above settings footer** — when the settings panel was open, an extra `StyledDivider` rendered just above the always-present footer divider, creating a visible double-line. Removed the redundant divider; the footer's own divider already provides separation.
+
+### Changed
+- **Display settings layout** — the "Colorblind" toggle and the new "All accounts in menu bar" toggle now stack vertically under a single `Display` label so the second toggle aligns flush with the first.
+- **`OAuthManager.isAuthenticated(accountId:)`** — new public predicate so the multi-account fan-out can filter by per-account auth state without leaking the private `tokens` map.
+- **Multi-account countdown semantics** — the multi-account branch only enters countdown mode when **at least one account is actually exhausted** (throttled or 100%+ on a window). `StatusBarManager` reuses the existing `countdownResetDate(for:now:)` per account and picks the minimum, so healthy accounts with normal future resets never pin the menu bar into countdown mode and hide the new `42% | 23%` text. The multi-account gate also keys on the authenticated account count rather than the per-account map size, so a second account whose fan-out hasn't completed yet still shows as `—` instead of dropping back to single-account mode.
+
+### Tests
+- 17 new tests across the multi-account text builder (914 → 910 after removing 4 obsolete `worstResetDate` tests; the per-account countdown selection is already covered by `StatusBarCountdownResetDateTests`). Final total: **910 tests across 60 files**.
+
+### Docs
+- **`spec/ARCHITECTURE.md`** — registers `MenuBarMultiAccountText.swift` and notes the multi-account text path on `StatusBarManager`.
+- **`spec/UI_SPEC.md`** — documents multi-account text format (`X% | Y%`), order rules, worst-account icon semantics, missing-slot em-dash, mode fallbacks, and the new "exhausted-only" countdown rule.
+- **`spec/CONSTANTS.md`** — adds `aibattery_showAllAccountsInMenuBar` UserDefaults key.
+- **`spec/DATA_LAYER.md`** — documents `UsageViewModel.perAccountRateLimits`, `fetchAllAccounts(seed:)`, and the `UserDefaults.didChangeNotification` observer.
+- **`README.md`** — Display settings table gains a row for the new toggle; test count + Views breakdown updated.
+
 ## [2.1.8] — 2026-05-07
 
 ### Fixed
