@@ -297,6 +297,13 @@ public final class OAuthManager: ObservableObject {
 
     // MARK: - Auth State
 
+    /// Whether a specific account currently has a refresh token (i.e. is authenticated).
+    /// Used by multi-account fan-out to skip accounts whose refresh tokens are missing
+    /// (e.g. removed account that hasn't been pruned, or pending sign-out).
+    public func isAuthenticated(accountId: String) -> Bool {
+        tokens[accountId]?.refreshToken != nil
+    }
+
     private func updateAuthState() {
         guard let activeId = accountStore.activeAccountId,
               let acctTokens = tokens[activeId],

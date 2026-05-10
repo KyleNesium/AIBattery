@@ -207,6 +207,7 @@ Click ⚙️ in the header to configure:
 | 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
 | ⏳ **Idle** | Hide sessions idle longer than cutoff from context health: 30m–8h or Never |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
+| 🪟 **All accounts in menu bar** | Show every connected account's percent in the menu bar (e.g. `42% \| 23%`). Star color and countdown reflect the worst account. |
 | 💲 **Cost** | Always visible — API-equivalent cost in Insights and Projects |
 | 🔔 **Alerts** | Notify on status page outages (all components) |
 | ⚡ **Rate Limit** | Notify when usage crosses threshold (50–95%) |
@@ -441,13 +442,13 @@ AI Battery is **free and open source** — always will be. If it helps you get m
 
 ## 🧪 Test Coverage
 
-**893 tests** across 59 test files.
+**910 tests** across 60 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 256 | Token summaries, rate limit parsing (unified + standard + client data edge cases, timestamp rejection), health status, metric modes, API profiles, usage snapshots (incl. escalation ladder, hysteresis), model pricing, Claude system status indicators, standard rate limits, local usage estimate calibration policy (uncalibrated-only seeding), expired-window clearing on cache restore |
 | Services | 304 | Token ledger, version checker, Sparkle updates, notifications, health monitor (incl. zero-window safety), status checker, session log reader (incl. NSLock/pendingInvalidation concurrency, incremental scanning, entry eviction), account store, stats cache, usage aggregator (incl. side-effects, integration tests), rate limit fetcher (incl. quota-vs-upstream 429 disambiguation, consecutive auth-failure counter), OAuth, adaptive polling |
-| Views | 97 | Activity chart data transforms (5H/7D/12M token-based), trend computation (token-based), session info formatting, GaugeBar clamping, deferred rendering, status bar toggle/countdown, insights view formatting, metric toggle ordering |
+| Views | 114 | Activity chart data transforms (5H/7D/12M token-based), trend computation (token-based), session info formatting, GaugeBar clamping, deferred rendering, status bar toggle/countdown, insights view formatting, metric toggle ordering, multi-account menu bar text rendering (formatting, ordering, missing slots, worst-percent, throttle detection, metric mode fallback) |
 | ViewModels | 46 | Refresh interval clamping, error messages (incl. standard limits fallback), adaptive polling, throttle tracking, idle threshold constants, TTL-based stale rate limit expiry, effective value generic guard, auth-error reconnect prompt |
 | Utilities | 186 | Token/duration formatting (incl. billion-scale), model name mapping, theme colors (incl. isDarkMenuBar gold override), secure networking, menu bar icon animations, throttle tracker, typography, spacing, idle suspension policy |
 

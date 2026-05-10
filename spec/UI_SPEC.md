@@ -442,7 +442,17 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - `NSEvent.addLocalMonitorForEvents(matching: .keyDown)` for Escape key dismissal
 - `NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown])` for click-outside dismissal
 
-**Reactivity**: Combine subscriptions to `viewModel.$snapshot` and `viewModel.$lastFreshFetch` drive button updates. Auth changes via `oauthManager.$isAuthenticated` trigger refresh.
+**Reactivity**: Combine subscriptions to `viewModel.$snapshot`, `viewModel.$lastFreshFetch`, and `viewModel.$perAccountRateLimits` drive button updates. Auth changes via `oauthManager.$isAuthenticated` trigger refresh. A `UserDefaults.didChangeNotification` observer redraws within ~100 ms when the user flips the "Show all accounts in menu bar" toggle.
+
+**Multi-account display** (when `aibattery_showAllAccountsInMenuBar == true` and ≥2 authenticated accounts exist):
+- Text format: `"<a>%\u{00A0}|\u{00A0}<b>%[\u{00A0}|\u{00A0}<c>%]"` — non-breaking spaces around `|` so a single slot doesn't break across the separator. Pure formatting via `MenuBarMultiAccountText.build(order:limits:metricMode:)`.
+- Order: `AccountStore.accounts` order (user-controlled, mirrors the popover account picker).
+- Star color & breath: driven by the **worst** account's percent (max across `perAccountRateLimits.values`).
+- Broken star: triggered if any account has `isThrottled == true` OR any account has 100%+ utilization.
+- Countdown mode: triggered only when **at least one account is actually exhausted** (throttled or 100%+ on a window). `StatusBarManager` calls the existing `countdownResetDate(for:now:)` per account and picks `.min()`. Healthy accounts with normal future resets never pin the menu bar into countdown mode — the new `42% | 23%` text remains visible.
+- Empty/missing slot: `"—"` (e.g. account fetched but data not yet present).
+- `MetricMode.contextHealth`: falls back to `.fiveHour` for per-account percents (context health is per-session, not per-account).
+- Single-account fallback: when only 1 account is authenticated even with toggle ON, falls back to the single-account renderer (no separator).
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
 

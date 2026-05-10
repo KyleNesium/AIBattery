@@ -18,6 +18,7 @@ enum UserDefaultsKeys {
     static let lastUpdateURL = "aibattery_lastUpdateURL"
     static let autoMetricMode = "aibattery_autoMetricMode"
     static let colorblindMode = "aibattery_colorblindMode"
+    static let showAllAccountsInMenuBar = "aibattery_showAllAccountsInMenuBar"
     static let hasSeenTutorial = "aibattery_hasSeenTutorial"
     static let idleSessionMinutes = "aibattery_idleSessionMinutes"
     static let throttleTimestamps = "aibattery_throttleTimestamps"

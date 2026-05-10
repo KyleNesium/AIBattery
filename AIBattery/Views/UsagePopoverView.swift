@@ -122,7 +122,9 @@ public struct UsagePopoverView: View {
                     onAddAccount: { isAddingAccount = true }
                 )
                 .transition(.opacity.combined(with: .move(edge: .top)))
-                StyledDivider()
+                // No StyledDivider here — the always-present divider above the footer
+                // already separates the settings stack from the footer row. Adding
+                // another here renders a doubled-up line at the bottom.
             } else if let snapshot = viewModel.snapshot {
                 MetricToggleView(
                     pickerBinding: pickerBinding,
