@@ -47,7 +47,10 @@ jobs:
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
             set +e
-            gtimeout --foreground "$per_attempt_timeout" swift test --skip-build 2>&1 | tee test-output.txt
+            # Use perl alarm for the per-attempt timeout — `gtimeout` isn't preinstalled
+            # on macos-15 runners but perl is. `alarm` schedules SIGALRM, then `exec`
+            # replaces perl with swift test; default SIGALRM action is to terminate.
+            perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build 2>&1 | tee test-output.txt
             exit_code=${PIPESTATUS[0]}
             set -e
             echo "::endgroup::"
