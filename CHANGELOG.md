@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.2.1] — 2026-05-11
+
+### Fixed
+- **Menu bar rendered "— | —" instead of percentages with multi-account display on** — v2.2.0's polish pass gated the multi-account branch on the count of *authenticated* accounts (so a slot whose fan-out hadn't landed would show as `—`), but the gate fired before the initial fan-out completed, leaving both slots em-dashed indefinitely on first launch with the toggle on. Reverted the gate to `perAccountRateLimits.count >= 2` (count of accounts with fetched data). The active account's percent now renders immediately from the snapshot via the single-account path, and the menu bar upgrades to the multi-account strip the moment the fan-out lands. Trade-off acknowledged: in the brief transient window where account A has data but account B's fan-out is still pending, the user sees A's single-account display rather than `A% | —` — strictly better than the broken `— | —` v2.2.0 shipped with.
+
 ## [2.2.0] — 2026-05-10
 
 ### Added

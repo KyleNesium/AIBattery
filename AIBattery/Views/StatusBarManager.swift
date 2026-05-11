@@ -336,11 +336,18 @@ public final class StatusBarManager: NSObject {
             || (activeRateLimits?.fiveHourPercent ?? 0) >= 100
             || (activeRateLimits?.sevenDayPercent ?? 0) >= 100
 
-        // Multi-account branch: when toggle is on and ≥2 authenticated accounts exist,
-        // render text from the per-account map and key the icon visuals to the worst
-        // account. Gating on the *authenticated* count (not perAccount.count) means a
-        // second account whose fan-out hasn't completed yet still gets a "—" slot
-        // instead of dropping us back to the single-account renderer.
+        // Multi-account branch: when toggle is on and ≥2 accounts have *fetched*
+        // rate-limit data, render text from the per-account map and key the icon
+        // visuals to the worst account.
+        //
+        // Gating on `perAccount.count` (count with data) — NOT the authenticated
+        // account count — is intentional: at startup and just after a toggle flip,
+        // `perAccountRateLimits` is empty until the fan-out completes. Gating on
+        // `order.count` would render "— | —" (em-dash everywhere) until fetches
+        // land, which the user sees as a broken display. Falling back to the
+        // single-account renderer in that transient window shows the active
+        // account's real percent immediately, then upgrades to the multi-account
+        // strip once the fan-out lands.
         let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
         let perAccount = viewModel.perAccountRateLimits
         // Skip pending accounts — their fan-out is filtered out (no real org ID), so
@@ -349,7 +356,7 @@ public final class StatusBarManager: NSObject {
         let order = OAuthManager.shared.accountStore.accounts
             .filter { !$0.isPendingIdentity }
             .map(\.id)
-        let useMulti = MenuBarMultiAccountText.shouldRender(toggleOn: showAll, accountCount: order.count)
+        let useMulti = MenuBarMultiAccountText.shouldRender(toggleOn: showAll, accountCount: perAccount.count)
 
         let percent: Double
         let isExhausted: Bool
