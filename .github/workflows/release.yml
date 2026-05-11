@@ -32,23 +32,48 @@ jobs:
         run: |
           # Swift Testing on macOS 15 can crash during runner shutdown (signal 6/11)
           # even when all tests pass. Capture output and check for actual test failures.
-          set +e
-          swift test --skip-build 2>&1 | tee test-output.txt
-          exit_code=$?
-          set -e
-          if grep -q '✘ Test' test-output.txt; then
-            echo "Test failures detected"
-            exit 1
-          fi
-          if grep -q 'error: build' test-output.txt; then
-            echo "Build errors detected"
-            exit 1
-          fi
-          if ! grep -q '◇ Test run started\.' test-output.txt; then
-            echo "No Swift Testing run detected — something is wrong"
-            exit 1
-          fi
-          echo "Test run completed without reported failures (exit code was $exit_code)"
+          #
+          # The swiftpm-testing-helper occasionally hangs at startup on the macos-15
+          # runner pool that release.yml hits — Swift Testing emits all "started"
+          # markers up front, then never finishes any of them, and the job blows
+          # past its 15-minute timeout. Locally and on workflow_dispatch against
+          # the same commit the full suite runs in ~3s, so this is purely a
+          # runner-environment flake. Wrap the run in a 6-minute timeout (well
+          # under the 15-min job cap), and retry up to 3 times on hang. Real
+          # test failures still fail-fast on the failure marker check.
+          attempt=1
+          max_attempts=3
+          per_attempt_timeout=360
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "::group::Test attempt $attempt of $max_attempts"
+            set +e
+            gtimeout --foreground "$per_attempt_timeout" swift test --skip-build 2>&1 | tee test-output.txt
+            exit_code=${PIPESTATUS[0]}
+            set -e
+            echo "::endgroup::"
+
+            if grep -q '✘ Test' test-output.txt; then
+              echo "Test failures detected — aborting"
+              exit 1
+            fi
+            if grep -q 'error: build' test-output.txt; then
+              echo "Build errors detected — aborting"
+              exit 1
+            fi
+
+            if grep -q 'Test run with .* tests' test-output.txt; then
+              echo "Tests passed on attempt $attempt (exit code $exit_code)"
+              break
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Test runner failed to produce a summary after $max_attempts attempts (last exit $exit_code) — likely runner-environment hang"
+              exit 1
+            fi
+            echo "No test summary detected (exit $exit_code) — retrying"
+            attempt=$((attempt + 1))
+            sleep 5
+          done
 
       - name: Build release
         env:
