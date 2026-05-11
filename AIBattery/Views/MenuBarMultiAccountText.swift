@@ -52,12 +52,20 @@ enum MenuBarMultiAccountText {
     }
 
     /// Whether the toggle would render a multi-account display given current state.
-    /// Encapsulates the gate so callers don't repeat the conditions.
+    ///
+    /// - Parameter fetchedAccountCount: count of accounts with **fetched rate-limit
+    ///   data** (i.e. `UsageViewModel.perAccountRateLimits.count`), NOT the count of
+    ///   authenticated accounts. v2.2.0 shipped a regression where the call site
+    ///   passed `accountStore.accounts.count`, which fired the multi-account branch
+    ///   before the fan-out had populated any data, rendering "— | —" indefinitely
+    ///   on first launch. The fallback when fewer than 2 accounts have data is the
+    ///   single-account renderer (uses `snapshot.rateLimits` directly), so the user
+    ///   always sees the active account's real percent in that transient window.
     static func shouldRender(
         toggleOn: Bool,
-        accountCount: Int
+        fetchedAccountCount: Int
     ) -> Bool {
-        toggleOn && accountCount >= 2
+        toggleOn && fetchedAccountCount >= 2
     }
 
     // MARK: - Private

@@ -189,18 +189,48 @@ struct MenuBarMultiAccountTextTests {
 
     @Test("shouldRender is false when toggle is off, regardless of account count")
     func shouldRenderOffWhenToggleOff() {
-        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: false, accountCount: 0) == false)
-        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: false, accountCount: 1) == false)
-        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: false, accountCount: 2) == false)
-        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: false, accountCount: 3) == false)
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: false, fetchedAccountCount: 0) == false)
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: false, fetchedAccountCount: 1) == false)
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: false, fetchedAccountCount: 2) == false)
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: false, fetchedAccountCount: 3) == false)
     }
 
     @Test("shouldRender requires ≥2 accounts when toggle is on")
     func shouldRenderRequiresTwoAccounts() {
-        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, accountCount: 0) == false)
-        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, accountCount: 1) == false)
-        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, accountCount: 2) == true)
-        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, accountCount: 3) == true)
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, fetchedAccountCount: 0) == false)
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, fetchedAccountCount: 1) == false)
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, fetchedAccountCount: 2) == true)
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, fetchedAccountCount: 3) == true)
+    }
+
+    @Test("v2.2.0 regression: empty perAccount must NOT trigger multi-account render")
+    func shouldRender_emptyPerAccount_doesNotRender_v220Regression() {
+        // v2.2.0 shipped with the call site gating on
+        // `accountStore.accounts.count` (authenticated count) rather than
+        // `perAccountRateLimits.count` (count with data). On first launch with
+        // the toggle on, perAccount is empty for the brief window between
+        // toggle observation and fan-out completion — and the menu bar rendered
+        // "— | —" indefinitely for users whose fan-out failed entirely
+        // (transient auth, no network on launch).
+        //
+        // Pin the contract: when *no* accounts have fetched data, the predicate
+        // must return false so callers fall back to the single-account renderer
+        // which reads `snapshot.rateLimits` directly and shows the real percent.
+        let perAccount: [String: RateLimitUsage] = [:]
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, fetchedAccountCount: perAccount.count) == false)
+    }
+
+    @Test("v2.2.0 regression: only 1 fetched does NOT trigger multi-account render")
+    func shouldRender_onlyOneFetched_doesNotRender_v220Regression() {
+        // Same v2.2.0 failure mode for the partial-fan-out case: 2 authenticated
+        // accounts but only 1 returned rate-limit data. Old buggy gate would
+        // render "X% | —". v2.2.1 gate falls back to single-account which shows
+        // the active account's real percent — strictly better UX than a half-
+        // populated multi-account strip.
+        let perAccount: [String: RateLimitUsage] = [
+            "account-a": Self.usage(fiveHourUtilization: 0.42),
+        ]
+        #expect(MenuBarMultiAccountText.shouldRender(toggleOn: true, fetchedAccountCount: perAccount.count) == false)
     }
 
     // Note: per-account countdown selection lives in `StatusBarManager.countdownResetDate`

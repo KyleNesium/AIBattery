@@ -356,7 +356,7 @@ public final class StatusBarManager: NSObject {
         let order = OAuthManager.shared.accountStore.accounts
             .filter { !$0.isPendingIdentity }
             .map(\.id)
-        let useMulti = MenuBarMultiAccountText.shouldRender(toggleOn: showAll, accountCount: perAccount.count)
+        let useMulti = MenuBarMultiAccountText.shouldRender(toggleOn: showAll, fetchedAccountCount: perAccount.count)
 
         let percent: Double
         let isExhausted: Bool
