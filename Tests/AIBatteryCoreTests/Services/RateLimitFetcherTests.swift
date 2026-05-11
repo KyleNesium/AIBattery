@@ -18,16 +18,53 @@ struct RateLimitFetcherTests {
 
     // MARK: - Multiple accounts use separate caches
 
-    @Test @MainActor func fetch_differentAccounts_separateResults() async {
+    @Test @MainActor func fetch_differentAccounts_separateResults() {
+        // Previously this test did real `fetch(accessToken: "invalid-N", ...)` calls
+        // and asserted both returned nil — which doesn't actually verify the
+        // "separate caches" contract the test name claims. The real-network calls
+        // also made the test environmentally flaky (CI hit the 10-minute job
+        // timeout when Anthropic's edge slow-trickled 401s under throttling).
+        // Rewritten to use the public `setCachedResult` / `cachedOrEmpty` API to
+        // verify cache separation directly, no network required.
         let fetcher = RateLimitFetcher()
 
-        // Both calls will fail (invalid tokens), but should create separate cache entries
-        let result1 = await fetcher.fetch(accessToken: "invalid-1", accountId: "account-a")
-        let result2 = await fetcher.fetch(accessToken: "invalid-2", accountId: "account-b")
+        let rlA = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.3,
+            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let rlB = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.7,
+            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.4,
+            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        fetcher.setCachedResult(
+            APIFetchResult(rateLimits: rlA, rateLimitSource: .anthropicAPIHeaders, profile: nil, fetchedAt: Date()),
+            for: "account-a"
+        )
+        fetcher.setCachedResult(
+            APIFetchResult(rateLimits: rlB, rateLimitSource: .anthropicAPIHeaders, profile: nil, fetchedAt: Date()),
+            for: "account-b"
+        )
 
-        // Both should return empty (no cached data, network fails)
-        #expect(result1.rateLimits == nil)
-        #expect(result2.rateLimits == nil)
+        let cachedA = fetcher.cachedOrEmpty(accountId: "account-a")
+        let cachedB = fetcher.cachedOrEmpty(accountId: "account-b")
+
+        #expect(cachedA.rateLimits?.fiveHourPercent == 30.0)
+        #expect(cachedB.rateLimits?.fiveHourPercent == 70.0)
+        // Neither cache leaks into the other's slot.
+        let cachedMissing = fetcher.cachedOrEmpty(accountId: "account-c")
+        #expect(cachedMissing.rateLimits == nil)
     }
 
     // MARK: - Cached result marked as stale
