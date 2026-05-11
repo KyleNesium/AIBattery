@@ -68,6 +68,94 @@ enum MenuBarMultiAccountText {
         toggleOn && fetchedAccountCount >= 2
     }
 
+    /// Full menu-bar display decision — composes `shouldRender`, `build`, and the
+    /// per-account countdown selection into a single deterministic function so the
+    /// wiring at the call site can't drift again (v2.2.0 shipped a regression where
+    /// the call site passed the wrong count to `shouldRender`; that bug becomes
+    /// unrepresentable when the whole decision is one pure function).
+    ///
+    /// - Parameters:
+    ///   - toggleOn: `aibattery_showAllAccountsInMenuBar` UserDefaults value.
+    ///   - perAccount: `UsageViewModel.perAccountRateLimits` (keyed by accountId).
+    ///   - order: account IDs in display order (typically authenticated, non-pending
+    ///     accounts from `AccountStore.accounts`).
+    ///   - activeRateLimits: the active account's `RateLimitUsage` from
+    ///     `UsageViewModel.snapshot?.rateLimits`. Used for single-account fallback
+    ///     and as a countdown floor.
+    ///   - activePercent: the active account's percent for the resolved metric mode.
+    ///   - metricMode: the resolved metric mode (auto-mode hysteresis output).
+    ///   - now: injected current time (for testability).
+    ///   - countdownResetDate: per-account countdown resolver. Inject
+    ///     `StatusBarManager.countdownResetDate(for:now:)` here.
+    ///
+    /// - Returns: the four values the menu-bar renderer needs.
+    static func resolveDisplay(
+        toggleOn: Bool,
+        perAccount: [String: RateLimitUsage],
+        order: [String],
+        activeRateLimits: RateLimitUsage?,
+        activePercent: Double,
+        metricMode: MetricMode,
+        now: Date,
+        countdownResetDate: (RateLimitUsage, Date) -> Date?
+    ) -> Display {
+        let activeIsThrottled = activeRateLimits?.isThrottled ?? false
+        let activeIsExhausted = activeIsThrottled
+            || (activeRateLimits?.fiveHourPercent ?? 0) >= 100
+            || (activeRateLimits?.sevenDayPercent ?? 0) >= 100
+
+        let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: perAccount.count)
+
+        if useMulti {
+            let multi = build(order: order, limits: perAccount, metricMode: metricMode)
+            let percent = max(multi.worstPercent, activePercent)
+            let isExhausted = multi.anyThrottled || activeIsExhausted
+            let multiReset = perAccount.values
+                .compactMap { countdownResetDate($0, now) }
+                .min()
+            let activeReset = activeRateLimits.flatMap { countdownResetDate($0, now) }
+            let reset = [multiReset, activeReset].compactMap { $0 }.min()
+            let text: String
+            if let reset {
+                text = RateLimitUsage.countdownText(to: reset)
+            } else {
+                text = multi.text
+            }
+            return Display(
+                text: text,
+                percent: percent,
+                isExhausted: isExhausted,
+                countdownReset: reset,
+                usedMultiAccount: true
+            )
+        } else {
+            let activeReset = activeRateLimits.flatMap { countdownResetDate($0, now) }
+            let text: String
+            if let activeReset {
+                text = RateLimitUsage.countdownText(to: activeReset)
+            } else {
+                text = "\(Int(activePercent))%"
+            }
+            return Display(
+                text: text,
+                percent: activePercent,
+                isExhausted: activeIsExhausted,
+                countdownReset: activeReset,
+                usedMultiAccount: false
+            )
+        }
+    }
+
+    /// The deterministic output of `resolveDisplay`. `usedMultiAccount` distinguishes
+    /// the multi-account branch from the single-account fallback for test assertions.
+    struct Display: Equatable {
+        let text: String
+        let percent: Double
+        let isExhausted: Bool
+        let countdownReset: Date?
+        let usedMultiAccount: Bool
+    }
+
     // MARK: - Private
 
     private static func percent(for usage: RateLimitUsage, mode: MetricMode) -> Double {

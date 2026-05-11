@@ -238,4 +238,237 @@ struct MenuBarMultiAccountTextTests {
     // composes that helper via `.compactMap { ... }.min()`, which only emits a date
     // when an account is actually exhausted — healthy future resets never pin the menu
     // bar into countdown mode.
+
+    // MARK: - resolveDisplay end-to-end
+    //
+    // These tests exercise the full menu-bar decision (gate + builder + countdown
+    // composition + single-account fallback) as one pure function. They are the
+    // safety net that should have caught the v2.2.0 "— | —" regression.
+
+    /// Stub countdown resolver matching `StatusBarManager.countdownResetDate(for:now:)`
+    /// semantics: returns nil for healthy accounts, the binding reset (if future) for
+    /// throttled, or the future-exhausted-window reset otherwise.
+    private static func countdownReset(_ usage: RateLimitUsage, _ now: Date) -> Date? {
+        let future: (Date?) -> Date? = { d in
+            guard let d, d.timeIntervalSince(now) > 0 else { return nil }
+            return d
+        }
+        if usage.isThrottled { return future(usage.bindingReset) }
+        let fiveExhausted = usage.fiveHourPercent >= 100
+        let sevenExhausted = usage.sevenDayPercent >= 100
+        let f = fiveExhausted ? future(usage.fiveHourReset) : nil
+        let s = sevenExhausted ? future(usage.sevenDayReset) : nil
+        return [f, s].compactMap { $0 }.min()
+    }
+
+    @Test("Single account toggle off: renders active percent, no multi branch")
+    func resolveDisplay_singleAccount_toggleOff() {
+        let active = Self.usage(fiveHourUtilization: 0.42)
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: [:],
+            order: ["a"],
+            activeRateLimits: active,
+            activePercent: 42,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == false)
+        #expect(result.text == "42%")
+        #expect(result.percent == 42)
+        #expect(result.isExhausted == false)
+        #expect(result.countdownReset == nil)
+    }
+
+    @Test("v2.2.0 regression: toggle on, 2 authenticated, empty perAccount → single fallback (NOT '— | —')")
+    func resolveDisplay_v220Regression_emptyPerAccount() {
+        let active = Self.usage(fiveHourUtilization: 0.42)
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: [:],  // fan-out hasn't completed yet
+            order: ["a", "b"],  // 2 authenticated accounts
+            activeRateLimits: active,
+            activePercent: 42,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: Self.countdownReset
+        )
+        // v2.2.0 shipped "— | —" here because the gate used order.count.
+        // v2.2.1 fix: gate on perAccount.count, so empty map → single-account
+        // fallback shows active percent.
+        #expect(result.usedMultiAccount == false)
+        #expect(result.text == "42%")
+        #expect(!result.text.contains("—"))
+        #expect(!result.text.contains("|"))
+    }
+
+    @Test("v2.2.0 regression: toggle on, only 1 fetched → single fallback (NOT 'X% | —')")
+    func resolveDisplay_v220Regression_onlyOneFetched() {
+        let active = Self.usage(fiveHourUtilization: 0.42)
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": active],  // only 1 fetched
+            order: ["a", "b"],
+            activeRateLimits: active,
+            activePercent: 42,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == false)
+        #expect(result.text == "42%")
+    }
+
+    @Test("Toggle on, 2 fetched: renders 'X% | Y%' with worst-percent driving icon")
+    func resolveDisplay_twoFetched_rendersMulti() {
+        let a = Self.usage(fiveHourUtilization: 0.42)
+        let b = Self.usage(fiveHourUtilization: 0.87)
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": a, "b": b],
+            order: ["a", "b"],
+            activeRateLimits: a,
+            activePercent: 42,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == true)
+        #expect(result.text == "42%\u{00A0}|\u{00A0}87%")
+        #expect(result.percent == 87)  // worst across accounts
+        #expect(result.isExhausted == false)
+    }
+
+    @Test("Toggle on, 3 fetched: all three slots render in order")
+    func resolveDisplay_threeFetched_rendersMulti() {
+        let a = Self.usage(fiveHourUtilization: 0.10)
+        let b = Self.usage(fiveHourUtilization: 0.50)
+        let c = Self.usage(fiveHourUtilization: 0.90)
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": a, "b": b, "c": c],
+            order: ["a", "b", "c"],
+            activeRateLimits: a,
+            activePercent: 10,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == true)
+        #expect(result.text == "10%\u{00A0}|\u{00A0}50%\u{00A0}|\u{00A0}90%")
+        #expect(result.percent == 90)
+    }
+
+    @Test("Multi-account: healthy accounts do NOT trigger countdown (P1 regression pin)")
+    func resolveDisplay_healthyAccounts_noCountdown() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        // Healthy: low utilization, future reset, not throttled.
+        let a = Self.usage(fiveHourUtilization: 0.42, fiveHourReset: now.addingTimeInterval(3600))
+        let b = Self.usage(fiveHourUtilization: 0.23, fiveHourReset: now.addingTimeInterval(3600))
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": a, "b": b],
+            order: ["a", "b"],
+            activeRateLimits: a,
+            activePercent: 42,
+            metricMode: .fiveHour,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == true)
+        #expect(result.countdownReset == nil)
+        // Should render percent strip, NOT a countdown like "1h 0m"
+        #expect(result.text == "42%\u{00A0}|\u{00A0}23%")
+    }
+
+    @Test("Multi-account: one account throttled → countdown mode kicks in")
+    func resolveDisplay_oneThrottled_countdown() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(300)  // 5 min away
+        let a = Self.usage(fiveHourUtilization: 0.42)
+        let throttled = Self.usage(
+            fiveHourUtilization: 1.0,
+            fiveHourReset: reset,
+            fiveHourStatus: "throttled",
+            overallStatus: "throttled"
+        )
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": a, "b": throttled],
+            order: ["a", "b"],
+            activeRateLimits: a,
+            activePercent: 42,
+            metricMode: .fiveHour,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == true)
+        #expect(result.countdownReset == reset)
+        #expect(result.isExhausted == true)
+        // Countdown text — not the percent strip — when an account is exhausted.
+        #expect(result.text != "42%\u{00A0}|\u{00A0}100%")
+    }
+
+    @Test("Single-account: active throttled → countdown mode")
+    func resolveDisplay_singleAccount_throttled_countdown() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(120)
+        let throttled = Self.usage(
+            fiveHourUtilization: 1.0,
+            fiveHourReset: reset,
+            fiveHourStatus: "throttled",
+            overallStatus: "throttled"
+        )
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: [:],
+            order: ["a"],
+            activeRateLimits: throttled,
+            activePercent: 100,
+            metricMode: .fiveHour,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == false)
+        #expect(result.countdownReset == reset)
+        #expect(result.isExhausted == true)
+    }
+
+    @Test("Multi-account: worst-percent floored at active so icon never shrinks")
+    func resolveDisplay_worstPercentFlooredAtActive() {
+        // Active has higher percent than any other account — multi.worstPercent < activePercent.
+        let active = Self.usage(fiveHourUtilization: 0.85)
+        let other = Self.usage(fiveHourUtilization: 0.20)
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["active": active, "other": other],
+            order: ["active", "other"],
+            activeRateLimits: active,
+            activePercent: 85,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == true)
+        #expect(result.percent == 85)  // floor at active, not the multi.worstPercent of 85
+    }
+
+    @Test("Toggle on, 1 authenticated account: shouldRender false, single-account fallback")
+    func resolveDisplay_toggleOnSingleAccount_fallback() {
+        // Edge case: user enables toggle but only has 1 account connected.
+        let a = Self.usage(fiveHourUtilization: 0.42)
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": a],
+            order: ["a"],
+            activeRateLimits: a,
+            activePercent: 42,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == false)
+        #expect(result.text == "42%")
+    }
 }

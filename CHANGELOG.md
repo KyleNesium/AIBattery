@@ -3,7 +3,14 @@
 ## [2.2.1] — 2026-05-11
 
 ### Fixed
-- **Menu bar rendered "— | —" instead of percentages with multi-account display on** — v2.2.0's polish pass gated the multi-account branch on the count of *authenticated* accounts (so a slot whose fan-out hadn't landed would show as `—`), but the gate fired before the initial fan-out completed, leaving both slots em-dashed indefinitely on first launch with the toggle on. Reverted the gate to `perAccountRateLimits.count >= 2` (count of accounts with fetched data). The active account's percent now renders immediately from the snapshot via the single-account path, and the menu bar upgrades to the multi-account strip the moment the fan-out lands. Trade-off acknowledged: in the brief transient window where account A has data but account B's fan-out is still pending, the user sees A's single-account display rather than `A% | —` — strictly better than the broken `— | —` v2.2.0 shipped with.
+- **Menu bar rendered "— | —" instead of percentages with multi-account display on** — v2.2.0's polish pass gated the multi-account branch on the count of *authenticated* accounts (so a slot whose fan-out hadn't landed would show as `—`), but the gate fired before the initial fan-out completed, leaving both slots em-dashed indefinitely on first launch with the toggle on (and persistently when the fan-out failed entirely on transient network/auth issues). Reverted the gate to `perAccountRateLimits.count >= 2` (count of accounts with fetched data). The active account's percent now renders immediately from the snapshot via the single-account path, and the menu bar upgrades to the multi-account strip the moment the fan-out lands. Trade-off acknowledged: in the brief transient window where account A has data but account B's fan-out is still pending, the user sees A's single-account display rather than `A% | —` — strictly better than the broken `— | —` v2.2.0 shipped with.
+
+### Changed
+- **Extracted the menu-bar text/percent/countdown decision into `MenuBarMultiAccountText.resolveDisplay(...)`** — a pure, fully-testable function. The v2.2.0 regression was a wiring bug at the `StatusBarManager.updateButton` call site that no unit test could reach. By collapsing the wiring (gate, builder, countdown composition, single-account fallback) into one deterministic function, every reachable display state is now covered by end-to-end tests against the resolver itself — empty `perAccount`, partial fan-out, healthy multi, throttled multi, single-account throttled, worst-percent flooring, single-account-only edge case — making the v2.2.0 mistake unrepresentable.
+- **`MenuBarMultiAccountText.shouldRender(toggleOn:accountCount:)` renamed to `shouldRender(toggleOn:fetchedAccountCount:)`** so the parameter name names the contract.
+
+### Tests
+- 12 new tests: 10 end-to-end resolver scenarios + 2 explicit v2.2.0 regression pins. Total: **922 tests across 62 suites** (up from 910).
 
 ## [2.2.0] — 2026-05-10
 
