@@ -21,9 +21,9 @@ struct RefreshSettingsSection: View {
                         viewModel.updatePollingInterval(sliderValue)
                     }
                 }
-                    .onAppear { sliderValue = refreshInterval }
-                    .accessibilityLabel("Refresh interval")
-                    .accessibilityValue(refreshLabel)
+                .onAppear { sliderValue = refreshInterval }
+                .accessibilityLabel("Refresh interval")
+                .accessibilityValue(refreshLabel)
                 Text(refreshLabel)
                     .font(Typography.monoCaption)
                     .frame(width: Layout.sliderValueLabel, alignment: .trailing)

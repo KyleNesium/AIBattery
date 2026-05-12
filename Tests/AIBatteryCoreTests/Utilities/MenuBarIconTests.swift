@@ -4,7 +4,6 @@ import AppKit
 
 @Suite("MenuBarIcon")
 struct MenuBarIconTests {
-
     private let testColor: NSColor = .systemGreen
 
     // MARK: - Breath parameters
@@ -170,6 +169,7 @@ struct MenuBarIconTests {
     }
 
     // MARK: - Context health color
+
     // Note: test for `ThemeColors.contextHealthNSColor` with specific color assertions
     // lives in ThemeColorsTests — that suite is `.serialized` and controls the global
     // `isColorblind` flag deterministically. Asserting here races with the parallel

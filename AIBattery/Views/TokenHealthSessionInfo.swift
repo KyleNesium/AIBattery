@@ -4,7 +4,6 @@ import Foundation
 
 /// Pure helpers for formatting session metadata — no view code.
 enum SessionInfoFormatter {
-
     /// Project name and branch for display.
     static func labelParts(for health: TokenHealthStatus) -> [String] {
         var parts: [String] = []
@@ -130,7 +129,7 @@ enum SessionInfoFormatter {
     static func formatSessionTime(_ date: Date) -> String {
         let elapsed = Date().timeIntervalSince(date)
         if elapsed < 60 { return "just now" }
-        if elapsed < 3600 { return "\(Int(elapsed / 60))m ago" }
+        if elapsed < 3_600 { return "\(Int(elapsed / 60))m ago" }
         let time = timeFormatter.string(from: date)
 
         if calendar.isDateInToday(date) {

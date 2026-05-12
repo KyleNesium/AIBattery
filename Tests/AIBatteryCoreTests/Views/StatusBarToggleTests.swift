@@ -5,17 +5,16 @@ import Testing
 /// Covers RESP-03: toggle desync prevention.
 @Suite("PanelToggleState")
 struct StatusBarToggleTests {
-
     // Test 1: Initial state is not showing
     @Test("starts with isShowing = false")
-    func testInitialStateIsFalse() {
+    func initialStateIsFalse() {
         let state = PanelToggleState()
         #expect(state.isShowing == false)
     }
 
     // Test 2: show() sets isShowing to true
     @Test("show() sets isShowing to true")
-    func testShowSetsIsShowingTrue() {
+    func showSetsIsShowingTrue() {
         var state = PanelToggleState()
         state.show()
         #expect(state.isShowing == true)
@@ -23,7 +22,7 @@ struct StatusBarToggleTests {
 
     // Test 3: dismiss() sets isShowing to false
     @Test("dismiss() sets isShowing to false")
-    func testDismissSetsIsShowingFalse() {
+    func dismissSetsIsShowingFalse() {
         var state = PanelToggleState()
         state.show()
         state.dismiss()
@@ -32,7 +31,7 @@ struct StatusBarToggleTests {
 
     // Test 4: dismiss() when already false remains false (idempotent)
     @Test("dismiss() when already false stays false")
-    func testDismissIsIdempotentWhenFalse() {
+    func dismissIsIdempotentWhenFalse() {
         var state = PanelToggleState()
         state.dismiss()
         #expect(state.isShowing == false)
@@ -40,7 +39,7 @@ struct StatusBarToggleTests {
 
     // Test 5: show → dismiss → show results in isShowing = true (no stuck state)
     @Test("show → dismiss → show results in isShowing = true")
-    func testShowDismissShowSequence() {
+    func showDismissShowSequence() {
         var state = PanelToggleState()
         state.show()
         state.dismiss()
@@ -50,7 +49,7 @@ struct StatusBarToggleTests {
 
     // Test 6: Two consecutive dismiss() calls do not crash or produce incorrect state
     @Test("two consecutive dismiss() calls remain correct")
-    func testConsecutiveDismissCallsAreStable() {
+    func consecutiveDismissCallsAreStable() {
         var state = PanelToggleState()
         state.show()
         state.dismiss()
@@ -60,7 +59,7 @@ struct StatusBarToggleTests {
 
     // Test 7: toggle() from false returns .show and sets isShowing = true
     @Test("toggle() from false returns .show")
-    func testToggleFromFalseReturnsShow() {
+    func toggleFromFalseReturnsShow() {
         var state = PanelToggleState()
         let action = state.toggle()
         #expect(action == .show)
@@ -69,7 +68,7 @@ struct StatusBarToggleTests {
 
     // Test 8: toggle() from true returns .hide and sets isShowing = false
     @Test("toggle() from true returns .hide")
-    func testToggleFromTrueReturnsHide() {
+    func toggleFromTrueReturnsHide() {
         var state = PanelToggleState()
         state.show()
         let action = state.toggle()

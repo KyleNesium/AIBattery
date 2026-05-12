@@ -3,7 +3,6 @@ import Testing
 
 @Suite("OAuthManager.AuthError")
 struct OAuthManagerAuthErrorTests {
-
     // MARK: - userMessage
 
     @Test func userMessage_noVerifier() {

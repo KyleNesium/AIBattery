@@ -301,7 +301,7 @@ public final class StatusBarManager: NSObject {
         // Pre-warm: force SwiftUI's first layout pass now (at startup) so the first
         // user click doesn't pay the ~500ms+ layout cost. Show the panel offscreen
         // for one frame, then hide it.
-        panel.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+        panel.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
         panel.orderFrontRegardless()
         DispatchQueue.main.async {
             panel.orderOut(nil)
@@ -420,11 +420,11 @@ public final class StatusBarManager: NSObject {
 
     private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool, isDarkMenuBar: Bool) -> NSColor {
         if isThrottled {
-            return ThemeColors.barNSColor(percent: 100)
+            ThemeColors.barNSColor(percent: 100)
         } else if metricMode == .contextHealth {
-            return ThemeColors.contextHealthNSColor(percent: percent)
+            ThemeColors.contextHealthNSColor(percent: percent)
         } else {
-            return ThemeColors.barNSColor(percent: percent, isDarkMenuBar: isDarkMenuBar)
+            ThemeColors.barNSColor(percent: percent, isDarkMenuBar: isDarkMenuBar)
         }
     }
 

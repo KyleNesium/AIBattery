@@ -3,7 +3,6 @@ import Testing
 
 @Suite("DeferredRenderState")
 struct DeferredRenderingTests {
-
     // MARK: - Initial state
 
     @Test func initialState_hasAppearedIsFalse() {

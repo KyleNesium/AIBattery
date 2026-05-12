@@ -5,7 +5,6 @@ import Foundation
 @Suite("SessionLogReader — Symlink Boundary Check")
 @MainActor
 struct SessionLogReaderSymlinkTests {
-
     /// Files that resolve inside the projects directory should be kept.
     @Test func discoverFiles_keepsFilesInsideProjectsDir() throws {
         let tmpDir = FileManager.default.temporaryDirectory

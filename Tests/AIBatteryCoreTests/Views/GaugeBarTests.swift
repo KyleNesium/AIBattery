@@ -4,7 +4,6 @@ import SwiftUI
 
 @Suite("GaugeBar")
 struct GaugeBarTests {
-
     // MARK: - Clamping logic
 
     @Test func clampPercent_belowZero_returnsZero() {

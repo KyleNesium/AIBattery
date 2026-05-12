@@ -3,7 +3,6 @@ import Testing
 
 @Suite("TokenHealthConfig")
 struct TokenHealthConfigTests {
-
     // MARK: - Context window lookup
 
     @Test func contextWindow_exactMatch() {

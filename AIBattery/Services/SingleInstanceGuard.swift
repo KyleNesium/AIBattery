@@ -10,7 +10,6 @@ import AppKit
 /// bundle identifier, which cleans up zombie processes that may have survived
 /// a crash or force-quit (preventing RBSRequestErrorDomain Code=5).
 public enum SingleInstanceGuard {
-
     private static let lockPath: String = {
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             fatalError("Application Support directory unavailable")

@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("RateLimitUsage")
 struct RateLimitUsageTests {
-
     // MARK: - Parsing
 
     @Test func parse_fullHeaders() {
@@ -70,55 +69,55 @@ struct RateLimitUsageTests {
         #expect(usage?.sevenDayUtilization == 0)
     }
 
-    @Test func parse_resetDates() {
+    @Test func parse_resetDates() throws {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "allowed",
             "anthropic-ratelimit-unified-5h-reset": "1700000000",
             "anthropic-ratelimit-unified-7d-reset": "1700500000",
         ]
-        let usage = RateLimitUsage.parse(headers: headers)!
+        let usage = try #require(RateLimitUsage.parse(headers: headers))
         #expect(usage.fiveHourReset != nil)
         #expect(usage.sevenDayReset != nil)
-        #expect(usage.fiveHourReset!.timeIntervalSince1970 == 1700000000)
+        #expect(usage.fiveHourReset?.timeIntervalSince1970 == 1_700_000_000)
     }
 
-    @Test func parse_resetDate_zeroTimestamp_returnsNil() {
+    @Test func parse_resetDate_zeroTimestamp_returnsNil() throws {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "allowed",
             "anthropic-ratelimit-unified-5h-reset": "0",
         ]
-        let usage = RateLimitUsage.parse(headers: headers)!
+        let usage = try #require(RateLimitUsage.parse(headers: headers))
         #expect(usage.fiveHourReset == nil)
     }
 
-    @Test func parse_resetDate_negativeTimestamp_returnsNil() {
+    @Test func parse_resetDate_negativeTimestamp_returnsNil() throws {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "allowed",
             "anthropic-ratelimit-unified-5h-reset": "-1000",
         ]
-        let usage = RateLimitUsage.parse(headers: headers)!
+        let usage = try #require(RateLimitUsage.parse(headers: headers))
         #expect(usage.fiveHourReset == nil)
     }
 
-    @Test func parse_resetDate_farFuture_returnsNil() {
+    @Test func parse_resetDate_farFuture_returnsNil() throws {
         // 9 days from now exceeds the 8-day tolerance
-        let farFuture = String(Int(Date().timeIntervalSince1970 + 9 * 86400))
+        let farFuture = String(Int(Date().timeIntervalSince1970 + 9 * 86_400))
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "allowed",
             "anthropic-ratelimit-unified-7d-reset": farFuture,
         ]
-        let usage = RateLimitUsage.parse(headers: headers)!
+        let usage = try #require(RateLimitUsage.parse(headers: headers))
         #expect(usage.sevenDayReset == nil)
     }
 
-    @Test func parse_resetDate_7dayFuture_accepted() {
+    @Test func parse_resetDate_7dayFuture_accepted() throws {
         // 7 days from now is within the 8-day tolerance
-        let sevenDays = String(Int(Date().timeIntervalSince1970 + 7 * 86400))
+        let sevenDays = String(Int(Date().timeIntervalSince1970 + 7 * 86_400))
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "allowed",
             "anthropic-ratelimit-unified-7d-reset": sevenDays,
         ]
-        let usage = RateLimitUsage.parse(headers: headers)!
+        let usage = try #require(RateLimitUsage.parse(headers: headers))
         #expect(usage.sevenDayReset != nil)
     }
 
@@ -157,24 +156,24 @@ struct RateLimitUsageTests {
         #expect(usage.isWindowThrottled(RateLimitUsage.sevenDayWindow) == false)
     }
 
-    @Test func parse_clampsUtilizationAboveOne() {
+    @Test func parse_clampsUtilizationAboveOne() throws {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "allowed",
             "anthropic-ratelimit-unified-5h-utilization": "1.5",
             "anthropic-ratelimit-unified-7d-utilization": "2.0",
         ]
-        let usage = RateLimitUsage.parse(headers: headers)!
+        let usage = try #require(RateLimitUsage.parse(headers: headers))
         #expect(usage.fiveHourUtilization == 1.0)
         #expect(usage.sevenDayUtilization == 1.0)
     }
 
-    @Test func parse_clampsNegativeUtilizationToZero() {
+    @Test func parse_clampsNegativeUtilizationToZero() throws {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-unified-status": "allowed",
             "anthropic-ratelimit-unified-5h-utilization": "-0.5",
             "anthropic-ratelimit-unified-7d-utilization": "-1.0",
         ]
-        let usage = RateLimitUsage.parse(headers: headers)!
+        let usage = try #require(RateLimitUsage.parse(headers: headers))
         #expect(usage.fiveHourUtilization == 0.0)
         #expect(usage.sevenDayUtilization == 0.0)
     }
@@ -204,7 +203,7 @@ struct RateLimitUsageTests {
         #expect(usage?.representativeClaim == "seven_day")
         #expect(usage?.fiveHourUtilization == 0.42)
         #expect(usage?.sevenDayUtilization == 0.85)
-        #expect(usage?.fiveHourReset?.timeIntervalSince1970 == 1700000000)
+        #expect(usage?.fiveHourReset?.timeIntervalSince1970 == 1_700_000_000)
         #expect(usage?.sevenDayStatus == "throttled")
         #expect(usage?.isThrottled == true)
     }
@@ -230,8 +229,8 @@ struct RateLimitUsageTests {
         #expect(usage?.representativeClaim == "seven_day")
         #expect(usage?.fiveHourUtilization == 0.37)
         #expect(usage?.sevenDayUtilization == 0.61)
-        #expect(usage?.fiveHourReset?.timeIntervalSince1970 == 1700000000)
-        #expect(usage?.sevenDayReset?.timeIntervalSince1970 == 1700500000)
+        #expect(usage?.fiveHourReset?.timeIntervalSince1970 == 1_700_000_000)
+        #expect(usage?.sevenDayReset?.timeIntervalSince1970 == 1_700_500_000)
         #expect(usage?.overallStatus == "allowed")
     }
 
@@ -281,13 +280,13 @@ struct RateLimitUsageTests {
     }
 
     @Test func bindingReset_fiveHour() {
-        let date = Date(timeIntervalSince1970: 1700000000)
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
         let usage = makeUsage(claim: "five_hour", fiveHourReset: date, sevenDayReset: nil)
         #expect(usage.bindingReset == date)
     }
 
     @Test func bindingReset_sevenDay() {
-        let date = Date(timeIntervalSince1970: 1700500000)
+        let date = Date(timeIntervalSince1970: 1_700_500_000)
         let usage = makeUsage(claim: "seven_day", fiveHourReset: nil, sevenDayReset: date)
         #expect(usage.bindingReset == date)
     }
@@ -379,8 +378,8 @@ struct RateLimitUsageTests {
             claim: "five_hour",
             fiveHourUtil: 0.99,
             sevenDayUtil: 0.50,
-            fiveHourReset: now.addingTimeInterval(-3600),    // 1h ago
-            sevenDayReset: now.addingTimeInterval(-86400),   // 1d ago
+            fiveHourReset: now.addingTimeInterval(-3_600), // 1h ago
+            sevenDayReset: now.addingTimeInterval(-86_400), // 1d ago
             fiveHourStatus: "throttled",
             sevenDayStatus: "throttled",
             status: "throttled"
@@ -400,12 +399,12 @@ struct RateLimitUsageTests {
 
     @Test func withClearedExpiredWindows_onlyFiveHourExpired_keepsSevenDay() {
         let now = Date()
-        let sevenDayResetFuture = now.addingTimeInterval(86400)
+        let sevenDayResetFuture = now.addingTimeInterval(86_400)
         let usage = makeUsage(
             claim: "five_hour",
             fiveHourUtil: 0.99,
             sevenDayUtil: 0.50,
-            fiveHourReset: now.addingTimeInterval(-3600),
+            fiveHourReset: now.addingTimeInterval(-3_600),
             sevenDayReset: sevenDayResetFuture,
             fiveHourStatus: "throttled",
             sevenDayStatus: "allowed",
@@ -428,8 +427,8 @@ struct RateLimitUsageTests {
             claim: "seven_day",
             fiveHourUtil: 0.10,
             sevenDayUtil: 0.99,
-            fiveHourReset: now.addingTimeInterval(-3600),    // expired
-            sevenDayReset: now.addingTimeInterval(86400),    // future, binding
+            fiveHourReset: now.addingTimeInterval(-3_600), // expired
+            sevenDayReset: now.addingTimeInterval(86_400), // future, binding
             fiveHourStatus: "allowed",
             sevenDayStatus: "throttled",
             status: "throttled"
@@ -449,8 +448,8 @@ struct RateLimitUsageTests {
             claim: "five_hour",
             fiveHourUtil: 0.50,
             sevenDayUtil: 0.20,
-            fiveHourReset: now.addingTimeInterval(3600),
-            sevenDayReset: now.addingTimeInterval(86400),
+            fiveHourReset: now.addingTimeInterval(3_600),
+            sevenDayReset: now.addingTimeInterval(86_400),
             status: "allowed"
         )
 
@@ -469,7 +468,7 @@ struct RateLimitUsageTests {
         // 15% utilization — too low to show estimate (threshold is >20%)
         let usage = makeUsage(
             fiveHourUtil: 0.15,
-            fiveHourReset: Date().addingTimeInterval(3 * 3600)
+            fiveHourReset: Date().addingTimeInterval(3 * 3_600)
         )
         #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
     }
@@ -479,18 +478,18 @@ struct RateLimitUsageTests {
         #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
     }
 
-    @Test func estimatedTimeToLimit_highUtilization_returnsEstimate() {
+    @Test func estimatedTimeToLimit_highUtilization_returnsEstimate() throws {
         // 80% utilization with 2h remaining of a 5h window → 3h elapsed
         // rate = 0.80/10800 ≈ 7.4e-5/s, timeToFull = 0.20/rate ≈ 2700s (45 min)
         // 45 min < 2h remaining, so estimate should be returned
         let usage = makeUsage(
             fiveHourUtil: 0.80,
-            fiveHourReset: Date().addingTimeInterval(2 * 3600)
+            fiveHourReset: Date().addingTimeInterval(2 * 3_600)
         )
         let estimate = usage.estimatedTimeToLimit(for: "five_hour")
         #expect(estimate != nil)
-        #expect(estimate! > 0)
-        #expect(estimate! < 2 * 3600) // Must be before reset
+        #expect(try #require(estimate) > 0)
+        #expect(try #require(estimate) < 2 * 3_600) // Must be before reset
     }
 
     @Test func estimatedTimeToLimit_slowBurnRate_returnsNil() {
@@ -510,7 +509,7 @@ struct RateLimitUsageTests {
         // 2.1 days > 2 days remaining → nil (we'll be fine before reset)
         let usage = makeUsage(
             sevenDayUtil: 0.70,
-            sevenDayReset: Date().addingTimeInterval(2 * 24 * 3600)
+            sevenDayReset: Date().addingTimeInterval(2 * 24 * 3_600)
         )
         // At this rate, estimate is close to reset — could go either way
         // The key test is that it doesn't crash and returns a reasonable value or nil
@@ -533,7 +532,7 @@ struct RateLimitUsageTests {
         // Utilization at exactly 0.20 — threshold is > 0.20, so should return nil
         let usage = makeUsage(
             fiveHourUtil: 0.20,
-            fiveHourReset: Date().addingTimeInterval(2 * 3600)
+            fiveHourReset: Date().addingTimeInterval(2 * 3_600)
         )
         #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
     }
@@ -543,12 +542,12 @@ struct RateLimitUsageTests {
         // 5h window = 18000s, reset in 17950s → only 50s elapsed
         let usage = makeUsage(
             fiveHourUtil: 0.60,
-            fiveHourReset: Date().addingTimeInterval(5 * 3600 - 50)
+            fiveHourReset: Date().addingTimeInterval(5 * 3_600 - 50)
         )
         #expect(usage.estimatedTimeToLimit(for: "five_hour") == nil)
     }
 
-    @Test func estimatedTimeToLimit_justAboveThreshold_returnsEstimate() {
+    @Test func estimatedTimeToLimit_justAboveThreshold_returnsEstimate() throws {
         // 25% utilization — above the 20% threshold, should not be blocked by the guard.
         // 5h window, reset in 4.5h → elapsed = 0.5h = 1800s
         // rate = 0.25/1800 ≈ 1.39e-4/s
@@ -557,11 +556,11 @@ struct RateLimitUsageTests {
         // This proves projections work in the 20-50% utilization range
         let usage = makeUsage(
             fiveHourUtil: 0.25,
-            fiveHourReset: Date().addingTimeInterval(4.5 * 3600)
+            fiveHourReset: Date().addingTimeInterval(4.5 * 3_600)
         )
         let estimate = usage.estimatedTimeToLimit(for: "five_hour")
         #expect(estimate != nil)
-        #expect(estimate! > 0)
+        #expect(try #require(estimate) > 0)
     }
 
     @Test func requestsPercentUsed_unknownClaim_defaultsToFiveHour() {
@@ -571,8 +570,8 @@ struct RateLimitUsageTests {
     }
 
     @Test func bindingReset_unknownClaim_defaultsToFiveHour() {
-        let fiveDate = Date(timeIntervalSince1970: 1700000000)
-        let sevenDate = Date(timeIntervalSince1970: 1700500000)
+        let fiveDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let sevenDate = Date(timeIntervalSince1970: 1_700_500_000)
         let usage = makeUsage(claim: "unknown", fiveHourReset: fiveDate, sevenDayReset: sevenDate)
         #expect(usage.bindingReset == fiveDate)
     }
@@ -585,7 +584,7 @@ struct RateLimitUsageTests {
 
     @Test func countdownText_hoursAndMinutes() {
         let now = Date()
-        let future = now.addingTimeInterval(2 * 3600 + 30 * 60) // 2h 30m
+        let future = now.addingTimeInterval(2 * 3_600 + 30 * 60) // 2h 30m
         #expect(RateLimitUsage.countdownText(to: future, from: now) == "2h 30m")
     }
 
@@ -603,7 +602,7 @@ struct RateLimitUsageTests {
 
     @Test func countdownText_multiDay() {
         let now = Date()
-        let future = now.addingTimeInterval(3 * 24 * 3600 + 2 * 3600) // 3d 2h
+        let future = now.addingTimeInterval(3 * 24 * 3_600 + 2 * 3_600) // 3d 2h
         #expect(RateLimitUsage.countdownText(to: future, from: now) == "3d 2h")
     }
 
@@ -615,7 +614,7 @@ struct RateLimitUsageTests {
 
     @Test func countdownText_exactlyOneHour() {
         let now = Date()
-        let future = now.addingTimeInterval(3600) // exactly 1h
+        let future = now.addingTimeInterval(3_600) // exactly 1h
         #expect(RateLimitUsage.countdownText(to: future, from: now) == "1h 0m")
     }
 

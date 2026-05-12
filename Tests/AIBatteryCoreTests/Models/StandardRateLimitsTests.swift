@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("StandardRateLimits")
 struct StandardRateLimitsTests {
-
     @Test func parse_validHeaders_returnsLimits() {
         let headers: [AnyHashable: Any] = [
             "anthropic-ratelimit-requests-limit": "50",
@@ -18,8 +17,8 @@ struct StandardRateLimitsTests {
         #expect(result != nil)
         #expect(result?.requestsLimit == 50)
         #expect(result?.requestsRemaining == 45)
-        #expect(result?.tokensLimit == 80000)
-        #expect(result?.tokensRemaining == 75000)
+        #expect(result?.tokensLimit == 80_000)
+        #expect(result?.tokensRemaining == 75_000)
         #expect(result?.requestsReset != nil)
     }
 
@@ -31,8 +30,8 @@ struct StandardRateLimitsTests {
         let result = StandardRateLimits.parse(headers: headers)
         #expect(result != nil)
         #expect(result?.requestsLimit == 0)
-        #expect(result?.tokensLimit == 80000)
-        #expect(result?.tokensRemaining == 75000)
+        #expect(result?.tokensLimit == 80_000)
+        #expect(result?.tokensRemaining == 75_000)
     }
 
     @Test func parse_caseInsensitive_works() {
@@ -51,8 +50,8 @@ struct StandardRateLimitsTests {
             requestsLimit: 50,
             requestsRemaining: 30,
             requestsReset: nil,
-            tokensLimit: 80000,
-            tokensRemaining: 60000,
+            tokensLimit: 80_000,
+            tokensRemaining: 60_000,
             tokensReset: nil
         )
         #expect(limits.requestsPercent == 40.0) // 20/50 = 40%
@@ -77,7 +76,7 @@ struct StandardRateLimitsTests {
             requestsLimit: 50,
             requestsRemaining: 0,
             requestsReset: nil,
-            tokensLimit: 80000,
+            tokensLimit: 80_000,
             tokensRemaining: 0,
             tokensReset: nil
         )
@@ -90,8 +89,8 @@ struct StandardRateLimitsTests {
             requestsLimit: 50,
             requestsRemaining: 25,
             requestsReset: nil,
-            tokensLimit: 80000,
-            tokensRemaining: 40000,
+            tokensLimit: 80_000,
+            tokensRemaining: 40_000,
             tokensReset: nil
         )
         #expect(!limits.isRequestsExhausted)
@@ -114,10 +113,10 @@ struct StandardRateLimitsTests {
         ]
         let result = StandardRateLimits.parse(headers: headers)
         #expect(result != nil)
-        #expect(result?.requestsLimit == 100000)
-        #expect(result?.requestsRemaining == 85000)
-        #expect(result?.tokensLimit == 50000)
-        #expect(result?.tokensRemaining == 48000)
+        #expect(result?.requestsLimit == 100_000)
+        #expect(result?.requestsRemaining == 85_000)
+        #expect(result?.tokensLimit == 50_000)
+        #expect(result?.tokensRemaining == 48_000)
     }
 
     @Test func parse_unixTimestamp_parsesDate() {

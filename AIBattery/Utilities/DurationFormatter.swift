@@ -8,8 +8,8 @@ enum DurationFormatter {
     static func compact(_ seconds: TimeInterval) -> String {
         guard seconds > 0 else { return "0s" }
         let totalSeconds = Int(seconds)
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
         if hours >= 24 {
             let days = hours / 24
             return "\(days)d \(hours % 24)h"

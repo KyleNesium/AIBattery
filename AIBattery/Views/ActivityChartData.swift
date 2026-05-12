@@ -3,7 +3,6 @@ import Foundation
 /// Pure data transformations for activity charts — extracted from InsightsView for testability.
 /// All chart modes show token counts (all types) rather than message counts.
 enum ActivityChartData {
-
     struct DailyPoint: Identifiable {
         var id: String { key }
         let key: String
@@ -13,8 +12,8 @@ enum ActivityChartData {
 
     struct FiveHourPoint: Identifiable {
         var id: Int { offset }
-        let offset: Int  // 0 = oldest (5h ago), 19 = most recent
-        let count: Int   // tokens in this 15-minute bucket
+        let offset: Int // 0 = oldest (5h ago), 19 = most recent
+        let count: Int // tokens in this 15-minute bucket
     }
 
     struct MonthlyPoint: Identifiable {

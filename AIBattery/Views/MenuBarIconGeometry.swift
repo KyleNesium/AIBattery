@@ -3,7 +3,6 @@ import AppKit
 // MARK: - Star geometry helpers (extracted from MenuBarIcon)
 
 extension MenuBarIcon {
-
     /// N-pointed star path for glow effects: alternating outer/inner vertices.
     static func multiPointStarPath(center: NSPoint, outerRadius: CGFloat, innerRadius: CGFloat, points: Int) -> NSBezierPath {
         let path = NSBezierPath()

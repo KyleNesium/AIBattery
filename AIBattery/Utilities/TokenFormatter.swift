@@ -21,5 +21,4 @@ enum TokenFormatter {
             return b < 10 ? String(format: "%.1fB", b) : String(format: "%.0fB", b)
         }
     }
-
 }

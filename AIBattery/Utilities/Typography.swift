@@ -12,7 +12,6 @@ import SwiftUI
 ///
 /// Pattern matches ThemeColors: caseless enum used as a pure namespace.
 enum Typography {
-
     // MARK: - Scale anchors (fixed pt)
 
     /// Icon-only minimum — 9pt. Not for text; only SF Symbols.

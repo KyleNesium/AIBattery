@@ -150,21 +150,21 @@ public final class OAuthManager: ObservableObject {
 
         var userMessage: String {
             switch self {
-            case .noVerifier: return "Auth flow not started. Please click Authenticate first."
-            case .invalidCode: return "Invalid authorization code. Please try again."
-            case .expired: return "Authorization code expired. Please re-authenticate."
-            case .networkError: return "Network error. Check your connection and try again."
-            case .serverError(let code): return "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
-            case .maxAccountsReached: return "Maximum of \(AccountStore.maxAccounts) accounts reached. Remove one before adding another."
-            case .unknownError(let msg): return msg
+            case .noVerifier: "Auth flow not started. Please click Authenticate first."
+            case .invalidCode: "Invalid authorization code. Please try again."
+            case .expired: "Authorization code expired. Please re-authenticate."
+            case .networkError: "Network error. Check your connection and try again."
+            case .serverError(let code): "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
+            case .maxAccountsReached: "Maximum of \(AccountStore.maxAccounts) accounts reached. Remove one before adding another."
+            case .unknownError(let msg): msg
             }
         }
 
         /// Whether this error is transient and the caller should preserve auth state.
         var isTransient: Bool {
             switch self {
-            case .networkError, .serverError: return true
-            default: return false
+            case .networkError, .serverError: true
+            default: false
             }
         }
     }
@@ -399,7 +399,8 @@ public final class OAuthManager: ObservableObject {
                     // Honor Retry-After header on 429 if present (capped at 30s via RateLimitFetcher)
                     if http.statusCode == 429,
                        let delay = RateLimitFetcher.parseRetryAfter(
-                           http.value(forHTTPHeaderField: "Retry-After")) {
+                           http.value(forHTTPHeaderField: "Retry-After")
+                       ) {
                         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     }
                     lastError = .serverError(http.statusCode)
@@ -612,7 +613,6 @@ public final class OAuthManager: ObservableObject {
         UserDefaults.standard.set(true, forKey: migrationKey)
         AppLogger.oauth.info("Migrated Keychain items to ThisDeviceOnly accessibility")
     }
-
 }
 
 // MARK: - Base64URL encoding (RFC 7636)

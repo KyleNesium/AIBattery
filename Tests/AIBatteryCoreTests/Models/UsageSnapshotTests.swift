@@ -4,7 +4,6 @@ import Testing
 
 @Suite("UsageSnapshot")
 struct UsageSnapshotTests {
-
     private func makeSnapshot(
         modelTokens: [ModelTokenSummary] = [],
         rateLimits: RateLimitUsage? = nil,
@@ -297,7 +296,7 @@ struct UsageSnapshotTests {
             fiveHourReset: nil,
             fiveHourStatus: "allowed",
             sevenDayUtilization: 1.0,
-            sevenDayReset: Date().addingTimeInterval(3600),
+            sevenDayReset: Date().addingTimeInterval(3_600),
             sevenDayStatus: "throttled",
             overallStatus: "throttled"
         )
@@ -322,7 +321,6 @@ struct UsageSnapshotTests {
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [session])
         #expect(snapshot.autoResolvedMode == .fiveHour)
     }
-
 
     @Test func autoResolvedMode_throttled_overridesEvenFullContext() {
         let limits = RateLimitUsage(
@@ -357,7 +355,6 @@ struct UsageSnapshotTests {
         #expect(snapshot.autoResolvedMode == .sevenDay)
     }
 
-
     // MARK: - autoResolvedMode edge cases
 
     @Test func autoResolvedMode_exactly80_triggersRateLimitEscalation() {
@@ -383,7 +380,6 @@ struct UsageSnapshotTests {
         let snapshot = makeSnapshot(topSessionHealths: [session])
         #expect(snapshot.autoResolvedMode == .fiveHour)
     }
-
 
     // MARK: - autoResolvedMode escalation ladder
 
@@ -548,7 +544,7 @@ struct UsageSnapshotTests {
             overallStatus: "allowed"
         )
         let snapshot = makeSnapshot(rateLimits: limits)
-        let candidate = snapshot.autoResolvedMode  // Tier 4 binding = .sevenDay
+        let candidate = snapshot.autoResolvedMode // Tier 4 binding = .sevenDay
         let result = UsageSnapshot.applyHysteresis(
             candidate: candidate,
             previous: .fiveHour,
@@ -587,7 +583,7 @@ struct UsageSnapshotTests {
         let active = makeHealth(id: "s1", usagePercentage: 58.0)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
         // At 58% context (below 60%), autoResolvedMode returns Tier 4 binding
-        let candidate = snapshot.autoResolvedMode  // .fiveHour (binding)
+        let candidate = snapshot.autoResolvedMode // .fiveHour (binding)
         let result = UsageSnapshot.applyHysteresis(
             candidate: candidate,
             previous: .contextHealth,
@@ -606,7 +602,7 @@ struct UsageSnapshotTests {
         )
         let active = makeHealth(id: "s1", usagePercentage: 49.0)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
-        let candidate = snapshot.autoResolvedMode  // .fiveHour (binding)
+        let candidate = snapshot.autoResolvedMode // .fiveHour (binding)
         let result = UsageSnapshot.applyHysteresis(
             candidate: candidate,
             previous: .contextHealth,
@@ -643,7 +639,7 @@ struct UsageSnapshotTests {
             overallStatus: "allowed"
         )
         let snapshot = makeSnapshot(rateLimits: limits)
-        let candidate = snapshot.autoResolvedMode  // .fiveHour (Tier 2, RL >=80%)
+        let candidate = snapshot.autoResolvedMode // .fiveHour (Tier 2, RL >=80%)
         // previous is also .fiveHour but from Tier 4 — same mode, so no conflict
         // Test a case where candidate differs: previous was .sevenDay binding, now .fiveHour escalation
         let result = UsageSnapshot.applyHysteresis(
@@ -668,7 +664,7 @@ struct UsageSnapshotTests {
         )
         let active = makeHealth(id: "s1", usagePercentage: 55.0)
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [active])
-        let candidate = snapshot.autoResolvedMode  // .fiveHour (Tier 1 throttle)
+        let candidate = snapshot.autoResolvedMode // .fiveHour (Tier 1 throttle)
         let result = UsageSnapshot.applyHysteresis(
             candidate: candidate,
             previous: .contextHealth,
@@ -706,7 +702,7 @@ struct UsageSnapshotTests {
         let stale = makeHealth(id: "s1", usagePercentage: 55.0, band: .orange,
                                lastActivity: Date().addingTimeInterval(-31 * 60))
         let snapshot = makeSnapshot(rateLimits: limits, topSessionHealths: [stale])
-        let candidate = snapshot.autoResolvedMode  // .fiveHour (stale session -> Tier 4)
+        let candidate = snapshot.autoResolvedMode // .fiveHour (stale session -> Tier 4)
         let result = UsageSnapshot.applyHysteresis(
             candidate: candidate,
             previous: .contextHealth,
@@ -725,7 +721,7 @@ struct UsageSnapshotTests {
             overallStatus: "allowed"
         )
         let snapshot = makeSnapshot(rateLimits: limits)
-        let candidate = snapshot.autoResolvedMode  // .fiveHour (Tier 4 binding, RL<80%)
+        let candidate = snapshot.autoResolvedMode // .fiveHour (Tier 4 binding, RL<80%)
         let result = UsageSnapshot.applyHysteresis(
             candidate: candidate,
             previous: .sevenDay,
@@ -743,7 +739,7 @@ struct UsageSnapshotTests {
             overallStatus: "allowed"
         )
         let snapshot = makeSnapshot(rateLimits: limits)
-        let candidate = snapshot.autoResolvedMode  // .fiveHour (binding)
+        let candidate = snapshot.autoResolvedMode // .fiveHour (binding)
         let result = UsageSnapshot.applyHysteresis(
             candidate: candidate,
             previous: .sevenDay,
@@ -782,8 +778,8 @@ struct UsageSnapshotTests {
     @Test func trendDirection_13days_insufficientForSymmetricComparison() {
         // 13 days is not enough for a full 7-vs-7 comparison
         let activity = makeDailyActivity(daysBack: 13, messages: [
-            10, 10, 10, 10, 10, 10,  // 6 days of "last week"
-            50, 50, 50, 50, 50, 50, 50,  // 7 days of "this week"
+            10, 10, 10, 10, 10, 10, // 6 days of "last week"
+            50, 50, 50, 50, 50, 50, 50, // 7 days of "this week"
         ])
         let snapshot = makeSnapshot(dailyActivity: activity)
         #expect(snapshot.trendDirection == .flat)
@@ -792,8 +788,8 @@ struct UsageSnapshotTests {
     @Test func trendDirection_upWhenThisWeekHigher() {
         // Last week: 10/day avg, This week: 50/day avg → clearly up
         let activity = makeDailyActivity(daysBack: 14, messages: [
-            10, 10, 10, 10, 10, 10, 10,  // last week
-            50, 50, 50, 50, 50, 50, 50,  // this week
+            10, 10, 10, 10, 10, 10, 10, // last week
+            50, 50, 50, 50, 50, 50, 50, // this week
         ])
         let snapshot = makeSnapshot(dailyActivity: activity)
         #expect(snapshot.trendDirection == .up)
@@ -801,8 +797,8 @@ struct UsageSnapshotTests {
 
     @Test func trendDirection_downWhenThisWeekLower() {
         let activity = makeDailyActivity(daysBack: 14, messages: [
-            50, 50, 50, 50, 50, 50, 50,  // last week
-            10, 10, 10, 10, 10, 10, 10,  // this week
+            50, 50, 50, 50, 50, 50, 50, // last week
+            10, 10, 10, 10, 10, 10, 10, // this week
         ])
         let snapshot = makeSnapshot(dailyActivity: activity)
         #expect(snapshot.trendDirection == .down)
@@ -824,12 +820,12 @@ struct UsageSnapshotTests {
         #expect(snapshot.busiestDayOfWeek == nil)
     }
 
-    @Test func busiestDayOfWeek_returnsDay() {
+    @Test func busiestDayOfWeek_returnsDay() throws {
         let activity = makeDailyActivity(daysBack: 7, messages: [10, 10, 10, 100, 10, 10, 10])
         let snapshot = makeSnapshot(dailyActivity: activity)
         let busiest = snapshot.busiestDayOfWeek
         #expect(busiest != nil)
-        #expect(busiest!.averageCount > 0)
+        #expect(try #require(busiest?.averageCount) > 0)
     }
 
     // MARK: - TrendDirection symbols
@@ -850,19 +846,19 @@ struct UsageSnapshotTests {
         #expect(stats.busiestDay == nil)
     }
 
-    @Test func activityStats_singleWeek() {
+    @Test func activityStats_singleWeek() throws {
         let activity = makeDailyActivity(daysBack: 7, messages: [10, 20, 30, 40, 50, 60, 70])
         let stats = UsageSnapshot.computeActivityStats(activity)
         #expect(stats.average == 40) // 280 / 7
         #expect(stats.trend == .flat) // < 14 days
         #expect(stats.busiestDay != nil)
-        #expect(stats.busiestDay!.averageCount > 0)
+        #expect(try #require(stats.busiestDay?.averageCount) > 0)
     }
 
     @Test func activityStats_multiWeek_trendUp() {
         let activity = makeDailyActivity(daysBack: 14, messages: [
-            10, 10, 10, 10, 10, 10, 10,  // last week
-            50, 50, 50, 50, 50, 50, 50,  // this week
+            10, 10, 10, 10, 10, 10, 10, // last week
+            50, 50, 50, 50, 50, 50, 50, // this week
         ])
         let stats = UsageSnapshot.computeActivityStats(activity)
         #expect(stats.average == 50) // last 7: all 50

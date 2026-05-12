@@ -4,7 +4,6 @@ import Testing
 
 @Suite("ClaudePaths")
 struct ClaudePathsTests {
-
     @Test func statsCache_endsWithExpectedSuffix() {
         #expect(ClaudePaths.statsCache.path.hasSuffix(".claude/stats-cache.json"))
     }

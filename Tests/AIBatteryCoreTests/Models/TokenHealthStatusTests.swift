@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("TokenHealthStatus")
 struct TokenHealthStatusTests {
-
     // MARK: - HealthBand raw values
 
     @Test func healthBand_rawValues() {
@@ -21,16 +20,16 @@ struct TokenHealthStatusTests {
         #expect(status.suggestedAction == nil)
     }
 
-    @Test func suggestedAction_orange() {
+    @Test func suggestedAction_orange() throws {
         let status = makeStatus(band: .orange)
         #expect(status.suggestedAction != nil)
-        #expect(status.suggestedAction!.contains("trimming"))
+        #expect(try #require(status.suggestedAction?.contains("trimming")))
     }
 
-    @Test func suggestedAction_red() {
+    @Test func suggestedAction_red() throws {
         let status = makeStatus(band: .red)
         #expect(status.suggestedAction != nil)
-        #expect(status.suggestedAction!.contains("new conversation"))
+        #expect(try #require(status.suggestedAction?.contains("new conversation")))
     }
 
     @Test func suggestedAction_unknown() {

@@ -23,20 +23,20 @@ struct DisplaySettingsSection: View {
                         idleSessionMinutes = Self.idleSteps[max(0, min(Int(idleSliderPosition) - 1, Self.idleSteps.count - 1))]
                     }
                 }
-                    .onAppear {
-                        if let idx = Self.idleSteps.firstIndex(of: idleSessionMinutes) {
-                            idleSliderPosition = Double(idx + 1)
-                        } else {
-                            idleSliderPosition = 6
-                        }
+                .onAppear {
+                    if let idx = Self.idleSteps.firstIndex(of: idleSessionMinutes) {
+                        idleSliderPosition = Double(idx + 1)
+                    } else {
+                        idleSliderPosition = 6
                     }
-                    .onChange(of: idleSessionMinutes) { newValue in
-                        if let idx = Self.idleSteps.firstIndex(of: newValue) {
-                            idleSliderPosition = Double(idx + 1)
-                        }
+                }
+                .onChange(of: idleSessionMinutes) { newValue in
+                    if let idx = Self.idleSteps.firstIndex(of: newValue) {
+                        idleSliderPosition = Double(idx + 1)
                     }
-                    .accessibilityLabel("Hide idle sessions")
-                    .accessibilityValue(idleLabelForPosition)
+                }
+                .accessibilityLabel("Hide idle sessions")
+                .accessibilityValue(idleLabelForPosition)
                 Text(idleLabelForPosition)
                     .font(Typography.monoCaption)
                     .frame(width: Layout.sliderValueLabel, alignment: .trailing)

@@ -5,7 +5,6 @@ import Testing
 @Suite("AccountStore")
 @MainActor
 struct AccountStoreTests {
-
     /// Clean UserDefaults before each test to avoid cross-contamination.
     private func makeCleanStore() -> AccountStore {
         UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.accounts)
@@ -165,7 +164,7 @@ struct AccountStoreTests {
 
     @Test func persistence_surviesReinit() {
         let store = makeCleanStore()
-        let r1 = AccountRecord(id: "org-1", displayName: "Kyle", billingType: "pro", addedAt: Date(timeIntervalSince1970: 1700000000))
+        let r1 = AccountRecord(id: "org-1", displayName: "Kyle", billingType: "pro", addedAt: Date(timeIntervalSince1970: 1_700_000_000))
         store.add(r1)
 
         let store2 = AccountStore()
@@ -269,8 +268,8 @@ struct AccountStoreTests {
 
     @Test func update_mergePreservesEarliestAddedAt() {
         let store = makeCleanStore()
-        let earlier = Date(timeIntervalSince1970: 1000)
-        let later = Date(timeIntervalSince1970: 2000)
+        let earlier = Date(timeIntervalSince1970: 1_000)
+        let later = Date(timeIntervalSince1970: 2_000)
         let r1 = AccountRecord(id: "org-real", displayName: nil, billingType: nil, addedAt: earlier)
         let r2 = AccountRecord(id: "pending-abc", displayName: nil, billingType: nil, addedAt: later)
         store.add(r1)
@@ -355,8 +354,8 @@ struct AccountStoreTests {
 
     @Test func persistence_twoAccountsSurviveReinit() {
         let store = makeCleanStore()
-        let r1 = AccountRecord(id: "org-1", displayName: "A", billingType: nil, addedAt: Date(timeIntervalSince1970: 1700000000))
-        let r2 = AccountRecord(id: "org-2", displayName: "B", billingType: nil, addedAt: Date(timeIntervalSince1970: 1700000000))
+        let r1 = AccountRecord(id: "org-1", displayName: "A", billingType: nil, addedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let r2 = AccountRecord(id: "org-2", displayName: "B", billingType: nil, addedAt: Date(timeIntervalSince1970: 1_700_000_000))
         store.add(r1)
         store.add(r2)
         store.setActive(id: "org-2")

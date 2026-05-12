@@ -5,7 +5,6 @@ import Foundation
 @Suite("SessionLogReader — TTL-based Discovery Fallback")
 @MainActor
 struct SessionLogReaderDiscoveryTests {
-
     // MARK: - Helpers
 
     private func makeProjectsDir() throws -> URL {

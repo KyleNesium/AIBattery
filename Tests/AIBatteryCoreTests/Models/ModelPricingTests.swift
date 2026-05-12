@@ -3,7 +3,6 @@ import Testing
 
 @Suite("ModelPricing")
 struct ModelPricingTests {
-
     // MARK: - Lookup
 
     @Test func pricing_opus4() {
@@ -96,7 +95,7 @@ struct ModelPricingTests {
     }
 
     @Test func totalCost_unknownModel() {
-        let model = ModelTokenSummary(id: "unknown", displayName: "Unknown", inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0)
+        let model = ModelTokenSummary(id: "unknown", displayName: "Unknown", inputTokens: 1_000, outputTokens: 1_000, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0)
         #expect(ModelPricing.totalCost(for: [model]) == 0)
     }
 
@@ -129,7 +128,7 @@ struct ModelPricingTests {
         let pricing = ModelPricing(inputPerMillion: 15, outputPerMillion: 75, cacheWritePerMillion: 1.875, cacheReadPerMillion: 1.50)
         let cost = pricing.cost(input: 100_000_000, output: 10_000_000, cacheRead: 50_000_000, cacheWrite: 5_000_000)
         // input: 15 × 100 = 1500, output: 75 × 10 = 750, cacheRead: 1.50 × 50 = 75, cacheWrite: 1.875 × 5 = 9.375
-        #expect(abs(cost - 2334.375) < 0.01)
+        #expect(abs(cost - 2_334.375) < 0.01)
     }
 
     // MARK: - Format edge cases

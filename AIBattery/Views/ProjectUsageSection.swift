@@ -55,19 +55,19 @@ struct ProjectUsageSection: View {
 
             if !collapsed && !snapshot.projectTokens.isEmpty {
                 VStack(alignment: .leading, spacing: Spacing.gap) {
-                // Search field when expanded
-                if showAll {
-                    searchField
-                }
+                    // Search field when expanded
+                    if showAll {
+                        searchField
+                    }
 
-                ForEach(Array(displayedProjects.enumerated()), id: \.element.id) { index, project in
-                    projectRow(project, index: index)
-                }
+                    ForEach(Array(displayedProjects.enumerated()), id: \.element.id) { index, project in
+                        projectRow(project, index: index)
+                    }
 
-                // Combined controls row: show more/less + sort
-                if hasMore || snapshot.projectTokens.count > 1 {
-                    controlsRow
-                }
+                    // Combined controls row: show more/less + sort
+                    if hasMore || snapshot.projectTokens.count > 1 {
+                        controlsRow
+                    }
                 }
                 .transition(MotionConstants.expandTransition)
             }
@@ -230,19 +230,19 @@ private enum ProjectSortMode: CaseIterable {
 
     var label: String {
         switch self {
-        case .tokensDesc: return "tokens"
-        case .costDesc: return "cost ↓"
-        case .costAsc: return "cost ↑"
-        case .name: return "name"
+        case .tokensDesc: "tokens"
+        case .costDesc: "cost ↓"
+        case .costAsc: "cost ↑"
+        case .name: "name"
         }
     }
 
     var icon: String {
         switch self {
-        case .tokensDesc: return "arrow.down"
-        case .costDesc: return "arrow.down"
-        case .costAsc: return "arrow.up"
-        case .name: return "textformat.abc"
+        case .tokensDesc: "arrow.down"
+        case .costDesc: "arrow.down"
+        case .costAsc: "arrow.up"
+        case .name: "textformat.abc"
         }
     }
 

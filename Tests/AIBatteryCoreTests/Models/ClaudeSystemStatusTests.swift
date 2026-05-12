@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("ClaudeSystemStatus")
 struct ClaudeSystemStatusTests {
-
     // MARK: - StatusIndicator.from()
 
     @Test func from_operational() {

@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("TokenHealthMonitor")
 struct TokenHealthMonitorTests {
-
     let monitor = TokenHealthMonitor()
 
     // MARK: - Band classification
@@ -54,69 +53,69 @@ struct TokenHealthMonitorTests {
 
     // MARK: - Overflow guards
 
-    @Test func assess_overflowCapsAtContextWindow() {
+    @Test func assess_overflowCapsAtContextWindow() throws {
         // Absurdly large input — should be capped
         let entries = [makeEntry(sessionId: "s1", input: 999_999_999, output: 999_999_999)]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        #expect(result!.totalUsed <= result!.contextWindow)
+        #expect(try #require(result?.totalUsed) <= result!.contextWindow)
     }
 
     // MARK: - Turn count warnings
 
-    @Test func assess_infoTurnWarning() {
+    @Test func assess_infoTurnWarning() throws {
         // 16 turns → info warning (> 15, ≤ 25) — informational, not actionable
         let entries = (0..<16).map { i in
-            makeEntry(sessionId: "s1", input: 1000 * (i + 1), output: 100, timestamp: Date().addingTimeInterval(Double(i) * 60))
+            makeEntry(sessionId: "s1", input: 1_000 * (i + 1), output: 100, timestamp: Date().addingTimeInterval(Double(i) * 60))
         }
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
         #expect(result?.turnCount == 16)
-        let turnWarnings = result!.warnings.filter { $0.message.contains("turns") }
+        let turnWarnings = try #require(result?.warnings.filter { $0.message.contains("turns") })
         #expect(turnWarnings.count == 1)
         #expect(turnWarnings.first?.severity == .info)
     }
 
-    @Test func assess_strongTurnWarning() {
+    @Test func assess_strongTurnWarning() throws {
         // 26 turns → strong warning (> 25)
         let entries = (0..<26).map { i in
             makeEntry(sessionId: "s1", input: 500 * (i + 1), output: 50, timestamp: Date().addingTimeInterval(Double(i) * 60))
         }
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let turnWarnings = result!.warnings.filter { $0.message.contains("turns") }
+        let turnWarnings = try #require(result?.warnings.filter { $0.message.contains("turns") })
         #expect(turnWarnings.count == 1)
         #expect(turnWarnings.first?.severity == .strong)
     }
 
-    @Test func assess_noTurnWarning() {
+    @Test func assess_noTurnWarning() throws {
         // 10 turns → no warning (≤ 15)
         let entries = (0..<10).map { i in
             makeEntry(sessionId: "s1", input: 500, output: 50, timestamp: Date().addingTimeInterval(Double(i) * 60))
         }
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let turnWarnings = result!.warnings.filter { $0.message.contains("turns") }
+        let turnWarnings = try #require(result?.warnings.filter { $0.message.contains("turns") })
         #expect(turnWarnings.isEmpty)
     }
 
     // MARK: - Input/output ratio warning
 
-    @Test func assess_highRatioWarning() {
+    @Test func assess_highRatioWarning() throws {
         // Input:output ratio > 20:1 → info severity (informational, not actionable)
         let entries = [makeEntry(sessionId: "s1", input: 50_000, output: 100)]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let ratioWarnings = result!.warnings.filter { $0.message.contains("ratio") }
+        let ratioWarnings = try #require(result?.warnings.filter { $0.message.contains("ratio") })
         #expect(ratioWarnings.count == 1)
         #expect(ratioWarnings.first?.severity == .info)
     }
 
-    @Test func assess_normalRatio_noWarning() {
+    @Test func assess_normalRatio_noWarning() throws {
         let entries = [makeEntry(sessionId: "s1", input: 5_000, output: 2_000)]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let ratioWarnings = result!.warnings.filter { $0.message.contains("ratio") }
+        let ratioWarnings = try #require(result?.warnings.filter { $0.message.contains("ratio") })
         #expect(ratioWarnings.isEmpty)
     }
 
@@ -124,9 +123,9 @@ struct TokenHealthMonitorTests {
 
     @Test func assessSessions_groupsBySessionId() {
         let entries = [
-            makeEntry(sessionId: "s1", input: 1000, output: 100),
-            makeEntry(sessionId: "s2", input: 2000, output: 200),
-            makeEntry(sessionId: "s1", input: 1500, output: 150),
+            makeEntry(sessionId: "s1", input: 1_000, output: 100),
+            makeEntry(sessionId: "s2", input: 2_000, output: 200),
+            makeEntry(sessionId: "s1", input: 1_500, output: 150),
         ]
         let results = monitor.assessSessions(entries: entries, topLimit: 10)
         #expect(results.top.count == 2)
@@ -142,7 +141,7 @@ struct TokenHealthMonitorTests {
 
     @Test func assessSessions_currentSessionAlwaysInTop() {
         // Current session is idle past cutoff but should still appear in top
-        let oldTime = Date().addingTimeInterval(-48 * 3600) // 48h ago
+        let oldTime = Date().addingTimeInterval(-48 * 3_600) // 48h ago
         let entries = [
             makeEntry(sessionId: "current", input: 50_000, output: 1_000, timestamp: oldTime),
         ]
@@ -154,12 +153,12 @@ struct TokenHealthMonitorTests {
 
     @Test func topSessions_excludesOldSessions() {
         let recentTime = Date()
-        let oldTime = Date().addingTimeInterval(-48 * 3600) // 48h ago
+        let oldTime = Date().addingTimeInterval(-48 * 3_600) // 48h ago
 
         // Entries sorted by timestamp ascending (as SessionLogReader delivers them)
         let entries = [
-            makeEntry(sessionId: "old", input: 2000, output: 200, timestamp: oldTime),
-            makeEntry(sessionId: "recent", input: 1000, output: 100, timestamp: recentTime),
+            makeEntry(sessionId: "old", input: 2_000, output: 200, timestamp: oldTime),
+            makeEntry(sessionId: "recent", input: 1_000, output: 100, timestamp: recentTime),
         ]
         let top = monitor.topSessions(entries: entries, limit: 5)
         // "recent" is current (entries.last) so always included; "old" excluded by 24h cutoff
@@ -171,9 +170,9 @@ struct TokenHealthMonitorTests {
         let now = Date()
         // s3 has highest input (most context consumed), then s2, then s1
         let entries = [
-            makeEntry(sessionId: "s1", input: 1000, output: 100, timestamp: now.addingTimeInterval(-3600)),
-            makeEntry(sessionId: "s2", input: 2000, output: 200, timestamp: now),
-            makeEntry(sessionId: "s3", input: 3000, output: 300, timestamp: now.addingTimeInterval(-7200)),
+            makeEntry(sessionId: "s1", input: 1_000, output: 100, timestamp: now.addingTimeInterval(-3_600)),
+            makeEntry(sessionId: "s2", input: 2_000, output: 200, timestamp: now),
+            makeEntry(sessionId: "s3", input: 3_000, output: 300, timestamp: now.addingTimeInterval(-7_200)),
         ]
         let top = monitor.topSessions(entries: entries, limit: 5)
         #expect(top.count == 3)
@@ -186,7 +185,7 @@ struct TokenHealthMonitorTests {
     @Test func topSessions_respectsLimit() {
         let now = Date()
         let entries = (0..<10).map { i in
-            makeEntry(sessionId: "s\(i)", input: 1000, output: 100, timestamp: now.addingTimeInterval(Double(-i) * 60))
+            makeEntry(sessionId: "s\(i)", input: 1_000, output: 100, timestamp: now.addingTimeInterval(Double(-i) * 60))
         }
         let top = monitor.topSessions(entries: entries, limit: 3)
         #expect(top.count == 3)
@@ -195,20 +194,20 @@ struct TokenHealthMonitorTests {
     // MARK: - Metadata extraction
 
     @Test func assess_extractsProjectName() {
-        let entries = [makeEntry(sessionId: "s1", input: 1000, output: 100, cwd: "/Users/test/MyProject")]
+        let entries = [makeEntry(sessionId: "s1", input: 1_000, output: 100, cwd: "/Users/test/MyProject")]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result?.projectName == "MyProject")
     }
 
     @Test func assess_extractsGitBranch() {
-        let entries = [makeEntry(sessionId: "s1", input: 1000, output: 100, cwd: "/Users/test/MyProject", gitBranch: "feat/tests")]
+        let entries = [makeEntry(sessionId: "s1", input: 1_000, output: 100, cwd: "/Users/test/MyProject", gitBranch: "feat/tests")]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result?.gitBranch == "feat/tests")
     }
 
     // MARK: - Velocity calculation
 
-    @Test func assess_velocityCalculated() {
+    @Test func assess_velocityCalculated() throws {
         let start = Date()
         let entries = [
             makeEntry(sessionId: "s1", input: 5_000, output: 500, timestamp: start),
@@ -217,7 +216,7 @@ struct TokenHealthMonitorTests {
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result?.tokensPerMinute != nil)
         // totalUsed = 10K + 500 latestOutput = 10.5K, duration = 2 min → ~5250/min
-        #expect(result!.tokensPerMinute! > 0)
+        #expect(try #require(result?.tokensPerMinute) > 0)
     }
 
     @Test func assess_noVelocity_singleEntry() {
@@ -239,29 +238,29 @@ struct TokenHealthMonitorTests {
 
     // MARK: - Anomaly detection
 
-    @Test func assess_zeroOutput_manyTurns() {
+    @Test func assess_zeroOutput_manyTurns() throws {
         // 5 turns with zero output → warning
         let entries = (0..<5).map { i in
-            makeEntry(sessionId: "s1", input: 1000 * (i + 1), output: 0, timestamp: Date().addingTimeInterval(Double(i) * 120))
+            makeEntry(sessionId: "s1", input: 1_000 * (i + 1), output: 0, timestamp: Date().addingTimeInterval(Double(i) * 120))
         }
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let zeroOutputWarnings = result!.warnings.filter { $0.message.contains("No output") }
+        let zeroOutputWarnings = try #require(result?.warnings.filter { $0.message.contains("No output") })
         #expect(zeroOutputWarnings.count == 1)
         #expect(zeroOutputWarnings.first?.severity == .strong)
     }
 
-    @Test func assess_zeroOutput_fewTurns_noWarning() {
+    @Test func assess_zeroOutput_fewTurns_noWarning() throws {
         // 2 turns with zero output → below threshold, no warning
         let entries = (0..<2).map { i in
-            makeEntry(sessionId: "s1", input: 1000 * (i + 1), output: 0, timestamp: Date().addingTimeInterval(Double(i) * 120))
+            makeEntry(sessionId: "s1", input: 1_000 * (i + 1), output: 0, timestamp: Date().addingTimeInterval(Double(i) * 120))
         }
         let result = monitor.assessCurrentSession(entries: entries)
-        let zeroOutputWarnings = result!.warnings.filter { $0.message.contains("No output") }
+        let zeroOutputWarnings = try #require(result?.warnings.filter { $0.message.contains("No output") })
         #expect(zeroOutputWarnings.isEmpty)
     }
 
-    @Test func assess_staleSession_nonGreenBand() {
+    @Test func assess_staleSession_nonGreenBand() throws {
         // Session with last activity 45 min ago and orange band → stale warning
         // Need totalUsed > 60% of 1M = 600K for orange band
         let staleTime = Date().addingTimeInterval(-45 * 60)
@@ -271,11 +270,11 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let staleWarnings = result!.warnings.filter { $0.message.contains("idle") }
+        let staleWarnings = try #require(result?.warnings.filter { $0.message.contains("idle") })
         #expect(staleWarnings.count == 1)
     }
 
-    @Test func assess_staleSession_greenBand_noWarning() {
+    @Test func assess_staleSession_greenBand_noWarning() throws {
         // Green band session idle 45 min → no stale warning (green is fine)
         let staleTime = Date().addingTimeInterval(-45 * 60)
         let entries = [
@@ -283,7 +282,7 @@ struct TokenHealthMonitorTests {
             makeEntry(sessionId: "s1", input: 1_000, output: 100, timestamp: staleTime),
         ]
         let result = monitor.assessCurrentSession(entries: entries)
-        let staleWarnings = result!.warnings.filter { $0.message.contains("idle") }
+        let staleWarnings = try #require(result?.warnings.filter { $0.message.contains("idle") })
         #expect(staleWarnings.isEmpty)
     }
 
@@ -310,7 +309,7 @@ struct TokenHealthMonitorTests {
 
     // MARK: - Rapid consumption
 
-    @Test func assess_rapidConsumption_triggered() {
+    @Test func assess_rapidConsumption_triggered() throws {
         // 2 entries within 30 seconds, high token usage → warning
         let start = Date()
         let entries = [
@@ -319,11 +318,11 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let rapidWarnings = result!.warnings.filter { $0.message.contains("Rapid") }
+        let rapidWarnings = try #require(result?.warnings.filter { $0.message.contains("Rapid") })
         #expect(rapidWarnings.count == 1)
     }
 
-    @Test func assess_rapidConsumption_notTriggered_longSession() {
+    @Test func assess_rapidConsumption_notTriggered_longSession() throws {
         // 2 entries over 2 minutes — not rapid
         let start = Date()
         let entries = [
@@ -332,11 +331,11 @@ struct TokenHealthMonitorTests {
         ]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let rapidWarnings = result!.warnings.filter { $0.message.contains("Rapid") }
+        let rapidWarnings = try #require(result?.warnings.filter { $0.message.contains("Rapid") })
         #expect(rapidWarnings.isEmpty)
     }
 
-    @Test func assess_rapidConsumption_customConfig() {
+    @Test func assess_rapidConsumption_customConfig() throws {
         var config = TokenHealthConfig()
         config.rapidConsumptionSeconds = 120
         config.rapidConsumptionTokens = 10_000
@@ -349,7 +348,7 @@ struct TokenHealthMonitorTests {
         ]
         let result = customMonitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        let rapidWarnings = result!.warnings.filter { $0.message.contains("Rapid") }
+        let rapidWarnings = try #require(result?.warnings.filter { $0.message.contains("Rapid") })
         #expect(rapidWarnings.count == 1)
     }
 

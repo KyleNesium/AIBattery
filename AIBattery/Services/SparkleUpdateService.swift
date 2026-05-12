@@ -41,7 +41,9 @@ public final class SparkleUpdateService {
     public var lastError: String? { delegate.lastError }
 
     /// Clear the Sparkle error state.
-    public func clearError() { delegate.clearError() }
+    public func clearError() {
+        delegate.clearError()
+    }
 
     /// Trigger the Sparkle update flow. Temporarily becomes a regular app
     /// so Sparkle's dialog appears in front (LSUIElement apps have no dock presence).

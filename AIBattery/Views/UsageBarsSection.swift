@@ -58,7 +58,7 @@ struct UsageBar: View {
     private var displayPercent: Double { isThrottled ? max(percent, 100) : percent }
 
     private var headerTooltip: String {
-        var parts: [String] = ["\(label) rate limit: \(Int(displayPercent))% used"]
+        var parts = ["\(label) rate limit: \(Int(displayPercent))% used"]
         if isBinding { parts.append("This window is the binding constraint") }
         if isThrottled { parts.append("Currently rate limited") }
         if let reset = resetsAt {
@@ -113,69 +113,69 @@ struct UsageBar: View {
             }
 
             GaugeBar(percent: displayPercent, barColor: ThemeColors.barColor(percent: displayPercent))
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(label) rate limit usage \(Int(displayPercent)) percent")
-            .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - displayPercent))) percent remaining")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(label) rate limit usage \(Int(displayPercent)) percent")
+                .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - displayPercent))) percent remaining")
 
             // TimelineView ticks every second when reset is <60s away for live countdown.
             TimelineView(.periodic(from: .now, by: resetTickInterval)) { context in
-            let now = context.date
-            let resetDiff = resetsAt.map { $0.timeIntervalSince(now) }
-            let expired = (resetDiff ?? 1) <= 0
-            HStack {
-                // Left side: time to limit / status
-                if wasExhausted && expired && displayPercent < 1 {
-                    HStack(spacing: Spacing.inner) {
-                        Image(systemName: "sparkles")
+                let now = context.date
+                let resetDiff = resetsAt.map { $0.timeIntervalSince(now) }
+                let expired = (resetDiff ?? 1) <= 0
+                HStack {
+                    // Left side: time to limit / status
+                    if wasExhausted && expired && displayPercent < 1 {
+                        HStack(spacing: Spacing.inner) {
+                            Image(systemName: "sparkles")
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.success)
+                            Text("Reset")
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.success)
+                        }
+                    } else if isThrottled {
+                        Text("Throttled")
                             .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.success)
-                        Text("Reset")
+                            .foregroundStyle(ThemeColors.danger)
+                    } else if displayPercent >= 100 {
+                        Text("Limit reached")
                             .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.success)
-                    }
-                } else if isThrottled {
-                    Text("Throttled")
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.danger)
-                } else if displayPercent >= 100 {
-                    Text("Limit reached")
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.danger)
-                } else if let estimate = estimatedTimeToLimit {
-                    let estimateText = "~\(DurationFormatter.compact(estimate)) to limit"
-                    Text(estimateText)
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.caution)
-                        .copyable(estimateText)
-                        .help("Estimated time until rate limit based on current burn rate")
-                } else {
-                    // No burn rate estimate yet — show remaining percentage
-                    let remainingText = "\(max(0, Int(100 - displayPercent)))% remaining"
-                    Text(remainingText)
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
-                        .copyable(remainingText)
-                }
-
-                Spacer()
-
-                // Right side: reset countdown (always shown when available)
-                if let diff = resetDiff {
-                    if diff > 0 {
-                        let resetText = "Resets in \(DurationFormatter.compact(diff))"
-                        Text(resetText)
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .copyable(resetText)
-                    } else if wasExhausted {
-                        // Reset time is in the past — window is rolling over
-                        Text("Resetting…")
+                            .foregroundStyle(ThemeColors.danger)
+                    } else if let estimate = estimatedTimeToLimit {
+                        let estimateText = "~\(DurationFormatter.compact(estimate)) to limit"
+                        Text(estimateText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.caution)
-                            .help("Rate limit window is rolling over — values update shortly")
+                            .copyable(estimateText)
+                            .help("Estimated time until rate limit based on current burn rate")
+                    } else {
+                        // No burn rate estimate yet — show remaining percentage
+                        let remainingText = "\(max(0, Int(100 - displayPercent)))% remaining"
+                        Text(remainingText)
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                            .copyable(remainingText)
+                    }
+
+                    Spacer()
+
+                    // Right side: reset countdown (always shown when available)
+                    if let diff = resetDiff {
+                        if diff > 0 {
+                            let resetText = "Resets in \(DurationFormatter.compact(diff))"
+                            Text(resetText)
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
+                                .copyable(resetText)
+                        } else if wasExhausted {
+                            // Reset time is in the past — window is rolling over
+                            Text("Resetting…")
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.caution)
+                                .help("Rate limit window is rolling over — values update shortly")
+                        }
                     }
                 }
-            }
             } // TimelineView
         }
     }

@@ -251,7 +251,7 @@ final class RateLimitFetcher {
         let body: [String: Any] = [
             "model": model,
             "messages": [["role": "user", "content": "."]],
-            "max_tokens": 1
+            "max_tokens": 1,
         ]
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
             AppLogger.network.warning("RateLimitFetcher: failed to serialize request body")
@@ -648,5 +648,4 @@ final class RateLimitFetcher {
             )
         }
     }
-
 }

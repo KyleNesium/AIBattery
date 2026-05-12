@@ -4,7 +4,6 @@ import Testing
 
 @Suite("AccountRecord")
 struct AccountRecordTests {
-
     @Test func isPendingIdentity_trueForPendingPrefix() {
         let record = AccountRecord(
             id: "pending-ABC123",
@@ -30,7 +29,7 @@ struct AccountRecordTests {
             id: "org-test",
             displayName: "Test User",
             billingType: "teams",
-            addedAt: Date(timeIntervalSince1970: 1700000000)
+            addedAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(AccountRecord.self, from: data)
@@ -54,7 +53,7 @@ struct AccountRecordTests {
             id: "pending-xyz",
             displayName: nil,
             billingType: nil,
-            addedAt: Date(timeIntervalSince1970: 1700000000)
+            addedAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(AccountRecord.self, from: data)

@@ -4,12 +4,11 @@ import Foundation
 
 @Suite("SessionLogReader")
 struct SessionLogReaderTests {
-
     // MARK: - AssistantUsageEntry model
 
     @Test func assistantUsageEntry_fieldsCorrect() {
         let entry = AssistantUsageEntry(
-            timestamp: Date(timeIntervalSince1970: 1000),
+            timestamp: Date(timeIntervalSince1970: 1_000),
             model: "claude-sonnet-4-5-20250929",
             messageId: "msg-123",
             inputTokens: 100,
@@ -58,7 +57,7 @@ struct SessionLogReaderTests {
         #expect(entry.message?.model == "claude-sonnet-4-5-20250929")
         #expect(entry.message?.usage?.inputTokens == 500)
         #expect(entry.message?.usage?.outputTokens == 120)
-        #expect(entry.message?.usage?.cacheReadInputTokens == 1000)
+        #expect(entry.message?.usage?.cacheReadInputTokens == 1_000)
         #expect(entry.message?.usage?.cacheCreationInputTokens == 0)
     }
 
@@ -398,7 +397,7 @@ struct SessionLogReaderTests {
         // Overwrite the file with a different entry.
         // Sleep ensures mod date changes (APFS has 1-second resolution for some APIs).
         Thread.sleep(forTimeInterval: 1.0)
-        try writeJSONL([assistantLine(messageId: "msg-001", inputTokens: 9999)], to: projectsDir)
+        try writeJSONL([assistantLine(messageId: "msg-001", inputTokens: 9_999)], to: projectsDir)
 
         // invalidate() with no scan running must mark dirty so next read re-scans.
         reader.invalidate()
@@ -406,7 +405,7 @@ struct SessionLogReaderTests {
         // Next read should pick up the changed file rather than returning the stale cache.
         let second = reader.readAllUsageEntries()
         #expect(second.count == 1)
-        #expect(second[0].inputTokens == 9999)
+        #expect(second[0].inputTokens == 9_999)
     }
 
     @Test func invalidate_afterScan_nextReadReturnsFreshData() throws {
@@ -445,7 +444,7 @@ struct SessionLogReaderTests {
         // Write entries with deliberately out-of-order timestamps across two files.
         try writeJSONL(
             [
-                assistantLine(messageId: "msg-late",  timestamp: "2026-02-17T12:00:00.000Z"),
+                assistantLine(messageId: "msg-late", timestamp: "2026-02-17T12:00:00.000Z"),
                 assistantLine(messageId: "msg-early", timestamp: "2026-02-17T08:00:00.000Z"),
             ],
             to: projectsDir,
@@ -695,7 +694,7 @@ struct SessionLogReaderTests {
 
     /// Simulates an old session file by backdating its modification date to yesterday.
     private func backdateFile(at url: URL) throws {
-        let yesterday = Date().addingTimeInterval(-86400)
+        let yesterday = Date().addingTimeInterval(-86_400)
         try FileManager.default.setAttributes([.modificationDate: yesterday], ofItemAtPath: url.path)
     }
 

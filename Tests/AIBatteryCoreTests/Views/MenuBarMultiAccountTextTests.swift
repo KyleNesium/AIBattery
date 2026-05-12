@@ -240,6 +240,7 @@ struct MenuBarMultiAccountTextTests {
     // bar into countdown mode.
 
     // MARK: - resolveDisplay end-to-end
+
     //
     // These tests exercise the full menu-bar decision (gate + builder + countdown
     // composition + single-account fallback) as one pure function. They are the
@@ -286,8 +287,8 @@ struct MenuBarMultiAccountTextTests {
         let active = Self.usage(fiveHourUtilization: 0.42)
         let result = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: true,
-            perAccount: [:],  // fan-out hasn't completed yet
-            order: ["a", "b"],  // 2 authenticated accounts
+            perAccount: [:], // fan-out hasn't completed yet
+            order: ["a", "b"], // 2 authenticated accounts
             activeRateLimits: active,
             activePercent: 42,
             metricMode: .fiveHour,
@@ -308,7 +309,7 @@ struct MenuBarMultiAccountTextTests {
         let active = Self.usage(fiveHourUtilization: 0.42)
         let result = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: true,
-            perAccount: ["a": active],  // only 1 fetched
+            perAccount: ["a": active], // only 1 fetched
             order: ["a", "b"],
             activeRateLimits: active,
             activePercent: 42,
@@ -336,7 +337,7 @@ struct MenuBarMultiAccountTextTests {
         )
         #expect(result.usedMultiAccount == true)
         #expect(result.text == "42%\u{00A0}|\u{00A0}87%")
-        #expect(result.percent == 87)  // worst across accounts
+        #expect(result.percent == 87) // worst across accounts
         #expect(result.isExhausted == false)
     }
 
@@ -364,8 +365,8 @@ struct MenuBarMultiAccountTextTests {
     func resolveDisplay_healthyAccounts_noCountdown() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         // Healthy: low utilization, future reset, not throttled.
-        let a = Self.usage(fiveHourUtilization: 0.42, fiveHourReset: now.addingTimeInterval(3600))
-        let b = Self.usage(fiveHourUtilization: 0.23, fiveHourReset: now.addingTimeInterval(3600))
+        let a = Self.usage(fiveHourUtilization: 0.42, fiveHourReset: now.addingTimeInterval(3_600))
+        let b = Self.usage(fiveHourUtilization: 0.23, fiveHourReset: now.addingTimeInterval(3_600))
         let result = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: true,
             perAccount: ["a": a, "b": b],
@@ -385,7 +386,7 @@ struct MenuBarMultiAccountTextTests {
     @Test("Multi-account: one account throttled → countdown mode kicks in")
     func resolveDisplay_oneThrottled_countdown() {
         let now = Date(timeIntervalSince1970: 1_000_000)
-        let reset = now.addingTimeInterval(300)  // 5 min away
+        let reset = now.addingTimeInterval(300) // 5 min away
         let a = Self.usage(fiveHourUtilization: 0.42)
         let throttled = Self.usage(
             fiveHourUtilization: 1.0,
@@ -451,7 +452,7 @@ struct MenuBarMultiAccountTextTests {
             countdownResetDate: Self.countdownReset
         )
         #expect(result.usedMultiAccount == true)
-        #expect(result.percent == 85)  // floor at active, not the multi.worstPercent of 85
+        #expect(result.percent == 85) // floor at active, not the multi.worstPercent of 85
     }
 
     @Test("Toggle on, 1 authenticated account: shouldRender false, single-account fallback")

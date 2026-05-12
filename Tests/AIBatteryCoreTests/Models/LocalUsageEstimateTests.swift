@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("LocalUsageEstimate")
 struct LocalUsageEstimateTests {
-
     // MARK: - calibrateFrom429 policy
 
     @MainActor
@@ -41,7 +40,7 @@ struct LocalUsageEstimateTests {
         resetState()
         defer { resetState() }
 
-        LocalUsageEstimate.latestFiveHourTokens = 50_000  // below 100_000 floor
+        LocalUsageEstimate.latestFiveHourTokens = 50_000 // below 100_000 floor
         LocalUsageEstimate.calibrateFrom429()
 
         #expect(LocalUsageEstimate.fiveHourLimit == 0)

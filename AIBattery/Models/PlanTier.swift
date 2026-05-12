@@ -6,18 +6,18 @@ import Foundation
 /// estimates. They serve as defaults until auto-calibrated by a 429 event or
 /// restored API utilization headers (see `LocalUsageEstimate.calibrate`).
 enum PlanTier: String, CaseIterable, Codable {
-    case pro = "pro"
-    case max5x = "max5x"
-    case max20x = "max20x"
-    case team = "team"
+    case pro
+    case max5x
+    case max20x
+    case team
 
     /// User-facing label.
     var displayName: String {
         switch self {
-        case .pro: return "Pro"
-        case .max5x: return "Max 5×"
-        case .max20x: return "Max 20×"
-        case .team: return "Team"
+        case .pro: "Pro"
+        case .max5x: "Max 5×"
+        case .max20x: "Max 20×"
+        case .team: "Team"
         }
     }
 
@@ -25,20 +25,20 @@ enum PlanTier: String, CaseIterable, Codable {
     /// Community-derived estimates — auto-calibrated when a 429 is detected.
     var estimatedFiveHourLimit: Int {
         switch self {
-        case .pro: return 7_000_000
-        case .max5x: return 35_000_000
-        case .max20x: return 140_000_000
-        case .team: return 10_000_000
+        case .pro: 7_000_000
+        case .max5x: 35_000_000
+        case .max20x: 140_000_000
+        case .team: 10_000_000
         }
     }
 
     /// Estimated 7-day token budget (all token types: input + output + cache).
     var estimatedSevenDayLimit: Int {
         switch self {
-        case .pro: return 35_000_000
-        case .max5x: return 175_000_000
-        case .max20x: return 700_000_000
-        case .team: return 50_000_000
+        case .pro: 35_000_000
+        case .max5x: 175_000_000
+        case .max20x: 700_000_000
+        case .team: 50_000_000
         }
     }
 

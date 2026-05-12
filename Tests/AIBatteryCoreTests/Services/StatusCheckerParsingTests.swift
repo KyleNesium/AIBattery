@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("StatusChecker — incident escalation")
 struct StatusCheckerParsingTests {
-
     // MARK: - Incident impact parsing
 
     /// "none" impact should map to operational via StatusIndicator.from().

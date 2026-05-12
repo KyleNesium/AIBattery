@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("RateLimitFetcher")
 struct RateLimitFetcherTests {
-
     // MARK: - Fetch with no token returns empty
 
     @Test @MainActor func fetch_emptyToken_returnsEmptyResult() async {
@@ -31,20 +30,20 @@ struct RateLimitFetcherTests {
         let rlA = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 0.3,
-            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourReset: Date().addingTimeInterval(3_600),
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.1,
-            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayReset: Date().addingTimeInterval(86_400),
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
         let rlB = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 0.7,
-            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourReset: Date().addingTimeInterval(3_600),
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.4,
-            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayReset: Date().addingTimeInterval(86_400),
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
@@ -76,10 +75,10 @@ struct RateLimitFetcherTests {
         let rateLimits = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 0.5,
-            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourReset: Date().addingTimeInterval(3_600),
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.2,
-            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayReset: Date().addingTimeInterval(86_400),
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
@@ -107,17 +106,17 @@ struct RateLimitFetcherTests {
         let rateLimits = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 0.5,
-            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourReset: Date().addingTimeInterval(3_600),
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.2,
-            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayReset: Date().addingTimeInterval(86_400),
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
         let cached = APIFetchResult(
             rateLimits: rateLimits,
             profile: nil,
-            fetchedAt: Date(timeIntervalSinceNow: -7200)
+            fetchedAt: Date(timeIntervalSinceNow: -7_200)
         )
         fetcher.setCachedResult(cached, for: "test-account")
 
@@ -272,7 +271,7 @@ struct RateLimitFetcherTests {
         #expect(fetcher.observedModels == ["restored-model-a", "restored-model-b"])
     }
 
-    @Test @MainActor func setObservedModels_emptyList_fallsBackToUltimateFallback() async {
+    @Test @MainActor func setObservedModels_emptyList_fallsBackToUltimateFallback() {
         let fetcher = RateLimitFetcher()
         // No observed models set — fetch should still attempt the ultimate fallback
         // (We can't fully test network behavior, but we verify observedModels is empty)

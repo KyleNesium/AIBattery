@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("ProjectTokenSummary")
 struct ProjectTokenSummaryTests {
-
     @Test func totalTokens_sumsAllTypes() {
         let summary = ProjectTokenSummary(
             id: "test",
@@ -15,7 +14,7 @@ struct ProjectTokenSummaryTests {
             cacheWriteTokens: 400,
             estimatedCost: 0.50
         )
-        #expect(summary.totalTokens == 1000)
+        #expect(summary.totalTokens == 1_000)
     }
 
     @Test func totalTokens_zeroWhenAllZero() {
@@ -97,7 +96,7 @@ struct ProjectTokenSummaryTests {
             outputTokens: 200_000_000,
             cacheReadTokens: 800_000_000,
             cacheWriteTokens: 100_000_000,
-            estimatedCost: 5000.0
+            estimatedCost: 5_000.0
         )
         #expect(summary.totalTokens == 1_600_000_000)
     }

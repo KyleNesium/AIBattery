@@ -4,15 +4,14 @@ import Foundation
 
 @Suite("StatsCache")
 struct StatsCacheTests {
-
     // MARK: - DailyActivity
 
-    @Test func dailyActivity_parsedDate_valid() {
+    @Test func dailyActivity_parsedDate_valid() throws {
         let activity = DailyActivity(date: "2025-06-15", messageCount: 10, sessionCount: 2, toolCallCount: 5)
         #expect(activity.parsedDate != nil)
         let calendar = Calendar.current
-        let components = calendar.dateComponents([.year, .month, .day], from: activity.parsedDate!)
-        #expect(components.year == 2025)
+        let components = try calendar.dateComponents([.year, .month, .day], from: #require(activity.parsedDate))
+        #expect(components.year == 2_025)
         #expect(components.month == 6)
         #expect(components.day == 15)
     }

@@ -42,6 +42,7 @@ struct UsageSnapshot: Equatable {
             && lhs.busiestDayOfWeek?.name == rhs.busiestDayOfWeek?.name
             && lhs.busiestDayOfWeek?.averageCount == rhs.busiestDayOfWeek?.averageCount
     }
+
     /// Weekday symbols from the user's current calendar (Sunday = index 0).
     private static let weekdaySymbols = Calendar.current.weekdaySymbols
 
@@ -104,15 +105,15 @@ struct UsageSnapshot: Equatable {
     func percent(for mode: MetricMode) -> Double {
         switch mode {
         case .fiveHour:
-            return rateLimits?.fiveHourPercent
+            rateLimits?.fiveHourPercent
                 ?? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens)
                 ?? 0
         case .sevenDay:
-            return rateLimits?.sevenDayPercent
+            rateLimits?.sevenDayPercent
                 ?? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens)
                 ?? 0
         case .contextHealth:
-            return topSessionHealths.first?.usagePercentage
+            topSessionHealths.first?.usagePercentage
                 ?? tokenHealth?.usagePercentage
                 ?? 0
         }
@@ -125,7 +126,7 @@ struct UsageSnapshot: Equatable {
         guard let resetsAt else { return fiveHourTokens }
         let remaining = resetsAt.timeIntervalSinceNow
         guard remaining > 0 else { return fiveHourTokens }
-        let elapsed = 5 * 3600.0 - remaining
+        let elapsed = 5 * 3_600.0 - remaining
         guard elapsed > 0 else { return 0 }
         // Each bucket = 15 min. Bucket 19 = now, bucket 0 = 5h ago.
         let bucketsElapsed = min(20, Int(elapsed / 900) + 1)
@@ -139,7 +140,7 @@ struct UsageSnapshot: Equatable {
         guard let resetsAt else { return sevenDayTokens }
         let remaining = resetsAt.timeIntervalSinceNow
         guard remaining > 0 else { return sevenDayTokens }
-        let elapsed = 7 * 24 * 3600.0 - remaining
+        let elapsed = 7 * 24 * 3_600.0 - remaining
         guard elapsed > 0 else { return 0 }
         let windowStart = Date().addingTimeInterval(-elapsed)
         let windowStartKey = DateFormatters.dateKey.string(from: windowStart)
@@ -165,7 +166,7 @@ struct UsageSnapshot: Equatable {
 
     /// Maximum age (in seconds) for a session to be considered active.
     /// Sessions with no activity within this window are excluded from context health.
-    static let sessionStalenessInterval: TimeInterval = 30 * 60  // 30 minutes
+    static let sessionStalenessInterval: TimeInterval = 30 * 60 // 30 minutes
 
     /// Whether any tracked session has been active within the staleness window.
     var hasActiveSession: Bool {
@@ -216,7 +217,7 @@ struct UsageSnapshot: Equatable {
     /// - Returns: The mode to display (may be `previous` if hysteresis holds)
     static func applyHysteresis(candidate: MetricMode, previous: MetricMode?, snapshot: UsageSnapshot) -> MetricMode {
         // No previous state — first poll or after reset
-        guard let previous = previous else { return candidate }
+        guard let previous else { return candidate }
 
         // Throttle always wins immediately (Tier 1 bypass)
         if let rl = snapshot.rateLimits, rl.isThrottled { return candidate }
@@ -359,7 +360,6 @@ struct UsageSnapshot: Equatable {
 
     // Top sessions sorted by highest context usage (up to 5, within last 24h)
     let topSessionHealths: [TokenHealthStatus]
-
 }
 
 struct ModelTokenSummary: Identifiable, Equatable {

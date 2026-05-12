@@ -5,7 +5,6 @@ import Foundation
 @Suite("UsageViewModel")
 @MainActor
 struct UsageViewModelTests {
-
     // MARK: - clampedRefreshInterval
 
     @Test func clampedRefreshInterval_zero_returnsDefault() {
@@ -51,9 +50,9 @@ struct UsageViewModelTests {
 
     @Test func refreshErrorMessage_authError_returnsReconnectMessage() {
         let msg = UsageViewModel.refreshErrorMessage(
-            hasRateLimits: true,           // even with all data present,
-            hasStandardLimits: true,       // an authError must take precedence —
-            hasProfile: true,              // the data is stale and the user needs
+            hasRateLimits: true, // even with all data present,
+            hasStandardLimits: true, // an authError must take precedence —
+            hasProfile: true, // the data is stale and the user needs
             hasStandardRateLimitHeaders: true,
             totalMessages: 100,
             authError: true
@@ -303,7 +302,7 @@ struct UsageViewModelTests {
         let key = UserDefaultsKeys.throttleTimestamps
         let now = Date().timeIntervalSince1970
         // Simulate legacy string-typed timestamps (the actual bug that caused 0 counts)
-        UserDefaults.standard.set([String(now), String(now - 86400)], forKey: key)
+        UserDefaults.standard.set([String(now), String(now - 86_400)], forKey: key)
         #expect(UsageViewModel.throttleCount(days: 7) == 2)
         UserDefaults.standard.removeObject(forKey: key)
     }
@@ -311,7 +310,7 @@ struct UsageViewModelTests {
     @Test func throttleCount_filtersOldEvents() {
         let key = UserDefaultsKeys.throttleTimestamps
         let now = Date().timeIntervalSince1970
-        let old = now - 8 * 86400 // 8 days ago
+        let old = now - 8 * 86_400 // 8 days ago
         UserDefaults.standard.set([old, now], forKey: key)
         #expect(UsageViewModel.throttleCount(days: 7) == 1)
         #expect(UsageViewModel.throttleCount(days: 30) == 2)

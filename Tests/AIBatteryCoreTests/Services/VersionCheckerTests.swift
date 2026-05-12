@@ -5,7 +5,6 @@ import Testing
 
 @Suite("VersionChecker")
 struct VersionCheckerTests {
-
     // MARK: - Semver comparison
 
     @Test func isNewer_majorBump() {
@@ -111,8 +110,8 @@ struct VersionCheckerTests {
 
     // MARK: - Cache behavior
 
-    @Test @MainActor func checkForUpdate_returnsCachedWithinInterval() async {
-        let checker = VersionChecker(releaseURL: URL(string: "https://example.com")!, checkInterval: 86400)
+    @Test @MainActor func checkForUpdate_returnsCachedWithinInterval() async throws {
+        let checker = try VersionChecker(releaseURL: #require(URL(string: "https://example.com")), checkInterval: 86_400)
         let fakeUpdate = VersionChecker.UpdateInfo(version: "9.9.9", url: "https://example.com/release")
         checker.lastCheck = Date()
         checker.cachedUpdate = fakeUpdate
@@ -123,8 +122,8 @@ struct VersionCheckerTests {
         #expect(result?.url == "https://example.com/release")
     }
 
-    @Test @MainActor func checkForUpdate_returnsNilCachedWithinInterval() async {
-        let checker = VersionChecker(releaseURL: URL(string: "https://example.com")!, checkInterval: 86400)
+    @Test @MainActor func checkForUpdate_returnsNilCachedWithinInterval() async throws {
+        let checker = try VersionChecker(releaseURL: #require(URL(string: "https://example.com")), checkInterval: 86_400)
         checker.lastCheck = Date()
         checker.cachedUpdate = nil
 
@@ -133,8 +132,8 @@ struct VersionCheckerTests {
         #expect(result == nil)
     }
 
-    @Test @MainActor func checkForUpdate_expiredCache_doesNotReturnStale() async {
-        let checker = VersionChecker(releaseURL: URL(string: "https://invalid.localhost.test")!, checkInterval: 1)
+    @Test @MainActor func checkForUpdate_expiredCache_doesNotReturnStale() async throws {
+        let checker = try VersionChecker(releaseURL: #require(URL(string: "https://invalid.localhost.test")), checkInterval: 1)
         let oldUpdate = VersionChecker.UpdateInfo(version: "1.0.0", url: "https://example.com")
         checker.lastCheck = Date(timeIntervalSinceNow: -10)
         checker.cachedUpdate = oldUpdate
@@ -146,8 +145,8 @@ struct VersionCheckerTests {
 
     // MARK: - forceCheckForUpdate
 
-    @Test @MainActor func forceCheckForUpdate_clearsLastCheck() async {
-        let checker = VersionChecker(releaseURL: URL(string: "https://invalid.localhost.test")!, checkInterval: 86400)
+    @Test @MainActor func forceCheckForUpdate_clearsLastCheck() async throws {
+        let checker = try VersionChecker(releaseURL: #require(URL(string: "https://invalid.localhost.test")), checkInterval: 86_400)
         checker.lastCheck = Date()
         checker.cachedUpdate = VersionChecker.UpdateInfo(version: "1.0.0", url: "https://example.com")
 
@@ -159,8 +158,8 @@ struct VersionCheckerTests {
         #expect(checker.cachedUpdate == nil)
     }
 
-    @Test @MainActor func forceCheckForUpdate_bypassesCache() async {
-        let checker = VersionChecker(releaseURL: URL(string: "https://invalid.localhost.test")!, checkInterval: 86400)
+    @Test @MainActor func forceCheckForUpdate_bypassesCache() async throws {
+        let checker = try VersionChecker(releaseURL: #require(URL(string: "https://invalid.localhost.test")), checkInterval: 86_400)
         let fakeUpdate = VersionChecker.UpdateInfo(version: "9.9.9", url: "https://example.com")
         checker.lastCheck = Date()
         checker.cachedUpdate = fakeUpdate
@@ -172,8 +171,8 @@ struct VersionCheckerTests {
         #expect(result == nil)
     }
 
-    @Test @MainActor func forceCheckForUpdate_setsLastCheckAfterAttempt() async {
-        let checker = VersionChecker(releaseURL: URL(string: "https://invalid.localhost.test")!, checkInterval: 86400)
+    @Test @MainActor func forceCheckForUpdate_setsLastCheckAfterAttempt() async throws {
+        let checker = try VersionChecker(releaseURL: #require(URL(string: "https://invalid.localhost.test")), checkInterval: 86_400)
         checker.lastCheck = nil
 
         _ = await checker.forceCheckForUpdate()
@@ -184,13 +183,13 @@ struct VersionCheckerTests {
 
     // MARK: - checkInterval
 
-    @Test @MainActor func checkInterval_defaultIs24Hours() {
-        let checker = VersionChecker(releaseURL: URL(string: "https://example.com")!)
-        #expect(checker.checkInterval == 86400)
+    @Test @MainActor func checkInterval_defaultIs24Hours() throws {
+        let checker = try VersionChecker(releaseURL: #require(URL(string: "https://example.com")))
+        #expect(checker.checkInterval == 86_400)
     }
 
-    @Test @MainActor func checkInterval_customValue() {
-        let checker = VersionChecker(releaseURL: URL(string: "https://example.com")!, checkInterval: 60)
+    @Test @MainActor func checkInterval_customValue() throws {
+        let checker = try VersionChecker(releaseURL: #require(URL(string: "https://example.com")), checkInterval: 60)
         #expect(checker.checkInterval == 60)
     }
 

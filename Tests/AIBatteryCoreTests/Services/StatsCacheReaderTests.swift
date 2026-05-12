@@ -5,7 +5,6 @@ import Foundation
 @Suite("StatsCacheReader")
 @MainActor
 struct StatsCacheReaderTests {
-
     private func tempURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("test-stats-cache-\(UUID().uuidString).json")
@@ -136,14 +135,14 @@ struct StatsCacheReaderTests {
 
         // Daily model tokens
         #expect(result?.dailyModelTokens.count == 1)
-        #expect(result?.dailyModelTokens[0].tokensByModel["claude-sonnet-4-5-20250929"] == 50000)
+        #expect(result?.dailyModelTokens[0].tokensByModel["claude-sonnet-4-5-20250929"] == 50_000)
 
         // Model usage
         #expect(result?.modelUsage.count == 1)
         let sonnet = result?.modelUsage["claude-sonnet-4-5-20250929"]
-        #expect(sonnet?.inputTokens == 10000)
-        #expect(sonnet?.outputTokens == 5000)
-        #expect(sonnet?.cacheReadInputTokens == 2000)
+        #expect(sonnet?.inputTokens == 10_000)
+        #expect(sonnet?.outputTokens == 5_000)
+        #expect(sonnet?.cacheReadInputTokens == 2_000)
         #expect(sonnet?.cacheCreationInputTokens == 500)
 
         // Longest session
@@ -168,7 +167,7 @@ struct StatsCacheReaderTests {
         let decoded = try JSONDecoder().decode(DailyModelTokens.self, from: Data(json.utf8))
         #expect(decoded.date == "2025-06-15")
         #expect(decoded.tokensByModel.count == 2)
-        #expect(decoded.tokensByModel["claude-opus-4-6"] == 100000)
+        #expect(decoded.tokensByModel["claude-opus-4-6"] == 100_000)
     }
 
     @Test func dailyModelTokens_emptyModels() throws {
@@ -186,13 +185,13 @@ struct StatsCacheReaderTests {
         {"inputTokens": 1000, "outputTokens": 500, "cacheReadInputTokens": 200, "cacheCreationInputTokens": 50, "webSearchRequests": 3, "contextWindow": 200000, "maxOutputTokens": 8192}
         """
         let decoded = try JSONDecoder().decode(ModelUsageEntry.self, from: Data(json.utf8))
-        #expect(decoded.inputTokens == 1000)
+        #expect(decoded.inputTokens == 1_000)
         #expect(decoded.outputTokens == 500)
         #expect(decoded.cacheReadInputTokens == 200)
         #expect(decoded.cacheCreationInputTokens == 50)
         #expect(decoded.webSearchRequests == 3)
-        #expect(decoded.contextWindow == 200000)
-        #expect(decoded.maxOutputTokens == 8192)
+        #expect(decoded.contextWindow == 200_000)
+        #expect(decoded.maxOutputTokens == 8_192)
     }
 
     @Test func modelUsageEntry_optionalFieldsMissing() throws {
@@ -207,7 +206,7 @@ struct StatsCacheReaderTests {
 
     // MARK: - File Size Guard
 
-    @Test func read_returnsNil_forOversizedFile() throws {
+    @Test func read_returnsNil_forOversizedFile() {
         #expect(StatsCacheReader.maxFileSize == 10_000_000)
     }
 

@@ -3,7 +3,6 @@ import Testing
 
 @Suite("TokenFormatter")
 struct TokenFormatterTests {
-
     // MARK: - Sub-1K (raw number)
 
     @Test func format_zero() {

@@ -3,7 +3,6 @@ import Testing
 
 @Suite("MetricMode")
 struct MetricModeTests {
-
     // MARK: - Raw values
 
     @Test func rawValues() {

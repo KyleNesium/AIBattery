@@ -9,22 +9,22 @@ enum RateLimitSource: String, Equatable, Codable {
     var shortLabel: String {
         switch self {
         case .oauthUsageEndpoint:
-            return "Via Anthropic API"
+            "Via Anthropic API"
         case .claudeCodeClientData:
-            return "Via Claude Code"
+            "Via Claude Code"
         case .anthropicAPIHeaders:
-            return "Via Anthropic API"
+            "Via Anthropic API"
         }
     }
 
     var explanation: String {
         switch self {
         case .oauthUsageEndpoint:
-            return "Usage data from Anthropic OAuth usage endpoint."
+            "Usage data from Anthropic OAuth usage endpoint."
         case .claudeCodeClientData:
-            return "Usage data from Claude Code account metadata."
+            "Usage data from Claude Code account metadata."
         case .anthropicAPIHeaders:
-            return "Usage data from Anthropic API response headers."
+            "Usage data from Anthropic API response headers."
         }
     }
 }

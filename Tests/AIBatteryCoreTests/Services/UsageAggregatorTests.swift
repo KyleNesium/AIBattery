@@ -5,7 +5,6 @@ import Foundation
 @Suite("UsageAggregator", .serialized)
 @MainActor
 struct UsageAggregatorTests {
-
     // MARK: - Helpers
 
     private func tempDir() -> URL {
@@ -165,10 +164,10 @@ struct UsageAggregatorTests {
         let rateLimits = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 0.425,
-            fiveHourReset: Date().addingTimeInterval(3600),
+            fiveHourReset: Date().addingTimeInterval(3_600),
             fiveHourStatus: "allowed",
             sevenDayUtilization: 0.15,
-            sevenDayReset: Date().addingTimeInterval(86400),
+            sevenDayReset: Date().addingTimeInterval(86_400),
             sevenDayStatus: "allowed",
             overallStatus: "allowed"
         )
@@ -285,7 +284,7 @@ struct UsageAggregatorTests {
         #expect(!snapshot.modelTokens.isEmpty)
         if let sonnet = snapshot.modelTokens.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             // Stats cache has 10000 input + 5000 output + 2000 cache read + 500 cache write = 17500
-            #expect(sonnet.totalTokens == 17500)
+            #expect(sonnet.totalTokens == 17_500)
         }
     }
 
@@ -421,8 +420,8 @@ struct UsageAggregatorTests {
 
         let calendar = Calendar.current
         let now = Date()
-        let hour10 = calendar.date(bySettingHour: 10, minute: 30, second: 0, of: now)!
-        let hour11 = calendar.date(bySettingHour: 11, minute: 15, second: 0, of: now)!
+        let hour10 = try #require(calendar.date(bySettingHour: 10, minute: 30, second: 0, of: now))
+        let hour11 = try #require(calendar.date(bySettingHour: 11, minute: 15, second: 0, of: now))
 
         let lines = [
             makeAssistantLine(input: 100, output: 50, messageId: "hour-msg-1", timestamp: hour10),
@@ -455,7 +454,7 @@ struct UsageAggregatorTests {
 
         let calendar = Calendar.current
         let now = Date()
-        let hour9 = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now)!
+        let hour9 = try #require(calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now))
 
         // Add 30 messages at hour 9 to surpass the cache peak of 25
         var lines: [String] = []
@@ -606,8 +605,8 @@ struct UsageAggregatorTests {
         // Model should appear even without recent activity
         let opus = snapshot.modelTokens.first(where: { $0.id == "claude-opus-4-20250514" })
         #expect(opus != nil)
-        #expect(opus?.totalTokens == 95000)
-        #expect(snapshot.totalTokens == 95000)
+        #expect(opus?.totalTokens == 95_000)
+        #expect(snapshot.totalTokens == 95_000)
     }
 
     // MARK: - All-dates daily merge
@@ -619,8 +618,8 @@ struct UsageAggregatorTests {
         let formatter = DateFormatters.dateKey
         let cal = Calendar.current
         let now = Date()
-        let yesterday = cal.date(byAdding: .day, value: -1, to: now)!
-        let twoDaysAgo = cal.date(byAdding: .day, value: -2, to: now)!
+        let yesterday = try #require(cal.date(byAdding: .day, value: -1, to: now))
+        let twoDaysAgo = try #require(cal.date(byAdding: .day, value: -2, to: now))
         let yesterdayStr = formatter.string(from: yesterday)
         let twoDaysAgoStr = formatter.string(from: twoDaysAgo)
 
@@ -677,7 +676,7 @@ struct UsageAggregatorTests {
 
         let calendar = Calendar.current
         let now = Date()
-        let hour10 = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: now)!
+        let hour10 = try #require(calendar.date(bySettingHour: 10, minute: 0, second: 0, of: now))
         let lines = [
             makeAssistantLine(input: 10, output: 5, messageId: "today-h10-1", timestamp: hour10),
             makeAssistantLine(input: 10, output: 5, messageId: "today-h10-2", timestamp: hour10),
@@ -775,7 +774,7 @@ struct UsageAggregatorTests {
         let myapp = snapshot.projectTokens.first(where: { $0.projectName == "myapp" })
         #expect(myapp != nil)
         // Sonnet input: $3/M * 1M = $3, Opus input: $15/M * 1M = $15 → total $18
-        #expect(myapp!.estimatedCost == 18.0)
+        #expect(myapp?.estimatedCost == 18.0)
     }
 
     @Test func projectTokens_emptyWhenNoEntries() {
@@ -903,9 +902,9 @@ struct UsageAggregatorTests {
         let now = Date()
         // Project A: two different models
         let projALines = [
-            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 1000, output: 500,
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 1_000, output: 500,
                               messageId: "map-a1", timestamp: now, cwd: "/workspace/project-alpha"),
-            makeAssistantLine(model: "claude-opus-4-20250514", input: 2000, output: 1000,
+            makeAssistantLine(model: "claude-opus-4-20250514", input: 2_000, output: 1_000,
                               messageId: "map-a2", timestamp: now, cwd: "/workspace/project-alpha"),
         ]
         // Project B: two different models
@@ -936,15 +935,15 @@ struct UsageAggregatorTests {
         // totalTokens = inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
         // alpha: input=3000, output=1500, cacheRead=0, cacheWrite=0 → total=4500
         #expect(alpha != nil)
-        #expect(alpha?.inputTokens == 3000)
-        #expect(alpha?.outputTokens == 1500)
-        #expect(alpha?.totalTokens == 4500)
+        #expect(alpha?.inputTokens == 3_000)
+        #expect(alpha?.outputTokens == 1_500)
+        #expect(alpha?.totalTokens == 4_500)
 
         // Beta: input=1300, output=650, total=1950
         #expect(beta != nil)
-        #expect(beta?.inputTokens == 1300)
+        #expect(beta?.inputTokens == 1_300)
         #expect(beta?.outputTokens == 650)
-        #expect(beta?.totalTokens == 1950)
+        #expect(beta?.totalTokens == 1_950)
     }
 
     // MARK: - Observed models
@@ -957,7 +956,7 @@ struct UsageAggregatorTests {
         let projectsDir = dir.appendingPathComponent("projects")
 
         let now = Date()
-        let earlier = now.addingTimeInterval(-3600)
+        let earlier = now.addingTimeInterval(-3_600)
 
         // Two different models — newer model is sonnet-4-6, older is sonnet-4-5
         let lines = [
@@ -989,8 +988,8 @@ struct UsageAggregatorTests {
         let projectsDir = dir.appendingPathComponent("projects")
 
         let now = Date()
-        let earlier = now.addingTimeInterval(-7200)
-        let oldest = now.addingTimeInterval(-14400)
+        let earlier = now.addingTimeInterval(-7_200)
+        let oldest = now.addingTimeInterval(-14_400)
 
         // Three entries with distinct models in ascending time order
         let lines = [

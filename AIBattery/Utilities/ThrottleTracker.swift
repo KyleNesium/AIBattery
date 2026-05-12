@@ -4,7 +4,6 @@ import Foundation
 /// Detects normal → throttled/exhausted transitions and manages timestamp storage.
 /// Extracted from UsageViewModel for testability without global mutable state.
 struct ThrottleTracker {
-
     /// Whether the previous evaluation saw a throttled/exhausted state.
     private(set) var wasThrottled = false
 
@@ -38,7 +37,7 @@ struct ThrottleTracker {
 
     /// Append a new timestamp and prune entries older than 30 days.
     static func appendAndPrune(timestamps: [Double], newTimestamp: Double) -> [Double] {
-        let cutoff = newTimestamp - 30 * 86400
+        let cutoff = newTimestamp - 30 * 86_400
         var result = timestamps.filter { $0 >= cutoff }
         result.append(newTimestamp)
         return result
@@ -46,7 +45,7 @@ struct ThrottleTracker {
 
     /// Count timestamps within a given number of days from now.
     static func count(timestamps: [Double], days: Int) -> Int {
-        let cutoff = Date().timeIntervalSince1970 - Double(days) * 86400
+        let cutoff = Date().timeIntervalSince1970 - Double(days) * 86_400
         return timestamps.filter { $0 >= cutoff }.count
     }
 }

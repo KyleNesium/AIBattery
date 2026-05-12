@@ -5,37 +5,36 @@ import Foundation
 @Suite("ActivityTrendComputation")
 @MainActor
 struct ActivityTrendTests {
-
     // MARK: - changeVsYesterday
 
-    @Test func changeVsYesterday_positive() {
+    @Test func changeVsYesterday_positive() throws {
         let cal = Calendar.current
         let now = Date()
         let todayStr = DateFormatters.dateKey.string(from: now)
-        let yesterdayStr = DateFormatters.dateKey.string(from: cal.date(byAdding: .day, value: -1, to: now)!)
-        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 15000, yesterdayStr: 10000])
+        let yesterdayStr = try DateFormatters.dateKey.string(from: #require(cal.date(byAdding: .day, value: -1, to: now)))
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 15_000, yesterdayStr: 10_000])
         let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
         #expect(change?.symbol == "↑")
         #expect(change?.label == "+50% vs yesterday")
     }
 
-    @Test func changeVsYesterday_negative() {
+    @Test func changeVsYesterday_negative() throws {
         let cal = Calendar.current
         let now = Date()
         let todayStr = DateFormatters.dateKey.string(from: now)
-        let yesterdayStr = DateFormatters.dateKey.string(from: cal.date(byAdding: .day, value: -1, to: now)!)
-        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 5000, yesterdayStr: 10000])
+        let yesterdayStr = try DateFormatters.dateKey.string(from: #require(cal.date(byAdding: .day, value: -1, to: now)))
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 5_000, yesterdayStr: 10_000])
         let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
         #expect(change?.symbol == "↓")
         #expect(change?.label == "-50% vs yesterday")
     }
 
-    @Test func changeVsYesterday_same() {
+    @Test func changeVsYesterday_same() throws {
         let cal = Calendar.current
         let now = Date()
         let todayStr = DateFormatters.dateKey.string(from: now)
-        let yesterdayStr = DateFormatters.dateKey.string(from: cal.date(byAdding: .day, value: -1, to: now)!)
-        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 10000, yesterdayStr: 10000])
+        let yesterdayStr = try DateFormatters.dateKey.string(from: #require(cal.date(byAdding: .day, value: -1, to: now)))
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 10_000, yesterdayStr: 10_000])
         let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
         #expect(change?.symbol == "→")
     }
@@ -48,10 +47,10 @@ struct ActivityTrendTests {
 
     // MARK: - monthChangeInfo
 
-    @Test func monthChange_positiveProjection() {
+    @Test func monthChange_positiveProjection() throws {
         let cal = Calendar.current
         // March 15, 2026 — dayOfMonth=15, daysInMonth=31
-        let now = cal.date(from: DateComponents(year: 2026, month: 3, day: 15))!
+        let now = try #require(cal.date(from: DateComponents(year: 2_026, month: 3, day: 15)))
         // thisMonth=100, projected=100*31/15=206, lastMonth=100 → +106% → ↑
         let change = ActivityTrendComputation.monthChangeInfo(thisMonth: 100, lastMonth: 100, cal: cal, now: now)
         #expect(change?.symbol == "↑")
@@ -62,9 +61,9 @@ struct ActivityTrendTests {
         #expect(change == nil)
     }
 
-    @Test func monthChange_nilWhenTooEarlyInMonth() {
+    @Test func monthChange_nilWhenTooEarlyInMonth() throws {
         let cal = Calendar.current
-        let now = cal.date(from: DateComponents(year: 2026, month: 3, day: 2))!
+        let now = try #require(cal.date(from: DateComponents(year: 2_026, month: 3, day: 2)))
         let change = ActivityTrendComputation.monthChangeInfo(thisMonth: 50, lastMonth: 100, cal: cal, now: now)
         #expect(change == nil) // dayOfMonth < 4
     }

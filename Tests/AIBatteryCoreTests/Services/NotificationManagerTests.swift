@@ -4,7 +4,6 @@ import Testing
 
 @Suite("NotificationManager")
 struct NotificationManagerTests {
-
     @Test func shouldAlert_aboveThreshold_notPreviouslyFired() {
         #expect(NotificationManager.shouldAlert(percent: 85, threshold: 80, previouslyFired: false))
     }

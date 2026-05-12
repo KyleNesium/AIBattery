@@ -115,11 +115,10 @@ enum MenuBarMultiAccountText {
                 .min()
             let activeReset = activeRateLimits.flatMap { countdownResetDate($0, now) }
             let reset = [multiReset, activeReset].compactMap { $0 }.min()
-            let text: String
-            if let reset {
-                text = RateLimitUsage.countdownText(to: reset)
+            let text: String = if let reset {
+                RateLimitUsage.countdownText(to: reset)
             } else {
-                text = multi.text
+                multi.text
             }
             return Display(
                 text: text,
@@ -130,11 +129,10 @@ enum MenuBarMultiAccountText {
             )
         } else {
             let activeReset = activeRateLimits.flatMap { countdownResetDate($0, now) }
-            let text: String
-            if let activeReset {
-                text = RateLimitUsage.countdownText(to: activeReset)
+            let text: String = if let activeReset {
+                RateLimitUsage.countdownText(to: activeReset)
             } else {
-                text = "\(Int(activePercent))%"
+                "\(Int(activePercent))%"
             }
             return Display(
                 text: text,
@@ -160,9 +158,9 @@ enum MenuBarMultiAccountText {
 
     private static func percent(for usage: RateLimitUsage, mode: MetricMode) -> Double {
         switch mode {
-        case .fiveHour: return usage.fiveHourPercent
-        case .sevenDay: return usage.sevenDayPercent
-        case .contextHealth: return usage.fiveHourPercent // belt-and-suspenders fallback
+        case .fiveHour: usage.fiveHourPercent
+        case .sevenDay: usage.sevenDayPercent
+        case .contextHealth: usage.fiveHourPercent // belt-and-suspenders fallback
         }
     }
 

@@ -40,10 +40,10 @@ struct ModelPricing {
         if cost < 1 {
             return String(format: "$%.2f", cost)
         }
-        if cost < 1000 {
+        if cost < 1_000 {
             return String(format: "$%.0f", cost)
         }
-        let k = cost / 1000
+        let k = cost / 1_000
         return k == k.rounded() ? "$\(Int(k))K" : String(format: "$%.1fK", k)
     }
 

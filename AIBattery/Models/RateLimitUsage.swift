@@ -27,9 +27,9 @@ struct RateLimitUsage: Equatable, Codable {
     let representativeClaim: String
 
     /// 5-hour window
-    let fiveHourUtilization: Double   // 0.0 – 1.0
+    let fiveHourUtilization: Double // 0.0 – 1.0
     let fiveHourReset: Date?
-    let fiveHourStatus: String        // "allowed" or "throttled"
+    let fiveHourStatus: String // "allowed" or "throttled"
 
     /// 7-day window
     let sevenDayUtilization: Double
@@ -37,15 +37,15 @@ struct RateLimitUsage: Equatable, Codable {
     let sevenDayStatus: String
 
     /// Overall status
-    let overallStatus: String         // "allowed" or "throttled"
+    let overallStatus: String // "allowed" or "throttled"
 
     // MARK: - Convenience
 
     /// The utilization percentage of the binding window (0–100).
     var requestsPercentUsed: Double {
         switch representativeClaim {
-        case Self.sevenDayWindow: return sevenDayUtilization * 100.0
-        default: return fiveHourUtilization * 100.0
+        case Self.sevenDayWindow: sevenDayUtilization * 100.0
+        default: fiveHourUtilization * 100.0
         }
     }
 
@@ -58,16 +58,16 @@ struct RateLimitUsage: Equatable, Codable {
     /// Reset date of the binding window.
     var bindingReset: Date? {
         switch representativeClaim {
-        case Self.sevenDayWindow: return sevenDayReset
-        default: return fiveHourReset
+        case Self.sevenDayWindow: sevenDayReset
+        default: fiveHourReset
         }
     }
 
     /// Human-readable label for the binding window.
     var bindingWindowLabel: String {
         switch representativeClaim {
-        case Self.sevenDayWindow: return "7-day"
-        default: return "5-hour"
+        case Self.sevenDayWindow: "7-day"
+        default: "5-hour"
         }
     }
 
@@ -85,9 +85,9 @@ struct RateLimitUsage: Equatable, Codable {
     func isWindowThrottled(_ window: String) -> Bool {
         switch window {
         case Self.sevenDayWindow:
-            return sevenDayStatus == "throttled"
+            sevenDayStatus == "throttled"
         default:
-            return fiveHourStatus == "throttled"
+            fiveHourStatus == "throttled"
         }
     }
 
@@ -117,12 +117,10 @@ struct RateLimitUsage: Equatable, Codable {
         let sevenDayExpired = (sevenDayReset.map { $0 <= now } ?? false)
         guard fiveHourExpired || sevenDayExpired else { return self }
 
-        let bindingExpired: Bool = {
-            switch representativeClaim {
-            case Self.sevenDayWindow: return sevenDayExpired
-            default: return fiveHourExpired
-            }
-        }()
+        let bindingExpired: Bool = switch representativeClaim {
+        case Self.sevenDayWindow: sevenDayExpired
+        default: fiveHourExpired
+        }
 
         return RateLimitUsage(
             representativeClaim: representativeClaim,
@@ -149,12 +147,10 @@ struct RateLimitUsage: Equatable, Codable {
     /// based on current utilization and time remaining until reset.
     /// Returns nil if utilization is too low or the estimate exceeds reset time.
     func estimatedTimeToLimit(for window: String) -> TimeInterval? {
-        let (utilization, reset): (Double, Date?) = {
-            switch window {
-            case Self.sevenDayWindow: return (sevenDayUtilization, sevenDayReset)
-            default: return (fiveHourUtilization, fiveHourReset)
-            }
-        }()
+        let (utilization, reset): (Double, Date?) = switch window {
+        case Self.sevenDayWindow: (sevenDayUtilization, sevenDayReset)
+        default: (fiveHourUtilization, fiveHourReset)
+        }
 
         guard utilization > 0.20, let reset else { return nil }
 
@@ -162,7 +158,7 @@ struct RateLimitUsage: Equatable, Codable {
         guard remaining > 0 else { return nil }
 
         // Window duration inferred from window type
-        let windowDuration: TimeInterval = window == Self.sevenDayWindow ? 7 * 24 * 3600 : 5 * 3600
+        let windowDuration: TimeInterval = window == Self.sevenDayWindow ? 7 * 24 * 3_600 : 5 * 3_600
         let elapsed = windowDuration - remaining
 
         guard elapsed > 60 else { return nil } // Need meaningful elapsed time
@@ -206,7 +202,7 @@ struct RateLimitUsage: Equatable, Codable {
         func dateFromUnix(_ key: String) -> Date? {
             guard let val = normalized[key.lowercased()],
                   let ts = TimeInterval(val),
-                  ts > 0, ts < Date().timeIntervalSince1970 + 8 * 86400 else { return nil }
+                  ts > 0, ts < Date().timeIntervalSince1970 + 8 * 86_400 else { return nil }
             return Date(timeIntervalSince1970: ts)
         }
 
@@ -269,12 +265,12 @@ struct RateLimitUsage: Equatable, Codable {
         func parseDate(_ value: Any?) -> Date? {
             if let number = value as? NSNumber {
                 let raw = number.doubleValue
-                let seconds = raw > 10_000_000_000 ? raw / 1000.0 : raw
+                let seconds = raw > 10_000_000_000 ? raw / 1_000.0 : raw
                 return Date(timeIntervalSince1970: seconds)
             }
             if let text = value as? String {
                 if let unix = TimeInterval(text) {
-                    let seconds = unix > 10_000_000_000 ? unix / 1000.0 : unix
+                    let seconds = unix > 10_000_000_000 ? unix / 1_000.0 : unix
                     return Date(timeIntervalSince1970: seconds)
                 }
                 let iso = ISO8601DateFormatter()

@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("ActivityChartData")
 struct ActivityChartDataTests {
-
     // MARK: - Seven day data
 
     @Test func sevenDayData_returns7Days() {
@@ -15,12 +14,12 @@ struct ActivityChartDataTests {
     @Test func sevenDayData_fillsGapsWithZero() {
         let now = Date()
         let todayKey = DateFormatters.dateKey.string(from: now)
-        let tokens: [String: Int] = [todayKey: 5000]
+        let tokens: [String: Int] = [todayKey: 5_000]
         let data = ActivityChartData.sevenDayData(from: tokens, now: now)
 
         // Today should have 5000, all others should be 0
         let todayPoint = data.first(where: { $0.key == todayKey })
-        #expect(todayPoint?.count == 5000)
+        #expect(todayPoint?.count == 5_000)
 
         let zeroDays = data.filter { $0.key != todayKey }
         #expect(zeroDays.allSatisfy { $0.count == 0 })
@@ -40,19 +39,19 @@ struct ActivityChartDataTests {
         #expect(data.count == 20)
     }
 
-    @Test func fiveHourData_looksUpCorrectBuckets() {
-        let buckets: [Int: Int] = [0: 1000, 19: 5000]
+    @Test func fiveHourData_looksUpCorrectBuckets() throws {
+        let buckets: [Int: Int] = [0: 1_000, 19: 5_000]
         let data = ActivityChartData.fiveHourData(from: buckets)
 
         // Bucket 0 (oldest) should be the first point
-        let firstPoint = data.first!
+        let firstPoint = try #require(data.first)
         #expect(firstPoint.id == 0)
-        #expect(firstPoint.count == 1000)
+        #expect(firstPoint.count == 1_000)
 
         // Bucket 19 (most recent) should be the last point
-        let lastPoint = data.last!
+        let lastPoint = try #require(data.last)
         #expect(lastPoint.id == 19)
-        #expect(lastPoint.count == 5000)
+        #expect(lastPoint.count == 5_000)
     }
 
     @Test func fiveHourData_zeroForMissingBuckets() {
@@ -64,13 +63,13 @@ struct ActivityChartDataTests {
 
     @Test func monthTokenTotals_aggregatesCorrectly() {
         let daily: [String: Int] = [
-            "2026-03-01": 10000,
-            "2026-03-15": 20000,
-            "2026-02-10": 5000,
+            "2026-03-01": 10_000,
+            "2026-03-15": 20_000,
+            "2026-02-10": 5_000,
         ]
         let totals = ActivityChartData.monthTokenTotals(from: daily)
-        #expect(totals["2026-03"] == 30000)
-        #expect(totals["2026-02"] == 5000)
+        #expect(totals["2026-03"] == 30_000)
+        #expect(totals["2026-02"] == 5_000)
     }
 
     @Test func monthTokenTotals_emptyInput() {
@@ -80,12 +79,12 @@ struct ActivityChartDataTests {
 
     @Test func monthTokenTotals_skipsInvalidDates() {
         let daily: [String: Int] = [
-            "not-a-date": 10000,
-            "2026-01-05": 7000,
+            "not-a-date": 10_000,
+            "2026-01-05": 7_000,
         ]
         let totals = ActivityChartData.monthTokenTotals(from: daily)
         #expect(totals.count == 1)
-        #expect(totals["2026-01"] == 7000)
+        #expect(totals["2026-01"] == 7_000)
     }
 
     // MARK: - Monthly data
@@ -102,44 +101,44 @@ struct ActivityChartDataTests {
         }
     }
 
-    @Test func monthlyData_projectsCurrentMonth() {
+    @Test func monthlyData_projectsCurrentMonth() throws {
         let cal = Calendar.current
         // Fix to March 10, 2026 — so dayOfMonth=10, daysInMonth=31
-        let fixedDate = cal.date(from: DateComponents(year: 2026, month: 3, day: 10))!
+        let fixedDate = try #require(cal.date(from: DateComponents(year: 2_026, month: 3, day: 10)))
         // monthlyData expects pre-aggregated month keys (from monthTokenTotals)
         let monthTotals: [String: Int] = [
-            "2026-03": 30000,
+            "2026-03": 30_000,
         ]
         let data = ActivityChartData.monthlyData(from: monthTotals, now: fixedDate)
-        let march = data.first(where: { $0.key == "2026-03" })!
+        let march = try #require(data.first(where: { $0.key == "2026-03" }))
 
         // Total is 30000, projected = 30000 * 31 / 10 = 93000
-        #expect(march.count == 93000)
+        #expect(march.count == 93_000)
     }
 
-    @Test func monthlyData_noProjectionFirstThreeDays() {
+    @Test func monthlyData_noProjectionFirstThreeDays() throws {
         let cal = Calendar.current
-        let fixedDate = cal.date(from: DateComponents(year: 2026, month: 3, day: 2))!
+        let fixedDate = try #require(cal.date(from: DateComponents(year: 2_026, month: 3, day: 2)))
         let monthTotals: [String: Int] = [
-            "2026-03": 10000,
+            "2026-03": 10_000,
         ]
         let data = ActivityChartData.monthlyData(from: monthTotals, now: fixedDate)
-        let march = data.first(where: { $0.key == "2026-03" })!
+        let march = try #require(data.first(where: { $0.key == "2026-03" }))
 
         // Day 2 < 4, so no projection — raw total
-        #expect(march.count == 10000)
+        #expect(march.count == 10_000)
     }
 
-    @Test func monthlyData_pastMonthsNotProjected() {
+    @Test func monthlyData_pastMonthsNotProjected() throws {
         let cal = Calendar.current
-        let fixedDate = cal.date(from: DateComponents(year: 2026, month: 3, day: 15))!
+        let fixedDate = try #require(cal.date(from: DateComponents(year: 2_026, month: 3, day: 15)))
         let monthTotals: [String: Int] = [
-            "2026-02": 50000,
+            "2026-02": 50_000,
         ]
         let data = ActivityChartData.monthlyData(from: monthTotals, now: fixedDate)
-        let feb = data.first(where: { $0.key == "2026-02" })!
+        let feb = try #require(data.first(where: { $0.key == "2026-02" }))
 
         // Past month — no projection
-        #expect(feb.count == 50000)
+        #expect(feb.count == 50_000)
     }
 }

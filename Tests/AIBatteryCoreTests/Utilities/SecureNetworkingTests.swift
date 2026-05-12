@@ -4,7 +4,6 @@ import Testing
 
 @Suite("SecureNetworking")
 struct SecureNetworkingTests {
-
     @Test func session_usesEphemeralConfiguration() {
         let config = SecureNetworking.session.configuration
         // Ephemeral sessions have no persistent disk cache
