@@ -21,7 +21,7 @@ final class StatusChecker {
         StatusComponent(id: "0scnb50nvy53", name: "Claude for Gov", alertKey: "claudeForGov"),
     ]
 
-    private static let jsonDecoder = JSONDecoder()
+    nonisolated private static let jsonDecoder = JSONDecoder()
     private var cachedStatus: ClaudeSystemStatus?
 
     /// Exponential backoff with jitter for failed fetches — delegated to `RetryPolicy.statusCheck`
@@ -44,26 +44,22 @@ final class StatusChecker {
             return cachedStatus ?? .unknown
         }
 
-        var request = URLRequest(url: summaryURL)
-        request.timeoutInterval = 5
-
-        do {
-            let (data, response) = try await SecureNetworking.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                failureCount += 1
-                updateBackoff()
-                lastFailedAt = Date()
-                AppLogger.network.warning("StatusChecker HTTP error, backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
-                return cachedStatus ?? .unknown
-            }
-
-            let summary = try Self.jsonDecoder.decode(StatusPageSummary.self, from: data)
-            let result = parseStatus(summary)
-            cachedStatus = result
+        // Hop off MainActor for the HTTP request, decode, and parse.
+        // We re-enter MainActor only to mutate cache/backoff state.
+        let outcome = await Self.fetchAndParse(url: summaryURL, timeout: 5)
+        switch outcome {
+        case let .success(status):
+            cachedStatus = status
             failureCount = 0
             lastFailedAt = nil
-            return result
-        } catch {
+            return status
+        case let .httpError(code):
+            failureCount += 1
+            updateBackoff()
+            lastFailedAt = Date()
+            AppLogger.network.warning("StatusChecker HTTP \(code), backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
+            return cachedStatus ?? .unknown
+        case let .failure(error):
             failureCount += 1
             updateBackoff()
             lastFailedAt = Date()
@@ -72,7 +68,39 @@ final class StatusChecker {
         }
     }
 
-    private func parseStatus(_ summary: StatusPageSummary) -> ClaudeSystemStatus {
+    /// Outcome of a single off-MainActor fetch attempt. Used to keep the
+    /// async pipeline `nonisolated` while letting the `@MainActor` caller
+    /// branch on what happened for logging + backoff bookkeeping.
+    enum FetchOutcome {
+        case success(ClaudeSystemStatus)
+        case httpError(Int)
+        case failure(Error)
+    }
+
+    /// Off-MainActor fetch + decode + parse. Pure: takes a URL, returns an outcome.
+    /// All instance state lives on MainActor; this function never touches `self`.
+    nonisolated static func fetchAndParse(url: URL, timeout: TimeInterval) async -> FetchOutcome {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        do {
+            let (data, response) = try await SecureNetworking.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return .httpError(0)
+            }
+            guard http.statusCode == 200 else {
+                return .httpError(http.statusCode)
+            }
+            let summary = try jsonDecoder.decode(StatusPageSummary.self, from: data)
+            return .success(parseStatus(summary))
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    /// Pure parser — exposed as `nonisolated static` so tests can exercise it
+    /// off-MainActor and `fetchAndParse` can call it without an actor hop.
+    /// Filescope visibility because `StatusPageSummary` is fileprivate.
+    nonisolated fileprivate static func parseStatus(_ summary: StatusPageSummary) -> ClaudeSystemStatus {
         let components = summary.components
         guard !components.isEmpty else {
             // Fallback to overall status
