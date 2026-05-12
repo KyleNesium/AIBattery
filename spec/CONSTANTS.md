@@ -10,20 +10,20 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | File watcher debounce | 2 sec | FileWatcher |
 | FSEvent latency | 2.0 sec | FileWatcher |
 | Fallback timer | 60 sec | FileWatcher |
-| Stats-cache retry (base) | 60 sec, exponential (doubles per retry), cap 300 sec, max 10 retries | FileWatcher |
+| Stats-cache retry (base) | 60 sec, exponential (doubles per retry), cap 300 sec, max 10 retries — `RetryPolicy.fileWatch` | FileWatcher |
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
-| Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter | StatusChecker |
+| Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck` | StatusChecker |
 | Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
-| Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx | OAuthManager |
+| Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
 | Token endpoint timeout | 30 sec | OAuthManager |
 | Adaptive polling threshold | 3 unchanged cycles | AdaptivePollingState |
 | Adaptive polling escalation | Progressive doubling: base × 2^(cycles past threshold) | AdaptivePollingState |
 | Adaptive polling max | 300 sec (5 min) | AdaptivePollingState |
 | Notification batch delay | 500 ms | NotificationManager |
 | Identity timeout | 3600 sec (1 hour) — pending account identity | UsageViewModel |
-| Retry-After max delay | 30 sec (caps parsed Retry-After header) | RateLimitFetcher |
+| Retry-After max delay | 30 sec (caps parsed Retry-After header) — `RetryPolicy.rateLimit` | RateLimitFetcher |
 | Initial poll delay | 2 sec — fast first data without blocking launch | UsageViewModel |
 | Rate limit stale TTL | 86400 sec (24 hours) — hold unified header data through overnight sleep | UsageViewModel |
 | Sleep pause / wake resume | Immediate (NSWorkspace notifications) | UsageViewModel |

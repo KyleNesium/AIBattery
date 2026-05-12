@@ -182,9 +182,13 @@ final class RateLimitFetcher {
     /// Parse a Retry-After header value into a delay in seconds.
     /// Returns nil if the value is missing, non-numeric, zero, or negative.
     /// Caps at `maxDelay` to prevent unbounded waits.
+    ///
+    /// Thin wrapper around `RetryPolicy.delay(retryAfterHeader:)`. Kept for
+    /// callers that need a custom cap; pass-through to `RetryPolicy.rateLimit`
+    /// when the default 30s cap is acceptable.
     nonisolated static func parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double? {
-        guard let value, let delay = Double(value), delay > 0 else { return nil }
-        return min(delay, maxDelay)
+        RetryPolicy(baseDelay: 1, maxDelay: maxDelay, multiplier: 2)
+            .delay(retryAfterHeader: value)
     }
 
     /// Threshold above which a 429 with header-reported "allowed" status is still

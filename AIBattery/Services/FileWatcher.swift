@@ -11,9 +11,6 @@ final class FileWatcher {
     private let onChange: () -> Void
     private var isStopped = false
     private var statsCacheRetryCount = 0
-    private static let maxStatsCacheRetries = 10
-    private static let statsCacheRetryBase: TimeInterval = 60
-    private static let statsCacheRetryCap: TimeInterval = 300
     private static let debounceDelay: TimeInterval = 2.0
     private static let fallbackPollingInterval: TimeInterval = 60
 
@@ -147,16 +144,17 @@ final class FileWatcher {
         fsEventStream = stream
     }
 
-    /// Retry opening stats-cache with exponential backoff (60s → 120s → 240s → 300s cap, max 10 retries).
+    /// Retry opening stats-cache with exponential backoff via `RetryPolicy.fileWatch`
+    /// (60s → 120s → 240s → 300s cap, no jitter, max 10 retries).
     private func scheduleStatsCacheRetry() {
-        guard statsCacheRetryCount < Self.maxStatsCacheRetries else {
-            AppLogger.files.info("FileWatcher: giving up on stats-cache after \(Self.maxStatsCacheRetries) retries")
+        let policy = RetryPolicy.fileWatch
+        guard let maxAttempts = policy.maxAttempts, statsCacheRetryCount < maxAttempts else {
+            AppLogger.files.info("FileWatcher: giving up on stats-cache after \(policy.maxAttempts ?? 0) retries")
             return
         }
-        let delay = min(
-            Self.statsCacheRetryBase * pow(2.0, Double(statsCacheRetryCount)),
-            Self.statsCacheRetryCap
-        )
+        // Historical convention: retryCount is 0-indexed (first retry → count=0).
+        // RetryPolicy is 1-indexed, so count+1 maps directly.
+        let delay = policy.delay(forAttempt: statsCacheRetryCount + 1)
         statsCacheRetryCount += 1
         retryTimer?.invalidate()
         retryTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in

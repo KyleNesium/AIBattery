@@ -24,11 +24,9 @@ final class StatusChecker {
     private static let jsonDecoder = JSONDecoder()
     private var cachedStatus: ClaudeSystemStatus?
 
-    /// Exponential backoff with jitter for failed fetches.
-    /// Base interval doubles on each failure (60s → 120s → 240s), capped at 5 min.
-    /// Jitter (±20%) prevents thundering herd on macOS wake from sleep.
-    private static let baseBackoff: TimeInterval = 60
-    private static let maxBackoff: TimeInterval = 300
+    /// Exponential backoff with jitter for failed fetches — delegated to `RetryPolicy.statusCheck`
+    /// (60s → 120s → 240s, capped at 5 min, ±20% jitter). Jitter prevents thundering herd
+    /// on macOS wake from sleep.
     private var lastFailedAt: Date?
     private var failureCount = 0
     /// Stored backoff interval — computed once per failure, not re-randomized on every check.
@@ -36,9 +34,7 @@ final class StatusChecker {
 
     /// Compute and store the backoff interval for the current failure count.
     private func updateBackoff() {
-        let raw = Self.baseBackoff * pow(2, Double(failureCount - 1))
-        let capped = min(raw, Self.maxBackoff)
-        currentBackoff = capped * Double.random(in: 0.8...1.2)
+        currentBackoff = RetryPolicy.statusCheck.delay(forAttempt: failureCount)
     }
 
     func fetchStatus() async -> ClaudeSystemStatus {

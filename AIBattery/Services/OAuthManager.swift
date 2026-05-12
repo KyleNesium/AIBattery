@@ -372,9 +372,8 @@ public final class OAuthManager: ObservableObject {
         var lastError: AuthError = .networkError
         for attempt in 0...Self.maxRetries {
             if attempt > 0 {
-                // Exponential backoff with jitter: 1s, 2s (±20%)
-                let base = TimeInterval(1 << (attempt - 1))
-                let delay = base * Double.random(in: 0.8...1.2)
+                // Exponential backoff with jitter via RetryPolicy.oauth (1s, 2s, 4s ±20%).
+                let delay = RetryPolicy.oauth.delay(forAttempt: attempt)
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
 
