@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased] — v2.3 tech debt sprint
+
+### Tooling
+- **SwiftLint + SwiftFormat enforced in CI** — added `.swiftlint.yml`, `.swiftformat`, and a new `lint.yml` workflow that runs on every PR. SwiftFormat enforces a uniform style baseline (107 files normalized in this commit). SwiftLint runs conservatively: 0 errors, force-unwrap as advisory warning, plus a custom rule banning `Timer.publish` (regression class documented in `MEMORY.md` and `spec/ARCHITECTURE.md`) to prevent the freeze it caused in v1.9.4.
+- **Removed redundant `@available(macOS 13.0, *)`** from `LaunchAtLoginManager.swift` (3 sites). The package's deployment floor is already `macOS 13`, so these attributes were no-ops.
+
+### Notes
+- Pure tooling/formatting change. No behaviour change. All 922 tests pass unchanged.
+
 ## [2.2.1] — 2026-05-11
 
 ### Fixed

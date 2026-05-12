@@ -1,0 +1,55 @@
+name: Lint
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+    paths:
+      - '**.swift'
+      - '.swiftlint.yml'
+      - '.swiftformat'
+      - '.github/workflows/lint.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: SwiftLint + SwiftFormat
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Install lint tools
+        run: |
+          brew install swiftlint swiftformat
+          swiftlint --version
+          swiftformat --version
+
+      - name: SwiftFormat (lint mode)
+        run: |
+          set +e
+          swiftformat --lint AIBattery/ AIBatteryApp/ Tests/ 2>&1 | tee swiftformat.log
+          set -e
+          if grep -qE 'Source input did not pass lint check' swiftformat.log; then
+            echo "::error::SwiftFormat found unformatted code. Run: swiftformat AIBattery/ AIBatteryApp/ Tests/"
+            exit 1
+          fi
+          echo "SwiftFormat OK"
+
+      - name: SwiftLint
+        run: |
+          set +e
+          swiftlint --quiet 2>&1 | tee swiftlint.log
+          set -e
+          errors=$(grep -c ": error:" swiftlint.log || true)
+          warnings=$(grep -c ": warning:" swiftlint.log || true)
+          echo "SwiftLint: ${errors} error(s), ${warnings} warning(s)"
+          if [ "${errors}" -gt 0 ]; then
+            echo "::error::SwiftLint found ${errors} error(s)"
+            exit 1
+          fi
+          # Warnings are informational in Phase 1 baseline; CI passes.
