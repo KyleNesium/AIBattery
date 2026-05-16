@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — v2.3 tech debt sprint
+## [2.3.0] — 2026-05-16
 
 ### Tooling
 - **SwiftLint + SwiftFormat enforced in CI** — added `.swiftlint.yml`, `.swiftformat`, and a new `lint.yml` workflow that runs on every PR. SwiftFormat enforces a uniform style baseline (107 files normalized in this commit). SwiftLint runs conservatively: 0 errors, force-unwrap as advisory warning, plus a custom rule banning `Timer.publish` (regression class documented in `MEMORY.md` and `spec/ARCHITECTURE.md`) to prevent the freeze it caused in v1.9.4.
