@@ -148,6 +148,8 @@ public struct UsagePopoverView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Anthropic removed usage headers from their API. Tap for details.")
+                        .accessibilityLabel("Why usage is estimated locally")
+                        .accessibilityHint("Opens an explanation in your browser")
                         Spacer()
                     }
                     .padding(.horizontal, Spacing.sectionHorizontal)

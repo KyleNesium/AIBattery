@@ -182,12 +182,16 @@ struct PopoverHeaderView: View {
                             .foregroundStyle(ThemeColors.action)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Download the latest release")
+                    .accessibilityHint("Opens the GitHub release page in your browser")
                     Button(action: { SparkleUpdateService.shared.clearError() }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(Typography.monoTiny)
                             .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Dismiss update error")
+                    .accessibilityHint("Hides the update-failed banner")
                 }
                 .help(sparkleError)
                 .transition(.opacity)
