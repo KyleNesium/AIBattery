@@ -16,6 +16,14 @@
 ### Partially completed
 - **Phase 4 file splits** — only `OAuthTokenStorage` shipped this milestone. The other 4 planned splits (`UsagePollingCoordinator`, `StatusBarAnimationController`, `RateLimitProbeSequence`, `UsageAggregator+Periods`) require restructuring private members across file boundaries — material refactors that need their own scoped milestones to do carefully. The structural extraction of `RateLimitFetcher.tryFetch` (deferred from Phase 3b) is therefore still outstanding.
 
+### Build hygiene (extended verification)
+- **0 build warnings (down from 144)** after a clean release build flushed out Swift 6 strict-concurrency warnings. Five fixes:
+  - `OAuthManager.maxRetries` is now `nonisolated private static let` — Phase 3c regression where `Self.maxRetries` was referenced from the `nonisolated postToken` worker but still MainActor-isolated. Would have been a hard error in Swift 6.
+  - Removed dead `activeIsExhausted` local from `StatusBarManager.updateButton` (orphaned by the v2.2.1 menu-bar resolver refactor).
+  - Wrapped `deactivationObserver`'s closure body in `MainActor.assumeIsolated`, mirroring the resize closure right above it.
+  - Added `@preconcurrency import Dispatch` to `StatusBarManager` (compiler-suggested fix for the `DispatchWorkItem` capture pattern).
+  - Fixed flaky `observedModels_defaultsToEmpty` test — was breaking under test parallelism because `restoreWorkingModels`'s prefix scan would pick up other tests' UserDefaults keys before their `defer` cleanup ran. Now clears the `aibattery_observedModels_*` prefix explicitly.
+
 ### Notes
 - Pure tooling/formatting/refactor change. No behaviour change. All 922 tests pass unchanged.
 
