@@ -167,6 +167,15 @@ enum ThemeColors {
         dark: NSColor(white: 1.0, alpha: 0.35)
     )
 
+    /// Inactive stroke — the project's canonical "subtle secondary outline" used
+    /// for unselected segmented-control borders, inactive auto-mode ring, etc.
+    /// Centralizes the prior `Color.secondary.opacity(…)` pattern.
+    static let inactiveStroke: Color = .secondary
+
+    /// Shadow color for elevated controls (selected tab fill, hovered cards).
+    /// Wraps the raw black-with-opacity pattern that was scattered across views.
+    static let shadowColor: Color = .black
+
     // MARK: - Interactive state colors
 
     /// Hover highlight for interactive elements (buttons, chevrons, headers).

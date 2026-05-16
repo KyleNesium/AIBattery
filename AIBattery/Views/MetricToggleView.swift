@@ -60,7 +60,7 @@ struct MetricToggleView: View {
                 .background(
                     RoundedRectangle(cornerRadius: Layout.tabCornerRadius)
                         .fill(isSelected && !autoMetricMode ? Self.selectedFill : isHovered ? ThemeColors.hoverFill : .clear)
-                        .shadow(color: isSelected && !autoMetricMode ? Color.black.opacity(ThemeColors.shadowOpacity) : .clear, radius: Layout.shadowSmall, y: 0.5)
+                        .shadow(color: isSelected && !autoMetricMode ? ThemeColors.shadowColor.opacity(ThemeColors.shadowOpacity) : .clear, radius: Layout.shadowSmall, y: 0.5)
                 )
                 .contentShape(RoundedRectangle(cornerRadius: Layout.tabCornerRadius))
         }
@@ -90,7 +90,7 @@ struct MetricToggleView: View {
                 )
                 .overlay(
                     Circle()
-                        .stroke(autoMetricMode ? ThemeColors.action.opacity(ThemeColors.activeAccentOpacity) : autoHovered ? Color.secondary.opacity(ThemeColors.hoverBorderOpacity) : Color.secondary.opacity(ThemeColors.subtleBorderOpacity), lineWidth: Layout.borderWidth)
+                        .stroke(autoMetricMode ? ThemeColors.action.opacity(ThemeColors.activeAccentOpacity) : autoHovered ? ThemeColors.inactiveStroke.opacity(ThemeColors.hoverBorderOpacity) : ThemeColors.inactiveStroke.opacity(ThemeColors.subtleBorderOpacity), lineWidth: Layout.borderWidth)
                 )
                 .shadow(color: autoMetricMode ? ThemeColors.action.opacity(ThemeColors.activeLabelOpacity) : .clear, radius: Layout.glowRadius)
                 .contentShape(Circle())
