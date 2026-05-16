@@ -61,7 +61,7 @@ public struct AuthView: View {
                         .padding(.vertical, Spacing.gap)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.accentColor)
+                    .tint(ThemeColors.action)
                     .accessibilityLabel("Sign in with Claude")
                     .accessibilityHint("Opens browser to sign in with your Anthropic account")
                     .help("Opens browser to sign in with your Anthropic account")
@@ -130,7 +130,7 @@ public struct AuthView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(.accentColor)
+                        .tint(ThemeColors.action)
                         .disabled(authCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isExchanging)
                         .accessibilityLabel(isExchanging ? "Connecting" : "Connect")
                         .accessibilityHint("Submit authorization code")
