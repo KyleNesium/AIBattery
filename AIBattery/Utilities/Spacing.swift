@@ -196,9 +196,16 @@ enum MotionConstants {
     /// Full-rotation spin (refresh button): 0.5s easeInOut.
     static let spin: Animation = .easeInOut(duration: 0.5)
 
-    /// Section expand/collapse transition — fade + slide from top.
+    /// Section expand/collapse transition.
+    ///
+    /// Plain opacity — never .move(edge:) inside the popover. The panel is
+    /// an NSPanel that re-anchors its top to the menu bar and grows/shrinks
+    /// to fit SwiftUI's content height. A .move transition translates the
+    /// inserting/removing view while the panel is simultaneously resizing,
+    /// which reads as a "jump" rather than a smooth expand. Cross-fade
+    /// hides the resize boundary cleanly.
     static var expandTransition: AnyTransition {
-        .opacity.combined(with: .move(edge: .top))
+        .opacity
     }
 
     // MARK: - State timing (non-animation durations)
