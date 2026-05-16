@@ -8,6 +8,8 @@
 
 ### Refactored
 - **Extracted `RetryPolicy`** — a pure, `Sendable`, `nonisolated` struct that consolidates four hand-rolled exponential-backoff implementations (`OAuthManager`, `StatusChecker`, `FileWatcher`, `RateLimitFetcher.parseRetryAfter`) into a single tested utility with presets (`.oauth`, `.statusCheck`, `.fileWatch`, `.rateLimit`). Includes injectable RNG for deterministic jitter testing. 20 new tests, including parity tests pinning the historical formulas to prevent semantic drift. Behaviour is bit-identical to the prior inline math; only the implementation moved.
+- **`StatusChecker` HTTP path moved off `@MainActor`** — `fetchAndParse(url:timeout:)` is now `nonisolated static` and returns a `Sendable FetchOutcome`. `parseStatus` and `jsonDecoder` follow. `fetchStatus()` keeps MainActor ownership of cache/backoff state with no `await` between read and write. 2 new concurrency tests pin the structural guarantee (detached-task callability + MainActor-non-blocking).
+- **`RateLimitFetcher` actor isolation hygiene** — pure header helpers (`containsStandardRateLimitHeaders`) now explicitly `nonisolated`. Inline doc on `fetch(accessToken:accountId:)` clarifies the suspension model: every `await SecureNetworking.data(for:)` already releases MainActor for the duration of the network call (Swift suspension semantics), so a 30s URLSession timeout cannot freeze the UI. 4 new concurrency tests assert the `nonisolated` promise holds at call sites in detached tasks. Structural extraction of the per-model probe loop is deferred to Phase 4 (where `RateLimitProbeSequence` will be lifted out as part of the file split).
 
 ### Notes
 - Pure tooling/formatting/refactor change. No behaviour change. All 922 tests pass unchanged.

@@ -106,6 +106,19 @@ final class RateLimitFetcher {
     /// Fetches rate limits + org profile for a specific account.
     /// Primary: dedicated `/api/oauth/usage` endpoint (structured JSON, always returns data).
     /// Fallback: Messages API probe with unified headers (intermittent, ~10% hit rate).
+    ///
+    /// Actor isolation note: This method is `@MainActor`-isolated (the whole class is) but
+    /// every `await SecureNetworking.data(for:)` call inside (and inside `tryFetch`,
+    /// `fetchUsageEndpoint`, `fetchClaudeCodeClientData`) releases MainActor during the
+    /// network suspension — `SecureNetworking.data` is `nonisolated`. So a 30s URLSession
+    /// timeout does not freeze the UI; MainActor work runs in parallel. The suspension
+    /// boundaries are the safety net.
+    ///
+    /// What does run on MainActor in this method:
+    /// - Reading/writing `cachedResults`, `lastWorkingModel`, `consecutiveAuthFailures`
+    /// - Calling `saveWorkingModel`, `buildHeaderResult`, `persistRateLimits`
+    /// - Header parsing (`RateLimitUsage.parse`, `APIProfile.parse`, etc.) — these are
+    ///   pure, sub-millisecond, and don't materially affect responsiveness.
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
         // Primary: dedicated usage endpoint — no model probe needed, always returns data.
         if let usageResult = await fetchUsageEndpoint(accessToken: accessToken, accountId: accountId) {
@@ -589,7 +602,7 @@ final class RateLimitFetcher {
         }
     }
 
-    private static func containsStandardRateLimitHeaders(_ headers: [AnyHashable: Any]) -> Bool {
+    nonisolated private static func containsStandardRateLimitHeaders(_ headers: [AnyHashable: Any]) -> Bool {
         headers.keys
             .compactMap { $0 as? String }
             .map { $0.lowercased() }
