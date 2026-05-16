@@ -10,9 +10,6 @@ struct PopoverFooterView: View {
     @Binding var showLogoutConfirm: Bool
     let onLogout: () -> Void
     let onRequestLogout: () -> Void
-    @State private var logoutHovered = false
-    @State private var quitHovered = false
-
     var body: some View {
         VStack(spacing: Spacing.gap) {
             // Links row
@@ -44,47 +41,34 @@ struct PopoverFooterView: View {
                 Spacer()
 
                 // Logout (active account) — two-tap confirmation
-                Button(action: {
-                    if showLogoutConfirm {
-                        onLogout()
-                    } else {
-                        onRequestLogout()
+                FooterLink(
+                    icon: showLogoutConfirm ? "exclamationmark.triangle" : "rectangle.portrait.and.arrow.right",
+                    label: showLogoutConfirm ? "Confirm?" : "Logout",
+                    accessibilityLabel: showLogoutConfirm ? "Confirm logout" : "Logout",
+                    accessibilityHint: "Sign out of active Claude account",
+                    showsExternalArrow: false,
+                    foregroundOverride: showLogoutConfirm ? ThemeColors.danger : nil,
+                    action: {
+                        if showLogoutConfirm {
+                            onLogout()
+                        } else {
+                            onRequestLogout()
+                        }
                     }
-                }) {
-                    HStack(spacing: Spacing.tight) {
-                        Image(systemName: showLogoutConfirm ? "exclamationmark.triangle" : "rectangle.portrait.and.arrow.right")
-                            .font(Typography.monoTiny)
-                        Text(showLogoutConfirm ? "Confirm?" : "Logout")
-                            .font(Typography.tinyLabel)
-                            .underline(logoutHovered)
-                    }
-                    .fixedSize()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(showLogoutConfirm ? ThemeColors.danger : .secondary)
-                .onHover { logoutHovered = $0 }
+                )
                 .animation(MotionConstants.snappy, value: showLogoutConfirm)
-                .accessibilityLabel(showLogoutConfirm ? "Confirm logout" : "Logout")
-                .accessibilityHint("Sign out of active Claude account")
 
                 // Quit
-                Button(action: {
-                    NSApplication.shared.terminate(nil)
-                }) {
-                    HStack(spacing: Spacing.tight) {
-                        Image(systemName: "xmark.circle")
-                            .font(Typography.monoTiny)
-                        Text("Quit")
-                            .font(Typography.tinyLabel)
-                            .underline(quitHovered)
-                    }
-                    .fixedSize()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(ThemeColors.secondaryLabel)
-                .onHover { quitHovered = $0 }
-                .help("Quit (⌘Q)")
-                .accessibilityLabel("Quit AI Battery")
+                FooterLink(
+                    icon: "xmark.circle",
+                    label: "Quit",
+                    tooltip: "Quit (⌘Q)",
+                    accessibilityLabel: "Quit AI Battery",
+                    accessibilityHint: "Quit application",
+                    showsExternalArrow: false,
+                    foregroundOverride: ThemeColors.secondaryLabel,
+                    action: { NSApplication.shared.terminate(nil) }
+                )
             }
 
             // Active incident banner replaces timestamp when visible
