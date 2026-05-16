@@ -64,10 +64,7 @@ struct TokenHealthSection: View {
                     // Session info on its own line for full width
                     sessionInfoLabel
                         .id(selectedIndex)
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .trailing)),
-                            removal: .opacity.combined(with: .move(edge: .leading))
-                        ))
+                        .transition(.opacity)
 
                     // Gauge bar
                     GaugeBar(percent: health.usagePercentage, barColor: bandColor)
