@@ -42,14 +42,14 @@ struct FooterLink<Leading: View>: View {
                 }
                 Text(label)
                     .font(Typography.tinyLabel)
-                    .underline(isHovered)
+                    .underline(isHovered || isFocused)
                 Image(systemName: "arrow.up.right")
                     .font(Typography.decorativeIcon)
             }
             .fixedSize()
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isFocused ? .primary : .secondary)
+        .foregroundStyle(isHovered || isFocused ? .primary : .secondary)
         .focused($isFocused)
         .onHover { isHovered = $0 }
         .help(tooltip)
