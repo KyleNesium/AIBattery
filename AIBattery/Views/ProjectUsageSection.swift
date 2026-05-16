@@ -132,6 +132,7 @@ struct ProjectUsageSection: View {
                 .foregroundStyle(ThemeColors.action)
                 .onHover { showMoreHovered = $0 }
                 .accessibilityLabel(showAll ? "Show fewer projects" : "Show more projects")
+                .accessibilityHint(showAll ? "Collapses to the top projects" : "Expands to show all projects")
             }
 
             Spacer()
@@ -152,6 +153,7 @@ struct ProjectUsageSection: View {
                 .onHover { sortHovered = $0 }
                 .help("Sort by \(sortMode.next.label) (click to cycle)")
                 .accessibilityLabel("Sort by \(sortMode.label)")
+                .accessibilityHint("Cycles the sort order")
             }
         }
     }
@@ -209,6 +211,7 @@ struct ProjectUsageSection: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
+                .accessibilityHint("Clears the search field")
             }
         }
         .padding(.horizontal, Spacing.gap)

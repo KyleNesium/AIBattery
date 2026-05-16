@@ -116,6 +116,7 @@ public struct AuthView: View {
                         .font(Typography.caption)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .accessibilityLabel("Cancel authentication")
+                        .accessibilityHint("Returns to the sign-in screen")
                         .help("Go back to sign-in")
 
                         Spacer()
@@ -160,6 +161,7 @@ public struct AuthView: View {
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .accessibilityLabel("Cancel adding account")
+                        .accessibilityHint("Returns to the main popover")
                 } else {
                     Button("Quit") { NSApplication.shared.terminate(nil) }
                         .buttonStyle(.plain)

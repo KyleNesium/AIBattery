@@ -192,6 +192,7 @@ struct TokenHealthSection: View {
                 }
             }
             .accessibilityLabel("Previous session")
+            .accessibilityHint("Browses to the previous recent session")
 
             Text("\(selectedIndex + 1)/\(sessions.count)")
                 .font(Typography.monoCaptionSmall)
@@ -206,6 +207,7 @@ struct TokenHealthSection: View {
                 }
             }
             .accessibilityLabel("Next session")
+            .accessibilityHint("Browses to the next recent session")
         }
         .help("Browse recent sessions (← → arrow keys)")
         .accessibilityElement(children: .contain)

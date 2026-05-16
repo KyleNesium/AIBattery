@@ -67,6 +67,7 @@ struct PopoverHeaderView: View {
                 .onHover { updateHovered = $0 }
                 .help(availableUpdate.map { "v\($0.version) available" } ?? "Check for updates")
                 .accessibilityLabel(availableUpdate.map { "Version \($0.version) available" } ?? "Check for updates")
+                .accessibilityHint(availableUpdate != nil ? "Reopens the update banner" : "Checks for a newer release")
                 #else
                 Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")")
                     .font(Typography.monoTiny)
@@ -107,11 +108,13 @@ struct PopoverHeaderView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Version \(update.version) release notes")
+                    .accessibilityHint("Opens the release notes in your browser")
                     LinkActionButton(
                         label: "Install Update",
                         icon: "arrow.down.circle",
                         size: .compact,
-                        accessibilityLabel: "Install update version \(update.version)"
+                        accessibilityLabel: "Install update version \(update.version)",
+                        accessibilityHint: "Downloads and installs the update"
                     ) {
                         #if ENABLE_SPARKLE
                         if SparkleUpdateService.shared.canCheckForUpdates {

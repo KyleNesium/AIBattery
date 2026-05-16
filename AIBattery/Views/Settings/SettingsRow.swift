@@ -71,6 +71,7 @@ struct SettingsRow: View {
                 .buttonStyle(.plain)
                 .help("Remove this account")
                 .accessibilityLabel("Remove account \(index + 1)")
+                .accessibilityHint("Signs out and removes this account")
             }
         }
     }
