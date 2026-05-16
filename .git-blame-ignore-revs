@@ -1,0 +1,8 @@
+# Revisions ignored by `git blame --ignore-revs-file=.git-blame-ignore-revs`.
+# Enable globally for this repo with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# v2.3 tech debt sprint — one-time SwiftFormat normalization across 107 files.
+# Pure formatting; no semantic changes. Ignored so `git blame` points at the
+# author of the actual logic instead of this mechanical pass.
+dbb2b96
