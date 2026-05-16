@@ -70,6 +70,6 @@ struct LongestSession: Codable {
     let timestamp: String
 
     var durationFormatted: String {
-        DurationFormatter.compact(TimeInterval(duration) / 1000)
+        DurationFormatter.compact(TimeInterval(duration) / 1_000)
     }
 }

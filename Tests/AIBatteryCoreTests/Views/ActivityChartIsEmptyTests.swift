@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("ActivityChartIsEmpty")
 struct ActivityChartIsEmptyTests {
-
     // The old InsightsView.isHourlyEmpty() static method was removed.
     // Emptiness is now determined by snapshot token fields directly.
     // These tests verify the underlying data signals used by ActivityChartView.isEmpty.
@@ -17,7 +16,7 @@ struct ActivityChartIsEmptyTests {
 
     // DATA-01: has five-hour tokens → fiveHour mode is not empty
     @Test func fiveHourNotEmpty_whenFiveHourTokensNonZero() {
-        let snapshot = makeSnapshot(fiveHourTokens: 1000)
+        let snapshot = makeSnapshot(fiveHourTokens: 1_000)
         #expect(snapshot.fiveHourTokens > 0)
     }
 
@@ -29,7 +28,7 @@ struct ActivityChartIsEmptyTests {
 
     // DATA-01: has seven-day tokens → sevenDay mode is not empty
     @Test func sevenDayNotEmpty_whenSevenDayTokensNonZero() {
-        let snapshot = makeSnapshot(sevenDayTokens: 5000)
+        let snapshot = makeSnapshot(sevenDayTokens: 5_000)
         #expect(snapshot.sevenDayTokens > 0)
     }
 
@@ -41,7 +40,7 @@ struct ActivityChartIsEmptyTests {
 
     // DATA-01: has dailyTokenTotals → monthly mode is not empty
     @Test func monthlyNotEmpty_whenDailyTokenTotalsNonZero() {
-        let snapshot = makeSnapshot(dailyTokenTotals: ["2026-03-01": 12000])
+        let snapshot = makeSnapshot(dailyTokenTotals: ["2026-03-01": 12_000])
         #expect(snapshot.dailyTokenTotals.values.reduce(0, +) > 0)
     }
 

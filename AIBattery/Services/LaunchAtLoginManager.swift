@@ -7,12 +7,10 @@ import ServiceManagement
 /// when the binary is re-signed (e.g. after a Sparkle update). `reregisterIfNeeded()`
 /// detects this drift and re-registers on every launch.
 public enum LaunchAtLoginManager {
-    @available(macOS 13.0, *)
     static var isEnabled: Bool {
         SMAppService.mainApp.status == .enabled
     }
 
-    @available(macOS 13.0, *)
     static func setEnabled(_ enabled: Bool) {
         do {
             if enabled {
@@ -29,7 +27,6 @@ public enum LaunchAtLoginManager {
 
     /// Re-register if the user preference is on but the system registration was lost
     /// (e.g. after ad-hoc re-signing from a Sparkle update).
-    @available(macOS 13.0, *)
     public static func reregisterIfNeeded() {
         let wantsLaunchAtLogin = UserDefaults.standard.bool(forKey: UserDefaultsKeys.launchAtLogin)
         guard wantsLaunchAtLogin else { return }

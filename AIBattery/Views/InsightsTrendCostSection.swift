@@ -3,7 +3,6 @@ import SwiftUI
 // MARK: - Trend summary and cost breakdown
 
 extension InsightsView {
-
     // MARK: - Trend
 
     func trendSummary(_ snapshot: UsageSnapshot) -> some View {

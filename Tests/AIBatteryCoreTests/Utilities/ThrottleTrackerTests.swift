@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("ThrottleTracker")
 struct ThrottleTrackerTests {
-
     // MARK: - evaluate
 
     @Test func evaluate_nilRateLimits_noRecord() {
@@ -164,8 +163,8 @@ struct ThrottleTrackerTests {
 
     @Test func appendAndPrune_prunesOlderThan30Days() {
         let now = Date().timeIntervalSince1970
-        let old = now - 31 * 86400 // 31 days ago
-        let recent = now - 5 * 86400 // 5 days ago
+        let old = now - 31 * 86_400 // 31 days ago
+        let recent = now - 5 * 86_400 // 5 days ago
         let result = ThrottleTracker.appendAndPrune(timestamps: [old, recent], newTimestamp: now)
         #expect(result.count == 2) // recent + now (old pruned)
         #expect(!result.contains(old))
@@ -177,7 +176,7 @@ struct ThrottleTrackerTests {
 
     @Test func count_filtersOldEvents() {
         let now = Date().timeIntervalSince1970
-        let old = now - 8 * 86400 // 8 days ago
+        let old = now - 8 * 86_400 // 8 days ago
         let timestamps = [old, now]
         #expect(ThrottleTracker.count(timestamps: timestamps, days: 7) == 1)
         #expect(ThrottleTracker.count(timestamps: timestamps, days: 30) == 2)

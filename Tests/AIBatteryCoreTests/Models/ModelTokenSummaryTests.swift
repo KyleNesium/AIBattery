@@ -3,18 +3,17 @@ import Testing
 
 @Suite("ModelTokenSummary")
 struct ModelTokenSummaryTests {
-
     @Test func totalTokens_allComponents() {
         let summary = ModelTokenSummary(
             id: "claude-opus-4-6",
             displayName: "Opus 4.6",
-            inputTokens: 1000,
+            inputTokens: 1_000,
             outputTokens: 500,
             cacheReadTokens: 200,
             cacheWriteTokens: 100,
             estimatedCost: 0
         )
-        #expect(summary.totalTokens == 1800)
+        #expect(summary.totalTokens == 1_800)
     }
 
     @Test func totalTokens_zeroAll() {
@@ -34,13 +33,13 @@ struct ModelTokenSummaryTests {
         let summary = ModelTokenSummary(
             id: "model",
             displayName: "Model",
-            inputTokens: 5000,
+            inputTokens: 5_000,
             outputTokens: 0,
             cacheReadTokens: 0,
             cacheWriteTokens: 0,
             estimatedCost: 0
         )
-        #expect(summary.totalTokens == 5000)
+        #expect(summary.totalTokens == 5_000)
     }
 
     @Test func id_matchesModelId() {

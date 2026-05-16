@@ -30,7 +30,7 @@ public final class OAuthManager: ObservableObject {
     // Anthropic OAuth constants (same as Claude Code / OpenCode)
     private let clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private let authBaseURL = "https://claude.ai/oauth/authorize"
-    private let tokenURL = "https://console.anthropic.com/v1/oauth/token"
+    nonisolated private static let tokenURL = "https://console.anthropic.com/v1/oauth/token"
     private let redirectURI = "https://console.anthropic.com/oauth/code/callback"
     private let scopes = "org:create_api_key user:profile user:inference"
 
@@ -75,6 +75,22 @@ public final class OAuthManager: ObservableObject {
     }
 
     /// Returns a valid access token for a specific account, refreshing if needed.
+    ///
+    /// Concurrency contract — **must preserve, see `CLAUDE.md`**:
+    /// - **Serialization**: concurrent callers for the same `accountId` share a single
+    ///   refresh `Task` via `refreshTasks[accountId]`. The check + write pair runs on
+    ///   MainActor with no suspension between them, so the second caller always sees
+    ///   the in-flight task and piggybacks on it via `await existing.value`. This
+    ///   prevents N concurrent token endpoint hits during a refresh.
+    /// - **Generation counter**: `refreshGeneration[accountId]` ensures only the
+    ///   latest refresh's `Task` is cleared from the map; an older refresh completing
+    ///   after a newer one was kicked off won't trample the newer task slot.
+    /// - **Transient vs. auth errors**: handled in `refreshAccessToken` — transient
+    ///   (network, 5xx) keeps `isAuthenticated` true; only true auth errors trigger
+    ///   `signOut`. This invariant is enforced by `AuthError.isTransient`.
+    ///
+    /// The actual HTTP work runs in `postToken`, which is `nonisolated static` so
+    /// the network suspension happens entirely off-MainActor.
     func getAccessToken(for accountId: String) async -> String? {
         guard let acctTokens = tokens[accountId] else {
             AppLogger.oauth.error("getAccessToken: no tokens for account \(accountId, privacy: .public)")
@@ -150,21 +166,21 @@ public final class OAuthManager: ObservableObject {
 
         var userMessage: String {
             switch self {
-            case .noVerifier: return "Auth flow not started. Please click Authenticate first."
-            case .invalidCode: return "Invalid authorization code. Please try again."
-            case .expired: return "Authorization code expired. Please re-authenticate."
-            case .networkError: return "Network error. Check your connection and try again."
-            case .serverError(let code): return "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
-            case .maxAccountsReached: return "Maximum of \(AccountStore.maxAccounts) accounts reached. Remove one before adding another."
-            case .unknownError(let msg): return msg
+            case .noVerifier: "Auth flow not started. Please click Authenticate first."
+            case .invalidCode: "Invalid authorization code. Please try again."
+            case .expired: "Authorization code expired. Please re-authenticate."
+            case .networkError: "Network error. Check your connection and try again."
+            case .serverError(let code): "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
+            case .maxAccountsReached: "Maximum of \(AccountStore.maxAccounts) accounts reached. Remove one before adding another."
+            case .unknownError(let msg): msg
             }
         }
 
         /// Whether this error is transient and the caller should preserve auth state.
         var isTransient: Bool {
             switch self {
-            case .networkError, .serverError: return true
-            default: return false
+            case .networkError, .serverError: true
+            default: false
             }
         }
     }
@@ -204,7 +220,7 @@ public final class OAuthManager: ObservableObject {
             "code_verifier": verifier,
         ]
 
-        let tokenResult = await postToken(body: body)
+        let tokenResult = await Self.postToken(body: body)
         switch tokenResult {
         case .success(let result):
             // Only clear pending state on success — allows retry on network failure
@@ -323,7 +339,7 @@ public final class OAuthManager: ObservableObject {
             "client_id": clientID,
         ]
 
-        let tokenResult = await postToken(body: body)
+        let tokenResult = await Self.postToken(body: body)
         switch tokenResult {
         case .success(let result):
             tokens[accountId] = AccountTokens(
@@ -348,16 +364,29 @@ public final class OAuthManager: ObservableObject {
 
     // MARK: - Token Endpoint
 
-    private struct TokenResult {
+    struct TokenResult {
         let accessToken: String
         let refreshToken: String
         let expiresAt: Date
     }
 
     /// Maximum number of retries for transient server errors (5xx).
-    private static let maxRetries = 2
+    /// `nonisolated` because `postToken` is `nonisolated static` and references this.
+    nonisolated private static let maxRetries = 2
 
-    private func postToken(body: [String: String]) async -> Result<TokenResult, AuthError> {
+    /// HTTP POST to Anthropic's OAuth token endpoint. Pure: takes a body dict,
+    /// returns a `Sendable Result<TokenResult, AuthError>`.
+    ///
+    /// `nonisolated static` so this can run off-MainActor; the network suspension
+    /// already releases MainActor (see `getAccessToken(for:)` doc), but explicit
+    /// nonisolation lets the compiler enforce that this function never depends
+    /// on instance state — preventing the kind of accidental MainActor capture
+    /// that would defeat the suspension contract.
+    ///
+    /// Used by both `exchangeCode` (authorization_code grant) and
+    /// `refreshAccessToken` (refresh_token grant). The MainActor caller owns
+    /// all side effects (token storage, account creation, auth state updates).
+    nonisolated static func postToken(body: [String: String]) async -> Result<TokenResult, AuthError> {
         guard let url = URL(string: tokenURL) else { return .failure(.unknownError("Invalid token URL")) }
 
         var request = URLRequest(url: url)
@@ -372,9 +401,8 @@ public final class OAuthManager: ObservableObject {
         var lastError: AuthError = .networkError
         for attempt in 0...Self.maxRetries {
             if attempt > 0 {
-                // Exponential backoff with jitter: 1s, 2s (±20%)
-                let base = TimeInterval(1 << (attempt - 1))
-                let delay = base * Double.random(in: 0.8...1.2)
+                // Exponential backoff with jitter via RetryPolicy.oauth (1s, 2s, 4s ±20%).
+                let delay = RetryPolicy.oauth.delay(forAttempt: attempt)
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
 
@@ -399,7 +427,8 @@ public final class OAuthManager: ObservableObject {
                     // Honor Retry-After header on 429 if present (capped at 30s via RateLimitFetcher)
                     if http.statusCode == 429,
                        let delay = RateLimitFetcher.parseRetryAfter(
-                           http.value(forHTTPHeaderField: "Retry-After")) {
+                           http.value(forHTTPHeaderField: "Retry-After")
+                       ) {
                         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     }
                     lastError = .serverError(http.statusCode)
@@ -481,45 +510,22 @@ public final class OAuthManager: ObservableObject {
 
     // MARK: - Per-Account Keychain Storage
 
-    private struct AccountTokens {
-        var accessToken: String?
-        var refreshToken: String?
-        var expiresAt: Date?
-    }
+    /// Local alias so the `OAuthManager` body keeps reading `AccountTokens` — the
+    /// type lives in `OAuthTokenStorage` so the auth-flow code and the persistence
+    /// code can evolve separately. See `OAuthTokenStorage.swift` for layout details.
+    typealias AccountTokens = OAuthTokenStorage.AccountTokens
 
     private func saveTokens(for accountId: String) {
         guard let data = tokens[accountId] else { return }
-        // Only the refresh token is persisted in Keychain (long-lived secret).
-        // Access token stays in memory only — it's short-lived (~1h) and will be
-        // re-derived from the refresh token on next launch. This minimises the
-        // number of Keychain items so Sparkle updates trigger at most 1 prompt
-        // instead of 3.
-        if let refresh = data.refreshToken {
-            KeychainHelper.set(account: "refreshToken_\(accountId)", value: refresh)
-        }
-        if let expires = data.expiresAt {
-            UserDefaults.standard.set(expires.timeIntervalSince1970,
-                                      forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
-        }
+        OAuthTokenStorage.save(data, for: accountId)
     }
 
     private func loadTokens(for accountId: String) -> AccountTokens {
-        // Access token is not persisted — will be refreshed on first API call.
-        let refresh = KeychainHelper.get(account: "refreshToken_\(accountId)")
-        var expires: Date?
-        let interval = UserDefaults.standard.double(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
-        if interval > 0 {
-            expires = Date(timeIntervalSince1970: interval)
-        }
-        return AccountTokens(accessToken: nil, refreshToken: refresh, expiresAt: expires)
+        OAuthTokenStorage.load(for: accountId)
     }
 
     private func deleteTokens(for accountId: String) {
-        KeychainHelper.delete(account: "refreshToken_\(accountId)")
-        UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
-        // Clean up legacy accessToken/expiresAt Keychain entries if they exist
-        KeychainHelper.delete(account: "accessToken_\(accountId)")
-        KeychainHelper.delete(account: "expiresAt_\(accountId)")
+        OAuthTokenStorage.delete(for: accountId)
     }
 
     private func loadAllTokens() {
@@ -612,7 +618,6 @@ public final class OAuthManager: ObservableObject {
         UserDefaults.standard.set(true, forKey: migrationKey)
         AppLogger.oauth.info("Migrated Keychain items to ThisDeviceOnly accessibility")
     }
-
 }
 
 // MARK: - Base64URL encoding (RFC 7636)

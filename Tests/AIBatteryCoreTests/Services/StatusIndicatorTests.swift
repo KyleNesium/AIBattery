@@ -3,7 +3,6 @@ import Testing
 
 @Suite("StatusIndicator")
 struct StatusIndicatorTests {
-
     // MARK: - from() parsing
 
     @Test func from_operational() {

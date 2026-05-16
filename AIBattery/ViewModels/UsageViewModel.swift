@@ -57,7 +57,7 @@ public final class UsageViewModel: ObservableObject {
     /// The unified headers arrive intermittently (~10% of polls) — expiring them
     /// causes the UI to flip between API data and local estimates.
     /// 24 hours ensures we hold through overnight sleep cycles.
-    static let rateLimitStaleTTL: TimeInterval = 86400
+    static let rateLimitStaleTTL: TimeInterval = 86_400
 
     /// Short delay before the first API poll so data appears quickly without blocking launch.
     private static let initialPollDelay: TimeInterval = 2
@@ -191,7 +191,9 @@ public final class UsageViewModel: ObservableObject {
                 }
                 return inner
             }
-            for (id, limits) in fetched { collected[id] = limits }
+            for (id, limits) in fetched {
+                collected[id] = limits
+            }
         }
 
         perAccountRateLimits = collected
@@ -369,14 +371,13 @@ public final class UsageViewModel: ObservableObject {
 
         async let fetchedStatus = StatusChecker.shared.fetchStatus()
 
-        let api: APIFetchResult
-        if let token = accessToken, let id = accountId {
-            api = await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
+        let api: APIFetchResult = if let token = accessToken, let id = accountId {
+            await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
         } else {
-            api = APIFetchResult(rateLimits: nil, profile: nil)
+            APIFetchResult(rateLimits: nil, profile: nil)
         }
 
-        return (api, await fetchedStatus)
+        return await (api, fetchedStatus)
     }
 
     private func resolveAccountIdentity(
@@ -390,7 +391,7 @@ public final class UsageViewModel: ObservableObject {
         if account.isPendingIdentity {
             if let orgId = api.profile?.organizationId {
                 oauthManager.resolveAccountIdentity(tempId: id, realOrgId: orgId)
-            } else if Date().timeIntervalSince(account.addedAt) > 3600 {
+            } else if Date().timeIntervalSince(account.addedAt) > 3_600 {
                 errorMessage = "Account identity could not be confirmed. Try removing and re-adding this account."
             }
         }

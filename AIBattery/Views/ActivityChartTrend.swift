@@ -22,7 +22,6 @@ struct ActivityTrendData {
 
 @MainActor
 enum ActivityTrendComputation {
-
     static func compute(
         mode: ActivityChartMode,
         snapshot: UsageSnapshot,
@@ -138,11 +137,11 @@ enum ActivityTrendComputation {
 
     private static func changeInfo(diff: Int, suffix: String) -> ActivityChangeInfo {
         if diff > 0 {
-            return ActivityChangeInfo(symbol: "↑", label: "+\(diff) \(suffix)", color: ThemeColors.trendColor(.up))
+            ActivityChangeInfo(symbol: "↑", label: "+\(diff) \(suffix)", color: ThemeColors.trendColor(.up))
         } else if diff < 0 {
-            return ActivityChangeInfo(symbol: "↓", label: "\(diff) \(suffix)", color: ThemeColors.trendColor(.down))
+            ActivityChangeInfo(symbol: "↓", label: "\(diff) \(suffix)", color: ThemeColors.trendColor(.down))
         } else {
-            return ActivityChangeInfo(symbol: "→", label: "same as \(suffix.replacingOccurrences(of: "vs ", with: ""))", color: ThemeColors.secondaryLabel)
+            ActivityChangeInfo(symbol: "→", label: "same as \(suffix.replacingOccurrences(of: "vs ", with: ""))", color: ThemeColors.secondaryLabel)
         }
     }
 

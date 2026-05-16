@@ -83,8 +83,9 @@ AIBattery/
     StandardRateLimits.swift      — Standard per-model request/token rate limits from API headers
   Services/
     AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3)
-    OAuthManager.swift            — OAuth 2.0 PKCE flow, token storage, auto-refresh
-    RateLimitFetcher.swift        — Claude Code client-data fetch + legacy/public header fallbacks
+    OAuthManager.swift            — OAuth 2.0 PKCE flow, auto-refresh; `postToken` is `nonisolated static` so the network call releases MainActor cleanly. Concurrent-refresh serialization preserved via `refreshTasks[accountId]`
+    OAuthTokenStorage.swift       — Keychain (refresh token) + UserDefaults (expiry) persistence layer extracted from OAuthManager
+    RateLimitFetcher.swift        — Claude Code client-data fetch + legacy/public header fallbacks; pure header helpers (`containsStandardRateLimitHeaders`, `quotaThrottleLikely`, `parseRetryAfter`) are `nonisolated static`
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
     SessionLogReader.swift        — JSONL streaming reader (FileHandle, 64KB chunks)
     FileWatcher.swift             — DispatchSource + FSEventStream for live updates
@@ -92,7 +93,7 @@ AIBattery/
     TokenHealthMonitor.swift      — Analyzes session tokens → health status (single + top N sessions)
     TokenLedger.swift             — Persistent per-model token high-water marks (Application Support)
     NetworkMonitor.swift          — NWPathMonitor connectivity observer (triggers refresh on recovery)
-    StatusChecker.swift           — Fetches status.claude.com system status
+    StatusChecker.swift           — Fetches status.claude.com system status; HTTP fetch + decode + parse run via `nonisolated static func fetchAndParse(url:timeout:)` returning a `Sendable FetchOutcome`
     SingleInstanceGuard.swift     — POSIX flock single-instance guard, SIGTERM handler
     NotificationManager.swift     — Status outage + rate limit alerts via UNUserNotificationCenter
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
@@ -156,6 +157,7 @@ AIBattery/
     Typography.swift              — Named font style tokens (sectionHeader, monoValue, tinyLabel, decorativeIcon, etc.) — caseless enum namespace
     Spacing.swift                 — Spacing/Layout/MotionConstants enums — caseless enum namespaces co-located
     KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
+    RetryPolicy.swift             — Pure value-type exponential-backoff + jitter policy with `nonisolated static` API. 4 presets (`oauth`, `statusCheck`, `fileWatch`, `rateLimit`) carry historical values from CONSTANTS.md. Used by OAuthManager, StatusChecker, FileWatcher, RateLimitFetcher
 Tests/AIBatteryCoreTests/
   MetricToggleViewTests.swift     — orderedModes ordering, allCases completeness, stable remaining order
   Utilities/
@@ -168,6 +170,7 @@ Tests/AIBatteryCoreTests/
     AdaptivePollingStateTests.swift — threshold, doubling, cap, reset, constants
     SecureNetworkingTests.swift   — Ephemeral session config, singleton, size limit constant
     DurationFormatterTests.swift  — compact format, boundaries, days/hours/minutes
+    RetryPolicyTests.swift        — exponential growth at multiple multipliers, cap behaviour, jitter bounds (200-sample fuzz), Retry-After parsing edge cases, preset value pinning, parity tests against pre-refactor OAuth/StatusCheck/FileWatch formulas
     ThrottleTrackerTests.swift    — Throttle transition detection, timestamp parsing, pruning, counting
     IdleSuspendPolicyTests.swift  — idle threshold, suspend policy edge cases
     MenuBarIconTests.swift        — cache key collisions, all pulse steps, boundary values
@@ -193,6 +196,7 @@ Tests/AIBatteryCoreTests/
     AccountStoreTests.swift       — Add/remove/update/merge, persistence, migration
     StatusIndicatorTests.swift    — from() all status strings, severity ordering, displayName
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
+    StatusCheckerConcurrencyTests.swift — nonisolated `fetchAndParse` callable from detached task; doesn't block MainActor
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
     SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
     SessionLogReaderDiscoveryTests.swift — TTL-based discovery fallback, cache expiry
@@ -203,10 +207,12 @@ Tests/AIBatteryCoreTests/
     VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence
     SparkleUpdateServiceTests.swift — Sparkle configuration verification (auto-check disabled, singleton)
     RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation, Retry-After parsing
+    RateLimitFetcherConcurrencyTests.swift — nonisolated header helpers (`parseRetryAfter`, `quotaThrottleLikely`) callable + actor-independent
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload, file size guard
     UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup, project grouping
     UsageAggregatorIntegrationTests.swift — Full pipeline integration tests
     OAuthManagerTests.swift       — AuthError user messages, transient error classification
+    OAuthManagerConcurrencyTests.swift — `postToken` callable from detached task; TokenResult/AuthError Sendable conformance; `isTransient` classifier pins the auth-vs-transient invariant; 10 concurrent `getAccessToken` calls don't deadlock
   ViewModels/
     UsageViewModelTests.swift     — Refresh interval clamping, error messages, effective value guard
     UsageViewModelIdleTests.swift — Idle threshold constants, suspend policy

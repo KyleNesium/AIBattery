@@ -106,6 +106,19 @@ final class RateLimitFetcher {
     /// Fetches rate limits + org profile for a specific account.
     /// Primary: dedicated `/api/oauth/usage` endpoint (structured JSON, always returns data).
     /// Fallback: Messages API probe with unified headers (intermittent, ~10% hit rate).
+    ///
+    /// Actor isolation note: This method is `@MainActor`-isolated (the whole class is) but
+    /// every `await SecureNetworking.data(for:)` call inside (and inside `tryFetch`,
+    /// `fetchUsageEndpoint`, `fetchClaudeCodeClientData`) releases MainActor during the
+    /// network suspension — `SecureNetworking.data` is `nonisolated`. So a 30s URLSession
+    /// timeout does not freeze the UI; MainActor work runs in parallel. The suspension
+    /// boundaries are the safety net.
+    ///
+    /// What does run on MainActor in this method:
+    /// - Reading/writing `cachedResults`, `lastWorkingModel`, `consecutiveAuthFailures`
+    /// - Calling `saveWorkingModel`, `buildHeaderResult`, `persistRateLimits`
+    /// - Header parsing (`RateLimitUsage.parse`, `APIProfile.parse`, etc.) — these are
+    ///   pure, sub-millisecond, and don't materially affect responsiveness.
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
         // Primary: dedicated usage endpoint — no model probe needed, always returns data.
         if let usageResult = await fetchUsageEndpoint(accessToken: accessToken, accountId: accountId) {
@@ -182,9 +195,13 @@ final class RateLimitFetcher {
     /// Parse a Retry-After header value into a delay in seconds.
     /// Returns nil if the value is missing, non-numeric, zero, or negative.
     /// Caps at `maxDelay` to prevent unbounded waits.
+    ///
+    /// Thin wrapper around `RetryPolicy.delay(retryAfterHeader:)`. Kept for
+    /// callers that need a custom cap; pass-through to `RetryPolicy.rateLimit`
+    /// when the default 30s cap is acceptable.
     nonisolated static func parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double? {
-        guard let value, let delay = Double(value), delay > 0 else { return nil }
-        return min(delay, maxDelay)
+        RetryPolicy(baseDelay: 1, maxDelay: maxDelay, multiplier: 2)
+            .delay(retryAfterHeader: value)
     }
 
     /// Threshold above which a 429 with header-reported "allowed" status is still
@@ -251,7 +268,7 @@ final class RateLimitFetcher {
         let body: [String: Any] = [
             "model": model,
             "messages": [["role": "user", "content": "."]],
-            "max_tokens": 1
+            "max_tokens": 1,
         ]
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
             AppLogger.network.warning("RateLimitFetcher: failed to serialize request body")
@@ -585,7 +602,7 @@ final class RateLimitFetcher {
         }
     }
 
-    private static func containsStandardRateLimitHeaders(_ headers: [AnyHashable: Any]) -> Bool {
+    nonisolated private static func containsStandardRateLimitHeaders(_ headers: [AnyHashable: Any]) -> Bool {
         headers.keys
             .compactMap { $0 as? String }
             .map { $0.lowercased() }
@@ -648,5 +665,4 @@ final class RateLimitFetcher {
             )
         }
     }
-
 }

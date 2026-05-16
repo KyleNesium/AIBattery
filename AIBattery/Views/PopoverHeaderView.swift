@@ -61,8 +61,8 @@ struct PopoverHeaderView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(
                     availableUpdate != nil ? ThemeColors.updateAvailable
-                    : updateCheckMessage != nil ? ThemeColors.success
-                    : updateHovered ? .primary : .secondary
+                        : updateCheckMessage != nil ? ThemeColors.success
+                        : updateHovered ? .primary : .secondary
                 )
                 .onHover { updateHovered = $0 }
                 .help(availableUpdate.map { "v\($0.version) available" } ?? "Check for updates")

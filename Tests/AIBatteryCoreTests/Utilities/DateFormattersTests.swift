@@ -4,19 +4,18 @@ import Foundation
 
 @Suite("DateFormatters")
 struct DateFormattersTests {
-
     // MARK: - dateKey
 
     @Test func dateKey_format() {
-        let date = makeDate(year: 2025, month: 3, day: 15)
+        let date = makeDate(year: 2_025, month: 3, day: 15)
         #expect(DateFormatters.dateKey.string(from: date) == "2025-03-15")
     }
 
-    @Test func dateKey_roundTrip() {
+    @Test func dateKey_roundTrip() throws {
         let original = "2025-12-31"
         let date = DateFormatters.dateKey.date(from: original)
         #expect(date != nil)
-        #expect(DateFormatters.dateKey.string(from: date!) == original)
+        #expect(try DateFormatters.dateKey.string(from: #require(date)) == original)
     }
 
     // MARK: - iso8601
@@ -27,11 +26,11 @@ struct DateFormattersTests {
         #expect(date != nil)
     }
 
-    @Test func iso8601_roundTrip() {
+    @Test func iso8601_roundTrip() throws {
         let str = "2025-06-15T10:30:45.000Z"
         let date = DateFormatters.iso8601.date(from: str)
         #expect(date != nil)
-        let output = DateFormatters.iso8601.string(from: date!)
+        let output = try DateFormatters.iso8601.string(from: #require(date))
         #expect(output == str)
     }
 
@@ -39,29 +38,29 @@ struct DateFormattersTests {
 
     @Test func shortDay_producesThreeLetterDay() {
         // 2025-03-17 is a Monday
-        let date = makeDate(year: 2025, month: 3, day: 17)
+        let date = makeDate(year: 2_025, month: 3, day: 17)
         #expect(DateFormatters.shortDay.string(from: date) == "Mon")
     }
 
     // MARK: - shortMonth
 
     @Test func shortMonth_producesThreeLetterMonth() {
-        let date = makeDate(year: 2025, month: 1, day: 1)
+        let date = makeDate(year: 2_025, month: 1, day: 1)
         #expect(DateFormatters.shortMonth.string(from: date) == "Jan")
     }
 
     // MARK: - formatDateRange
 
     @Test func formatDateRange_sameYear_omitsStartYear() {
-        let start = makeDate(year: 2026, month: 1, day: 5)
-        let end = makeDate(year: 2026, month: 3, day: 10)
+        let start = makeDate(year: 2_026, month: 1, day: 5)
+        let end = makeDate(year: 2_026, month: 3, day: 10)
         let result = DateFormatters.formatDateRange(from: start, to: end)
         #expect(result == "Jan 5 – Mar 10, 2026")
     }
 
     @Test func formatDateRange_crossYear_includesBothYears() {
-        let start = makeDate(year: 2025, month: 12, day: 15)
-        let end = makeDate(year: 2026, month: 3, day: 10)
+        let start = makeDate(year: 2_025, month: 12, day: 15)
+        let end = makeDate(year: 2_026, month: 3, day: 10)
         let result = DateFormatters.formatDateRange(from: start, to: end)
         #expect(result == "Dec 15, 2025 – Mar 10, 2026")
     }

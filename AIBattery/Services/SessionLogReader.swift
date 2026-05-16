@@ -279,12 +279,11 @@ final class SessionLogReader: @unchecked Sendable {
         guard fm.fileExists(atPath: projectsURL.path) else { return [] }
 
         // Determine if we must do a full enumeration (TTL expired) or can skip unchanged dirs
-        let forceFullEnum: Bool
-        if let lastEnum = lastFullEnumerationDate,
-           Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
-            forceFullEnum = false
+        let forceFullEnum = if let lastEnum = lastFullEnumerationDate,
+                               Date().timeIntervalSince(lastEnum) < Self.discoveryTTL {
+            false
         } else {
-            forceFullEnum = true
+            true
         }
 
         var newDirModDates: [String: Date] = [:]
@@ -358,7 +357,9 @@ final class SessionLogReader: @unchecked Sendable {
 
         // Remove stale directory entries (deleted project dirs)
         let staleDirs = discoveredFilesByDir.keys.filter { !currentDirPaths.contains($0) }
-        for key in staleDirs { discoveredFilesByDir.removeValue(forKey: key) }
+        for key in staleDirs {
+            discoveredFilesByDir.removeValue(forKey: key)
+        }
 
         // Flatten all per-directory caches into the result
         let jsonlFiles = Array(discoveredFilesByDir.values.flatMap { $0 })
@@ -391,7 +392,7 @@ final class SessionLogReader: @unchecked Sendable {
         var entries: [AssistantUsageEntry] = []
         let decoder = Self.jsonDecoder
 
-        let bufferSize = 64 * 1024 // 64KB chunks
+        let bufferSize = 64 * 1_024 // 64KB chunks
         let maxLineSize = 1_048_576 // 1MB — skip lines longer than this (malformed/corrupt)
         var leftover = Data()
 
@@ -472,11 +473,10 @@ final class SessionLogReader: @unchecked Sendable {
         // after cache eviction produces the same ID (preserving deduplication).
         let messageId = message.id ?? entry.uuid
             ?? "\(entry.sessionId ?? ""):\(entry.timestamp ?? ""):\(usage.inputTokens ?? 0):\(usage.outputTokens ?? 0)"
-        let timestamp: Date
-        if let ts = entry.timestamp {
-            timestamp = isoFormatter.date(from: ts) ?? Date()
+        let timestamp: Date = if let ts = entry.timestamp {
+            isoFormatter.date(from: ts) ?? Date()
         } else {
-            timestamp = Date()
+            Date()
         }
 
         let toolCallCount = message.content?.filter { $0.type == "tool_use" }.count ?? 0

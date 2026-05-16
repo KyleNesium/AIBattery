@@ -4,7 +4,6 @@ import Charts
 // MARK: - Insight rows, hover helpers, and static formatters
 
 extension InsightsView {
-
     // MARK: - Insight rows (merged from former Insights section)
 
     static let insightLabelWidth: CGFloat = Layout.insightLabel
@@ -38,7 +37,6 @@ extension InsightsView {
             tooltip: "Cumulative tokens across all sessions"
         )
         .accessibilityLabel("All time: \(TokenFormatter.format(snapshot.totalTokens)) tokens, \(snapshot.totalSessions) sessions")
-
     }
 
     func insightRow(
@@ -184,7 +182,7 @@ extension InsightsView {
     /// Full HH:00 format for chart x-axis labels (e.g. "06:00", "18:00").
     /// Distinct from formatHourLabel which returns "HH" only (used in tooltips/trend with manual :00 suffix).
     static func formatHourLabelFull(_ hour: Int) -> String {
-        return String(format: "%02d:00", max(0, min(23, hour)))
+        String(format: "%02d:00", max(0, min(23, hour)))
     }
 
     /// Returns the subset of dates to label on the 12M x-axis:
@@ -198,7 +196,7 @@ extension InsightsView {
         return allDates.filter { date in
             let month = cal.component(.month, from: date)
             let year = cal.component(.year, from: date)
-            let isQuarterly = (month % 3 == 1)   // Jan(1), Apr(4), Jul(7), Oct(10)
+            let isQuarterly = (month % 3 == 1) // Jan(1), Apr(4), Jul(7), Oct(10)
             let isCurrent = (month == currentMonth && year == currentYear)
             return isQuarterly || isCurrent
         }

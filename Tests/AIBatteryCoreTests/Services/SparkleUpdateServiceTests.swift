@@ -6,7 +6,6 @@ import Sparkle
 
 @Suite("SparkleUpdateService")
 struct SparkleUpdateServiceTests {
-
     @Test @MainActor func automaticChecksDisabled() {
         let service = SparkleUpdateService.shared
         #expect(service.updater.automaticallyChecksForUpdates == false)
@@ -22,13 +21,13 @@ struct SparkleUpdateServiceTests {
         #expect(service.updater.updateCheckInterval == 0)
     }
 
-    @Test @MainActor func feedURLIsSetWhenBundleHasPlist() {
+    @Test @MainActor func feedURLIsSetWhenBundleHasPlist() throws {
         let service = SparkleUpdateService.shared
         // In the app bundle, SUFeedURL is set in Info.plist.
         // In test bundles it may be nil — verify it doesn't crash either way.
         let feedURL = service.updater.feedURL
         if feedURL != nil {
-            let expected = URL(string: "https://kylenesium.github.io/AIBattery/appcast.xml")!
+            let expected = try #require(URL(string: "https://kylenesium.github.io/AIBattery/appcast.xml"))
             #expect(feedURL == expected)
         }
         // No assertion failure if nil — test environment lacks Info.plist

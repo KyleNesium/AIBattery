@@ -4,7 +4,6 @@ import SwiftUI
 
 @Suite("ThemeColors", .serialized)
 struct ThemeColorsTests {
-
     private func setColorblind(_ value: Bool) {
         UserDefaults.standard.set(value, forKey: UserDefaultsKeys.colorblindMode)
         ThemeColors.refreshColorblindFlag()

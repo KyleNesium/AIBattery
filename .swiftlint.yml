@@ -1,0 +1,69 @@
+# SwiftLint configuration for AIBattery
+# Phase 1 baseline — conservative rules. Tighten as the codebase tolerates it.
+
+included:
+  - AIBattery
+  - AIBatteryApp
+  - Tests
+
+excluded:
+  - .build
+  - .swiftpm
+  - Tests/AIBatteryCoreTests/Fixtures
+  - scripts
+
+# Disable rules that conflict with established style, SwiftFormat output,
+# or known SwiftUI patterns. Re-enable selectively as we refactor.
+disabled_rules:
+  - line_length                           # Long doc lines are intentional
+  - type_body_length                      # 5 large types — Phase 4 splits them
+  - function_body_length                  # Some intentionally long (decoders, formatters)
+  - file_length                           # Will tighten after Phase 4 splits
+  - cyclomatic_complexity                 # Will tighten after Phase 4 splits
+  - identifier_name                       # Allow short names like `k`, `m`, `b`
+  - todo                                  # No TODOs to enforce; pure noise
+  - nesting                               # SwiftUI views nest deeply by design
+  - large_tuple                           # Pure builder structs use tuples
+  - trailing_comma                        # SwiftFormat owns trailing commas
+  - statement_position                    # Existing else/catch newline style preserved
+  - multiple_closures_with_trailing_closure  # SwiftUI Button(action:label:) is canonical
+  - implicit_optional_initialization      # Existing `Type? = nil` style preserved
+  - for_where                             # 1 site, intentional
+  - function_parameter_count              # 1 site (MenuBarMultiAccountText), fix on extract
+  - redundant_discardable_let             # Single site, low value
+  - vertical_whitespace_closing_braces    # Single site, low value
+  - non_optional_string_data_conversion   # Swift 5.9 String(data:encoding:) idiom
+
+# Opt-in rules that catch real issues
+opt_in_rules:
+  - force_unwrapping
+  - redundant_nil_coalescing
+  - prefer_zero_over_explicit_init
+  - sorted_first_last
+  - toggle_bool
+# Intentionally NOT enabled:
+# - empty_count / empty_string: false-positive prone (ActivityChartPoint.count is
+#   a token count, not a collection count; tests compare string equality to "")
+
+analyzer_rules:
+  - unused_import
+  - unused_declaration
+
+# Tunings for kept rules
+force_cast:
+  severity: warning
+force_try:
+  severity: warning
+
+# Force-unwrap warnings are advisory; reviewed call-sites are documented inline.
+force_unwrapping:
+  severity: warning
+
+# Custom rule: discourage Timer.publish (banned per CLAUDE.md regression history)
+custom_rules:
+  no_timer_publish:
+    name: "Timer.publish ban"
+    regex: 'Timer\.publish\('
+    message: "Timer.publish causes timer accumulation freezes in SwiftUI views. Use TimelineView instead."
+    severity: error
+    excluded: ".*Tests/.*"

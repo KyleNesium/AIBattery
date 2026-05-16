@@ -149,8 +149,8 @@ struct PopoverFooterView: View {
         let elapsed = Date().timeIntervalSince(date)
         if elapsed < 5 { return "just now" }
         if elapsed < 60 { return "\(Int(elapsed))s ago" }
-        if elapsed < 3600 { return "\(Int(elapsed / 60))m ago" }
-        return "\(Int(elapsed / 3600))h ago"
+        if elapsed < 3_600 { return "\(Int(elapsed / 60))m ago" }
+        return "\(Int(elapsed / 3_600))h ago"
     }
 
     static let absoluteFormatter: DateFormatter = {
@@ -166,12 +166,12 @@ struct PopoverFooterView: View {
 
     private var statusTooltip: String {
         switch systemIndicator {
-        case .operational: return "All systems operational"
-        case .degradedPerformance: return "Degraded performance"
-        case .partialOutage: return "Partial outage"
-        case .majorOutage: return "Major outage"
-        case .maintenance: return "Under maintenance"
-        case .unknown, .none: return "Check system status"
+        case .operational: "All systems operational"
+        case .degradedPerformance: "Degraded performance"
+        case .partialOutage: "Partial outage"
+        case .majorOutage: "Major outage"
+        case .maintenance: "Under maintenance"
+        case .unknown, .none: "Check system status"
         }
     }
 }

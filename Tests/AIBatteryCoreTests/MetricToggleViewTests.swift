@@ -3,7 +3,6 @@ import Testing
 
 @Suite("MetricToggleView ordering logic")
 struct MetricToggleViewTests {
-
     @Test("MetricMode.allCases contains all 3 modes")
     func allCasesContainsAllModes() {
         let allCases = MetricMode.allCases

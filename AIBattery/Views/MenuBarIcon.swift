@@ -39,10 +39,10 @@ struct MenuBarIcon: View {
     /// Only called for percent >= 30 (below that, sparkle mode is used instead).
     static func starScaleRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
         switch percent {
-        case ..<60:  return (1.00, 1.08)
-        case ..<80:  return (1.00, 1.10)
-        case ..<95:  return (1.00, 1.12)
-        default:     return (1.00, 1.14)
+        case ..<60: (1.00, 1.08)
+        case ..<80: (1.00, 1.10)
+        case ..<95: (1.00, 1.12)
+        default: (1.00, 1.14)
         }
     }
 
@@ -50,9 +50,9 @@ struct MenuBarIcon: View {
     /// Below 80% no halo is drawn (timer is stopped, static icon only).
     static func glowAlphaRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
         switch percent {
-        case ..<80:  return (0.0, 0.0)
-        case ..<95:  return (0.08, 0.25)
-        default:     return (0.12, 0.32)
+        case ..<80: (0.0, 0.0)
+        case ..<95: (0.08, 0.25)
+        default: (0.12, 0.32)
         }
     }
 
@@ -131,7 +131,7 @@ struct MenuBarIcon: View {
         let textColor: NSColor = isDarkMenuBar ? .white : .black
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: textColor
+            .foregroundColor: textColor,
         ]
         let attributed = NSAttributedString(string: text, attributes: attributes)
         let textSize = attributed.size()
@@ -189,14 +189,13 @@ struct MenuBarIcon: View {
 
         // Render without holding the lock — NSImage creation is thread-safe
         // but can be slow; no need to serialize rendering across threads.
-        let icon: NSImage
-        if isBroken {
+        let icon: NSImage = if isBroken {
             // Throttled: static multi-pointed star at peak intensity (no animation)
-            icon = renderThrottledIcon(color: color)
+            renderThrottledIcon(color: color)
         } else if isSparkle {
-            icon = renderSparkleIcon(color: color, pulseStep: pulseStep)
+            renderSparkleIcon(color: color, pulseStep: pulseStep)
         } else {
-            icon = renderIcon(percent: percent, color: color, pulseStep: pulseStep)
+            renderIcon(percent: percent, color: color, pulseStep: pulseStep)
         }
 
         // Bake alignment rect into the icon so statusBarImage can return
@@ -320,21 +319,21 @@ struct MenuBarIcon: View {
     /// Pre-computed sparkle positions: angle (radians) and distance from center.
     /// 8 sparkles arranged around the star — close enough to be visible at menu bar size.
     private static let sparklePositions: [(angle: CGFloat, dist: CGFloat)] = [
-        (0.0,   8.2),   // right
-        (0.8,   8.8),   // upper right
-        (1.57,  8.0),   // top
-        (2.4,   8.6),   // upper left
-        (3.14,  8.2),   // left
-        (3.9,   8.8),   // lower left
-        (4.71,  8.0),   // bottom
-        (5.5,   8.6),   // lower right
+        (0.0, 8.2), // right
+        (0.8, 8.8), // upper right
+        (1.57, 8.0), // top
+        (2.4, 8.6), // upper left
+        (3.14, 8.2), // left
+        (3.9, 8.8), // lower left
+        (4.71, 8.0), // bottom
+        (5.5, 8.6), // lower right
     ]
 
     /// Each pulse step shows a different subset of sparkles (indices into sparklePositions).
     /// 8 frames with 2-3 sparkles each — celebratory twinkling for recovery.
     private static let sparkleFrames: [[Int]] = [
-        [0, 4],     [1, 5],     [2, 6],     [3, 7],
-        [0, 3, 6],  [1, 5],     [2, 4, 7],  [0, 6],
+        [0, 4], [1, 5], [2, 6], [3, 7],
+        [0, 3, 6], [1, 5], [2, 4, 7], [0, 6],
     ]
 
     static func renderSparkleIcon(color: NSColor, pulseStep: Int) -> NSImage {
@@ -378,5 +377,4 @@ struct MenuBarIcon: View {
     }
 
     // Geometry helpers and NSBezierPath extension in MenuBarIconGeometry.swift
-
 }

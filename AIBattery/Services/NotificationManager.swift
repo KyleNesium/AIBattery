@@ -166,7 +166,9 @@ public final class NotificationManager {
         if anyEnabled {
             defaults.set(true, forKey: UserDefaultsKeys.alertStatus)
         }
-        for key in legacyAlertKeys { defaults.removeObject(forKey: key) }
+        for key in legacyAlertKeys {
+            defaults.removeObject(forKey: key)
+        }
         defaults.set(true, forKey: migrationKey)
     }
 

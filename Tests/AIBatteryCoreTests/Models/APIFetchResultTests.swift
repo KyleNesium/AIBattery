@@ -4,7 +4,6 @@ import Testing
 
 @Suite("APIFetchResult")
 struct APIFetchResultTests {
-
     @Test func defaults_notCachedAndFetchedAtNow() {
         let result = APIFetchResult(rateLimits: nil, profile: nil)
         #expect(result.isCached == false)
@@ -15,11 +14,11 @@ struct APIFetchResultTests {
         let result = APIFetchResult(
             rateLimits: nil,
             profile: nil,
-            fetchedAt: Date(timeIntervalSince1970: 1000),
+            fetchedAt: Date(timeIntervalSince1970: 1_000),
             isCached: true
         )
         #expect(result.isCached == true)
-        #expect(result.fetchedAt == Date(timeIntervalSince1970: 1000))
+        #expect(result.fetchedAt == Date(timeIntervalSince1970: 1_000))
     }
 
     @Test func preserves_rateLimitsAndProfile() {
@@ -78,8 +77,8 @@ struct APIFetchResultTests {
             requestsLimit: 50,
             requestsRemaining: 45,
             requestsReset: nil,
-            tokensLimit: 80000,
-            tokensRemaining: 75000,
+            tokensLimit: 80_000,
+            tokensRemaining: 75_000,
             tokensReset: nil
         )
         let result = APIFetchResult(

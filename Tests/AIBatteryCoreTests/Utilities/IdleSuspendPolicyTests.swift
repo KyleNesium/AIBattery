@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("IdleSuspendPolicy")
 struct IdleSuspendPolicyTests {
-
     @Test("shouldSuspend false just under threshold")
     func justUnderThreshold() {
         #expect(!IdleSuspendPolicy.shouldSuspend(secondsIdle: 299, threshold: 300))

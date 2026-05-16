@@ -3,7 +3,6 @@ import Testing
 
 @Suite("UserDefaultsKeys")
 struct UserDefaultsKeysTests {
-
     /// All keys must use the "aibattery_" prefix for namespacing.
     @Test func allKeys_havePrefix() {
         let keys = allKeys

@@ -3,7 +3,6 @@ import Testing
 
 @Suite("APIProfile")
 struct APIProfileTests {
-
     @Test func parse_withOrgId() {
         let headers: [AnyHashable: Any] = [
             "anthropic-organization-id": "org-123",

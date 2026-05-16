@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("UsageViewModel Idle")
 struct UsageViewModelIdleTests {
-
     @Test("idle threshold is 5 minutes")
     func idleThresholdIsFiveMinutes() {
         #expect(IdleSuspendPolicy.defaultThreshold == 300)

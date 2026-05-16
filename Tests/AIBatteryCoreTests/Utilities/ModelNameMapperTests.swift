@@ -3,7 +3,6 @@ import Testing
 
 @Suite("ModelNameMapper")
 struct ModelNameMapperTests {
-
     // MARK: - Standard model families
 
     @Test func displayName_opus() {

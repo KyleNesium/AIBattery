@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("SessionInfoFormatter")
 struct SessionInfoFormatterTests {
-
     // MARK: - Label parts
 
     @Test func labelParts_projectAndBranch() {
@@ -58,9 +57,9 @@ struct SessionInfoFormatterTests {
 
     @Test func bottomParts_includesDurationAndVelocity() {
         let health = makeHealth(
-            sessionDuration: 3600,
+            sessionDuration: 3_600,
             lastActivity: Date(),
-            tokensPerMinute: 1500
+            tokensPerMinute: 1_500
         )
         let parts = SessionInfoFormatter.bottomParts(for: health)
         #expect(parts.count == 3)
@@ -87,7 +86,7 @@ struct SessionInfoFormatterTests {
     // MARK: - Stale idle minutes
 
     @Test func staleIdleMinutes_nilForGreenBand() {
-        let health = makeHealth(band: .green, lastActivity: Date().addingTimeInterval(-3600))
+        let health = makeHealth(band: .green, lastActivity: Date().addingTimeInterval(-3_600))
         #expect(SessionInfoFormatter.staleIdleMinutes(for: health) == nil)
     }
 
@@ -97,7 +96,7 @@ struct SessionInfoFormatterTests {
     }
 
     @Test func staleIdleMinutes_returnsMinutesWhenStale() {
-        let health = makeHealth(band: .orange, lastActivity: Date().addingTimeInterval(-3600))
+        let health = makeHealth(band: .orange, lastActivity: Date().addingTimeInterval(-3_600))
         let minutes = SessionInfoFormatter.staleIdleMinutes(for: health)
         #expect(minutes == 60)
     }
@@ -117,7 +116,7 @@ struct SessionInfoFormatterTests {
     }
 
     @Test func detailTooltip_includesContext() {
-        let health = makeHealth(totalUsed: 50000, usableWindow: 160000)
+        let health = makeHealth(totalUsed: 50_000, usableWindow: 160_000)
         let tooltip = SessionInfoFormatter.detailTooltip(for: health)
         #expect(tooltip.contains("Context:"))
     }
@@ -135,7 +134,7 @@ struct SessionInfoFormatterTests {
     }
 
     @Test func formatSessionTime_todayShowsTime() {
-        let result = SessionInfoFormatter.formatSessionTime(Date().addingTimeInterval(-7200))
+        let result = SessionInfoFormatter.formatSessionTime(Date().addingTimeInterval(-7_200))
         #expect(result.hasPrefix("Today"))
     }
 
@@ -168,7 +167,7 @@ struct SessionInfoFormatterTests {
     }
 
     @Test func copyableDetails_includesExactTokenCounts() {
-        let health = makeHealth(totalUsed: 50000, usableWindow: 160000)
+        let health = makeHealth(totalUsed: 50_000, usableWindow: 160_000)
         let text = SessionInfoFormatter.copyableDetails(for: health)
         #expect(text.contains("Context:  50000/160000"))
     }
@@ -195,14 +194,14 @@ struct SessionInfoFormatterTests {
         lastActivity: Date? = nil,
         tokensPerMinute: Double? = nil,
         totalUsed: Int = 0,
-        usableWindow: Int = 160000
+        usableWindow: Int = 160_000
     ) -> TokenHealthStatus {
         TokenHealthStatus(
             id: id,
             band: band,
             usagePercentage: 0,
             totalUsed: totalUsed,
-            contextWindow: 200000,
+            contextWindow: 200_000,
             usableWindow: usableWindow,
             remainingTokens: usableWindow - totalUsed,
             inputTokens: 0,

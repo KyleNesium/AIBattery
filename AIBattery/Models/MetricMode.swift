@@ -6,18 +6,18 @@ enum MetricMode: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .fiveHour: return "5-Hour"
-        case .sevenDay: return "7-Day"
-        case .contextHealth: return "Context"
+        case .fiveHour: "5-Hour"
+        case .sevenDay: "7-Day"
+        case .contextHealth: "Context"
         }
     }
 
     /// Label for the 3-segment picker.
     var shortLabel: String {
         switch self {
-        case .fiveHour: return "5 Hour"
-        case .sevenDay: return "7 Day"
-        case .contextHealth: return "Context"
+        case .fiveHour: "5 Hour"
+        case .sevenDay: "7 Day"
+        case .contextHealth: "Context"
         }
     }
 

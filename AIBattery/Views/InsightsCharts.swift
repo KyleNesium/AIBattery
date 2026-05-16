@@ -4,7 +4,6 @@ import Charts
 // MARK: - Chart styling and chart views
 
 extension InsightsView {
-
     // MARK: - Shared chart styling
 
     /// Shared area gradient used by all three chart modes.
@@ -97,7 +96,7 @@ extension InsightsView {
                 selectedDailyId = data
                     .min(by: {
                         abs($0.date.timeIntervalSinceReferenceDate - ts)
-                        < abs($1.date.timeIntervalSinceReferenceDate - ts)
+                            < abs($1.date.timeIntervalSinceReferenceDate - ts)
                     })?.id
             } onEnd: {
                 selectedDailyId = nil
@@ -255,7 +254,7 @@ extension InsightsView {
                 selectedMonthlyId = data
                     .min(by: {
                         abs($0.date.timeIntervalSinceReferenceDate - ts)
-                        < abs($1.date.timeIntervalSinceReferenceDate - ts)
+                            < abs($1.date.timeIntervalSinceReferenceDate - ts)
                     })?.id
             } onEnd: {
                 selectedMonthlyId = nil

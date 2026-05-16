@@ -61,68 +61,68 @@ struct TokenHealthSection: View {
 
             if !collapsed {
                 VStack(alignment: .leading, spacing: Spacing.gap) {
-                // Session info on its own line for full width
-                sessionInfoLabel
-                    .id(selectedIndex)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .trailing)),
-                        removal: .opacity.combined(with: .move(edge: .leading))
-                    ))
+                    // Session info on its own line for full width
+                    sessionInfoLabel
+                        .id(selectedIndex)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .trailing)),
+                            removal: .opacity.combined(with: .move(edge: .leading))
+                        ))
 
-                // Gauge bar
-                GaugeBar(percent: health.usagePercentage, barColor: bandColor)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
-                .accessibilityValue("\(remainingText) tokens remaining")
+                    // Gauge bar
+                    GaugeBar(percent: health.usagePercentage, barColor: bandColor)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
+                        .accessibilityValue("\(remainingText) tokens remaining")
 
-                // Detail row
-                HStack {
-                    let detailText = "~\(remainingText) of \(usableText) usable"
-                    Text(detailText)
-                        .font(Typography.caption)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
-                        .copyable(detailText)
-                    Spacer()
-                    let turnsModelText = "\(health.turnCount) turns · \(modelDisplay)"
-                    Text(turnsModelText)
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
-                        .help("Conversation turns in this session")
-                        .copyable(turnsModelText)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
-
-                // Recommended minimum context hint
-                if health.band == .orange || health.band == .red {
-                    let safeMin = health.usableWindow / 5 // 20% of usable window
-                    Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
-                        .help("Recommended minimum tokens to maintain response quality")
-                }
-
-                // Warnings — tiered by severity
-                ForEach(health.warnings) { warning in
-                    HStack(spacing: Spacing.inner) {
-                        Image(systemName: warningIcon(warning.severity))
+                    // Detail row
+                    HStack {
+                        let detailText = "~\(remainingText) of \(usableText) usable"
+                        Text(detailText)
+                            .font(Typography.caption)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                            .copyable(detailText)
+                        Spacer()
+                        let turnsModelText = "\(health.turnCount) turns · \(modelDisplay)"
+                        Text(turnsModelText)
                             .font(Typography.tinyLabel)
-                            .foregroundStyle(warningIconColor(warning.severity))
-                        Text(warning.message)
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(warningTextColor(warning.severity))
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .help("Conversation turns in this session")
+                            .copyable(turnsModelText)
                     }
-                    .help(warning.suggestion ?? "")
-                }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
 
-                // Suggested action
-                if let action = health.suggestedAction {
-                    Text(action)
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, Spacing.tight)
-                }
+                    // Recommended minimum context hint
+                    if health.band == .orange || health.band == .red {
+                        let safeMin = health.usableWindow / 5 // 20% of usable window
+                        Text("(keep above ~\(TokenFormatter.format(safeMin)) for best quality)")
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .help("Recommended minimum tokens to maintain response quality")
+                    }
+
+                    // Warnings — tiered by severity
+                    ForEach(health.warnings) { warning in
+                        HStack(spacing: Spacing.inner) {
+                            Image(systemName: warningIcon(warning.severity))
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(warningIconColor(warning.severity))
+                            Text(warning.message)
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(warningTextColor(warning.severity))
+                        }
+                        .help(warning.suggestion ?? "")
+                    }
+
+                    // Suggested action
+                    if let action = health.suggestedAction {
+                        Text(action)
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(health.band == .red ? ThemeColors.danger : ThemeColors.caution)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, Spacing.tight)
+                    }
                 }
                 .transition(MotionConstants.expandTransition)
             }
@@ -132,7 +132,7 @@ struct TokenHealthSection: View {
         .contentShape(Rectangle())
         .gesture(
             sessions.count > 1 ?
-            DragGesture(minimumDistance: 20)
+                DragGesture(minimumDistance: 20)
                 .onEnded { value in
                     let horizontal = value.translation.width
                     guard abs(horizontal) > abs(value.translation.height) else { return }
@@ -147,7 +147,7 @@ struct TokenHealthSection: View {
                         }
                     }
                 }
-            : nil
+                : nil
         )
         .accessibilityHint(sessions.count > 1 ? "Swipe left or right to browse sessions" : "")
         .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
@@ -316,24 +316,24 @@ struct TokenHealthSection: View {
 
     private func warningIcon(_ severity: HealthWarning.WarningSeverity) -> String {
         switch severity {
-        case .strong: return "exclamationmark.triangle.fill"
-        case .mild: return "exclamationmark.triangle"
-        case .info: return "info.circle"
+        case .strong: "exclamationmark.triangle.fill"
+        case .mild: "exclamationmark.triangle"
+        case .info: "info.circle"
         }
     }
 
     private func warningIconColor(_ severity: HealthWarning.WarningSeverity) -> Color {
         switch severity {
-        case .strong: return ThemeColors.danger
-        case .mild: return ThemeColors.caution
-        case .info: return ThemeColors.tertiaryLabel
+        case .strong: ThemeColors.danger
+        case .mild: ThemeColors.caution
+        case .info: ThemeColors.tertiaryLabel
         }
     }
 
     private func warningTextColor(_ severity: HealthWarning.WarningSeverity) -> Color {
         switch severity {
-        case .strong, .mild: return ThemeColors.secondaryLabel
-        case .info: return ThemeColors.tertiaryLabel
+        case .strong, .mild: ThemeColors.secondaryLabel
+        case .info: ThemeColors.tertiaryLabel
         }
     }
 }

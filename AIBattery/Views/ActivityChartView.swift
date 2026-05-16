@@ -85,9 +85,9 @@ struct InsightsView: View {
     /// Check source data directly — avoids recomputing chart data just for an emptiness check.
     private var isEmpty: Bool {
         switch mode {
-        case .fiveHour: return snapshot?.fiveHourTokens ?? 0 == 0
-        case .sevenDay: return snapshot?.sevenDayTokens ?? 0 == 0
-        case .monthly: return snapshot?.dailyTokenTotals.values.reduce(0, +) ?? 0 == 0
+        case .fiveHour: snapshot?.fiveHourTokens ?? 0 == 0
+        case .sevenDay: snapshot?.sevenDayTokens ?? 0 == 0
+        case .monthly: snapshot?.dailyTokenTotals.values.reduce(0, +) ?? 0 == 0
         }
     }
 
@@ -160,14 +160,14 @@ struct InsightsView: View {
                 .transition(MotionConstants.expandTransition)
             } else {
                 VStack(alignment: .leading, spacing: Spacing.gap) {
-                switch mode {
-                case .sevenDay:
-                    dailyChart
-                case .fiveHour:
-                    fiveHourChart
-                case .monthly:
-                    monthlyChart
-                }
+                    switch mode {
+                    case .sevenDay:
+                        dailyChart
+                    case .fiveHour:
+                        fiveHourChart
+                    case .monthly:
+                        monthlyChart
+                    }
                 }
                 .id(mode)
                 .transition(.opacity)
@@ -177,16 +177,16 @@ struct InsightsView: View {
             // Trend + cost + history — visually grouped
             if !collapsed, let snapshot {
                 VStack(alignment: .leading, spacing: Spacing.gap) {
-                trendSummary(snapshot)
-                    .accessibilityElement(children: .combine)
+                    trendSummary(snapshot)
+                        .accessibilityElement(children: .combine)
 
-                if !windowedModelTokens.isEmpty {
+                    if !windowedModelTokens.isEmpty {
+                        StyledDivider()
+                        costSection(snapshot)
+                    }
+
                     StyledDivider()
-                    costSection(snapshot)
-                }
-
-                StyledDivider()
-                insightRows(snapshot)
+                    insightRows(snapshot)
                 }
                 .transition(MotionConstants.expandTransition)
             }

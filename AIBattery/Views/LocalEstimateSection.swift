@@ -46,7 +46,6 @@ struct LocalEstimateSection: View {
         .padding(.vertical, Spacing.section)
     }
 
-    @ViewBuilder
     private func localUsageBar(label: String, tokens: Int, percent: Double?, limit: Int?) -> some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
             HStack {

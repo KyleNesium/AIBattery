@@ -9,7 +9,6 @@ import Foundation
 /// exercising real FileManager I/O rather than mocked internals.
 @Suite("SessionLogReader Integration", .serialized)
 struct SessionLogReaderIntegrationTests {
-
     // MARK: - Helpers
 
     /// Creates a temp projects directory with the given project subdirectories.
@@ -61,7 +60,7 @@ struct SessionLogReaderIntegrationTests {
 
     /// Sets a file's modification date to yesterday.
     private func backdateFile(at url: URL) throws {
-        let yesterday = Date().addingTimeInterval(-86400)
+        let yesterday = Date().addingTimeInterval(-86_400)
         try FileManager.default.setAttributes([.modificationDate: yesterday], ofItemAtPath: url.path)
     }
 

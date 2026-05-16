@@ -9,7 +9,6 @@ import Foundation
 /// pointed at a non-existent file (JSONL-only aggregation, no stats-cache).
 @Suite("UsageAggregator Integration", .serialized)
 struct UsageAggregatorIntegrationTests {
-
     // MARK: - Helpers
 
     private func tempDir(id: String = UUID().uuidString) -> URL {
@@ -60,7 +59,7 @@ struct UsageAggregatorIntegrationTests {
 
     /// Sets a file's modification date to yesterday.
     private func backdateFile(at url: URL) throws {
-        let yesterday = Date().addingTimeInterval(-86400)
+        let yesterday = Date().addingTimeInterval(-86_400)
         try FileManager.default.setAttributes([.modificationDate: yesterday], ofItemAtPath: url.path)
     }
 
@@ -134,7 +133,7 @@ struct UsageAggregatorIntegrationTests {
                     output: 120,
                     sessionId: "old-sess",
                     messageId: "msg-old-1",
-                    timestamp: Date().addingTimeInterval(-86400), // yesterday's timestamp
+                    timestamp: Date().addingTimeInterval(-86_400), // yesterday's timestamp
                     cwd: "/proj/old"
                 ),
                 makeAssistantLine(
@@ -142,7 +141,7 @@ struct UsageAggregatorIntegrationTests {
                     output: 160,
                     sessionId: "old-sess",
                     messageId: "msg-old-2",
-                    timestamp: Date().addingTimeInterval(-86400),
+                    timestamp: Date().addingTimeInterval(-86_400),
                     cwd: "/proj/old"
                 ),
             ],
@@ -219,6 +218,6 @@ struct UsageAggregatorIntegrationTests {
         let (snapshot2, _) = aggregator.aggregate(rateLimits: nil)
         #expect(snapshot2.todayMessages == 5, "Second aggregate: 2 + 3 = 5 total messages")
         let total2 = snapshot2.todayModelTokens.reduce(0) { $0 + $1.inputTokens }
-        #expect(total2 == 1100, "Second aggregate: 100+100+200+300+400 = 1100 input tokens")
+        #expect(total2 == 1_100, "Second aggregate: 100+100+200+300+400 = 1100 input tokens")
     }
 }

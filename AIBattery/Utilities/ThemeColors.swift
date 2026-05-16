@@ -13,18 +13,18 @@ enum ThemeColors {
     private(set) static var isColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
 
     /// One-time KVO registration to keep isColorblind in sync with UserDefaults.
-    private static let observer: NSObjectProtocol = {
-        NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            isColorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
-        }
-    }()
+    private static let observer: NSObjectProtocol = NotificationCenter.default.addObserver(
+        forName: UserDefaults.didChangeNotification,
+        object: nil,
+        queue: .main
+    ) { _ in
+        isColorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+    }
 
     /// Call once at app launch to ensure the observer is registered.
-    static func registerObserver() { _ = observer }
+    static func registerObserver() {
+        _ = observer
+    }
 
     /// Re-read the colorblind flag from UserDefaults. Used by tests after changing the preference.
     static func refreshColorblindFlag() {
@@ -128,9 +128,9 @@ enum ThemeColors {
     /// Color for trend direction arrows.
     static func trendColor(_ direction: TrendDirection) -> Color {
         switch direction {
-        case .up: return isColorblind ? amber : .orange
-        case .down: return isColorblind ? .cyan : .green
-        case .flat: return .primary.opacity(0.5)
+        case .up: isColorblind ? amber : .orange
+        case .down: isColorblind ? .cyan : .green
+        case .flat: .primary.opacity(0.5)
         }
     }
 

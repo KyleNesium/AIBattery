@@ -3,7 +3,6 @@ import Testing
 
 @Suite("DurationFormatter")
 struct DurationFormatterTests {
-
     @Test func compact_zeroSeconds() {
         #expect(DurationFormatter.compact(0) == "0s")
     }
@@ -33,31 +32,31 @@ struct DurationFormatterTests {
     }
 
     @Test func compact_hoursAndMinutes() {
-        #expect(DurationFormatter.compact(7500) == "2h 5m")
+        #expect(DurationFormatter.compact(7_500) == "2h 5m")
     }
 
     @Test func compact_exactHours() {
-        #expect(DurationFormatter.compact(3600) == "1h 0m")
+        #expect(DurationFormatter.compact(3_600) == "1h 0m")
     }
 
     @Test func compact_overOneDay() {
         // 25 hours = 1d 1h
-        #expect(DurationFormatter.compact(90000) == "1d 1h")
+        #expect(DurationFormatter.compact(90_000) == "1d 1h")
     }
 
     @Test func compact_multipleDays() {
         // 50 hours = 2d 2h
-        #expect(DurationFormatter.compact(180000) == "2d 2h")
+        #expect(DurationFormatter.compact(180_000) == "2d 2h")
     }
 
     @Test func compact_exactly24Hours() {
         // 86400 seconds = 1d 0h (not "24h 0m")
-        #expect(DurationFormatter.compact(86400) == "1d 0h")
+        #expect(DurationFormatter.compact(86_400) == "1d 0h")
     }
 
     @Test func compact_justUnder24Hours() {
         // 23h 59m
-        #expect(DurationFormatter.compact(86340) == "23h 59m")
+        #expect(DurationFormatter.compact(86_340) == "23h 59m")
     }
 
     @Test func compact_exactlyOneMinute() {

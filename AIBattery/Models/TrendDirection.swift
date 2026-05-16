@@ -4,17 +4,17 @@ enum TrendDirection {
 
     var symbol: String {
         switch self {
-        case .up: return "\u{2191}"    // ↑
-        case .down: return "\u{2193}"  // ↓
-        case .flat: return "\u{2192}"  // →
+        case .up: "\u{2191}" // ↑
+        case .down: "\u{2193}" // ↓
+        case .flat: "\u{2192}" // →
         }
     }
 
     var accessibilityLabel: String {
         switch self {
-        case .up: return "increasing"
-        case .down: return "decreasing"
-        case .flat: return "stable"
+        case .up: "increasing"
+        case .down: "decreasing"
+        case .flat: "stable"
         }
     }
 }

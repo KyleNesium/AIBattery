@@ -2,7 +2,7 @@ import Foundation
 
 final class UsageAggregator: @unchecked Sendable {
     /// Side effects that must be applied on @MainActor after aggregate returns.
-    struct SideEffects: Sendable {
+    struct SideEffects {
         let activeUserModel: String?
         let observedModels: [String]
         let accountId: String?
@@ -29,9 +29,9 @@ final class UsageAggregator: @unchecked Sendable {
     // MARK: - Time window constants
 
     /// 5-hour sliding window for rate limit estimation (seconds).
-    private static let fiveHourWindow: TimeInterval = 5 * 3600
+    private static let fiveHourWindow: TimeInterval = 5 * 3_600
     /// 24-hour trailing window for chart display (seconds).
-    private static let twentyFourHourWindow: TimeInterval = 86400
+    private static let twentyFourHourWindow: TimeInterval = 86_400
     /// Number of 15-minute buckets in the 5-hour insights chart.
     private static let fiveHourBucketCount = 20
     /// Duration of each insights chart bucket (seconds).
@@ -159,7 +159,7 @@ final class UsageAggregator: @unchecked Sendable {
         // and only recompute when timestamp crosses the boundary.
         var lastDayStart: Date = .distantPast
         var lastDayEnd: Date = .distantPast
-        var lastDateKey: String = ""
+        var lastDateKey = ""
 
         for entry in allEntries {
             let ts = entry.timestamp
@@ -171,7 +171,7 @@ final class UsageAggregator: @unchecked Sendable {
             } else {
                 let entryDay = calendar.startOfDay(for: ts)
                 lastDayStart = entryDay
-                lastDayEnd = entryDay.addingTimeInterval(86400)
+                lastDayEnd = entryDay.addingTimeInterval(86_400)
                 dateKey = Self.dateFormatter.string(from: ts)
                 lastDateKey = dateKey
             }
@@ -308,11 +308,10 @@ final class UsageAggregator: @unchecked Sendable {
         let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
 
         // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
-        let modelTokens: [ModelTokenSummary]
-        if let accountId {
-            modelTokens = TokenLedger.shared.merge(rawModelTokens, accountId: accountId)
+        let modelTokens: [ModelTokenSummary] = if let accountId {
+            TokenLedger.shared.merge(rawModelTokens, accountId: accountId)
         } else {
-            modelTokens = rawModelTokens
+            rawModelTokens
         }
 
         // First session date
@@ -512,5 +511,4 @@ final class UsageAggregator: @unchecked Sendable {
             )
         }.sorted { $0.totalTokens > $1.totalTokens }
     }
-
 }

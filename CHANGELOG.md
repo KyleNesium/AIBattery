@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.3.0] — 2026-05-16
+
+### Tooling
+- **SwiftLint + SwiftFormat enforced in CI** — added `.swiftlint.yml`, `.swiftformat`, and a new `lint.yml` workflow that runs on every PR. SwiftFormat enforces a uniform style baseline (107 files normalized in this commit). SwiftLint runs conservatively: 0 errors, force-unwrap as advisory warning, plus a custom rule banning `Timer.publish` (regression class documented in `MEMORY.md` and `spec/ARCHITECTURE.md`) to prevent the freeze it caused in v1.9.4.
+- **Removed redundant `@available(macOS 13.0, *)`** from `LaunchAtLoginManager.swift` (3 sites). The package's deployment floor is already `macOS 13`, so these attributes were no-ops.
+
+### Refactored
+- **Extracted `RetryPolicy`** — a pure, `Sendable`, `nonisolated` struct that consolidates four hand-rolled exponential-backoff implementations (`OAuthManager`, `StatusChecker`, `FileWatcher`, `RateLimitFetcher.parseRetryAfter`) into a single tested utility with presets (`.oauth`, `.statusCheck`, `.fileWatch`, `.rateLimit`). Includes injectable RNG for deterministic jitter testing. 20 new tests, including parity tests pinning the historical formulas to prevent semantic drift. Behaviour is bit-identical to the prior inline math; only the implementation moved.
+- **`StatusChecker` HTTP path moved off `@MainActor`** — `fetchAndParse(url:timeout:)` is now `nonisolated static` and returns a `Sendable FetchOutcome`. `parseStatus` and `jsonDecoder` follow. `fetchStatus()` keeps MainActor ownership of cache/backoff state with no `await` between read and write. 2 new concurrency tests pin the structural guarantee (detached-task callability + MainActor-non-blocking).
+- **`RateLimitFetcher` actor isolation hygiene** — pure header helpers (`containsStandardRateLimitHeaders`) now explicitly `nonisolated`. Inline doc on `fetch(accessToken:accountId:)` clarifies the suspension model: every `await SecureNetworking.data(for:)` already releases MainActor for the duration of the network call (Swift suspension semantics), so a 30s URLSession timeout cannot freeze the UI. 4 new concurrency tests assert the `nonisolated` promise holds at call sites in detached tasks. Structural extraction of the per-model probe loop is deferred to Phase 4 (where `RateLimitProbeSequence` will be lifted out as part of the file split).
+- **`OAuthManager.postToken` moved off `@MainActor`** — token-endpoint HTTP (`exchangeCode` and `refreshAccessToken` callers) now runs in a `nonisolated static` worker. `tokenURL` is `nonisolated private static let`. `TokenResult` and `AuthError` now explicitly conform to `Sendable` so the result can cross the actor boundary. MainActor caller still owns all side effects (Keychain writes, account creation, `isAuthenticated` flips). Documented the concurrent-refresh serialization invariant on `getAccessToken(for:)` — concurrent callers for the same account piggyback on a single in-flight `Task<String?, Never>` via `refreshTasks[accountId]`, with a generation counter to avoid stale-task cleanup. 6 new tests pin Sendable conformance, the transient-vs-auth `isTransient` classifier (the contract that decides "log out vs retry on flaky network"), and a sanity check that 10 concurrent `getAccessToken(for:)` calls for an unknown account never deadlock.
+- **Extracted `OAuthTokenStorage` from `OAuthManager`** — the Keychain + UserDefaults persistence layer is now isolated in its own type. `OAuthManager` keeps the auth-flow orchestration; the storage type owns the layout decisions (only refresh tokens in Keychain, expiry timestamps in UserDefaults, access tokens never persisted). One thin typealias keeps the existing OAuthManager body reading naturally.
+
+### Partially completed
+- **Phase 4 file splits** — only `OAuthTokenStorage` shipped this milestone. The other 4 planned splits (`UsagePollingCoordinator`, `StatusBarAnimationController`, `RateLimitProbeSequence`, `UsageAggregator+Periods`) require restructuring private members across file boundaries — material refactors that need their own scoped milestones to do carefully. The structural extraction of `RateLimitFetcher.tryFetch` (deferred from Phase 3b) is therefore still outstanding.
+
+### Build hygiene (extended verification)
+- **0 build warnings (down from 144)** after a clean release build flushed out Swift 6 strict-concurrency warnings. Five fixes:
+  - `OAuthManager.maxRetries` is now `nonisolated private static let` — Phase 3c regression where `Self.maxRetries` was referenced from the `nonisolated postToken` worker but still MainActor-isolated. Would have been a hard error in Swift 6.
+  - Removed dead `activeIsExhausted` local from `StatusBarManager.updateButton` (orphaned by the v2.2.1 menu-bar resolver refactor).
+  - Wrapped `deactivationObserver`'s closure body in `MainActor.assumeIsolated`, mirroring the resize closure right above it.
+  - Added `@preconcurrency import Dispatch` to `StatusBarManager` (compiler-suggested fix for the `DispatchWorkItem` capture pattern).
+  - Fixed flaky `observedModels_defaultsToEmpty` test — was breaking under test parallelism because `restoreWorkingModels`'s prefix scan would pick up other tests' UserDefaults keys before their `defer` cleanup ran. Now clears the `aibattery_observedModels_*` prefix explicitly.
+
+### Notes
+- Pure tooling/formatting/refactor change. No behaviour change. All 922 tests pass unchanged.
+
 ## [2.2.1] — 2026-05-11
 
 ### Fixed

@@ -7,8 +7,8 @@ public final class VersionChecker {
     public static let shared = VersionChecker()
 
     struct UpdateInfo {
-        let version: String  // e.g. "1.2.0"
-        let url: String      // release page URL
+        let version: String // e.g. "1.2.0"
+        let url: String // release page URL
     }
 
     private let releaseURL: URL
@@ -23,14 +23,14 @@ public final class VersionChecker {
     private convenience init() {
         self.init(
             releaseURL: URL(string: "https://api.github.com/repos/KyleNesium/AIBattery/releases/latest")!,
-            checkInterval: 86400
+            checkInterval: 86_400
         )
         restoreFromDefaults()
     }
 
     /// Testable init — accepts a custom URL and cache interval.
     /// Does NOT restore from UserDefaults to keep tests isolated.
-    init(releaseURL: URL, checkInterval: TimeInterval = 86400) {
+    init(releaseURL: URL, checkInterval: TimeInterval = 86_400) {
         self.releaseURL = releaseURL
         self.checkInterval = checkInterval
     }

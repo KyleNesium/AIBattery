@@ -36,35 +36,35 @@ enum StatusIndicator: String {
 
     var severity: Int {
         switch self {
-        case .operational: return 0
-        case .maintenance: return 1
-        case .degradedPerformance: return 2
-        case .partialOutage: return 3
-        case .majorOutage: return 4
-        case .unknown: return -1
+        case .operational: 0
+        case .maintenance: 1
+        case .degradedPerformance: 2
+        case .partialOutage: 3
+        case .majorOutage: 4
+        case .unknown: -1
         }
     }
 
     /// Human-readable display name for notifications and UI.
     var displayName: String {
         switch self {
-        case .operational: return "operational"
-        case .degradedPerformance: return "degraded performance"
-        case .partialOutage: return "partial outage"
-        case .majorOutage: return "major outage"
-        case .maintenance: return "maintenance"
-        case .unknown: return "unknown"
+        case .operational: "operational"
+        case .degradedPerformance: "degraded performance"
+        case .partialOutage: "partial outage"
+        case .majorOutage: "major outage"
+        case .maintenance: "maintenance"
+        case .unknown: "unknown"
         }
     }
 
     static func from(_ string: String) -> StatusIndicator {
         switch string.lowercased() {
-        case "none", "operational": return .operational
-        case "minor", "degraded_performance", "elevated": return .degradedPerformance
-        case "major", "partial_outage": return .partialOutage
-        case "critical", "major_outage": return .majorOutage
-        case "maintenance", "under_maintenance": return .maintenance
-        default: return .unknown
+        case "none", "operational": .operational
+        case "minor", "degraded_performance", "elevated": .degradedPerformance
+        case "major", "partial_outage": .partialOutage
+        case "critical", "major_outage": .majorOutage
+        case "maintenance", "under_maintenance": .maintenance
+        default: .unknown
         }
     }
 }

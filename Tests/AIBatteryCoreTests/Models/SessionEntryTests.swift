@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("SessionEntry")
 struct SessionEntryTests {
-
     // MARK: - Codable decode
 
     @Test func decode_fullEntry() throws {
@@ -37,7 +36,7 @@ struct SessionEntryTests {
         #expect(entry.gitBranch == "main")
         #expect(entry.message?.role == "assistant")
         #expect(entry.message?.model == "claude-opus-4-6")
-        #expect(entry.message?.usage?.inputTokens == 1000)
+        #expect(entry.message?.usage?.inputTokens == 1_000)
         #expect(entry.message?.usage?.outputTokens == 500)
         #expect(entry.message?.usage?.cacheCreationInputTokens == 200)
         #expect(entry.message?.usage?.cacheReadInputTokens == 100)

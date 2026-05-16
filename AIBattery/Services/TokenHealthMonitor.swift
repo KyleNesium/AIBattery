@@ -42,7 +42,7 @@ final class TokenHealthMonitor {
             } else {
                 // Stop scanning once we hit a different session far enough back
                 // (current session entries tend to be clustered near the end)
-                if entries[i].timestamp < cutoff.addingTimeInterval(-3600) { break }
+                if entries[i].timestamp < cutoff.addingTimeInterval(-3_600) { break }
             }
         }
 
@@ -149,13 +149,12 @@ final class TokenHealthMonitor {
         let remaining = max(usableWindow - totalUsed, 0)
 
         // Determine band
-        let band: HealthBand
-        if usagePercentage >= config.redThreshold {
-            band = .red
+        let band: HealthBand = if usagePercentage >= config.redThreshold {
+            .red
         } else if usagePercentage >= config.greenThreshold {
-            band = .orange
+            .orange
         } else {
-            band = .green
+            .green
         }
 
         // Collect warnings

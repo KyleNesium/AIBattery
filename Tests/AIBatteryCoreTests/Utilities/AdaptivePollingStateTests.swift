@@ -4,7 +4,6 @@ import Foundation
 
 @Suite("AdaptivePollingState")
 struct AdaptivePollingStateTests {
-
     @Test func belowThreshold_returnsBaseInterval() {
         var state = AdaptivePollingState()
         // 2 unchanged cycles (below threshold of 3) — should return base

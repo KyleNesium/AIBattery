@@ -1,0 +1,48 @@
+# SwiftFormat configuration for AIBattery
+# Match existing house style: minimal rules, no aggressive rewrites.
+# Phase 1 baseline — add rules incrementally as the codebase tolerates them.
+
+--swiftversion 5.9
+
+# Paths to format
+--exclude .build,build,Package.resolved,**/.build,**/.swiftpm,scripts
+
+# House style (inferred from existing code)
+--binary-grouping none
+--decimal-grouping 3,4
+--hex-grouping none
+--ifdef no-indent
+--no-space-operators ...,..<
+--octal-grouping none
+--pattern-let inline
+--strip-unused-args closure-only
+--wrap-collections before-first
+--wrap-parameters before-first
+
+# Indentation
+--indent 4
+--indentcase false
+--smarttabs enabled
+
+# Spacing
+--maxwidth none
+--ranges spaced
+
+# Disable rules that conflict with established style or are cosmetic-noisy.
+# Re-enable selectively as we refactor (see CHANGELOG [Unreleased]).
+--disable sortImports
+--disable docComments
+--disable modifierOrder
+--disable redundantSelf
+--disable andOperator
+--disable wrapPropertyBodies
+--disable wrapMultilineStatementBraces
+--disable preferKeyPath
+--disable hoistPatternLet
+--disable redundantInternal
+--disable opaqueGenericParameters
+--disable redundantNilInit
+--disable strongifiedSelf
+--disable unusedArguments
+--disable wrapEnumCases
+--disable redundantBackticks

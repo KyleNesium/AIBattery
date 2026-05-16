@@ -89,7 +89,7 @@ struct StandardRateLimits: Equatable, Codable {
         )
 
         guard (requestsLimit != nil && requestsRemaining != nil)
-           || (tokensLimit != nil && tokensRemaining != nil) else {
+            || (tokensLimit != nil && tokensRemaining != nil) else {
             return nil
         }
 

@@ -8,7 +8,6 @@ import Foundation
 /// still-valid 7-day countdown was dropped in favour of a stuck `"100%"`.
 @Suite("StatusBarManager.countdownResetDate")
 struct StatusBarCountdownResetDateTests {
-
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
 
     private func makeRateLimits(
@@ -37,7 +36,7 @@ struct StatusBarCountdownResetDateTests {
 
     @Test func neitherExhausted_returnsNil() {
         let rl = makeRateLimits(
-            fiveHourUtilization: 0.5, fiveHourReset: now.addingTimeInterval(3600),
+            fiveHourUtilization: 0.5, fiveHourReset: now.addingTimeInterval(3_600),
             sevenDayUtilization: 0.2, sevenDayReset: now.addingTimeInterval(86_400)
         )
         #expect(StatusBarManager.countdownResetDate(for: rl, now: now) == nil)
@@ -46,7 +45,7 @@ struct StatusBarCountdownResetDateTests {
     // MARK: - Single-window exhaustion
 
     @Test func fiveHourExhausted_returnsFiveHourReset() {
-        let reset = now.addingTimeInterval(1800)
+        let reset = now.addingTimeInterval(1_800)
         let rl = makeRateLimits(
             fiveHourUtilization: 1.0, fiveHourReset: reset,
             sevenDayUtilization: 0.2, sevenDayReset: now.addingTimeInterval(86_400)
@@ -57,7 +56,7 @@ struct StatusBarCountdownResetDateTests {
     @Test func sevenDayExhausted_returnsSevenDayReset() {
         let reset = now.addingTimeInterval(86_400)
         let rl = makeRateLimits(
-            fiveHourUtilization: 0.5, fiveHourReset: now.addingTimeInterval(1800),
+            fiveHourUtilization: 0.5, fiveHourReset: now.addingTimeInterval(1_800),
             sevenDayUtilization: 1.0, sevenDayReset: reset
         )
         #expect(StatusBarManager.countdownResetDate(for: rl, now: now) == reset)
@@ -86,7 +85,7 @@ struct StatusBarCountdownResetDateTests {
     }
 
     @Test func bothExhausted_bothFuture_returnsEarlierReset() {
-        let five = now.addingTimeInterval(1800)
+        let five = now.addingTimeInterval(1_800)
         let seven = now.addingTimeInterval(86_400)
         let rl = makeRateLimits(
             fiveHourUtilization: 1.0, fiveHourReset: five,
@@ -114,7 +113,7 @@ struct StatusBarCountdownResetDateTests {
     // MARK: - Throttled
 
     @Test func throttled_futureBindingReset_returnsBindingReset() {
-        let reset = now.addingTimeInterval(1800)
+        let reset = now.addingTimeInterval(1_800)
         let rl = makeRateLimits(
             fiveHourUtilization: 1.0, fiveHourReset: reset, fiveHourStatus: "throttled",
             sevenDayUtilization: 0.5, sevenDayReset: now.addingTimeInterval(86_400),
