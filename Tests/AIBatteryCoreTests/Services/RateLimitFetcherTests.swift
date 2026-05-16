@@ -234,6 +234,16 @@ struct RateLimitFetcherTests {
     // MARK: - Dynamic observed models
 
     @Test @MainActor func observedModels_defaultsToEmpty() {
+        // Test parallelism + shared UserDefaults means other tests in this suite
+        // can leave `aibattery_observedModels_*` keys behind even with `defer`
+        // cleanup (the prefix scan in `restoreWorkingModels` may also pick up
+        // keys from the active account written by app instances). Clear the
+        // prefix before exercising the default-empty contract.
+        let prefix = "aibattery_observedModels_"
+        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+
         let fetcher = RateLimitFetcher()
         #expect(fetcher.observedModels.isEmpty)
     }

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Combine
+@preconcurrency import Dispatch
 import os.signpost
 
 extension Notification.Name {
@@ -290,8 +291,12 @@ public final class StatusBarManager: NSObject {
             forName: NSApplication.didResignActiveNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, self.toggleState.isShowing else { return }
-            self.panel?.orderOut(nil)
+            // `queue: .main` makes the callback main-thread; the cast to MainActor
+            // isolation is sound but Swift can't infer it across `@Sendable` boundaries.
+            MainActor.assumeIsolated {
+                guard let self, self.toggleState.isShowing else { return }
+                self.panel?.orderOut(nil)
+            }
         }
 
         self.statusItem = item
@@ -330,12 +335,6 @@ public final class StatusBarManager: NSObject {
         let metricMode = resolveMetricMode(viewModel: viewModel)
         let activePercent = viewModel.snapshot?.percent(for: metricMode) ?? 0
         let activeRateLimits = viewModel.snapshot?.rateLimits
-        let activeIsThrottled = activeRateLimits?.isThrottled ?? false
-        // Show broken star when throttled OR any window hits 100%.
-        let activeIsExhausted = activeIsThrottled
-            || (activeRateLimits?.fiveHourPercent ?? 0) >= 100
-            || (activeRateLimits?.sevenDayPercent ?? 0) >= 100
-
         // Delegate the whole menu-bar text/percent/countdown decision to a pure
         // resolver. Pulling it out of this MainActor-isolated method means the wiring
         // (which count gates the multi-account branch, how active and per-account

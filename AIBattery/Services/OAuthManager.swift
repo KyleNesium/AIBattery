@@ -371,7 +371,8 @@ public final class OAuthManager: ObservableObject {
     }
 
     /// Maximum number of retries for transient server errors (5xx).
-    private static let maxRetries = 2
+    /// `nonisolated` because `postToken` is `nonisolated static` and references this.
+    nonisolated private static let maxRetries = 2
 
     /// HTTP POST to Anthropic's OAuth token endpoint. Pure: takes a body dict,
     /// returns a `Sendable Result<TokenResult, AuthError>`.
