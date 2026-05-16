@@ -133,12 +133,13 @@ struct PopoverHeaderView: View {
                     Spacer()
                     Button(action: { updateBannerDismissed = true }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(Typography.heroTitle)
+                            .font(Typography.bodyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .buttonStyle(.plain)
                     .help("Dismiss")
                     .accessibilityLabel("Dismiss update banner")
+                    .accessibilityHint("Hides the available-update banner")
                 }
                 .padding(Spacing.section)
                 .background(
