@@ -155,7 +155,7 @@ public final class OAuthManager: ObservableObject {
     }
 
     /// Auth error types for specific failure feedback.
-    enum AuthError: Error, Sendable {
+    enum AuthError: Error {
         case noVerifier
         case invalidCode
         case expired
@@ -364,7 +364,7 @@ public final class OAuthManager: ObservableObject {
 
     // MARK: - Token Endpoint
 
-    struct TokenResult: Sendable {
+    struct TokenResult {
         let accessToken: String
         let refreshToken: String
         let expiresAt: Date
@@ -509,45 +509,22 @@ public final class OAuthManager: ObservableObject {
 
     // MARK: - Per-Account Keychain Storage
 
-    private struct AccountTokens {
-        var accessToken: String?
-        var refreshToken: String?
-        var expiresAt: Date?
-    }
+    /// Local alias so the `OAuthManager` body keeps reading `AccountTokens` — the
+    /// type lives in `OAuthTokenStorage` so the auth-flow code and the persistence
+    /// code can evolve separately. See `OAuthTokenStorage.swift` for layout details.
+    typealias AccountTokens = OAuthTokenStorage.AccountTokens
 
     private func saveTokens(for accountId: String) {
         guard let data = tokens[accountId] else { return }
-        // Only the refresh token is persisted in Keychain (long-lived secret).
-        // Access token stays in memory only — it's short-lived (~1h) and will be
-        // re-derived from the refresh token on next launch. This minimises the
-        // number of Keychain items so Sparkle updates trigger at most 1 prompt
-        // instead of 3.
-        if let refresh = data.refreshToken {
-            KeychainHelper.set(account: "refreshToken_\(accountId)", value: refresh)
-        }
-        if let expires = data.expiresAt {
-            UserDefaults.standard.set(expires.timeIntervalSince1970,
-                                      forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
-        }
+        OAuthTokenStorage.save(data, for: accountId)
     }
 
     private func loadTokens(for accountId: String) -> AccountTokens {
-        // Access token is not persisted — will be refreshed on first API call.
-        let refresh = KeychainHelper.get(account: "refreshToken_\(accountId)")
-        var expires: Date?
-        let interval = UserDefaults.standard.double(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
-        if interval > 0 {
-            expires = Date(timeIntervalSince1970: interval)
-        }
-        return AccountTokens(accessToken: nil, refreshToken: refresh, expiresAt: expires)
+        OAuthTokenStorage.load(for: accountId)
     }
 
     private func deleteTokens(for accountId: String) {
-        KeychainHelper.delete(account: "refreshToken_\(accountId)")
-        UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
-        // Clean up legacy accessToken/expiresAt Keychain entries if they exist
-        KeychainHelper.delete(account: "accessToken_\(accountId)")
-        KeychainHelper.delete(account: "expiresAt_\(accountId)")
+        OAuthTokenStorage.delete(for: accountId)
     }
 
     private func loadAllTokens() {
