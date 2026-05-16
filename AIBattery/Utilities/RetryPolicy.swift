@@ -48,7 +48,8 @@ public struct RetryPolicy: Sendable, Equatable {
     ///
     /// Attempts < 1 are clamped to `attempt = 1` (no negative or zero exponent).
     public func delay(forAttempt attempt: Int) -> TimeInterval {
-        delay(forAttempt: attempt, using: &SystemRandomNumberGenerator.shared)
+        var rng = SystemRandomNumberGenerator()
+        return delay(forAttempt: attempt, using: &rng)
     }
 
     /// Test-injectable overload. Pass a deterministic RNG to verify jitter bounds.
@@ -119,9 +120,3 @@ public extension RetryPolicy {
     )
 }
 
-private extension SystemRandomNumberGenerator {
-    /// Shared mutable instance so the non-injected `delay(forAttempt:)` overload
-    /// has a stable target for the inout parameter. `SystemRandomNumberGenerator`
-    /// is documented as thread-safe.
-    static var shared = SystemRandomNumberGenerator()
-}
