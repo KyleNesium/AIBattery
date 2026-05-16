@@ -107,7 +107,12 @@ struct PopoverHeaderView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Version \(update.version) release notes")
-                    Button(action: {
+                    LinkActionButton(
+                        label: "Install Update",
+                        icon: "arrow.down.circle",
+                        size: .compact,
+                        accessibilityLabel: "Install update version \(update.version)"
+                    ) {
                         #if ENABLE_SPARKLE
                         if SparkleUpdateService.shared.canCheckForUpdates {
                             SparkleUpdateService.shared.checkForUpdates()
@@ -119,17 +124,7 @@ struct PopoverHeaderView: View {
                             NSWorkspace.shared.open(url)
                         }
                         #endif
-                    }) {
-                        HStack(spacing: Spacing.xsmall) {
-                            Image(systemName: "arrow.down.circle")
-                                .font(Typography.monoTiny)
-                            Text("Install Update")
-                                .font(Typography.tinyLabel)
-                        }
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(ThemeColors.action)
-                    .accessibilityLabel("Install update version \(update.version)")
                     Spacer()
                     Button(action: { updateBannerDismissed = true }) {
                         Image(systemName: "xmark.circle.fill")
@@ -173,18 +168,16 @@ struct PopoverHeaderView: View {
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                     Spacer()
-                    Button(action: {
+                    LinkActionButton(
+                        label: "Download",
+                        size: .compact,
+                        accessibilityLabel: "Download the latest release",
+                        accessibilityHint: "Opens the GitHub release page in your browser"
+                    ) {
                         if let url = URL(string: "https://github.com/KyleNesium/AIBattery/releases/latest") {
                             NSWorkspace.shared.open(url)
                         }
-                    }) {
-                        Text("Download")
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.action)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Download the latest release")
-                    .accessibilityHint("Opens the GitHub release page in your browser")
                     Button(action: { SparkleUpdateService.shared.clearError() }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(Typography.monoTiny)
