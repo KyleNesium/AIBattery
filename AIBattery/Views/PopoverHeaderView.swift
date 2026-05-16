@@ -19,7 +19,7 @@ struct PopoverHeaderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
-            HStack(alignment: .firstTextBaseline, spacing: Spacing.inner) {
+            HStack(alignment: .center, spacing: Spacing.inner) {
                 Image(systemName: "sparkle")
                     .font(Typography.heroValue)
                     .foregroundStyle(.primary)
