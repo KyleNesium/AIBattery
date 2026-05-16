@@ -38,10 +38,7 @@ struct PopoverFooterView: View {
                         NSWorkspace.shared.open(url)
                     }
                 } leading: {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
-                        .accessibilityLabel(statusTooltip)
+                    statusDot
                 }
 
                 Spacer()
@@ -143,6 +140,33 @@ struct PopoverFooterView: View {
     private var statusColor: Color {
         guard let indicator = systemIndicator else { return .gray }
         return ThemeColors.statusColor(indicator)
+    }
+
+    /// Shape carrying the status color plus, for non-operational states, an
+    /// inset SF Symbol so the severity is distinguishable without color.
+    /// Operational and unknown stay plain dots — they're the visual default.
+    @ViewBuilder
+    private var statusDot: some View {
+        ZStack {
+            Circle()
+                .fill(statusColor)
+                .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
+            if let symbol = statusSymbol {
+                Image(systemName: symbol)
+                    .font(.system(size: Layout.dotSizeSmall * 0.72, weight: .bold))
+                    .foregroundStyle(Color.white)
+            }
+        }
+        .accessibilityLabel(statusTooltip)
+    }
+
+    private var statusSymbol: String? {
+        switch systemIndicator {
+        case .degradedPerformance: "exclamationmark"
+        case .partialOutage, .majorOutage: "xmark"
+        case .maintenance: "wrench.adjustable"
+        case .operational, .unknown, .none: nil
+        }
     }
 
     static func relativeTime(_ date: Date) -> String {
