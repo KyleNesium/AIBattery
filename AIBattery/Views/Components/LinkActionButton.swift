@@ -21,11 +21,17 @@ struct LinkActionButton: View {
     var accessibilityHint: String = ""
     let action: () -> Void
 
-    private var labelFont: Font {
+    private var labelFont: Font { Self.labelFont(for: size) }
+    private var iconFont: Font { Self.iconFont(for: size) }
+
+    /// Label font for the given size variant. Exposed for unit tests so the
+    /// scaling contract is pinned outside of view-body introspection.
+    static func labelFont(for size: Size) -> Font {
         size == .compact ? Typography.tinyLabel : Typography.caption
     }
 
-    private var iconFont: Font {
+    /// Icon font for the given size variant.
+    static func iconFont(for size: Size) -> Font {
         size == .compact ? Typography.monoTiny : Typography.tinyLabel
     }
 

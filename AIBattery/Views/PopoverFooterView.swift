@@ -145,7 +145,14 @@ struct PopoverFooterView: View {
     }
 
     private var statusSymbol: String? {
-        switch systemIndicator {
+        Self.statusSymbol(for: systemIndicator)
+    }
+
+    /// Map a status indicator to the SF Symbol overlaid inside the footer dot.
+    /// Pure function — extracted so tests can pin the mapping without
+    /// constructing a full SwiftUI view.
+    static func statusSymbol(for indicator: StatusIndicator?) -> String? {
+        switch indicator {
         case .degradedPerformance: "exclamationmark"
         case .partialOutage, .majorOutage: "xmark"
         case .maintenance: "wrench.adjustable"
