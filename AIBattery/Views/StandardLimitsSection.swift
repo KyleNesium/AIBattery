@@ -59,25 +59,29 @@ private struct StandardLimitBar: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.inner) {
-            HStack {
-                Text(label)
-                    .font(Typography.buttonLabel)
-                if isExhausted {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.danger)
-                        .accessibilityHidden(true)
+        GaugeRow(
+            percent: percent,
+            barColor: ThemeColors.barColor(percent: percent),
+            accessibilityLabel: "\(label) rate limit usage \(Int(percent)) percent",
+            accessibilityValue: isExhausted ? "Limit reached" : "\(TokenFormatter.format(remaining)) remaining",
+            headerLeading: {
+                HStack(spacing: Spacing.inner) {
+                    Text(label)
+                        .font(Typography.buttonLabel)
+                    if isExhausted {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.danger)
+                            .accessibilityHidden(true)
+                    }
                 }
-                Spacer()
+            },
+            headerTrailing: {
                 Text("\(TokenFormatter.format(remaining))/\(TokenFormatter.format(limit))")
                     .font(Typography.monoValue)
                     .copyable("\(remaining)/\(limit)")
-            }
-
-            GaugeBar(percent: percent, barColor: ThemeColors.barColor(percent: percent))
-
-            TimelineView(.periodic(from: .now, by: 10)) { context in
+            },
+            footer: { now in
                 HStack {
                     if isExhausted {
                         Text("Limit reached")
@@ -92,7 +96,7 @@ private struct StandardLimitBar: View {
                     Spacer()
 
                     if let reset = resetsAt {
-                        let diff = reset.timeIntervalSince(context.date)
+                        let diff = reset.timeIntervalSince(now)
                         if diff > 0 {
                             Text("Resets in \(DurationFormatter.compact(diff))")
                                 .font(Typography.tinyLabel)
@@ -101,6 +105,6 @@ private struct StandardLimitBar: View {
                     }
                 }
             }
-        }
+        )
     }
 }

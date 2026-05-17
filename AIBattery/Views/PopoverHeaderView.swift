@@ -19,7 +19,7 @@ struct PopoverHeaderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
-            HStack(alignment: .firstTextBaseline, spacing: Spacing.inner) {
+            HStack(alignment: .center, spacing: Spacing.inner) {
                 Image(systemName: "sparkle")
                     .font(Typography.heroValue)
                     .foregroundStyle(.primary)
@@ -67,6 +67,7 @@ struct PopoverHeaderView: View {
                 .onHover { updateHovered = $0 }
                 .help(availableUpdate.map { "v\($0.version) available" } ?? "Check for updates")
                 .accessibilityLabel(availableUpdate.map { "Version \($0.version) available" } ?? "Check for updates")
+                .accessibilityHint(availableUpdate != nil ? "Reopens the update banner" : "Checks for a newer release")
                 #else
                 Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")")
                     .font(Typography.monoTiny)
@@ -107,7 +108,14 @@ struct PopoverHeaderView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Version \(update.version) release notes")
-                    Button(action: {
+                    .accessibilityHint("Opens the release notes in your browser")
+                    LinkActionButton(
+                        label: "Install Update",
+                        icon: "arrow.down.circle",
+                        size: .compact,
+                        accessibilityLabel: "Install update version \(update.version)",
+                        accessibilityHint: "Downloads and installs the update"
+                    ) {
                         #if ENABLE_SPARKLE
                         if SparkleUpdateService.shared.canCheckForUpdates {
                             SparkleUpdateService.shared.checkForUpdates()
@@ -119,26 +127,17 @@ struct PopoverHeaderView: View {
                             NSWorkspace.shared.open(url)
                         }
                         #endif
-                    }) {
-                        HStack(spacing: Spacing.xsmall) {
-                            Image(systemName: "arrow.down.circle")
-                                .font(Typography.monoTiny)
-                            Text("Install Update")
-                                .font(Typography.tinyLabel)
-                        }
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(ThemeColors.action)
-                    .accessibilityLabel("Install update version \(update.version)")
                     Spacer()
                     Button(action: { updateBannerDismissed = true }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(Typography.heroTitle)
+                            .font(Typography.bodyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .buttonStyle(.plain)
                     .help("Dismiss")
                     .accessibilityLabel("Dismiss update banner")
+                    .accessibilityHint("Hides the available-update banner")
                 }
                 .padding(Spacing.section)
                 .background(
@@ -172,22 +171,24 @@ struct PopoverHeaderView: View {
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                     Spacer()
-                    Button(action: {
+                    LinkActionButton(
+                        label: "Download",
+                        size: .compact,
+                        accessibilityLabel: "Download the latest release",
+                        accessibilityHint: "Opens the GitHub release page in your browser"
+                    ) {
                         if let url = URL(string: "https://github.com/KyleNesium/AIBattery/releases/latest") {
                             NSWorkspace.shared.open(url)
                         }
-                    }) {
-                        Text("Download")
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.action)
                     }
-                    .buttonStyle(.plain)
                     Button(action: { SparkleUpdateService.shared.clearError() }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(Typography.monoTiny)
                             .foregroundStyle(ThemeColors.secondaryLabel)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Dismiss update error")
+                    .accessibilityHint("Hides the update-failed banner")
                 }
                 .help(sparkleError)
                 .transition(.opacity)

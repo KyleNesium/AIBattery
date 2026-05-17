@@ -98,8 +98,8 @@ All font sizes, spacing values, layout dimensions, and animation durations are d
 - **Typography** — 24 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`, `Typography.trendSymbol`, `Typography.autoModeLabel`)
 - **Spacing** — 11 spacing constants (`micro` 1pt, `tight` 2pt, `xsmall` 3pt, `inner` 4pt, `small` 4pt, `gap` 6pt, `section` 8pt, `medium` 10pt, `authGap` 12pt, `sectionHorizontal` 16pt, `overlay` 24pt)
 - **Layout** — 35 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `borderWidth` 1.5pt, `subtleBorderWidth` 1pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt, `appIconSize` 48pt, `activityModePickerWidth` 120pt, `indexColumn` 14pt, `tutorialCardMaxWidth` 280pt, `accountPickerMaxWidth` 100pt, `clipboardIconOffset` 13pt)
-- **ThemeColors** — surface elevation (`surfaceLevel1`, `surfaceLevel2`), interactive states (`hoverFill`, `copyableHoverFill`), opacity tokens (`dividerOpacity` 0.3, `overlayBackdropOpacity` 0.4, `inactiveIndicatorOpacity` 0.45, `subtleBorderOpacity` 0.2, `hoverBorderOpacity` 0.4, `activeLabelOpacity` 0.5, `focusRingOpacity` 0.6, `shadowOpacity` 0.25, `disabledOpacity` 0.55, `disabledDeepOpacity` 0.25, `subtleElementOpacity` 0.12, `subtleStrokeOpacity` 0.35, `chartGradientStartOpacity` 0.3, `chartGradientEndOpacity` 0.1, `activeAccentOpacity` 0.6, `activeElementFillOpacity` 0.15, `enabledControlOpacity` 0.6)
-- **MotionConstants** — 7 animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `fadeOut` 0.3s, `dialog` 0.2s, `spin` 0.5s, `expandTransition` opacity+move)
+- **ThemeColors** — surface elevation (`surfaceLevel1`, `surfaceLevel2`), semantic strokes (`inactiveStroke` for unselected/idle outlines, `shadowColor` for elevated-control shadows), interactive states (`hoverFill`, `copyableHoverFill`), opacity tokens (`dividerOpacity` 0.3, `overlayBackdropOpacity` 0.4, `inactiveIndicatorOpacity` 0.45, `subtleBorderOpacity` 0.2, `hoverBorderOpacity` 0.4, `activeLabelOpacity` 0.5, `focusRingOpacity` 0.6, `shadowOpacity` 0.25, `disabledOpacity` 0.55, `disabledDeepOpacity` 0.25, `subtleElementOpacity` 0.12, `subtleStrokeOpacity` 0.35, `chartGradientStartOpacity` 0.3, `chartGradientEndOpacity` 0.1, `activeAccentOpacity` 0.6, `activeElementFillOpacity` 0.15, `enabledControlOpacity` 0.6)
+- **MotionConstants** — animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `fadeOut` 0.3s, `fadeIn` 0.3s, `dialog` 0.2s, `spin` 0.5s, `expandTransition` plain `.opacity` — `.move(edge:)` is forbidden inside the popover because the NSPanel resizes around the inserting view and the slide reads as a "jump"). Marquee timing tokens: `marqueePauseSeconds` 0.5, `marqueeHoldSeconds` 3.0, `marqueeRestartSeconds` 0.1, `marqueeFadeSettleSeconds` 0.6, `marqueeScrollSpeed` 30 pts/s, `marqueeScroll(travelPoints:)` builder.
 
 Full token values are listed in `CONSTANTS.md > Design Tokens`.
 
@@ -109,6 +109,7 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 
 ### ❶ Header (`PopoverHeaderView`)
 
+- Header HStack alignment: `.center` (not `.firstTextBaseline`). The title (`Typography.sectionHeader`) and the account picker (`Typography.caption`) are different sizes; baseline-aligning them put the picker visibly below the title cap. `.center` aligns their visual centers.
 - Title: `"✦ AI Battery"` (.headline)
 - **Account picker**: always-visible dropdown Menu next to title
   - Label: display name if set, otherwise `"Account N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
@@ -125,7 +126,8 @@ All visual section dividers use `StyledDivider` — a shared component rendering
   - Background: `RoundedRectangle(cornerRadius: 6)` with `Color.yellow.opacity(0.08)` fill and `Color.yellow.opacity(0.25)` 1pt stroke, 8pt padding
   - Yellow circle icon + **"vX.Y.Z ↗"** (.caption2, ThemeColors.secondaryLabel) — clickable, opens GitHub release page
   - **"↓ Install Update"** (.caption2, .blue) — tries Sparkle in-app update; falls back to opening GitHub release if Sparkle not ready
-  - **"✕"** dismiss button (xmark.circle.fill, 14pt, ThemeColors.secondaryLabel) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
+  - **"✕"** dismiss button (xmark.circle.fill, `Typography.bodyLabel`, ThemeColors.secondaryLabel) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
+  - Install Update and Download buttons inside the banner use `LinkActionButton(size: .compact)` so they share font and spacing with every other inline action in the popover (Add Account, Test).
   - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
 - Padding: H 16, V 6
 
@@ -248,6 +250,7 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
   - Left/right chevrons with `MotionConstants.snappy` animation (`.easeOut(duration: 0.1)`)
   - Counter: monospaced caption2, e.g. `"1/3"`
 - **Swipe gesture**: `DragGesture(minimumDistance: 20)` on main VStack — horizontal drag >50pt or fast flick (velocity >300pt/s) navigates prev/next session (same animation as chevron buttons)
+- **Session-swap transition**: `.transition(.opacity)` on the session info container — plain cross-fade only. `.move(edge:)` is banned for the same panel-resize reason called out for the expand transition: the row's height varies by model-name length and band hint, so a horizontal slide collides with the NSPanel re-anchor and reads as panel jitter.
 - **VoiceOver**: `.accessibilityAdjustableAction` on section — increment/decrement maps to next/previous session
 - **Stale session badge** (if lastActivity > 30 min and band != .green): amber dot (6pt) + `"Idle Xm"` (.caption2, .orange)
 - **Expanded tooltip**: `.help()` on session info label with full details — session ID, model, context window, all timestamps, all token counts, warnings
@@ -390,7 +393,7 @@ Links row in HStack (spacing 10):
 4. **Logout**: rectangle.portrait.and.arrow.right icon (9pt) + "Logout" → two-tap confirmation (first tap shows "Confirm?" in red, auto-reverts after 3s, second tap clears OAuth tokens)
 5. **Quit**: xmark.circle icon (9pt) + "Quit" → terminates app (also via Cmd+Q keyboard shortcut)
 
-Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links row spacing: 10pt.
+All five entries are `FooterLink`s. External links (Usage, Status) pass `showsExternalArrow: true`; action links (Logout, Quit) pass `false`. Logout supplies `foregroundOverride: ThemeColors.danger` while `showLogoutConfirm` is true; Quit pins `foregroundOverride: ThemeColors.secondaryLabel`. Hover and `@FocusState` are unified — both cue an underline + brightened foreground so mouse and keyboard users get the same affordance. Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links row spacing: 10pt.
 
 **Incident banner / timestamp** (mutually exclusive):
 - **Active incidents** (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity). Replaces timestamp.
@@ -398,7 +401,7 @@ Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links r
 
 All text: .caption2, ThemeColors.secondaryLabel. Padding: H 16, V 8 (section).
 
-Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray
+Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray. Non-operational dots overlay a small white SF Symbol inside the circle so severity is distinguishable without color (`exclamationmark` for degraded, `xmark` for partial/major outage, `wrench.adjustable` for maintenance). Operational and unknown stay plain dots. Symbol size scales off `Layout.dotSizeSmall * 0.72`.
 
 ### Loading / Error / Empty States
 

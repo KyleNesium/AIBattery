@@ -61,7 +61,7 @@ public struct AuthView: View {
                         .padding(.vertical, Spacing.gap)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.accentColor)
+                    .tint(ThemeColors.action)
                     .accessibilityLabel("Sign in with Claude")
                     .accessibilityHint("Opens browser to sign in with your Anthropic account")
                     .help("Opens browser to sign in with your Anthropic account")
@@ -116,6 +116,7 @@ public struct AuthView: View {
                         .font(Typography.caption)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .accessibilityLabel("Cancel authentication")
+                        .accessibilityHint("Returns to the sign-in screen")
                         .help("Go back to sign-in")
 
                         Spacer()
@@ -130,7 +131,7 @@ public struct AuthView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(.accentColor)
+                        .tint(ThemeColors.action)
                         .disabled(authCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isExchanging)
                         .accessibilityLabel(isExchanging ? "Connecting" : "Connect")
                         .accessibilityHint("Submit authorization code")
@@ -160,6 +161,7 @@ public struct AuthView: View {
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .accessibilityLabel("Cancel adding account")
+                        .accessibilityHint("Returns to the main popover")
                 } else {
                     Button("Quit") { NSApplication.shared.terminate(nil) }
                         .buttonStyle(.plain)

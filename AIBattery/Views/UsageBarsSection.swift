@@ -74,8 +74,13 @@ struct UsageBar: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.inner) {
-            HStack {
+        GaugeRow(
+            percent: displayPercent,
+            barColor: ThemeColors.barColor(percent: displayPercent),
+            accessibilityLabel: "\(label) rate limit usage \(Int(displayPercent)) percent",
+            accessibilityValue: isThrottled ? "Rate limited" : "\(max(0, Int(100 - displayPercent))) percent remaining",
+            tickInterval: resetTickInterval,
+            headerLeading: {
                 HStack(spacing: Spacing.inner) {
                     Text(label)
                         .font(Typography.buttonLabel)
@@ -99,27 +104,22 @@ struct UsageBar: View {
                             .help("You are currently rate limited")
                     }
                 }
-                Spacer()
-                if tokenTotal > 0 {
-                    Text(TokenFormatter.format(tokenTotal))
-                        .font(Typography.monoCaption)
-                        .foregroundStyle(ThemeColors.tertiaryLabel)
-                        .frame(width: Layout.tokenColumn, alignment: .trailing)
-                        .copyable("\(tokenTotal) tokens")
+            },
+            headerTrailing: {
+                HStack(spacing: Spacing.inner) {
+                    if tokenTotal > 0 {
+                        Text(TokenFormatter.format(tokenTotal))
+                            .font(Typography.monoCaption)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .frame(width: Layout.tokenColumn, alignment: .trailing)
+                            .copyable("\(tokenTotal) tokens")
+                    }
+                    Text("\(Int(displayPercent))%")
+                        .font(Typography.monoValue)
+                        .copyable("\(Int(displayPercent))%")
                 }
-                Text("\(Int(displayPercent))%")
-                    .font(Typography.monoValue)
-                    .copyable("\(Int(displayPercent))%")
-            }
-
-            GaugeBar(percent: displayPercent, barColor: ThemeColors.barColor(percent: displayPercent))
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(label) rate limit usage \(Int(displayPercent)) percent")
-                .accessibilityValue(isThrottled ? "Rate limited" : "\(max(0, Int(100 - displayPercent))) percent remaining")
-
-            // TimelineView ticks every second when reset is <60s away for live countdown.
-            TimelineView(.periodic(from: .now, by: resetTickInterval)) { context in
-                let now = context.date
+            },
+            footer: { now in
                 let resetDiff = resetsAt.map { $0.timeIntervalSince(now) }
                 let expired = (resetDiff ?? 1) <= 0
                 HStack {
@@ -176,8 +176,8 @@ struct UsageBar: View {
                         }
                     }
                 }
-            } // TimelineView
-        }
+            }
+        )
     }
 
     /// Tick every 1s when reset is <60s away (live countdown), otherwise every 10s.

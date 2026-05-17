@@ -10,9 +10,6 @@ struct PopoverFooterView: View {
     @Binding var showLogoutConfirm: Bool
     let onLogout: () -> Void
     let onRequestLogout: () -> Void
-    @State private var logoutHovered = false
-    @State private var quitHovered = false
-
     var body: some View {
         VStack(spacing: Spacing.gap) {
             // Links row
@@ -38,56 +35,40 @@ struct PopoverFooterView: View {
                         NSWorkspace.shared.open(url)
                     }
                 } leading: {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
-                        .accessibilityLabel(statusTooltip)
+                    statusDot
                 }
 
                 Spacer()
 
                 // Logout (active account) — two-tap confirmation
-                Button(action: {
-                    if showLogoutConfirm {
-                        onLogout()
-                    } else {
-                        onRequestLogout()
+                FooterLink(
+                    icon: showLogoutConfirm ? "exclamationmark.triangle" : "rectangle.portrait.and.arrow.right",
+                    label: showLogoutConfirm ? "Confirm?" : "Logout",
+                    accessibilityLabel: showLogoutConfirm ? "Confirm logout" : "Logout",
+                    accessibilityHint: "Sign out of active Claude account",
+                    showsExternalArrow: false,
+                    foregroundOverride: showLogoutConfirm ? ThemeColors.danger : nil,
+                    action: {
+                        if showLogoutConfirm {
+                            onLogout()
+                        } else {
+                            onRequestLogout()
+                        }
                     }
-                }) {
-                    HStack(spacing: Spacing.tight) {
-                        Image(systemName: showLogoutConfirm ? "exclamationmark.triangle" : "rectangle.portrait.and.arrow.right")
-                            .font(Typography.monoTiny)
-                        Text(showLogoutConfirm ? "Confirm?" : "Logout")
-                            .font(Typography.tinyLabel)
-                            .underline(logoutHovered)
-                    }
-                    .fixedSize()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(showLogoutConfirm ? ThemeColors.danger : .secondary)
-                .onHover { logoutHovered = $0 }
+                )
                 .animation(MotionConstants.snappy, value: showLogoutConfirm)
-                .accessibilityLabel(showLogoutConfirm ? "Confirm logout" : "Logout")
-                .accessibilityHint("Sign out of active Claude account")
 
                 // Quit
-                Button(action: {
-                    NSApplication.shared.terminate(nil)
-                }) {
-                    HStack(spacing: Spacing.tight) {
-                        Image(systemName: "xmark.circle")
-                            .font(Typography.monoTiny)
-                        Text("Quit")
-                            .font(Typography.tinyLabel)
-                            .underline(quitHovered)
-                    }
-                    .fixedSize()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(ThemeColors.secondaryLabel)
-                .onHover { quitHovered = $0 }
-                .help("Quit (⌘Q)")
-                .accessibilityLabel("Quit AI Battery")
+                FooterLink(
+                    icon: "xmark.circle",
+                    label: "Quit",
+                    tooltip: "Quit (⌘Q)",
+                    accessibilityLabel: "Quit AI Battery",
+                    accessibilityHint: "Quit application",
+                    showsExternalArrow: false,
+                    foregroundOverride: ThemeColors.secondaryLabel,
+                    action: { NSApplication.shared.terminate(nil) }
+                )
             }
 
             // Active incident banner replaces timestamp when visible
@@ -143,6 +124,39 @@ struct PopoverFooterView: View {
     private var statusColor: Color {
         guard let indicator = systemIndicator else { return .gray }
         return ThemeColors.statusColor(indicator)
+    }
+
+    /// Shape carrying the status color plus, for non-operational states, an
+    /// inset SF Symbol so the severity is distinguishable without color.
+    /// Operational and unknown stay plain dots — they're the visual default.
+    private var statusDot: some View {
+        ZStack {
+            Circle()
+                .fill(statusColor)
+                .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
+            if let symbol = statusSymbol {
+                Image(systemName: symbol)
+                    .font(.system(size: Layout.dotSizeSmall * 0.72, weight: .bold))
+                    .foregroundStyle(Color.white)
+            }
+        }
+        .accessibilityLabel(statusTooltip)
+    }
+
+    private var statusSymbol: String? {
+        Self.statusSymbol(for: systemIndicator)
+    }
+
+    /// Map a status indicator to the SF Symbol overlaid inside the footer dot.
+    /// Pure function — extracted so tests can pin the mapping without
+    /// constructing a full SwiftUI view.
+    static func statusSymbol(for indicator: StatusIndicator?) -> String? {
+        switch indicator {
+        case .degradedPerformance: "exclamationmark"
+        case .partialOutage, .majorOutage: "xmark"
+        case .maintenance: "wrench.adjustable"
+        case .operational, .unknown, .none: nil
+        }
     }
 
     static func relativeTime(_ date: Date) -> String {

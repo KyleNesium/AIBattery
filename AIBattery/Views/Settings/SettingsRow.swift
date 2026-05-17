@@ -22,18 +22,13 @@ struct SettingsRow: View {
             if accountStore.canAddAccount {
                 HStack(spacing: Spacing.section) {
                     Spacer().frame(width: Layout.settingsLabel)
-                    Button(action: onAddAccount) {
-                        HStack(spacing: Spacing.xsmall) {
-                            Image(systemName: "plus.circle")
-                                .font(Typography.tinyLabel)
-                            Text("Add Account")
-                                .font(Typography.caption)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(ThemeColors.action)
-                    .accessibilityLabel("Add another Claude account")
-                    .help("Sign in with another Claude account")
+                    LinkActionButton(
+                        label: "Add Account",
+                        icon: "plus.circle",
+                        help: "Sign in with another Claude account",
+                        accessibilityLabel: "Add another Claude account",
+                        action: onAddAccount
+                    )
                 }
             }
 
@@ -76,6 +71,7 @@ struct SettingsRow: View {
                 .buttonStyle(.plain)
                 .help("Remove this account")
                 .accessibilityLabel("Remove account \(index + 1)")
+                .accessibilityHint("Signs out and removes this account")
             }
         }
     }

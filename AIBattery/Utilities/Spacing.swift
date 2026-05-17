@@ -196,9 +196,41 @@ enum MotionConstants {
     /// Full-rotation spin (refresh button): 0.5s easeInOut.
     static let spin: Animation = .easeInOut(duration: 0.5)
 
-    /// Section expand/collapse transition — fade + slide from top.
+    // MARK: - Marquee (footer incident ticker)
+
+    /// Pause at each end of a marquee scroll, and the initial geometry-settle
+    /// delay before the first scroll. Short so the leading text isn't mistaken
+    /// for a static, truncated message on first reveal.
+    static let marqueePauseSeconds: Double = 0.5
+
+    /// Hold duration for a non-scrolling text before cycling to the next.
+    static let marqueeHoldSeconds: Double = 3.0
+
+    /// Restart delay after the `texts` array changes — lets new geometry settle.
+    static let marqueeRestartSeconds: Double = 0.1
+
+    /// Wait between fade-in completing and the next scroll cycle starting,
+    /// so geometry has time to remeasure under the new text.
+    static let marqueeFadeSettleSeconds: Double = 0.6
+
+    /// Points per second a marquee scrolls horizontally.
+    static let marqueeScrollSpeed: Double = 30.0
+
+    /// Linear animation for a marquee scroll of `travel` points at `marqueeScrollSpeed`.
+    static func marqueeScroll(travelPoints: Double) -> Animation {
+        .linear(duration: max(0.0, travelPoints / marqueeScrollSpeed))
+    }
+
+    /// Section expand/collapse transition.
+    ///
+    /// Plain opacity — never .move(edge:) inside the popover. The panel is
+    /// an NSPanel that re-anchors its top to the menu bar and grows/shrinks
+    /// to fit SwiftUI's content height. A .move transition translates the
+    /// inserting/removing view while the panel is simultaneously resizing,
+    /// which reads as a "jump" rather than a smooth expand. Cross-fade
+    /// hides the resize boundary cleanly.
     static var expandTransition: AnyTransition {
-        .opacity.combined(with: .move(edge: .top))
+        .opacity
     }
 
     // MARK: - State timing (non-animation durations)

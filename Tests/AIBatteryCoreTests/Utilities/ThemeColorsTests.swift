@@ -236,4 +236,20 @@ struct ThemeColorsTests {
         #expect(green == .systemGreen)
         #expect(red == .systemRed)
     }
+
+    // MARK: - v2.3.1 semantic-stroke tokens
+
+    @Test func inactiveStroke_isSecondary() {
+        // Pin: ThemeColors.inactiveStroke must resolve to .secondary so that
+        // MetricToggleView's unselected ring and TutorialOverlay's inactive
+        // step dots stay tied to system secondary tinting.
+        #expect(ThemeColors.inactiveStroke == .secondary)
+    }
+
+    @Test func shadowColor_isBlack() {
+        // Pin: ThemeColors.shadowColor must stay .black — MetricToggleView's
+        // selected-tab shadow and TutorialOverlay's backdrop both opacity-mix
+        // off this token, and the visual result is calibrated against pure black.
+        #expect(ThemeColors.shadowColor == .black)
+    }
 }

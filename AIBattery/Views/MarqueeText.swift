@@ -5,8 +5,8 @@ import SwiftUI
 /// Single text bounces back and forth; if the text fits, it displays statically.
 struct MarqueeText: View {
     let texts: [String]
-    var font: Font = .caption2
-    var color: Color = .secondary
+    var font: Font = Typography.tinyLabel
+    var color: Color = ThemeColors.secondaryLabel
 
     @State private var currentIndex: Int = 0
     @State private var textWidth: CGFloat = 0
@@ -16,16 +16,6 @@ struct MarqueeText: View {
     @State private var textOpacity: Double = 1.0
     @State private var pendingWork: DispatchWorkItem?
 
-    /// Pause at each end before scrolling. Kept short so a glance at the
-    /// footer banner doesn't catch a long static-truncation pose before the
-    /// scroll starts (the leading text would otherwise look like the whole
-    /// message, mid-truncation, on first reveal).
-    private let pauseDuration: Double = 0.5
-    /// Points per second scroll speed.
-    private let scrollSpeed: Double = 30.0
-    /// How long a non-scrolling text stays before cycling to the next.
-    private let holdDuration: Double = 3.0
-
     private var currentText: String {
         texts.isEmpty ? "" : texts[currentIndex % texts.count]
     }
@@ -34,14 +24,14 @@ struct MarqueeText: View {
     private var hasMultiple: Bool { texts.count > 1 }
 
     /// Convenience init for a single text string.
-    init(text: String, font: Font = .caption2, color: Color = .secondary) {
+    init(text: String, font: Font = Typography.tinyLabel, color: Color = ThemeColors.secondaryLabel) {
         self.texts = [text]
         self.font = font
         self.color = color
     }
 
     /// Init for multiple cycling texts.
-    init(texts: [String], font: Font = .caption2, color: Color = .secondary) {
+    init(texts: [String], font: Font = Typography.tinyLabel, color: Color = ThemeColors.secondaryLabel) {
         self.texts = texts
         self.font = font
         self.color = color
@@ -118,7 +108,7 @@ struct MarqueeText: View {
         textOpacity = 1.0
 
         // Wait a beat for geometry to settle, then decide scroll vs hold
-        schedule(after: pauseDuration) {
+        schedule(after: MotionConstants.marqueePauseSeconds) {
             if needsScroll {
                 scrollLeft()
             } else if hasMultiple {
@@ -133,7 +123,7 @@ struct MarqueeText: View {
         textWidth = 0
         currentIndex = 0
         textOpacity = 1.0
-        schedule(after: 0.1) {
+        schedule(after: MotionConstants.marqueeRestartSeconds) {
             beginCycle()
         }
     }
@@ -143,13 +133,13 @@ struct MarqueeText: View {
     private func scrollLeft() {
         guard animating, needsScroll else { return }
         let travel = textWidth - containerWidth
-        let duration = travel / scrollSpeed
 
-        withAnimation(.linear(duration: duration)) {
+        withAnimation(MotionConstants.marqueeScroll(travelPoints: Double(travel))) {
             offset = -travel
         }
 
-        schedule(after: duration + pauseDuration) {
+        let duration = Double(travel) / MotionConstants.marqueeScrollSpeed
+        schedule(after: duration + MotionConstants.marqueePauseSeconds) {
             if hasMultiple {
                 fadeToNext()
             } else {
@@ -161,13 +151,13 @@ struct MarqueeText: View {
     private func scrollRight() {
         guard animating, needsScroll else { return }
         let travel = textWidth - containerWidth
-        let duration = travel / scrollSpeed
 
-        withAnimation(.linear(duration: duration)) {
+        withAnimation(MotionConstants.marqueeScroll(travelPoints: Double(travel))) {
             offset = 0
         }
 
-        schedule(after: duration + pauseDuration) {
+        let duration = Double(travel) / MotionConstants.marqueeScrollSpeed
+        schedule(after: duration + MotionConstants.marqueePauseSeconds) {
             scrollLeft()
         }
     }
@@ -176,7 +166,7 @@ struct MarqueeText: View {
 
     /// Hold the current (non-scrolling) text, then advance.
     private func holdThenAdvance() {
-        schedule(after: holdDuration) {
+        schedule(after: MotionConstants.marqueeHoldSeconds) {
             fadeToNext()
         }
     }
@@ -190,6 +180,7 @@ struct MarqueeText: View {
             textOpacity = 0
         }
 
+        // 0.35s lines up with fadeOut's 0.3s duration plus a brief settle.
         schedule(after: 0.35) {
             currentIndex = (currentIndex + 1) % texts.count
             offset = 0
@@ -201,7 +192,7 @@ struct MarqueeText: View {
             }
 
             // After fade-in + geometry settle, start new cycle for this text
-            schedule(after: 0.6) {
+            schedule(after: MotionConstants.marqueeFadeSettleSeconds) {
                 if needsScroll {
                     scrollLeft()
                 } else {

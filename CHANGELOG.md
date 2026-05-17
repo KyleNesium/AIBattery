@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.3.1] — 2026-05-17
+
+Popover polish sweep. Two visible bug-fixes, eight design-token /
+component refactors, ten accessibility wins, and the spec/code
+realignment that goes with it. No data-flow or auth changes.
+
+### Fixed
+- **Header alignment** — the account picker no longer sits visibly below "AI Battery". The header HStack used `.firstTextBaseline`, which baseline-aligned the larger title (`sectionHeader`) with the smaller picker (`caption`) and pushed the picker's visual center down. Switched to `.center`. (`PopoverHeaderView.swift`)
+- **Settings toggle no longer "jumps down"** — clicking the gear used to combine an `.opacity + .move(edge: .top)` transition with an NSPanel that re-anchors to the menu bar while resizing. The slide and the panel resize fought each other and the whole popover read as jumping. Switched `MotionConstants.expandTransition` (and the one direct call site) to plain `.opacity`. Same fix root-cause-applied to TokenHealthSection's session swap, which was using asymmetric `.move(edge: .trailing/.leading)`.
+- **Colorblind-safe status dot** — the footer status dot encoded operational/degraded/partial-outage/major-outage/maintenance with color only on a 6pt circle. Non-operational dots now overlay a small white SF Symbol so the severity is distinguishable without color (`exclamationmark`, `xmark`, `wrench.adjustable`). Operational and unknown stay plain dots.
+- **Update-banner dismiss icon size** — the xmark.circle.fill used `Typography.heroTitle`, making it optically larger than the sibling install-update and version icons. Dropped to `Typography.bodyLabel` to match the row.
+
+### Accessibility
+- VoiceOver labels added to icon-only buttons that previously read as a generic "button": local-estimate info button, Sparkle Download, Sparkle-error dismiss, update-check button, release-notes link, Install Update, project sort/clear-search, AuthView cancel buttons, TokenHealthSection prev/next session arrows, SettingsRow remove-account `x`, banner dismiss.
+- Hints added to every label that was missing one — VoiceOver now announces what activating the control will do, not just what the control is named.
+- LocalEstimateSection percent text now anchors with the metric name ("5-Hour usage 73 percent" instead of bare "73 percent").
+- InsightsTrendCostSection per-model rows now combine into a single VoiceOver element with active-state context; decorative throttle glyph hidden from a11y; active-model "▶" gets an explicit "Active model" label; copyText includes "active" suffix.
+
+### Design system
+- **Extracted `GaugeRow`** — `UsageBar` (5h/7d) and `StandardLimitBar` (per-minute fallback) shared the same VStack[Header HStack + GaugeBar + TimelineView footer] shape with subtle drift. Both now build on the same shell via `headerLeading` / `headerTrailing` / `footer` ViewBuilders.
+- **Extracted `LinkActionButton`** — four ad-hoc "small text-styled link button" implementations (Add Account / Test / Download / Install Update) collapsed into one component with `Size.standard` (settings) and `Size.compact` (in-banner) variants. Standardizes color, font, icon-to-label spacing, and a11y-label fallback.
+- **`FooterLink` carries Logout and Quit** — both buttons used to re-implement FooterLink's hover-underline pattern inline. `FooterLink` now accepts `showsExternalArrow` (false for inline actions) and `foregroundOverride` (state-driven coloring). Drops ~30 lines of duplicate styling and picks up `@FocusState` for free.
+- **`FooterLink` hover and focus unified** — previously, mouse users saw an underline-only signal and keyboard users saw a color-only signal. Both now produce both cues.
+- **New `ThemeColors` tokens** — `inactiveStroke` (= `.secondary`) for unselected/inactive outlines; `shadowColor` (= `.black`) for elevated-control shadows. Replaces raw color references in MetricToggleView, TutorialOverlay.
+- **`MotionConstants.expandTransition` documented** — token doc-comment now explains why `.move(edge:)` is banned inside the popover (NSPanel resize race), so the slide isn't re-added later.
+- **MarqueeText tokenized** — pause/hold/restart/fade-settle durations, scroll speed, and animation curve all moved out of inline literals into `MotionConstants.marquee*` tokens with a `marqueeScroll(travelPoints:)` builder. Default font and color flipped from raw `.caption2` / `.secondary` to `Typography.tinyLabel` / `ThemeColors.secondaryLabel`.
+- **`CollapsibleSectionHeader` focus ring via token** — `Color.accentColor` → `ThemeColors.action`.
+- **`AuthView` tint via token** — `.tint(.accentColor)` → `.tint(ThemeColors.action)` on both `.borderedProminent` CTAs.
+
+### Spec
+- `spec/ARCHITECTURE.md`, `spec/UI_SPEC.md`, `spec/CONSTANTS.md` updated to match the new component list, ThemeColors tokens, MotionConstants tokens, header alignment, session-swap transition, FooterLink contract, and status-dot SF Symbol overlay.
+
 ## [2.3.0] — 2026-05-16
 
 ### Tooling

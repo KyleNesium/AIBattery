@@ -27,14 +27,13 @@ struct AlertSettingsSection: View {
                     if on { NotificationManager.shared.requestPermission() }
                 }
             if alertStatus {
-                Button("Test") {
-                    NotificationManager.shared.testAlerts()
-                }
-                .buttonStyle(.plain)
-                .font(Typography.tinyLabel)
-                .foregroundStyle(ThemeColors.action)
-                .help("Send a test notification")
-                .accessibilityLabel("Test alerts")
+                LinkActionButton(
+                    label: "Test",
+                    size: .compact,
+                    help: "Send a test notification",
+                    accessibilityLabel: "Test alerts",
+                    action: { NotificationManager.shared.testAlerts() }
+                )
             }
         }
         if alertRateLimit {

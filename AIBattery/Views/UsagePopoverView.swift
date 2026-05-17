@@ -121,7 +121,7 @@ public struct UsagePopoverView: View {
                     accountStore: accountStore,
                     onAddAccount: { isAddingAccount = true }
                 )
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity)
                 // No StyledDivider here — the always-present divider above the footer
                 // already separates the settings stack from the footer row. Adding
                 // another here renders a doubled-up line at the bottom.
@@ -148,6 +148,8 @@ public struct UsagePopoverView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Anthropic removed usage headers from their API. Tap for details.")
+                        .accessibilityLabel("Why usage is estimated locally")
+                        .accessibilityHint("Opens an explanation in your browser")
                         Spacer()
                     }
                     .padding(.horizontal, Spacing.sectionHorizontal)
