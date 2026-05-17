@@ -34,7 +34,7 @@ struct TutorialOverlay: View {
     private var content: some View {
         ZStack {
             // Semi-transparent backdrop
-            Color.black.opacity(ThemeColors.overlayBackdropOpacity)
+            ThemeColors.shadowColor.opacity(ThemeColors.overlayBackdropOpacity)
                 .ignoresSafeArea()
 
             // Centered card
@@ -57,7 +57,7 @@ struct TutorialOverlay: View {
                 HStack(spacing: Spacing.gap) {
                     ForEach(0..<steps.count, id: \.self) { i in
                         Circle()
-                            .fill(i == step ? ThemeColors.action : Color.secondary.opacity(ThemeColors.inactiveIndicatorOpacity))
+                            .fill(i == step ? ThemeColors.action : ThemeColors.inactiveStroke.opacity(ThemeColors.inactiveIndicatorOpacity))
                             .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
                             .accessibilityHidden(true)
                     }
