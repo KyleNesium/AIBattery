@@ -63,7 +63,11 @@ jobs:
             # `gtimeout` isn't preinstalled on macos-15 runners but perl is.
             # `alarm` schedules SIGALRM, then `exec` replaces perl with swift
             # test; default SIGALRM action is to terminate.
-            perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build 2>&1 | tee test-output.txt
+            # --no-parallel works around persistent macos-15 SIGSEGV crashes in
+          # the swiftpm-testing-helper's parallel scheduler — observed crashing
+          # all 3 retries of the v2.3.1 release. Serial mode adds ~0s (the
+          # whole suite is ~3s) and trades that for stability.
+          perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build --no-parallel 2>&1 | tee test-output.txt
             exit_code=${PIPESTATUS[0]}
             set -e
             echo "::endgroup::"
