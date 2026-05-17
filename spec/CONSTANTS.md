@@ -286,7 +286,7 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Constant | Value |
 |----------|-------|
 | Settings toggle | `.easeOut(duration: 0.15)` — `MotionConstants.standard` |
-| Settings transition | `.opacity.combined(with: .move(edge: .top))` |
+| Settings / collapsible expand transition | `.opacity` — plain cross-fade. `.move(edge:)` is banned in the popover; the NSPanel resizes around the inserting view and the slide reads as a "jump". |
 | Metric mode change | `.easeOut(duration: 0.1)` — `MotionConstants.snappy` |
 | Account switch | `.easeOut(duration: 0.15)` — `MotionConstants.standard` |
 | Copy clipboard icon display | 1.2 seconds, `.easeOut(duration: 0.12)` show / `.easeIn(duration: 0.2)` hide |
@@ -374,7 +374,17 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `MotionConstants.standard` | `.easeOut(duration: 0.15)` | Standard section expand/collapse, settings toggle, account switch |
 | `MotionConstants.snappy` | `.easeOut(duration: 0.1)` | Session navigation, metric mode change |
 | `MotionConstants.smooth` | `.easeInOut(duration: 0.4)` | Gauge bar fill, chart transitions |
-| `MotionConstants.expandTransition` | `.opacity + .move(edge: .top)` | Section expand/collapse content transition |
+| `MotionConstants.expandTransition` | `.opacity` (plain cross-fade) | Section / settings expand-collapse content transition. `.move(edge:)` is banned inside the popover — see token doc-comment for the NSPanel resize-race rationale. |
+| `MotionConstants.fadeIn` | `.easeIn(duration: 0.3)` | Marquee text fade-in, generic incoming-content fade |
+| `MotionConstants.marqueePauseSeconds` | `0.5` seconds | Pause at each end of a marquee scroll; also initial geometry-settle delay |
+| `MotionConstants.marqueeHoldSeconds` | `3.0` seconds | Hold a non-scrolling marquee text before cycling to the next |
+| `MotionConstants.marqueeRestartSeconds` | `0.1` seconds | Delay after `texts` array changes before restarting cycle |
+| `MotionConstants.marqueeFadeSettleSeconds` | `0.6` seconds | Settle delay after fade-in before starting next scroll |
+| `MotionConstants.marqueeScrollSpeed` | `30.0` points/second | Horizontal scroll speed for marquee text |
+| `MotionConstants.marqueeScroll(travelPoints:)` | `.linear(duration: travelPoints / marqueeScrollSpeed)` | Builder for the marquee scroll animation |
+| `MotionConstants.clipboardFeedbackNs` | `1_500_000_000` (state timing, non-animation) | Clipboard "copied" feedback icon display duration |
+| `MotionConstants.logoutConfirmNs` | `3_000_000_000` (state timing, non-animation) | Logout confirmation auto-revert timeout |
+| `MotionConstants.updateCheckMessageNs` | `2_500_000_000` (state timing, non-animation) | Update check "Up to date" message display duration |
 
 ## Security Guards
 
