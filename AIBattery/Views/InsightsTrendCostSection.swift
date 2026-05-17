@@ -42,6 +42,7 @@ extension InsightsView {
                 HStack(spacing: Spacing.xsmall) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.decorativeIcon)
+                        .accessibilityHidden(true)
                     Text("Throttled: \(throttleCount)×")
                         .font(Typography.monoCaption)
                 }
@@ -88,19 +89,22 @@ extension InsightsView {
         if !models.isEmpty {
             VStack(alignment: .leading, spacing: Spacing.inner) {
                 ForEach(models) { model in
+                    let active = isActive(model)
                     let modelTokensText = TokenFormatter.format(model.totalTokens)
                     let modelCost = "~\(ModelPricing.formatCompactCost(model.estimatedCost))"
-                    let copyText = "\(model.displayName) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
+                    let activeSuffix = active ? " \u{00B7} active" : ""
+                    let copyText = "\(model.displayName)\(activeSuffix) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
                     HStack(spacing: Spacing.gap) {
                         Text(model.displayName)
                             .font(Typography.tinyLabel)
                             .lineLimit(1)
 
-                        if isActive(model) {
+                        if active {
                             Text("▶")
                                 .font(Typography.decorativeIcon)
                                 .foregroundStyle(ThemeColors.success)
                                 .help("Active model in current session")
+                                .accessibilityLabel("Active model")
                         }
 
                         Spacer()
@@ -116,6 +120,8 @@ extension InsightsView {
                             .frame(width: tokenColumnWidth, alignment: .trailing)
                     }
                     .copyable(copyText)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(model.displayName)\(active ? ", active" : ""), \(modelCost), \(modelTokensText) tokens")
                 }
             }
         }
