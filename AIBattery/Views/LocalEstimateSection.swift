@@ -56,6 +56,7 @@ struct LocalEstimateSection: View {
                     Text("\(Int(pct))%")
                         .font(Typography.monoValue)
                         .copyable("\(Int(pct))%")
+                        .accessibilityLabel("\(label) usage \(Int(pct)) percent")
                 }
                 tokenLabel(tokens: tokens, limit: limit)
             }
