@@ -276,7 +276,10 @@ public final class StatusBarManager: NSObject {
         // hop explicitly via `Task { @MainActor in ... }` rather than asserting isolation.
         // Both the panel mutation and the status-bar redraw are AppKit UI work.
         appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak self, weak panel] _, _ in
-            Task { @MainActor in
+            // Re-capture weakly inside the Task body: Swift 5 mode's checker
+            // rejects accessing the outer closure's `weak` captures from a
+            // concurrent task (they're `var` semantically).
+            Task { @MainActor [weak self, weak panel] in
                 panel?.appearance = NSApp.effectiveAppearance
                 guard let self,
                       let button = self.statusItem?.button,

@@ -2,6 +2,13 @@ import SwiftUI
 
 // MARK: - Trend summary and cost breakdown
 
+// `InsightsView` is a SwiftUI View struct. Under Swift 5 mode (still the
+// default in Xcode 15.x / macos-14) the View protocol doesn't imply
+// `@MainActor` on extensions, so this extension's methods would be
+// nonisolated by default and can't synchronously call `ActivityTrendComputation`
+// (which IS `@MainActor`). Tag the whole extension to bring its methods onto
+// the MainActor — they only ever run from the View's body anyway.
+@MainActor
 extension InsightsView {
     // MARK: - Trend
 
