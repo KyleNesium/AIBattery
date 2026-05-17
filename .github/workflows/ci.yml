@@ -20,7 +20,12 @@ jobs:
     name: Build, Test & Verify
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
     runs-on: macos-15
-    timeout-minutes: 10
+    # Bumped from 10 → 22: the test step has 3 × 6-minute retry attempts for
+    # macos-15 swiftpm-testing-helper hangs. At 10 minutes the job timeout
+    # cancelled before the retry logic could try a second attempt — observed
+    # twice on v2.3.1 PR runs. 22 = 3 × 6 retry budget + 4 min for build/cache
+    # /cleanup overhead.
+    timeout-minutes: 22
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
