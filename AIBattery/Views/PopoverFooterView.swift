@@ -129,7 +129,6 @@ struct PopoverFooterView: View {
     /// Shape carrying the status color plus, for non-operational states, an
     /// inset SF Symbol so the severity is distinguishable without color.
     /// Operational and unknown stay plain dots — they're the visual default.
-    @ViewBuilder
     private var statusDot: some View {
         ZStack {
             Circle()

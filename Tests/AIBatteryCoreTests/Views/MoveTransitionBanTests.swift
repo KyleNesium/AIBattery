@@ -22,10 +22,10 @@ struct MoveTransitionBanTests {
     private static var viewsDirectory: URL {
         let testFile = URL(fileURLWithPath: #filePath)
         return testFile
-            .deletingLastPathComponent()   // Views/
-            .deletingLastPathComponent()   // AIBatteryCoreTests/
-            .deletingLastPathComponent()   // Tests/
-            .deletingLastPathComponent()   // package root
+            .deletingLastPathComponent() // Views/
+            .deletingLastPathComponent() // AIBatteryCoreTests/
+            .deletingLastPathComponent() // Tests/
+            .deletingLastPathComponent() // package root
             .appendingPathComponent("AIBattery")
             .appendingPathComponent("Views")
     }
@@ -36,7 +36,7 @@ struct MoveTransitionBanTests {
     /// doesn't trigger the NSPanel resize race.
     private static let allowList: Set<String> = []
 
-    @Test func noViewFile_usesMoveEdgeTransition() throws {
+    @Test func noViewFile_usesMoveEdgeTransition() {
         let fm = FileManager.default
         let viewsDir = Self.viewsDirectory.path
 
