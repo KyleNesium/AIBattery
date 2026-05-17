@@ -20,12 +20,8 @@ jobs:
     name: Build, Test & Verify
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
     runs-on: macos-15
-    # Bumped from 10 → 22: the test step has 3 × 6-minute retry attempts for
-    # macos-15 swiftpm-testing-helper hangs. At 10 minutes the job timeout
-    # cancelled before the retry logic could try a second attempt — observed
-    # twice on v2.3.1 PR runs. 22 = 3 × 6 retry budget + 4 min for build/cache
-    # /cleanup overhead.
-    timeout-minutes: 22
+    # 5 retries × 6 min per attempt + build/cache/cleanup overhead.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
@@ -55,7 +51,7 @@ jobs:
           # cap) and retry up to 3 times on hang. Real test failures and build
           # errors still fail-fast on their respective markers.
           attempt=1
-          max_attempts=3
+          max_attempts=5
           per_attempt_timeout=360
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
@@ -63,11 +59,13 @@ jobs:
             # `gtimeout` isn't preinstalled on macos-15 runners but perl is.
             # `alarm` schedules SIGALRM, then `exec` replaces perl with swift
             # test; default SIGALRM action is to terminate.
-            # --no-parallel works around persistent macos-15 SIGSEGV crashes in
-          # the swiftpm-testing-helper's parallel scheduler — observed crashing
-          # all 3 retries of the v2.3.1 release. Serial mode adds ~0s (the
-          # whole suite is ~3s) and trades that for stability.
-          perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build --no-parallel 2>&1 | tee test-output.txt
+            # Parallel mode runs the full suite in ~3 seconds when it works,
+          # but the macos-15 swiftpm-testing-helper crashes (SIGSEGV) on a
+          # subset of runs. --no-parallel was tried but the serial test
+          # runner is >100× slower on this runner image and hits the alarm
+          # before finishing. Best balance: keep parallel, bump retries from
+          # 3 → 5 so the lottery against the crash drops to ~0.24%.
+          perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build 2>&1 | tee test-output.txt
             exit_code=${PIPESTATUS[0]}
             set -e
             echo "::endgroup::"
