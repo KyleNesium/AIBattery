@@ -19,7 +19,12 @@ jobs:
   build-and-test:
     name: Build, Test & Verify
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
-    runs-on: macos-15
+    # Switched from macos-15 → macos-14: the macos-15 image's Xcode/swift-testing
+    # combination produces 70%+ flake rate on this suite (SIGSEGV in
+    # swiftpm-testing-helper's parallel scheduler, or 6-min hangs). Locally the
+    # same 980-test suite runs in ~2.6s. macos-14 ships Xcode 15.x which is the
+    # stable baseline for Swift 5.9 / Swift Testing.
+    runs-on: macos-14
     # Bumped from 10 → 22: the test step has 3 × 6-minute retry attempts for
     # macos-15 swiftpm-testing-helper hangs. At 10 minutes the job timeout
     # cancelled before the retry logic could try a second attempt — observed

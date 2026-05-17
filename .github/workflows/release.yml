@@ -10,7 +10,8 @@ permissions:
 jobs:
   release:
     name: Build & Publish
-    runs-on: macos-15
+    # See ci.yml for rationale on macos-14 vs macos-15.
+    runs-on: macos-14
     timeout-minutes: 15
     env:
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_EDDSA_KEY != '' }}
