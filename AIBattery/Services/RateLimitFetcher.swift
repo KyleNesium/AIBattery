@@ -498,7 +498,12 @@ final class RateLimitFetcher {
             AppLogger.network.info("usage endpoint: status=\(http.statusCode), bodySize=\(data.count)")
 
             if http.statusCode == 401 || http.statusCode == 403 { return nil }
-            guard (200..<300).contains(http.statusCode) else {
+            // 429 carries the quota-throttle signal in its body — let it through so the
+            // `markedThrottled` normalization below can fire. The 2xx-only guard that
+            // used to live here made that branch unreachable (the sibling
+            // `fetchClaudeCodeClientData` path always allowed 429; this brings the two
+            // endpoints' status-code handling into agreement).
+            guard (200..<300).contains(http.statusCode) || http.statusCode == 429 else {
                 if let bodyStr = String(data: data.prefix(256), encoding: .utf8) {
                     AppLogger.network.warning("usage endpoint error \(http.statusCode): \(bodyStr)")
                 }

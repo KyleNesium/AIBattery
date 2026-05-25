@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Fixed
+- **OAuth usage endpoint silently dropped 429 responses, never surfacing the throttle.**
+  `RateLimitFetcher.fetchUsageEndpoint`'s status-code guard rejected any non-2xx
+  response *before* the `markedThrottled`-if-429 normalization could run, making
+  that branch unreachable. When the dedicated `/api/oauth/usage` endpoint returned
+  429 with quota data in the body, the fetcher returned nil and fell through to
+  the Messages API probe instead of using the throttle signal already in hand.
+  Brought the guard in line with the sibling `fetchClaudeCodeClientData` path
+  (which always allowed 429 through), so the two endpoint handlers now agree on
+  status-code semantics. Caught by adversarial review of today's depletion bug
+  fix — same code area, different latent bug.
 - **Menu bar stayed depleted ("100%" + broken star) past the actual 5h/7d window reset.**
   Anthropic returns unified rate-limit headers on only ~10% of polls, so the snapshot
   falls back to the previously-cached `RateLimitUsage` for up to 24h (`rateLimitStaleTTL`).
