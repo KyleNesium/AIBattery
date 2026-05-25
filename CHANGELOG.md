@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [2.3.2] — 2026-05-25
+
+Bug-fix release. Closes the "menu bar stayed depleted past the actual reset"
+symptom, ships the contract-test architecture that would have caught it, and
+fixes the insights-trend overflow that surfaced "+47999% vs yesterday" after a
+quiet weekend. Seven commits, four user-visible fixes, no behavioral changes
+beyond the fixes themselves.
 
 ### Fixed
 - **Insights trend showed nonsense percentages like "+47999% vs yesterday" after a quiet day.**
