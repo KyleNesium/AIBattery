@@ -48,3 +48,4 @@ package-lock.json
 .claude/
 .gstack/
 .planning/quick/
+test-output.txt
