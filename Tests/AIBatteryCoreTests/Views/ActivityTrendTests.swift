@@ -45,14 +45,57 @@ struct ActivityTrendTests {
         #expect(change == nil)
     }
 
+    /// Regression: a trivially small `previous` value (e.g. 100 tokens from a
+    /// background hook fire over a weekend) used to produce absurd percentages
+    /// like `+47999% vs yesterday`. Now suppressed entirely when previous is
+    /// below the meaningful threshold (1000 tokens) — the user reads the
+    /// absolute numbers in the chart, the noise comparison is gone.
+    @Test func changeVsYesterday_belowMeaningfulThreshold_returnsNil() throws {
+        let cal = Calendar.current
+        let now = Date()
+        let todayStr = DateFormatters.dateKey.string(from: now)
+        let yesterdayStr = try DateFormatters.dateKey.string(from: #require(cal.date(byAdding: .day, value: -1, to: now)))
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 50_000, yesterdayStr: 100])
+        let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
+        #expect(change == nil)
+    }
+
+    /// Yesterday exactly at the threshold still produces a percentage —
+    /// the threshold is inclusive so the boundary case is well-defined.
+    @Test func changeVsYesterday_atMeaningfulThreshold_returnsPercent() throws {
+        let cal = Calendar.current
+        let now = Date()
+        let todayStr = DateFormatters.dateKey.string(from: now)
+        let yesterdayStr = try DateFormatters.dateKey.string(from: #require(cal.date(byAdding: .day, value: -1, to: now)))
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 1_500, yesterdayStr: 1_000])
+        let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
+        #expect(change?.symbol == "↑")
+        #expect(change?.label == "+50% vs yesterday")
+    }
+
+    /// Percentages above 999% display as `>999%` rather than the raw multi-digit
+    /// figure — keeps the trend row readable when previous is just above the
+    /// threshold and current is enormous.
+    @Test func changeVsYesterday_extremeSpike_capsAt999() throws {
+        let cal = Calendar.current
+        let now = Date()
+        let todayStr = DateFormatters.dateKey.string(from: now)
+        let yesterdayStr = try DateFormatters.dateKey.string(from: #require(cal.date(byAdding: .day, value: -1, to: now)))
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 500_000, yesterdayStr: 1_000])
+        let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
+        #expect(change?.symbol == "↑")
+        #expect(change?.label == ">999% vs yesterday")
+    }
+
     // MARK: - monthChangeInfo
 
     @Test func monthChange_positiveProjection() throws {
         let cal = Calendar.current
         // March 15, 2026 — dayOfMonth=15, daysInMonth=31
         let now = try #require(cal.date(from: DateComponents(year: 2_026, month: 3, day: 15)))
-        // thisMonth=100, projected=100*31/15=206, lastMonth=100 → +106% → ↑
-        let change = ActivityTrendComputation.monthChangeInfo(thisMonth: 100, lastMonth: 100, cal: cal, now: now)
+        // thisMonth=100_000, projected=100_000*31/15=206_666, lastMonth=100_000 → +107% → ↑
+        // Token totals above `meaningfulPreviousThreshold` so the trend renders.
+        let change = ActivityTrendComputation.monthChangeInfo(thisMonth: 100_000, lastMonth: 100_000, cal: cal, now: now)
         #expect(change?.symbol == "↑")
     }
 

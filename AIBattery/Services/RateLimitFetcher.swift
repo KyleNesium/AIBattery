@@ -171,10 +171,15 @@ final class RateLimitFetcher {
     /// Always returns cached data when available — stale rate limits are better
     /// than empty bars (e.g., after waking from long sleep with expired token).
     /// Fresh fetches replace the cache naturally on success.
+    ///
+    /// Cached `rateLimits` are normalized with `withClearedExpiredWindows()` before
+    /// being returned so a stale "throttled"/100% state doesn't outlive its window —
+    /// e.g. a cache hit on wake from sleep after the 5h or 7d reset has already passed
+    /// would otherwise display as still-depleted until a fresh fetch lands.
     func cachedOrEmpty(accountId: String, authError: Bool = false) -> APIFetchResult {
         if let cached = cachedResults[accountId] {
             return APIFetchResult(
-                rateLimits: cached.rateLimits,
+                rateLimits: cached.rateLimits?.withClearedExpiredWindows(),
                 rateLimitSource: cached.rateLimitSource,
                 standardLimits: cached.standardLimits,
                 profile: cached.profile,
@@ -473,9 +478,53 @@ final class RateLimitFetcher {
 
     // MARK: - Dedicated Usage Endpoint (Primary)
 
+    /// Pure interpretation of the OAuth `/api/oauth/usage` response. The HTTP call
+    /// happens in the async wrapper; this function takes the raw inputs and decides
+    /// what kind of `APIFetchResult` (if any) to surface. Extracted so the
+    /// status-code / payload / 429-normalization contract is testable without
+    /// mocking URLSession.
+    ///
+    /// Returns nil for:
+    /// - 401/403 (auth failure — caller handles separately)
+    /// - any other non-2xx-non-429 status (true server error)
+    /// - 2xx/429 with a body that doesn't parse to a `RateLimitUsage`
+    nonisolated static func interpretUsageEndpoint(
+        statusCode: Int,
+        data: Data,
+        headers: [AnyHashable: Any],
+        cachedProfile: APIProfile?
+    ) -> APIFetchResult? {
+        if statusCode == 401 || statusCode == 403 { return nil }
+        // 429 carries the quota-throttle signal in its body — accept alongside 2xx so the
+        // `markedThrottled` normalization below can fire. Mirrors the sibling
+        // `interpretClaudeCodeClientData` contract.
+        guard (200..<300).contains(statusCode) || statusCode == 429 else { return nil }
+
+        let rateLimits = RateLimitUsage.parse(clientData: data)
+        let profile = APIProfile.parse(headers: headers)
+            ?? APIProfile.parse(clientData: data)
+            ?? cachedProfile
+
+        guard rateLimits != nil else { return nil }
+
+        let normalizedRateLimits = rateLimits.map {
+            (statusCode == 429 && Self.quotaThrottleLikely($0)) ? $0.markedThrottled() : $0
+        }
+
+        return APIFetchResult(
+            rateLimits: normalizedRateLimits,
+            rateLimitSource: .oauthUsageEndpoint,
+            profile: profile,
+            hasStandardRateLimitHeaders: false
+        )
+    }
+
     /// Fetches usage data from Anthropic's dedicated OAuth usage endpoint.
     /// Returns structured JSON with five_hour/seven_day utilization — no model probe needed.
     /// This is the same endpoint that CodexBar and other tools use.
+    ///
+    /// Thin async wrapper: makes the HTTP call, runs diagnostic logging, then delegates
+    /// interpretation to the pure `interpretUsageEndpoint` static.
     private func fetchUsageEndpoint(accessToken: String, accountId: String) async -> APIFetchResult? {
         var request = URLRequest(url: usageURL)
         request.httpMethod = "GET"
@@ -492,37 +541,31 @@ final class RateLimitFetcher {
 
             AppLogger.network.info("usage endpoint: status=\(http.statusCode), bodySize=\(data.count)")
 
-            if http.statusCode == 401 || http.statusCode == 403 { return nil }
-            guard (200..<300).contains(http.statusCode) else {
+            // Diagnostic: log body preview on unexpected error statuses before the
+            // interpreter discards them (2xx + 429 + 401/403 are all "expected" paths).
+            if !(200..<300).contains(http.statusCode), http.statusCode != 429,
+               http.statusCode != 401, http.statusCode != 403 {
                 if let bodyStr = String(data: data.prefix(256), encoding: .utf8) {
                     AppLogger.network.warning("usage endpoint error \(http.statusCode): \(bodyStr)")
                 }
-                return nil
             }
 
-            let rateLimits = RateLimitUsage.parse(clientData: data)
-            let profile = APIProfile.parse(headers: http.allHeaderFields)
-                ?? APIProfile.parse(clientData: data)
-                ?? cachedResults[accountId]?.profile
+            let result = Self.interpretUsageEndpoint(
+                statusCode: http.statusCode,
+                data: data,
+                headers: http.allHeaderFields,
+                cachedProfile: cachedResults[accountId]?.profile
+            )
 
-            guard rateLimits != nil else {
+            // Diagnostic: 2xx/429 returned a body that didn't parse to rate limits.
+            if result == nil, (200..<300).contains(http.statusCode) || http.statusCode == 429 {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     let keys = json.keys.sorted().joined(separator: ", ")
                     AppLogger.network.warning("usage endpoint: no rate limits parsed. Keys: [\(keys, privacy: .public)]")
                 }
-                return nil
             }
 
-            let normalizedRateLimits = rateLimits.map {
-                (http.statusCode == 429 && Self.quotaThrottleLikely($0)) ? $0.markedThrottled() : $0
-            }
-
-            return APIFetchResult(
-                rateLimits: normalizedRateLimits,
-                rateLimitSource: .oauthUsageEndpoint,
-                profile: profile,
-                hasStandardRateLimitHeaders: false
-            )
+            return result
         } catch {
             AppLogger.network.warning("usage endpoint failed: \(error.localizedDescription)")
             return nil
@@ -531,9 +574,52 @@ final class RateLimitFetcher {
 
     // MARK: - Claude Code Client Data Fallback
 
+    /// Pure interpretation of the `/api/oauth/claude_cli/client_data` response.
+    /// Header rate limits take precedence over body; profile and standard-limit
+    /// headers can also be surfaced even when no rate-limit data is present.
+    /// Side-effect-free; the `saveWorkingModel` bookkeeping lives in the async
+    /// wrapper because it depends on `self` state.
+    nonisolated static func interpretClaudeCodeClientData(
+        statusCode: Int,
+        data: Data,
+        headers: [AnyHashable: Any],
+        cachedProfile: APIProfile?,
+        callerStandardLimits: StandardRateLimits?
+    ) -> APIFetchResult? {
+        if statusCode == 401 || statusCode == 403 { return nil }
+        guard (200..<300).contains(statusCode) || statusCode == 429 else { return nil }
+
+        let headerRL = RateLimitUsage.parse(headers: headers)
+        let bodyRL = RateLimitUsage.parse(clientData: data)
+        let rateLimits = headerRL ?? bodyRL
+
+        let profile = APIProfile.parse(headers: headers)
+            ?? APIProfile.parse(clientData: data)
+            ?? cachedProfile
+        let hasStandardRateLimitHeaders = Self.containsStandardRateLimitHeaders(headers)
+
+        guard rateLimits != nil || profile != nil || hasStandardRateLimitHeaders else { return nil }
+
+        let normalizedRateLimits = rateLimits.map {
+            (statusCode == 429 && Self.quotaThrottleLikely($0)) ? $0.markedThrottled() : $0
+        }
+
+        return APIFetchResult(
+            rateLimits: normalizedRateLimits,
+            rateLimitSource: normalizedRateLimits == nil ? nil : .claudeCodeClientData,
+            standardLimits: callerStandardLimits,
+            profile: profile,
+            hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
+        )
+    }
+
     /// Claude Code now uses a separate OAuth-backed endpoint for client metadata
     /// and usage state. When the Messages API stops returning unified headers,
     /// fall back to that endpoint and parse either headers or a structured JSON body.
+    ///
+    /// Thin async wrapper: makes the HTTP call, logs diagnostics, delegates to
+    /// `interpretClaudeCodeClientData`, then runs the `saveWorkingModel` side
+    /// effect when the interpretation yielded usable rate-limit data.
     private func fetchClaudeCodeClientData(
         accessToken: String,
         cached: APIFetchResult?,
@@ -557,15 +643,19 @@ final class RateLimitFetcher {
                 AppLogger.network.debug("client_data body preview: \(bodyPreview)")
             }
 
-            if http.statusCode == 401 || http.statusCode == 403 { return nil }
-            guard (200..<300).contains(http.statusCode) || http.statusCode == 429 else { return nil }
+            let result = Self.interpretClaudeCodeClientData(
+                statusCode: http.statusCode,
+                data: data,
+                headers: http.allHeaderFields,
+                cachedProfile: cached?.profile,
+                callerStandardLimits: callerStandardLimits
+            )
 
-            let headerRL = RateLimitUsage.parse(headers: http.allHeaderFields)
-            let bodyRL = RateLimitUsage.parse(clientData: data)
-            let rateLimits = headerRL ?? bodyRL
-
-            if rateLimits == nil {
-                // Log top-level keys to help diagnose client_data format changes
+            // Diagnostic: 2xx/429 returned a body where rate limits couldn't be
+            // parsed from either headers or body. Logged here (not in the
+            // interpreter) because it requires the raw payload.
+            if result?.rateLimits == nil,
+               (200..<300).contains(http.statusCode) || http.statusCode == 429 {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     let keys = json.keys.sorted().joined(separator: ", ")
                     AppLogger.network.warning("client_data: no rate limits parsed. Top-level keys: [\(keys, privacy: .public)]")
@@ -576,27 +666,12 @@ final class RateLimitFetcher {
                 }
             }
 
-            let profile = APIProfile.parse(headers: http.allHeaderFields)
-                ?? APIProfile.parse(clientData: data)
-                ?? cached?.profile
-            let hasStandardRateLimitHeaders = Self.containsStandardRateLimitHeaders(http.allHeaderFields)
-            guard rateLimits != nil || profile != nil || hasStandardRateLimitHeaders else { return nil }
-
-            if rateLimits != nil {
+            // Side effect: only when usable rate-limit data landed.
+            if result?.rateLimits != nil {
                 saveWorkingModel(model, accountId: accountId)
             }
 
-            let normalizedRateLimits = rateLimits.map {
-                (http.statusCode == 429 && Self.quotaThrottleLikely($0)) ? $0.markedThrottled() : $0
-            }
-
-            return APIFetchResult(
-                rateLimits: normalizedRateLimits,
-                rateLimitSource: normalizedRateLimits == nil ? nil : .claudeCodeClientData,
-                standardLimits: callerStandardLimits,
-                profile: profile,
-                hasStandardRateLimitHeaders: hasStandardRateLimitHeaders
-            )
+            return result
         } catch {
             return nil
         }

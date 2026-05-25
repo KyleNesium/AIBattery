@@ -90,8 +90,7 @@ enum ActivityTrendComputation {
         )
 
         let todayTokens = snapshot.dailyTokenTotals[todayStr] ?? 0
-        let yesterdayTokens = snapshot.dailyTokenTotals[yesterdayStr]
-        guard let yesterdayTokens, yesterdayTokens > 0 else { return nil }
+        guard let yesterdayTokens = snapshot.dailyTokenTotals[yesterdayStr] else { return nil }
         return percentChangeInfo(current: todayTokens, previous: yesterdayTokens, suffix: "vs yesterday")
     }
 
@@ -119,13 +118,10 @@ enum ActivityTrendComputation {
             }
         }
 
-        guard lastWeekTotal > 0 else { return nil }
         return percentChangeInfo(current: thisWeekTotal, previous: lastWeekTotal, suffix: "vs last week")
     }
 
     static func monthChangeInfo(thisMonth: Int, lastMonth: Int, cal: Calendar = .current, now: Date = .init()) -> ActivityChangeInfo? {
-        guard lastMonth > 0 else { return nil }
-
         let dayOfMonth = cal.component(.day, from: now)
         guard dayOfMonth >= 4,
               let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count else { return nil }
@@ -145,11 +141,32 @@ enum ActivityTrendComputation {
         }
     }
 
-    private static func percentChangeInfo(current: Int, previous: Int, suffix: String) -> ActivityChangeInfo {
+    /// Minimum token count in the `previous` period for a percentage comparison to be
+    /// meaningful. Below this, a typical day vs a trivially small previous period
+    /// (e.g. 100 stray tokens from a background hook fire over the weekend) produces
+    /// absurd percentages like `+47999%` that mislead more than they inform —
+    /// suppress the trend entirely so the user just sees today's absolute usage.
+    private static let meaningfulPreviousThreshold = 1_000
+
+    /// Cap the displayed positive percentage. Above the cap, the label shows
+    /// `>999%` so the spike is still visible without rendering a number that's
+    /// mathematically true but visually broken (5-digit percentages overflow the
+    /// trend row's layout and read as noise).
+    private static let maxDisplayedPercent = 999
+
+    private static func percentChangeInfo(current: Int, previous: Int, suffix: String) -> ActivityChangeInfo? {
+        // Suppress trend when previous is missing or below the meaningful threshold.
+        // The user reads the absolute numbers from the chart; a noisy multi-thousand-
+        // percent comparison helps nobody.
+        guard previous >= meaningfulPreviousThreshold else { return nil }
+
         let diff = current - previous
         let pct = Int(round(Double(diff) / Double(previous) * 100))
         if pct > 10 {
-            return ActivityChangeInfo(symbol: "↑", label: "+\(pct)% \(suffix)", color: ThemeColors.trendColor(.up))
+            let label = pct > maxDisplayedPercent
+                ? ">\(maxDisplayedPercent)% \(suffix)"
+                : "+\(pct)% \(suffix)"
+            return ActivityChangeInfo(symbol: "↑", label: label, color: ThemeColors.trendColor(.up))
         } else if pct < -10 {
             return ActivityChangeInfo(symbol: "↓", label: "\(pct)% \(suffix)", color: ThemeColors.trendColor(.down))
         } else {

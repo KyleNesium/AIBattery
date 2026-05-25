@@ -1,5 +1,77 @@
 # Changelog
 
+## [2.3.2] — 2026-05-25
+
+Bug-fix release. Closes the "menu bar stayed depleted past the actual reset"
+symptom, ships the contract-test architecture that would have caught it, and
+fixes the insights-trend overflow that surfaced "+47999% vs yesterday" after a
+quiet weekend. Seven commits, four user-visible fixes, no behavioral changes
+beyond the fixes themselves.
+
+### Fixed
+- **Insights trend showed nonsense percentages like "+47999% vs yesterday" after a quiet day.**
+  `ActivityTrendComputation.percentChangeInfo` divided current by previous with
+  only a `previous > 0` guard, so a weekend with stray tokens (e.g. 100 from a
+  background hook) followed by a normal Monday rendered as a five-digit spike
+  that overflowed the trend row layout and misled rather than informed. Added
+  a `meaningfulPreviousThreshold` (1000 tokens — below this the trend is
+  suppressed entirely; the user reads the absolute number from the chart) and
+  a `maxDisplayedPercent` cap of 999% (above this the label shows `>999%`
+  rather than the raw multi-digit figure). Applies to `vs yesterday`,
+  `vs last week`, and `vs last month`. 3 new tests pin the threshold,
+  cap, and below-threshold suppression behaviors.
+- **7-day rate-limit count was biased high by up to 24h of stale tokens.**
+  `UsageAggregator.sevenDaysAgo` used calendar-day arithmetic
+  (`Calendar.date(byAdding: .day, value: -7, to: today)`) for both the per-model
+  weekly UI breakdown *and* the 5h/7d local rate-limit token count. Anthropic's
+  7-day quota window is rolling 7×86400, not calendar-day. Split into two
+  cutoffs: a new `sevenDayRateLimitCutoff` (rolling 7×86400) drives
+  `sevenDayTokens`; calendar-day `sevenDaysAgo` continues to drive
+  `weekTokenMap` (where calendar-day semantics are intentional for UI). The
+  inflated 7d count had been feeding directly into `LocalUsageEstimate.calibrate`'s
+  derived-limit math, where a 24h bias produces a too-low calibrated limit that
+  later reads ≥100% even when the API would report well under.
+- **OAuth usage endpoint silently dropped 429 responses, never surfacing the throttle.**
+  `RateLimitFetcher.fetchUsageEndpoint`'s status-code guard rejected any non-2xx
+  response *before* the `markedThrottled`-if-429 normalization could run, making
+  that branch unreachable. When the dedicated `/api/oauth/usage` endpoint returned
+  429 with quota data in the body, the fetcher returned nil and fell through to
+  the Messages API probe instead of using the throttle signal already in hand.
+  Brought the guard in line with the sibling `fetchClaudeCodeClientData` path
+  (which always allowed 429 through), so the two endpoint handlers now agree on
+  status-code semantics. Caught by adversarial review of today's depletion bug
+  fix — same code area, different latent bug.
+
+### Refactored
+- **Extracted pure response interpreters for both OAuth endpoints.**
+  `RateLimitFetcher.interpretUsageEndpoint(statusCode:data:headers:cachedProfile:)`
+  and `RateLimitFetcher.interpretClaudeCodeClientData(...)` are now `nonisolated static`
+  pure functions. The async `fetchUsageEndpoint` / `fetchClaudeCodeClientData`
+  wrappers just do the HTTP call, run diagnostic logging, and delegate. The
+  status-code / payload / 429-normalization contract is now testable without
+  mocking URLSession. 14 new contract tests pin both interpreters: 2xx success,
+  429 with quota-throttle (markedThrottled fires), 429 with low utilization (must
+  NOT mark), 401/403/500, malformed body, no rate_limits field, profile cache
+  fallback, header-vs-body precedence on client_data.
+- **Injected `now: Date = Date()` into `UsageAggregator.aggregate(...)`.**
+  Production callers unchanged (default parameter); tests now pin
+  window-boundary behavior with deterministic timestamps.
+
+- **Menu bar stayed depleted ("100%" + broken star) past the actual 5h/7d window reset.**
+  Anthropic returns unified rate-limit headers on only ~10% of polls, so the snapshot
+  falls back to the previously-cached `RateLimitUsage` for up to 24h (`rateLimitStaleTTL`).
+  That stale value still reported `fiveHourPercent` (or `sevenDayPercent`) `= 100` and
+  `overallStatus = "throttled"` after its `fiveHourReset` / `sevenDayReset` had passed,
+  because `withClearedExpiredWindows` only ran inside `RateLimitFetcher.restorePersistedRateLimits`
+  at app launch — not on the runtime fallback. Both `UsageViewModel.effectiveRateLimits`
+  and `RateLimitFetcher.cachedOrEmpty` now normalize their returned `RateLimitUsage`
+  through `withClearedExpiredWindows(now:)`, so a window that has already reset
+  immediately drops to `0` / `"allowed"` and the menu bar clears the broken-star
+  state on the next display tick (no need to wait for a fresh-headers fetch).
+- Regression test in `UsageViewModelTests` pins the stale + expired-binding-window
+  scenario; companion test in `RateLimitFetcherTests` pins the cache-hit path on
+  cold start / wake from sleep.
+
 ## [2.3.1] — 2026-05-17
 
 Popover polish sweep. Two visible bug-fixes, eight design-token /

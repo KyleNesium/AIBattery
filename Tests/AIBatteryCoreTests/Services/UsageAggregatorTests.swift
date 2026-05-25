@@ -1226,4 +1226,47 @@ struct UsageAggregatorTests {
         "hourCounts": {"14": 25, "15": 18}
     }
     """
+
+    // MARK: - 7-day rolling-window boundary
+
+    /// Anthropic's 7-day quota window is rolling 7×86400 (mirroring the 5-hour window),
+    /// not calendar-day "last 7 days". The previous implementation used
+    /// `calendar.date(byAdding: .day, value: -7, to: today)` which biased the count
+    /// high by up to 24h of stale tokens — and that bias fed straight into
+    /// `LocalUsageEstimate.calibrate(localTokens / utilization)`, producing a too-low
+    /// derived limit that could later read ≥100% even when the API said well under.
+    ///
+    /// Pinning the rolling boundary: an entry exactly `7d + 2h` ago must be excluded
+    /// from `sevenDayTokens`; an entry `6d + 22h` ago must be included. Time-of-day
+    /// independent because `now` is injected.
+    @Test func aggregate_sevenDayWindow_rollingBoundaryExcludesOlderThan7x86400() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+
+        // Anchor `now` at noon so the calendar-day bias would have been observable
+        // under the old code (calendar 7-days-ago = midnight of day-7, which is
+        // 12h *earlier* than the rolling 7×86400 cutoff). The test pins behavior
+        // that's now correct regardless of wall-clock time of day.
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-05-25T12:00:00Z"))
+        let stale = now.addingTimeInterval(-(7 * 86_400 + 2 * 3_600)) // 7d 2h ago → out
+        let fresh = now.addingTimeInterval(-(6 * 86_400 + 22 * 3_600)) // 6d 22h ago → in
+
+        let lines = [
+            makeAssistantLine(input: 1_000, output: 0, messageId: "stale", timestamp: stale),
+            makeAssistantLine(input: 0, output: 500, messageId: "fresh", timestamp: fresh),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil, now: now)
+
+        // Only the 6d22h-old entry counts (500 output tokens), not the 7d2h-old one.
+        #expect(snapshot.sevenDayTokens == 500)
+    }
 }
