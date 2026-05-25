@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Fixed
+- **Insights trend showed nonsense percentages like "+47999% vs yesterday" after a quiet day.**
+  `ActivityTrendComputation.percentChangeInfo` divided current by previous with
+  only a `previous > 0` guard, so a weekend with stray tokens (e.g. 100 from a
+  background hook) followed by a normal Monday rendered as a five-digit spike
+  that overflowed the trend row layout and misled rather than informed. Added
+  a `meaningfulPreviousThreshold` (1000 tokens — below this the trend is
+  suppressed entirely; the user reads the absolute number from the chart) and
+  a `maxDisplayedPercent` cap of 999% (above this the label shows `>999%`
+  rather than the raw multi-digit figure). Applies to `vs yesterday`,
+  `vs last week`, and `vs last month`. 3 new tests pin the threshold,
+  cap, and below-threshold suppression behaviors.
 - **7-day rate-limit count was biased high by up to 24h of stale tokens.**
   `UsageAggregator.sevenDaysAgo` used calendar-day arithmetic
   (`Calendar.date(byAdding: .day, value: -7, to: today)`) for both the per-model
