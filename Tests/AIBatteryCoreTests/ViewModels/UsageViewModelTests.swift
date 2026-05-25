@@ -455,26 +455,26 @@ struct UsageViewModelTests {
         let now = Date()
         let stale = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 1.0,                                    // was at the cap
-            fiveHourReset: now.addingTimeInterval(-300),                 // reset passed 5 min ago
+            fiveHourUtilization: 1.0, // was at the cap
+            fiveHourReset: now.addingTimeInterval(-300), // reset passed 5 min ago
             fiveHourStatus: "throttled",
             sevenDayUtilization: 0.4,
-            sevenDayReset: now.addingTimeInterval(86_400),               // 7d still active
+            sevenDayReset: now.addingTimeInterval(86_400), // 7d still active
             sevenDayStatus: "allowed",
             overallStatus: "throttled"
         )
         let result = UsageViewModel.effectiveRateLimits(
             fresh: nil,
             stale: stale,
-            lastFreshAt: now.addingTimeInterval(-600),                   // 10 min ago, within 24h TTL
+            lastFreshAt: now.addingTimeInterval(-600), // 10 min ago, within 24h TTL
             ttl: 86_400,
             now: now
         )
         #expect(result?.fiveHourUtilization == 0)
         #expect(result?.fiveHourStatus == "allowed")
         #expect(result?.fiveHourReset == nil)
-        #expect(result?.overallStatus == "allowed")                      // binding (5h) expired → overall clears
-        #expect(result?.sevenDayUtilization == 0.4)                      // 7d untouched
+        #expect(result?.overallStatus == "allowed") // binding (5h) expired → overall clears
+        #expect(result?.sevenDayUtilization == 0.4) // 7d untouched
     }
 
     // MARK: - effectiveValue (generic TTL guard)

@@ -144,11 +144,11 @@ struct RateLimitFetcherTests {
         let fetcher = RateLimitFetcher()
         let rateLimits = RateLimitUsage(
             representativeClaim: "five_hour",
-            fiveHourUtilization: 1.0,                              // was at the cap
-            fiveHourReset: Date(timeIntervalSinceNow: -600),       // reset passed 10 min ago
+            fiveHourUtilization: 1.0, // was at the cap
+            fiveHourReset: Date(timeIntervalSinceNow: -600), // reset passed 10 min ago
             fiveHourStatus: "throttled",
             sevenDayUtilization: 0.3,
-            sevenDayReset: Date(timeIntervalSinceNow: 86_400),     // 7d still active
+            sevenDayReset: Date(timeIntervalSinceNow: 86_400), // 7d still active
             sevenDayStatus: "allowed",
             overallStatus: "throttled"
         )
@@ -163,8 +163,8 @@ struct RateLimitFetcherTests {
 
         #expect(result.rateLimits?.fiveHourUtilization == 0)
         #expect(result.rateLimits?.fiveHourStatus == "allowed")
-        #expect(result.rateLimits?.overallStatus == "allowed")     // binding (5h) expired → overall clears
-        #expect(result.rateLimits?.sevenDayUtilization == 0.3)     // 7d untouched
+        #expect(result.rateLimits?.overallStatus == "allowed") // binding (5h) expired → overall clears
+        #expect(result.rateLimits?.sevenDayUtilization == 0.3) // 7d untouched
         #expect(result.isCached == true)
     }
 
@@ -399,6 +399,7 @@ struct RateLimitFetcherTests {
     }
 
     // MARK: - Contract tests: interpretUsageEndpoint
+
     //
     // The HTTP wrapper around this function is small; the contract that matters lives
     // in this pure interpreter. These tests pin the status-code / payload / throttle

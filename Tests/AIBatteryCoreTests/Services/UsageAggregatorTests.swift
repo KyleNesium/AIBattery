@@ -1250,9 +1250,9 @@ struct UsageAggregatorTests {
         // under the old code (calendar 7-days-ago = midnight of day-7, which is
         // 12h *earlier* than the rolling 7×86400 cutoff). The test pins behavior
         // that's now correct regardless of wall-clock time of day.
-        let now = ISO8601DateFormatter().date(from: "2026-05-25T12:00:00Z")!
-        let stale = now.addingTimeInterval(-(7 * 86_400 + 2 * 3_600))   // 7d 2h ago → out
-        let fresh = now.addingTimeInterval(-(6 * 86_400 + 22 * 3_600))  // 6d 22h ago → in
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-05-25T12:00:00Z"))
+        let stale = now.addingTimeInterval(-(7 * 86_400 + 2 * 3_600)) // 7d 2h ago → out
+        let fresh = now.addingTimeInterval(-(6 * 86_400 + 22 * 3_600)) // 6d 22h ago → in
 
         let lines = [
             makeAssistantLine(input: 1_000, output: 0, messageId: "stale", timestamp: stale),
