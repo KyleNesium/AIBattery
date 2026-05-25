@@ -146,13 +146,13 @@ enum ActivityTrendComputation {
     /// (e.g. 100 stray tokens from a background hook fire over the weekend) produces
     /// absurd percentages like `+47999%` that mislead more than they inform —
     /// suppress the trend entirely so the user just sees today's absolute usage.
-    static let meaningfulPreviousThreshold = 1_000
+    private static let meaningfulPreviousThreshold = 1_000
 
     /// Cap the displayed positive percentage. Above the cap, the label shows
     /// `>999%` so the spike is still visible without rendering a number that's
     /// mathematically true but visually broken (5-digit percentages overflow the
     /// trend row's layout and read as noise).
-    static let maxDisplayedPercent = 999
+    private static let maxDisplayedPercent = 999
 
     private static func percentChangeInfo(current: Int, previous: Int, suffix: String) -> ActivityChangeInfo? {
         // Suppress trend when previous is missing or below the meaningful threshold.
