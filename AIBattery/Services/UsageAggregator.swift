@@ -129,9 +129,9 @@ final class UsageAggregator: @unchecked Sendable {
         let todayDate = Self.dateFormatter.string(from: now)
         let fiveHoursAgo = now.addingTimeInterval(-Self.fiveHourWindow)
         let twentyFourHoursAgo = now.addingTimeInterval(-Self.twentyFourHourWindow)
-        /// Rolling 7×86400 boundary for the rate-limit token count (mirrors
-        /// Anthropic's actual sliding-window quota). Distinct from `sevenDaysAgo`
-        /// below, which is calendar-day for the per-model weekly UI breakdown.
+        // Rolling 7×86400 boundary for the rate-limit token count (mirrors
+        // Anthropic's actual sliding-window quota). Distinct from `sevenDaysAgo`
+        // below, which is calendar-day for the per-model weekly UI breakdown.
         let sevenDayRateLimitCutoff = now.addingTimeInterval(-Self.sevenDayWindow)
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
         let twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today

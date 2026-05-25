@@ -416,15 +416,21 @@ struct RateLimitFetcherTests {
     }
     """
 
-    /// 429 with high utilization in the binding (5h) window — the case `markedThrottled`
-    /// exists to handle. The previous fetchUsageEndpoint guard made this branch unreachable.
-    private static let usageBody429Throttled: String = """
+    /// 429 + high utilization but body still reports `status: "allowed"` — the case
+    /// `markedThrottled` exists to handle. Server-side header lag means a quota-cap
+    /// 429 sometimes lands with utilization at or near 100% while the status string
+    /// hasn't been flipped yet. Without `markedThrottled` firing the bar would
+    /// render "98%" + green star while the user is actually rate-limited. Picked
+    /// 0.98 (above the 0.95 `quotaExhaustionThreshold`) so the test passes through
+    /// `quotaThrottleLikely` purely on the utilization signal, NOT on a "throttled"
+    /// status the parser would set on its own.
+    private static let usageBody429HighUtilStatusAllowed: String = """
     {
       "rate_limits": {
-        "five_hour": {"utilization": 1.0, "reset": 1800000000, "status": "throttled"},
+        "five_hour": {"utilization": 0.98, "reset": 1800000000, "status": "allowed"},
         "seven_day": {"utilization": 0.5, "reset": 1800500000, "status": "allowed"},
         "representative_claim": "five_hour",
-        "status": "throttled"
+        "status": "allowed"
       }
     }
     """
@@ -456,15 +462,26 @@ struct RateLimitFetcherTests {
     }
 
     @Test func interpretUsageEndpoint_429_quotaThrottle_marksThrottled() {
-        let result = RateLimitFetcher.interpretUsageEndpoint(
-            statusCode: 429,
-            data: Data(Self.usageBody429Throttled.utf8),
+        // Body says "allowed" at 98% util; 429 + `quotaThrottleLikely == true` must
+        // override and flip to throttled. Sanity: with the SAME body under 200, the
+        // result must stay allowed (the marker is gated on the 429 status code).
+        let allowedUnder200 = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 200,
+            data: Data(Self.usageBody429HighUtilStatusAllowed.utf8),
             headers: [:],
             cachedProfile: nil
         )
-        #expect(result?.rateLimits?.overallStatus == "throttled")
-        #expect(result?.rateLimits?.fiveHourStatus == "throttled")
-        #expect(result?.rateLimits?.isThrottled == true)
+        #expect(allowedUnder200?.rateLimits?.overallStatus == "allowed")
+        #expect(allowedUnder200?.rateLimits?.isThrottled == false)
+
+        let throttledUnder429 = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 429,
+            data: Data(Self.usageBody429HighUtilStatusAllowed.utf8),
+            headers: [:],
+            cachedProfile: nil
+        )
+        #expect(throttledUnder429?.rateLimits?.overallStatus == "throttled")
+        #expect(throttledUnder429?.rateLimits?.isThrottled == true)
     }
 
     @Test func interpretUsageEndpoint_429_lowUtilization_doesNotMarkThrottled() {
@@ -537,13 +554,16 @@ struct RateLimitFetcherTests {
 
     // MARK: - Contract tests: interpretClaudeCodeClientData
 
-    /// client_data 429 with high utilization in body.
-    private static let clientDataBody429Throttled: String = """
+    /// client_data 429 + high utilization but body status still "allowed" —
+    /// proves the marker flips to throttled on the 429 path, not via the parser
+    /// reading an already-throttled status from the body.
+    private static let clientDataBody429HighUtilStatusAllowed: String = """
     {
       "rate_limits": {
-        "five_hour": {"utilization": 0.98, "reset": 1800000000, "status": "throttled"},
+        "five_hour": {"utilization": 0.97, "reset": 1800000000, "status": "allowed"},
         "seven_day": {"utilization": 0.3, "reset": 1800500000, "status": "allowed"},
-        "representative_claim": "five_hour"
+        "representative_claim": "five_hour",
+        "status": "allowed"
       }
     }
     """
@@ -591,15 +611,28 @@ struct RateLimitFetcherTests {
     }
 
     @Test func interpretClaudeCodeClientData_429_quotaThrottle_marksThrottled() {
-        let result = RateLimitFetcher.interpretClaudeCodeClientData(
-            statusCode: 429,
-            data: Data(Self.clientDataBody429Throttled.utf8),
+        // Same A/B pattern as the usage-endpoint test: 200 stays allowed, 429
+        // flips to throttled. Confirms the marker is gated on status code, not
+        // on the parser picking up a pre-throttled body.
+        let allowedUnder200 = RateLimitFetcher.interpretClaudeCodeClientData(
+            statusCode: 200,
+            data: Data(Self.clientDataBody429HighUtilStatusAllowed.utf8),
             headers: [:],
             cachedProfile: nil,
             callerStandardLimits: nil
         )
-        #expect(result?.rateLimits?.overallStatus == "throttled")
-        #expect(result?.rateLimits?.isThrottled == true)
+        #expect(allowedUnder200?.rateLimits?.overallStatus == "allowed")
+        #expect(allowedUnder200?.rateLimits?.isThrottled == false)
+
+        let throttledUnder429 = RateLimitFetcher.interpretClaudeCodeClientData(
+            statusCode: 429,
+            data: Data(Self.clientDataBody429HighUtilStatusAllowed.utf8),
+            headers: [:],
+            cachedProfile: nil,
+            callerStandardLimits: nil
+        )
+        #expect(throttledUnder429?.rateLimits?.overallStatus == "throttled")
+        #expect(throttledUnder429?.rateLimits?.isThrottled == true)
     }
 
     @Test func interpretClaudeCodeClientData_401_returnsNil() {
