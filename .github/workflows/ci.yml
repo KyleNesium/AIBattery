@@ -1,9 +1,26 @@
 name: CI
 
 on:
+  # Run on every push to main so the README badge tracks integration-branch
+  # health. Without this, the badge stays frozen on whatever the most-recent
+  # workflow run was — even when that was a cancelled manual dispatch from
+  # weeks ago — and shows red despite main being green.
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'spec/**'
+      - 'LICENSE'
+      - '.github/*.md'
+  # On PRs, only fire when the PR transitions out of draft. We deliberately do
+  # NOT include `synchronize` (= every push to the PR branch) because that
+  # produces dozens of skipped runs per feature-branch life and clutters the
+  # Actions tab. The flow is: develop in draft → mark ready when you want a
+  # validation pass → CI runs once. Use `workflow_dispatch` to force a re-run
+  # without leaving and re-entering draft.
   pull_request:
     branches: [main]
-    types: [opened, synchronize]
+    types: [ready_for_review]
     paths-ignore:
       - '**.md'
       - 'spec/**'
@@ -18,7 +35,10 @@ concurrency:
 jobs:
   build-and-test:
     name: Build, Test & Verify
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft != true
+    # Defensive: with the triggers above, drafts never reach this workflow at
+    # all (only `ready_for_review` is wired). Keeping the check belt-and-braces
+    # in case the trigger config gets relaxed later.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: macos-15
     # Bumped from 10 → 22: the test step has 3 × 6-minute retry attempts for
     # macos-15 swiftpm-testing-helper hangs. At 10 minutes the job timeout
