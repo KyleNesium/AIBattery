@@ -10,11 +10,10 @@
   weighted moving average across recent calibrations, narrow the gate to 0.20–0.80,
   or require N samples before treating the derived limit as authoritative.
 
-- [ ] **`UsageAggregator.sevenDaysAgo` uses calendar-day arithmetic**
-  (`calendar.date(byAdding: .day, value: -7, to: today)`), but Anthropic's 7-day
-  window is a 7×24h rolling window. Local 7d count is biased high by up to 24h
-  of today's tokens — which feeds straight into the calibration miscalculation
-  above. Switch to `now.addingTimeInterval(-7 * 86_400)` to mirror `fiveHourWindow`.
+- [x] ~~**`UsageAggregator.sevenDaysAgo` uses calendar-day arithmetic** for the 7d
+  rate-limit count.~~ Fixed: split into `sevenDayRateLimitCutoff` (rolling
+  7×86400, used for `sevenDayTokens`) and `sevenDaysAgo` (calendar-day, retained
+  for `weekTokenMap` UI breakdown where calendar semantics are correct).
 
 - [ ] **Menu-bar exhaustion glyph is identical for 5h and 7d.**
   No way to tell from the menu bar alone whether to wait hours (5h) or a day+ (7d).

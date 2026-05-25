@@ -30,6 +30,12 @@ final class UsageAggregator: @unchecked Sendable {
 
     /// 5-hour sliding window for rate limit estimation (seconds).
     private static let fiveHourWindow: TimeInterval = 5 * 3_600
+    /// 7-day sliding window for rate limit estimation (seconds).
+    /// Rolling 7×86400 to mirror Anthropic's actual quota window — distinct from
+    /// the calendar-day "last 7 days" boundary used for the per-model weekly
+    /// breakdown (`weekTokenMap`), which intentionally aligns to local day
+    /// boundaries because the UI breakdown is a chart, not a quota signal.
+    private static let sevenDayWindow: TimeInterval = 7 * 86_400
     /// 24-hour trailing window for chart display (seconds).
     private static let twentyFourHourWindow: TimeInterval = 86_400
     /// Number of 15-minute buckets in the 5-hour insights chart.
@@ -83,7 +89,8 @@ final class UsageAggregator: @unchecked Sendable {
         rateLimits: RateLimitUsage?,
         rateLimitSource: RateLimitSource? = nil,
         standardLimits: StandardRateLimits? = nil,
-        accountId: String? = nil
+        accountId: String? = nil,
+        now: Date = Date()
     ) -> (UsageSnapshot, SideEffects) {
         // Idle session cutoff for context health (0 = never hide)
         let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
@@ -115,12 +122,17 @@ final class UsageAggregator: @unchecked Sendable {
 
         // Unified single-pass over allEntries: date grouping, today extraction,
         // project token accumulation, and windowed model token bucketing — all in one iteration.
-        let now = Date()
+        // `now` is injectable via the function parameter; default = Date(). Tests
+        // pin window-boundary behavior by supplying a deterministic value.
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         let todayDate = Self.dateFormatter.string(from: now)
         let fiveHoursAgo = now.addingTimeInterval(-Self.fiveHourWindow)
         let twentyFourHoursAgo = now.addingTimeInterval(-Self.twentyFourHourWindow)
+        /// Rolling 7×86400 boundary for the rate-limit token count (mirrors
+        /// Anthropic's actual sliding-window quota). Distinct from `sevenDaysAgo`
+        /// below, which is calendar-day for the per-model weekly UI breakdown.
+        let sevenDayRateLimitCutoff = now.addingTimeInterval(-Self.sevenDayWindow)
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
         let twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today
 
@@ -206,7 +218,7 @@ final class UsageAggregator: @unchecked Sendable {
                     fiveHourTokenBuckets[bucket, default: 0] += entryAllTokens
                 }
             }
-            if ts >= sevenDaysAgo {
+            if ts >= sevenDayRateLimitCutoff {
                 sevenDayTokens += entryAllTokens
             }
             // Daily token totals (all dates, for 7D and 12M charts)

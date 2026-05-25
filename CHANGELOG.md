@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Fixed
+- **7-day rate-limit count was biased high by up to 24h of stale tokens.**
+  `UsageAggregator.sevenDaysAgo` used calendar-day arithmetic
+  (`Calendar.date(byAdding: .day, value: -7, to: today)`) for both the per-model
+  weekly UI breakdown *and* the 5h/7d local rate-limit token count. Anthropic's
+  7-day quota window is rolling 7×86400, not calendar-day. Split into two
+  cutoffs: a new `sevenDayRateLimitCutoff` (rolling 7×86400) drives
+  `sevenDayTokens`; calendar-day `sevenDaysAgo` continues to drive
+  `weekTokenMap` (where calendar-day semantics are intentional for UI). The
+  inflated 7d count had been feeding directly into `LocalUsageEstimate.calibrate`'s
+  derived-limit math, where a 24h bias produces a too-low calibrated limit that
+  later reads ≥100% even when the API would report well under.
 - **OAuth usage endpoint silently dropped 429 responses, never surfacing the throttle.**
   `RateLimitFetcher.fetchUsageEndpoint`'s status-code guard rejected any non-2xx
   response *before* the `markedThrottled`-if-429 normalization could run, making
@@ -13,6 +24,22 @@
   (which always allowed 429 through), so the two endpoint handlers now agree on
   status-code semantics. Caught by adversarial review of today's depletion bug
   fix — same code area, different latent bug.
+
+### Refactored
+- **Extracted pure response interpreters for both OAuth endpoints.**
+  `RateLimitFetcher.interpretUsageEndpoint(statusCode:data:headers:cachedProfile:)`
+  and `RateLimitFetcher.interpretClaudeCodeClientData(...)` are now `nonisolated static`
+  pure functions. The async `fetchUsageEndpoint` / `fetchClaudeCodeClientData`
+  wrappers just do the HTTP call, run diagnostic logging, and delegate. The
+  status-code / payload / 429-normalization contract is now testable without
+  mocking URLSession. 14 new contract tests pin both interpreters: 2xx success,
+  429 with quota-throttle (markedThrottled fires), 429 with low utilization (must
+  NOT mark), 401/403/500, malformed body, no rate_limits field, profile cache
+  fallback, header-vs-body precedence on client_data.
+- **Injected `now: Date = Date()` into `UsageAggregator.aggregate(...)`.**
+  Production callers unchanged (default parameter); tests now pin
+  window-boundary behavior with deterministic timestamps.
+
 - **Menu bar stayed depleted ("100%" + broken star) past the actual 5h/7d window reset.**
   Anthropic returns unified rate-limit headers on only ~10% of polls, so the snapshot
   falls back to the previously-cached `RateLimitUsage` for up to 24h (`rateLimitStaleTTL`).

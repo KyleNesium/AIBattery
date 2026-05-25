@@ -397,4 +397,230 @@ struct RateLimitFetcherTests {
         let restoredKey = UserDefaults.standard.string(forKey: key)
         #expect(restoredKey == "claude-haiku-4-5")
     }
+
+    // MARK: - Contract tests: interpretUsageEndpoint
+    //
+    // The HTTP wrapper around this function is small; the contract that matters lives
+    // in this pure interpreter. These tests pin the status-code / payload / throttle
+    // semantics that consumers depend on. If the OAuth `/api/oauth/usage` endpoint
+    // ever changes shape or the 429 handling drifts, these break first.
+
+    /// Canonical successful body — five_hour 42%, seven_day 18%, 2xx status.
+    private static let usageBody200: String = """
+    {
+      "rate_limits": {
+        "five_hour": {"utilization": 0.42, "reset": 1800000000, "status": "allowed"},
+        "seven_day": {"utilization": 0.18, "reset": 1800500000, "status": "allowed"},
+        "representative_claim": "five_hour"
+      }
+    }
+    """
+
+    /// 429 with high utilization in the binding (5h) window — the case `markedThrottled`
+    /// exists to handle. The previous fetchUsageEndpoint guard made this branch unreachable.
+    private static let usageBody429Throttled: String = """
+    {
+      "rate_limits": {
+        "five_hour": {"utilization": 1.0, "reset": 1800000000, "status": "throttled"},
+        "seven_day": {"utilization": 0.5, "reset": 1800500000, "status": "allowed"},
+        "representative_claim": "five_hour",
+        "status": "throttled"
+      }
+    }
+    """
+
+    /// 429 with low utilization — `quotaThrottleLikely` returns false (this is an
+    /// upstream / per-minute throttle, not a quota throttle), so we must NOT mark it.
+    private static let usageBody429LowUtil: String = """
+    {
+      "rate_limits": {
+        "five_hour": {"utilization": 0.10, "reset": 1800000000, "status": "allowed"},
+        "seven_day": {"utilization": 0.05, "reset": 1800500000, "status": "allowed"},
+        "representative_claim": "five_hour"
+      }
+    }
+    """
+
+    @Test func interpretUsageEndpoint_200_validBody_returnsRateLimitsAndSource() {
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 200,
+            data: Data(Self.usageBody200.utf8),
+            headers: [:],
+            cachedProfile: nil
+        )
+        #expect(result?.rateLimits?.fiveHourUtilization == 0.42)
+        #expect(result?.rateLimits?.sevenDayUtilization == 0.18)
+        #expect(result?.rateLimits?.overallStatus == "allowed")
+        #expect(result?.rateLimitSource == .oauthUsageEndpoint)
+        #expect(result?.hasStandardRateLimitHeaders == false)
+    }
+
+    @Test func interpretUsageEndpoint_429_quotaThrottle_marksThrottled() {
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 429,
+            data: Data(Self.usageBody429Throttled.utf8),
+            headers: [:],
+            cachedProfile: nil
+        )
+        #expect(result?.rateLimits?.overallStatus == "throttled")
+        #expect(result?.rateLimits?.fiveHourStatus == "throttled")
+        #expect(result?.rateLimits?.isThrottled == true)
+    }
+
+    @Test func interpretUsageEndpoint_429_lowUtilization_doesNotMarkThrottled() {
+        // 429 with sub-95% utilization → upstream/per-minute throttle, not quota.
+        // markedThrottled must NOT fire — otherwise we'd misreport quota status.
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 429,
+            data: Data(Self.usageBody429LowUtil.utf8),
+            headers: [:],
+            cachedProfile: nil
+        )
+        #expect(result?.rateLimits?.overallStatus == "allowed")
+        #expect(result?.rateLimits?.isThrottled == false)
+    }
+
+    @Test func interpretUsageEndpoint_401_returnsNil() {
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 401, data: Data(Self.usageBody200.utf8), headers: [:], cachedProfile: nil
+        )
+        #expect(result == nil)
+    }
+
+    @Test func interpretUsageEndpoint_403_returnsNil() {
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 403, data: Data(Self.usageBody200.utf8), headers: [:], cachedProfile: nil
+        )
+        #expect(result == nil)
+    }
+
+    @Test func interpretUsageEndpoint_500_returnsNil() {
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 500, data: Data(Self.usageBody200.utf8), headers: [:], cachedProfile: nil
+        )
+        #expect(result == nil)
+    }
+
+    @Test func interpretUsageEndpoint_200_malformedBody_returnsNil() {
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 200,
+            data: Data("not json".utf8),
+            headers: [:],
+            cachedProfile: nil
+        )
+        #expect(result == nil)
+    }
+
+    @Test func interpretUsageEndpoint_200_noRateLimitsField_returnsNil() {
+        // Valid JSON but missing rate_limits — interpreter requires rate limits to surface a result.
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 200,
+            data: Data(#"{"other_field": 1}"#.utf8),
+            headers: [:],
+            cachedProfile: nil
+        )
+        #expect(result == nil)
+    }
+
+    @Test func interpretUsageEndpoint_200_profileFallsBackToCache() {
+        // Body parses to rate limits but contains no profile; headers also bare.
+        // Cached profile should fill the slot so the snapshot doesn't lose org context.
+        let cached = APIProfile(organizationId: "org-cached", workspaceId: nil, workspaceName: nil)
+        let result = RateLimitFetcher.interpretUsageEndpoint(
+            statusCode: 200,
+            data: Data(Self.usageBody200.utf8),
+            headers: [:],
+            cachedProfile: cached
+        )
+        #expect(result?.profile?.organizationId == "org-cached")
+    }
+
+    // MARK: - Contract tests: interpretClaudeCodeClientData
+
+    /// client_data 429 with high utilization in body.
+    private static let clientDataBody429Throttled: String = """
+    {
+      "rate_limits": {
+        "five_hour": {"utilization": 0.98, "reset": 1800000000, "status": "throttled"},
+        "seven_day": {"utilization": 0.3, "reset": 1800500000, "status": "allowed"},
+        "representative_claim": "five_hour"
+      }
+    }
+    """
+
+    @Test func interpretClaudeCodeClientData_200_bodyRateLimits_returnsResult() {
+        let result = RateLimitFetcher.interpretClaudeCodeClientData(
+            statusCode: 200,
+            data: Data(Self.usageBody200.utf8),
+            headers: [:],
+            cachedProfile: nil,
+            callerStandardLimits: nil
+        )
+        #expect(result?.rateLimits?.fiveHourUtilization == 0.42)
+        #expect(result?.rateLimitSource == .claudeCodeClientData)
+    }
+
+    @Test func interpretClaudeCodeClientData_200_headerRateLimits_takePrecedence() {
+        // Headers report 5h=85%; body reports 5h=42%. Header value must win.
+        let headers: [AnyHashable: Any] = [
+            "anthropic-ratelimit-unified-status": "allowed",
+            "anthropic-ratelimit-unified-representative-claim": "five_hour",
+            "anthropic-ratelimit-unified-5h-utilization": "0.85",
+            "anthropic-ratelimit-unified-7d-utilization": "0.30",
+        ]
+        let result = RateLimitFetcher.interpretClaudeCodeClientData(
+            statusCode: 200,
+            data: Data(Self.usageBody200.utf8),
+            headers: headers,
+            cachedProfile: nil,
+            callerStandardLimits: nil
+        )
+        #expect(result?.rateLimits?.fiveHourUtilization == 0.85)
+    }
+
+    @Test func interpretClaudeCodeClientData_200_noRateLimitsNoProfile_returnsNil() {
+        // Empty body, empty headers, no cached profile → nothing to surface.
+        let result = RateLimitFetcher.interpretClaudeCodeClientData(
+            statusCode: 200,
+            data: Data("{}".utf8),
+            headers: [:],
+            cachedProfile: nil,
+            callerStandardLimits: nil
+        )
+        #expect(result == nil)
+    }
+
+    @Test func interpretClaudeCodeClientData_429_quotaThrottle_marksThrottled() {
+        let result = RateLimitFetcher.interpretClaudeCodeClientData(
+            statusCode: 429,
+            data: Data(Self.clientDataBody429Throttled.utf8),
+            headers: [:],
+            cachedProfile: nil,
+            callerStandardLimits: nil
+        )
+        #expect(result?.rateLimits?.overallStatus == "throttled")
+        #expect(result?.rateLimits?.isThrottled == true)
+    }
+
+    @Test func interpretClaudeCodeClientData_401_returnsNil() {
+        let result = RateLimitFetcher.interpretClaudeCodeClientData(
+            statusCode: 401,
+            data: Data(Self.usageBody200.utf8),
+            headers: [:],
+            cachedProfile: nil,
+            callerStandardLimits: nil
+        )
+        #expect(result == nil)
+    }
+
+    @Test func interpretClaudeCodeClientData_500_returnsNil() {
+        let result = RateLimitFetcher.interpretClaudeCodeClientData(
+            statusCode: 500,
+            data: Data(Self.usageBody200.utf8),
+            headers: [:],
+            cachedProfile: nil,
+            callerStandardLimits: nil
+        )
+        #expect(result == nil)
+    }
 }
