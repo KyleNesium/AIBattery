@@ -135,6 +135,39 @@ struct RateLimitFetcherTests {
         #expect(result.profile == nil)
     }
 
+    /// Regression: on wake from sleep or cold start, if the cached snapshot's
+    /// 5h/7d reset has already passed, `cachedOrEmpty` must clear the expired
+    /// window so the menu bar doesn't render a stale "100%" + broken star
+    /// until a fresh fetch lands. Previously the cache was returned verbatim
+    /// and only `restorePersistedRateLimits` (also at init) ran the normalizer.
+    @Test @MainActor func cachedOrEmpty_expiredFiveHourWindow_isCleared() {
+        let fetcher = RateLimitFetcher()
+        let rateLimits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,                              // was at the cap
+            fiveHourReset: Date(timeIntervalSinceNow: -600),       // reset passed 10 min ago
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.3,
+            sevenDayReset: Date(timeIntervalSinceNow: 86_400),     // 7d still active
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let cached = APIFetchResult(
+            rateLimits: rateLimits,
+            profile: nil,
+            fetchedAt: Date(timeIntervalSinceNow: -3_600)
+        )
+        fetcher.setCachedResult(cached, for: "test-account")
+
+        let result = fetcher.cachedOrEmpty(accountId: "test-account")
+
+        #expect(result.rateLimits?.fiveHourUtilization == 0)
+        #expect(result.rateLimits?.fiveHourStatus == "allowed")
+        #expect(result.rateLimits?.overallStatus == "allowed")     // binding (5h) expired → overall clears
+        #expect(result.rateLimits?.sevenDayUtilization == 0.3)     // 7d untouched
+        #expect(result.isCached == true)
+    }
+
     // MARK: - parseRetryAfter
 
     @Test func parseRetryAfter_validDelay() {

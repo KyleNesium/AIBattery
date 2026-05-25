@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Menu bar stayed depleted ("100%" + broken star) past the actual 5h/7d window reset.**
+  Anthropic returns unified rate-limit headers on only ~10% of polls, so the snapshot
+  falls back to the previously-cached `RateLimitUsage` for up to 24h (`rateLimitStaleTTL`).
+  That stale value still reported `fiveHourPercent` (or `sevenDayPercent`) `= 100` and
+  `overallStatus = "throttled"` after its `fiveHourReset` / `sevenDayReset` had passed,
+  because `withClearedExpiredWindows` only ran inside `RateLimitFetcher.restorePersistedRateLimits`
+  at app launch — not on the runtime fallback. Both `UsageViewModel.effectiveRateLimits`
+  and `RateLimitFetcher.cachedOrEmpty` now normalize their returned `RateLimitUsage`
+  through `withClearedExpiredWindows(now:)`, so a window that has already reset
+  immediately drops to `0` / `"allowed"` and the menu bar clears the broken-star
+  state on the next display tick (no need to wait for a fresh-headers fetch).
+- Regression test in `UsageViewModelTests` pins the stale + expired-binding-window
+  scenario; companion test in `RateLimitFetcherTests` pins the cache-hit path on
+  cold start / wake from sleep.
+
 ## [2.3.1] — 2026-05-17
 
 Popover polish sweep. Two visible bug-fixes, eight design-token /

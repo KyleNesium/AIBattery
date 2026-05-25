@@ -171,10 +171,15 @@ final class RateLimitFetcher {
     /// Always returns cached data when available — stale rate limits are better
     /// than empty bars (e.g., after waking from long sleep with expired token).
     /// Fresh fetches replace the cache naturally on success.
+    ///
+    /// Cached `rateLimits` are normalized with `withClearedExpiredWindows()` before
+    /// being returned so a stale "throttled"/100% state doesn't outlive its window —
+    /// e.g. a cache hit on wake from sleep after the 5h or 7d reset has already passed
+    /// would otherwise display as still-depleted until a fresh fetch lands.
     func cachedOrEmpty(accountId: String, authError: Bool = false) -> APIFetchResult {
         if let cached = cachedResults[accountId] {
             return APIFetchResult(
-                rateLimits: cached.rateLimits,
+                rateLimits: cached.rateLimits?.withClearedExpiredWindows(),
                 rateLimitSource: cached.rateLimitSource,
                 standardLimits: cached.standardLimits,
                 profile: cached.profile,

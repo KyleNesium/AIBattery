@@ -615,6 +615,12 @@ public final class UsageViewModel: ObservableObject {
 
     /// Return fresh rate limits, or stale ones if within the TTL window, or nil if expired.
     /// Pure function — injectable `now` for testing.
+    ///
+    /// The stale value is normalized with `withClearedExpiredWindows(now:)` before being
+    /// returned: with only ~10% of polls returning unified headers, a snapshot's reset
+    /// timestamp can pass while the same `rateLimits` value is still being reused as
+    /// the fallback. Without this, the menu bar shows `100%` + broken star for hours
+    /// after a window has actually reset, until a fresh-headers fetch finally lands.
     nonisolated static func effectiveRateLimits(
         fresh: RateLimitUsage?,
         stale: RateLimitUsage?,
@@ -626,7 +632,7 @@ public final class UsageViewModel: ObservableObject {
         guard let stale, let lastFreshAt else { return nil }
         let age = now.timeIntervalSince(lastFreshAt)
         if age <= ttl {
-            return stale
+            return stale.withClearedExpiredWindows(now: now)
         }
         AppLogger.network.info("Rate limit stale fallback expired after \(Int(age))s (TTL=\(Int(ttl))s)")
         return nil

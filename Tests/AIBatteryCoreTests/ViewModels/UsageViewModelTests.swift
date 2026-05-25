@@ -445,6 +445,38 @@ struct UsageViewModelTests {
         #expect(result != nil) // boundary: <= ttl includes exact match
     }
 
+    /// Regression: with only ~10% of polls returning unified headers, a snapshot's
+    /// 5h reset can pass while the same `rateLimits` value is still being reused
+    /// as the stale fallback. The user-visible bug: menu bar shows "100%" + broken
+    /// star for hours after the window has actually reset, until a fresh-headers
+    /// fetch finally lands. Fix normalizes the stale value with
+    /// `withClearedExpiredWindows(now:)` before returning.
+    @Test func effectiveRateLimits_staleWithExpiredFiveHour_clearsToZero() {
+        let now = Date()
+        let stale = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,                                    // was at the cap
+            fiveHourReset: now.addingTimeInterval(-300),                 // reset passed 5 min ago
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.4,
+            sevenDayReset: now.addingTimeInterval(86_400),               // 7d still active
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let result = UsageViewModel.effectiveRateLimits(
+            fresh: nil,
+            stale: stale,
+            lastFreshAt: now.addingTimeInterval(-600),                   // 10 min ago, within 24h TTL
+            ttl: 86_400,
+            now: now
+        )
+        #expect(result?.fiveHourUtilization == 0)
+        #expect(result?.fiveHourStatus == "allowed")
+        #expect(result?.fiveHourReset == nil)
+        #expect(result?.overallStatus == "allowed")                      // binding (5h) expired → overall clears
+        #expect(result?.sevenDayUtilization == 0.4)                      // 7d untouched
+    }
+
     // MARK: - effectiveValue (generic TTL guard)
 
     @Test func effectiveValue_freshPresent_returnsFresh() {
