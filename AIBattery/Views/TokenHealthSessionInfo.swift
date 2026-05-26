@@ -126,15 +126,16 @@ enum SessionInfoFormatter {
     /// Format a session timestamp: "Today 14:32", "Yesterday 09:15", or "Feb 10, 14:32"
     private static let calendar = Calendar.current
 
-    static func formatSessionTime(_ date: Date) -> String {
-        let elapsed = Date().timeIntervalSince(date)
+    static func formatSessionTime(_ date: Date, now: Date = Date()) -> String {
+        let elapsed = now.timeIntervalSince(date)
         if elapsed < 60 { return "just now" }
         if elapsed < 3_600 { return "\(Int(elapsed / 60))m ago" }
         let time = timeFormatter.string(from: date)
 
-        if calendar.isDateInToday(date) {
+        if calendar.isDate(date, inSameDayAs: now) {
             return "Today \(time)"
-        } else if calendar.isDateInYesterday(date) {
+        } else if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+                  calendar.isDate(date, inSameDayAs: yesterday) {
             return "Yesterday \(time)"
         } else {
             return "\(dayFormatter.string(from: date)), \(time)"

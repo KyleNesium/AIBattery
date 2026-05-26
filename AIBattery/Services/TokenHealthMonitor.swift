@@ -1,7 +1,7 @@
 import Foundation
 
 /// Analyzes session token usage and produces health assessments.
-final class TokenHealthMonitor {
+final class TokenHealthMonitor: Sendable {
     static let shared = TokenHealthMonitor()
 
     private let config: TokenHealthConfig

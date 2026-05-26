@@ -16,7 +16,7 @@ public final class UsageViewModel: ObservableObject {
     @Published private(set) var resolvedMetricMode: MetricMode = .fiveHour
     /// Per-account rate limits for the multi-account menu bar display.
     /// Keyed by account ID; only populated when `showAllAccountsInMenuBar` is on.
-    @Published private(set) var perAccountRateLimits: [String: RateLimitUsage] = [:]
+    @Published var perAccountRateLimits: [String: RateLimitUsage] = [:]
 
     #if ENABLE_VERSION_CHECKER
     /// Available update from GitHub Releases (nil if up-to-date or not checked).
@@ -27,23 +27,34 @@ public final class UsageViewModel: ObservableObject {
     /// Reset on manual mode override and account switch.
     private var lastResolvedMode: MetricMode?
 
-    private let aggregator = UsageAggregator()
+    // Stored state that the lifecycle / fan-out extensions also touch is
+    // declared without `private` so it remains visible across the extension
+    // files in the same module. `aggregator`, `fileWatcher`, `pollingTimer`,
+    // and the sleep/wake observers are read or written by
+    // `UsageViewModel+Lifecycle.swift`; nothing else in the module touches them.
+    let aggregator = UsageAggregator()
     /// Serializes concurrent aggregateOffMain calls — only one detached task runs at a time.
     private var inflightAggregation: Task<(UsageSnapshot, UsageAggregator.SideEffects), Never>?
-    private var fileWatcher: FileWatcher?
-    private var pollingTimer: Timer?
+    var fileWatcher: FileWatcher?
+    // Polling timer + NSWorkspace observers: read/written from MainActor methods,
+    // but the nonisolated `deinit` must invalidate/remove them. `nonisolated(unsafe)`
+    // lets the deinit touch them; Timer.invalidate and NSWorkspace.removeObserver
+    // are documented thread-safe.
+    nonisolated(unsafe) var pollingTimer: Timer?
     private var apiResult: APIFetchResult?
-    private var wakeObserver: NSObjectProtocol?
-    private var sleepObserver: NSObjectProtocol?
+    nonisolated(unsafe) var wakeObserver: NSObjectProtocol?
+    nonisolated(unsafe) var sleepObserver: NSObjectProtocol?
     private var cancellables = Set<AnyCancellable>()
     /// Coalesces UserDefaults change notifications into a single fan-out.
-    private var pendingFanOut: Task<Void, Never>?
+    /// Read/written by `UsageViewModel+FanOut.swift`.
+    var pendingFanOut: Task<Void, Never>?
     /// Last observed value of the multi-account toggle — used to filter the
     /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
     private var lastObservedShowAllAccounts: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
 
     /// Adaptive polling state machine — delegates interval logic to a pure struct.
-    private var adaptivePolling = AdaptivePollingState()
+    /// Read/written by lifecycle extension (`updatePollingInterval`, `resumeTimers`).
+    var adaptivePolling = AdaptivePollingState()
 
     /// Timestamp of the last API response that included fresh (non-nil) rate limits.
     /// Used to expire stale fallback data — after `rateLimitStaleTTL` seconds without
@@ -63,14 +74,17 @@ public final class UsageViewModel: ObservableObject {
     private static let initialPollDelay: TimeInterval = 2
 
     /// True when timers are suspended due to system idle or screen lock.
-    /// Internal for testing — tests verify suspend/resume lifecycle.
-    private(set) var isSuspended = false
-    private var lockObserver: NSObjectProtocol?
-    private var unlockObserver: NSObjectProtocol?
+    /// Read/written by lifecycle extension; tests assert suspend/resume cycle.
+    var isSuspended = false
+    nonisolated(unsafe) var lockObserver: NSObjectProtocol?
+    nonisolated(unsafe) var unlockObserver: NSObjectProtocol?
     /// Global event monitor that detects user activity (mouse/keyboard) to resume
     /// from idle suspension. Only active while suspended — removed on resume.
-    /// Internal for testing — tests verify suspend/resume toggles this.
-    var activityMonitor: Any?
+    /// Read/written by lifecycle extension (`installActivityMonitor` /
+    /// `removeActivityMonitor`); tests assert suspend/resume toggles this.
+    /// `nonisolated(unsafe)` so the nonisolated deinit can clean it up
+    /// (NSEvent.removeMonitor is thread-safe).
+    nonisolated(unsafe) var activityMonitor: Any?
 
     public init() {
         LocalUsageEstimate.migrateIfNeeded()
@@ -132,78 +146,11 @@ public final class UsageViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    /// Coalesce repeated fan-out triggers — caller may fire many close together
-    /// (e.g. when settings open and several @AppStorage writes flush).
-    private func scheduleFanOut() {
-        pendingFanOut?.cancel()
-        pendingFanOut = Task { [weak self] in
-            await self?.fetchAllAccounts()
-        }
-    }
-
-    /// Fan-out: fetch rate limits for every authenticated, identity-resolved account.
-    /// Runs only when the "show all accounts" toggle is on. Idempotent: clears state if off.
-    ///
-    /// - Parameter seed: optional `(accountId, rateLimits)` pair to inject into the
-    ///   result map without re-fetching. Used by `refresh()` to reuse the active
-    ///   account's just-fetched data — `RateLimitFetcher.fetch` does NOT short-circuit
-    ///   on cache, so without seeding we'd issue an extra network call for the active
-    ///   account every refresh cycle (N+1 total instead of N).
-    func fetchAllAccounts(seed: (accountId: String, rateLimits: RateLimitUsage)? = nil) async {
-        let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
-        guard showAll else {
-            if !perAccountRateLimits.isEmpty {
-                perAccountRateLimits = [:]
-            }
-            return
-        }
-        let oauth = OAuthManager.shared
-        let candidates = oauth.accountStore.accounts
-            .filter { !$0.isPendingIdentity }
-            .filter { oauth.isAuthenticated(accountId: $0.id) }
-        // Skip any account already provided by seed — we already have fresh data
-        // for it and re-fetching would cost an extra API call per cycle.
-        let recordsToFetch = candidates.filter { $0.id != seed?.accountId }
-
-        // If nothing to fetch and nothing to seed, treat as empty.
-        if recordsToFetch.isEmpty && seed == nil {
-            if !perAccountRateLimits.isEmpty { perAccountRateLimits = [:] }
-            return
-        }
-
-        var collected: [String: RateLimitUsage] = [:]
-        if let seed { collected[seed.accountId] = seed.rateLimits }
-
-        if !recordsToFetch.isEmpty {
-            let fetched = await withTaskGroup(of: (String, RateLimitUsage?).self) { group -> [String: RateLimitUsage] in
-                for record in recordsToFetch {
-                    group.addTask {
-                        guard let token = await oauth.getAccessToken(for: record.id) else {
-                            return (record.id, nil)
-                        }
-                        let api = await RateLimitFetcher.shared.fetch(accessToken: token, accountId: record.id)
-                        return (record.id, api.rateLimits)
-                    }
-                }
-                var inner: [String: RateLimitUsage] = [:]
-                for await (id, limits) in group {
-                    if let limits { inner[id] = limits }
-                }
-                return inner
-            }
-            for (id, limits) in fetched {
-                collected[id] = limits
-            }
-        }
-
-        perAccountRateLimits = collected
-    }
-
     /// Run aggregate off the main thread, then apply @MainActor side effects.
     /// Best-effort serialization: waits for any in-flight aggregation before starting
     /// a new one. UsageAggregator's internal lock is the primary guard against concurrent
     /// mutation; this layer reduces redundant overlapping work.
-    private func aggregateOffMain(
+    func aggregateOffMain(
         rateLimits: RateLimitUsage?,
         rateLimitSource: RateLimitSource? = nil,
         standardLimits: StandardRateLimits? = nil,
@@ -474,182 +421,13 @@ public final class UsageViewModel: ObservableObject {
         Task { await refresh() } // refresh() also calls fetchAllAccounts() at its tail.
     }
 
-    // MARK: - Private
+    // MARK: - Throttle bookkeeping
 
-    private func setupFileWatcher() {
-        fileWatcher = FileWatcher { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.aggregator.invalidate()
-                self?.restartPolling(interval: self?.refreshInterval ?? 60)
-                await self?.refresh()
-            }
-        }
-        fileWatcher?.startWatching()
-    }
-
-    /// Pause polling before sleep — avoids wasted timer fires while the
-    /// system is suspended and ensures a clean lifecycle.
-    /// On wake, reset adaptive polling and refresh immediately.
-    private func setupSleepWakeObservers() {
-        sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.willSleepNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.suspendTimers()
-            }
-        }
-
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                // Show cached rate limits immediately so bars appear on wake
-                // without waiting for the API round-trip.
-                let accountId = OAuthManager.shared.accountStore.activeAccountId
-                if let accountId {
-                    let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
-                    if cached.rateLimits != nil || cached.standardLimits != nil {
-                        let result = await self.aggregateOffMain(
-                            rateLimits: cached.rateLimits,
-                            rateLimitSource: cached.rateLimitSource,
-                            standardLimits: cached.standardLimits,
-                            accountId: accountId
-                        )
-                        if result != self.snapshot { self.snapshot = result }
-                        self.isShowingCachedData = true
-                    }
-                }
-
-                self.resumeTimers()
-
-                // Wait for WiFi to reconnect after sleep before hitting the API.
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                // Skip network check — NWPathMonitor may still report disconnected
-                // while WiFi is reconnecting. Let the API call try and timeout naturally.
-                await self.refresh(skipNetworkCheck: true)
-            }
-        }
-
-        // Screen lock — suspend all timers immediately.
-        lockObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.sessionDidResignActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.suspendTimers()
-            }
-        }
-
-        // Screen unlock — resume timers and refresh.
-        unlockObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.sessionDidBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.resumeTimers()
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                await self.refresh(skipNetworkCheck: true)
-            }
-        }
-    }
-
-    private var refreshInterval: TimeInterval {
-        Self.clampedRefreshInterval(UserDefaults.standard.double(forKey: UserDefaultsKeys.refreshInterval))
-    }
-
-    // MARK: - Testable static helpers
-
-    /// Default polling interval when no user preference is set (seconds).
-    nonisolated static let defaultRefreshInterval: TimeInterval = 120
-    /// Minimum allowed polling interval (seconds).
-    nonisolated static let minRefreshInterval: TimeInterval = 30
-    /// Maximum allowed polling interval (seconds).
-    nonisolated static let maxRefreshInterval: TimeInterval = 300
-
-    /// Clamp a stored refresh interval to the valid range [30, 300]. Zero/negative → 120 (default).
-    nonisolated static func clampedRefreshInterval(_ stored: Double) -> TimeInterval {
-        let interval = stored > 0 ? stored : defaultRefreshInterval
-        return min(max(interval, minRefreshInterval), maxRefreshInterval)
-    }
-
-    /// Determine the error message to show after a refresh where the API returned no data.
-    /// Returns nil when rate limits are present (no error to show).
-    /// `authError` takes precedence — a persistent auth failure means stale data
-    /// is misleading; tell the user to reconnect.
-    nonisolated static func refreshErrorMessage(
-        hasRateLimits: Bool,
-        hasStandardLimits: Bool,
-        hasProfile: Bool,
-        hasStandardRateLimitHeaders: Bool,
-        totalMessages: Int,
-        authError: Bool = false
-    ) -> String? {
-        if authError {
-            return "Authentication failed — please log out and reconnect this account."
-        }
-        if hasRateLimits { return nil }
-        // Standard limits provide useful fallback data — no error needed
-        if hasStandardLimits { return nil }
-        // Standard headers detected — API is working, just no 5h/7d data
-        if hasStandardRateLimitHeaders { return nil }
-        if !hasProfile && totalMessages == 0 {
-            return "No usage data yet. Start a Claude Code session to see your stats."
-        }
-        if hasProfile { return nil }
-        return "Unable to reach Anthropic API. Check your internet connection and try again."
-    }
-
-    /// Whether snapshot data has changed compared to previous values. Used by adaptive polling.
-    /// Returns true on first load (previousTotal < 0) or when totals differ.
-    nonisolated static func hasDataChanged(previousTotal: Int, previousToday: Int, newTotal: Int, newToday: Int) -> Bool {
-        previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
-    }
-
-    /// Return fresh rate limits, or stale ones if within the TTL window, or nil if expired.
-    /// Pure function — injectable `now` for testing.
-    ///
-    /// The stale value is normalized with `withClearedExpiredWindows(now:)` before being
-    /// returned: with only ~10% of polls returning unified headers, a snapshot's reset
-    /// timestamp can pass while the same `rateLimits` value is still being reused as
-    /// the fallback. Without this, the menu bar shows `100%` + broken star for hours
-    /// after a window has actually reset, until a fresh-headers fetch finally lands.
-    nonisolated static func effectiveRateLimits(
-        fresh: RateLimitUsage?,
-        stale: RateLimitUsage?,
-        lastFreshAt: Date?,
-        ttl: TimeInterval,
-        now: Date = .now
-    ) -> RateLimitUsage? {
-        if let fresh { return fresh }
-        guard let stale, let lastFreshAt else { return nil }
-        let age = now.timeIntervalSince(lastFreshAt)
-        if age <= ttl {
-            return stale.withClearedExpiredWindows(now: now)
-        }
-        AppLogger.network.info("Rate limit stale fallback expired after \(Int(age))s (TTL=\(Int(ttl))s)")
-        return nil
-    }
-
-    /// Generic TTL guard for optional values that ride alongside rate limits.
-    nonisolated static func effectiveValue<T>(
-        fresh: T?,
-        stale: T?,
-        lastFreshAt: Date?,
-        ttl: TimeInterval,
-        now: Date = .now
-    ) -> T? {
-        if let fresh { return fresh }
-        guard let stale, let lastFreshAt else { return nil }
-        return now.timeIntervalSince(lastFreshAt) <= ttl ? stale : nil
-    }
+    //
+    // Static helpers that are pure / stateless live in `UsageViewModel+Statics.swift`.
+    // The throttle tracker stays here because it depends on a stored static
+    // ThrottleTracker (`throttleTracker`), which only makes sense alongside
+    // the storage it manages.
 
     /// Throttle transition tracker — pure struct, side-effects handled here.
     private static var throttleTracker = ThrottleTracker()
@@ -674,80 +452,6 @@ public final class UsageViewModel: ObservableObject {
             UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps)
         )
         return ThrottleTracker.count(timestamps: timestamps, days: days)
-    }
-
-    /// Suspend polling and FileWatcher fallback timer.
-    /// Called on screen lock or idle threshold reached.
-    /// Installs a global event monitor so the first user interaction resumes polling.
-    private func suspendTimers() {
-        guard !isSuspended else { return }
-        isSuspended = true
-        pollingTimer?.invalidate()
-        pollingTimer = nil
-        fileWatcher?.suspendFallbackTimer()
-        installActivityMonitor()
-    }
-
-    /// Resume from user interaction (e.g., clicking the menu bar icon).
-    /// Public entry point for StatusBarManager — the global event monitor may not
-    /// fire without Accessibility permission, so direct interaction is the reliable path.
-    func resumeFromUserInteraction() {
-        resumeTimers()
-        Task { await refresh(skipNetworkCheck: true) }
-    }
-
-    /// Resume polling and FileWatcher fallback timer after wake or activity.
-    private func resumeTimers() {
-        guard isSuspended else { return }
-        isSuspended = false
-        removeActivityMonitor()
-        adaptivePolling.unchangedCycles = 0
-        restartPolling(interval: refreshInterval)
-        fileWatcher?.resumeFallbackTimer()
-    }
-
-    /// Install a global event monitor that fires on the first mouse/keyboard event
-    /// after idle suspension. Resumes timers and triggers an immediate refresh.
-    /// Only active while suspended — removed on resume to avoid overhead.
-    private func installActivityMonitor() {
-        guard activityMonitor == nil else { return }
-        activityMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.mouseMoved, .keyDown, .leftMouseDown, .rightMouseDown, .scrollWheel]
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self, self.isSuspended else { return }
-                self.resumeTimers()
-                await self.refresh(skipNetworkCheck: true)
-            }
-        }
-    }
-
-    private func removeActivityMonitor() {
-        if let monitor = activityMonitor {
-            NSEvent.removeMonitor(monitor)
-            activityMonitor = nil
-        }
-    }
-
-    private func startPolling() {
-        restartPolling(interval: refreshInterval)
-    }
-
-    /// Restart the polling timer with the given interval.
-    private func restartPolling(interval: TimeInterval) {
-        pollingTimer?.invalidate()
-        let clamped = min(max(interval, 10), AdaptivePollingState.maxPollingInterval)
-        pollingTimer = Timer.scheduledTimer(withTimeInterval: clamped, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                await self?.refresh()
-            }
-        }
-        pollingTimer?.tolerance = clamped * 0.1
-    }
-
-    func updatePollingInterval(_ interval: TimeInterval) {
-        adaptivePolling.unchangedCycles = 0
-        restartPolling(interval: interval)
     }
 
     deinit {

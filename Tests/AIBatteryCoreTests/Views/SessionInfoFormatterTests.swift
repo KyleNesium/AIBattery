@@ -133,9 +133,19 @@ struct SessionInfoFormatterTests {
         #expect(result == "5m ago")
     }
 
-    @Test func formatSessionTime_todayShowsTime() {
-        let result = SessionInfoFormatter.formatSessionTime(Date().addingTimeInterval(-7_200))
+    @Test func formatSessionTime_todayShowsTime() throws {
+        // Pin "now" to noon so a 2h-earlier session is unambiguously the same calendar day,
+        // even if the test runs across midnight (where Date()-2h would resolve to yesterday).
+        let now = try #require(Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date()))
+        let result = SessionInfoFormatter.formatSessionTime(now.addingTimeInterval(-7_200), now: now)
         #expect(result.hasPrefix("Today"))
+    }
+
+    @Test func formatSessionTime_yesterdayShowsYesterday() throws {
+        let now = try #require(Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date()))
+        let yesterday = now.addingTimeInterval(-86_400)
+        let result = SessionInfoFormatter.formatSessionTime(yesterday, now: now)
+        #expect(result.hasPrefix("Yesterday"))
     }
 
     // MARK: - Copyable details

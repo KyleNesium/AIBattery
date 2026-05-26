@@ -24,7 +24,7 @@ final class UsageAggregator: @unchecked Sendable {
     }
 
     private static let dateFormatter = DateFormatters.dateKey
-    private static let isoFormatter = DateFormatters.iso8601
+    nonisolated(unsafe) private static let isoFormatter = DateFormatters.iso8601
 
     // MARK: - Time window constants
 

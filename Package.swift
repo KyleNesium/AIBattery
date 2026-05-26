@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -19,19 +19,34 @@ let package = Package(
             path: "AIBattery",
             exclude: ["Info.plist", "AIBattery.entitlements", "AIBattery-AppStore.entitlements"],
             resources: [.copy("PrivacyInfo.xcprivacy")],
-            swiftSettings: [.define("ENABLE_SPARKLE"), .define("ENABLE_VERSION_CHECKER")]
+            swiftSettings: [
+                .define("ENABLE_SPARKLE"),
+                .define("ENABLE_VERSION_CHECKER"),
+                .swiftLanguageMode(.v5),
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
         ),
         .executableTarget(
             name: "AIBattery",
             dependencies: ["AIBatteryCore"],
             path: "AIBatteryApp",
-            swiftSettings: [.define("ENABLE_SPARKLE"), .define("ENABLE_VERSION_CHECKER")]
+            swiftSettings: [
+                .define("ENABLE_SPARKLE"),
+                .define("ENABLE_VERSION_CHECKER"),
+                .swiftLanguageMode(.v5),
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
         ),
         .testTarget(
             name: "AIBatteryCoreTests",
             dependencies: ["AIBatteryCore"],
             path: "Tests/AIBatteryCoreTests",
-            swiftSettings: [.define("ENABLE_SPARKLE"), .define("ENABLE_VERSION_CHECKER")]
+            swiftSettings: [
+                .define("ENABLE_SPARKLE"),
+                .define("ENABLE_VERSION_CHECKER"),
+                .swiftLanguageMode(.v5),
+                .enableUpcomingFeature("StrictConcurrency")
+            ]
         )
     ]
 )

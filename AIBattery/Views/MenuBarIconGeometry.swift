@@ -3,8 +3,11 @@ import AppKit
 // MARK: - Star geometry helpers (extracted from MenuBarIcon)
 
 extension MenuBarIcon {
+    // These geometry helpers are pure functions of their inputs (no MainActor
+    // state, no UIKit/AppKit globals). `nonisolated` lets the tests call them
+    // freely from any context.
     /// N-pointed star path for glow effects: alternating outer/inner vertices.
-    static func multiPointStarPath(center: NSPoint, outerRadius: CGFloat, innerRadius: CGFloat, points: Int) -> NSBezierPath {
+    nonisolated static func multiPointStarPath(center: NSPoint, outerRadius: CGFloat, innerRadius: CGFloat, points: Int) -> NSBezierPath {
         let path = NSBezierPath()
         let totalVertices = points * 2
         for i in 0..<totalVertices {
@@ -25,7 +28,7 @@ extension MenuBarIcon {
     }
 
     /// 4-pointed star path: 8 vertices alternating outer/inner radius.
-    static func starPath(center: NSPoint, outerRadius: CGFloat, innerRadius: CGFloat) -> NSBezierPath {
+    nonisolated static func starPath(center: NSPoint, outerRadius: CGFloat, innerRadius: CGFloat) -> NSBezierPath {
         let path = NSBezierPath()
         for i in 0..<8 {
             let angle = (CGFloat(i) * .pi / 4) - (.pi / 2)

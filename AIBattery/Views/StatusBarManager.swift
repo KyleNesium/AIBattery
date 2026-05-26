@@ -57,17 +57,24 @@ public final class StatusBarManager: NSObject {
     /// Last observed value of the multi-account toggle — used to filter the
     /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
     private var lastObservedShowAllAccounts: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
-    private var escapeMonitor: Any?
-    private var clickOutsideMonitor: Any?
+    // NSEvent monitors / observers / Timers touched by the nonisolated deinit;
+    // `nonisolated(unsafe)` is required so the deinit can clean them up.
+    // Documented thread-safe cleanup APIs.
+    nonisolated(unsafe) private var escapeMonitor: Any?
+    nonisolated(unsafe) private var clickOutsideMonitor: Any?
     /// Toggle state machine — tracks intended panel visibility.
     /// All dismiss paths (including system-initiated orderOut) call toggleState.dismiss() via onDismiss callback.
     private var toggleState = PanelToggleState()
-    private var deactivationObserver: Any?
+    nonisolated(unsafe) private var deactivationObserver: Any?
     private let panelShowLog = OSLog(subsystem: "com.kylenesium.AIBattery", category: .pointsOfInterest)
     /// Timestamp of last click — debounces rapid clicks during toggle.
     private var lastClickAt: Date = .distantPast
-    private var appearanceObserver: NSKeyValueObservation?
-    private var frameObserver: Any?
+    nonisolated(unsafe) private var appearanceObserver: NSKeyValueObservation?
+    nonisolated(unsafe) private var frameObserver: Any?
+    /// Debounce token for the panel-resize observer below. Stored on the
+    /// MainActor-isolated instance so it can be mutated from the @Sendable
+    /// NotificationCenter observer closure without racing.
+    private var resizeWorkItem: DispatchWorkItem?
     /// Absolute Y coordinate of the panel's top edge (just below the menu bar).
     /// Set by `positionPanel` and used by the resize observer to keep the top anchored.
     /// Re-derived in the resize observer so display/geometry changes don't detach the panel.
@@ -85,12 +92,12 @@ public final class StatusBarManager: NSObject {
 
     // Recovery sparkle: 30s celebration after throttle clears
     private var isSparkleActive: Bool = false
-    private var sparkleTimer: Timer?
+    nonisolated(unsafe) private var sparkleTimer: Timer?
     /// Duration of the recovery sparkle effect after throttle clears.
     static let sparkleDuration: TimeInterval = 30
 
     // Countdown ticker: 1s timer to keep menu bar countdown in sync with popover
-    private var countdownTimer: Timer?
+    nonisolated(unsafe) private var countdownTimer: Timer?
     /// The reset date currently being counted down to (nil = no active countdown).
     private var activeResetDate: Date?
 
@@ -160,13 +167,14 @@ public final class StatusBarManager: NSObject {
         // Debounced: coalesces rapid layout changes into a single frame update.
         hosting.setContentHuggingPriority(.defaultHigh, for: .vertical)
         hosting.postsFrameChangedNotifications = true
-        var resizeWorkItem: DispatchWorkItem?
         frameObserver = NotificationCenter.default.addObserver(
             forName: NSView.frameDidChangeNotification,
             object: hosting,
             queue: .main
         ) { [weak panel, weak hosting, weak self] _ in
-            resizeWorkItem?.cancel()
+            MainActor.assumeIsolated {
+                self?.resizeWorkItem?.cancel()
+            }
             let work = DispatchWorkItem {
                 MainActor.assumeIsolated {
                     guard let panel, let hosting, let self else { return }
@@ -196,7 +204,9 @@ public final class StatusBarManager: NSObject {
                     )
                 }
             }
-            resizeWorkItem = work
+            MainActor.assumeIsolated {
+                self?.resizeWorkItem = work
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.016, execute: work)
         }
 

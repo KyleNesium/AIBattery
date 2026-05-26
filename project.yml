@@ -21,9 +21,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.KyleNesium.AIBattery
-        MARKETING_VERSION: "2.3.2"
-        CURRENT_PROJECT_VERSION: "2.3.2"
-        SWIFT_VERSION: "5.9"
+        MARKETING_VERSION: "2.4.0"
+        CURRENT_PROJECT_VERSION: "2.4.0"
+        SWIFT_VERSION: "6.0"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"

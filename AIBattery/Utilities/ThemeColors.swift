@@ -10,10 +10,15 @@ import AppKit
 /// Custom colors use `adaptive(light:dark:)` to provide distinct variants per appearance.
 enum ThemeColors {
     /// Cached colorblind flag — updated via KVO observer when the preference changes.
-    private(set) static var isColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+    /// `nonisolated(unsafe)` is acceptable here: writes happen exclusively from the
+    /// main-queue observer closure below, and reads are a Bool (atomic on aligned memory)
+    /// used only as a UI palette hint.
+    nonisolated(unsafe) private(set) static var isColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
 
     /// One-time KVO registration to keep isColorblind in sync with UserDefaults.
-    private static let observer: NSObjectProtocol = NotificationCenter.default.addObserver(
+    /// `nonisolated(unsafe)` is fine — the value is set once at init and treated as
+    /// an opaque token from then on.
+    nonisolated(unsafe) private static let observer: NSObjectProtocol = NotificationCenter.default.addObserver(
         forName: UserDefaults.didChangeNotification,
         object: nil,
         queue: .main

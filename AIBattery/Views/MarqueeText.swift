@@ -205,7 +205,9 @@ struct MarqueeText: View {
 
 /// PreferenceKey for measuring text width without a nested GeometryReader.
 private struct TextWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    // PreferenceKey requires a mutable static — in practice it's a per-evaluation
+    // seed value, not shared mutable state, but the type system can't see that.
+    nonisolated(unsafe) static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }

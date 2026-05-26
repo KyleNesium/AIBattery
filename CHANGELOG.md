@@ -1,5 +1,59 @@
 # Changelog
 
+## [2.4.0] — 2026-05-26
+
+Internal hygiene release. No user-visible behavior change beyond a Sparkle
+patch bump; the work was concentrated on making the codebase ready for the
+Swift 6 language-mode flip and on splitting two files that had grown past
+the project's 800-line cap.
+
+### Tooling
+- **Swift 6 strict-concurrency diagnostics enabled** at warning level.
+  `swift-tools-version` bumped 5.9 → 6.0; the `StrictConcurrency` upcoming
+  feature is on across all three SPM targets; production code now compiles
+  with **zero warnings, zero errors** under strict-concurrency. The
+  `.swiftLanguageMode(.v6)` flip is deferred — it requires `isolated deinit`
+  on the three `@MainActor` classes that own `Timer` / observer state
+  (`UsageViewModel`, `FileWatcher`, `StatusBarManager`), and adopting
+  `isolated deinit` deadlocked the Swift Testing parallel runner on this
+  codebase in empirical testing. The `nonisolated(unsafe)` annotations
+  added on the affected stored properties document the locations that the
+  follow-up will revisit. See PR #170 for the deadlock evidence.
+- **Sparkle 2.9.0 → 2.9.2** — patch-level update within the existing
+  `"2.6.0"..<"3.0.0"` declared range. Picks up upstream fixes between
+  Mar 2026 and 17 May 2026.
+
+### Refactored
+- **`UsageViewModel.swift` 761 → 457 lines** via three same-type extension
+  files (`+Statics`, `+Lifecycle`, `+FanOut`). No behavior change; each
+  extracted method group has a single inline narrative comment explaining
+  what's in it and why it moved. `spec/ARCHITECTURE.md` updated to reflect
+  the new layout.
+- **`RateLimitFetcher.swift` 743 → 494 lines** via three same-type
+  extension files (`+UsageEndpoint`, `+ClientData`, `+Persistence`).
+  The pure `interpret*` functions pinned by v2.3.2's 15 contract tests
+  move with the rest of their endpoint logic; tests still address them
+  via the canonical class namespace, so no test rewrites.
+  `spec/ARCHITECTURE.md` and `spec/DATA_LAYER.md` updated.
+
+### Fixed
+- **Midnight-rollover test flake in `SessionInfoFormatter.formatSessionTime`.**
+  The formatter called `Date()` and `calendar.isDateInToday(date)` internally,
+  so `formatSessionTime_todayShowsTime` (which passed a 2h-earlier session)
+  flaked between 00:00 and ~02:00 local: "2 hours ago" crossed the day
+  boundary, the formatter (correctly) returned `"Yesterday HH:MM"`, the test
+  asserted `"Today"` → fail. Caught running the v2.4.0 verification suite at
+  00:07 local. Fix injects `now: Date = Date()` (same pattern
+  `UsageAggregator.aggregate(now:)` adopted in v2.3.2); the production path
+  is unchanged (default param). The test now pins `now` to noon-on-today,
+  and a symmetric `formatSessionTime_yesterdayShowsYesterday` test pins
+  the other branch.
+
+### Tests
+- 1000 → **1002 tests** across 67 files. The new tests are the
+  yesterday-symmetric formatter coverage above; one absolute count is also
+  the existing midnight-rollover test now running deterministically.
+
 ## [2.3.2] — 2026-05-25
 
 Bug-fix release. Closes the "menu bar stayed depleted past the actual reset"

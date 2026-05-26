@@ -3,11 +3,16 @@ import os
 
 @MainActor
 final class FileWatcher {
-    private var fileSource: DispatchSourceFileSystemObject?
-    private var fsEventStream: FSEventStreamRef?
-    private var debounceWorkItem: DispatchWorkItem?
-    private var timer: Timer?
-    private var retryTimer: Timer?
+    // These resources are written / read only from MainActor methods at runtime
+    // (the @MainActor class isolation guarantees that). `nonisolated(unsafe)`
+    // is required so the nonisolated `deinit` can still touch them — the deinit
+    // runs on whatever thread releases the last reference, and Timer/
+    // FSEventStreamRef/DispatchWorkItem cleanup APIs are documented thread-safe.
+    nonisolated(unsafe) private var fileSource: DispatchSourceFileSystemObject?
+    nonisolated(unsafe) private var fsEventStream: FSEventStreamRef?
+    nonisolated(unsafe) private var debounceWorkItem: DispatchWorkItem?
+    nonisolated(unsafe) private var timer: Timer?
+    nonisolated(unsafe) private var retryTimer: Timer?
     private let onChange: () -> Void
     private var isStopped = false
     private var statsCacheRetryCount = 0
@@ -192,7 +197,6 @@ final class FileWatcher {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.debounceDelay, execute: work)
     }
 
-    // Nonisolated deinit cannot call @MainActor methods — inline cleanup.
     deinit {
         debounceWorkItem?.cancel()
         if let source = fileSource { source.cancel() }
