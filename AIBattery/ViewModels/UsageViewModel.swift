@@ -36,10 +36,14 @@ public final class UsageViewModel: ObservableObject {
     /// Serializes concurrent aggregateOffMain calls — only one detached task runs at a time.
     private var inflightAggregation: Task<(UsageSnapshot, UsageAggregator.SideEffects), Never>?
     var fileWatcher: FileWatcher?
-    var pollingTimer: Timer?
+    // Polling timer + NSWorkspace observers: read/written from MainActor methods,
+    // but the nonisolated `deinit` must invalidate/remove them. `nonisolated(unsafe)`
+    // lets the deinit touch them; Timer.invalidate and NSWorkspace.removeObserver
+    // are documented thread-safe.
+    nonisolated(unsafe) var pollingTimer: Timer?
     private var apiResult: APIFetchResult?
-    var wakeObserver: NSObjectProtocol?
-    var sleepObserver: NSObjectProtocol?
+    nonisolated(unsafe) var wakeObserver: NSObjectProtocol?
+    nonisolated(unsafe) var sleepObserver: NSObjectProtocol?
     private var cancellables = Set<AnyCancellable>()
     /// Coalesces UserDefaults change notifications into a single fan-out.
     /// Read/written by `UsageViewModel+FanOut.swift`.
@@ -72,13 +76,15 @@ public final class UsageViewModel: ObservableObject {
     /// True when timers are suspended due to system idle or screen lock.
     /// Read/written by lifecycle extension; tests assert suspend/resume cycle.
     var isSuspended = false
-    var lockObserver: NSObjectProtocol?
-    var unlockObserver: NSObjectProtocol?
+    nonisolated(unsafe) var lockObserver: NSObjectProtocol?
+    nonisolated(unsafe) var unlockObserver: NSObjectProtocol?
     /// Global event monitor that detects user activity (mouse/keyboard) to resume
     /// from idle suspension. Only active while suspended — removed on resume.
     /// Read/written by lifecycle extension (`installActivityMonitor` /
     /// `removeActivityMonitor`); tests assert suspend/resume toggles this.
-    var activityMonitor: Any?
+    /// `nonisolated(unsafe)` so the nonisolated deinit can clean it up
+    /// (NSEvent.removeMonitor is thread-safe).
+    nonisolated(unsafe) var activityMonitor: Any?
 
     public init() {
         LocalUsageEstimate.migrateIfNeeded()

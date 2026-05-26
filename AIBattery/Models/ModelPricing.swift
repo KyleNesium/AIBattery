@@ -51,7 +51,9 @@ struct ModelPricing {
     /// Lock-protected for thread safety (Swift Testing runs tests concurrently).
     /// Uses `Optional<ModelPricing>` values; key presence means "already looked up",
     /// nil value means "looked up but no match found".
-    private static var pricingCache: [String: ModelPricing?] = [:]
+    /// `nonisolated(unsafe)` is the right call here: every read/write is guarded by
+    /// `cacheLock` below, so the data is concurrency-safe even though Swift can't see it.
+    nonisolated(unsafe) private static var pricingCache: [String: ModelPricing?] = [:]
     private static let cacheLock = NSLock()
 
     /// Look up pricing by model ID. Uses `ModelNameMapper.displayName` for matching.

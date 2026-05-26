@@ -18,7 +18,9 @@ public enum SingleInstanceGuard {
     }()
 
     /// File descriptor for the lock file — kept open for the process lifetime.
-    private static var lockFD: Int32 = -1
+    /// Process-wide state set at startup before any concurrency is active and treated
+    /// as an opaque token thereafter; `nonisolated(unsafe)` is correct — no contention.
+    nonisolated(unsafe) private static var lockFD: Int32 = -1
 
     /// Call once at startup, before the SwiftUI body is evaluated.
     /// If another instance holds the lock, this process exits immediately.
@@ -81,7 +83,7 @@ public enum SingleInstanceGuard {
     }
 
     /// Held strongly to keep the signal source alive for the process lifetime.
-    private static var signalSource: DispatchSourceSignal?
+    nonisolated(unsafe) private static var signalSource: DispatchSourceSignal?
 
     /// Registers SIGTERM handler so the app shuts down cleanly when killed.
     /// Uses DispatchSource instead of signal() — signal handlers must only call
@@ -93,7 +95,12 @@ public enum SingleInstanceGuard {
 
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler {
-            NSApplication.shared.terminate(nil)
+            // Queue is .main, so we're already on the main thread, but Swift's
+            // strict concurrency can't see that from a pre-concurrency API —
+            // assumeIsolated documents the invariant.
+            MainActor.assumeIsolated {
+                NSApplication.shared.terminate(nil)
+            }
         }
         source.resume()
         signalSource = source

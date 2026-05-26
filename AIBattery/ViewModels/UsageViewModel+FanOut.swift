@@ -52,14 +52,19 @@ extension UsageViewModel {
         if let seed { collected[seed.accountId] = seed.rateLimits }
 
         if !recordsToFetch.isEmpty {
+            // Extract just the IDs (Sendable Strings) before crossing into the
+            // task group — capturing a MainActor-isolated `oauth` or
+            // `AccountRecord` in @Sendable closures would race against the
+            // actor that owns them.
+            let idsToFetch = recordsToFetch.map(\.id)
             let fetched = await withTaskGroup(of: (String, RateLimitUsage?).self) { group -> [String: RateLimitUsage] in
-                for record in recordsToFetch {
+                for id in idsToFetch {
                     group.addTask {
-                        guard let token = await oauth.getAccessToken(for: record.id) else {
-                            return (record.id, nil)
+                        guard let token = await OAuthManager.shared.getAccessToken(for: id) else {
+                            return (id, nil)
                         }
-                        let api = await RateLimitFetcher.shared.fetch(accessToken: token, accountId: record.id)
-                        return (record.id, api.rateLimits)
+                        let api = await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
+                        return (id, api.rateLimits)
                     }
                 }
                 var inner: [String: RateLimitUsage] = [:]

@@ -1,7 +1,9 @@
 import Foundation
 
 enum ModelNameMapper {
-    private static var cache: [String: String] = [:]
+    /// `nonisolated(unsafe)` is the right call here: every read/write is guarded by
+    /// `lock` below, so the data is concurrency-safe even though Swift can't see it.
+    nonisolated(unsafe) private static var cache: [String: String] = [:]
     private static let lock = NSLock()
 
     static func displayName(for modelId: String) -> String {
