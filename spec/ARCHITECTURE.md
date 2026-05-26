@@ -101,7 +101,10 @@ AIBattery/
     SparkleUpdateService.swift     — Sparkle 2 wrapper for user-initiated auto-update
     SparkleUpdateDelegate.swift   — SPUUpdaterDelegate: error tracking + update cycle logging
   ViewModels/
-    UsageViewModel.swift          — @MainActor ObservableObject, single source of truth
+    UsageViewModel.swift          — @MainActor ObservableObject, single source of truth (state + init + refresh orchestration + throttle bookkeeping + deinit)
+    UsageViewModel+Statics.swift  — `nonisolated static` pure helpers: refresh-interval clamping, error-message string, change detection, TTL-guarded effective rate-limits / values
+    UsageViewModel+Lifecycle.swift — File watcher setup, sleep/wake/screen-lock observers, idle-suspend + activity-monitor resume, polling timer (start/restart/updateInterval)
+    UsageViewModel+FanOut.swift   — Multi-account `scheduleFanOut` + `fetchAllAccounts(seed:)` (toggle-gated, coalesced, seeded with the active account to avoid an N+1 fetch)
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates; multi-account text path gated on `aibattery_showAllAccountsInMenuBar`
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache

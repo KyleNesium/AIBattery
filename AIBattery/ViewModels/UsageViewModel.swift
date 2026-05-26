@@ -76,7 +76,8 @@ public final class UsageViewModel: ObservableObject {
     var unlockObserver: NSObjectProtocol?
     /// Global event monitor that detects user activity (mouse/keyboard) to resume
     /// from idle suspension. Only active while suspended — removed on resume.
-    /// Internal for testing — tests verify suspend/resume toggles this.
+    /// Read/written by lifecycle extension (`installActivityMonitor` /
+    /// `removeActivityMonitor`); tests assert suspend/resume toggles this.
     var activityMonitor: Any?
 
     public init() {
