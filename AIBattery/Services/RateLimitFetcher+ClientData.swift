@@ -1,6 +1,7 @@
 import Foundation
 
 // MARK: - Claude Code client-data fallback endpoint
+
 //
 // When the Messages API stops returning unified headers, fall back to
 // `/api/oauth/claude_cli/client_data` and parse either headers or a

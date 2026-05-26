@@ -422,6 +422,7 @@ public final class UsageViewModel: ObservableObject {
     }
 
     // MARK: - Throttle bookkeeping
+
     //
     // Static helpers that are pure / stateless live in `UsageViewModel+Statics.swift`.
     // The throttle tracker stays here because it depends on a stored static

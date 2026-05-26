@@ -1,6 +1,7 @@
 import Foundation
 
 // MARK: - Pure helpers extracted from UsageViewModel
+
 //
 // Lives in an extension so it stays addressable as `UsageViewModel.foo`
 // for both production callers and the existing test suite, while keeping

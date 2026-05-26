@@ -1,6 +1,7 @@
 import Foundation
 
 // MARK: - Multi-account fan-out extracted from UsageViewModel
+
 //
 // Triggered by the "Show all accounts in menu bar" preference. The toggle
 // observer in `init` debounces `UserDefaults.didChangeNotification` and

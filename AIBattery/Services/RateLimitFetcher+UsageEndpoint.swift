@@ -1,6 +1,7 @@
 import Foundation
 
 // MARK: - Dedicated /api/oauth/usage endpoint (primary path)
+
 //
 // Returns structured JSON with five-hour / seven-day utilization — no
 // model probe needed. Same endpoint CodexBar and other tools use.

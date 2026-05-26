@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 
 // MARK: - Lifecycle / polling / observers extracted from UsageViewModel
+
 //
 // File-watcher setup, sleep/wake/screen-lock observer wiring, idle
 // suspend / activity-monitor resume, and polling timer plumbing. None of

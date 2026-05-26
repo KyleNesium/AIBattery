@@ -1,6 +1,7 @@
 import Foundation
 
 // MARK: - Persistence extracted from RateLimitFetcher
+
 //
 // UserDefaults-backed cache of the most recent rate-limit snapshot per
 // account, restored on launch so the menu bar fills in immediately
