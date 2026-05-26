@@ -85,7 +85,10 @@ AIBattery/
     AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, auto-refresh; `postToken` is `nonisolated static` so the network call releases MainActor cleanly. Concurrent-refresh serialization preserved via `refreshTasks[accountId]`
     OAuthTokenStorage.swift       — Keychain (refresh token) + UserDefaults (expiry) persistence layer extracted from OAuthManager
-    RateLimitFetcher.swift        — Claude Code client-data fetch + legacy/public header fallbacks; pure header helpers (`containsStandardRateLimitHeaders`, `quotaThrottleLikely`, `parseRetryAfter`) are `nonisolated static`
+    RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)
+    RateLimitFetcher+UsageEndpoint.swift  — Dedicated `/api/oauth/usage` primary path: `interpretUsageEndpoint` (pure) + async `fetchUsageEndpoint` wrapper
+    RateLimitFetcher+ClientData.swift     — Claude Code `/api/oauth/claude_cli/client_data` fallback path: `interpretClaudeCodeClientData` (pure), async `fetchClaudeCodeClientData` wrapper, and `containsStandardRateLimitHeaders` (`nonisolated static`, called from the Messages path too)
+    RateLimitFetcher+Persistence.swift    — UserDefaults-backed per-account cache: `PersistedRateLimits` (file-private), `persistRateLimits` (called by `fetch` on success), `restorePersistedRateLimits` (called from init; runs `withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence is dropped)
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
     SessionLogReader.swift        — JSONL streaming reader (FileHandle, 64KB chunks)
     FileWatcher.swift             — DispatchSource + FSEventStream for live updates
