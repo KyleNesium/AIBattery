@@ -12,10 +12,10 @@
   7×86400, used for `sevenDayTokens`) and `sevenDaysAgo` (calendar-day, retained
   for `weekTokenMap` UI breakdown where calendar semantics are correct).
 
-- [ ] **Menu-bar exhaustion glyph is identical for 5h and 7d.**
-  No way to tell from the menu bar alone whether to wait hours (5h) or a day+ (7d).
-  Distinct tint or a small annotation glyph (e.g. clock vs. calendar) on the broken
-  star would let users plan without opening the popover.
+- [x] ~~**Menu-bar exhaustion glyph is identical for 5h and 7d.**~~ Fixed via text
+  rather than a glyph: the throttled menu-bar countdown is prefixed with the binding
+  window code (`5H` / `7D`), e.g. `5H 2h 5m`, so users can tell whether to wait hours
+  or a day+ without opening the popover.
 
 - [x] ~~**No telemetry / structured log when `isExhausted` flips on or off.**~~
   Fixed: `UsageViewModel.recordThrottleEvent(_:source:)` emits one
