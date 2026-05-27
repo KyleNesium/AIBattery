@@ -190,7 +190,7 @@ Static: `countdownText(to date: Date, from now: Date = .now) -> String` — comp
 
 `markedThrottled(bindingWindow:)` forces throttled status on the binding (or named) window — used as an override when an HTTP 429 proves throttling but the headers haven't caught up. Callers must guard with `RateLimitFetcher.quotaThrottleLikely(_:)` so a non-quota 429 (per-minute, IP block, upstream incident) does not falsely flip the bar to `Throttled`.
 
-`withClearedExpiredWindows(now:)` returns a copy with any window whose `reset` is in the past normalized to utilization `0`, reset `nil`, status `"allowed"`. If the binding window expires, `overallStatus` is reset too. Applied at three call sites: cache restore (`RateLimitFetcher.restorePersistedRateLimits`), runtime cache hit (`RateLimitFetcher.cachedOrEmpty`), and the snapshot stale-fallback path (`UsageViewModel.effectiveRateLimits`). Without all three, the menu bar can render `100%` + broken star for hours after a window has reset, because Anthropic returns unified headers on only ~10% of polls and the snapshot reuses stale `rateLimits` for up to 24h.
+`withClearedExpiredWindows(now:)` returns a copy normalizing two kinds of stale state: (1) any window whose `reset` is in the past → utilization `0`, reset `nil`, status `"allowed"` (rolled over); and (2) an **unbounded throttle** — a window with status `"throttled"` but *no* reset → status `"allowed"` (utilization kept). A genuine quota throttle always carries a reset, so a reset-less throttle can never be aged out by (1) and would otherwise stick forever on the stale/cache path; dropping the flag stops the bar from falsely claiming "Throttled". If the binding window is cleared by either rule, `overallStatus` is reset too. Applied at three call sites: cache restore (`RateLimitFetcher.restorePersistedRateLimits`), runtime cache hit (`RateLimitFetcher.cachedOrEmpty`), and the snapshot stale-fallback path (`UsageViewModel.effectiveRateLimits`). Without all three, the menu bar can render `100%` + broken star for hours after a window has reset, because Anthropic returns unified headers on only ~10% of polls and the snapshot reuses stale `rateLimits` for up to 24h.
 
 ### TokenHealthStatus (`Models/TokenHealthStatus.swift`) — `Identifiable`
 
@@ -294,7 +294,7 @@ Pricing table (per million tokens):
 
 Fallback estimation when Anthropic's unified rate limit headers are unavailable. `@MainActor` enum (no instances).
 
-**Calibration**: when the API returns both utilization and local token counts are available, derives the window's token limit (`limit = localTokens / utilization`) and persists to UserDefaults. Subsequent polls compute percentages locally. Only calibrates when utilization is 5–95% (edges are noisy) and derived limit exceeds 100K tokens.
+**Calibration**: when the API returns both utilization and local token counts are available, derives the window's token limit (`limit = localTokens / utilization`) and persists to UserDefaults. Subsequent polls compute percentages locally. Only calibrates when utilization is inside the **20–80%** band (`calibrationBand`) and the derived limit exceeds 100K tokens. The edges are excluded because dividing by a small utilization magnifies measurement error (a 1% error at 5% utilization → ~20% error in the derived limit), which would let the local fallback read ≥100% when the API would report well under.
 
 | Static Property | Type | Notes |
 |-----------------|------|-------|

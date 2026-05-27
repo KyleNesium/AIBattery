@@ -107,30 +107,42 @@ struct RateLimitUsage: Equatable, Codable {
         )
     }
 
-    /// Return a copy with any windows whose reset is in the past normalized:
-    /// utilization → 0, reset → nil, status → "allowed". Used when restoring
-    /// persisted cache after a long absence (e.g. user returns from leave).
-    /// The persisted "throttled" flag is stale once the window has rolled over,
-    /// and showing it would mislead the user until the first fresh fetch lands.
+    /// Return a copy normalizing two kinds of stale state. Used on the cache /
+    /// stale-fallback paths (cache restore, runtime cache hit, snapshot stale
+    /// fallback) — never on fresh data.
+    ///
+    /// 1. **Expired window** (reset in the past): utilization → 0, reset → nil,
+    ///    status → "allowed". The window has rolled over; showing the old value
+    ///    would mislead until the first fresh fetch lands.
+    /// 2. **Unbounded throttle** (status "throttled" with *no* reset): a genuine
+    ///    quota throttle always carries a reset, so a reset-less throttle can never
+    ///    be aged out by (1) and would stick forever on the stale path. Drop the
+    ///    throttle flag (status → "allowed") while keeping the last-known
+    ///    utilization, so the bar stops claiming "Throttled" but still reflects
+    ///    how full the window was. A fresh fetch re-establishes the truth.
     func withClearedExpiredWindows(now: Date = .now) -> RateLimitUsage {
         let fiveHourExpired = (fiveHourReset.map { $0 <= now } ?? false)
         let sevenDayExpired = (sevenDayReset.map { $0 <= now } ?? false)
-        guard fiveHourExpired || sevenDayExpired else { return self }
+        let fiveHourUnboundedThrottle = (fiveHourReset == nil && fiveHourStatus == "throttled")
+        let sevenDayUnboundedThrottle = (sevenDayReset == nil && sevenDayStatus == "throttled")
 
-        let bindingExpired: Bool = switch representativeClaim {
-        case Self.sevenDayWindow: sevenDayExpired
-        default: fiveHourExpired
+        guard fiveHourExpired || sevenDayExpired
+            || fiveHourUnboundedThrottle || sevenDayUnboundedThrottle else { return self }
+
+        let bindingCleared: Bool = switch representativeClaim {
+        case Self.sevenDayWindow: sevenDayExpired || sevenDayUnboundedThrottle
+        default: fiveHourExpired || fiveHourUnboundedThrottle
         }
 
         return RateLimitUsage(
             representativeClaim: representativeClaim,
             fiveHourUtilization: fiveHourExpired ? 0 : fiveHourUtilization,
             fiveHourReset: fiveHourExpired ? nil : fiveHourReset,
-            fiveHourStatus: fiveHourExpired ? "allowed" : fiveHourStatus,
+            fiveHourStatus: (fiveHourExpired || fiveHourUnboundedThrottle) ? "allowed" : fiveHourStatus,
             sevenDayUtilization: sevenDayExpired ? 0 : sevenDayUtilization,
             sevenDayReset: sevenDayExpired ? nil : sevenDayReset,
-            sevenDayStatus: sevenDayExpired ? "allowed" : sevenDayStatus,
-            overallStatus: bindingExpired ? "allowed" : overallStatus
+            sevenDayStatus: (sevenDayExpired || sevenDayUnboundedThrottle) ? "allowed" : sevenDayStatus,
+            overallStatus: bindingCleared ? "allowed" : overallStatus
         )
     }
 

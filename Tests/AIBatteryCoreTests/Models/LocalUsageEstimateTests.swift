@@ -62,6 +62,53 @@ struct LocalUsageEstimateTests {
         #expect(LocalUsageEstimate.sevenDayLimit > 1_000_000)
     }
 
+    // MARK: - calibrate band (API utilization)
+
+    @MainActor
+    @Test func calibrate_midBand_setsLimit() {
+        resetState()
+        defer { resetState() }
+
+        // 50% utilization, 1M tokens → derived limit 2M.
+        LocalUsageEstimate.calibrate(
+            fiveHourUtilization: 0.50,
+            sevenDayUtilization: 0,
+            localFiveHourTokens: 1_000_000,
+            localSevenDayTokens: 0
+        )
+        #expect(LocalUsageEstimate.fiveHourLimit == 2_000_000)
+    }
+
+    @MainActor
+    @Test func calibrate_belowBand_skips() {
+        resetState()
+        defer { resetState() }
+
+        // 10% is below the 20% band edge — dividing by it magnifies error, so skip.
+        LocalUsageEstimate.calibrate(
+            fiveHourUtilization: 0.10,
+            sevenDayUtilization: 0,
+            localFiveHourTokens: 1_000_000,
+            localSevenDayTokens: 0
+        )
+        #expect(LocalUsageEstimate.fiveHourLimit == 0)
+    }
+
+    @MainActor
+    @Test func calibrate_aboveBand_skips() {
+        resetState()
+        defer { resetState() }
+
+        // 90% is above the 80% band edge — skip.
+        LocalUsageEstimate.calibrate(
+            fiveHourUtilization: 0.90,
+            sevenDayUtilization: 0,
+            localFiveHourTokens: 1_000_000,
+            localSevenDayTokens: 0
+        )
+        #expect(LocalUsageEstimate.fiveHourLimit == 0)
+    }
+
     // MARK: - Helpers
 
     @MainActor
