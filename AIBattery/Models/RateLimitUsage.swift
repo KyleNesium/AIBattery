@@ -71,6 +71,15 @@ struct RateLimitUsage: Equatable, Codable {
         }
     }
 
+    /// Compact code for the binding window, for the menu bar: "5H" or "7D".
+    /// Lets a throttled countdown say which window you're waiting on (hours vs a day+).
+    var bindingWindowShortCode: String {
+        switch representativeClaim {
+        case Self.sevenDayWindow: "7D"
+        default: "5H"
+        }
+    }
+
     /// Whether the user is currently throttled.
     /// Checks overall status and per-window statuses — the API may report
     /// a window as "throttled" before the overall status reflects it.

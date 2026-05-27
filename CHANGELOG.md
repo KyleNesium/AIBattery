@@ -29,6 +29,10 @@ a rate-limit window but not actually being throttled.
   fallback read ≥100% when the API would report well under.
 
 ### Added
+- **Menu bar shows which window throttled you.** When throttled, the menu-bar
+  countdown is prefixed with the binding window code (`5H` / `7D`) — e.g.
+  `5H 2h 5m` — so you can tell at a glance whether you're waiting hours or a day+
+  without opening the popover.
 - **Structured throttle-state logging.** One `AppLogger.network` line is emitted
   on each throttle on/off transition (binding window, reset timestamp, source),
   so a stuck or false throttle state is diagnosable after the fact.

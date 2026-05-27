@@ -130,7 +130,13 @@ enum MenuBarMultiAccountText {
         } else {
             let activeReset = activeRateLimits.flatMap { countdownResetDate($0, now) }
             let text: String = if let activeReset {
-                RateLimitUsage.countdownText(to: activeReset)
+                // When genuinely throttled, prefix the binding window code (5H/7D) so the
+                // menu bar alone tells you whether you're waiting hours or a day+.
+                if let rl = activeRateLimits, rl.isThrottled {
+                    "\(rl.bindingWindowShortCode) \(RateLimitUsage.countdownText(to: activeReset))"
+                } else {
+                    RateLimitUsage.countdownText(to: activeReset)
+                }
             } else {
                 "\(Int(activePercent))%"
             }
