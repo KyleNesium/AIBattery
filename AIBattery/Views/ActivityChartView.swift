@@ -82,14 +82,24 @@ struct InsightsView: View {
         return hasher.finalize()
     }
 
-    /// Check source data directly — avoids recomputing chart data just for an emptiness check.
-    private var isEmpty: Bool {
-        switch mode {
-        case .fiveHour: snapshot?.fiveHourTokens ?? 0 == 0
-        case .sevenDay: snapshot?.sevenDayTokens ?? 0 == 0
-        case .monthly: snapshot?.dailyTokenTotals.values.reduce(0, +) ?? 0 == 0
+    /// Whether the chart is loading (no snapshot yet), genuinely empty, or has data.
+    enum DisplayState: Equatable { case loading, empty, data }
+
+    /// Pure, testable decision. A nil snapshot means the first refresh hasn't completed
+    /// yet — that is `.loading`, NOT `.empty`, so the "No activity" message can't flash
+    /// on cold start. Checks source token fields directly (no chart-data recompute).
+    static func displayState(snapshot: UsageSnapshot?, mode: ActivityChartMode) -> DisplayState {
+        guard let snapshot else { return .loading }
+        let tokens: Int = switch mode {
+        case .fiveHour: snapshot.fiveHourTokens
+        case .sevenDay: snapshot.sevenDayTokens
+        case .monthly: snapshot.dailyTokenTotals.values.reduce(0, +)
         }
+        return tokens == 0 ? .empty : .data
     }
+
+    private var isLoading: Bool { Self.displayState(snapshot: snapshot, mode: mode) == .loading }
+    private var isEmpty: Bool { Self.displayState(snapshot: snapshot, mode: mode) == .empty }
 
     /// Brief summary shown in the collapsed header when no trend data is available.
     private func collapsedSummary(_ snap: UsageSnapshot) -> String {
@@ -146,6 +156,12 @@ struct InsightsView: View {
 
             if collapsed {
                 // show nothing below header
+            } else if isLoading {
+                // First refresh hasn't completed — reserve the chart's height without a
+                // misleading "No activity" message that would flash on cold start.
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Layout.chartHeight)
             } else if isEmpty {
                 VStack(spacing: Spacing.inner) {
                     Image(systemName: "chart.line.flattrend.xyaxis")
