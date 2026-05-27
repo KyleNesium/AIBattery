@@ -257,6 +257,34 @@ struct RateLimitUsageTests {
         #expect(usage.isWindowThrottled(RateLimitUsage.sevenDayWindow) == false)
     }
 
+    @Test func parse_clientDataJSON_at100PercentWithoutStatus_isNotThrottled() throws {
+        // 100% utilization with no explicit "throttled" status is "at capacity",
+        // not throttled — the parser must not synthesize a throttled state.
+        let data = try #require("""
+        {
+          "rate_limits": {
+            "status": "allowed",
+            "representative_claim": "five_hour",
+            "five_hour": {
+              "utilization": 1.0,
+              "reset_at": 1700000000
+            },
+            "seven_day": {
+              "utilization": 1.0,
+              "reset_at": 1700500000
+            }
+          }
+        }
+        """.data(using: .utf8))
+
+        let usage = try #require(RateLimitUsage.parse(clientData: data))
+        #expect(usage.fiveHourUtilization == 1.0)
+        #expect(usage.overallStatus == "allowed")
+        #expect(usage.fiveHourStatus == "allowed")
+        #expect(usage.sevenDayStatus == "allowed")
+        #expect(usage.isThrottled == false)
+    }
+
     // MARK: - Computed properties
 
     @Test func fiveHourPercent() {

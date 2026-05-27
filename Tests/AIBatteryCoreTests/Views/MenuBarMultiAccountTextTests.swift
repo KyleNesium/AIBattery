@@ -136,11 +136,21 @@ struct MenuBarMultiAccountTextTests {
         #expect(out.anyThrottled == true)
     }
 
-    @Test("AnyThrottled is true when any window hits 100% even without explicit status")
-    func anyThrottledTrueVia100Percent() {
+    @Test("AnyThrottled is FALSE at 100% without an explicit throttled status (at-capacity, not throttled)")
+    func anyThrottledFalseVia100PercentWithoutStatus() {
         let limits: [String: RateLimitUsage] = [
             "a": Self.usage(fiveHourUtilization: 0.20),
             "b": Self.usage(fiveHourUtilization: 1.0),
+        ]
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        #expect(out.anyThrottled == false)
+    }
+
+    @Test("AnyThrottled is true at 100% WITH an explicit throttled status")
+    func anyThrottledTrueVia100PercentWithStatus() {
+        let limits: [String: RateLimitUsage] = [
+            "a": Self.usage(fiveHourUtilization: 0.20),
+            "b": Self.usage(fiveHourUtilization: 1.0, fiveHourStatus: "throttled", overallStatus: "throttled"),
         ]
         let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
         #expect(out.anyThrottled == true)

@@ -249,10 +249,11 @@ struct UsageViewModelTests {
         UserDefaults.standard.removeObject(forKey: key)
     }
 
-    @Test func recordThrottleEvent_exhaustedButNotThrottled_records() {
+    @Test func recordThrottleEvent_at100ButAllowed_doesNotRecord() {
         let key = UserDefaultsKeys.throttleTimestamps
         UserDefaults.standard.removeObject(forKey: key)
-        // 100% utilization but status still says "allowed" (polling caught it late)
+        // 100% utilization with an "allowed" status is "at capacity", not throttled —
+        // it must NOT record a throttle event.
         let rl = RateLimitUsage(
             representativeClaim: "five_hour",
             fiveHourUtilization: 1.0,
@@ -266,11 +267,11 @@ struct UsageViewModelTests {
         UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(rl)
         let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
-        #expect(timestamps.count == 1)
+        #expect(timestamps.isEmpty)
         UserDefaults.standard.removeObject(forKey: key)
     }
 
-    @Test func recordThrottleEvent_sevenDayExhausted_records() {
+    @Test func recordThrottleEvent_sevenDayAt100ButAllowed_doesNotRecord() {
         let key = UserDefaultsKeys.throttleTimestamps
         UserDefaults.standard.removeObject(forKey: key)
         let rl = RateLimitUsage(
@@ -286,7 +287,7 @@ struct UsageViewModelTests {
         UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(rl)
         let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
-        #expect(timestamps.count == 1)
+        #expect(timestamps.isEmpty)
         UserDefaults.standard.removeObject(forKey: key)
     }
 

@@ -251,7 +251,7 @@ public final class UsageViewModel: ObservableObject {
         guard accountId == oauthManager.accountStore.activeAccountId else { return }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
-        Self.recordThrottleEvent(api.rateLimits)
+        Self.recordThrottleEvent(api.rateLimits, source: api.isCached ? "stale-cache" : "api-fresh")
         // Hold the last good API rate limit data until replaced by a newer API response.
         // With only ~10% of polls returning unified headers, expiring quickly causes
         // the UI to flip between API data and local estimates. Stale API data (with
@@ -432,11 +432,26 @@ public final class UsageViewModel: ObservableObject {
     /// Throttle transition tracker — pure struct, side-effects handled here.
     private static var throttleTracker = ThrottleTracker()
 
-    /// Record a throttle event on the transition from normal → throttled/exhausted.
+    /// Formats reset timestamps for throttle-transition log lines.
+    private static let throttleLogDateFormatter = ISO8601DateFormatter()
+
+    /// Record a throttle event on the transition from normal → throttled.
     /// Each distinct throttle session counts as one event regardless of duration.
-    static func recordThrottleEvent(_ rateLimits: RateLimitUsage?) {
+    /// Also emits one structured log line on each throttle on/off transition so a
+    /// stuck/false throttle state is diagnosable after the fact.
+    static func recordThrottleEvent(_ rateLimits: RateLimitUsage?, source: String = "unknown") {
+        let wasThrottled = throttleTracker.wasThrottled
         let (next, timestamp) = throttleTracker.evaluate(rateLimits)
         throttleTracker = next
+        if next.wasThrottled != wasThrottled {
+            let window = rateLimits?.bindingWindowLabel ?? "n/a"
+            let reset = rateLimits?.bindingReset.map(Self.throttleLogDateFormatter.string(from:)) ?? "none"
+            if next.wasThrottled {
+                AppLogger.network.info("Throttle engaged — window=\(window, privacy: .public) reset=\(reset, privacy: .public) source=\(source, privacy: .public)")
+            } else {
+                AppLogger.network.info("Throttle cleared — window=\(window, privacy: .public) reset=\(reset, privacy: .public) source=\(source, privacy: .public)")
+            }
+        }
         if let timestamp {
             let existing = ThrottleTracker.parseTimestamps(
                 UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps)

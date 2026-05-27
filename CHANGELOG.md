@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.4.1] — 2026-05-27
+
+Bug fix: the app no longer reports **"Throttled"** when you are simply at 100% of
+a rate-limit window but not actually being throttled.
+
+### Fixed
+- **100% utilization is no longer treated as "throttled".** A window is shown as
+  throttled (red "Throttled" label, ⚠️ icon, broken menu-bar star) only on a
+  genuine throttle signal — an explicit API `"throttled"` status or a real HTTP
+  429 (via `markedThrottled`, gated at 95%). Hitting 100% of your allotment now
+  shows an honest **"Limit reached" / at-capacity** state with a solid red
+  (non-broken) menu-bar star. Three independent code paths were conflating the
+  two: `RateLimitUsage.parse(clientData:)` synthesized a throttled status at
+  utilization ≥ 1.0; `MenuBarMultiAccountText` drove the broken star from
+  `percent >= 100`; and `ThrottleTracker` recorded false entries in the 30-day
+  throttle-event history. All three now key off the genuine throttle signal only.
+
+### Added
+- **Structured throttle-state logging.** One `AppLogger.network` line is emitted
+  on each throttle on/off transition (binding window, reset timestamp, source),
+  so a stuck or false throttle state is diagnosable after the fact.
+
 ## [2.4.0] — 2026-05-26
 
 Internal hygiene release. No user-visible behavior change beyond a Sparkle

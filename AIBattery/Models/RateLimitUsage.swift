@@ -413,10 +413,11 @@ struct RateLimitUsage: Equatable, Codable {
         }()
 
         let inferredOverallStatus: String = {
+            // Throttle is signalled ONLY by an explicit "throttled" status (or, elsewhere,
+            // a real HTTP 429 via `markedThrottled`). 100% utilization means "at capacity",
+            // not throttled — the user can typically keep working — so it must NOT synthesize
+            // a throttled status here.
             if overallStatus == "throttled" || fiveHourStatus == "throttled" || sevenDayStatus == "throttled" {
-                return "throttled"
-            }
-            if (fiveHourUtilization ?? 0) >= 1.0 || (sevenDayUtilization ?? 0) >= 1.0 {
                 return "throttled"
             }
             return overallStatus ?? "allowed"
