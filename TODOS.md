@@ -2,13 +2,10 @@
 
 ## Rate limit & depletion display
 
-- [ ] **`LocalUsageEstimate.calibrate()` is too sensitive at the band edges.**
-  `derived = localTokens / utilization` with the gate `0.05 ≤ utilization ≤ 0.95`.
-  At the 5% edge, a 1% measurement error → ~20% error in the calibrated limit.
-  Result: when the API drops unified headers and we fall back to local estimation,
-  `sevenDayPercent` can read ≥100% when the API would say well under 100%. Options:
-  weighted moving average across recent calibrations, narrow the gate to 0.20–0.80,
-  or require N samples before treating the derived limit as authoritative.
+- [x] ~~**`LocalUsageEstimate.calibrate()` is too sensitive at the band edges.**~~
+  Fixed: calibration band narrowed from `0.05–0.95` to `0.20–0.80`
+  (`LocalUsageEstimate.calibrationBand`), so dividing by a tiny utilization can no
+  longer magnify measurement error into a false ≥100% local reading.
 
 - [x] ~~**`UsageAggregator.sevenDaysAgo` uses calendar-day arithmetic** for the 7d
   rate-limit count.~~ Fixed: split into `sevenDayRateLimitCutoff` (rolling
@@ -20,15 +17,12 @@
   Distinct tint or a small annotation glyph (e.g. clock vs. calendar) on the broken
   star would let users plan without opening the popover.
 
-- [ ] **No telemetry / structured log when `isExhausted` flips on or off.**
-  Post-hoc investigation of "the bar was stuck depleted" needs grepping multiple
-  unrelated `AppLogger` lines. Single info-level event with the binding window,
-  reset timestamp, and whether the source was API-fresh / API-stale / local
-  estimate would make these reports trivially diagnosable.
+- [x] ~~**No telemetry / structured log when `isExhausted` flips on or off.**~~
+  Fixed: `UsageViewModel.recordThrottleEvent(_:source:)` emits one
+  `AppLogger.network` line on each throttle on/off transition (binding window,
+  reset timestamp, source: `api-fresh` / `stale-cache`).
 
-- [ ] **`RateLimitUsage.withClearedExpiredWindows` is a no-op when reset dates are
-  nil** (returns `self` for `fiveHourReset == nil && sevenDayReset == nil`).
-  If a fetch ever lands "throttled" + 100% utilization with no parseable reset
-  timestamp, the in-memory cache will hold that throttle indefinitely. Either
-  treat throttle-without-reset as expired after the longer of the two window
-  durations, or refuse to cache it in the first place.
+- [x] ~~**`RateLimitUsage.withClearedExpiredWindows` is a no-op when reset dates are
+  nil.**~~ Fixed: a window with status `"throttled"` and no reset is now treated as
+  an unbounded throttle and its flag is dropped (utilization kept) on the
+  cache / stale-fallback path, so a reset-less throttle can no longer stick.
