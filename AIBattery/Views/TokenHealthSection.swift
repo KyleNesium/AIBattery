@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct TokenHealthSection: View {
@@ -127,6 +128,12 @@ struct TokenHealthSection: View {
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
         .contentShape(Rectangle())
+        .contextMenu {
+            Button("Copy Session Details") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(SessionInfoFormatter.copyableDetails(for: health), forType: .string)
+            }
+        }
         .gesture(
             sessions.count > 1 ?
                 DragGesture(minimumDistance: 20)

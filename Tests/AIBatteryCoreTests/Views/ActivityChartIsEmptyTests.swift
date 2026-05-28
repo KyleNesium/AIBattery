@@ -44,6 +44,29 @@ struct ActivityChartIsEmptyTests {
         #expect(snapshot.dailyTokenTotals.values.reduce(0, +) > 0)
     }
 
+    // MARK: - displayState (loading vs empty vs data)
+
+    // LOAD-01: nil snapshot → loading (NOT empty — prevents the cold-start "No activity" flash)
+    @Test func displayState_nilSnapshot_isLoading() {
+        #expect(InsightsView.displayState(snapshot: nil, mode: .fiveHour) == .loading)
+        #expect(InsightsView.displayState(snapshot: nil, mode: .sevenDay) == .loading)
+        #expect(InsightsView.displayState(snapshot: nil, mode: .monthly) == .loading)
+    }
+
+    // LOAD-02: snapshot present but zero tokens → genuinely empty
+    @Test func displayState_loadedZeroTokens_isEmpty() {
+        #expect(InsightsView.displayState(snapshot: makeSnapshot(fiveHourTokens: 0), mode: .fiveHour) == .empty)
+        #expect(InsightsView.displayState(snapshot: makeSnapshot(sevenDayTokens: 0), mode: .sevenDay) == .empty)
+        #expect(InsightsView.displayState(snapshot: makeSnapshot(dailyTokenTotals: [:]), mode: .monthly) == .empty)
+    }
+
+    // LOAD-03: snapshot present with tokens → data
+    @Test func displayState_loadedWithTokens_isData() {
+        #expect(InsightsView.displayState(snapshot: makeSnapshot(fiveHourTokens: 1_000), mode: .fiveHour) == .data)
+        #expect(InsightsView.displayState(snapshot: makeSnapshot(sevenDayTokens: 5_000), mode: .sevenDay) == .data)
+        #expect(InsightsView.displayState(snapshot: makeSnapshot(dailyTokenTotals: ["2026-03-01": 12_000]), mode: .monthly) == .data)
+    }
+
     // MARK: - Helpers
 
     private func makeSnapshot(

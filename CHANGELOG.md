@@ -2,8 +2,19 @@
 
 ## [2.4.1] — 2026-05-27
 
-Bug fix: the app no longer reports **"Throttled"** when you are simply at 100% of
-a rate-limit window but not actually being throttled.
+Throttle-accuracy fixes plus UI polish.
+
+### Added
+- **Menu bar shows which window throttled you.** When throttled, the menu-bar
+  countdown is prefixed with the binding window code (`5H` / `7D`) — e.g.
+  `5H 2h 5m` — so you can tell at a glance whether you're waiting hours or a day+
+  without opening the popover.
+- **Copy session details.** Right-click a Context Health session card → **Copy
+  Session Details** to put the full session breakdown (model, project, branch,
+  exact token counts, turns, duration, warnings) on the clipboard.
+- **Structured throttle-state logging.** One `AppLogger.network` line is emitted
+  on each throttle on/off transition (binding window, reset timestamp, source),
+  so a stuck or false throttle state is diagnosable after the fact.
 
 ### Fixed
 - **100% utilization is no longer treated as "throttled".** A window is shown as
@@ -27,15 +38,10 @@ a rate-limit window but not actually being throttled.
   Dividing by a tiny utilization magnified measurement error (a 1% error at 5%
   utilization → ~20% error in the derived limit), which could make the local
   fallback read ≥100% when the API would report well under.
-
-### Added
-- **Menu bar shows which window throttled you.** When throttled, the menu-bar
-  countdown is prefixed with the binding window code (`5H` / `7D`) — e.g.
-  `5H 2h 5m` — so you can tell at a glance whether you're waiting hours or a day+
-  without opening the popover.
-- **Structured throttle-state logging.** One `AppLogger.network` line is emitted
-  on each throttle on/off transition (binding window, reset timestamp, source),
-  so a stuck or false throttle state is diagnosable after the fact.
+- **No more "No activity" flash on launch.** The activity chart previously showed
+  "No activity" for a beat on cold start — before the first usage snapshot loaded —
+  even when there was activity. It now distinguishes "loading" from "genuinely
+  empty" and reserves the space quietly until data arrives.
 
 ## [2.4.0] — 2026-05-26
 
