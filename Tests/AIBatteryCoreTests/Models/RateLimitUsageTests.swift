@@ -257,6 +257,34 @@ struct RateLimitUsageTests {
         #expect(usage.isWindowThrottled(RateLimitUsage.sevenDayWindow) == false)
     }
 
+    @Test func parse_clientDataJSON_at100PercentWithoutStatus_isNotThrottled() throws {
+        // 100% utilization with no explicit "throttled" status is "at capacity",
+        // not throttled — the parser must not synthesize a throttled state.
+        let data = try #require("""
+        {
+          "rate_limits": {
+            "status": "allowed",
+            "representative_claim": "five_hour",
+            "five_hour": {
+              "utilization": 1.0,
+              "reset_at": 1700000000
+            },
+            "seven_day": {
+              "utilization": 1.0,
+              "reset_at": 1700500000
+            }
+          }
+        }
+        """.data(using: .utf8))
+
+        let usage = try #require(RateLimitUsage.parse(clientData: data))
+        #expect(usage.fiveHourUtilization == 1.0)
+        #expect(usage.overallStatus == "allowed")
+        #expect(usage.fiveHourStatus == "allowed")
+        #expect(usage.sevenDayStatus == "allowed")
+        #expect(usage.isThrottled == false)
+    }
+
     // MARK: - Computed properties
 
     @Test func fiveHourPercent() {
@@ -457,9 +485,45 @@ struct RateLimitUsageTests {
     }
 
     @Test func withClearedExpiredWindows_nilResetDates_returnsUnchanged() {
-        // No reset date means we don't know — don't clear on speculation.
+        // No reset date AND not throttled — we don't know, don't clear on speculation.
         let usage = makeUsage(claim: "five_hour", fiveHourUtil: 0.50, status: "allowed")
         #expect(usage.withClearedExpiredWindows() == usage)
+    }
+
+    @Test func withClearedExpiredWindows_throttledWithNilReset_dropsThrottleKeepsUtilization() {
+        // A genuine quota throttle always carries a reset. A reset-less throttle can
+        // never be aged out and would stick forever on the stale/cache path — drop
+        // the throttle flag but keep the last-known utilization.
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 1.0,
+            fiveHourReset: nil,
+            fiveHourStatus: "throttled",
+            status: "throttled"
+        )
+        let cleared = usage.withClearedExpiredWindows()
+        #expect(cleared.isThrottled == false)
+        #expect(cleared.fiveHourStatus == "allowed")
+        #expect(cleared.overallStatus == "allowed")
+        // Utilization is preserved — only the unbounded throttle flag is dropped.
+        #expect(cleared.fiveHourUtilization == 1.0)
+    }
+
+    @Test func withClearedExpiredWindows_throttledWithFutureReset_isPreserved() {
+        // A bounded throttle (future reset) is a real, active throttle — keep it.
+        // Only the binding five-hour window is throttled; seven-day is allowed so it
+        // is not treated as an unbounded throttle.
+        let now = Date()
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 1.0,
+            sevenDayUtil: 0.10,
+            fiveHourReset: now.addingTimeInterval(3_600),
+            fiveHourStatus: "throttled",
+            sevenDayStatus: "allowed",
+            status: "throttled"
+        )
+        #expect(usage.withClearedExpiredWindows(now: now) == usage)
     }
 
     // MARK: - Predictive estimate

@@ -11,10 +11,10 @@ struct ThrottleTracker {
     /// to record (non-nil only on the transition from normal → throttled/exhausted).
     /// Does NOT mutate self — returns a new tracker (immutable pattern).
     func evaluate(_ rateLimits: RateLimitUsage?) -> (tracker: ThrottleTracker, recordTimestamp: Double?) {
-        let isThrottled = rateLimits?.isThrottled ?? false
-        let isExhausted = (rateLimits?.fiveHourUtilization ?? 0) >= 1.0
-            || (rateLimits?.sevenDayUtilization ?? 0) >= 1.0
-        let effectivelyThrottled = isThrottled || isExhausted
+        // A throttle event is a *genuine* throttle only — an explicit API "throttled"
+        // status or a real 429 (surfaced via `markedThrottled`). 100% utilization is
+        // "at capacity", not a throttle, and must not record a false event.
+        let effectivelyThrottled = rateLimits?.isThrottled ?? false
 
         var next = ThrottleTracker()
         next.wasThrottled = effectivelyThrottled

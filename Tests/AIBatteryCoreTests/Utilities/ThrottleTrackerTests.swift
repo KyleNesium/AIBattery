@@ -68,7 +68,8 @@ struct ThrottleTrackerTests {
         #expect(ts2 == nil)
     }
 
-    @Test func evaluate_exhaustedNotThrottled_records() {
+    @Test func evaluate_fiveHourAt100ButAllowed_doesNotRecord() {
+        // 100% utilization with an "allowed" status is "at capacity", NOT a throttle.
         let tracker = ThrottleTracker()
         let rl = RateLimitUsage(
             representativeClaim: "five_hour",
@@ -81,11 +82,11 @@ struct ThrottleTrackerTests {
             overallStatus: "allowed"
         )
         let (next, timestamp) = tracker.evaluate(rl)
-        #expect(timestamp != nil)
-        #expect(next.wasThrottled == true)
+        #expect(timestamp == nil)
+        #expect(next.wasThrottled == false)
     }
 
-    @Test func evaluate_sevenDayExhausted_records() {
+    @Test func evaluate_sevenDayAt100ButAllowed_doesNotRecord() {
         let tracker = ThrottleTracker()
         let rl = RateLimitUsage(
             representativeClaim: "seven_day",
@@ -98,8 +99,8 @@ struct ThrottleTrackerTests {
             overallStatus: "allowed"
         )
         let (next, timestamp) = tracker.evaluate(rl)
-        #expect(timestamp != nil)
-        #expect(next.wasThrottled == true)
+        #expect(timestamp == nil)
+        #expect(next.wasThrottled == false)
     }
 
     @Test func evaluate_recoveryThenThrottle_recordsTwice() {
@@ -126,6 +127,41 @@ struct ThrottleTrackerTests {
         // Second throttle
         let (_, ts3) = tracker.evaluate(throttled)
         #expect(ts3 != nil)
+    }
+
+    @Test func evaluate_throttledThenAllowed_clearsTransition() {
+        // The off-transition (throttled → allowed) is what the structured
+        // throttle-cleared log line keys off of: wasThrottled must flip back.
+        var tracker = ThrottleTracker()
+        let throttled = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: nil,
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let allowed = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let (next1, ts1) = tracker.evaluate(throttled)
+        tracker = next1
+        #expect(ts1 != nil)
+        #expect(tracker.wasThrottled == true)
+        // Still at 100% but now allowed — must clear.
+        let (next2, ts2) = tracker.evaluate(allowed)
+        tracker = next2
+        #expect(ts2 == nil)
+        #expect(tracker.wasThrottled == false)
     }
 
     // MARK: - parseTimestamps

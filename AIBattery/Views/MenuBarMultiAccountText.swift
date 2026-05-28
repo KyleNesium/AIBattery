@@ -99,10 +99,10 @@ enum MenuBarMultiAccountText {
         now: Date,
         countdownResetDate: (RateLimitUsage, Date) -> Date?
     ) -> Display {
-        let activeIsThrottled = activeRateLimits?.isThrottled ?? false
-        let activeIsExhausted = activeIsThrottled
-            || (activeRateLimits?.fiveHourPercent ?? 0) >= 100
-            || (activeRateLimits?.sevenDayPercent ?? 0) >= 100
+        // The broken/"exhausted" star is reserved for a genuine throttle signal
+        // (explicit API status or a 429). 100% utilization shows a solid red full
+        // star instead (color is driven by `percent`), so we do NOT treat >= 100% here.
+        let activeIsExhausted = activeRateLimits?.isThrottled ?? false
 
         let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: perAccount.count)
 
@@ -130,7 +130,13 @@ enum MenuBarMultiAccountText {
         } else {
             let activeReset = activeRateLimits.flatMap { countdownResetDate($0, now) }
             let text: String = if let activeReset {
-                RateLimitUsage.countdownText(to: activeReset)
+                // When genuinely throttled, prefix the binding window code (5H/7D) so the
+                // menu bar alone tells you whether you're waiting hours or a day+.
+                if let rl = activeRateLimits, rl.isThrottled {
+                    "\(rl.bindingWindowShortCode) \(RateLimitUsage.countdownText(to: activeReset))"
+                } else {
+                    RateLimitUsage.countdownText(to: activeReset)
+                }
             } else {
                 "\(Int(activePercent))%"
             }
@@ -164,9 +170,8 @@ enum MenuBarMultiAccountText {
         }
     }
 
+    /// Genuine throttle only — 100% utilization is "at capacity", not exhausted.
     private static func isExhausted(_ usage: RateLimitUsage) -> Bool {
         usage.isThrottled
-            || usage.fiveHourPercent >= 100
-            || usage.sevenDayPercent >= 100
     }
 }

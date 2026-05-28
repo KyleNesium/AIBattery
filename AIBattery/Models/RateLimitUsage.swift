@@ -71,6 +71,15 @@ struct RateLimitUsage: Equatable, Codable {
         }
     }
 
+    /// Compact code for the binding window, for the menu bar: "5H" or "7D".
+    /// Lets a throttled countdown say which window you're waiting on (hours vs a day+).
+    var bindingWindowShortCode: String {
+        switch representativeClaim {
+        case Self.sevenDayWindow: "7D"
+        default: "5H"
+        }
+    }
+
     /// Whether the user is currently throttled.
     /// Checks overall status and per-window statuses — the API may report
     /// a window as "throttled" before the overall status reflects it.
@@ -107,30 +116,42 @@ struct RateLimitUsage: Equatable, Codable {
         )
     }
 
-    /// Return a copy with any windows whose reset is in the past normalized:
-    /// utilization → 0, reset → nil, status → "allowed". Used when restoring
-    /// persisted cache after a long absence (e.g. user returns from leave).
-    /// The persisted "throttled" flag is stale once the window has rolled over,
-    /// and showing it would mislead the user until the first fresh fetch lands.
+    /// Return a copy normalizing two kinds of stale state. Used on the cache /
+    /// stale-fallback paths (cache restore, runtime cache hit, snapshot stale
+    /// fallback) — never on fresh data.
+    ///
+    /// 1. **Expired window** (reset in the past): utilization → 0, reset → nil,
+    ///    status → "allowed". The window has rolled over; showing the old value
+    ///    would mislead until the first fresh fetch lands.
+    /// 2. **Unbounded throttle** (status "throttled" with *no* reset): a genuine
+    ///    quota throttle always carries a reset, so a reset-less throttle can never
+    ///    be aged out by (1) and would stick forever on the stale path. Drop the
+    ///    throttle flag (status → "allowed") while keeping the last-known
+    ///    utilization, so the bar stops claiming "Throttled" but still reflects
+    ///    how full the window was. A fresh fetch re-establishes the truth.
     func withClearedExpiredWindows(now: Date = .now) -> RateLimitUsage {
         let fiveHourExpired = (fiveHourReset.map { $0 <= now } ?? false)
         let sevenDayExpired = (sevenDayReset.map { $0 <= now } ?? false)
-        guard fiveHourExpired || sevenDayExpired else { return self }
+        let fiveHourUnboundedThrottle = (fiveHourReset == nil && fiveHourStatus == "throttled")
+        let sevenDayUnboundedThrottle = (sevenDayReset == nil && sevenDayStatus == "throttled")
 
-        let bindingExpired: Bool = switch representativeClaim {
-        case Self.sevenDayWindow: sevenDayExpired
-        default: fiveHourExpired
+        guard fiveHourExpired || sevenDayExpired
+            || fiveHourUnboundedThrottle || sevenDayUnboundedThrottle else { return self }
+
+        let bindingCleared: Bool = switch representativeClaim {
+        case Self.sevenDayWindow: sevenDayExpired || sevenDayUnboundedThrottle
+        default: fiveHourExpired || fiveHourUnboundedThrottle
         }
 
         return RateLimitUsage(
             representativeClaim: representativeClaim,
             fiveHourUtilization: fiveHourExpired ? 0 : fiveHourUtilization,
             fiveHourReset: fiveHourExpired ? nil : fiveHourReset,
-            fiveHourStatus: fiveHourExpired ? "allowed" : fiveHourStatus,
+            fiveHourStatus: (fiveHourExpired || fiveHourUnboundedThrottle) ? "allowed" : fiveHourStatus,
             sevenDayUtilization: sevenDayExpired ? 0 : sevenDayUtilization,
             sevenDayReset: sevenDayExpired ? nil : sevenDayReset,
-            sevenDayStatus: sevenDayExpired ? "allowed" : sevenDayStatus,
-            overallStatus: bindingExpired ? "allowed" : overallStatus
+            sevenDayStatus: (sevenDayExpired || sevenDayUnboundedThrottle) ? "allowed" : sevenDayStatus,
+            overallStatus: bindingCleared ? "allowed" : overallStatus
         )
     }
 
@@ -413,10 +434,11 @@ struct RateLimitUsage: Equatable, Codable {
         }()
 
         let inferredOverallStatus: String = {
+            // Throttle is signalled ONLY by an explicit "throttled" status (or, elsewhere,
+            // a real HTTP 429 via `markedThrottled`). 100% utilization means "at capacity",
+            // not throttled — the user can typically keep working — so it must NOT synthesize
+            // a throttled status here.
             if overallStatus == "throttled" || fiveHourStatus == "throttled" || sevenDayStatus == "throttled" {
-                return "throttled"
-            }
-            if (fiveHourUtilization ?? 0) >= 1.0 || (sevenDayUtilization ?? 0) >= 1.0 {
                 return "throttled"
             }
             return overallStatus ?? "allowed"

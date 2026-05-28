@@ -136,11 +136,21 @@ struct MenuBarMultiAccountTextTests {
         #expect(out.anyThrottled == true)
     }
 
-    @Test("AnyThrottled is true when any window hits 100% even without explicit status")
-    func anyThrottledTrueVia100Percent() {
+    @Test("AnyThrottled is FALSE at 100% without an explicit throttled status (at-capacity, not throttled)")
+    func anyThrottledFalseVia100PercentWithoutStatus() {
         let limits: [String: RateLimitUsage] = [
             "a": Self.usage(fiveHourUtilization: 0.20),
             "b": Self.usage(fiveHourUtilization: 1.0),
+        ]
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        #expect(out.anyThrottled == false)
+    }
+
+    @Test("AnyThrottled is true at 100% WITH an explicit throttled status")
+    func anyThrottledTrueVia100PercentWithStatus() {
+        let limits: [String: RateLimitUsage] = [
+            "a": Self.usage(fiveHourUtilization: 0.20),
+            "b": Self.usage(fiveHourUtilization: 1.0, fiveHourStatus: "throttled", overallStatus: "throttled"),
         ]
         let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
         #expect(out.anyThrottled == true)
@@ -434,6 +444,57 @@ struct MenuBarMultiAccountTextTests {
         #expect(result.usedMultiAccount == false)
         #expect(result.countdownReset == reset)
         #expect(result.isExhausted == true)
+        // Binding window code prefixed so the menu bar says which window (5h here).
+        #expect(result.text.hasPrefix("5H "))
+    }
+
+    @Test("Single-account: 7-day throttle prefixes the 7D window code")
+    func resolveDisplay_singleAccount_sevenDayThrottle_prefixesCode() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(3_600)
+        let throttled = Self.usage(
+            sevenDayUtilization: 1.0,
+            sevenDayReset: reset,
+            sevenDayStatus: "throttled",
+            overallStatus: "throttled",
+            representativeClaim: RateLimitUsage.sevenDayWindow
+        )
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: [:],
+            order: ["a"],
+            activeRateLimits: throttled,
+            activePercent: 100,
+            metricMode: .sevenDay,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.text.hasPrefix("7D "))
+    }
+
+    @Test("Single-account: NOT throttled (at 100%) does not prefix a window code")
+    func resolveDisplay_singleAccount_atCapacityNotThrottled_noPrefix() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(120)
+        // 100% utilization but allowed — at capacity, not throttled.
+        let atCapacity = Self.usage(
+            fiveHourUtilization: 1.0,
+            fiveHourReset: reset,
+            fiveHourStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: [:],
+            order: ["a"],
+            activeRateLimits: atCapacity,
+            activePercent: 100,
+            metricMode: .fiveHour,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(!result.text.hasPrefix("5H "))
+        #expect(!result.text.hasPrefix("7D "))
     }
 
     @Test("Multi-account: worst-percent floored at active so icon never shrinks")

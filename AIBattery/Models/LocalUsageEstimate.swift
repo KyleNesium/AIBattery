@@ -94,7 +94,13 @@ enum LocalUsageEstimate {
     /// Called when the API returns valid utilization data alongside local token totals.
     ///
     /// Formula: limit = localTokens / utilization
-    /// Only calibrates when utilization is between 5% and 95% (edges are noisy).
+    /// Only calibrates when utilization is inside `calibrationBand`. The edges are
+    /// noisy: dividing by a small utilization magnifies measurement error (a 1%
+    /// error at 5% utilization → ~20% error in the derived limit), which would let
+    /// the local fallback read ≥100% when the API would report well under. A
+    /// mid-range band (20–80%) keeps the derived limit stable.
+    nonisolated static let calibrationBand: ClosedRange<Double> = 0.20...0.80
+
     static func calibrate(
         fiveHourUtilization: Double,
         sevenDayUtilization: Double,
@@ -102,7 +108,7 @@ enum LocalUsageEstimate {
         localSevenDayTokens: Int
     ) {
         var updated = false
-        if fiveHourUtilization >= 0.05, fiveHourUtilization <= 0.95, localFiveHourTokens > 0 {
+        if calibrationBand.contains(fiveHourUtilization), localFiveHourTokens > 0 {
             let derived = Int(Double(localFiveHourTokens) / fiveHourUtilization)
             // Sanity check: limit should be > 100K tokens
             if derived > 100_000 {
@@ -110,7 +116,7 @@ enum LocalUsageEstimate {
                 updated = true
             }
         }
-        if sevenDayUtilization >= 0.05, sevenDayUtilization <= 0.95, localSevenDayTokens > 0 {
+        if calibrationBand.contains(sevenDayUtilization), localSevenDayTokens > 0 {
             let derived = Int(Double(localSevenDayTokens) / sevenDayUtilization)
             if derived > 100_000 {
                 sevenDayLimit = derived

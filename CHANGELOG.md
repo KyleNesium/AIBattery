@@ -1,5 +1,42 @@
 # Changelog
 
+## [2.4.1] — 2026-05-27
+
+Bug fix: the app no longer reports **"Throttled"** when you are simply at 100% of
+a rate-limit window but not actually being throttled.
+
+### Fixed
+- **100% utilization is no longer treated as "throttled".** A window is shown as
+  throttled (red "Throttled" label, ⚠️ icon, broken menu-bar star) only on a
+  genuine throttle signal — an explicit API `"throttled"` status or a real HTTP
+  429 (via `markedThrottled`, gated at 95%). Hitting 100% of your allotment now
+  shows an honest **"Limit reached" / at-capacity** state with a solid red
+  (non-broken) menu-bar star. Three independent code paths were conflating the
+  two: `RateLimitUsage.parse(clientData:)` synthesized a throttled status at
+  utilization ≥ 1.0; `MenuBarMultiAccountText` drove the broken star from
+  `percent >= 100`; and `ThrottleTracker` recorded false entries in the 30-day
+  throttle-event history. All three now key off the genuine throttle signal only.
+- **Unbounded (reset-less) throttle no longer sticks.** A genuine quota throttle
+  always carries a reset timestamp; a throttle with no reset could never be aged
+  out and would persist on the cache / stale-fallback path until a fresh fetch
+  landed (which can take a while — unified headers arrive on only ~10% of polls).
+  `withClearedExpiredWindows` now drops a reset-less throttle flag (keeping the
+  last-known utilization) so the bar stops claiming "Throttled".
+- **Local-estimate calibration is less twitchy at the edges.** The fallback
+  `LocalUsageEstimate.calibrate()` band tightened from 5–95% to **20–80%**.
+  Dividing by a tiny utilization magnified measurement error (a 1% error at 5%
+  utilization → ~20% error in the derived limit), which could make the local
+  fallback read ≥100% when the API would report well under.
+
+### Added
+- **Menu bar shows which window throttled you.** When throttled, the menu-bar
+  countdown is prefixed with the binding window code (`5H` / `7D`) — e.g.
+  `5H 2h 5m` — so you can tell at a glance whether you're waiting hours or a day+
+  without opening the popover.
+- **Structured throttle-state logging.** One `AppLogger.network` line is emitted
+  on each throttle on/off transition (binding window, reset timestamp, source),
+  so a stuck or false throttle state is diagnosable after the fact.
+
 ## [2.4.0] — 2026-05-26
 
 Internal hygiene release. No user-visible behavior change beyond a Sparkle
