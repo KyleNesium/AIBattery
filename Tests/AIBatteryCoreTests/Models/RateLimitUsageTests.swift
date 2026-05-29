@@ -526,6 +526,122 @@ struct RateLimitUsageTests {
         #expect(usage.withClearedExpiredWindows(now: now) == usage)
     }
 
+    // MARK: - withClearedRolloverArtifacts
+
+    @Test func withClearedRolloverArtifacts_freshWindowNearFull_clearsUtilization() {
+        // 5h window resets in 4h58m → started ~2 min ago. 100% on a 2-minute-old
+        // window is impossible; it's the previous window's usage lingering.
+        let now = Date()
+        let freshReset = now.addingTimeInterval(RateLimitUsage.fiveHourWindowDuration - 120)
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 1.0,
+            sevenDayUtil: 0.29,
+            fiveHourReset: freshReset,
+            sevenDayReset: now.addingTimeInterval(86_400),
+            status: "allowed"
+        )
+
+        let cleared = usage.withClearedRolloverArtifacts(now: now)
+
+        #expect(cleared.fiveHourUtilization == 0)
+        #expect(cleared.fiveHourStatus == "allowed")
+        // Reset is the valid new-window reset — preserved so the countdown keeps running.
+        #expect(cleared.fiveHourReset == freshReset)
+        // Seven-day untouched.
+        #expect(cleared.sevenDayUtilization == 0.29)
+        #expect(cleared.overallStatus == "allowed")
+    }
+
+    @Test func withClearedRolloverArtifacts_nearResetNearFull_isPreserved() {
+        // Window started ~4h55m ago, resets in 5m, at 100% — a genuine end-of-window
+        // limit-hit. Must NOT be suppressed.
+        let now = Date()
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 1.0,
+            fiveHourReset: now.addingTimeInterval(300),
+            status: "allowed"
+        )
+
+        #expect(usage.withClearedRolloverArtifacts(now: now) == usage)
+    }
+
+    @Test func withClearedRolloverArtifacts_freshWindowBelowThreshold_isUnchanged() {
+        // A fresh window at moderate utilization is plausible — only near-full
+        // readings on a just-started window are artifacts.
+        let now = Date()
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 0.50,
+            fiveHourReset: now.addingTimeInterval(RateLimitUsage.fiveHourWindowDuration - 120),
+            status: "allowed"
+        )
+
+        #expect(usage.withClearedRolloverArtifacts(now: now) == usage)
+    }
+
+    @Test func withClearedRolloverArtifacts_sevenDayFreshWindow_clears() {
+        let now = Date()
+        let freshSevenDayReset = now.addingTimeInterval(RateLimitUsage.sevenDayWindowDuration - 120)
+        let usage = makeUsage(
+            claim: "seven_day",
+            fiveHourUtil: 0.10,
+            sevenDayUtil: 0.99,
+            fiveHourReset: now.addingTimeInterval(3_600),
+            sevenDayReset: freshSevenDayReset,
+            status: "allowed"
+        )
+
+        let cleared = usage.withClearedRolloverArtifacts(now: now)
+
+        #expect(cleared.sevenDayUtilization == 0)
+        #expect(cleared.sevenDayReset == freshSevenDayReset)
+        // Binding (seven_day) was the artifact → overall cleared.
+        #expect(cleared.overallStatus == "allowed")
+        #expect(cleared.fiveHourUtilization == 0.10)
+    }
+
+    @Test func withClearedRolloverArtifacts_nonBindingArtifact_preservesOverall() {
+        // Five-hour is the artifact but seven-day is binding and genuinely throttled —
+        // overall must stay "throttled".
+        let now = Date()
+        let usage = makeUsage(
+            claim: "seven_day",
+            fiveHourUtil: 1.0,
+            sevenDayUtil: 0.85,
+            fiveHourReset: now.addingTimeInterval(RateLimitUsage.fiveHourWindowDuration - 120),
+            sevenDayReset: now.addingTimeInterval(86_400),
+            fiveHourStatus: "allowed",
+            sevenDayStatus: "throttled",
+            status: "throttled"
+        )
+
+        let cleared = usage.withClearedRolloverArtifacts(now: now)
+
+        #expect(cleared.fiveHourUtilization == 0)
+        #expect(cleared.overallStatus == "throttled")
+        #expect(cleared.sevenDayStatus == "throttled")
+    }
+
+    @Test func withClearedRolloverArtifacts_nilReset_isUnchanged() {
+        let usage = makeUsage(claim: "five_hour", fiveHourUtil: 1.0, fiveHourReset: nil, status: "allowed")
+        #expect(usage.withClearedRolloverArtifacts() == usage)
+    }
+
+    @Test func withClearedRolloverArtifacts_pastReset_isUnchanged() {
+        // A reset in the past is the expired-window case (withClearedExpiredWindows'
+        // job) — this guard only touches fresh windows, so it leaves it alone.
+        let now = Date()
+        let usage = makeUsage(
+            claim: "five_hour",
+            fiveHourUtil: 1.0,
+            fiveHourReset: now.addingTimeInterval(-60),
+            status: "allowed"
+        )
+        #expect(usage.withClearedRolloverArtifacts(now: now) == usage)
+    }
+
     // MARK: - Predictive estimate
 
     @Test func estimatedTimeToLimit_lowUtilization_returnsNil() {

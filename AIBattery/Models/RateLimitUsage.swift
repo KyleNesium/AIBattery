@@ -12,6 +12,18 @@ struct RateLimitUsage: Equatable, Codable {
     static let fiveHourWindow = "five_hour"
     static let sevenDayWindow = "seven_day"
 
+    /// Window durations — used to derive how far into a window the current reading is.
+    static let fiveHourWindowDuration: TimeInterval = 5 * 3_600
+    static let sevenDayWindowDuration: TimeInterval = 7 * 24 * 3_600
+
+    /// Rollover-artifact guard thresholds. A window reading at/above
+    /// `rolloverArtifactUtilizationThreshold` whose reset implies the window started
+    /// less than `rolloverArtifactGracePeriod` ago is treated as a stale carry-over
+    /// from the *previous* window (server-side rollover lag), not a genuine limit-hit —
+    /// you cannot consume ~all of a multi-hour quota in the first few minutes.
+    static let rolloverArtifactUtilizationThreshold = 0.95
+    static let rolloverArtifactGracePeriod: TimeInterval = 600 // 10 minutes
+
     private static func inferredWindowStatus(
         explicitStatus: String?,
         overallStatus: String,
@@ -151,6 +163,59 @@ struct RateLimitUsage: Equatable, Codable {
             sevenDayUtilization: sevenDayExpired ? 0 : sevenDayUtilization,
             sevenDayReset: sevenDayExpired ? nil : sevenDayReset,
             sevenDayStatus: (sevenDayExpired || sevenDayUnboundedThrottle) ? "allowed" : sevenDayStatus,
+            overallStatus: bindingCleared ? "allowed" : overallStatus
+        )
+    }
+
+    /// Whether a window reading is a rollover artifact: near-full utilization on a
+    /// window whose reset says it only just started. Such a reading is the previous
+    /// window's usage lingering on a fresh window (server-side eventual consistency at
+    /// the reset boundary) and must not be shown as "Limit reached".
+    private static func isRolloverArtifact(
+        utilization: Double,
+        reset: Date?,
+        windowDuration: TimeInterval,
+        now: Date
+    ) -> Bool {
+        guard utilization >= rolloverArtifactUtilizationThreshold, let reset else { return false }
+        let timeUntilReset = reset.timeIntervalSince(now)
+        // A past/at reset is the expired-window case (handled by withClearedExpiredWindows).
+        guard timeUntilReset > 0 else { return false }
+        let elapsed = windowDuration - timeUntilReset
+        return elapsed < rolloverArtifactGracePeriod
+    }
+
+    /// Return a copy that suppresses rollover artifacts — near-full utilization on a
+    /// window that just rolled over. Unlike `withClearedExpiredWindows`, the reset is
+    /// the *valid* new-window reset, so it's preserved (the countdown keeps running);
+    /// only the stale utilization/status is cleared. Used on the displayed rate-limit
+    /// data so a window that reset moments ago doesn't read "100% / Limit reached"
+    /// until the next poll catches up.
+    func withClearedRolloverArtifacts(now: Date = .now) -> RateLimitUsage {
+        let fiveHourArtifact = Self.isRolloverArtifact(
+            utilization: fiveHourUtilization, reset: fiveHourReset,
+            windowDuration: Self.fiveHourWindowDuration, now: now
+        )
+        let sevenDayArtifact = Self.isRolloverArtifact(
+            utilization: sevenDayUtilization, reset: sevenDayReset,
+            windowDuration: Self.sevenDayWindowDuration, now: now
+        )
+
+        guard fiveHourArtifact || sevenDayArtifact else { return self }
+
+        let bindingCleared: Bool = switch representativeClaim {
+        case Self.sevenDayWindow: sevenDayArtifact
+        default: fiveHourArtifact
+        }
+
+        return RateLimitUsage(
+            representativeClaim: representativeClaim,
+            fiveHourUtilization: fiveHourArtifact ? 0 : fiveHourUtilization,
+            fiveHourReset: fiveHourReset,
+            fiveHourStatus: fiveHourArtifact ? "allowed" : fiveHourStatus,
+            sevenDayUtilization: sevenDayArtifact ? 0 : sevenDayUtilization,
+            sevenDayReset: sevenDayReset,
+            sevenDayStatus: sevenDayArtifact ? "allowed" : sevenDayStatus,
             overallStatus: bindingCleared ? "allowed" : overallStatus
         )
     }

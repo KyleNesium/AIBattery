@@ -59,6 +59,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Keychain service (OAuth) | `"AIBattery"` |
 | Max accounts | 3 |
 | Quota throttle threshold | `0.95` (`RateLimitFetcher.quotaExhaustionThreshold`) — binding utilization at/above which a header-less 429 is still treated as a quota throttle. Below this, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block. |
+| Rollover artifact utilization threshold | `0.95` (`RateLimitUsage.rolloverArtifactUtilizationThreshold`) — a window reading at/above this is treated as a stale rollover artifact (not a genuine limit) when the window also just started (see grace period below). |
+| Rollover artifact grace period | `600` sec / 10 min (`RateLimitUsage.rolloverArtifactGracePeriod`) — a near-full reading on a window whose reset implies it started less than this ago is the previous window's usage lingering across the reset boundary; `withClearedRolloverArtifacts` zeroes that utilization (keeps the new reset). You cannot consume ~all of a 5h/7d quota in the first few minutes of a window. |
 | Auth-failure threshold | `3` consecutive 401/403 (`RateLimitFetcher.authErrorThreshold`) — at or above this the returned `APIFetchResult.authError` flips to `true` and the popover footer surfaces *"Authentication failed — please log out and reconnect this account."* |
 
 ## Rate Limit Headers
