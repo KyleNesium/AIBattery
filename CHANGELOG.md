@@ -1,5 +1,29 @@
 # Changelog
 
+## [Unreleased]
+
+Completes the Swift 6 migration started in 2.4.0.
+
+### Tooling
+- **Swift 6 language mode (`.swiftLanguageMode(.v6)`) enabled** across all three
+  SPM targets — the flip that 2.4.0 deferred. Production code builds with **zero
+  warnings, zero errors** under full Swift 6 enforcement. Because `.v6` enables
+  strict concurrency by default, the now-redundant `.enableUpcomingFeature("StrictConcurrency")`
+  flag was dropped from each target.
+- **The 2.4.0 deferral is retired.** The deadlock that blocked the flip — adopting
+  `isolated deinit` on the three `@MainActor` classes owning `Timer` / observer
+  state — turned out not to be required: the existing `nonisolated(unsafe)`
+  annotations on the deinit-touched stored properties are sufficient under the
+  Swift 6.3.2 toolchain, and `.v6` builds clean without touching `deinit`.
+- **Test target made `@MainActor`-clean under `.v6`.** Test suites that exercise
+  `@MainActor`-isolated statics (`MenuBarIcon`, `GaugeBar`, `InsightsViewFormatter`,
+  `PopoverFooterStatusSymbol`, `LinkActionButton`, `ActivityChartIsEmpty`,
+  `RateLimitFetcher`, `TokenHealthStatus`, `UsageSnapshot`) are now annotated
+  `@MainActor`, eliminating ~997 `#ActorIsolatedCall` warnings. Incidental cleanups
+  along the way: `@discardableResult` on two `SessionLogReaderDiscoveryTests`
+  helpers, two dead `let` bindings discarded, and two ambiguous `#require` checks
+  rewritten as `== true`. All 1015 tests in 69 suites pass.
+
 ## [2.4.1] — 2026-05-27
 
 Throttle-accuracy fixes plus UI polish.

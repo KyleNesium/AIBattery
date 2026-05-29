@@ -16,6 +16,7 @@ struct SessionLogReaderDiscoveryTests {
         return projectsDir
     }
 
+    @discardableResult
     private func addJSONLFile(to projectsDir: URL, name: String = "session.jsonl") throws -> URL {
         let projectDir = try FileManager.default.contentsOfDirectory(
             at: projectsDir,
@@ -34,6 +35,7 @@ struct SessionLogReaderDiscoveryTests {
     }
 
     /// Adds a JSONL file to a specific project directory.
+    @discardableResult
     private func addJSONLFileToProject(in projectDir: URL, name: String) throws -> URL {
         let file = projectDir.appendingPathComponent(name)
         try Data("{}".utf8).write(to: file)

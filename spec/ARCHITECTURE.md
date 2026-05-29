@@ -248,7 +248,7 @@ CHANGELOG.md                      — Release notes per version
 
 ## Build Configuration
 
-- **SPM**: swift-tools-version 5.9, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests)
+- **SPM**: swift-tools-version 6.0, Swift 6 language mode (`.swiftLanguageMode(.v6)`) on all targets, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests)
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
 - **Codesigning**: Ad-hoc by default (`codesign --sign -`), parameterized via `CODE_SIGN_IDENTITY` env var for Developer ID signing. Hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting. Entitlements file selected automatically (`AIBattery-AppStore.entitlements` when `APP_STORE_BUILD` is set)

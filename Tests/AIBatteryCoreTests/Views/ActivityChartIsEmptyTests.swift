@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("ActivityChartIsEmpty")
+@MainActor
 struct ActivityChartIsEmptyTests {
     // The old InsightsView.isHourlyEmpty() static method was removed.
     // Emptiness is now determined by snapshot token fields directly.

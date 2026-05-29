@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("TokenHealthStatus")
+@MainActor
 struct TokenHealthStatusTests {
     // MARK: - HealthBand raw values
 
@@ -20,16 +21,16 @@ struct TokenHealthStatusTests {
         #expect(status.suggestedAction == nil)
     }
 
-    @Test func suggestedAction_orange() throws {
+    @Test func suggestedAction_orange() {
         let status = makeStatus(band: .orange)
         #expect(status.suggestedAction != nil)
-        #expect(try #require(status.suggestedAction?.contains("trimming")))
+        #expect(status.suggestedAction?.contains("trimming") == true)
     }
 
-    @Test func suggestedAction_red() throws {
+    @Test func suggestedAction_red() {
         let status = makeStatus(band: .red)
         #expect(status.suggestedAction != nil)
-        #expect(try #require(status.suggestedAction?.contains("new conversation")))
+        #expect(status.suggestedAction?.contains("new conversation") == true)
     }
 
     @Test func suggestedAction_unknown() {

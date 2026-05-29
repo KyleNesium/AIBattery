@@ -5,6 +5,7 @@ import Testing
 /// state must carry a distinguishing SF Symbol overlay so severity is readable
 /// without color. Operational and unknown stay plain.
 @Suite("PopoverFooterStatusSymbol")
+@MainActor
 struct PopoverFooterStatusSymbolTests {
     @Test func operational_hasNoSymbol() {
         #expect(PopoverFooterView.statusSymbol(for: .operational) == nil)

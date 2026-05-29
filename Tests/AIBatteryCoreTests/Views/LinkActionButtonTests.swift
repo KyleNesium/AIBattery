@@ -15,6 +15,7 @@ import SwiftUI
 /// If a future change flips these mappings, the four call sites will silently
 /// drift in opposite directions — these tests fail loudly instead.
 @Suite("LinkActionButton")
+@MainActor
 struct LinkActionButtonTests {
     @Test func standard_labelFont_isCaption() {
         #expect(LinkActionButton.labelFont(for: .standard) == Typography.caption)

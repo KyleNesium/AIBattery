@@ -3,6 +3,7 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("InsightsViewFormatter")
+@MainActor
 struct InsightsViewFormatterTests {
     // MARK: - CHART-02: formatHourLabelFull
 

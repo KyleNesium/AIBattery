@@ -3,6 +3,7 @@ import AppKit
 @testable import AIBatteryCore
 
 @Suite("MenuBarIcon")
+@MainActor
 struct MenuBarIconTests {
     private let testColor: NSColor = .systemGreen
 

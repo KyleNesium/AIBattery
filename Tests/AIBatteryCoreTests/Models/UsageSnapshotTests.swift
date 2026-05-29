@@ -3,6 +3,7 @@ import Testing
 @testable import AIBatteryCore
 
 @Suite("UsageSnapshot")
+@MainActor
 struct UsageSnapshotTests {
     private func makeSnapshot(
         modelTokens: [ModelTokenSummary] = [],
@@ -639,7 +640,7 @@ struct UsageSnapshotTests {
             overallStatus: "allowed"
         )
         let snapshot = makeSnapshot(rateLimits: limits)
-        let candidate = snapshot.autoResolvedMode // .fiveHour (Tier 2, RL >=80%)
+        _ = snapshot.autoResolvedMode // .fiveHour (Tier 2, RL >=80%)
         // previous is also .fiveHour but from Tier 4 — same mode, so no conflict
         // Test a case where candidate differs: previous was .sevenDay binding, now .fiveHour escalation
         let result = UsageSnapshot.applyHysteresis(

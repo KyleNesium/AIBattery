@@ -3,10 +3,11 @@ import Foundation
 @testable import AIBatteryCore
 
 @Suite("RateLimitFetcher")
+@MainActor
 struct RateLimitFetcherTests {
     // MARK: - Fetch with no token returns empty
 
-    @Test @MainActor func fetch_emptyToken_returnsEmptyResult() async {
+    @Test func fetch_emptyToken_returnsEmptyResult() async {
         let fetcher = RateLimitFetcher()
         let result = await fetcher.fetch(accessToken: "", accountId: "test-account")
 
@@ -17,7 +18,7 @@ struct RateLimitFetcherTests {
 
     // MARK: - Multiple accounts use separate caches
 
-    @Test @MainActor func fetch_differentAccounts_separateResults() {
+    @Test func fetch_differentAccounts_separateResults() {
         // Previously this test did real `fetch(accessToken: "invalid-N", ...)` calls
         // and asserted both returned nil — which doesn't actually verify the
         // "separate caches" contract the test name claims. The real-network calls
@@ -68,7 +69,7 @@ struct RateLimitFetcherTests {
 
     // MARK: - Cached result marked as stale
 
-    @Test @MainActor func cachedOrEmpty_withinMaxAge_returnsCachedWithFlag() {
+    @Test func cachedOrEmpty_withinMaxAge_returnsCachedWithFlag() {
         let fetcher = RateLimitFetcher()
 
         // Inject a cached result
@@ -99,7 +100,7 @@ struct RateLimitFetcherTests {
         #expect(result.profile?.organizationId == "org-test")
     }
 
-    @Test @MainActor func cachedOrEmpty_staleCache_returnsStaleData() {
+    @Test func cachedOrEmpty_staleCache_returnsStaleData() {
         let fetcher = RateLimitFetcher()
 
         // Inject an old cached result (2 hours ago) — stale data is better than empty bars
@@ -127,7 +128,7 @@ struct RateLimitFetcherTests {
         #expect(result.isCached == true)
     }
 
-    @Test @MainActor func cachedOrEmpty_noCache_returnsEmpty() {
+    @Test func cachedOrEmpty_noCache_returnsEmpty() {
         let fetcher = RateLimitFetcher()
         let result = fetcher.cachedOrEmpty(accountId: "nonexistent")
 
@@ -140,7 +141,7 @@ struct RateLimitFetcherTests {
     /// window so the menu bar doesn't render a stale "100%" + broken star
     /// until a fresh fetch lands. Previously the cache was returned verbatim
     /// and only `restorePersistedRateLimits` (also at init) ran the normalizer.
-    @Test @MainActor func cachedOrEmpty_expiredFiveHourWindow_isCleared() {
+    @Test func cachedOrEmpty_expiredFiveHourWindow_isCleared() {
         let fetcher = RateLimitFetcher()
         let rateLimits = RateLimitUsage(
             representativeClaim: "five_hour",
@@ -266,7 +267,7 @@ struct RateLimitFetcherTests {
 
     // MARK: - Dynamic observed models
 
-    @Test @MainActor func observedModels_defaultsToEmpty() {
+    @Test func observedModels_defaultsToEmpty() {
         // Test parallelism + shared UserDefaults means other tests in this suite
         // can leave `aibattery_observedModels_*` keys behind even with `defer`
         // cleanup (the prefix scan in `restoreWorkingModels` may also pick up
@@ -281,7 +282,7 @@ struct RateLimitFetcherTests {
         #expect(fetcher.observedModels.isEmpty)
     }
 
-    @Test @MainActor func setObservedModels_updatesInMemoryList() {
+    @Test func setObservedModels_updatesInMemoryList() {
         let accountId = "test-updates-\(UUID().uuidString)"
         let key = "aibattery_observedModels_\(accountId)"
         defer { UserDefaults.standard.removeObject(forKey: key) }
@@ -291,7 +292,7 @@ struct RateLimitFetcherTests {
         #expect(fetcher.observedModels == ["model-a", "model-b"])
     }
 
-    @Test @MainActor func setObservedModels_persistsToUserDefaults() {
+    @Test func setObservedModels_persistsToUserDefaults() {
         let accountId = "test-persist-\(UUID().uuidString)"
         let key = "aibattery_observedModels_\(accountId)"
         defer { UserDefaults.standard.removeObject(forKey: key) }
@@ -303,7 +304,7 @@ struct RateLimitFetcherTests {
         #expect(stored == ["model-x", "model-y"])
     }
 
-    @Test @MainActor func observedModels_restoredOnInit() {
+    @Test func observedModels_restoredOnInit() {
         let accountId = "test-restore-\(UUID().uuidString)"
         let key = "aibattery_observedModels_\(accountId)"
         UserDefaults.standard.set(["restored-model-a", "restored-model-b"], forKey: key)
@@ -314,7 +315,7 @@ struct RateLimitFetcherTests {
         #expect(fetcher.observedModels == ["restored-model-a", "restored-model-b"])
     }
 
-    @Test @MainActor func setObservedModels_emptyList_fallsBackToUltimateFallback() {
+    @Test func setObservedModels_emptyList_fallsBackToUltimateFallback() {
         let fetcher = RateLimitFetcher()
         // No observed models set — fetch should still attempt the ultimate fallback
         // (We can't fully test network behavior, but we verify observedModels is empty)
@@ -323,12 +324,12 @@ struct RateLimitFetcherTests {
         // (verified by the hardcoded constant existing in the implementation)
     }
 
-    @Test @MainActor func ultimateFallback_isSingleHardcodedModel() {
+    @Test func ultimateFallback_isSingleHardcodedModel() {
         // Verify ultimateFallback constant exists and is the newest Sonnet
         #expect(RateLimitFetcher.ultimateFallback == "claude-sonnet-4-6-20250929")
     }
 
-    @Test @MainActor func hardcodedFallbackModels_noLongerExists() {
+    @Test func hardcodedFallbackModels_noLongerExists() {
         // This test documents that the 5-model hardcoded list is replaced.
         // We verify via observedModels being the dynamic source now.
         let fetcher = RateLimitFetcher()
@@ -341,7 +342,7 @@ struct RateLimitFetcherTests {
 
     /// Verifies that saveWorkingModel (called from fetch success paths) persists to UserDefaults
     /// and that restoreWorkingModels (called on init) rehydrates the in-memory map.
-    @Test @MainActor func workingModel_persistsAndRestores() {
+    @Test func workingModel_persistsAndRestores() {
         let accountId = "test-working-model-\(UUID().uuidString)"
         let key = "aibattery_probeModel_\(accountId)"
         defer { UserDefaults.standard.removeObject(forKey: key) }
@@ -351,7 +352,7 @@ struct RateLimitFetcherTests {
         UserDefaults.standard.set("claude-opus-4-5", forKey: key)
 
         // A fresh fetcher should restore the working model from UserDefaults on init
-        let fetcher = RateLimitFetcher()
+        _ = RateLimitFetcher() // restoreWorkingModels runs in init
 
         // The working model should be loaded into the in-memory map.
         // We verify indirectly: setCachedResult + cachedOrEmpty confirm the fetcher is
@@ -362,7 +363,7 @@ struct RateLimitFetcherTests {
 
     /// Verifies that the working model key prefix constant is stable.
     /// If this prefix changes, persisted probeModel UserDefaults keys would be orphaned.
-    @Test @MainActor func workingModelKeyPrefix_isStable() {
+    @Test func workingModelKeyPrefix_isStable() {
         // Construct a key the same way saveWorkingModel does and verify format
         let accountId = "acct-123"
         let expectedKey = "aibattery_probeModel_\(accountId)"
@@ -377,11 +378,11 @@ struct RateLimitFetcherTests {
     /// Documents that saveWorkingModel is called on 4 distinct success paths in tryFetch:
     /// (1) 200 OK path (via fetch loop), (2) 429+headers path, (3) 400+headers path,
     /// (4) retry-after path. This test acts as a structural regression guard.
-    @Test @MainActor func saveWorkingModel_calledOnAllSuccessPaths_structuralCheck() {
+    @Test func saveWorkingModel_calledOnAllSuccessPaths_structuralCheck() {
         // This test verifies the UserDefaults key is written after a successful cache injection.
         // The full network paths (429, 400, retry-after) are verified by code inspection
         // and the structural acceptance criteria in the plan (grep saveWorkingModel count >= 5).
-        let fetcher = RateLimitFetcher()
+        _ = RateLimitFetcher() // restoreWorkingModels runs in init
         let accountId = "structural-check-\(UUID().uuidString)"
         let key = "aibattery_probeModel_\(accountId)"
         defer { UserDefaults.standard.removeObject(forKey: key) }

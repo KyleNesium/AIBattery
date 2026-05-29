@@ -3,6 +3,7 @@ import SwiftUI
 @testable import AIBatteryCore
 
 @Suite("GaugeBar")
+@MainActor
 struct GaugeBarTests {
     // MARK: - Clamping logic
 
