@@ -259,7 +259,7 @@ public final class UsageViewModel: ObservableObject {
         if api.rateLimits != nil && !api.isCached {
             lastFreshRateLimitsAt = Date()
         }
-        let effectiveRateLimits = Self.effectiveRateLimits(
+        let rawEffectiveRateLimits = Self.effectiveRateLimits(
             fresh: api.rateLimits,
             stale: snapshot?.rateLimits,
             lastFreshAt: lastFreshRateLimitsAt,
@@ -271,6 +271,22 @@ public final class UsageViewModel: ObservableObject {
             lastFreshAt: lastFreshRateLimitsAt,
             ttl: Self.rateLimitStaleTTL
         )
+        // Suppress rollover artifacts: a window that just reset can briefly report the
+        // previous window's near-full utilization paired with the new reset (server-side
+        // eventual consistency). Showing that as "Limit reached" on a fresh window is wrong.
+        let effectiveRateLimits = rawEffectiveRateLimits?.withClearedRolloverArtifacts()
+        if let raw = rawEffectiveRateLimits, let corrected = effectiveRateLimits, raw != corrected {
+            AppLogger.network.notice(
+                "Rollover artifact suppressed (binding=\(raw.bindingWindowShortCode, privacy: .public), source=\(effectiveSource?.rawValue ?? "nil", privacy: .public)): 5h \(Int(raw.fiveHourPercent))%→\(Int(corrected.fiveHourPercent))% reset in \(Int(raw.fiveHourReset?.timeIntervalSinceNow ?? -1))s, 7d \(Int(raw.sevenDayPercent))%→\(Int(corrected.sevenDayPercent))% reset in \(Int(raw.sevenDayReset?.timeIntervalSinceNow ?? -1))s"
+            )
+        }
+        // Per-poll diagnostic of the raw server reading (live via `log stream`), so a
+        // recurrence can be matched against the exact utilization/reset the API returned.
+        if let rl = api.rateLimits, !api.isCached {
+            AppLogger.network.info(
+                "rate limits fresh (source=\(effectiveSource?.rawValue ?? "nil", privacy: .public)): 5h \(Int(rl.fiveHourPercent))% reset \(Int(rl.fiveHourReset?.timeIntervalSinceNow ?? -1))s status=\(rl.fiveHourStatus, privacy: .public); 7d \(Int(rl.sevenDayPercent))% reset \(Int(rl.sevenDayReset?.timeIntervalSinceNow ?? -1))s status=\(rl.sevenDayStatus, privacy: .public); binding=\(rl.bindingWindowShortCode, privacy: .public) overall=\(rl.overallStatus, privacy: .public)"
+            )
+        }
         let result = await aggregateOffMain(
             rateLimits: effectiveRateLimits,
             rateLimitSource: effectiveSource,

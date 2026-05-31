@@ -79,6 +79,9 @@ extension UsageViewModel {
             }
         }
 
-        perAccountRateLimits = collected
+        // Suppress per-account rollover artifacts so a just-reset window doesn't show
+        // a stale near-full reading in the multi-account menu bar (mirrors the active
+        // account path in refresh()).
+        perAccountRateLimits = collected.mapValues { $0.withClearedRolloverArtifacts() }
     }
 }

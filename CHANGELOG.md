@@ -2,7 +2,23 @@
 
 ## [Unreleased]
 
-Completes the Swift 6 migration started in 2.4.0.
+Completes the Swift 6 migration started in 2.4.0, plus a rate-limit display fix.
+
+### Fixed
+- **No more false "Limit reached" right after a window resets.** When a 5-hour or
+  7-day window rolls over, Anthropic's usage endpoint can briefly return the
+  *previous* window's near-full utilization paired with the *new* window's reset
+  timestamp (server-side eventual consistency). The app trusted it and showed
+  "100% / Limit reached" with a fresh ~5h countdown on a window that had just
+  started — self-healing only on the next poll (up to a few minutes later). A new
+  `RateLimitUsage.withClearedRolloverArtifacts` guard suppresses any window reading
+  that is ≥95% utilized but whose reset says the window started less than 10 minutes
+  ago — physically impossible, since you can't consume a whole multi-hour quota in
+  minutes. The stale utilization is zeroed (the valid new reset is kept, so the
+  countdown still runs); genuine end-of-window limit-hits are untouched. Applied to
+  both the active account and the multi-account menu bar. A suppression is logged at
+  `notice` level, and every fresh poll now logs its raw utilization/reset reading at
+  `info` level for diagnosis.
 
 ### Tooling
 - **Swift 6 language mode (`.swiftLanguageMode(.v6)`) enabled** across all three
@@ -23,6 +39,8 @@ Completes the Swift 6 migration started in 2.4.0.
   along the way: `@discardableResult` on two `SessionLogReaderDiscoveryTests`
   helpers, two dead `let` bindings discarded, and two ambiguous `#require` checks
   rewritten as `== true`. All 1015 tests in 69 suites pass.
+- **CI action pins bumped** — `actions/checkout` v5 → v6.0.2, `actions/cache` →
+  v5.0.5, `softprops/action-gh-release` v2 → v3.0.0 (Node 24 runtime).
 
 ## [2.4.1] — 2026-05-27
 
