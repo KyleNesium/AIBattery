@@ -51,6 +51,11 @@ struct RefreshSettingsSection: View {
 /// Tick mark labels displayed below a slider. Shared across settings sections.
 /// `leadingPad` = label column width; adds HStack spacing (8pt) to align with slider track.
 /// Trailing spacer accounts for value label + HStack spacing.
+///
+/// `@MainActor` because it constructs SwiftUI views (`Spacer`, `Text`) whose
+/// initializers are main-actor-isolated under the Swift 6 language mode on some
+/// SDKs; it's only ever called from `@MainActor` view bodies, so this is free.
+@MainActor
 func sliderMarks(labels: [String], leadingPad: CGFloat) -> some View {
     HStack {
         Spacer().frame(width: leadingPad + Spacing.section)
