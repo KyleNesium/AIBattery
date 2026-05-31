@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.4.2] — 2026-05-31
 
 Completes the Swift 6 migration started in 2.4.0, plus a rate-limit display fix.
 

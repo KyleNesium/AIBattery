@@ -8,6 +8,8 @@
 	<string>AI Battery</string>
 	<key>CFBundleExecutable</key>
 	<string>AIBattery</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.KyleNesium.AIBattery</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -17,22 +19,20 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.4.1</string>
+	<string>2.4.2</string>
 	<key>CFBundleVersion</key>
-	<string>2.4.1</string>
+	<string>2.4.2</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025 KyleNesium. All rights reserved.</string>
 	<key>SUFeedURL</key>
 	<string>https://kylenesium.github.io/AIBattery/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>6OMshMFo6tpWjrJHcDa1xKK4N0xqgT+gery+xnGJrOU=</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2025 KyleNesium. All rights reserved.</string>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.developer-tools</string>
 </dict>
 </plist>
