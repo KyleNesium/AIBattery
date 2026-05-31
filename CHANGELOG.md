@@ -2,7 +2,7 @@
 
 ## [2.4.2] — 2026-05-31
 
-Completes the Swift 6 migration started in 2.4.0, plus a rate-limit display fix.
+Fixes a transient rate-limit display bug, plus CI maintenance.
 
 ### Fixed
 - **No more false "Limit reached" right after a window resets.** When a 5-hour or
@@ -21,26 +21,15 @@ Completes the Swift 6 migration started in 2.4.0, plus a rate-limit display fix.
   `info` level for diagnosis.
 
 ### Tooling
-- **Swift 6 language mode (`.swiftLanguageMode(.v6)`) enabled** across all three
-  SPM targets — the flip that 2.4.0 deferred. Production code builds with **zero
-  warnings, zero errors** under full Swift 6 enforcement. Because `.v6` enables
-  strict concurrency by default, the now-redundant `.enableUpcomingFeature("StrictConcurrency")`
-  flag was dropped from each target.
-- **The 2.4.0 deferral is retired.** The deadlock that blocked the flip — adopting
-  `isolated deinit` on the three `@MainActor` classes owning `Timer` / observer
-  state — turned out not to be required: the existing `nonisolated(unsafe)`
-  annotations on the deinit-touched stored properties are sufficient under the
-  Swift 6.3.2 toolchain, and `.v6` builds clean without touching `deinit`.
-- **Test target made `@MainActor`-clean under `.v6`.** Test suites that exercise
-  `@MainActor`-isolated statics (`MenuBarIcon`, `GaugeBar`, `InsightsViewFormatter`,
-  `PopoverFooterStatusSymbol`, `LinkActionButton`, `ActivityChartIsEmpty`,
-  `RateLimitFetcher`, `TokenHealthStatus`, `UsageSnapshot`) are now annotated
-  `@MainActor`, eliminating ~997 `#ActorIsolatedCall` warnings. Incidental cleanups
-  along the way: `@discardableResult` on two `SessionLogReaderDiscoveryTests`
-  helpers, two dead `let` bindings discarded, and two ambiguous `#require` checks
-  rewritten as `== true`. All 1015 tests in 69 suites pass.
 - **CI action pins bumped** — `actions/checkout` v5 → v6.0.2, `actions/cache` →
   v5.0.5, `softprops/action-gh-release` v2 → v3.0.0 (Node 24 runtime).
+- **Test suites annotated `@MainActor`** where they exercise `@MainActor`-isolated
+  statics, plus minor test cleanups (`@discardableResult` on two
+  `SessionLogReaderDiscoveryTests` helpers, two dead `let` bindings removed, two
+  ambiguous `#require` checks rewritten as `== true`). Groundwork for the Swift 6
+  `.v6` language-mode flip, which remains deferred — it surfaces SDK-version-dependent
+  isolation/data-race errors on the CI runner that don't reproduce on newer local
+  SDKs, so it needs iterative CI validation in its own PR.
 
 ## [2.4.1] — 2026-05-27
 

@@ -22,7 +22,8 @@ let package = Package(
             swiftSettings: [
                 .define("ENABLE_SPARKLE"),
                 .define("ENABLE_VERSION_CHECKER"),
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v5),
+                .enableUpcomingFeature("StrictConcurrency")
             ]
         ),
         .executableTarget(
@@ -32,7 +33,8 @@ let package = Package(
             swiftSettings: [
                 .define("ENABLE_SPARKLE"),
                 .define("ENABLE_VERSION_CHECKER"),
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v5),
+                .enableUpcomingFeature("StrictConcurrency")
             ]
         ),
         .testTarget(
@@ -42,7 +44,8 @@ let package = Package(
             swiftSettings: [
                 .define("ENABLE_SPARKLE"),
                 .define("ENABLE_VERSION_CHECKER"),
-                .swiftLanguageMode(.v6)
+                .swiftLanguageMode(.v5),
+                .enableUpcomingFeature("StrictConcurrency")
             ]
         )
     ]
