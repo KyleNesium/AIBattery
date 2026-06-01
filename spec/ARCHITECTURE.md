@@ -107,7 +107,8 @@ AIBattery/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth (state + init + refresh orchestration + throttle bookkeeping + deinit)
     UsageViewModel+Statics.swift  — `nonisolated static` pure helpers: refresh-interval clamping, error-message string, change detection, TTL-guarded effective rate-limits / values
     UsageViewModel+Lifecycle.swift — File watcher setup, sleep/wake/screen-lock observers, idle-suspend + activity-monitor resume, polling timer (start/restart/updateInterval)
-    UsageViewModel+FanOut.swift   — Multi-account `scheduleFanOut` + `fetchAllAccounts(seed:)` (toggle-gated, coalesced, seeded with the active account to avoid an N+1 fetch)
+    UsageViewModel+FanOut.swift   — Thin wrapper: `scheduleFanOut` + `fetchAllAccounts(seed:)` delegate to `MultiAccountFanOut.resolve` and assign the result to `perAccountRateLimits`
+    MultiAccountFanOut.swift      — Multi-account fan-out orchestration (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates; multi-account text path gated on `aibattery_showAllAccountsInMenuBar`
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
