@@ -1,3 +1,11 @@
+> **ARCHIVED — shipped in v2.2.0 (#153), refactored since.** Kept for historical
+> context only; do not use it as a guide to current behaviour. Two divergences worth
+> knowing: (1) the implementation dropped the planned `perAccountThrottled` /
+> `perAccountFetchedAt` maps in favour of a single `perAccountRateLimits` map;
+> (2) the plan's N+1 mitigation premise was wrong — `RateLimitFetcher.fetch` does *not*
+> short-circuit on cache, so the shipped code uses a `seed:` parameter in
+> `fetchAllAccounts` instead. See `AIBattery/ViewModels/UsageViewModel+FanOut.swift`.
+
 # PLAN — Show All Accounts in Menu Bar
 
 **Feature:** Display setting that, when enabled, renders the menu bar text as multiple usage percentages joined by ` | ` (e.g., `42% | 23%`) for users with 2–3 OAuth accounts. Off by default; preserves current single-active-account behaviour.
