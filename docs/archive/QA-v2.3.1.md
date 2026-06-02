@@ -1,3 +1,6 @@
+> **ARCHIVED — one-off QA checklist for the v2.3.1 release (current version is v2.4.2+).**
+> Kept for historical context only; not a living document. Referenced nowhere in the build.
+
 # v2.3.1 — Manual QA Checklist
 
 A deliberate manual walkthrough of every popover state touched by the v2.3.1
