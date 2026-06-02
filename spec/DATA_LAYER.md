@@ -62,6 +62,9 @@ Static constants: `hysteresisDeescalationBand = 10.0` — the percentage point b
 | `outputTokens` | `Int` |
 | `cacheReadTokens` | `Int` |
 | `cacheWriteTokens` | `Int` |
+| `estimatedCost` | `Double` (pre-computed API-equivalent cost) |
+
+Computed: `usageTokens` (input + output, excludes cache).
 
 Computed: `totalTokens` = sum of all four token types. `cacheHitRate: Double?` = `cacheReadTokens / (cacheReadTokens + inputTokens) * 100` (nil when denominator is zero).
 
@@ -163,7 +166,7 @@ Parsed from standard Anthropic API rate limit headers (`anthropic-ratelimit-requ
 
 Computed: `requestsPercent` (utilization × 100), `tokensPercent`, `isRequestsExhausted`, `isTokensExhausted`.
 
-`parse(headers:)` reads standard headers with case-insensitive key matching. Returns nil if `requests-limit` or `requests-remaining` headers are missing. Accepts ISO 8601 and Unix timestamp formats for reset dates.
+`parse(headers:)` reads standard headers with case-insensitive key matching. Returns nil only when neither a requests-limit/remaining pair nor a tokens-limit/remaining pair is present (a tokens-only pair is accepted). Accepts ISO 8601 and Unix timestamp formats for reset dates.
 
 ### RateLimitUsage (`Models/RateLimitUsage.swift`)
 
@@ -203,7 +206,7 @@ Static: `countdownText(to date: Date, from now: Date = .now) -> String` — comp
 | `usagePercentage` | `Double` |
 | `totalUsed` | `Int` |
 | `contextWindow` | `Int` |
-| `usableWindow` | `Int` — contextWindow × 0.8 (auto-compact threshold) |
+| `usableWindow` | `Int` — contextWindow × `usableContextRatio` (currently 1.0 = full window) |
 | `remainingTokens` | `Int` — usableWindow - totalUsed |
 | `inputTokens` | `Int` |
 | `outputTokens` | `Int` |
@@ -231,13 +234,13 @@ Computed: `suggestedAction` — nil for green/unknown, recommendation text for o
 
 Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`, `staleSessionMinutes = 30`, `zeroOutputTurnThreshold = 3`, `rapidConsumptionSeconds = 60`, `rapidConsumptionTokens = 50_000`, `velocityMinDuration: TimeInterval = 60`
 
-Static: `contextWindows: [String: Int]` dictionary (Claude 4.x = 1M, Claude 3.x = 200K), `defaultContextWindow = 1_000_000`, `usableContextRatio = 0.80`, `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
+Static: `contextWindows: [String: Int]` dictionary (Claude 4.x = 1M, Claude 3.x = 200K), `defaultContextWindow = 1_000_000`, `usableContextRatio = 1.0` (full window — 1M context makes the whole window usable; no compaction reservation), `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
 
 **Bidirectional auto-detect from usage**: `TokenHealthMonitor.assess()` adjusts `contextWindow` in both directions based on observed token usage (tiers: 200K, 500K, 1M, 2M, 5M):
 - **Upward**: if observed tokens exceed the hardcoded window, bumps to the next tier above observed. Prevents inflated percentages when Anthropic expands context windows upstream.
 - **Downward**: if observed tokens fall below the next-lower tier boundary, downgrades to the smallest tier that still fits. Anti-thrash guard: only downgrades when `observedTokens < lowerTier` (e.g. 600K observed on a 1M window stays at 1M because 600K ≥ 500K — the next-lower tier boundary). This prevents false downgrade on early or small sessions within a large window.
 
-Thresholds apply to the **usable window** (80% of raw context). Claude Code auto-compacts at 80%, so 100% usage = imminent compaction.
+Thresholds apply to the **usable window**, which currently equals the full context window (`usableContextRatio = 1.0`). Percentages are calculated against the full window.
 
 ### StatsCache (`Models/StatsCache.swift`)
 
@@ -285,12 +288,12 @@ Pricing table (per million tokens):
 
 | Model | Input | Output | Cache Write | Cache Read |
 |-------|-------|--------|-------------|------------|
-| Opus 4 | $15 | $75 | $1.875 | $1.50 |
-| Sonnet 4 | $3 | $15 | $0.375 | $0.30 |
-| Haiku 4 | $0.80 | $4 | $0.10 | $0.08 |
-| Sonnet 3.5 | $3 | $15 | $0.375 | $0.30 |
-| Haiku 3.5 | $0.80 | $4 | $0.10 | $0.08 |
-| Opus 3 | $15 | $75 | $1.875 | $1.50 |
+| Opus 4 | $15 | $75 | $18.75 | $1.50 |
+| Sonnet 4 | $3 | $15 | $3.75 | $0.30 |
+| Haiku 4 | $0.80 | $4 | $1.00 | $0.08 |
+| Sonnet 3.5 | $3 | $15 | $3.75 | $0.30 |
+| Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
+| Opus 3 | $15 | $75 | $18.75 | $1.50 |
 
 ### LocalUsageEstimate (`Models/LocalUsageEstimate.swift`)
 
@@ -501,8 +504,8 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top` (sorted by highest usagePercentage)
 - Groups by sessionId, each session assessed independently. Current session is always included in `top` results even when idle past the cutoff — ensures it appears in the session browser.
 - **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + latestEntry.outputTokens` — input + cache tokens are the full conversation context for the latest turn (non-overlapping API components); latest output is added because it will be part of the next turn's input. Each component capped at contextWindow to guard against overflow from corrupted data. The `outputTokens` field in `TokenHealthStatus` stores the total across all entries (for display), while context calculation uses only the latest.
-- **Usable window**: `usableWindow = contextWindow × 0.80` — percentages calculated against usable portion
-- Band: `< greenThreshold` → green (of usable), `< redThreshold` → orange, else red
+- **Usable window**: `usableWindow = contextWindow × usableContextRatio` (currently 1.0 = full window) — percentages calculated against it
+- Band: `< greenThreshold` → green, `< redThreshold` → orange, else red
 - Warnings: high turn count (>15 mild, >25 strong), input:output ratio (>20:1, includes cache tokens)
 - Velocity: `totalUsed / duration` if 2+ entries and duration > `config.velocityMinDuration` seconds (no double-counting)
 - **Anomaly detection**: three additional warnings (all thresholds configurable via `TokenHealthConfig`):
@@ -592,9 +595,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 
 ### UsageViewModel (`ViewModels/UsageViewModel.swift`)
 - `@MainActor`, `ObservableObject`
-- Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?`, `resolvedMetricMode: MetricMode` (hysteresis-filtered auto-mode output — drives the active metric in auto mode), `perAccountRateLimits: [String: RateLimitUsage]` (keyed by account ID; populated only when `aibattery_showAllAccountsInMenuBar == true`; drives multi-account menu bar text)
+- Published: `snapshot: UsageSnapshot?`, `systemStatus: ClaudeSystemStatus?`, `isLoading: Bool`, `errorMessage: String?`, `lastFreshFetch: Date?`, `isShowingCachedData: Bool`, `availableUpdate: VersionChecker.UpdateInfo?` (only compiled under `#if ENABLE_VERSION_CHECKER`), `resolvedMetricMode: MetricMode` (hysteresis-filtered auto-mode output — drives the active metric in auto mode), `perAccountRateLimits: [String: RateLimitUsage]` (keyed by account ID; populated only when `aibattery_showAllAccountsInMenuBar == true`; drives multi-account menu bar text)
 - **Polling constants**: `defaultRefreshInterval` (120s), `minRefreshInterval` (30s), `maxRefreshInterval` (300s), `initialPollDelay` (2s)
-- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [min, max], zero/negative → default), `refreshErrorMessage(hasRateLimits:hasStandardLimits:hasProfile:hasStandardRateLimitHeaders:totalMessages:)` (error string or nil — rate limits present → nil; standard limits present → nil; public API headers without Claude Code windows → nil; profile present but no windows → nil; neither present + no messages → first-use prompt; neither present → network error), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
+- Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [min, max], zero/negative → default), `refreshErrorMessage(hasRateLimits:hasStandardLimits:hasProfile:hasStandardRateLimitHeaders:totalMessages:authError:)` (error string or nil — `authError: true` overrides everything and returns the "log out and reconnect" prompt; otherwise: rate limits present → nil; standard limits present → nil; public API headers without Claude Code windows → nil; profile present but no windows → nil; neither present + no messages → first-use prompt; neither present → network error), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
 - **Throttle tracking** (delegates to `ThrottleTracker`): `recordThrottleEvent(_:source:)` uses `ThrottleTracker.evaluate(_:)` to detect the normal→throttled transition (genuine throttle only — explicit `isThrottled`; 100% utilization is *not* counted as a throttle event), records timestamp to UserDefaults `aibattery_throttleTimestamps` via `ThrottleTracker.appendAndPrune`. Emits one structured `AppLogger.network` line on each throttle on/off transition (binding window, reset timestamp, source: `api-fresh`/`stale-cache`) so a stuck throttle state is diagnosable. `throttleCount(days:)` reads timestamps from UserDefaults, parses via `ThrottleTracker.parseTimestamps(_:)` (handles Double/String/Int storage variants), counts via `ThrottleTracker.count(timestamps:days:)`.
 - `refresh()`: gets active account + token from `OAuthManager.shared`, passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. After fetch: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Guards against stale results — discards if active account changed mid-flight. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)`. Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - **Rate limit stale TTL**: when the API returns nil rate limits, previously-fetched values are carried forward for up to `rateLimitStaleTTL` (86,400s / 24 hours — holds through overnight sleep cycles). After expiry, nil is passed to the aggregator so the UI transitions to `StandardRateLimits` fallback. `effectiveRateLimits(fresh:stale:lastFreshAt:ttl:now:)` is a pure static function with injectable `now` for testing. `effectiveValue(fresh:stale:lastFreshAt:ttl:now:)` is the generic version used for `rateLimitSource`. Prevents the "stale data treadmill" where frozen percentages were carried forward indefinitely.
@@ -635,7 +638,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 ### ModelNameMapper (`Utilities/ModelNameMapper.swift`)
 - `displayName(for modelId: String) -> String`
 - Strips "claude-" prefix via `hasPrefix`/`dropFirst`, strips trailing date segment (8+ consecutive digits) using manual character iteration (no regex — avoids NSRegularExpression bridging overhead), converts hyphens to dots, capitalizes family
-- **Result cache**: static `[String: String]` dictionary. Model IDs are immutable — same input always gives same output. Cache is permanent and small (~20 entries max). Only called from `@MainActor` context — no synchronization needed.
+- **Result cache**: static `[String: String]` dictionary. Model IDs are immutable — same input always gives same output. Cache is permanent and small (~20 entries max). Access is guarded by an `NSLock` (`nonisolated(unsafe)` cache + `lock.withLock`) since Swift Testing runs suites concurrently.
 - "claude-opus-4-6-20250929" → "Opus 4.6"
 
 ### DateFormatters (`Utilities/DateFormatters.swift`)
@@ -656,7 +659,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 ### UserDefaultsKeys (`Utilities/UserDefaultsKeys.swift`)
 - Enum with `static let` constants for all `@AppStorage` / `UserDefaults` keys
 - All keys prefixed with `aibattery_` to avoid collisions
-- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `accounts`, `activeAccountId`, `launchAtLogin`, `alertStatus`, `alertRateLimit`, `rateLimitThreshold`, `showCostEstimate`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `hasSeenTutorial`, `throttleTimestamps` (array of Unix epoch doubles for rate limit events), `contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`
+- Keys: `metricMode`, `autoMetricMode`, `refreshInterval`, `idleSessionMinutes`, `chartMode`, `plan` (billing type from `~/.claude.json`, legacy naming), `planTier`, `accounts`, `activeAccountId`, `launchAtLogin`, `alertStatus`, `alertRateLimit`, `rateLimitThreshold`, `lastUpdateCheck`, `lastUpdateVersion`, `lastUpdateURL`, `colorblindMode`, `showAllAccountsInMenuBar`, `hasSeenTutorial`, `throttleTimestamps` (array of Unix epoch doubles for rate limit events), `contextCollapsed`, `projectsCollapsed`, `activityCollapsed`, `tokenExpiresAtPrefix` (prefix for per-account token expiry timestamps). (`showCostEstimate` and `tokensCollapsed` were removed since v1.9.0.)
 
 ### SecureNetworking (`Utilities/SecureNetworking.swift`)
 - Enum (no instances) — centralized networking layer

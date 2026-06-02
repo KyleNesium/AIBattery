@@ -143,13 +143,14 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
   - Marks: 30s, 1m, 2m, 3m, 4m, 5m
   - Hint: `"~3 tokens/poll · API data kept until next update"` (.tinyLabel, .tertiaryLabel)
 
-**`DisplaySettingsSection`** (owns `idleSessionMinutes`, `colorblindMode`):
-- **Idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never)
+**`DisplaySettingsSection`** (owns `idleSessionMinutes`, `colorblindMode`, `showAllAccountsInMenuBar`):
+- **Hide idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never). Row label is "Hide idle".
   - Display: `"30m"`, `"1h"`, `"2h"`, `"4h"`, `"8h"`, or `"∞"` (Never)
   - Slider positions: 30m, 1h, 2h, 4h, 8h, ∞ (left to right)
-  - Hint: `"Hide idle sessions from context health"` (.caption2, .tertiary)
+  - `.help()` tooltip on hover (no inline hint text)
 - **Display**: Checkboxes
   - "Colorblind" → `aibattery_colorblindMode`
+  - "All accounts in menu bar" → `aibattery_showAllAccountsInMenuBar` (second Display row; `.help()`: shows every connected account's usage, e.g. `42% | 23%`, with star color + countdown from the worst account)
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
 - **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)
@@ -301,12 +302,12 @@ Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Token
 - **Sort toggle**: right-aligned button (directional arrow icon + label), cycles through 4 modes: tokens descending, cost descending, cost ascending, name alphabetical. Only shown when 2+ projects.
 - Per-project row: icon + project name (.caption) + cost (optional) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
 - Project index: numbered rank (`1`, `2`, `3`, ...) in .caption2 monospaced, ThemeColors.tertiaryLabel, 14pt frame
-- **Cost**: always visible. Uses `formatCompactCost` (drops cents for >= $1, e.g. "$18"), prefixed with `"~"`. Cost column: 38pt width. Cost text uses ThemeColors.tertiaryLabel for visual separation from token values.
+- **Cost**: always visible. Uses `formatCompactCost` (drops cents for >= $1, e.g. "$18"), prefixed with `"~"`. Cost column: 46pt width (`Layout.costColumn`). Cost text uses ThemeColors.tertiaryLabel for visual separation from token values.
 - **5-project limit**: shows top 5 by default. "Show more" expands to 10. "Show less" collapses. Controls row: "Show more"/"Show less" left (accent color) + sort button right — same line. State resets when section is collapsed.
 - **Search filter**: appears when expanded. Filters projects by name. Magnifying glass icon + plain text field in subtle rounded background.
 - Collapsed state: `@AppStorage("aibattery_projectsCollapsed")`
 - Accessibility: combined label per row with project name and token total
-- Column widths: cost 38pt, tokens 42pt
+- Column widths: cost 46pt (`Layout.costColumn`), tokens 42pt (`Layout.tokenColumn`)
 - Data source: JSONL entries only (stats-cache lacks per-entry cwd). Entries with nil/empty cwd grouped as "Other".
 
 Padding: H 16, V 8
@@ -364,7 +365,7 @@ All trend stats use `.caption` monospaced font with `ThemeColors.secondaryLabel`
 
 Mode-aware cost breakdown showing what the usage would cost on the pay-per-token API.
 - Header: `"API Equivalent"` (.caption, ThemeColors.secondaryLabel) + total cost (.caption monospaced semibold, `.copyable()`)
-- Per-model rows: display name (.caption2) + `"▶"` if active (.green) + cost (.caption2 monospaced, 54pt width) + tokens (.caption2 monospaced, 42pt width)
+- Per-model rows: display name (.caption2) + `"▶"` if active (.green) + cost (.caption2 monospaced, 46pt width = `Layout.costColumn`) + tokens (.caption2 monospaced, 42pt width)
 - Data source: `todayModelTokens` (5H), `weekModelTokens` (7D), `monthModelTokens` (12M) — JSONL entries filtered by time window
 - Cost uses `formatCompactCost` (no cents) everywhere
 

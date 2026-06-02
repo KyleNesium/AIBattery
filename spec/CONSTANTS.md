@@ -14,7 +14,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
 | Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck` | StatusChecker |
-| Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
+| Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
 | Token endpoint timeout | 30 sec | OAuthManager |
@@ -111,9 +111,9 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 
 | Threshold | Default | Notes |
 |-----------|---------|-------|
-| Usable context ratio | 0.80 | Claude Code auto-compacts at 80% of window |
-| Green ceiling | 60% | Below = optimal (of usable window) |
-| Red floor | 80% | Above = critical (of usable window) |
+| Usable context ratio | 1.0 | Percentages are calculated against the full context window (1M windows make the full window usable — no compaction reservation) |
+| Green ceiling | 60% | Below = optimal (of context window) |
+| Red floor | 80% | Above = critical (of context window) |
 | Turn count mild | 15 | Triggers mild warning |
 | Turn count strong | 25 | Triggers strong warning |
 | Input/output ratio | 20:1 | Triggers ratio warning (includes cache tokens) |
@@ -157,7 +157,6 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 |----------|-------|
 | Show cost | Always visible — API-equivalent cost shown in Projects header/rows and Insights cost section. No toggle. |
 | Context collapsed | `aibattery_contextCollapsed` (Bool, default false) |
-| Tokens collapsed | `aibattery_tokensCollapsed` (Bool, default false) |
 | Projects collapsed | `aibattery_projectsCollapsed` (Bool, default false) |
 | Activity collapsed | `aibattery_activityCollapsed` (Bool, default false) |
 | Format | `"$X.XX"` (full) or `"$X"` (compact, ≥$1), `"$X.XK"` (compact, ≥$1000), or `"<$0.01"` for sub-penny |
@@ -227,7 +226,7 @@ Pricing per million tokens:
 | Automatic downloads | Disabled (`automaticallyDownloadsUpdates = false`) |
 | Check interval | 0 (no scheduled checks — user-initiated only) |
 | Trigger | User clicks "Install Update" in banner (falls back to GitHub release if Sparkle not ready) |
-| Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after 5s (LSUIElement workaround) |
+| Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after a 60s safety timeout (normally delegate-driven via `didFinishUpdateCycleFor`; LSUIElement workaround) |
 | Entitlement | `com.apple.security.cs.disable-library-validation` — required for ad-hoc signed builds to load Sparkle.framework |
 | CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
@@ -259,7 +258,7 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Menu bar icon canvas | 22×22pt |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
-| Broken star fragment offset | 1.5pt |
+| Throttled ("broken") star | Static 12-pointed star (`renderThrottledIcon`); not a fragmented/burst glyph. Same star path scaled 1.25× — no fragment offset |
 | Recovery sparkle arm length | 1.6pt |
 | Recovery sparkle stroke width | 0.7pt |
 | Recovery sparkle alpha | 0.7 |
@@ -269,8 +268,6 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Pulse cycle duration | 4.0 sec |
 | Pulse tick interval | 500ms sparkle (4s ÷ 8), 1s red band (4s ÷ 8 × 2-step) |
 | Breath timer threshold | ≥95% usage or sparkle active (orange 80–95% uses static glow, no timer; throttled stops timer) |
-| Burst ray count | 12 |
-| Burst ray half-angle | 0.08 radians |
 | Health dot size | 8pt |
 | Status dot size | 6pt |
 | Model dot size | 8pt |
@@ -279,7 +276,7 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Chevron icon size | 9pt (bold weight) |
 | Chevron corner radius | 4pt |
 | Chart height | 50pt |
-| Chart modes | 24H (hourly trailing), 7D (daily rolling), 12M (monthly rolling) |
+| Chart modes | 5H (15-min buckets), 7D (daily rolling), 12M (monthly rolling) — `ActivityChartMode` |
 
 ## Animations
 
@@ -415,7 +412,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | Constant | Value |
 |----------|-------|
 | AppStorage key | `aibattery_chartMode` |
-| Default mode | `"24H"` (hourly) |
+| Default mode | `"5H"` (`ActivityChartMode.fiveHour`) |
 | Persists across sessions | Yes (via `@AppStorage`) |
 
 ## File Paths
@@ -430,15 +427,19 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 
 All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
-## Urgency Anchors (Auto Mode Tier 3)
+## Auto Mode Escalation (Tiers)
 
-Piecewise-linear interpolation for `urgencyScore(percent:mode:)`. Maps raw percentage to a normalized 0.0–1.0 urgency scale so different metrics with different threshold ranges can be compared fairly.
+Auto mode (`UsageSnapshot.autoResolvedMode`) escalates by **fixed thresholds**, not a
+normalized urgency score. There is no `urgencyScore` function. The thresholds are listed
+in Health Thresholds above:
 
-| Mode | Anchor points (percent → urgency) |
-|------|-----------------------------------|
-| `.fiveHour` | 0→0, 50→0.25, 80→0.50, 95→0.75, 100→1.0 |
-| `.sevenDay` | 0→0, 50→0.25, 80→0.50, 95→0.75, 100→1.0 |
-| `.contextHealth` | 0→0, 60→0.25, 80→0.50, 100→1.0 |
+| Tier | Trigger | Constant |
+|------|---------|----------|
+| 2 (rate limit) | Rate-limit utilization ≥ 80% | `rateLimitEscalationThreshold = 80.0` (`UsageSnapshot`) |
+| 3 (context) | Context health ≥ 60% | `contextEscalationThreshold = 60.0` (`UsageSnapshot`) |
+
+A 10pp hysteresis de-escalation band (`UsageViewModel`) prevents flapping — the mode must
+drop that far below its escalation threshold before releasing.
 
 ## Color Thresholds
 
@@ -548,3 +549,6 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Minimum utilization | 20% (below this, estimate not shown) |
 | Minimum elapsed time | 60 sec (need meaningful burn rate) |
 | Shown when | Estimate < remaining time before reset |
+| Calibrated 5h limit key | `aibattery_calibrated_5h_limit` (Double) — `LocalUsageEstimate` |
+| Calibrated 7d limit key | `aibattery_calibrated_7d_limit` (Double) — `LocalUsageEstimate` |
+| Calibration timestamp key | `aibattery_calibrated_at` (Double, Unix timestamp) — `LocalUsageEstimate` |
