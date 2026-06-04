@@ -533,4 +533,84 @@ struct MenuBarMultiAccountTextTests {
         #expect(result.usedMultiAccount == false)
         #expect(result.text == "42%")
     }
+
+    // MARK: - Stale throttle suppression (unconfirmed data, e.g. on wake)
+
+    @Test("Unconfirmed single-account throttle: alarm suppressed, shows last-known percent")
+    func resolveDisplay_unconfirmed_singleThrottle_suppressed() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let throttled = Self.usage(
+            fiveHourUtilization: 1.0,
+            fiveHourReset: now.addingTimeInterval(300),
+            fiveHourStatus: "throttled",
+            overallStatus: "throttled"
+        )
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: [:],
+            order: ["a"],
+            activeRateLimits: throttled,
+            activePercent: 100,
+            metricMode: .fiveHour,
+            confirmed: false,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.isExhausted == false) // no broken star on stale data
+        #expect(result.countdownReset == nil) // no countdown timer
+        #expect(result.text == "100%") // last-known percent, not "5H 5m"
+    }
+
+    @Test("Confirmed single-account throttle still alarms (suppression is opt-in via confirmed:false)")
+    func resolveDisplay_confirmed_singleThrottle_alarms() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(300)
+        let throttled = Self.usage(
+            fiveHourUtilization: 1.0,
+            fiveHourReset: reset,
+            fiveHourStatus: "throttled",
+            overallStatus: "throttled"
+        )
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: [:],
+            order: ["a"],
+            activeRateLimits: throttled,
+            activePercent: 100,
+            metricMode: .fiveHour,
+            confirmed: true,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.isExhausted == true)
+        #expect(result.countdownReset == reset)
+        #expect(result.text.hasPrefix("5H "))
+    }
+
+    @Test("Unconfirmed multi-account throttle: alarm suppressed, shows percent strip")
+    func resolveDisplay_unconfirmed_multiThrottle_suppressed() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let a = Self.usage(fiveHourUtilization: 0.42)
+        let throttled = Self.usage(
+            fiveHourUtilization: 1.0,
+            fiveHourReset: now.addingTimeInterval(300),
+            fiveHourStatus: "throttled",
+            overallStatus: "throttled"
+        )
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": a, "b": throttled],
+            order: ["a", "b"],
+            activeRateLimits: a,
+            activePercent: 42,
+            metricMode: .fiveHour,
+            confirmed: false,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.usedMultiAccount == true)
+        #expect(result.isExhausted == false)
+        #expect(result.countdownReset == nil)
+        #expect(result.text == "42%\u{00A0}|\u{00A0}100%") // percent strip, not countdown
+    }
 }
