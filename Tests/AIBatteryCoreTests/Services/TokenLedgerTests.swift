@@ -307,4 +307,65 @@ struct TokenLedgerTests {
         #expect(result.first?.inputTokens == 1_000)
         #expect(result.first?.outputTokens == 500)
     }
+
+    // MARK: - Account migration (pending → resolved)
+
+    @Test @MainActor func migrate_movesHighWaterToNewIdAndDropsOld() {
+        let ledger = TokenLedger(fileURL: makeTempURL())
+        _ = ledger.merge([makeToken(input: 1_000, output: 500)], accountId: "pending-x")
+        // Target already holds a lower value for the same model.
+        _ = ledger.merge([makeToken(input: 200, output: 100)], accountId: "org-real")
+
+        ledger.migrate(from: "pending-x", to: "org-real")
+
+        // org-real keeps the max of both entries.
+        let merged = ledger.merge([], accountId: "org-real")
+        #expect(merged.count == 1)
+        #expect(merged[0].inputTokens == 1_000)
+        #expect(merged[0].outputTokens == 500)
+        // The pending entry is removed.
+        #expect(ledger.merge([], accountId: "pending-x").isEmpty)
+    }
+
+    @Test @MainActor func migrate_noopWhenSourceMissing() {
+        let ledger = TokenLedger(fileURL: makeTempURL())
+        _ = ledger.merge([makeToken(input: 100)], accountId: "org-real")
+        ledger.migrate(from: "pending-absent", to: "org-real")
+        #expect(ledger.merge([], accountId: "org-real").first?.inputTokens == 100)
+    }
+
+    @Test @MainActor func migrate_persistsAcrossReload() {
+        let url = makeTempURL()
+        let l1 = TokenLedger(fileURL: url)
+        _ = l1.merge([makeToken(input: 1_000)], accountId: "pending-x")
+        l1.migrate(from: "pending-x", to: "org-real")
+        l1.flushForTesting()
+
+        let l2 = TokenLedger(fileURL: url)
+        #expect(l2.merge([], accountId: "org-real").first?.inputTokens == 1_000)
+        #expect(l2.merge([], accountId: "pending-x").isEmpty)
+    }
+
+    // MARK: - Orphan pruning
+
+    @Test @MainActor func pruneAccounts_removesNonLiveEntries() {
+        let ledger = TokenLedger(fileURL: makeTempURL())
+        _ = ledger.merge([makeToken(input: 10)], accountId: "live")
+        _ = ledger.merge([makeToken(input: 20)], accountId: "pending-orphan")
+        _ = ledger.merge([makeToken(input: 30)], accountId: "test-stray")
+
+        ledger.pruneAccounts(keeping: ["live"])
+
+        #expect(ledger.merge([], accountId: "live").first?.inputTokens == 10)
+        #expect(ledger.merge([], accountId: "pending-orphan").isEmpty)
+        #expect(ledger.merge([], accountId: "test-stray").isEmpty)
+    }
+
+    @Test @MainActor func pruneAccounts_emptyKeepSet_isNoop() {
+        let ledger = TokenLedger(fileURL: makeTempURL())
+        _ = ledger.merge([makeToken(input: 10)], accountId: "live")
+        // Guard: an empty live set must never wipe legitimately-held history.
+        ledger.pruneAccounts(keeping: [])
+        #expect(ledger.merge([], accountId: "live").first?.inputTokens == 10)
+    }
 }

@@ -10,13 +10,17 @@ final class UsageAggregator: @unchecked Sendable {
 
     private let statsCacheReader: StatsCacheReader
     private let sessionLogReader: SessionLogReader
+    /// Persistent high-water-mark store for all-time per-model totals. Injectable so
+    /// tests don't write to the user's real `token-ledger.json` (default `.shared`).
+    private let ledger: TokenLedger
     /// Guards all mutable cached state — prevents concurrent Task.detached calls
     /// from racing on cachedSnapshot, lastRateLimits, etc.
     private let lock = NSLock()
 
-    init(statsCacheReader: StatsCacheReader, sessionLogReader: SessionLogReader) {
+    init(statsCacheReader: StatsCacheReader, sessionLogReader: SessionLogReader, ledger: TokenLedger = .shared) {
         self.statsCacheReader = statsCacheReader
         self.sessionLogReader = sessionLogReader
+        self.ledger = ledger
     }
 
     convenience init() {
@@ -321,7 +325,7 @@ final class UsageAggregator: @unchecked Sendable {
 
         // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
         let modelTokens: [ModelTokenSummary] = if let accountId {
-            TokenLedger.shared.merge(rawModelTokens, accountId: accountId)
+            ledger.merge(rawModelTokens, accountId: accountId)
         } else {
             rawModelTokens
         }

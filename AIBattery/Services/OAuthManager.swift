@@ -66,6 +66,18 @@ public final class OAuthManager: ObservableObject {
         updateAuthState()
     }
 
+    /// Launch-time maintenance: drop token-ledger entries for accounts the user no
+    /// longer has — orphaned `pending-<uuid>` ids left by pre-migration identity
+    /// resolutions, removed accounts, and any stray test ids that leaked into the file.
+    ///
+    /// Deliberately NOT called from `init` (and exposed as a separate public method)
+    /// so unit-test `OAuthManager()` construction never mutates the real
+    /// `token-ledger.json`. Call once from the app's launch path. Internally guarded
+    /// against an empty live set so a logged-out launch can't wipe held history.
+    public func pruneOrphanedLedgerAccounts() {
+        TokenLedger.shared.pruneAccounts(keeping: Set(accountStore.accounts.map(\.id)))
+    }
+
     // MARK: - Public API
 
     /// Returns a valid access token for the active account, refreshing if needed.
@@ -274,6 +286,10 @@ public final class OAuthManager: ObservableObject {
 
         // Update account store (handles duplicate detection/merge internally)
         accountStore.update(oldId: tempId, with: updated)
+
+        // Move the token-ledger high-water marks from the pending id to the real org id
+        // so the account's accumulated history follows it instead of orphaning.
+        TokenLedger.shared.migrate(from: tempId, to: realOrgId)
 
         // Clean up refresh tasks
         if let task = refreshTasks.removeValue(forKey: tempId) {
