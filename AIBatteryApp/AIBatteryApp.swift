@@ -17,6 +17,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             #endif
             statusBarManager.setup(viewModel: viewModel, oauthManager: oauthManager)
             LaunchAtLoginManager.reregisterIfNeeded()
+            // One-shot launch maintenance: clear orphaned token-ledger entries
+            // (resolved pending-* ids, removed accounts, stray test ids).
+            oauthManager.pruneOrphanedLedgerAccounts()
         }
     }
 }

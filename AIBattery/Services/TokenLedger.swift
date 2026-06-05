@@ -104,6 +104,53 @@ final class TokenLedger: @unchecked Sendable {
         return result.sorted { $0.totalTokens > $1.totalTokens }
     }
 
+    // MARK: - Account lifecycle
+
+    /// Move a pending account's high-water marks into its resolved real-org-id entry,
+    /// then drop the pending entry. Called from `OAuthManager.resolveAccountIdentity`
+    /// when a `pending-<uuid>` account's identity resolves, so its accumulated token
+    /// history follows the account instead of orphaning in the ledger forever.
+    /// High-water semantics are preserved: the target keeps the max of both entries.
+    func migrate(from oldId: String, to newId: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard oldId != newId, let oldData = ledger.accounts[oldId] else { return }
+
+        var target = ledger.accounts[newId] ?? [:]
+        for (modelId, record) in oldData {
+            let existing = target[modelId]
+            target[modelId] = ModelTokenRecord(
+                input: max(record.input, existing?.input ?? 0),
+                output: max(record.output, existing?.output ?? 0),
+                cacheRead: max(record.cacheRead, existing?.cacheRead ?? 0),
+                cacheWrite: max(record.cacheWrite, existing?.cacheWrite ?? 0)
+            )
+        }
+        ledger.accounts[newId] = target
+        ledger.accounts.removeValue(forKey: oldId)
+        isDirty = true
+        save()
+    }
+
+    /// Drop ledger entries for accounts the user no longer has — orphaned `pending-<uuid>`
+    /// ids left by pre-migration identity resolutions, removed accounts, and any stray
+    /// test-account ids that leaked into the file. Called once on launch with the live
+    /// account ids.
+    ///
+    /// No-op when `liveAccountIds` is empty so a logged-out / fresh-launch transient
+    /// state can never wipe legitimately-held high-water history.
+    func pruneAccounts(keeping liveAccountIds: Set<String>) {
+        guard !liveAccountIds.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        let before = ledger.accounts.count
+        ledger.accounts = ledger.accounts.filter { liveAccountIds.contains($0.key) }
+        if ledger.accounts.count != before {
+            isDirty = true
+            save()
+        }
+    }
+
     // MARK: - Storage
 
     private static var defaultFileURL: URL {
