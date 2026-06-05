@@ -29,29 +29,23 @@
 │ [██░░░░░░░░░░░░░░░░░░░░░]          │
 │ 97% remaining      Resets in 6d 2h  │
 ├──────────────────────────────────────┤
-│ Context Health    < 1/5 > ⟳ ● 60%  │  ← ❸ Context
+│ Context           < 1/5 > ⟳ ● 60%  │  ← ❸ Context
 │ Code · main · 4h 45m · Today 14:32   │     health
 │ [██████████████░░░░░░░░]             │   (multi-session)
-│ ~64K of 160K usable                  │
+│ ~64K of 200K usable                  │
 │ 358 turns · Opus 4.6                 │
 ├──────────────────────────────────────┤
-│ Tokens    92% cached  ~$12  18.9M   │  ← ❹ Tokens
-│   Opus 4.6  ▶     ~$8.50  12.3M     │   (per-model)
-│     93% cached · 29K out             │
-│   Sonnet 4.5       ~$3.81  6.6M     │
-│     89% cached · 15K out             │
-├──────────────────────────────────────┤
-│ Projects          ↕ by tokens 18.9M │  ← ❹b Projects
-│   📁 AIBattery    ~$12  8.1M      │   (per-project,
-│   🔨 my-webapp     ~$4  2.3M      │    6 shown, expand)
-│   ⌨ scripts        ~$1  1.2M      │
+│ Projects          ↕ by tokens 18.9M │  ← ❹ Projects
+│   1 AIBattery    ~$12  8.1M      │   (per-project,
+│   2 my-webapp     ~$4  2.3M      │    6 shown, expand)
+│   3 scripts        ~$1  1.2M      │
 │        ▾ Show all (8)              │
 ├──────────────────────────────────────┤
 │ Insights  515M  [5H] [7D] [12M]     │  ← ❺ Chart
 │ ~~~ area chart ~~~                   │
 │ HH:MM  HH:MM  HH:MM  (trailing 5h)  │
-│   All Time  1,247 msgs · 89 sess   │     (insight rows
-│   Longest  2h 15m · 42 msgs        │      below trend)
+│   All Time  18.9M tokens · 89 sess │     (insight rows
+│   Longest  2h 15m · 42 turns        │      below trend)
 │   Period   Nov 6 – Mar 10, 2026    │
 ├──────────────────────────────────────┤
 │ 📊Usage↗  ●Status↗   Logout  Quit │  ← ❻ Footer
@@ -70,7 +64,7 @@ UsagePopoverView (275px, VStack)
 ├── SettingsRow (if showSettings — toggled by gear icon)
 │   ├── Account name rows (depend on accountStore — stay in parent)
 │   ├── RefreshSettingsSection — owns refreshInterval
-│   ├── DisplaySettingsSection — owns idleSessionMinutes, colorblindMode
+│   ├── DisplaySettingsSection — owns idleSessionMinutes, colorblindMode, showAllAccountsInMenuBar
 │   ├── AlertSettingsSection — owns alertStatus, alertRateLimit, rateLimitThreshold
 │   └── LaunchAtLoginSection — owns launchAtLogin
 ├── Divider
@@ -97,7 +91,7 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 All font sizes, spacing values, layout dimensions, and animation durations are defined as named constants in `Utilities/`:
 - **Typography** — 24 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`, `Typography.trendSymbol`, `Typography.autoModeLabel`)
 - **Spacing** — 11 spacing constants (`micro` 1pt, `tight` 2pt, `xsmall` 3pt, `inner` 4pt, `small` 4pt, `gap` 6pt, `section` 8pt, `medium` 10pt, `authGap` 12pt, `sectionHorizontal` 16pt, `overlay` 24pt)
-- **Layout** — 35 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `borderWidth` 1.5pt, `subtleBorderWidth` 1pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt, `appIconSize` 48pt, `activityModePickerWidth` 120pt, `indexColumn` 14pt, `tutorialCardMaxWidth` 280pt, `accountPickerMaxWidth` 100pt, `clipboardIconOffset` 13pt)
+- **Layout** — 40 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `borderWidth` 1.5pt, `subtleBorderWidth` 1pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt, `appIconSize` 48pt, `activityModePickerWidth` 120pt, `indexColumn` 14pt, `tutorialCardMaxWidth` 280pt, `accountPickerMaxWidth` 100pt, `clipboardIconOffset` 13pt, `panelInitialHeight` 700pt, `panelMinHeight` 100pt, `menuBarInset` 40pt, `fallbackScreenHeight` 900pt, `chartTickWidth` 0.5pt)
 - **ThemeColors** — surface elevation (`surfaceLevel1`, `surfaceLevel2`), semantic strokes (`inactiveStroke` for unselected/idle outlines, `shadowColor` for elevated-control shadows), interactive states (`hoverFill`, `copyableHoverFill`), opacity tokens (`dividerOpacity` 0.3, `overlayBackdropOpacity` 0.4, `inactiveIndicatorOpacity` 0.45, `subtleBorderOpacity` 0.2, `hoverBorderOpacity` 0.4, `activeLabelOpacity` 0.5, `focusRingOpacity` 0.6, `shadowOpacity` 0.25, `disabledOpacity` 0.55, `disabledDeepOpacity` 0.25, `subtleElementOpacity` 0.12, `subtleStrokeOpacity` 0.35, `chartGradientStartOpacity` 0.3, `chartGradientEndOpacity` 0.1, `activeAccentOpacity` 0.6, `activeElementFillOpacity` 0.15, `enabledControlOpacity` 0.6)
 - **MotionConstants** — animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `fadeOut` 0.3s, `fadeIn` 0.3s, `dialog` 0.2s, `spin` 0.5s, `expandTransition` plain `.opacity` — `.move(edge:)` is forbidden inside the popover because the NSPanel resizes around the inserting view and the slide reads as a "jump"). Marquee timing tokens: `marqueePauseSeconds` 0.5, `marqueeHoldSeconds` 3.0, `marqueeRestartSeconds` 0.1, `marqueeFadeSettleSeconds` 0.6, `marqueeScrollSpeed` 30 pts/s, `marqueeScroll(travelPoints:)` builder.
 
@@ -110,12 +104,12 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 ### ❶ Header (`PopoverHeaderView`)
 
 - Header HStack alignment: `.center` (not `.firstTextBaseline`). The title (`Typography.sectionHeader`) and the account picker (`Typography.caption`) are different sizes; baseline-aligning them put the picker visibly below the title cap. `.center` aligns their visual centers.
-- Title: `"✦ AI Battery"` (.headline)
+- Title: `"✦ AI Battery"` (`Typography.sectionHeader` = `.subheadline.bold()`)
 - **Account picker**: always-visible dropdown Menu next to title
-  - Label: display name if set, otherwise `"Account N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
-  - Menu items: display name or `"Account N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
+  - Label: display name if set, otherwise `"User N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
+  - Menu items: display name or `"User N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
   - "Add Account" item (plus.circle icon) below divider when `canAddAccount` (< max) — triggers AuthView overlay
-  - `.menuStyle(.borderlessButton)`, `.fixedSize()`
+  - `.menuStyle(.borderlessButton)`, `.frame(maxWidth: Layout.accountPickerMaxWidth)` (100pt)
 - Gear button: `gearshape`, 11pt, toggles Settings panel
 - Loading spinner: ProgressView at 0.6 scale
 - **Update button** (`arrow.up.circle`, 11pt): three color states, no banner
@@ -129,7 +123,7 @@ All visual section dividers use `StyledDivider` — a shared component rendering
   - **"✕"** dismiss button (xmark.circle.fill, `Typography.bodyLabel`, ThemeColors.secondaryLabel) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
   - Install Update and Download buttons inside the banner use `LinkActionButton(size: .compact)` so they share font and spacing with every other inline action in the popover (Add Account, Test).
   - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
-- Padding: H 16, V 6
+- Padding: H 16, V 8 (`Spacing.section`)
 
 ### ❶b Settings (`SettingsRow` — private struct, decomposed into sub-views)
 
@@ -161,7 +155,7 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
   - Syncs with `SMAppService.mainApp.status` on appear
 
-**`sliderMarks()`**: `fileprivate` file-level helper for generating slider tick marks (shared by sections).
+**`sliderMarks()`**: internal file-level helper in `RefreshSettingsSection.swift` for generating slider tick marks (shared by sections).
 
 **Animations**:
 - Settings toggle: `withAnimation(MotionConstants.standard)` — `.easeOut(duration: 0.15)`
@@ -178,7 +172,7 @@ Padding: H 16, V 8
 
 ### Collapsible Sections
 
-Context Health, Tokens, Projects, and Activity sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, 8pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `tokensCollapsed`, `projectsCollapsed`, `activityCollapsed`). When collapsed, the header row shows with summary value on the right: Tokens shows total tokens + cost, Projects shows total tokens + cost, Activity shows vs-yesterday trend. No contextual hints (model names, project counts) in collapsed state. Collapse/expand animates with `MotionConstants.standard` (`.easeOut(duration: 0.15)`).
+Context, Projects, and Insights sections use `CollapsibleSectionHeader(title:collapsed:tooltip:)` — a shared view with rotating chevron (`chevron.right`, `Typography.chevronIcon` = 9pt bold), bold title, and VoiceOver labels. Collapsed state persists via `@AppStorage` per section (`contextCollapsed`, `projectsCollapsed`, `activityCollapsed` — there is no standalone Tokens section; it was merged into Insights and `tokensCollapsed` removed in v1.9.0). When collapsed, the header row shows with summary value on the right: Projects shows total tokens + cost, Insights shows vs-yesterday trend. No contextual hints (model names, project counts) in collapsed state. Collapse/expand animates with `MotionConstants.standard` (`.easeOut(duration: 0.15)`).
 
 ### Gate Views (`ProjectUsageGate`, `InsightsGate`)
 
@@ -189,13 +183,12 @@ Gate views check data availability and render the section + divider. Sections ow
 
 ### Metric Toggle (`MetricToggleView`)
 
-Single HStack in a rounded container (`ThemeColors.trackFill` at 0.5 opacity, cornerRadius 6): auto mode button (left) + 1px vertical divider + custom tab buttons (equal-width, ForEach over `MetricMode.allCases`).
+Single HStack (no container fill, no divider): auto mode button (left) + custom tab buttons (equal-width, ForEach over `MetricMode.allCases`).
 
 **Custom tab bar**: 3 tab buttons using `MetricMode.shortLabel` — `"5 Hour"`, `"7 Day"`, `"Context"`. Single stable `pickerBinding` routes auto/manual mode internally (avoids SwiftUI AttributeGraph crash from swapping Binding instances). Auto mode syncs picker selection to the auto-resolved mode via this binding.
-- **Selected tab**: `ThemeColors.action` text, `Typography.bodyLabel` font, `ThemeColors.action.opacity(0.2)` background pill (cornerRadius 4), subtle `ThemeColors.action.opacity(0.4)` border (0.5pt).
-- **Unselected tab**: `ThemeColors.secondaryLabel` text, `Typography.base` font, no background.
-- **Hover** (unselected): `ThemeColors.hoverFill` background (cornerRadius 4).
-- **Vertical divider**: `Color.secondary.opacity(0.2)`, 1pt wide, 14pt tall — separates auto button from tab row.
+- **Selected tab**: `.primary` text, `Typography.caption` font, `ThemeColors.surfaceLevel2` background pill (cornerRadius `Layout.tabCornerRadius`) with a `ThemeColors.shadowColor` shadow (no border).
+- **Unselected tab**: `ThemeColors.secondaryLabel` text, `Typography.caption` font, no background.
+- **Hover** (unselected): `ThemeColors.hoverFill` background (cornerRadius `Layout.tabCornerRadius`).
 
 **Auto mode button** ("A"): 20pt circle, `.system(size: 10, weight: .heavy, design: .rounded)`.
 - **Active**: `ThemeColors.action` text, `ThemeColors.action.opacity(0.15)` fill, 1.5pt `ThemeColors.action` stroke at 0.6 opacity, action shadow (radius 4pt, 0.5 opacity). Static styling — no pulse animation. Controlled by the `autoMetricMode` boolean.
@@ -203,16 +196,16 @@ Single HStack in a rounded container (`ThemeColors.trackFill` at 0.5 opacity, co
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Tab buttons dim to `ThemeColors.disabledOpacity` (0.55) and are disabled when auto mode is active.
 - **Auto highlight**: when auto mode is active, the tab selection syncs to the auto-resolved mode via the single pickerBinding, visually highlighting which tab was chosen.
-- **Behavior**: auto mode uses three-tier priority via `snapshot.autoResolvedMode`: throttled → always rate limit window; near-exhaustion (>=95%) → rate limit unconditionally beats context health; **Tier 3** — urgency-normalized comparison via `urgencyScore(percent:mode:)` with piecewise-linear interpolation (see CONSTANTS.md for anchor points); highest urgency wins, context breaks ties. Applied in both popover and menu bar label.
+- **Behavior**: auto mode uses a **four-tier deterministic escalation ladder** via `snapshot.autoResolvedMode` (no urgency score, no interpolation): **Tier 1** throttled → the throttled rate-limit window (5h/7d by `representativeClaim`); **Tier 2** `max(5h, 7d) >= 80%` (`rateLimitEscalationThreshold`) → the higher-consumed rate-limit window; **Tier 3** active session AND context health `>= 60%` (`contextEscalationThreshold`) → context health; **Tier 4** default → binding (highest-consumed) rate-limit window. A 10pp hysteresis de-escalation band (`UsageViewModel`) holds the prior mode until the metric drops that far below its threshold; upward escalation and throttle bypass hysteresis. Applied in both popover and menu bar label.
 
-Padding: outer H 16, V 8; container inner V 4
+Padding: outer H 16, V 6 (`Spacing.gap`)
 Spacing: auto mode button has 8pt trailing padding (`Spacing.section`); tab buttons spaced 4pt (`Spacing.small`)
 
 ### MarqueeText (`Views/MarqueeText.swift`)
 
 News-ticker style scrolling text view. Supports single or multiple texts.
 
-- **Single text**: if text fits container, displays statically. If wider, scrolls left then right (bouncing) at 30pt/s with 2s pause at each end.
+- **Single text**: if text fits container, displays statically. If wider, scrolls left then right (bouncing) at 30pt/s with a 0.5s pause (`MotionConstants.marqueePauseSeconds`) at each end.
 - **Multiple texts**: scrolls current text left (if needed), then cross-fades (0.3s out → swap → 0.3s in) to the next text. Non-scrolling texts hold for 3s before advancing. Cycles endlessly.
 - Container: `GeometryReader` + `.clipped()`, 14pt height.
 - Text measured via background `GeometryReader`, re-measured on index change via `.id(currentIndex)` and on geometry width change via `.onChange(of:)`.
@@ -222,17 +215,17 @@ News-ticker style scrolling text view. Supports single or multiple texts.
 `FiveHourBarSection` + `SevenDayBarSection`, each wrapping a shared `UsageBar` view.
 
 Each bar:
-- **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (.system 9pt, monospaced, .tertiary, rounded background) + throttle warning icon + token total (monoCaption, white 70% opacity, tokenColumn-width trailing) + percentage (.headline, monospaced, semibold)
+- **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (`Typography.badgeLabel` = .system 10pt, monospaced, .tertiary, rounded background) + throttle warning icon + token total (monoCaption, `ThemeColors.tertiaryLabel`, tokenColumn-width trailing) + percentage (.headline, monospaced, semibold)
   - Token total shows tokens consumed in the active rate limit window, aligned to the window boundary via `resetsAt`. Uses `fiveHourWindowTokens(resetsAt:)` / `sevenDayWindowTokens(resetsAt:)` — sums only buckets/days within the actual window so the count resets when the window resets.
-- **Progress bar**: 8pt height, 3pt corner radius. Background: primary 0.1 opacity. Fill: color by percent.
+- **Progress bar**: 8pt height, 3pt corner radius. Background: `ThemeColors.trackFill` (black 0.14 light / white 0.1 dark). Fill: color by percent.
 - **Detail row**: left status + reset countdown on right
   - Normal: `"X% remaining"` (.caption2, secondaryLabel) + `"Resets in Xh Ym"` (.caption2, .tertiary)
   - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 20%, estimate before reset)
-  - Throttled: `"Rate limited"` (.caption2, .danger) — shown when per-window status is `"throttled"` OR overall `isThrottled` and window is at 100%
-  - **Reset expired, API still shows usage** (percent ≥ 1): `"Resets soon"` (.caption2, .caution) — waiting for API confirmation
+  - Throttled: `"Throttled"` (.caption2, .danger) — shown when per-window status is `"throttled"` OR overall `isThrottled` and window is at 100%
+  - **Reset expired, API still shows usage** (percent ≥ 1): `"Resetting…"` (.caption2, .caution) — waiting for API confirmation
   - **Reset confirmed** (expired + percent < 1): sparkles icon + `"Reset"` (.caption2, .green) — celebration state
 
-Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `1-59m` → "in Xm", `<60s` → "in Xs" (seconds countdown), expired → "soon" or green "Reset"
+Reset time format: `>24h` → "in Xd Yh", `1-24h` → "in Xh Ym", `1-59m` → "in Xm", `<60s` → "in Xs" (seconds countdown). Expired with usage still showing → `"Resetting…"`; expired and confirmed (percent < 1) → green `"Reset"`.
 
 Padding: H 16, V 8
 
@@ -240,14 +233,14 @@ Padding: H 16, V 8
 
 Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Backward-compat `init(health:onRefresh:)` for single session.
 
-- **Header row**: `"Context Health"` (.subheadline.bold) + session toggle + refresh + health badge
+- **Header row**: `"Context"` (.subheadline.bold) + session toggle + refresh + health badge
 - **Session info** (two lines below header, .caption2, .tertiary):
   - Line 1: `projectName · gitBranch · sessionId[:8]` — project, branch, and 8-char session ID prefix (`.copyable()`) for cross-referencing
   - Line 2: `duration · lastActivity · velocity` — e.g. "2h 15m · Today 14:32 · 1.2K/min"
   - Falls back to `"Latest session"` if no metadata on line 1
 - **Session toggle** (if multiple sessions): `< 1/3 >` `ChevronButton` components
   - `@State selectedIndex` tracks current session (position 1 = highest context usage)
-  - `ChevronButton`: 22pt square hit target, `chevron.left`/`chevron.right` icons at 9pt bold, 4pt corner radius background with press highlight (`Color.primary.opacity(0.1)`), `.plain` button style. Disabled state uses 0.15 opacity; enabled uses 0.6 opacity.
+  - `ChevronButton`: 22pt square hit target, `chevron.left`/`chevron.right` icons at 9pt bold, 4pt corner radius background with press highlight (`ThemeColors.hoverFill`), `.plain` button style. Disabled state uses 0.25 opacity (`disabledDeepOpacity`); enabled uses 0.6 opacity (`enabledControlOpacity`).
   - Left/right chevrons with `MotionConstants.snappy` animation (`.easeOut(duration: 0.1)`)
   - Counter: monospaced caption2, e.g. `"1/3"`
 - **Swipe gesture**: `DragGesture(minimumDistance: 20)` on main VStack — horizontal drag >50pt or fast flick (velocity >300pt/s) navigates prev/next session (same animation as chevron buttons)
@@ -255,12 +248,12 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 - **VoiceOver**: `.accessibilityAdjustableAction` on section — increment/decrement maps to next/previous session
 - **Stale session badge** (if lastActivity > 30 min and band != .green): amber dot (6pt) + `"Idle Xm"` (.caption2, .orange)
 - **Expanded tooltip**: `.help()` on session info label with full details — session ID, model, context window, all timestamps, all token counts, warnings
-- **Copy details button**: `doc.on.clipboard` 10pt, .secondary → green `doc.on.clipboard.fill` for 1.5s after click. Copies full session details (exact token counts, model, project, branch, warnings) to clipboard via `SessionInfoFormatter.copyableDetails(for:)`.
+- **Copy details**: right-click context menu (`.contextMenu`) with a `"Copy Session Details"` button — copies full session details (exact token counts, model, project, branch, warnings) via `SessionInfoFormatter.copyableDetails(for:)`. (No inline `doc.on.clipboard` button.)
 - **Refresh button**: `arrow.clockwise` 10pt, .secondary
-- **Health badge**: 8pt colored circle + percentage in monospaced subheadline semibold
+- **Health badge**: 8pt colored circle + percentage in `Typography.monoValue` (monospaced headline semibold)
 - **Gauge bar**: same style as usage bars (8pt, 3pt radius), width proportional to usagePercentage
 - **Detail row**: `"~{remaining} of {usableWindow} usable"` (.caption, ThemeColors.secondaryLabel) + `"{turnCount} turns · {modelName}"` (.caption2, ThemeColors.tertiaryLabel)
-  - Percentage and remaining are relative to usable window (80% of raw context window)
+  - Percentage and remaining are relative to the usable window, which currently equals the full context window (`usableContextRatio = 1.0`)
   - 100% = Claude Code is about to auto-compact
 - **Safe minimum hint** (orange/red only): `"(keep above ~{20% of usable} for best quality)"` (.caption2, .tertiary)
 - **Warnings**: triangle icon + message. Strong = filled triangle, red. Mild = outline triangle, orange.
@@ -300,7 +293,7 @@ Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Token
 
 - Header: `"Projects"` (.subheadline.bold) + total (.subheadline, monospaced, semibold)
 - **Sort toggle**: right-aligned button (directional arrow icon + label), cycles through 4 modes: tokens descending, cost descending, cost ascending, name alphabetical. Only shown when 2+ projects.
-- Per-project row: icon + project name (.caption) + cost (optional) + total tokens (.caption monospaced, ThemeColors.secondaryLabel)
+- Per-project row: numbered rank + project name (.caption) + cost (optional) + total tokens (.caption monospaced, ThemeColors.secondaryLabel) — no leading icon
 - Project index: numbered rank (`1`, `2`, `3`, ...) in .caption2 monospaced, ThemeColors.tertiaryLabel, 14pt frame
 - **Cost**: always visible. Uses `formatCompactCost` (drops cents for >= $1, e.g. "$18"), prefixed with `"~"`. Cost column: 46pt width (`Layout.costColumn`). Cost text uses ThemeColors.tertiaryLabel for visual separation from token values.
 - **5-project limit**: shows top 5 by default. "Show more" expands to 10. "Show less" collapses. Controls row: "Show more"/"Show less" left (accent color) + sort button right — same line. State resets when section is collapsed.
@@ -316,8 +309,8 @@ Padding: H 16, V 8
 
 `CopyableModifier` ViewModifier applied via `.copyable(_ value:)` extension:
 - Copies formatted display value to `NSPasteboard.general` on tap
-- Hover feedback: pointer cursor (`NSCursor.pointingHand`) + subtle background highlight (`.primary.opacity(0.10)`)
-- Brief clipboard icon overlay (`doc.on.clipboard.fill`, 9pt, ThemeColors.secondaryLabel, 1.2s duration, `.scale.combined(with: .opacity)` transition, offset right of content)
+- Hover feedback: pointer cursor (`NSCursor.pointingHand`) + subtle background highlight (`ThemeColors.copyableHoverFill`, black/white 0.15)
+- Brief clipboard icon overlay (`doc.on.clipboard.fill`, 9pt, ThemeColors.secondaryLabel, 1.5s duration via `MotionConstants.clipboardFeedbackNs`, `.scale.combined(with: .opacity)` transition, offset right of content)
 - `.help` tooltip shows the value
 - Applied to: usage percentages, token counts, health stats, insight summaries, cost values, session ID prefix
 
@@ -325,7 +318,7 @@ Padding: H 16, V 8
 
 Unified section combining activity chart, API-equivalent cost breakdown, and cumulative stats. Positioned below Projects section.
 
-- Header row: `"Activity"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
+- Header row: `"Insights"` (.subheadline.bold()) + segmented picker (.segmented, width 120, scaleEffect 0.8)
 - Toggle modes: `"5H"` (5-hour), `"7D"` (7-day), `"12M"` (12-month)
 - **Mode persistence**: `@AppStorage("aibattery_chartMode")` — persists across popover close/reopen
 - **Collapsed summary**: vs-yesterday change indicator (arrow + delta, colored) — inline right of header
@@ -340,9 +333,9 @@ Chart styling (all modes):
   - Height: 50pt
 
 X-axis per mode:
-  - **5H**: 20 × 15-minute token buckets. X-axis shows clock times at offsets [0, 5, 10, 15, 19]. Domain 0...19. Font: `.system(size: 8)`.
-  - **7D**: Rolling 7-day window. Day abbreviation (`.system(size: 9)`) for all days including today
-  - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `.system(size: 9)`
+  - **5H**: 20 × 15-minute token buckets. X-axis shows clock times at offsets [0, 5, 10, 15, 19]. Domain 0...19. Font: `Typography.decorativeIcon` (9pt).
+  - **7D**: Rolling 7-day window. Day abbreviation (`Typography.monoTiny` = 10pt monospaced) for all days including today
+  - **12M**: Rolling 12-month window. 3-letter month (`"MMM"` → Jan, Feb, etc.), `Typography.monoTiny` (10pt monospaced)
 
 Data per mode (cached per-mode with fingerprint — toggling back to a mode skips recomputation if underlying data unchanged):
   - **5H**: `fiveHourTokenBuckets` — 20 × 15-minute token buckets (all 4 token types)
@@ -361,10 +354,9 @@ All trend stats use `.caption` monospaced font with `ThemeColors.secondaryLabel`
 
 `.padding(.top, 4)`
 
-**API Equivalent cost** (below trend, separated by subtle divider):
+**Cost breakdown** (below trend, separated by subtle divider):
 
-Mode-aware cost breakdown showing what the usage would cost on the pay-per-token API.
-- Header: `"API Equivalent"` (.caption, ThemeColors.secondaryLabel) + total cost (.caption monospaced semibold, `.copyable()`)
+Mode-aware per-model breakdown showing what the usage would cost on the pay-per-token API. Renders **per-model rows only** — there is no `"API Equivalent"` header text and no aggregated total-cost line.
 - Per-model rows: display name (.caption2) + `"▶"` if active (.green) + cost (.caption2 monospaced, 46pt width = `Layout.costColumn`) + tokens (.caption2 monospaced, 42pt width)
 - Data source: `todayModelTokens` (5H), `weekModelTokens` (7D), `monthModelTokens` (12M) — JSONL entries filtered by time window
 - Cost uses `formatCompactCost` (no cents) everywhere
@@ -378,8 +370,8 @@ Insight rows display cumulative stats using `insightRow(label:value:tooltip:)` h
 | Row | Label | Value | Condition |
 |-----|-------|-------|-----------|
 | Period | `"Period"` | `"Nov 6 – Mar 16, 2026"` (date range) | `firstSessionDate` exists |
-| Longest | `"Longest"` | `"{duration} · {messages} msgs"` | `longestSessionDuration` exists & messages > 0 |
-| All Time | `"All Time"` | `"{totalMessages} msgs · {totalSessions} sessions"` | Always (at bottom) |
+| Longest | `"Longest"` | `"{duration} · {messages} turns"` | `longestSessionDuration` exists & messages > 0 |
+| All Time | `"All Time"` | `"{totalTokens} tokens · {totalSessions} sessions"` | Always (at bottom) |
 
 Date range uses `DateFormatters.formatDateRange(from:to:)` — same year omits start year, cross-year includes both.
 
@@ -388,17 +380,17 @@ Padding: H 16, V 8
 ### ❻ Footer (`PopoverFooterView`)
 
 Links row in HStack (spacing 10):
-1. **Usage**: chart.bar icon (9pt) + "Usage" + arrow.up.right (6pt) → opens `claude.ai/settings/usage`
-2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (6pt) → opens `status.claude.com`
+1. **Usage**: chart.bar icon (`Typography.monoTiny`, 10pt) + "Usage" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `claude.ai/settings/usage`
+2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `status.claude.com`
 3. _(Spacer)_
-4. **Logout**: rectangle.portrait.and.arrow.right icon (9pt) + "Logout" → two-tap confirmation (first tap shows "Confirm?" in red, auto-reverts after 3s, second tap clears OAuth tokens)
-5. **Quit**: xmark.circle icon (9pt) + "Quit" → terminates app (also via Cmd+Q keyboard shortcut)
+4. **Logout**: rectangle.portrait.and.arrow.right icon (`Typography.monoTiny`, 10pt) + "Logout" → two-tap confirmation (first tap shows "Confirm?" in red, auto-reverts after 3s, second tap clears OAuth tokens)
+5. **Quit**: xmark.circle icon (`Typography.monoTiny`, 10pt) + "Quit" → terminates app (also via Cmd+Q keyboard shortcut)
 
 All five entries are `FooterLink`s. External links (Usage, Status) pass `showsExternalArrow: true`; action links (Logout, Quit) pass `false`. Logout supplies `foregroundOverride: ThemeColors.danger` while `showLogoutConfirm` is true; Quit pins `foregroundOverride: ThemeColors.secondaryLabel`. Hover and `@FocusState` are unified — both cue an underline + brightened foreground so mouse and keyboard users get the same affordance. Each button's inner HStack uses `.fixedSize()` to prevent text wrapping. Links row spacing: 10pt.
 
 **Incident banner / timestamp** (mutually exclusive):
 - **Active incidents** (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity). Replaces timestamp.
-- **No incidents**: `"Updated {relative time}"` right-aligned (.system 9pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time.
+- **No incidents**: `"Updated {relative time}"` right-aligned (`Typography.monoTiny` = .system 10pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time.
 
 All text: .caption2, ThemeColors.secondaryLabel. Padding: H 16, V 8 (section).
 
@@ -465,7 +457,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Centered at (11, 11), rotation offset -π/2 (starts from top)
 - Fill: solid color from caller (matches active metric mode — rate limit or context health thresholds), no stroke
 - `isTemplate = false`
-- `alignmentRect` inset `(left: 1, right: 5)` — still set on the per-icon `NSImage` for anywhere the star is used outside the menu bar button (SwiftUI previews, tests). The menu bar pill no longer relies on it — `combinedStatusBarImage` positions the star directly by trimming the 3pt canvas padding on each side
+- `alignmentRect` inset `(left: 1, right: 5)` — still set on the per-icon `NSImage` for anywhere the star is used outside the menu bar button (SwiftUI previews, tests). The menu bar pill no longer relies on it — `combinedStatusBarImage` positions the star directly by trimming the 4pt canvas padding (`iconCanvasPadding`) on each side
 
 **Three render modes** based on state:
 
@@ -475,12 +467,10 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
    - **Red band (≥95%, not throttled)**: breathing star with 12-pointed star glow (spiky, aggressive). Star scale 1.0–1.14x, glow alpha 0.12–0.32. Timer active.
    - Sine-wave breathing factor from discrete pulse step
 
-2. **Broken mode (throttled)**: star fractures into 4 triangular fragments with starburst rays — **static, no animation**
-   - Each point of the 4-pointed star is a triangle (outer tip + two adjacent inner vertices)
-   - Each triangle offset outward from center by ~1.5pt along its radial direction
-   - Fragment scale fixed at 1.14x (peak intensity)
-   - **Starburst glow**: 12 thin triangular rays radiating outward, alpha 0.45, ray tips extend ~1.3× past star tips
-   - Visible gaps between fragments — the star appears "shattered" with an explosive burst behind it
+2. **Broken mode (throttled)**: a static "spiky" star — **no animation, no fragments** (`renderThrottledIcon`)
+   - A 12-pointed star glow behind (outer radius 1.3×, inner radius 0.65×, color at 0.35 alpha) — spiky and aggressive, signalling the throttle
+   - The normal 4-pointed star drawn solid on top at 1.14× scale
+   - Two overlaid star paths — the star is *not* split into offset fragments, and there is no separate "starburst ray" geometry
    - No timer needed — single cached image, zero CPU wake-ups
 
 3. **Recovery sparkle (throttle → green transition)**: 30s celebration effect after throttle clears
@@ -502,7 +492,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 - Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
 - Throttled: always red/critical band
 
-**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–7) for normal, `10_100 + pulseStep` for broken (static, always step 0 → 1 entry), `10_200 + pulseStep` for sparkle. Max entries: 21×8 + 1 + 8 = 177. Cache invalidates on colorblind or appearance change.
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–7) for normal, `10_100 + pulseStep` for broken, `10_200 + pulseStep` for sparkle (all `+ colorHash &* 100_000`). The broken key includes `pulseStep` even though the throttled icon is static, so up to 8 broken entries are possible. Max entries: 21×8 + 8 + 8 = 184 per color variant. Cache invalidates on colorblind or appearance change.
 
 - **`statusBarImage(for:color:isBroken:isSparkle:pulseStep:menuBarAppearance:)`**: public static method for StatusBarManager's native AppKit button. `menuBarAppearance` defaults to `nil` (falls back to `NSApp.effectiveAppearance`); StatusBarManager passes `button.effectiveAppearance` for accurate wallpaper-tinted rendering.
 
@@ -533,7 +523,7 @@ Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` �
 
 - Semi-transparent backdrop (`Color.black.opacity(0.4)`)
 - Centered card with `.regularMaterial` background, 12pt corner radius, max 280pt width
-- Step indicators: 3 dots (active = blue, inactive = secondary 0.3)
+- Step indicators: 3 dots (active = blue, inactive = secondary 0.45 via `inactiveIndicatorOpacity`)
 - Action button: "Next" / "Get Started" (`.borderedProminent`), "Skip" (.plain, ThemeColors.secondaryLabel) on non-final steps
 - Sets `hasSeenTutorial = true` on dismiss
 
