@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Shared collapsible section header with rotating chevron and bold title.
-/// Used by Context Health, Tokens, Activity, and Insights sections.
+/// Used by the Context, Projects, and Insights sections.
 struct CollapsibleSectionHeader: View {
     let title: String
     @Binding var collapsed: Bool

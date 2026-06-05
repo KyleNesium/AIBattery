@@ -12,7 +12,7 @@
                       └─ Group { UsagePopoverView | AuthView }
 ```
 
-`StatusBarManager` owns the `NSStatusItem` and a floating `NSPanel` directly, bypassing SwiftUI's `MenuBarExtra`. The panel uses `hidesOnDeactivate = false` and `.floating` level so it stays open regardless of focus changes — only closes on status item click or Escape.
+`StatusBarManager` owns the `NSStatusItem` and a floating `NSPanel` directly, bypassing SwiftUI's `MenuBarExtra`. The panel uses `hidesOnDeactivate = false`, `isFloatingPanel = true`, and `.statusBar` window level so it stays open regardless of focus changes — only closes on status item click or Escape.
 
 Single `UsageViewModel` owns all state. Views read `viewModel.snapshot`.
 
@@ -144,7 +144,7 @@ AIBattery/
     InsightsRowsAndHover.swift     — extension InsightsView: insightRows, hover helpers, static formatters (formatHourLabel, compactCount, monthAbbrev)
     ActivityChartData.swift       — Chart data transformation layer (daily/hourly/monthly points)
     ActivityChartTrend.swift      — Trend computation: vs-yesterday/week/month comparisons + copy text
-    CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 4 sections
+    CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 3 sections (Context, Projects, Insights)
     StyledDivider.swift            — Standardized divider: Divider() at 0.3 opacity, Spacing.tight vertical padding
     FooterLink.swift              — Footer link button with hover underline and external arrow
     RefreshButton.swift           — Refresh button with brief spin animation

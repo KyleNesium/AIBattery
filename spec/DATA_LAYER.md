@@ -113,13 +113,15 @@ Static: `orderedModes(current:) -> [MetricMode]` — returns all modes with `cur
 
 ### APIProfile (`Models/APIProfile.swift`)
 
-Organization info extracted from Messages API response headers.
+Account/workspace info extracted from Anthropic response headers or `client_data` JSON.
 
 | Field | Type |
 |-------|------|
 | `organizationId` | `String?` |
+| `workspaceId` | `String?` |
+| `workspaceName` | `String?` |
 
-`parse(headers:)` static method: reads `anthropic-organization-id` from HTTP response.
+`parse(headers:)` reads `anthropic-organization-id`, `anthropic-workspace-id`/`anthropic-workspace`, and `anthropic-workspace-name`/`x-workspace-name`. A `parse(clientData:)` overload extracts the same fields from the Claude Code client-data JSON.
 
 ### AccountRecord (`Models/AccountRecord.swift`)
 
@@ -143,7 +145,7 @@ Combined result from a single Messages API call.
 | Field | Type |
 |-------|------|
 | `rateLimits` | `RateLimitUsage?` |
-| `rateLimitSource` | `RateLimitSource?` — `.anthropicAPIHeaders` or `.claudeCodeClientData` |
+| `rateLimitSource` | `RateLimitSource?` — `.oauthUsageEndpoint` (primary), `.anthropicAPIHeaders`, or `.claudeCodeClientData` |
 | `standardLimits` | `StandardRateLimits?` — per-minute API limits (fallback when 5h/7d unavailable) |
 | `profile` | `APIProfile?` |
 | `hasStandardRateLimitHeaders` | `Bool` — true when standard `anthropic-ratelimit-*` headers present |
@@ -396,19 +398,19 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`
 - `fetch(accessToken:accountId:) async -> APIFetchResult` — returns Claude Code usage windows plus account/profile metadata when available
-- Preferred endpoint: `GET /api/oauth/claude_cli/client_data`
-- Fallback endpoint: `POST /v1/messages?beta=true` with `max_tokens: 1`, content `"."`
+- **Primary endpoint**: `GET /api/oauth/usage` (`fetchUsageEndpoint`) — dedicated usage endpoint, no model probe needed; first call every cycle.
+- **Fallback**: `POST /v1/messages?beta=true` with `max_tokens: 1`, content `"."` (unified-header probe, ~10% hit rate). `GET /api/oauth/claude_cli/client_data` is a nested fallback invoked only inside the Messages-probe paths.
 - **Dynamic probe order** (deduped): `activeUserModel` (from latest JSONL entry) → `lastWorkingModel[accountId]` (persisted per account) → `observedModels` (JSONL-observed models, most recent first) → `ultimateFallback` (single newest Sonnet for fresh installs). Self-heals when Anthropic deprecates model IDs — no hardcoded list.
 - `observedModels: [String]` — dynamic list populated by `UsageAggregator.setObservedModels(_:accountId:)` after each aggregation cycle; persisted to UserDefaults under `aibattery_observedModels_{accountId}`. Restored on launch (best-effort, overwritten on first aggregation).
 - `static let ultimateFallback = "claude-sonnet-4-6-20250929"` — single model for fresh installs with no JSONL data.
 - `setObservedModels(_ models: [String], accountId: String)` — updates `observedModels` and persists to UserDefaults. Called by `UsageAggregator`.
 - `restoreWorkingModels()` — restores `lastWorkingModel` dictionary and `observedModels` from UserDefaults on init.
-- `saveWorkingModel` called on **all 4 success paths** in `tryFetch`: 200-OK, 429+headers, retry-after (200/400 after sleep), and 400+headers. Structural invariant — any response with parseable headers records the working model.
+- `saveWorkingModel` records the working model on every response with parseable headers. The 200-OK model is saved by the caller `fetch()` (not inside `tryFetch`); the 429+headers, retry-after, and 400/404 paths save via `buildHeaderResult`, plus explicit saves on the 429-no-data and 5xx-retry paths.
 - **`buildHeaderResult` helper**: builds an `APIFetchResult` from parsed rate limit headers with `.anthropicAPIHeaders` source. Saves working model, applies optional throttle marking. Used by 429, retry-after, and 400/404 code paths in `tryFetch`.
 - Headers: `Authorization: Bearer {token}`, `anthropic-version: 2023-06-01`, `anthropic-beta: oauth-2025-04-20,interleaved-thinking-2025-05-14`, `User-Agent: AIBattery/{version} (macOS)` (dynamic from bundle)
 - Caller provides token and account ID. Per-account caching: `cachedResults: [String: APIFetchResult]` and `lastWorkingModel: [String: String]` keyed by account ID.
 - Timeout: 15 sec
-- Parses Claude Code 5-hour / 7-day usage from `client_data` first. Falls back to `anthropic-ratelimit-unified-*` response headers when present. Detects standard public `anthropic-ratelimit-*` headers for diagnostics but does not map them onto the 5-hour / 7-day UI.
+- Parses Claude Code 5-hour / 7-day usage from the `/api/oauth/usage` endpoint first, then `client_data`, then `anthropic-ratelimit-unified-*` response headers when present. Detects standard public `anthropic-ratelimit-*` headers for diagnostics but does not map them onto the 5-hour / 7-day UI.
 - `APIProfile` parsing accepts org/workspace metadata from headers or `client_data` JSON.
 - Logs a warning when no Claude Code-compatible usage data is found in a successful response (lists any `ratelimit`-containing header names for debugging)
 - Caches last successful `APIFetchResult`; returns cached on network error or auth failure (with `isCached: true`, preserving original `fetchedAt`). Cache never expires — stale rate limits are shown rather than empty bars (e.g., after long sleep). Fresh fetches replace stale data on success.
@@ -446,8 +448,8 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 ### SessionLogReader (`Services/SessionLogReader.swift`)
 - NOT `@MainActor` (file I/O must not block UI), Singleton: `.shared`, `@unchecked Sendable` + NSLock
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
-- Discovers JSONL in `~/.claude/projects/*/*.jsonl` and `*/subagents/*.jsonl`
-- **Non-Claude-Code directory filter**: skips project directories whose encoded name contains `--` (indicates a hidden/dot-prefixed path component like `.claude-mem`). Filters out MCP observer sessions and other tools that write JSONL to `~/.claude/projects/`.
+- Discovers JSONL by recursively enumerating each `~/.claude/projects/*` directory for `.jsonl` files (subagent files under `*/subagents/` are picked up by the recursion, not a dedicated glob).
+- **Non-Claude-Code directory filter**: decodes the encoded project-dir name back to a path and skips it when any path component is dot-prefixed (hidden, e.g. `.claude-mem`). Filters out MCP observer sessions and other tools that write JSONL to `~/.claude/projects/`.
 - FileHandle streaming: 64KB buffer, line-by-line, 1MB max line size safety cap (discards oversized lines)
 - **Static members** (avoid per-file allocation): `isoFormatter: ISO8601DateFormatter`, `assistantMarkers: [Data]` (both `"type":"assistant"` and `"type": "assistant"` with space), `usageMarker: Data`, `jsonDecoder: JSONDecoder`
 - Pre-filter: byte search for either assistant marker variant AND `"usage"` before JSON decode

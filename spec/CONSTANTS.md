@@ -27,7 +27,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Initial poll delay | 2 sec — fast first data without blocking launch | UsageViewModel |
 | Rate limit stale TTL | 86400 sec (24 hours) — hold unified header data through overnight sleep | UsageViewModel |
 | Sleep pause / wake resume | Immediate (NSWorkspace notifications) | UsageViewModel |
-| Menu bar staleness threshold | 300 sec (5 min) | StatusBarManager |
+| Idle-suspend threshold | 300 sec (5 min) — skip the poll cycle while the system is idle this long | IdleSuspendPolicy |
 | Menu bar countdown tick | 1 sec when <60 s remain, 10 sec otherwise (adaptive `Timer.scheduledTimer`) | StatusBarManager.startCountdownTimer |
 | 5-hour aggregation window | 18000 sec (5 × 3600) | UsageAggregator |
 | 24-hour trailing window | 86400 sec | UsageAggregator |
@@ -102,6 +102,7 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 | claude-haiku-4-5-20251001 | 1,000,000 |
 | claude-3-5-sonnet-20241022 | 200,000 |
 | claude-3-5-haiku-20241022 | 200,000 |
+| claude-haiku-3-5-20241022 | 200,000 |
 | claude-3-opus-20240229 | 200,000 |
 | claude-3-sonnet-20240229 | 200,000 |
 | claude-3-haiku-20240307 | 200,000 |
@@ -258,7 +259,7 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Menu bar icon canvas | 22×22pt |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
-| Throttled ("broken") star | Static 12-pointed star (`renderThrottledIcon`); not a fragmented/burst glyph. Same star path scaled 1.25× — no fragment offset |
+| Throttled ("broken") star | Static (`renderThrottledIcon`); not a fragmented/burst glyph. A 12-pt glow (outer 1.3×, inner 0.65×, 0.35 alpha) behind a solid 4-pt star at 1.14× — no fragment offset |
 | Recovery sparkle arm length | 1.6pt |
 | Recovery sparkle stroke width | 0.7pt |
 | Recovery sparkle alpha | 0.7 |
@@ -288,12 +289,12 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Settings / collapsible expand transition | `.opacity` — plain cross-fade. `.move(edge:)` is banned in the popover; the NSPanel resizes around the inserting view and the slide reads as a "jump". |
 | Metric mode change | `.easeOut(duration: 0.1)` — `MotionConstants.snappy` |
 | Account switch | `.easeOut(duration: 0.15)` — `MotionConstants.standard` |
-| Copy clipboard icon display | 1.2 seconds, `.easeOut(duration: 0.12)` show / `.easeIn(duration: 0.2)` hide |
+| Copy clipboard icon display | 1.5 seconds (`MotionConstants.clipboardFeedbackNs`), `MotionConstants.standard` (.easeOut 0.15) for both show and hide; `.scale`+`.opacity` transition |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
-| Copy hover highlight | `Color.primary.opacity(0.10)` background, `NSCursor.pointingHand` |
-| Auto mode button | Static green fill/stroke/shadow — no animation (see Design Tokens note) |
-| MarqueeText scroll | 30pt/s linear, 2s pause at each end |
+| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.15) background, `NSCursor.pointingHand` |
+| Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
+| MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
 | MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
 
@@ -438,7 +439,7 @@ in Health Thresholds above:
 | 2 (rate limit) | Rate-limit utilization ≥ 80% | `rateLimitEscalationThreshold = 80.0` (`UsageSnapshot`) |
 | 3 (context) | Context health ≥ 60% | `contextEscalationThreshold = 60.0` (`UsageSnapshot`) |
 
-A 10pp hysteresis de-escalation band (`UsageViewModel`) prevents flapping — the mode must
+A 10pp hysteresis de-escalation band (`hysteresisDeescalationBand` on `UsageSnapshot`) prevents flapping — the mode must
 drop that far below its escalation threshold before releasing.
 
 ## Color Thresholds
