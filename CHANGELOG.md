@@ -8,7 +8,8 @@ Fixes a false "Limit reached" flash right after waking your Mac, plus internal h
 - **No more false "Limit reached" right after waking your Mac.** On wake, the menu bar instantly repaints the last-known usage so the bars are never empty — but if you were near or at a limit before sleep, that briefly showed the throttled "Limit reached" alarm (broken star + countdown) for a poll cycle or two until the first post-wake refresh confirmed the real state. The menu bar now shows the last-known **percentage** on unconfirmed/cached data and only raises the throttle alarm once a fresh fetch confirms it — a stale number is fine, a stale "you're blocked" alarm is not. Also prevents a spurious recovery sparkle on wake.
 
 ### Internal
-- Multi-account menu-bar fan-out extracted into a standalone, fully unit-tested unit (covered end-to-end through its real concurrent fetch; 1033 tests total). A signed-out account no longer leaves a phantom "—" slot in the multi-account display.
+- Multi-account menu-bar fan-out extracted into a standalone, fully unit-tested unit (covered end-to-end through its real concurrent fetch; 1038 tests total). A signed-out account no longer leaves a phantom "—" slot in the multi-account display.
+- Token-ledger hygiene: per-model history now follows an account when its identity resolves (pending → real org id) instead of orphaning, and stale ledger entries (resolved-pending, removed, or stray) are pruned at launch. Fixed a test that wrote to the real ledger file.
 - Accuracy pass across all `spec/` docs and `CLAUDE.md` to match the shipped code; removed two stale planning docs.
 
 ## [2.4.2] — 2026-05-31
