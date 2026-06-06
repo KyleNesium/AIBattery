@@ -14,7 +14,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
 | Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck` | StatusChecker |
-| Rate limit cache max age | 3600 sec (1 hour) | RateLimitFetcher |
+| Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
 | Token endpoint timeout | 30 sec | OAuthManager |
@@ -27,7 +27,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Initial poll delay | 2 sec — fast first data without blocking launch | UsageViewModel |
 | Rate limit stale TTL | 86400 sec (24 hours) — hold unified header data through overnight sleep | UsageViewModel |
 | Sleep pause / wake resume | Immediate (NSWorkspace notifications) | UsageViewModel |
-| Menu bar staleness threshold | 300 sec (5 min) | StatusBarManager |
+| Idle-suspend threshold | 300 sec (5 min) — skip the poll cycle while the system is idle this long | IdleSuspendPolicy |
 | Menu bar countdown tick | 1 sec when <60 s remain, 10 sec otherwise (adaptive `Timer.scheduledTimer`) | StatusBarManager.startCountdownTimer |
 | 5-hour aggregation window | 18000 sec (5 × 3600) | UsageAggregator |
 | 24-hour trailing window | 86400 sec | UsageAggregator |
@@ -102,6 +102,7 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 | claude-haiku-4-5-20251001 | 1,000,000 |
 | claude-3-5-sonnet-20241022 | 200,000 |
 | claude-3-5-haiku-20241022 | 200,000 |
+| claude-haiku-3-5-20241022 | 200,000 |
 | claude-3-opus-20240229 | 200,000 |
 | claude-3-sonnet-20240229 | 200,000 |
 | claude-3-haiku-20240307 | 200,000 |
@@ -111,9 +112,9 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 
 | Threshold | Default | Notes |
 |-----------|---------|-------|
-| Usable context ratio | 0.80 | Claude Code auto-compacts at 80% of window |
-| Green ceiling | 60% | Below = optimal (of usable window) |
-| Red floor | 80% | Above = critical (of usable window) |
+| Usable context ratio | 1.0 | Percentages are calculated against the full context window (1M windows make the full window usable — no compaction reservation) |
+| Green ceiling | 60% | Below = optimal (of context window) |
+| Red floor | 80% | Above = critical (of context window) |
 | Turn count mild | 15 | Triggers mild warning |
 | Turn count strong | 25 | Triggers strong warning |
 | Input/output ratio | 20:1 | Triggers ratio warning (includes cache tokens) |
@@ -157,7 +158,6 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 |----------|-------|
 | Show cost | Always visible — API-equivalent cost shown in Projects header/rows and Insights cost section. No toggle. |
 | Context collapsed | `aibattery_contextCollapsed` (Bool, default false) |
-| Tokens collapsed | `aibattery_tokensCollapsed` (Bool, default false) |
 | Projects collapsed | `aibattery_projectsCollapsed` (Bool, default false) |
 | Activity collapsed | `aibattery_activityCollapsed` (Bool, default false) |
 | Format | `"$X.XX"` (full) or `"$X"` (compact, ≥$1), `"$X.XK"` (compact, ≥$1000), or `"<$0.01"` for sub-penny |
@@ -227,7 +227,7 @@ Pricing per million tokens:
 | Automatic downloads | Disabled (`automaticallyDownloadsUpdates = false`) |
 | Check interval | 0 (no scheduled checks — user-initiated only) |
 | Trigger | User clicks "Install Update" in banner (falls back to GitHub release if Sparkle not ready) |
-| Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after 5s (LSUIElement workaround) |
+| Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after a 60s safety timeout (normally delegate-driven via `didFinishUpdateCycleFor`; LSUIElement workaround) |
 | Entitlement | `com.apple.security.cs.disable-library-validation` — required for ad-hoc signed builds to load Sparkle.framework |
 | CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
@@ -259,7 +259,7 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Menu bar icon canvas | 22×22pt |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
-| Broken star fragment offset | 1.5pt |
+| Throttled ("broken") star | Static (`renderThrottledIcon`); not a fragmented/burst glyph. A 12-pt glow (outer 1.3×, inner 0.65×, 0.35 alpha) behind a solid 4-pt star at 1.14× — no fragment offset |
 | Recovery sparkle arm length | 1.6pt |
 | Recovery sparkle stroke width | 0.7pt |
 | Recovery sparkle alpha | 0.7 |
@@ -269,8 +269,6 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Pulse cycle duration | 4.0 sec |
 | Pulse tick interval | 500ms sparkle (4s ÷ 8), 1s red band (4s ÷ 8 × 2-step) |
 | Breath timer threshold | ≥95% usage or sparkle active (orange 80–95% uses static glow, no timer; throttled stops timer) |
-| Burst ray count | 12 |
-| Burst ray half-angle | 0.08 radians |
 | Health dot size | 8pt |
 | Status dot size | 6pt |
 | Model dot size | 8pt |
@@ -279,7 +277,7 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Chevron icon size | 9pt (bold weight) |
 | Chevron corner radius | 4pt |
 | Chart height | 50pt |
-| Chart modes | 24H (hourly trailing), 7D (daily rolling), 12M (monthly rolling) |
+| Chart modes | 5H (15-min buckets), 7D (daily rolling), 12M (monthly rolling) — `ActivityChartMode` |
 
 ## Animations
 
@@ -291,12 +289,12 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Settings / collapsible expand transition | `.opacity` — plain cross-fade. `.move(edge:)` is banned in the popover; the NSPanel resizes around the inserting view and the slide reads as a "jump". |
 | Metric mode change | `.easeOut(duration: 0.1)` — `MotionConstants.snappy` |
 | Account switch | `.easeOut(duration: 0.15)` — `MotionConstants.standard` |
-| Copy clipboard icon display | 1.2 seconds, `.easeOut(duration: 0.12)` show / `.easeIn(duration: 0.2)` hide |
+| Copy clipboard icon display | 1.5 seconds (`MotionConstants.clipboardFeedbackNs`), `MotionConstants.standard` (.easeOut 0.15) for both show and hide; `.scale`+`.opacity` transition |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
-| Copy hover highlight | `Color.primary.opacity(0.10)` background, `NSCursor.pointingHand` |
-| Auto mode button | Static green fill/stroke/shadow — no animation (see Design Tokens note) |
-| MarqueeText scroll | 30pt/s linear, 2s pause at each end |
+| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.15) background, `NSCursor.pointingHand` |
+| Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
+| MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
 | MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
 
@@ -415,7 +413,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | Constant | Value |
 |----------|-------|
 | AppStorage key | `aibattery_chartMode` |
-| Default mode | `"24H"` (hourly) |
+| Default mode | `"5H"` (`ActivityChartMode.fiveHour`) |
 | Persists across sessions | Yes (via `@AppStorage`) |
 
 ## File Paths
@@ -430,15 +428,19 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 
 All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
 
-## Urgency Anchors (Auto Mode Tier 3)
+## Auto Mode Escalation (Tiers)
 
-Piecewise-linear interpolation for `urgencyScore(percent:mode:)`. Maps raw percentage to a normalized 0.0–1.0 urgency scale so different metrics with different threshold ranges can be compared fairly.
+Auto mode (`UsageSnapshot.autoResolvedMode`) escalates by **fixed thresholds**, not a
+normalized urgency score. There is no `urgencyScore` function. The thresholds are listed
+in Health Thresholds above:
 
-| Mode | Anchor points (percent → urgency) |
-|------|-----------------------------------|
-| `.fiveHour` | 0→0, 50→0.25, 80→0.50, 95→0.75, 100→1.0 |
-| `.sevenDay` | 0→0, 50→0.25, 80→0.50, 95→0.75, 100→1.0 |
-| `.contextHealth` | 0→0, 60→0.25, 80→0.50, 100→1.0 |
+| Tier | Trigger | Constant |
+|------|---------|----------|
+| 2 (rate limit) | Rate-limit utilization ≥ 80% | `rateLimitEscalationThreshold = 80.0` (`UsageSnapshot`) |
+| 3 (context) | Context health ≥ 60% | `contextEscalationThreshold = 60.0` (`UsageSnapshot`) |
+
+A 10pp hysteresis de-escalation band (`hysteresisDeescalationBand` on `UsageSnapshot`) prevents flapping — the mode must
+drop that far below its escalation threshold before releasing.
 
 ## Color Thresholds
 
@@ -548,3 +550,6 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Minimum utilization | 20% (below this, estimate not shown) |
 | Minimum elapsed time | 60 sec (need meaningful burn rate) |
 | Shown when | Estimate < remaining time before reset |
+| Calibrated 5h limit key | `aibattery_calibrated_5h_limit` (Double) — `LocalUsageEstimate` |
+| Calibrated 7d limit key | `aibattery_calibrated_7d_limit` (Double) — `LocalUsageEstimate` |
+| Calibration timestamp key | `aibattery_calibrated_at` (Double, Unix timestamp) — `LocalUsageEstimate` |

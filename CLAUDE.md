@@ -65,7 +65,7 @@ These aren't obvious from reading the code — know them before making changes:
 - JSONL must be streamed via `FileHandle` (never load full file into memory)
 - JSONL tokens must not double-count with `stats-cache.json` (see DATA_LAYER.md)
 - `OAuthManager.exchangeCode()` returns `Result<Void, AuthError>` — callers handle typed errors. Validates state parameter for CSRF protection.
-- `APIFetchResult.isCached` distinguishes fresh API data from stale cache — always check before treating as fresh. Cache expires after 1 hour.
+- `APIFetchResult.isCached` distinguishes fresh API data from stale cache — always check before treating as fresh. The `RateLimitFetcher` cache never expires (stale data beats empty bars); individual rate-limit windows are cleared at their own reset via `withClearedExpiredWindows`.
 - OAuth refresh: transient errors (network + server 5xx) keep `isAuthenticated` true (retry next cycle); only auth errors trigger logout. Token endpoint retries 5xx up to 2 times with backoff. Token refresh fires 5 min before expiry to avoid clock-skew 401s. Concurrent refresh attempts are serialized via a shared task.
 - StatusChecker backs off 60s after failures — no immediate retries
 - SessionLogReader per-file cache stores fingerprints only (modDate + fileSize); raw entry arrays released after merge into cachedAllEntries. On dirty cycle, only changed files re-parsed — eliminates double-storage. Trailing JSONL lines without closing `}` are skipped; leftover buffer capped at 1MB (oversized lines discarded)

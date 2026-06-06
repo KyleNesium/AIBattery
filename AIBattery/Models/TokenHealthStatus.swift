@@ -36,7 +36,7 @@ struct TokenHealthStatus: Identifiable, Equatable {
     let usagePercentage: Double
     let totalUsed: Int
     let contextWindow: Int
-    let usableWindow: Int // contextWindow × 0.8 (auto-compact threshold)
+    let usableWindow: Int // contextWindow × usableContextRatio (currently 1.0 = full window)
     let remainingTokens: Int // usableWindow - totalUsed
     let inputTokens: Int
     let outputTokens: Int

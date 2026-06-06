@@ -84,6 +84,12 @@ enum MenuBarMultiAccountText {
     ///     and as a countdown floor.
     ///   - activePercent: the active account's percent for the resolved metric mode.
     ///   - metricMode: the resolved metric mode (auto-mode hysteresis output).
+    ///   - confirmed: whether the displayed data came from a fresh fetch. When `false`
+    ///     (data served from cache, e.g. the instant-paint right after wake before the
+    ///     first fetch lands), the throttle alarm is suppressed — no broken star, no
+    ///     "limit reached" countdown — and the last-known percentage shows instead. A
+    ///     stale number is fine; a stale "you're blocked" alarm is a false alarm. The
+    ///     next confirmed fetch restores the real throttle state. Defaults to `true`.
     ///   - now: injected current time (for testability).
     ///   - countdownResetDate: per-account countdown resolver. Inject
     ///     `StatusBarManager.countdownResetDate(for:now:)` here.
@@ -96,25 +102,29 @@ enum MenuBarMultiAccountText {
         activeRateLimits: RateLimitUsage?,
         activePercent: Double,
         metricMode: MetricMode,
+        confirmed: Bool = true,
         now: Date,
         countdownResetDate: (RateLimitUsage, Date) -> Date?
     ) -> Display {
         // The broken/"exhausted" star is reserved for a genuine throttle signal
         // (explicit API status or a 429). 100% utilization shows a solid red full
         // star instead (color is driven by `percent`), so we do NOT treat >= 100% here.
-        let activeIsExhausted = activeRateLimits?.isThrottled ?? false
+        // `confirmed` gates the alarm: on cached/unconfirmed data we never show the
+        // broken star or a countdown — only the last-known percentage.
+        let activeIsExhausted = confirmed && (activeRateLimits?.isThrottled ?? false)
 
         let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: perAccount.count)
 
         if useMulti {
             let multi = build(order: order, limits: perAccount, metricMode: metricMode)
             let percent = max(multi.worstPercent, activePercent)
-            let isExhausted = multi.anyThrottled || activeIsExhausted
-            let multiReset = perAccount.values
-                .compactMap { countdownResetDate($0, now) }
-                .min()
-            let activeReset = activeRateLimits.flatMap { countdownResetDate($0, now) }
-            let reset = [multiReset, activeReset].compactMap { $0 }.min()
+            let isExhausted = confirmed && (multi.anyThrottled || (activeRateLimits?.isThrottled ?? false))
+            let reset: Date? = confirmed
+                ? [
+                    perAccount.values.compactMap { countdownResetDate($0, now) }.min(),
+                    activeRateLimits.flatMap { countdownResetDate($0, now) },
+                ].compactMap { $0 }.min()
+                : nil
             let text: String = if let reset {
                 RateLimitUsage.countdownText(to: reset)
             } else {
@@ -128,7 +138,7 @@ enum MenuBarMultiAccountText {
                 usedMultiAccount: true
             )
         } else {
-            let activeReset = activeRateLimits.flatMap { countdownResetDate($0, now) }
+            let activeReset: Date? = confirmed ? activeRateLimits.flatMap { countdownResetDate($0, now) } : nil
             let text: String = if let activeReset {
                 // When genuinely throttled, prefix the binding window code (5H/7D) so the
                 // menu bar alone tells you whether you're waiting hours or a day+.

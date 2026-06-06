@@ -12,7 +12,7 @@
                       └─ Group { UsagePopoverView | AuthView }
 ```
 
-`StatusBarManager` owns the `NSStatusItem` and a floating `NSPanel` directly, bypassing SwiftUI's `MenuBarExtra`. The panel uses `hidesOnDeactivate = false` and `.floating` level so it stays open regardless of focus changes — only closes on status item click or Escape.
+`StatusBarManager` owns the `NSStatusItem` and a floating `NSPanel` directly, bypassing SwiftUI's `MenuBarExtra`. The panel uses `hidesOnDeactivate = false`, `isFloatingPanel = true`, and `.statusBar` window level so it stays open regardless of focus changes — only closes on status item click or Escape.
 
 Single `UsageViewModel` owns all state. Views read `viewModel.snapshot`.
 
@@ -29,7 +29,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
               ┌──────────────┼──────────────┐
               ▼              ▼              ▼
      RateLimitFetcher   StatusChecker   UsageAggregator
-     (unified API call)  (status.claude)  (merge all data)
+     (usage→probe)      (status.claude)  (merge all data)
      → APIFetchResult:                         │
        rateLimits +              ┌─────────────┤
        orgProfile                ▼             ▼
@@ -107,7 +107,8 @@ AIBattery/
     UsageViewModel.swift          — @MainActor ObservableObject, single source of truth (state + init + refresh orchestration + throttle bookkeeping + deinit)
     UsageViewModel+Statics.swift  — `nonisolated static` pure helpers: refresh-interval clamping, error-message string, change detection, TTL-guarded effective rate-limits / values
     UsageViewModel+Lifecycle.swift — File watcher setup, sleep/wake/screen-lock observers, idle-suspend + activity-monitor resume, polling timer (start/restart/updateInterval)
-    UsageViewModel+FanOut.swift   — Multi-account `scheduleFanOut` + `fetchAllAccounts(seed:)` (toggle-gated, coalesced, seeded with the active account to avoid an N+1 fetch)
+    UsageViewModel+FanOut.swift   — Thin wrapper: `scheduleFanOut` + `fetchAllAccounts(seed:)` delegate to `MultiAccountFanOut.resolve` and assign the result to `perAccountRateLimits`
+    MultiAccountFanOut.swift      — Multi-account fan-out orchestration (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates; multi-account text path gated on `aibattery_showAllAccountsInMenuBar`
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
@@ -143,7 +144,7 @@ AIBattery/
     InsightsRowsAndHover.swift     — extension InsightsView: insightRows, hover helpers, static formatters (formatHourLabel, compactCount, monthAbbrev)
     ActivityChartData.swift       — Chart data transformation layer (daily/hourly/monthly points)
     ActivityChartTrend.swift      — Trend computation: vs-yesterday/week/month comparisons + copy text
-    CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 4 sections
+    CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 3 sections (Context, Projects, Insights)
     StyledDivider.swift            — Standardized divider: Divider() at 0.3 opacity, Spacing.tight vertical padding
     FooterLink.swift              — Footer link button with hover underline and external arrow
     RefreshButton.swift           — Refresh button with brief spin animation
@@ -200,6 +201,7 @@ Tests/AIBatteryCoreTests/
     ModelPricingTests.swift       — pricing lookup, cost calculation, formatCost, edge cases
     ClaudeSystemStatusTests.swift — status indicator parsing, severity, display names
     StandardRateLimitsTests.swift — standard rate limit header parsing + computed properties
+    LocalUsageEstimateTests.swift — calibration band policy, predictive estimate thresholds
   Services/
     AccountStoreTests.swift       — Add/remove/update/merge, persistence, migration
     StatusIndicatorTests.swift    — from() all status strings, severity ordering, displayName
@@ -224,6 +226,7 @@ Tests/AIBatteryCoreTests/
   ViewModels/
     UsageViewModelTests.swift     — Refresh interval clamping, error messages, effective value guard
     UsageViewModelIdleTests.swift — Idle threshold constants, suspend policy
+    MultiAccountFanOutTests.swift — Fan-out orchestration (seed dedup, toggle-off clear, missing-token skip) + eligible-account filter
   Views/
     ActivityChartDataTests.swift  — 5H/7D/12M chart data transforms
     ActivityChartIsEmptyTests.swift — Empty state detection for chart modes
@@ -233,14 +236,21 @@ Tests/AIBatteryCoreTests/
     InsightsViewFormatterTests.swift — Insights section formatting helpers
     SessionInfoFormatterTests.swift — Session detail formatting, idle detection, time
     StatusBarToggleTests.swift    — Status bar show/dismiss state transitions
+    StatusBarCountdownResetDateTests.swift — Countdown reset-date selection (throttle/100%)
+    MenuBarMultiAccountTextTests.swift — Multi-account text builder + display resolver
+    LinkActionButtonTests.swift   — Link action button behavior
+    PopoverFooterStatusSymbolTests.swift — Footer status symbol mapping
+    MoveTransitionBanTests.swift  — Guards against `.move(edge:)` transitions in the popover
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
+  lint.yml                        — SwiftFormat + SwiftLint on PRs targeting main (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)
 scripts/
   build-app.sh                    — Build release binary + .app bundle + zip/dmg
   update-homebrew.sh              — Auto-update KyleNesium/homebrew-tap cask (version + SHA256)
   generate-appcast.sh            — Generate appcast.xml for Sparkle update feed
   generate-icon.swift             — Generate AppIcon.icns (sparkle star, all macOS sizes)
+  verify-release.sh               — Pre-release verification checks
 project.yml                       — XcodeGen project spec (optional, SPM is primary)
 Package.swift                     — SPM manifest: AIBatteryCore, AIBattery, AIBatteryCoreTests
 CHANGELOG.md                      — Release notes per version
@@ -274,13 +284,14 @@ CHANGELOG.md                      — Release notes per version
 
 ## Network Calls (exhaustive)
 
-1. `GET https://api.anthropic.com/api/oauth/claude_cli/client_data` — Claude Code usage windows + account metadata (preferred when available)
-2. `POST https://api.anthropic.com/v1/messages?beta=true` — legacy unified/public rate-limit headers + org profile fallback
-3. `GET https://status.claude.com/api/v2/summary.json` — system status (every refresh interval)
-4. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
-5. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)
-5. `GET https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` — update check (once per 24h)
-6. `GET https://kylenesium.github.io/AIBattery/appcast.xml` — Sparkle update feed (on user-initiated update check)
+1. `GET https://api.anthropic.com/api/oauth/usage` — **primary** rate-limit fetch (dedicated usage endpoint, no model probe needed; first call every cycle)
+2. `GET https://api.anthropic.com/api/oauth/claude_cli/client_data` — Claude Code usage windows + account metadata (fallback)
+3. `POST https://api.anthropic.com/v1/messages?beta=true` — legacy unified/public rate-limit headers + org profile (probe fallback, ~10% hit rate)
+4. `GET https://status.claude.com/api/v2/summary.json` — system status (every refresh interval)
+5. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
+6. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)
+7. `GET https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` — update check (once per 24h)
+8. `GET https://kylenesium.github.io/AIBattery/appcast.xml` — Sparkle update feed (on user-initiated update check)
 
 ## Local File Access (exhaustive)
 

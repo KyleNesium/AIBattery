@@ -971,7 +971,9 @@ struct UsageAggregatorTests {
 
         let reader = StatsCacheReader(fileURL: cacheURL)
         let logReader = SessionLogReader(projectsURL: projectsDir)
-        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+        // Inject a temp ledger so this accountId-bearing aggregate doesn't write the real token-ledger.json.
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader,
+                                         ledger: TokenLedger(fileURL: dir.appendingPathComponent("token-ledger.json")))
 
         let (_, effects) = aggregator.aggregate(rateLimits: nil, accountId: accountId)
 
@@ -1005,7 +1007,9 @@ struct UsageAggregatorTests {
         let accountId = "test-effects-\(UUID().uuidString)"
         let reader = StatsCacheReader(fileURL: cacheURL)
         let logReader = SessionLogReader(projectsURL: projectsDir)
-        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader)
+        // Inject a temp ledger so this accountId-bearing aggregate doesn't write the real token-ledger.json.
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader,
+                                         ledger: TokenLedger(fileURL: dir.appendingPathComponent("token-ledger.json")))
 
         let (_, effects) = aggregator.aggregate(rateLimits: nil, accountId: accountId)
 

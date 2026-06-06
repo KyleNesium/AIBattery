@@ -356,12 +356,15 @@ public final class StatusBarManager: NSObject {
         // wiring fix (P2 from codex review) was never covered by a test.
         let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
         let perAccount = viewModel.perAccountRateLimits
-        // Skip pending accounts — their fan-out is filtered out (no real org ID), so
-        // including them would render a "—" for an account the user hasn't even
-        // authenticated yet.
-        let order = OAuthManager.shared.accountStore.accounts
-            .filter { !$0.isPendingIdentity }
-            .map(\.id)
+        // Same eligible-account filter the fan-out uses (non-pending AND authenticated)
+        // via the shared `multiAccountDisplayIDs()`, so the menu-bar `order` can't drift
+        // from the fan-out candidate set — e.g. rendering a "—" slot for an account that
+        // resolved to a real org ID but is now signed out (which the fan-out skips).
+        let order = OAuthManager.shared.multiAccountDisplayIDs()
+        // Suppress the throttle alarm while the snapshot is unconfirmed (served from
+        // cache — e.g. the instant-paint right after wake). A stale percentage is fine;
+        // a stale "limit reached" is a false alarm. The next fresh fetch restores it.
+        let confirmed = !viewModel.isShowingCachedData
         let display = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: showAll,
             perAccount: perAccount,
@@ -369,6 +372,7 @@ public final class StatusBarManager: NSObject {
             activeRateLimits: activeRateLimits,
             activePercent: activePercent,
             metricMode: metricMode,
+            confirmed: confirmed,
             now: Date(),
             countdownResetDate: Self.countdownResetDate(for:now:)
         )
@@ -380,8 +384,14 @@ public final class StatusBarManager: NSObject {
         let isDarkMenuBar = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isExhausted, isDarkMenuBar: isDarkMenuBar)
 
-        updateSparkleState(isThrottled: isExhausted)
-        updateRenderState(percent: percent, color: starColor, isThrottled: isExhausted)
+        // Recovery-sparkle transition detection keys off CONFIRMED data only — a cached
+        // wake-paint must not register as a throttle→recovery transition (which would
+        // fire a spurious "recovered" sparkle). On unconfirmed data, preserve the last
+        // confirmed throttle state for transition tracking while still updating the icon.
+        if confirmed {
+            updateSparkleState(isThrottled: isExhausted)
+        }
+        updateRenderState(percent: percent, color: starColor, isThrottled: confirmed ? isExhausted : currentIsThrottled)
 
         button.image = MenuBarIcon.combinedStatusBarImage(
             text: displayText,
