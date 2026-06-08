@@ -27,6 +27,25 @@ sed -i '' "s/sha256 \".*\"/sha256 \"${SHA256}\"/" "$CASK_FILE"
 echo "Updated cask formula:"
 head -5 "$CASK_FILE"
 
+# Validation gate: the cask must pass `brew style` before we publish it, so
+# deprecated syntax (e.g. the `depends_on macos: ">= :ventura"` string-comparison
+# form) can never reach users through the tap again. Auto-correct what Homebrew
+# can fix, then hard-fail the release if any offense remains.
+if command -v brew >/dev/null 2>&1; then
+  echo "Validating cask with brew style..."
+  brew style --fix "$CASK_FILE" || true
+  if ! brew style "$CASK_FILE"; then
+    echo "ERROR: brew style reported offenses in ${CASK_FILE} — aborting release." >&2
+    echo "Fix the cask in KyleNesium/homebrew-tap (or the generator) and re-run." >&2
+    exit 1
+  fi
+  echo "brew style: clean."
+else
+  echo "ERROR: brew not found on PATH — cannot validate cask. Aborting." >&2
+  echo "The release runner must have Homebrew installed to gate cask style." >&2
+  exit 1
+fi
+
 cd "$WORKDIR"
 git config user.name "github-actions[bot]"
 git config user.email "github-actions[bot]@users.noreply.github.com"
