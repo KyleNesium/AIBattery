@@ -892,4 +892,16 @@ struct UsageSnapshotTests {
         #expect(snapshot.busiestDayOfWeek?.name == stats.busiestDay?.name)
         #expect(snapshot.busiestDayOfWeek?.averageCount == stats.busiestDay?.averageCount)
     }
+
+    // MARK: - Stored-property tripwire for the hand-written ==
+
+    @Test func storedPropertyCount_pinsHandWrittenEquality() {
+        // UsageSnapshot's == is hand-written and intentionally skips ONLY
+        // `lastUpdated` (it always changes; comparing it would defeat the
+        // SwiftUI diff suppression). If this test fails, you added or removed
+        // a stored property — update `==` to compare it (or consciously skip
+        // it) AND update this count. 36 = 35 compared fields + lastUpdated.
+        let mirror = Mirror(reflecting: makeSnapshot())
+        #expect(mirror.children.count == 36)
+    }
 }

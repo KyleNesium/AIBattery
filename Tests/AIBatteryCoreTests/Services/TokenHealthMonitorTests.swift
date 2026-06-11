@@ -430,6 +430,53 @@ struct TokenHealthMonitorTests {
         }
     }
 
+    // MARK: - binarySearchCutoff boundaries
+
+    @Test func binarySearchCutoff_emptyArray_returnsZero() {
+        #expect(monitor.binarySearchCutoff(entries: [], cutoff: Date()) == 0)
+    }
+
+    @Test func binarySearchCutoff_allBeforeCutoff_returnsCount() {
+        let cutoff = Date()
+        let entries = (1...4).map { i in
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff.addingTimeInterval(-Double(i) * 60))
+        }.sorted { $0.timestamp < $1.timestamp }
+        #expect(monitor.binarySearchCutoff(entries: entries, cutoff: cutoff) == entries.count)
+    }
+
+    @Test func binarySearchCutoff_allAfterCutoff_returnsZero() {
+        let cutoff = Date()
+        let entries = (1...4).map { i in
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff.addingTimeInterval(Double(i) * 60))
+        }
+        #expect(monitor.binarySearchCutoff(entries: entries, cutoff: cutoff) == 0)
+    }
+
+    @Test func binarySearchCutoff_entryExactlyAtCutoff_isExcluded() {
+        // Strict `>` — an entry whose timestamp equals the cutoff is treated as
+        // expired, not recent. This pins the current semantics so a future
+        // `>=` change is a conscious decision, not a drive-by.
+        let cutoff = Date()
+        let entries = [
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff.addingTimeInterval(-60)),
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff),
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff.addingTimeInterval(60)),
+        ]
+        // Index 2 — both the before-cutoff AND the exactly-at-cutoff entries excluded.
+        #expect(monitor.binarySearchCutoff(entries: entries, cutoff: cutoff) == 2)
+    }
+
+    @Test func binarySearchCutoff_mixed_returnsFirstIndexAfterCutoff() {
+        let cutoff = Date()
+        let entries = [
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff.addingTimeInterval(-120)),
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff.addingTimeInterval(-60)),
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff.addingTimeInterval(30)),
+            makeEntry(sessionId: "s", input: 1, output: 1, timestamp: cutoff.addingTimeInterval(60)),
+        ]
+        #expect(monitor.binarySearchCutoff(entries: entries, cutoff: cutoff) == 2)
+    }
+
     // MARK: - Helper
 
     private func makeEntry(
