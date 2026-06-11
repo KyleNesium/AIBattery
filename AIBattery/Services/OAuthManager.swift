@@ -402,7 +402,16 @@ public final class OAuthManager: ObservableObject {
     /// Used by both `exchangeCode` (authorization_code grant) and
     /// `refreshAccessToken` (refresh_token grant). The MainActor caller owns
     /// all side effects (token storage, account creation, auth state updates).
-    nonisolated static func postToken(body: [String: String]) async -> Result<TokenResult, AuthError> {
+    ///
+    /// `transport` and `retryPolicy` are injectable for tests so the retry loop's
+    /// contract (attempt count, 5xx/429/timeout classification) can be pinned
+    /// without URLProtocol stubs — those are global and racy under parallel
+    /// Swift Testing suites. Production callers use the defaults.
+    nonisolated static func postToken(
+        body: [String: String],
+        transport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) },
+        retryPolicy: RetryPolicy = .oauth
+    ) async -> Result<TokenResult, AuthError> {
         guard let url = URL(string: tokenURL) else { return .failure(.unknownError("Invalid token URL")) }
 
         var request = URLRequest(url: url)
@@ -418,12 +427,12 @@ public final class OAuthManager: ObservableObject {
         for attempt in 0...Self.maxRetries {
             if attempt > 0 {
                 // Exponential backoff with jitter via RetryPolicy.oauth (1s, 2s, 4s ±20%).
-                let delay = RetryPolicy.oauth.delay(forAttempt: attempt)
+                let delay = retryPolicy.delay(forAttempt: attempt)
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
 
             do {
-                let (data, response) = try await SecureNetworking.data(for: request)
+                let (data, response) = try await transport(request)
                 guard let http = response as? HTTPURLResponse else { return .failure(.networkError) }
 
                 if http.statusCode == 401 || http.statusCode == 403 {
@@ -571,9 +580,14 @@ public final class OAuthManager: ObservableObject {
             addedAt: Date()
         )
 
-        // Only persist the refresh token (access token will be re-derived on launch)
+        // Only persist the refresh token (access token will be re-derived on launch).
+        // Verify the new entry before deleting the legacy one — if the write fails,
+        // keep the legacy entries intact and retry the migration next launch.
         if let value = KeychainHelper.get(account: "refreshToken") {
-            KeychainHelper.set(account: "refreshToken_\(tempId)", value: value)
+            guard Self.setAndVerify(account: "refreshToken_\(tempId)", value: value) else {
+                AppLogger.oauth.error("Legacy Keychain migration failed — keeping legacy entries for retry next launch")
+                return
+            }
         }
         // expiresAt goes to UserDefaults (not a secret)
         if let expiresStr = KeychainHelper.get(account: "expiresAt"),
@@ -623,16 +637,34 @@ public final class OAuthManager: ObservableObject {
         let migrationKey = "aibattery_keychainThisDeviceOnlyMigrated"
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
 
+        // Accessibility can't be updated in place, so each item must be deleted and
+        // re-added — a window where a failed re-add would destroy the refresh token.
+        // Hardening: verify the re-add by reading the value back, retry once on
+        // failure, and only mark the migration done when EVERY account verified.
+        // Leaving the flag unset means the next launch retries instead of silently
+        // signing the user out forever.
+        var allVerified = true
         for account in accountStore.accounts {
             let keychainAccount = "refreshToken_\(account.id)"
-            if let value = KeychainHelper.get(account: keychainAccount) {
-                KeychainHelper.delete(account: keychainAccount)
-                KeychainHelper.set(account: keychainAccount, value: value)
+            guard let value = KeychainHelper.get(account: keychainAccount) else { continue }
+            KeychainHelper.delete(account: keychainAccount)
+            if !Self.setAndVerify(account: keychainAccount, value: value),
+               !Self.setAndVerify(account: keychainAccount, value: value) {
+                allVerified = false
+                AppLogger.oauth.error("Keychain accessibility migration failed for \(account.id, privacy: .public) — will retry next launch")
             }
         }
 
+        guard allVerified else { return }
         UserDefaults.standard.set(true, forKey: migrationKey)
         AppLogger.oauth.info("Migrated Keychain items to ThisDeviceOnly accessibility")
+    }
+
+    /// Write a Keychain value and confirm it round-trips. A `set` that reports
+    /// success but doesn't read back identical is treated as a failure.
+    private static func setAndVerify(account: String, value: String) -> Bool {
+        KeychainHelper.set(account: account, value: value)
+            && KeychainHelper.get(account: account) == value
     }
 }
 

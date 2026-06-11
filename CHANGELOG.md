@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Keychain migrations can no longer silently destroy a login.** The one-time
+  migration that re-creates Keychain items with device-only accessibility deleted
+  each refresh token before re-adding it, ignored the result of the re-add, and
+  marked itself complete unconditionally — a failed write meant a permanently
+  signed-out account with no retry. Every Keychain write in the migration paths is
+  now verified by reading the value back, retried once, and the migration only
+  marks itself done when every account verified (otherwise it retries on the next
+  launch). The legacy single-account migration likewise keeps the old entries until
+  the new one is confirmed.
+
+### Internal
+- `KeychainHelper.set` now reports success/failure instead of returning silently.
+- OAuth token-endpoint retry loop is now contract-tested via an injectable
+  transport: exactly 3 attempts on 5xx/timeout, immediate failure on 401 /
+  `invalid_grant`, recovery on a transient failure mid-sequence.
+- First real-Keychain test coverage for `KeychainHelper` and `OAuthTokenStorage`
+  (roundtrips, per-account isolation, access-token-never-persisted invariant).
+
 ## [2.4.3] — 2026-06-05
 
 Fixes a false "Limit reached" flash right after waking your Mac, plus internal hardening.
