@@ -80,6 +80,25 @@ extension UsageViewModel {
         return nil
     }
 
+    /// Whether results fetched for `fetchedAccountId` may be applied to published state.
+    /// False when the user switched accounts mid-fetch — applying would show (and via
+    /// downstream persistence paths, cache) one account's data under another's identity.
+    nonisolated static func shouldApplyFetchResult(
+        fetchedAccountId: String?,
+        activeAccountId: String?
+    ) -> Bool {
+        fetchedAccountId == activeAccountId
+    }
+
+    /// Rate limits eligible for notification alerts, or nil when none may fire.
+    /// Cached results are excluded: after wake/offline, a stale 85% reading must not
+    /// fire a real macOS notification that the menu bar itself refuses to alarm on
+    /// (it gates the broken star and countdown on `confirmed = !isShowingCachedData`).
+    nonisolated static func alertableRateLimits(_ api: APIFetchResult) -> RateLimitUsage? {
+        guard !api.isCached else { return nil }
+        return api.rateLimits
+    }
+
     /// Generic TTL guard for optional values that ride alongside rate limits.
     nonisolated static func effectiveValue<T>(
         fresh: T?,

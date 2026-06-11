@@ -242,13 +242,18 @@ public final class UsageViewModel: ObservableObject {
 
         let (api, status) = await fetchAPIData(oauthManager: oauthManager, accountId: accountId)
 
+        // If user switched accounts while fetching, discard stale results BEFORE
+        // any published state is written — otherwise the old account's data leaks
+        // into the new account's display (apiResult/isShowingCachedData/lastFreshFetch).
+        guard Self.shouldApplyFetchResult(
+            fetchedAccountId: accountId,
+            activeAccountId: oauthManager.accountStore.activeAccountId
+        ) else { return }
+
         apiResult = api
         systemStatus = status
         isShowingCachedData = api.isCached
         if !api.isCached { lastFreshFetch = api.fetchedAt }
-
-        // If user switched accounts while fetching, discard stale results.
-        guard accountId == oauthManager.accountStore.activeAccountId else { return }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits, source: api.isCached ? "stale-cache" : "api-fresh")
@@ -330,7 +335,15 @@ public final class UsageViewModel: ObservableObject {
         oauthManager: OAuthManager,
         accountId: String?
     ) async -> (APIFetchResult, ClaudeSystemStatus) {
-        let accessToken = await oauthManager.getAccessToken()
+        // Pin the token to the account this fetch was filed under. Resolving the
+        // ACTIVE account's token at await-time would, after a mid-poll account
+        // switch, send account B's token on a request cached and persisted under
+        // account A's key.
+        let accessToken: String? = if let id = accountId {
+            await oauthManager.getAccessToken(for: id)
+        } else {
+            nil
+        }
 
         async let fetchedStatus = StatusChecker.shared.fetchStatus()
 
@@ -408,7 +421,7 @@ public final class UsageViewModel: ObservableObject {
     private func handlePostFetchAlerts(api: APIFetchResult, status: ClaudeSystemStatus) async {
         NotificationManager.shared.checkStatusAlerts(status: status)
 
-        if let limits = api.rateLimits {
+        if let limits = Self.alertableRateLimits(api) {
             NotificationManager.shared.checkRateLimitAlerts(rateLimits: limits)
         }
 

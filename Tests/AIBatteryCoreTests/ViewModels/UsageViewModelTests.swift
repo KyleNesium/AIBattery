@@ -513,4 +513,56 @@ struct UsageViewModelTests {
         )
         #expect(result == nil)
     }
+
+    // MARK: - shouldApplyFetchResult (cross-account refresh race)
+
+    @Test func shouldApplyFetchResult_sameAccount_applies() {
+        #expect(UsageViewModel.shouldApplyFetchResult(fetchedAccountId: "org-a", activeAccountId: "org-a"))
+    }
+
+    @Test func shouldApplyFetchResult_switchedAccount_discards() {
+        #expect(!UsageViewModel.shouldApplyFetchResult(fetchedAccountId: "org-a", activeAccountId: "org-b"))
+    }
+
+    @Test func shouldApplyFetchResult_accountRemovedMidFetch_discards() {
+        #expect(!UsageViewModel.shouldApplyFetchResult(fetchedAccountId: "org-a", activeAccountId: nil))
+    }
+
+    @Test func shouldApplyFetchResult_accountAddedMidFetch_discards() {
+        #expect(!UsageViewModel.shouldApplyFetchResult(fetchedAccountId: nil, activeAccountId: "org-a"))
+    }
+
+    @Test func shouldApplyFetchResult_bothNil_applies() {
+        #expect(UsageViewModel.shouldApplyFetchResult(fetchedAccountId: nil, activeAccountId: nil))
+    }
+
+    // MARK: - alertableRateLimits (stale-data gate on notifications)
+
+    private static func makeRateLimits(fiveHourUtil: Double = 0.85) -> RateLimitUsage {
+        RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: fiveHourUtil,
+            fiveHourReset: Date().addingTimeInterval(3_600),
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.4,
+            sevenDayReset: Date().addingTimeInterval(86_400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+    }
+
+    @Test func alertableRateLimits_freshResult_returnsLimits() {
+        let api = APIFetchResult(rateLimits: Self.makeRateLimits(), profile: nil, isCached: false)
+        #expect(UsageViewModel.alertableRateLimits(api) == api.rateLimits)
+    }
+
+    @Test func alertableRateLimits_cachedResult_neverAlerts() {
+        let api = APIFetchResult(rateLimits: Self.makeRateLimits(), profile: nil, isCached: true)
+        #expect(UsageViewModel.alertableRateLimits(api) == nil)
+    }
+
+    @Test func alertableRateLimits_freshWithoutLimits_returnsNil() {
+        let api = APIFetchResult(rateLimits: nil, profile: nil, isCached: false)
+        #expect(UsageViewModel.alertableRateLimits(api) == nil)
+    }
 }

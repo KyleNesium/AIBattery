@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Account switching mid-refresh can no longer mix up accounts' data.** A poll now
+  requests the token for the exact account it started with (instead of whichever
+  account is active by the time the request fires), and a fetch whose account was
+  switched away mid-flight is discarded before *any* state is updated. Previously a
+  mid-poll switch could fetch account B's usage with account A's identity — caching
+  and persisting B's rate limits under A's key — and briefly paint stale
+  cross-account data in the menu bar.
+- **Stale cached data can no longer fire rate-limit notifications.** After wake or
+  an offline stretch, a cached near-limit reading (e.g. a pre-sleep 85%) could fire
+  a real macOS notification even though the menu bar itself refuses to alarm on
+  unconfirmed data. Notifications now use the same fresh-data gate as the menu bar:
+  cached results never alert; the first confirming fetch does.
+
 ## [2.4.3] — 2026-06-05
 
 Fixes a false "Limit reached" flash right after waking your Mac, plus internal hardening.
