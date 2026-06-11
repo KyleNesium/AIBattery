@@ -8,77 +8,126 @@ import os
 /// token counts, we derive the window's token limit and persist it.
 /// Future polls use the calibrated limit to compute percentages locally.
 ///
+/// All calibration state is **per account** (keys suffixed with the account ID):
+/// with mixed plan tiers, one account's calibration must not misprice another's
+/// fallback estimates. Callers that don't pass an account ID get the persisted
+/// active account — every UI read path renders the active account's data.
+///
 /// Without calibration, shows raw token counts (no percentage).
 @MainActor
 enum LocalUsageEstimate {
-    /// UserDefaults keys for calibrated limits. Marked nonisolated so the
-    /// nonisolated `fiveHourLimit` / `sevenDayLimit` getters can read them
-    /// without crossing actor boundaries (silences Swift 6 warnings).
-    nonisolated private static let fiveHourLimitKey = "aibattery_calibrated_5h_limit"
-    nonisolated private static let sevenDayLimitKey = "aibattery_calibrated_7d_limit"
-    private static let calibratedAtKey = "aibattery_calibrated_at"
+    /// Base UserDefaults keys for calibrated limits — suffixed per account via
+    /// `scopedKey`. Marked nonisolated so the nonisolated limit getters can read
+    /// them without crossing actor boundaries (silences Swift 6 warnings).
+    nonisolated private static let fiveHourLimitKeyBase = "aibattery_calibrated_5h_limit"
+    nonisolated private static let sevenDayLimitKeyBase = "aibattery_calibrated_7d_limit"
+    nonisolated private static let calibratedAtKeyBase = "aibattery_calibrated_at"
     /// Tracks whether calibration includes cache tokens (v2.2+ methodology).
     private static let calibrationVersionKey = "aibattery_calibration_version"
     private static let currentCalibrationVersion = 2
+    /// One-time move of the legacy global calibration keys to the active account.
+    private static let perAccountMigratedKey = "aibattery_calibration_perAccount_migrated"
 
-    /// Clear stale calibrations from before cache-inclusive counting (v2.2).
-    /// Called once at launch — if the stored version is older, wipe the limits.
-    static func migrateIfNeeded() {
-        let stored = UserDefaults.standard.integer(forKey: calibrationVersionKey)
+    /// Per-account key: `{base}_{accountId}`. A nil account (signed out) falls
+    /// back to the legacy global key so the estimate still works pre-login.
+    nonisolated private static func scopedKey(_ base: String, _ accountId: String?) -> String {
+        guard let accountId, !accountId.isEmpty else { return base }
+        return "\(base)_\(accountId)"
+    }
+
+    /// Clear stale calibrations from before cache-inclusive counting (v2.2),
+    /// then move the legacy global calibration to the active account (one-time).
+    /// Called once at launch. The per-account move only runs (and only marks
+    /// itself done) when an active account exists — otherwise it retries on a
+    /// later launch so a pre-login calibration isn't stranded on the global keys.
+    static func migrateIfNeeded(
+        activeAccountId: String? = AccountStore.persistedActiveAccountId,
+        defaults: UserDefaults = .standard
+    ) {
+        let stored = defaults.integer(forKey: calibrationVersionKey)
         if stored < currentCalibrationVersion {
-            fiveHourLimit = 0
-            sevenDayLimit = 0
-            UserDefaults.standard.removeObject(forKey: calibratedAtKey)
-            UserDefaults.standard.set(currentCalibrationVersion, forKey: calibrationVersionKey)
+            defaults.removeObject(forKey: fiveHourLimitKeyBase)
+            defaults.removeObject(forKey: sevenDayLimitKeyBase)
+            defaults.removeObject(forKey: calibratedAtKeyBase)
+            defaults.set(currentCalibrationVersion, forKey: calibrationVersionKey)
         }
+
+        guard let accountId = activeAccountId, !defaults.bool(forKey: perAccountMigratedKey) else { return }
+        for base in [fiveHourLimitKeyBase, sevenDayLimitKeyBase, calibratedAtKeyBase] {
+            if let legacy = defaults.object(forKey: base) {
+                defaults.set(legacy, forKey: scopedKey(base, accountId))
+                defaults.removeObject(forKey: base)
+            }
+        }
+        defaults.set(true, forKey: perAccountMigratedKey)
     }
 
-    /// Calibrated 5-hour token limit (0 = uncalibrated).
+    /// Calibrated 5-hour token limit for an account (0 = uncalibrated).
     /// UserDefaults is thread-safe — reads are nonisolated for use from views/snapshots.
-    nonisolated static var fiveHourLimit: Int {
-        get { UserDefaults.standard.integer(forKey: fiveHourLimitKey) }
-        set { UserDefaults.standard.set(newValue, forKey: fiveHourLimitKey) }
+    nonisolated static func fiveHourLimit(for accountId: String? = AccountStore.persistedActiveAccountId) -> Int {
+        UserDefaults.standard.integer(forKey: scopedKey(fiveHourLimitKeyBase, accountId))
     }
 
-    /// Calibrated 7-day token limit (0 = uncalibrated).
-    nonisolated static var sevenDayLimit: Int {
-        get { UserDefaults.standard.integer(forKey: sevenDayLimitKey) }
-        set { UserDefaults.standard.set(newValue, forKey: sevenDayLimitKey) }
+    nonisolated static func setFiveHourLimit(_ value: Int, for accountId: String? = AccountStore.persistedActiveAccountId) {
+        UserDefaults.standard.set(value, forKey: scopedKey(fiveHourLimitKeyBase, accountId))
     }
 
-    /// When the limits were last calibrated.
-    static var calibratedAt: Date? {
-        let ts = UserDefaults.standard.double(forKey: calibratedAtKey)
+    /// Calibrated 7-day token limit for an account (0 = uncalibrated).
+    nonisolated static func sevenDayLimit(for accountId: String? = AccountStore.persistedActiveAccountId) -> Int {
+        UserDefaults.standard.integer(forKey: scopedKey(sevenDayLimitKeyBase, accountId))
+    }
+
+    nonisolated static func setSevenDayLimit(_ value: Int, for accountId: String? = AccountStore.persistedActiveAccountId) {
+        UserDefaults.standard.set(value, forKey: scopedKey(sevenDayLimitKeyBase, accountId))
+    }
+
+    /// When the account's limits were last calibrated.
+    nonisolated static func calibratedAt(for accountId: String? = AccountStore.persistedActiveAccountId) -> Date? {
+        let ts = UserDefaults.standard.double(forKey: scopedKey(calibratedAtKeyBase, accountId))
         return ts > 0 ? Date(timeIntervalSinceReferenceDate: ts) : nil
     }
 
-    /// Whether we have calibrated limits (from API or 429 event).
-    nonisolated static var isCalibrated: Bool {
-        fiveHourLimit > 0 || sevenDayLimit > 0
+    nonisolated private static func markCalibrated(for accountId: String?) {
+        UserDefaults.standard.set(
+            Date().timeIntervalSinceReferenceDate,
+            forKey: scopedKey(calibratedAtKeyBase, accountId)
+        )
+    }
+
+    /// Whether the account has calibrated limits (from API or 429 event).
+    nonisolated static func isCalibrated(for accountId: String? = AccountStore.persistedActiveAccountId) -> Bool {
+        fiveHourLimit(for: accountId) > 0 || sevenDayLimit(for: accountId) > 0
     }
 
     /// Effective 5-hour limit: calibrated > plan-based > nil.
-    nonisolated static var effectiveFiveHourLimit: Int? {
-        if fiveHourLimit > 0 { return fiveHourLimit }
-        return PlanTier.current?.estimatedFiveHourLimit
+    /// The plan fallback resolves the account's own tier (API-reported
+    /// `billingType` first, then the user-selected global tier).
+    nonisolated static func effectiveFiveHourLimit(for accountId: String? = AccountStore.persistedActiveAccountId) -> Int? {
+        let calibrated = fiveHourLimit(for: accountId)
+        if calibrated > 0 { return calibrated }
+        return PlanTier.effective(forAccountId: accountId)?.estimatedFiveHourLimit
     }
 
     /// Effective 7-day limit: calibrated > plan-based > nil.
-    nonisolated static var effectiveSevenDayLimit: Int? {
-        if sevenDayLimit > 0 { return sevenDayLimit }
-        return PlanTier.current?.estimatedSevenDayLimit
+    nonisolated static func effectiveSevenDayLimit(for accountId: String? = AccountStore.persistedActiveAccountId) -> Int? {
+        let calibrated = sevenDayLimit(for: accountId)
+        if calibrated > 0 { return calibrated }
+        return PlanTier.effective(forAccountId: accountId)?.estimatedSevenDayLimit
     }
 
     /// Whether the active limit comes from calibration (exact) vs plan estimate (approximate).
-    nonisolated static func limitSource(for window: MetricMode) -> LimitSource? {
+    nonisolated static func limitSource(
+        for window: MetricMode,
+        accountId: String? = AccountStore.persistedActiveAccountId
+    ) -> LimitSource? {
         switch window {
         case .fiveHour:
-            if fiveHourLimit > 0 { return .calibrated }
-            if PlanTier.current != nil { return .planEstimate }
+            if fiveHourLimit(for: accountId) > 0 { return .calibrated }
+            if PlanTier.effective(forAccountId: accountId) != nil { return .planEstimate }
             return nil
         case .sevenDay:
-            if sevenDayLimit > 0 { return .calibrated }
-            if PlanTier.current != nil { return .planEstimate }
+            if sevenDayLimit(for: accountId) > 0 { return .calibrated }
+            if PlanTier.effective(forAccountId: accountId) != nil { return .planEstimate }
             return nil
         default:
             return nil
@@ -105,44 +154,53 @@ enum LocalUsageEstimate {
         fiveHourUtilization: Double,
         sevenDayUtilization: Double,
         localFiveHourTokens: Int,
-        localSevenDayTokens: Int
+        localSevenDayTokens: Int,
+        accountId: String? = AccountStore.persistedActiveAccountId
     ) {
         var updated = false
         if calibrationBand.contains(fiveHourUtilization), localFiveHourTokens > 0 {
             let derived = Int(Double(localFiveHourTokens) / fiveHourUtilization)
             // Sanity check: limit should be > 100K tokens
             if derived > 100_000 {
-                fiveHourLimit = derived
+                setFiveHourLimit(derived, for: accountId)
                 updated = true
             }
         }
         if calibrationBand.contains(sevenDayUtilization), localSevenDayTokens > 0 {
             let derived = Int(Double(localSevenDayTokens) / sevenDayUtilization)
             if derived > 100_000 {
-                sevenDayLimit = derived
+                setSevenDayLimit(derived, for: accountId)
                 updated = true
             }
         }
         if updated {
-            UserDefaults.standard.set(Date().timeIntervalSinceReferenceDate, forKey: calibratedAtKey)
+            markCalibrated(for: accountId)
         }
     }
 
     /// Estimate 5-hour utilization from local tokens (0–100, or nil if no limit known).
-    nonisolated static func fiveHourPercent(tokens: Int) -> Double? {
-        guard let limit = effectiveFiveHourLimit, limit > 0 else { return nil }
+    nonisolated static func fiveHourPercent(
+        tokens: Int,
+        accountId: String? = AccountStore.persistedActiveAccountId
+    ) -> Double? {
+        guard let limit = effectiveFiveHourLimit(for: accountId), limit > 0 else { return nil }
         return min(Double(tokens) / Double(limit) * 100.0, 100.0)
     }
 
     /// Estimate 7-day utilization from local tokens (0–100, or nil if no limit known).
-    nonisolated static func sevenDayPercent(tokens: Int) -> Double? {
-        guard let limit = effectiveSevenDayLimit, limit > 0 else { return nil }
+    nonisolated static func sevenDayPercent(
+        tokens: Int,
+        accountId: String? = AccountStore.persistedActiveAccountId
+    ) -> Double? {
+        guard let limit = effectiveSevenDayLimit(for: accountId), limit > 0 else { return nil }
         return min(Double(tokens) / Double(limit) * 100.0, 100.0)
     }
 
     // MARK: - Latest Token Counts (for 429 calibration)
 
-    /// Updated each refresh cycle by UsageViewModel so 429 calibration can snapshot them.
+    /// Updated each refresh cycle by UsageViewModel so 429 calibration can snapshot
+    /// them. These reflect the ACTIVE account's aggregation — which is why
+    /// `calibrateFrom429` refuses to seed any other account from them.
     static var latestFiveHourTokens: Int = 0
     static var latestSevenDayTokens: Int = 0
 
@@ -156,23 +214,34 @@ enum LocalUsageEstimate {
     /// `calibrate()` has run against real utilization headers, we treat that
     /// number as authoritative and never overwrite it from a header-less 429.
     /// Applies a small buffer (95%) since the 429 may fire slightly before 100%.
-    static func calibrateFrom429() {
+    ///
+    /// Only seeds the ACTIVE account: `latest*Tokens` hold the active account's
+    /// local counts, so a 429 on a fan-out fetch for another account carries no
+    /// usable token signal for it.
+    static func calibrateFrom429(
+        accountId: String? = AccountStore.persistedActiveAccountId,
+        activeAccountId: String? = AccountStore.persistedActiveAccountId
+    ) {
+        guard accountId == activeAccountId else {
+            AppLogger.network.info("429 calibration skipped — non-active account \(accountId ?? "nil", privacy: .public)")
+            return
+        }
         let buffer = 0.95
         var updated = false
-        if fiveHourLimit == 0, latestFiveHourTokens > 100_000 {
+        if fiveHourLimit(for: accountId) == 0, latestFiveHourTokens > 100_000 {
             let derived = Int(Double(latestFiveHourTokens) / buffer)
-            fiveHourLimit = derived
+            setFiveHourLimit(derived, for: accountId)
             updated = true
             AppLogger.network.info("429 seeded uncalibrated 5h limit: \(derived) tokens")
         }
-        if sevenDayLimit == 0, latestSevenDayTokens > 100_000 {
+        if sevenDayLimit(for: accountId) == 0, latestSevenDayTokens > 100_000 {
             let derived = Int(Double(latestSevenDayTokens) / buffer)
-            sevenDayLimit = derived
+            setSevenDayLimit(derived, for: accountId)
             updated = true
             AppLogger.network.info("429 seeded uncalibrated 7d limit: \(derived) tokens")
         }
         if updated {
-            UserDefaults.standard.set(Date().timeIntervalSinceReferenceDate, forKey: calibratedAtKey)
+            markCalibrated(for: accountId)
         } else {
             AppLogger.network.info("429 calibration skipped — limits already set or local tokens too low")
         }
@@ -181,14 +250,14 @@ enum LocalUsageEstimate {
     // MARK: - Manual Overrides
 
     /// Allow user to manually set their 5-hour token limit.
-    static func setManualFiveHourLimit(_ limit: Int) {
-        fiveHourLimit = max(limit, 0)
-        UserDefaults.standard.set(Date().timeIntervalSinceReferenceDate, forKey: calibratedAtKey)
+    static func setManualFiveHourLimit(_ limit: Int, for accountId: String? = AccountStore.persistedActiveAccountId) {
+        setFiveHourLimit(max(limit, 0), for: accountId)
+        markCalibrated(for: accountId)
     }
 
     /// Allow user to manually set their 7-day token limit.
-    static func setManualSevenDayLimit(_ limit: Int) {
-        sevenDayLimit = max(limit, 0)
-        UserDefaults.standard.set(Date().timeIntervalSinceReferenceDate, forKey: calibratedAtKey)
+    static func setManualSevenDayLimit(_ limit: Int, for accountId: String? = AccountStore.persistedActiveAccountId) {
+        setSevenDayLimit(max(limit, 0), for: accountId)
+        markCalibrated(for: accountId)
     }
 }

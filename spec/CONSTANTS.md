@@ -550,6 +550,7 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Minimum utilization | 20% (below this, estimate not shown) |
 | Minimum elapsed time | 60 sec (need meaningful burn rate) |
 | Shown when | Estimate < remaining time before reset |
-| Calibrated 5h limit key | `aibattery_calibrated_5h_limit` (Double) — `LocalUsageEstimate` |
-| Calibrated 7d limit key | `aibattery_calibrated_7d_limit` (Double) — `LocalUsageEstimate` |
-| Calibration timestamp key | `aibattery_calibrated_at` (Double, Unix timestamp) — `LocalUsageEstimate` |
+| Calibrated 5h limit key | `aibattery_calibrated_5h_limit_{accountId}` (Int, per account) — `LocalUsageEstimate`; bare base key only pre-login |
+| Calibrated 7d limit key | `aibattery_calibrated_7d_limit_{accountId}` (Int, per account) — `LocalUsageEstimate`; bare base key only pre-login |
+| Calibration timestamp key | `aibattery_calibrated_at_{accountId}` (Double, reference-date timestamp, per account) — `LocalUsageEstimate` |
+| Per-account calibration migration flag | `aibattery_calibration_perAccount_migrated` (Bool) — one-time move of legacy global keys to the active account |

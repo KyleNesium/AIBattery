@@ -359,7 +359,7 @@ final class RateLimitFetcher {
                 // 429 without unified headers — the user hit a rate limit.
                 // Signal for auto-calibration: the current local token count ≈ the real limit.
                 AppLogger.network.warning("429 without rate limit headers (model=\(model))")
-                await MainActor.run { LocalUsageEstimate.calibrateFrom429() }
+                await MainActor.run { LocalUsageEstimate.calibrateFrom429(accountId: accountId) }
 
                 // Honor Retry-After if present
                 if let delay = Self.parseRetryAfter(http.value(forHTTPHeaderField: "Retry-After")) {

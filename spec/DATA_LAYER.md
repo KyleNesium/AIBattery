@@ -303,25 +303,27 @@ Fallback estimation when Anthropic's unified rate limit headers are unavailable.
 
 **Calibration**: when the API returns both utilization and local token counts are available, derives the window's token limit (`limit = localTokens / utilization`) and persists to UserDefaults. Subsequent polls compute percentages locally. Only calibrates when utilization is inside the **20–80%** band (`calibrationBand`) and the derived limit exceeds 100K tokens. The edges are excluded because dividing by a small utilization magnifies measurement error (a 1% error at 5% utilization → ~20% error in the derived limit), which would let the local fallback read ≥100% when the API would report well under.
 
-| Static Property | Type | Notes |
+**Per-account scoping**: all calibration state is keyed per account (`{base}_{accountId}`) — with mixed plan tiers, one account's calibration must not misprice another's estimates. Every accessor takes `accountId: String?` defaulting to `AccountStore.persistedActiveAccountId` (the persisted active-account ID, readable off-MainActor), so UI read paths — which always render the active account — need no changes. A nil account (signed out) falls back to the legacy global keys.
+
+| Static accessor | Type | Notes |
 |-----------------|------|-------|
-| `fiveHourLimit` | `Int` | Calibrated 5h token limit (0 = uncalibrated). `nonisolated` — UserDefaults is thread-safe |
-| `sevenDayLimit` | `Int` | Calibrated 7d token limit (0 = uncalibrated). `nonisolated` |
-| `calibratedAt` | `Date?` | When limits were last calibrated |
-| `isCalibrated` | `Bool` | `nonisolated` — true when either limit > 0 |
-| `effectiveFiveHourLimit` | `Int?` | Fallback chain: calibrated > `PlanTier.current` > nil |
-| `effectiveSevenDayLimit` | `Int?` | Fallback chain: calibrated > `PlanTier.current` > nil |
-| `latestFiveHourTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot |
-| `latestSevenDayTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot |
+| `fiveHourLimit(for:)` / `setFiveHourLimit(_:for:)` | `Int` | Calibrated 5h token limit (0 = uncalibrated). `nonisolated` — UserDefaults is thread-safe |
+| `sevenDayLimit(for:)` / `setSevenDayLimit(_:for:)` | `Int` | Calibrated 7d token limit (0 = uncalibrated). `nonisolated` |
+| `calibratedAt(for:)` | `Date?` | When the account's limits were last calibrated |
+| `isCalibrated(for:)` | `Bool` | `nonisolated` — true when either limit > 0 |
+| `effectiveFiveHourLimit(for:)` | `Int?` | Fallback chain: calibrated > `PlanTier.effective(forAccountId:)` > nil |
+| `effectiveSevenDayLimit(for:)` | `Int?` | Fallback chain: calibrated > `PlanTier.effective(forAccountId:)` > nil |
+| `latestFiveHourTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot (active account's counts) |
+| `latestSevenDayTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot (active account's counts) |
 
 Methods:
-- `migrateIfNeeded()` — clears stale pre-v2 calibrations (before cache-inclusive counting). Called once at launch.
-- `calibrate(fiveHourUtilization:sevenDayUtilization:localFiveHourTokens:localSevenDayTokens:)` — derives limits from API utilization + local counts
-- `calibrateFrom429()` — when a 429 is received without headers, uses current local token count as the limit (with 95% buffer)
-- `fiveHourPercent(tokens:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
-- `sevenDayPercent(tokens:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
-- `limitSource(for:) -> LimitSource?` — `.calibrated` or `.planEstimate` or nil
-- `setManualFiveHourLimit(_:)` / `setManualSevenDayLimit(_:)` — user overrides
+- `migrateIfNeeded(activeAccountId:defaults:)` — clears stale pre-v2 calibrations (before cache-inclusive counting), then one-time-moves the legacy global calibration keys to the active account (`aibattery_calibration_perAccount_migrated` flag; only marks done when an account exists, else retries next launch). Called once at launch.
+- `calibrate(fiveHourUtilization:sevenDayUtilization:localFiveHourTokens:localSevenDayTokens:accountId:)` — derives limits from API utilization + local counts; `UsageViewModel.refresh()` passes the poll's captured account ID
+- `calibrateFrom429(accountId:activeAccountId:)` — when a 429 is received without headers, uses current local token count as the limit (with 95% buffer). **Only seeds the active account**: `latest*Tokens` hold the active account's local counts, so a fan-out 429 for another account is ignored
+- `fiveHourPercent(tokens:accountId:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
+- `sevenDayPercent(tokens:accountId:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
+- `limitSource(for:accountId:) -> LimitSource?` — `.calibrated` or `.planEstimate` or nil
+- `setManualFiveHourLimit(_:for:)` / `setManualSevenDayLimit(_:for:)` — user overrides
 
 Nested: `LimitSource` enum (`.calibrated`, `.planEstimate`)
 
@@ -336,7 +338,11 @@ Claude subscription plan tiers with estimated 5h/7d token limits. Community-deri
 | `.max20x` | `"max20x"` | `"Max 20×"` | 140M | 700M |
 | `.team` | `"team"` | `"Team"` | 10M | 50M |
 
-Static: `current: PlanTier?` — persisted to UserDefaults (`UserDefaultsKeys.planTier`).
+Static: `current: PlanTier?` — the user-selected global tier, persisted to UserDefaults (`UserDefaultsKeys.planTier`).
+
+`init?(billingType:)` — maps an account's API-reported `billingType` string to a tier (lowercased, separators stripped; `"pro"`, `"max5x"`, `"max20x"`, `"team"`/`"teams"`; anything unrecognized → nil rather than guessing).
+
+`effective(forAccountId:defaults:)` — the tier for a specific account's estimates: the account's `billingType` when it maps to a known tier, else `current`. Reads the persisted `AccountRecord` JSON directly (`UserDefaultsKeys.accounts`) so nonisolated estimate paths don't cross into the `@MainActor` `AccountStore`.
 
 Conforms to `CaseIterable`, `Codable`.
 

@@ -11,6 +11,16 @@
   prompt still appears after 3 consecutive failures — with less wasted traffic per
   poll while signed out.
 
+- **Local usage estimates are now calibrated per account.** Calibration previously
+  lived in global keys, so with multiple accounts on different plan tiers, one
+  account's calibration silently mispriced the other's fallback estimates (e.g. a
+  Max 20× calibration making a Pro account look barely used). Each account now
+  keeps its own calibrated limits; the existing calibration migrates to the active
+  account on first launch. The plan-tier fallback also prefers an account's own
+  API-reported billing type over the globally selected tier, and a 429 on a
+  background (non-active) account can no longer seed its limit from the active
+  account's token counts.
+
 ### Internal
 - Launch-time rate-limit cache restore hardened with recovery tests: a corrupt
   persisted blob self-heals (removed, other accounts unaffected) and a future
