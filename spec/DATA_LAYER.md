@@ -617,14 +617,18 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 
 ## Views
 
-### StatusBarManager (`Views/StatusBarManager.swift`)
+### StatusBarManager (`Views/StatusBarManager.swift` + extensions)
 
-- `@MainActor` class managing the `NSStatusItem` and `PopoverPanel`.
+- `@MainActor` class managing the `NSStatusItem` and `PopoverPanel`. Split across `+ButtonUpdate` / `+Countdown` / `+Panel` extension files (UsageViewModel precedent); shared stored state is declared non-private for cross-file extension visibility.
 - **Exhausted state** — only on a genuine throttle (`RateLimitUsage.isThrottled`) the menu bar icon switches to a static broken star (12-pointed spiky star with solid 4-pointed overlay). No animation — the distinct shape communicates the state. Reaching 100% utilization *without* a throttle is the "at capacity" state: a solid red (non-broken) star, since the icon color is driven by percent.
+- **Render skip** — `updateButton` builds a `MenuBarRenderKey` (text, whole-percent bucket, color, isBroken, isSparkle, appearance name) and only rebuilds the combined NSImage when the key changed. During a throttle countdown the ticker fires every 10s but the compact text changes ~once a minute, so most ticks skip the NSAttributedString+NSImage allocation entirely. Timer bookkeeping (start/stop countdown) always runs — it manages timers, not pixels.
 - **Panel toggle** — `PanelToggleState` value type tracks `.isShowing`; `statusItemClicked` toggles show/hide; `panel.onDismiss` consolidates all dismiss paths.
 - **Recovery sparkle** — 30s celebration animation triggered when throttle/exhaustion clears; `isSparkleActive` drives sparkle icon rendering.
 
 ## Utilities
+
+### AppPaths (`Utilities/AppPaths.swift`)
+- `applicationSupport() -> URL` — `~/Library/Application Support/AIBattery`, created if missing; fails fast (fatalError) when the system directory is unavailable. Single home for the guard previously duplicated in `SingleInstanceGuard` and `TokenLedger`.
 
 ### ClaudePaths (`Utilities/ClaudePaths.swift`)
 - Centralized file paths for all Claude Code data locations (`static let` — computed once at load time)
