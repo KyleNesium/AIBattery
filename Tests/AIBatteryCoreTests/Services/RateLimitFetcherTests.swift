@@ -449,13 +449,29 @@ struct RateLimitFetcherTests {
     }
     """
 
+    /// Unwrap a `.success` outcome; nil for `.authFailed` / `.unavailable`.
+    private static func successResult(_ outcome: RateLimitFetcher.UsageEndpointOutcome) -> APIFetchResult? {
+        if case .success(let result) = outcome { return result }
+        return nil
+    }
+
+    private static func isAuthFailed(_ outcome: RateLimitFetcher.UsageEndpointOutcome) -> Bool {
+        if case .authFailed = outcome { return true }
+        return false
+    }
+
+    private static func isUnavailable(_ outcome: RateLimitFetcher.UsageEndpointOutcome) -> Bool {
+        if case .unavailable = outcome { return true }
+        return false
+    }
+
     @Test func interpretUsageEndpoint_200_validBody_returnsRateLimitsAndSource() {
-        let result = RateLimitFetcher.interpretUsageEndpoint(
+        let result = Self.successResult(RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 200,
             data: Data(Self.usageBody200.utf8),
             headers: [:],
             cachedProfile: nil
-        )
+        ))
         #expect(result?.rateLimits?.fiveHourUtilization == 0.42)
         #expect(result?.rateLimits?.sevenDayUtilization == 0.18)
         #expect(result?.rateLimits?.overallStatus == "allowed")
@@ -467,21 +483,21 @@ struct RateLimitFetcherTests {
         // Body says "allowed" at 98% util; 429 + `quotaThrottleLikely == true` must
         // override and flip to throttled. Sanity: with the SAME body under 200, the
         // result must stay allowed (the marker is gated on the 429 status code).
-        let allowedUnder200 = RateLimitFetcher.interpretUsageEndpoint(
+        let allowedUnder200 = Self.successResult(RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 200,
             data: Data(Self.usageBody429HighUtilStatusAllowed.utf8),
             headers: [:],
             cachedProfile: nil
-        )
+        ))
         #expect(allowedUnder200?.rateLimits?.overallStatus == "allowed")
         #expect(allowedUnder200?.rateLimits?.isThrottled == false)
 
-        let throttledUnder429 = RateLimitFetcher.interpretUsageEndpoint(
+        let throttledUnder429 = Self.successResult(RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 429,
             data: Data(Self.usageBody429HighUtilStatusAllowed.utf8),
             headers: [:],
             cachedProfile: nil
-        )
+        ))
         #expect(throttledUnder429?.rateLimits?.overallStatus == "throttled")
         #expect(throttledUnder429?.rateLimits?.isThrottled == true)
     }
@@ -489,69 +505,190 @@ struct RateLimitFetcherTests {
     @Test func interpretUsageEndpoint_429_lowUtilization_doesNotMarkThrottled() {
         // 429 with sub-95% utilization → upstream/per-minute throttle, not quota.
         // markedThrottled must NOT fire — otherwise we'd misreport quota status.
-        let result = RateLimitFetcher.interpretUsageEndpoint(
+        let result = Self.successResult(RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 429,
             data: Data(Self.usageBody429LowUtil.utf8),
             headers: [:],
             cachedProfile: nil
-        )
+        ))
         #expect(result?.rateLimits?.overallStatus == "allowed")
         #expect(result?.rateLimits?.isThrottled == false)
     }
 
-    @Test func interpretUsageEndpoint_401_returnsNil() {
-        let result = RateLimitFetcher.interpretUsageEndpoint(
+    @Test func interpretUsageEndpoint_401_returnsAuthFailed() {
+        let outcome = RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 401, data: Data(Self.usageBody200.utf8), headers: [:], cachedProfile: nil
         )
-        #expect(result == nil)
+        #expect(Self.isAuthFailed(outcome))
     }
 
-    @Test func interpretUsageEndpoint_403_returnsNil() {
-        let result = RateLimitFetcher.interpretUsageEndpoint(
+    @Test func interpretUsageEndpoint_403_returnsAuthFailed() {
+        let outcome = RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 403, data: Data(Self.usageBody200.utf8), headers: [:], cachedProfile: nil
         )
-        #expect(result == nil)
+        #expect(Self.isAuthFailed(outcome))
     }
 
-    @Test func interpretUsageEndpoint_500_returnsNil() {
-        let result = RateLimitFetcher.interpretUsageEndpoint(
+    @Test func interpretUsageEndpoint_500_returnsUnavailable() {
+        // Server error is NOT an auth failure — the probe fallback should still run.
+        let outcome = RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 500, data: Data(Self.usageBody200.utf8), headers: [:], cachedProfile: nil
         )
-        #expect(result == nil)
+        #expect(Self.isUnavailable(outcome))
     }
 
-    @Test func interpretUsageEndpoint_200_malformedBody_returnsNil() {
-        let result = RateLimitFetcher.interpretUsageEndpoint(
+    @Test func interpretUsageEndpoint_200_malformedBody_returnsUnavailable() {
+        let outcome = RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 200,
             data: Data("not json".utf8),
             headers: [:],
             cachedProfile: nil
         )
-        #expect(result == nil)
+        #expect(Self.isUnavailable(outcome))
     }
 
-    @Test func interpretUsageEndpoint_200_noRateLimitsField_returnsNil() {
+    @Test func interpretUsageEndpoint_200_noRateLimitsField_returnsUnavailable() {
         // Valid JSON but missing rate_limits — interpreter requires rate limits to surface a result.
-        let result = RateLimitFetcher.interpretUsageEndpoint(
+        let outcome = RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 200,
             data: Data(#"{"other_field": 1}"#.utf8),
             headers: [:],
             cachedProfile: nil
         )
-        #expect(result == nil)
+        #expect(Self.isUnavailable(outcome))
     }
 
     @Test func interpretUsageEndpoint_200_profileFallsBackToCache() {
         // Body parses to rate limits but contains no profile; headers also bare.
         // Cached profile should fill the slot so the snapshot doesn't lose org context.
         let cached = APIProfile(organizationId: "org-cached", workspaceId: nil, workspaceName: nil)
-        let result = RateLimitFetcher.interpretUsageEndpoint(
+        let result = Self.successResult(RateLimitFetcher.interpretUsageEndpoint(
             statusCode: 200,
             data: Data(Self.usageBody200.utf8),
             headers: [:],
             cachedProfile: cached
-        )
+        ))
         #expect(result?.profile?.organizationId == "org-cached")
+    }
+
+    // MARK: - registerAuthFailure (shared 401/403 bookkeeping for both fetch paths)
+
+    @Test func registerAuthFailure_belowThreshold_doesNotSurfaceAuthError() {
+        let fetcher = RateLimitFetcher()
+        let accountId = "auth-test-\(UUID().uuidString)"
+        let first = fetcher.registerAuthFailure(accountId: accountId, path: "usage endpoint")
+        let second = fetcher.registerAuthFailure(accountId: accountId, path: "usage endpoint")
+        #expect(first.authError == false)
+        #expect(second.authError == false)
+    }
+
+    @Test func registerAuthFailure_atThreshold_surfacesAuthError() {
+        let fetcher = RateLimitFetcher()
+        let accountId = "auth-test-\(UUID().uuidString)"
+        var last = APIFetchResult(rateLimits: nil, profile: nil)
+        for _ in 0..<RateLimitFetcher.authErrorThreshold {
+            last = fetcher.registerAuthFailure(accountId: accountId, path: "usage endpoint")
+        }
+        #expect(last.authError == true)
+    }
+
+    @Test func registerAuthFailure_countsPerAccount() {
+        // Failures on one account must not surface authError on another.
+        let fetcher = RateLimitFetcher()
+        let failing = "auth-test-\(UUID().uuidString)"
+        let other = "auth-test-\(UUID().uuidString)"
+        for _ in 0..<RateLimitFetcher.authErrorThreshold {
+            _ = fetcher.registerAuthFailure(accountId: failing, path: "usage endpoint")
+        }
+        let otherResult = fetcher.registerAuthFailure(accountId: other, path: "usage endpoint")
+        #expect(otherResult.authError == false)
+    }
+
+    // MARK: - restorePersistedRateLimits recovery
+
+    //
+    // Launch-time restore self-heal paths: a corrupt blob must be removed (not
+    // wedge every launch) without taking other accounts' entries down with it,
+    // and a future fetchedAt (clock went backward) must clamp to now. Uses a
+    // UUID-suite UserDefaults so nothing touches the real persisted cache.
+
+    private static func makeSuiteDefaults() throws -> (UserDefaults, String) {
+        let suiteName = "rateLimitRestoreTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        return (defaults, suiteName)
+    }
+
+    private static func makeFreshResult(fetchedAt: Date = Date()) -> APIFetchResult {
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.42,
+            fiveHourReset: Date().addingTimeInterval(3_600),
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.18,
+            sevenDayReset: Date().addingTimeInterval(86_400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        return APIFetchResult(
+            rateLimits: rl, rateLimitSource: .oauthUsageEndpoint, profile: nil, fetchedAt: fetchedAt
+        )
+    }
+
+    @Test func restorePersistedRateLimits_happyPath_restoresIntoCache() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let accountId = "restore-\(UUID().uuidString)"
+
+        let fetcher = RateLimitFetcher()
+        fetcher.persistRateLimits(Self.makeFreshResult(), accountId: accountId, defaults: defaults)
+
+        let restorer = RateLimitFetcher()
+        restorer.restorePersistedRateLimits(defaults: defaults)
+
+        let restored = restorer.cachedOrEmpty(accountId: accountId)
+        #expect(restored.rateLimits?.fiveHourUtilization == 0.42)
+        #expect(restored.isCached == true)
+    }
+
+    @Test func restorePersistedRateLimits_corruptBlob_removedAndOthersRestore() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let corruptAccount = "restore-corrupt-\(UUID().uuidString)"
+        let healthyAccount = "restore-healthy-\(UUID().uuidString)"
+        let corruptKey = RateLimitFetcher.persistKeyPrefix + corruptAccount
+
+        defaults.set(Data("not valid json".utf8), forKey: corruptKey)
+        let fetcher = RateLimitFetcher()
+        fetcher.persistRateLimits(Self.makeFreshResult(), accountId: healthyAccount, defaults: defaults)
+
+        let restorer = RateLimitFetcher()
+        restorer.restorePersistedRateLimits(defaults: defaults)
+
+        // Corrupt entry self-heals: removed from defaults, nothing cached for it.
+        #expect(defaults.data(forKey: corruptKey) == nil)
+        #expect(restorer.cachedOrEmpty(accountId: corruptAccount).rateLimits == nil)
+        // The healthy account is unaffected by its neighbor's corruption.
+        #expect(restorer.cachedOrEmpty(accountId: healthyAccount).rateLimits?.fiveHourUtilization == 0.42)
+    }
+
+    @Test func restorePersistedRateLimits_futureFetchedAt_clampedToNow() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let accountId = "restore-future-\(UUID().uuidString)"
+
+        let fetcher = RateLimitFetcher()
+        fetcher.persistRateLimits(
+            Self.makeFreshResult(fetchedAt: Date().addingTimeInterval(7_200)), // clock went backward
+            accountId: accountId,
+            defaults: defaults
+        )
+
+        let restorer = RateLimitFetcher()
+        restorer.restorePersistedRateLimits(defaults: defaults)
+
+        let restored = restorer.cachedOrEmpty(accountId: accountId)
+        #expect(restored.rateLimits != nil)
+        #expect(restored.fetchedAt <= Date())
     }
 
     // MARK: - Contract tests: interpretClaudeCodeClientData

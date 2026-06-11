@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Faster, cleaner reconnect prompt when a login actually expires.** A 401/403 from
+  the primary usage endpoint was silently ignored — the app then probed the Messages
+  API with the same dead token (a guaranteed second 401, one per model candidate)
+  and only counted auth failures there. Auth failures are now recognized and counted
+  at the primary endpoint, the redundant probe is skipped, and the "please reconnect"
+  prompt still appears after 3 consecutive failures — with less wasted traffic per
+  poll while signed out.
+
+### Internal
+- Launch-time rate-limit cache restore hardened with recovery tests: a corrupt
+  persisted blob self-heals (removed, other accounts unaffected) and a future
+  timestamp from a backwards clock jump is clamped — both paths now pinned by tests
+  via an injectable `UserDefaults` seam.
+
 ## [2.4.3] — 2026-06-05
 
 Fixes a false "Limit reached" flash right after waking your Mac, plus internal hardening.

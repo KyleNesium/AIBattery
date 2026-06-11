@@ -45,8 +45,9 @@ final class RateLimitFetcher {
     private var lastWorkingModel: [String: String] = [:]
     private static let workingModelKeyPrefix = "aibattery_probeModel_"
 
-    /// Per-account count of consecutive 401/403 responses from the Messages API.
-    /// Reset on any non-auth-failure result. At or above `authErrorThreshold`,
+    /// Per-account count of consecutive 401/403 responses from either fetch path
+    /// (usage endpoint or Messages API probe).
+    /// Reset on any successful result. At or above `authErrorThreshold`,
     /// surface `authError = true` on returned APIFetchResults so the UI can
     /// prompt the user to reconnect instead of silently showing cached data.
     private var consecutiveAuthFailures: [String: Int] = [:]
@@ -126,10 +127,19 @@ final class RateLimitFetcher {
     ///   pure, sub-millisecond, and don't materially affect responsiveness.
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
         // Primary: dedicated usage endpoint — no model probe needed, always returns data.
-        if let usageResult = await fetchUsageEndpoint(accessToken: accessToken, accountId: accountId) {
+        switch await fetchUsageEndpoint(accessToken: accessToken, accountId: accountId) {
+        case .success(let usageResult):
+            consecutiveAuthFailures[accountId] = 0
             cachedResults[accountId] = usageResult
             persistRateLimits(usageResult, accountId: accountId)
             return usageResult
+        case .authFailed:
+            // The token is dead — probing the Messages API with it would only
+            // produce a second 401 against the same credential. Count the failure
+            // here and fall back to cache directly.
+            return registerAuthFailure(accountId: accountId, path: "usage endpoint")
+        case .unavailable:
+            break // Endpoint down or unparseable — the probe may still work.
         }
 
         // Fallback: Messages API probe with unified headers.
@@ -154,13 +164,7 @@ final class RateLimitFetcher {
             case .modelUnavailable:
                 continue
             case .authFailed:
-                let count = (consecutiveAuthFailures[accountId] ?? 0) + 1
-                consecutiveAuthFailures[accountId] = count
-                let surfaceAuthError = count >= Self.authErrorThreshold
-                if surfaceAuthError {
-                    AppLogger.network.error("Messages API auth failed \(count) consecutive times for account \(accountId, privacy: .public) — surfacing authError to UI")
-                }
-                return cachedOrEmpty(accountId: accountId, authError: surfaceAuthError)
+                return registerAuthFailure(accountId: accountId, path: "Messages API")
             case .networkError:
                 // Network errors don't reset auth-failure count — a flaky network
                 // shouldn't mask a persistent auth problem, but it shouldn't
@@ -170,6 +174,21 @@ final class RateLimitFetcher {
         }
 
         return cachedOrEmpty(accountId: accountId)
+    }
+
+    /// Record a 401/403 from either fetch path and return the cached fallback.
+    /// Surfaces `authError` on the result once the per-account count of consecutive
+    /// auth failures reaches `authErrorThreshold`, so the UI prompts a reconnect
+    /// instead of silently showing cached data forever. Internal (not private) so
+    /// tests can drive the counter without a network seam.
+    func registerAuthFailure(accountId: String, path: String) -> APIFetchResult {
+        let count = (consecutiveAuthFailures[accountId] ?? 0) + 1
+        consecutiveAuthFailures[accountId] = count
+        let surfaceAuthError = count >= Self.authErrorThreshold
+        if surfaceAuthError {
+            AppLogger.network.error("\(path, privacy: .public) auth failed \(count) consecutive times for account \(accountId, privacy: .public) — surfacing authError to UI")
+        }
+        return cachedOrEmpty(accountId: accountId, authError: surfaceAuthError)
     }
 
     /// Return cached result marked as stale, or an empty result.
