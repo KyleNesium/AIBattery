@@ -442,6 +442,10 @@ public final class UsageViewModel: ObservableObject {
         OAuthManager.shared.accountStore.setActive(id: accountId)
         lastResolvedMode = nil
         snapshot = nil
+        // Clear the previous account's API result too — the offline fallback path
+        // in refresh() re-aggregates from apiResult, so a stale value here would
+        // render the OLD account's rate limits under the new account's identity.
+        apiResult = nil
         isShowingCachedData = false
         lastFreshFetch = nil
         errorMessage = nil
