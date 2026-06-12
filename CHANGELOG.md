@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.0] — 2026-06-12
+
+Engineering-review hardening release: multi-account correctness (cross-account refresh race, per-account calibration), stale-data notification gating, Keychain migration safety, and faster auth-failure recovery.
 
 ### Fixed
 - **Account switching mid-refresh can no longer mix up accounts' data.** A poll now
