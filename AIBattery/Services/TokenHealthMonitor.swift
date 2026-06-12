@@ -76,8 +76,10 @@ final class TokenHealthMonitor: Sendable {
     }
 
     /// Binary search for the first entry index with timestamp > cutoff.
-    /// Entries must be sorted by timestamp ascending.
-    private func binarySearchCutoff(entries: [AssistantUsageEntry], cutoff: Date) -> Int {
+    /// Entries must be sorted by timestamp ascending. An entry exactly AT the
+    /// cutoff is excluded (strict `>`). Internal (not private) so boundary
+    /// tests can pin that semantic directly.
+    func binarySearchCutoff(entries: [AssistantUsageEntry], cutoff: Date) -> Int {
         var lo = 0, hi = entries.count
         while lo < hi {
             let mid = (lo + hi) / 2

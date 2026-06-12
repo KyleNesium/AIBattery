@@ -110,10 +110,16 @@ enum MultiAccountFanOut {
             let fetched = await withTaskGroup(of: (String, RateLimitUsage?).self) { group -> [String: RateLimitUsage] in
                 for id in idsToFetch {
                     group.addTask {
+                        // A skipped account renders as "—" in the menu bar; without
+                        // these lines there is zero diagnostic for WHY.
                         guard let token = await provider.accessToken(for: id) else {
+                            AppLogger.network.info("Fan-out skipped \(id, privacy: .public): no access token")
                             return (id, nil)
                         }
                         let api = await fetcher.fetch(accessToken: token, accountId: id)
+                        if api.rateLimits == nil {
+                            AppLogger.network.info("Fan-out skipped \(id, privacy: .public): fetch returned no rate limits")
+                        }
                         return (id, api.rateLimits)
                     }
                 }

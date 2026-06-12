@@ -147,6 +147,23 @@ struct MultiAccountFanOutTests {
         #expect(fetcher.fetchedIDs == ["a"]) // "b" returned before reaching fetch (nil token)
     }
 
+    @Test("Fetch without rate limits: that account is excluded from the map, others kept")
+    func nilRateLimitsSkipped() async {
+        // "b" has a valid token and IS fetched, but the fetch yields no rate
+        // limits (auth failure / endpoint down with empty cache). It must drop
+        // out of the map — the menu bar renders "—" for it — without taking
+        // "a" down with it.
+        let fetcher = MockRateLimitFetcher(resultsByID: ["a": Self.usage(0.42)])
+        let provider = MockAccountProvider(displayIDs: ["a", "b"], tokensByID: Self.tokens(["a", "b"]))
+
+        let result = await MultiAccountFanOut.resolve(
+            enabled: true, seed: nil, provider: provider, fetcher: fetcher
+        )
+
+        #expect(Set(result?.keys ?? [:].keys) == ["a"])
+        #expect(Set(fetcher.fetchedIDs) == ["a", "b"]) // unlike the no-token case, "b" WAS fetched
+    }
+
     @Test("No eligible accounts and no seed returns nil")
     func emptyReturnsNil() async {
         let fetcher = MockRateLimitFetcher(resultsByID: [:])

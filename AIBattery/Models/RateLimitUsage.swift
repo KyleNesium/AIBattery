@@ -53,12 +53,17 @@ struct RateLimitUsage: Equatable, Codable {
 
     // MARK: - Convenience
 
+    /// Resolve a per-window value by the binding window (`representativeClaim`):
+    /// the 7-day value when it is the binding constraint, the 5-hour value
+    /// otherwise (matching the original switches' `default:` arm). Single home
+    /// for the dispatch that was previously copy-pasted across six properties.
+    private func bindingValue<T>(fiveHour: T, sevenDay: T) -> T {
+        representativeClaim == Self.sevenDayWindow ? sevenDay : fiveHour
+    }
+
     /// The utilization percentage of the binding window (0–100).
     var requestsPercentUsed: Double {
-        switch representativeClaim {
-        case Self.sevenDayWindow: sevenDayUtilization * 100.0
-        default: fiveHourUtilization * 100.0
-        }
+        bindingValue(fiveHour: fiveHourUtilization, sevenDay: sevenDayUtilization) * 100.0
     }
 
     /// 5-hour utilization as percentage (0–100).
@@ -69,27 +74,18 @@ struct RateLimitUsage: Equatable, Codable {
 
     /// Reset date of the binding window.
     var bindingReset: Date? {
-        switch representativeClaim {
-        case Self.sevenDayWindow: sevenDayReset
-        default: fiveHourReset
-        }
+        bindingValue(fiveHour: fiveHourReset, sevenDay: sevenDayReset)
     }
 
     /// Human-readable label for the binding window.
     var bindingWindowLabel: String {
-        switch representativeClaim {
-        case Self.sevenDayWindow: "7-day"
-        default: "5-hour"
-        }
+        bindingValue(fiveHour: "5-hour", sevenDay: "7-day")
     }
 
     /// Compact code for the binding window, for the menu bar: "5H" or "7D".
     /// Lets a throttled countdown say which window you're waiting on (hours vs a day+).
     var bindingWindowShortCode: String {
-        switch representativeClaim {
-        case Self.sevenDayWindow: "7D"
-        default: "5H"
-        }
+        bindingValue(fiveHour: "5H", sevenDay: "7D")
     }
 
     /// Whether the user is currently throttled.
@@ -150,10 +146,10 @@ struct RateLimitUsage: Equatable, Codable {
         guard fiveHourExpired || sevenDayExpired
             || fiveHourUnboundedThrottle || sevenDayUnboundedThrottle else { return self }
 
-        let bindingCleared: Bool = switch representativeClaim {
-        case Self.sevenDayWindow: sevenDayExpired || sevenDayUnboundedThrottle
-        default: fiveHourExpired || fiveHourUnboundedThrottle
-        }
+        let bindingCleared = bindingValue(
+            fiveHour: fiveHourExpired || fiveHourUnboundedThrottle,
+            sevenDay: sevenDayExpired || sevenDayUnboundedThrottle
+        )
 
         return RateLimitUsage(
             representativeClaim: representativeClaim,
@@ -203,10 +199,7 @@ struct RateLimitUsage: Equatable, Codable {
 
         guard fiveHourArtifact || sevenDayArtifact else { return self }
 
-        let bindingCleared: Bool = switch representativeClaim {
-        case Self.sevenDayWindow: sevenDayArtifact
-        default: fiveHourArtifact
-        }
+        let bindingCleared = bindingValue(fiveHour: fiveHourArtifact, sevenDay: sevenDayArtifact)
 
         return RateLimitUsage(
             representativeClaim: representativeClaim,

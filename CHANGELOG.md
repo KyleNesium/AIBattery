@@ -55,6 +55,17 @@
   `invalid_grant`, recovery on a transient failure mid-sequence.
 - First real-Keychain test coverage for `KeychainHelper` and `OAuthTokenStorage`
   (roundtrips, per-account isolation, access-token-never-persisted invariant).
+### Internal
+- Multi-account fan-out now logs why an account was skipped (no token vs no rate
+  limits returned) — previously a failed account rendered "—" in the menu bar with
+  zero diagnostic.
+- `RateLimitUsage`: the six copy-pasted binding-window switches collapsed into one
+  `bindingValue(fiveHour:sevenDay:)` helper (pure refactor, behavior locked by the
+  existing test suite).
+- New guard tests: a stored-property tripwire pinning `UsageSnapshot`'s hand-written
+  `==` (catches silently-uncompared new fields), and boundary tests for the
+  idle-session binary-search cutoff (exactly-at-cutoff is excluded, empty/all-before/
+  all-after edges).
 
 ## [2.4.3] — 2026-06-05
 
