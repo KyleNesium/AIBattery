@@ -110,7 +110,10 @@ AIBattery/
     UsageViewModel+FanOut.swift   — Thin wrapper: `scheduleFanOut` + `fetchAllAccounts(seed:)` delegate to `MultiAccountFanOut.resolve` and assign the result to `perAccountRateLimits`
     MultiAccountFanOut.swift      — Multi-account fan-out orchestration (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
   Views/
-    StatusBarManager.swift        — NSStatusItem + floating NSPanel, native AppKit button, controlBackgroundColor, Combine-driven updates; multi-account text path gated on `aibattery_showAllAccountsInMenuBar`
+    StatusBarManager.swift        — NSStatusItem + floating NSPanel core: stored state, setup (observers/monitors/panel construction), deinit. Split per the UsageViewModel precedent; shared state declared non-private for cross-file extensions
+    StatusBarManager+ButtonUpdate.swift — Menu-bar image rendering (`updateButton`), `MenuBarRenderKey` render-skip (image rebuilt only when text/percent-bucket/color/broken/sparkle/appearance changed), recovery sparkle
+    StatusBarManager+Countdown.swift — Adaptive countdown ticker (1s/10s) + pure `countdownResetDate(for:now:)` reset selection
+    StatusBarManager+Panel.swift  — Panel toggle/positioning (shared `buttonScreenRect`), `PopoverPanel`, `PopoverContentView`, `TransparentHostingView`
     MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
     MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, multiPointStarPath) + NSBezierPath→CGPath
     MenuBarMultiAccountText.swift — Pure builder for multi-account menu bar text (`42% | 23%`); worst-account percent + throttle + reset selection. Unit-tested without AppKit.
@@ -158,6 +161,7 @@ AIBattery/
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
+    AppPaths.swift                — AIBattery's own Application Support directory (shared by SingleInstanceGuard + TokenLedger)
     SecureNetworking.swift        — Ephemeral URLSession + response size guard (2 MB limit) + resource timeout (30s)
     DurationFormatter.swift       — Compact time duration formatting ("2h 5m", "1d 1h", "soon")
     ThemeColors.swift             — Centralized color theming with colorblind-safe palette

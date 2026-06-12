@@ -66,6 +66,20 @@
   `==` (catches silently-uncompared new fields), and boundary tests for the
   idle-session binary-search cutoff (exactly-at-cutoff is excluded, empty/all-before/
   all-after edges).
+### Internal
+- **Menu bar redraws only when something visible changed.** During a throttle
+  countdown the ticker fires every 10 seconds but the displayed text ("2h 15m")
+  only changes about once a minute — each tick still re-rendered the full
+  menu-bar image. `updateButton` now keys the render on what's actually visible
+  (text, whole-percent bucket, color, broken/sparkle state, appearance) and skips
+  the image rebuild when nothing changed, eliminating ~85% of redundant
+  NSAttributedString+NSImage allocations during countdowns.
+- `StatusBarManager` (731 lines) split into focused extension files
+  (`+ButtonUpdate`, `+Countdown`, `+Panel`) per the v2.4.0 UsageViewModel
+  precedent — pure file moves, no behavior change.
+- New `AppPaths.applicationSupport()` replaces the Application Support guard
+  duplicated in `SingleInstanceGuard` and `TokenLedger`; panel positioning's
+  duplicated button-rect conversion collapsed into one `buttonScreenRect` helper.
 
 ## [2.4.3] — 2026-06-05
 
