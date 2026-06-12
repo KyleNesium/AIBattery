@@ -15,6 +15,15 @@
   a real macOS notification even though the menu bar itself refuses to alarm on
   unconfirmed data. Notifications now use the same fresh-data gate as the menu bar:
   cached results never alert; the first confirming fetch does.
+- **Keychain migrations can no longer silently destroy a login.** The one-time
+  migration that re-creates Keychain items with device-only accessibility deleted
+  each refresh token before re-adding it, ignored the result of the re-add, and
+  marked itself complete unconditionally — a failed write meant a permanently
+  signed-out account with no retry. Every Keychain write in the migration paths is
+  now verified by reading the value back, retried once, and the migration only
+  marks itself done when every account verified (otherwise it retries on the next
+  launch). The legacy single-account migration likewise keeps the old entries until
+  the new one is confirmed.
 - **Faster, cleaner reconnect prompt when a login actually expires.** A 401/403 from
   the primary usage endpoint was silently ignored — the app then probed the Messages
   API with the same dead token (a guaranteed second 401, one per model candidate)
@@ -22,7 +31,6 @@
   at the primary endpoint, the redundant probe is skipped, and the "please reconnect"
   prompt still appears after 3 consecutive failures — with less wasted traffic per
   poll while signed out.
-
 - **Local usage estimates are now calibrated per account.** Calibration previously
   lived in global keys, so with multiple accounts on different plan tiers, one
   account's calibration silently mispriced the other's fallback estimates (e.g. a
@@ -34,39 +42,6 @@
   account's token counts.
 
 ### Internal
-- Launch-time rate-limit cache restore hardened with recovery tests: a corrupt
-  persisted blob self-heals (removed, other accounts unaffected) and a future
-  timestamp from a backwards clock jump is clamped — both paths now pinned by tests
-  via an injectable `UserDefaults` seam.
-- **Keychain migrations can no longer silently destroy a login.** The one-time
-  migration that re-creates Keychain items with device-only accessibility deleted
-  each refresh token before re-adding it, ignored the result of the re-add, and
-  marked itself complete unconditionally — a failed write meant a permanently
-  signed-out account with no retry. Every Keychain write in the migration paths is
-  now verified by reading the value back, retried once, and the migration only
-  marks itself done when every account verified (otherwise it retries on the next
-  launch). The legacy single-account migration likewise keeps the old entries until
-  the new one is confirmed.
-
-### Internal
-- `KeychainHelper.set` now reports success/failure instead of returning silently.
-- OAuth token-endpoint retry loop is now contract-tested via an injectable
-  transport: exactly 3 attempts on 5xx/timeout, immediate failure on 401 /
-  `invalid_grant`, recovery on a transient failure mid-sequence.
-- First real-Keychain test coverage for `KeychainHelper` and `OAuthTokenStorage`
-  (roundtrips, per-account isolation, access-token-never-persisted invariant).
-### Internal
-- Multi-account fan-out now logs why an account was skipped (no token vs no rate
-  limits returned) — previously a failed account rendered "—" in the menu bar with
-  zero diagnostic.
-- `RateLimitUsage`: the six copy-pasted binding-window switches collapsed into one
-  `bindingValue(fiveHour:sevenDay:)` helper (pure refactor, behavior locked by the
-  existing test suite).
-- New guard tests: a stored-property tripwire pinning `UsageSnapshot`'s hand-written
-  `==` (catches silently-uncompared new fields), and boundary tests for the
-  idle-session binary-search cutoff (exactly-at-cutoff is excluded, empty/all-before/
-  all-after edges).
-### Internal
 - **Menu bar redraws only when something visible changed.** During a throttle
   countdown the ticker fires every 10 seconds but the displayed text ("2h 15m")
   only changes about once a minute — each tick still re-rendered the full
@@ -77,6 +52,26 @@
 - `StatusBarManager` (731 lines) split into focused extension files
   (`+ButtonUpdate`, `+Countdown`, `+Panel`) per the v2.4.0 UsageViewModel
   precedent — pure file moves, no behavior change.
+- Multi-account fan-out now logs why an account was skipped (no token vs no rate
+  limits returned) — previously a failed account rendered "—" in the menu bar with
+  zero diagnostic.
+- `KeychainHelper.set` now reports success/failure instead of returning silently.
+- OAuth token-endpoint retry loop is now contract-tested via an injectable
+  transport: exactly 3 attempts on 5xx/timeout, immediate failure on 401 /
+  `invalid_grant`, recovery on a transient failure mid-sequence.
+- First real-Keychain test coverage for `KeychainHelper` and `OAuthTokenStorage`
+  (roundtrips, per-account isolation, access-token-never-persisted invariant).
+- Launch-time rate-limit cache restore hardened with recovery tests: a corrupt
+  persisted blob self-heals (removed, other accounts unaffected) and a future
+  timestamp from a backwards clock jump is clamped — both paths now pinned by tests
+  via an injectable `UserDefaults` seam.
+- `RateLimitUsage`: the six copy-pasted binding-window switches collapsed into one
+  `bindingValue(fiveHour:sevenDay:)` helper (pure refactor, behavior locked by the
+  existing test suite).
+- New guard tests: a stored-property tripwire pinning `UsageSnapshot`'s hand-written
+  `==` (catches silently-uncompared new fields), and boundary tests for the
+  idle-session binary-search cutoff (exactly-at-cutoff is excluded, empty/all-before/
+  all-after edges).
 - New `AppPaths.applicationSupport()` replaces the Application Support guard
   duplicated in `SingleInstanceGuard` and `TokenLedger`; panel positioning's
   duplicated button-rect conversion collapsed into one `buttonScreenRect` helper.
