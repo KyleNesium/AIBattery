@@ -311,7 +311,8 @@ public final class UsageViewModel: ObservableObject {
                 fiveHourUtilization: rl.fiveHourUtilization,
                 sevenDayUtilization: rl.sevenDayUtilization,
                 localFiveHourTokens: result.fiveHourTokens,
-                localSevenDayTokens: result.sevenDayTokens
+                localSevenDayTokens: result.sevenDayTokens,
+                accountId: accountId
             )
         }
 

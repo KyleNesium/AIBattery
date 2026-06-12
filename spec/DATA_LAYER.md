@@ -151,7 +151,7 @@ Combined result from a single Messages API call.
 | `hasStandardRateLimitHeaders` | `Bool` — true when standard `anthropic-ratelimit-*` headers present |
 | `fetchedAt` | `Date` — when this result was fetched (defaults to `Date()`) |
 | `isCached` | `Bool` — whether this result came from cache rather than a fresh API response (defaults to `false`) |
-| `authError` | `Bool` — true when the Messages API has returned ≥ 3 consecutive 401/403 for this account (defaults to `false`). `UsageViewModel.refreshErrorMessage` overrides all other messages with a reconnect prompt when set. |
+| `authError` | `Bool` — true when the API (usage endpoint or Messages probe) has returned ≥ 3 consecutive 401/403 for this account (defaults to `false`). `UsageViewModel.refreshErrorMessage` overrides all other messages with a reconnect prompt when set. |
 
 ### StandardRateLimits (`Models/StandardRateLimits.swift`)
 
@@ -303,25 +303,27 @@ Fallback estimation when Anthropic's unified rate limit headers are unavailable.
 
 **Calibration**: when the API returns both utilization and local token counts are available, derives the window's token limit (`limit = localTokens / utilization`) and persists to UserDefaults. Subsequent polls compute percentages locally. Only calibrates when utilization is inside the **20–80%** band (`calibrationBand`) and the derived limit exceeds 100K tokens. The edges are excluded because dividing by a small utilization magnifies measurement error (a 1% error at 5% utilization → ~20% error in the derived limit), which would let the local fallback read ≥100% when the API would report well under.
 
-| Static Property | Type | Notes |
+**Per-account scoping**: all calibration state is keyed per account (`{base}_{accountId}`) — with mixed plan tiers, one account's calibration must not misprice another's estimates. Every accessor takes `accountId: String?` defaulting to `AccountStore.persistedActiveAccountId` (the persisted active-account ID, readable off-MainActor), so UI read paths — which always render the active account — need no changes. A nil account (signed out) falls back to the legacy global keys.
+
+| Static accessor | Type | Notes |
 |-----------------|------|-------|
-| `fiveHourLimit` | `Int` | Calibrated 5h token limit (0 = uncalibrated). `nonisolated` — UserDefaults is thread-safe |
-| `sevenDayLimit` | `Int` | Calibrated 7d token limit (0 = uncalibrated). `nonisolated` |
-| `calibratedAt` | `Date?` | When limits were last calibrated |
-| `isCalibrated` | `Bool` | `nonisolated` — true when either limit > 0 |
-| `effectiveFiveHourLimit` | `Int?` | Fallback chain: calibrated > `PlanTier.current` > nil |
-| `effectiveSevenDayLimit` | `Int?` | Fallback chain: calibrated > `PlanTier.current` > nil |
-| `latestFiveHourTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot |
-| `latestSevenDayTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot |
+| `fiveHourLimit(for:)` / `setFiveHourLimit(_:for:)` | `Int` | Calibrated 5h token limit (0 = uncalibrated). `nonisolated` — UserDefaults is thread-safe |
+| `sevenDayLimit(for:)` / `setSevenDayLimit(_:for:)` | `Int` | Calibrated 7d token limit (0 = uncalibrated). `nonisolated` |
+| `calibratedAt(for:)` | `Date?` | When the account's limits were last calibrated |
+| `isCalibrated(for:)` | `Bool` | `nonisolated` — true when either limit > 0 |
+| `effectiveFiveHourLimit(for:)` | `Int?` | Fallback chain: calibrated > `PlanTier.effective(forAccountId:)` > nil |
+| `effectiveSevenDayLimit(for:)` | `Int?` | Fallback chain: calibrated > `PlanTier.effective(forAccountId:)` > nil |
+| `latestFiveHourTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot (active account's counts) |
+| `latestSevenDayTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot (active account's counts) |
 
 Methods:
-- `migrateIfNeeded()` — clears stale pre-v2 calibrations (before cache-inclusive counting). Called once at launch.
-- `calibrate(fiveHourUtilization:sevenDayUtilization:localFiveHourTokens:localSevenDayTokens:)` — derives limits from API utilization + local counts
-- `calibrateFrom429()` — when a 429 is received without headers, uses current local token count as the limit (with 95% buffer)
-- `fiveHourPercent(tokens:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
-- `sevenDayPercent(tokens:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
-- `limitSource(for:) -> LimitSource?` — `.calibrated` or `.planEstimate` or nil
-- `setManualFiveHourLimit(_:)` / `setManualSevenDayLimit(_:)` — user overrides
+- `migrateIfNeeded(activeAccountId:defaults:)` — clears stale pre-v2 calibrations (before cache-inclusive counting), then one-time-moves the legacy global calibration keys to the active account (`aibattery_calibration_perAccount_migrated` flag; only marks done when an account exists, else retries next launch). Called once at launch.
+- `calibrate(fiveHourUtilization:sevenDayUtilization:localFiveHourTokens:localSevenDayTokens:accountId:)` — derives limits from API utilization + local counts; `UsageViewModel.refresh()` passes the poll's captured account ID
+- `calibrateFrom429(accountId:activeAccountId:)` — when a 429 is received without headers, uses current local token count as the limit (with 95% buffer). **Only seeds the active account**: `latest*Tokens` hold the active account's local counts, so a fan-out 429 for another account is ignored
+- `fiveHourPercent(tokens:accountId:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
+- `sevenDayPercent(tokens:accountId:) -> Double?` — 0–100, nil if no limit known. `nonisolated`
+- `limitSource(for:accountId:) -> LimitSource?` — `.calibrated` or `.planEstimate` or nil
+- `setManualFiveHourLimit(_:for:)` / `setManualSevenDayLimit(_:for:)` — user overrides
 
 Nested: `LimitSource` enum (`.calibrated`, `.planEstimate`)
 
@@ -336,7 +338,11 @@ Claude subscription plan tiers with estimated 5h/7d token limits. Community-deri
 | `.max20x` | `"max20x"` | `"Max 20×"` | 140M | 700M |
 | `.team` | `"team"` | `"Team"` | 10M | 50M |
 
-Static: `current: PlanTier?` — persisted to UserDefaults (`UserDefaultsKeys.planTier`).
+Static: `current: PlanTier?` — the user-selected global tier, persisted to UserDefaults (`UserDefaultsKeys.planTier`).
+
+`init?(billingType:)` — maps an account's API-reported `billingType` string to a tier (lowercased, separators stripped; `"pro"`, `"max5x"`, `"max20x"`, `"team"`/`"teams"`; anything unrecognized → nil rather than guessing).
+
+`effective(forAccountId:defaults:)` — the tier for a specific account's estimates: the account's `billingType` when it maps to a known tier, else `current`. Reads the persisted `AccountRecord` JSON directly (`UserDefaultsKeys.accounts`) so nonisolated estimate paths don't cross into the `@MainActor` `AccountStore`.
 
 Conforms to `CaseIterable`, `Codable`.
 
@@ -398,7 +404,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`
 - `fetch(accessToken:accountId:) async -> APIFetchResult` — returns Claude Code usage windows plus account/profile metadata when available
-- **Primary endpoint**: `GET /api/oauth/usage` (`fetchUsageEndpoint`) — dedicated usage endpoint, no model probe needed; first call every cycle.
+- **Primary endpoint**: `GET /api/oauth/usage` (`fetchUsageEndpoint`) — dedicated usage endpoint, no model probe needed; first call every cycle. Returns a `UsageEndpointOutcome`: `.success(APIFetchResult)`, `.authFailed` (401/403 — counts toward `consecutiveAuthFailures` and **skips the Messages probe entirely**, since probing with the same dead token would only produce a second 401), or `.unavailable` (server error / unparseable body / transport failure — fall through to the probe).
 - **Fallback**: `POST /v1/messages?beta=true` with `max_tokens: 1`, content `"."` (unified-header probe, ~10% hit rate). `GET /api/oauth/claude_cli/client_data` is a nested fallback invoked only inside the Messages-probe paths.
 - **Dynamic probe order** (deduped): `activeUserModel` (from latest JSONL entry) → `lastWorkingModel[accountId]` (persisted per account) → `observedModels` (JSONL-observed models, most recent first) → `ultimateFallback` (single newest Sonnet for fresh installs). Self-heals when Anthropic deprecates model IDs — no hardcoded list.
 - `observedModels: [String]` — dynamic list populated by `UsageAggregator.setObservedModels(_:accountId:)` after each aggregation cycle; persisted to UserDefaults under `aibattery_observedModels_{accountId}`. Restored on launch (best-effort, overwritten on first aggregation).
@@ -417,9 +423,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - Model unavailable (400/404 with model/access error message) → tries next model in list
 - **429 handling**: parses rate limit headers directly from the 429 response (they're always present on throttled responses). Returns as success so the UI continues showing usage bars and reset times while the user is rate limited. Falls through to Retry-After logic only if headers are missing (unexpected).
 - **`quotaThrottleLikely(_:)`** (`nonisolated static`) — gates whether a 429 should call `markedThrottled()` on the parsed headers. Returns `true` when the parsed `RateLimitUsage.isThrottled` is already set OR the binding window utilization is ≥ `quotaExhaustionThreshold` (0.95). Below that, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block — the bar must not flip to `Throttled`.
-- **Consecutive auth-failure tracking** — `consecutiveAuthFailures: [String: Int]` keyed by account. Incremented on each 401/403, reset on any success. At or above `authErrorThreshold` (3) the returned `APIFetchResult.authError = true`. Network errors do NOT count as auth failures and do NOT reset the counter (a flaky network shouldn't trigger reconnect prompts but also shouldn't mask a persistent auth problem).
-- **`restorePersistedRateLimits`** applies `RateLimitUsage.withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence does not display until the first fresh fetch lands. The same normalization fires in **`cachedOrEmpty(accountId:)`** for the runtime cache hit (wake from sleep, offline, cold start).
-- **Pure response interpreters**: `interpretUsageEndpoint(statusCode:data:headers:cachedProfile:) -> APIFetchResult?` (in `RateLimitFetcher+UsageEndpoint.swift`) and `interpretClaudeCodeClientData(statusCode:data:headers:cachedProfile:callerStandardLimits:) -> APIFetchResult?` (in `RateLimitFetcher+ClientData.swift`) are `nonisolated static` pure functions that own the status-code / payload / 429-throttle contract for both OAuth endpoints. The async `fetchUsageEndpoint` / `fetchClaudeCodeClientData` wrappers (same files) do the HTTP call + diagnostic logging and delegate interpretation. Allows contract testing of every payload shape and status-code combination without mocking URLSession.
+- **Consecutive auth-failure tracking** — `consecutiveAuthFailures: [String: Int]` keyed by account. Incremented on each 401/403 from **either path** (usage endpoint or Messages probe) via the shared `registerAuthFailure(accountId:path:)` helper, reset on any successful result (both paths). At or above `authErrorThreshold` (3) the returned `APIFetchResult.authError = true`. Network errors do NOT count as auth failures and do NOT reset the counter (a flaky network shouldn't trigger reconnect prompts but also shouldn't mask a persistent auth problem).
+- **`restorePersistedRateLimits(defaults:)`** applies `RateLimitUsage.withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence does not display until the first fresh fetch lands. The same normalization fires in **`cachedOrEmpty(accountId:)`** for the runtime cache hit (wake from sleep, offline, cold start). Self-heals corrupt persisted blobs (undecodable entry → removed from defaults, other accounts unaffected) and clamps future `fetchedAt` timestamps to now (system clock went backward). `defaults` is injectable for tests (as is `persistRateLimits(_:accountId:defaults:)`), defaulting to `.standard`.
+- **Pure response interpreters**: `interpretUsageEndpoint(statusCode:data:headers:cachedProfile:) -> UsageEndpointOutcome` (in `RateLimitFetcher+UsageEndpoint.swift`) and `interpretClaudeCodeClientData(statusCode:data:headers:cachedProfile:callerStandardLimits:) -> APIFetchResult?` (in `RateLimitFetcher+ClientData.swift`) are `nonisolated static` pure functions that own the status-code / payload / 429-throttle contract for both OAuth endpoints. The async `fetchUsageEndpoint` / `fetchClaudeCodeClientData` wrappers (same files) do the HTTP call + diagnostic logging and delegate interpretation. Allows contract testing of every payload shape and status-code combination without mocking URLSession.
 - Non-model 400/404 errors: extracts rate limit headers if present and returns as success; otherwise returns `.networkError` (never silently falls through to header-less success)
 - `static parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double?` — parses `Retry-After` header; returns nil for nil/non-numeric/zero/negative; caps at `maxDelay`
 

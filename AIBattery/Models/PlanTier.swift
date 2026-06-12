@@ -42,6 +42,23 @@ enum PlanTier: String, CaseIterable, Codable {
         }
     }
 
+    /// Map an account's API-reported `billingType` string to a tier.
+    /// Matching is conservative: lowercased with separators stripped, exact names
+    /// only — an unrecognized billing string returns nil rather than guessing.
+    init?(billingType: String) {
+        let normalized = billingType.lowercased()
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: " ", with: "")
+        switch normalized {
+        case "pro": self = .pro
+        case "max5x": self = .max5x
+        case "max20x": self = .max20x
+        case "team", "teams": self = .team
+        default: return nil
+        }
+    }
+
     // MARK: - Persistence
 
     /// The user's selected plan tier (nil = not yet chosen).
@@ -53,5 +70,25 @@ enum PlanTier: String, CaseIterable, Codable {
         set {
             UserDefaults.standard.set(newValue?.rawValue, forKey: UserDefaultsKeys.planTier)
         }
+    }
+
+    /// The tier to use for a specific account's estimates: the account's
+    /// API-reported `billingType` when it maps to a known tier, else the
+    /// user-selected global tier. With mixed-tier accounts, the global
+    /// selection only describes one of them — prefer per-account truth.
+    /// Reads the persisted account records directly so nonisolated estimate
+    /// paths don't have to cross into the @MainActor `AccountStore`.
+    static func effective(
+        forAccountId accountId: String?,
+        defaults: UserDefaults = .standard
+    ) -> PlanTier? {
+        if let accountId,
+           let data = defaults.data(forKey: UserDefaultsKeys.accounts),
+           let records = try? JSONDecoder().decode([AccountRecord].self, from: data),
+           let billing = records.first(where: { $0.id == accountId })?.billingType,
+           let tier = PlanTier(billingType: billing) {
+            return tier
+        }
+        return current
     }
 }

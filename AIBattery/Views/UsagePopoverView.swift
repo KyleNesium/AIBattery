@@ -42,10 +42,10 @@ public struct UsagePopoverView: View {
     }
 
     private var localEstimateHeaderText: String {
-        if LocalUsageEstimate.isCalibrated {
+        if LocalUsageEstimate.isCalibrated() {
             return "Estimated from local data"
         }
-        if PlanTier.current != nil {
+        if PlanTier.effective(forAccountId: AccountStore.persistedActiveAccountId) != nil {
             return "Estimated from plan tier"
         }
         return "Local token usage"

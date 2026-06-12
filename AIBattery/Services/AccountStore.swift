@@ -10,6 +10,13 @@ public final class AccountStore: ObservableObject {
     /// Maximum number of accounts supported.
     nonisolated static let maxAccounts = 3
 
+    /// The persisted active account ID, readable off-MainActor (UserDefaults is
+    /// thread-safe). Used by nonisolated read paths (e.g. `LocalUsageEstimate`)
+    /// that always render the active account and can't touch the @MainActor store.
+    nonisolated public static var persistedActiveAccountId: String? {
+        UserDefaults.standard.string(forKey: UserDefaultsKeys.activeAccountId)
+    }
+
     @Published public private(set) var accounts: [AccountRecord] = []
     private static let jsonEncoder = JSONEncoder()
     private static let jsonDecoder = JSONDecoder()
