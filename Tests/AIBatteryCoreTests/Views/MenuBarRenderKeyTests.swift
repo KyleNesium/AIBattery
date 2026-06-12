@@ -6,12 +6,21 @@ import AppKit
 /// the NSImage when this key changes, so its equality semantics ARE the skip
 /// behavior — a field wrongly excluded would freeze the menu bar on stale pixels,
 /// a too-precise field (raw Double percent) would defeat the skip entirely.
+///
+/// `@MainActor` + component-based colors: comparing *dynamic* system NSColors
+/// off the main thread wedged the whole parallel test runner on the headless CI
+/// machine (AppKit's lazy appearance machinery). Production compares on the
+/// MainActor inside a real app, where dynamic colors are fine.
 @Suite("MenuBarRenderKey")
+@MainActor
 struct MenuBarRenderKeyTests {
+    private static let green = NSColor(srgbRed: 0, green: 0.8, blue: 0, alpha: 1)
+    private static let red = NSColor(srgbRed: 0.9, green: 0.1, blue: 0, alpha: 1)
+
     private func makeKey(
         text: String = "2h 15m",
         percent: Double = 42.0,
-        color: NSColor = .systemGreen,
+        color: NSColor = MenuBarRenderKeyTests.green,
         isBroken: Bool = false,
         isSparkle: Bool = false,
         appearanceName: NSAppearance.Name = .aqua
@@ -46,7 +55,7 @@ struct MenuBarRenderKeyTests {
     @Test("each visible field change re-renders")
     func visibleFieldChanges_differ() {
         #expect(makeKey(text: "2h 15m") != makeKey(text: "2h 14m"))
-        #expect(makeKey(color: .systemGreen) != makeKey(color: .systemRed))
+        #expect(makeKey(color: Self.green) != makeKey(color: Self.red))
         #expect(makeKey(isBroken: false) != makeKey(isBroken: true))
         #expect(makeKey(isSparkle: false) != makeKey(isSparkle: true))
         #expect(makeKey(appearanceName: .aqua) != makeKey(appearanceName: .darkAqua))
