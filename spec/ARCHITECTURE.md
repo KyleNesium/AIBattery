@@ -114,7 +114,7 @@ AIBattery/
     StatusBarManager+ButtonUpdate.swift — Menu-bar image rendering (`updateButton`), `MenuBarRenderKey` render-skip (image rebuilt only when text/percent-bucket/color/broken/sparkle/appearance changed), recovery sparkle
     StatusBarManager+Countdown.swift — Adaptive countdown ticker (1s/10s) + pure `countdownResetDate(for:now:)` reset selection
     StatusBarManager+Panel.swift  — Panel toggle/positioning (shared `buttonScreenRect`), `PopoverPanel`, `PopoverContentView`, `TransparentHostingView`
-    MenuBarIcon.swift             — 4-pointed star NSImage: breathing glow, broken star (throttled), recovery sparkle; quantized cache
+    MenuBarIcon.swift             — 4-pointed star NSImage (static): usage-band glow, broken star (throttled), recovery sparkle; quantized cache
     MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, multiPointStarPath) + NSBezierPath→CGPath
     MenuBarMultiAccountText.swift — Pure builder for multi-account menu bar text (`42% | 23%`); worst-account percent + throttle + reset selection. Unit-tested without AppKit.
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
@@ -186,7 +186,7 @@ Tests/AIBatteryCoreTests/
     RetryPolicyTests.swift        — exponential growth at multiple multipliers, cap behaviour, jitter bounds (200-sample fuzz), Retry-After parsing edge cases, preset value pinning, parity tests against pre-refactor OAuth/StatusCheck/FileWatch formulas
     ThrottleTrackerTests.swift    — Throttle transition detection, timestamp parsing, pruning, counting
     IdleSuspendPolicyTests.swift  — idle threshold, suspend policy edge cases
-    MenuBarIconTests.swift        — cache key collisions, all pulse steps, boundary values
+    MenuBarIconTests.swift        — cache key collisions, cache identity, boundary values
     SpacingTests.swift            — spacing constant values
     TypographyTests.swift         — typography token values
   Models/

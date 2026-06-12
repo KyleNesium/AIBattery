@@ -263,12 +263,8 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Recovery sparkle arm length | 1.6pt |
 | Recovery sparkle stroke width | 0.7pt |
 | Recovery sparkle alpha | 0.7 |
-| Recovery sparkle frame rate | 500ms (every pulse step) |
-| Recovery sparkle duration | 30 sec |
-| Pulse steps per cycle | 8 |
-| Pulse cycle duration | 4.0 sec |
-| Pulse tick interval | 500ms sparkle (4s ÷ 8), 1s red band (4s ÷ 8 × 2-step) |
-| Breath timer threshold | ≥95% usage or sparkle active (orange 80–95% uses static glow, no timer; throttled stops timer) |
+| Recovery sparkle duration | 30 sec (one-shot end timer) |
+| Red-band halo alpha | 0.12 (static, ≥95% only) |
 | Health dot size | 8pt |
 | Status dot size | 6pt |
 | Model dot size | 8pt |

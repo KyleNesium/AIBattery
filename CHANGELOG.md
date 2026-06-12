@@ -74,6 +74,12 @@ Engineering-review hardening release: multi-account correctness (cross-account r
   `==` (catches silently-uncompared new fields), and boundary tests for the
   idle-session binary-search cutoff (exactly-at-cutoff is excluded, empty/all-before/
   all-after edges).
+- Dead menu-bar animation machinery deleted: the pulse-step frame system
+  (`breathFactor`, scale/alpha ranges, 8-frame sparkle rotation, the unused
+  `MenuBarIcon` SwiftUI view) had no runtime driver — production only ever
+  rendered frame 0. The static frame-0 output is now baked in directly
+  (pixel-identical icons), and the icon cache shrinks from 184 to 23 possible
+  entries per color variant.
 - New `AppPaths.applicationSupport()` replaces the Application Support guard
   duplicated in `SingleInstanceGuard` and `TokenLedger`; panel positioning's
   duplicated button-rect conversion collapsed into one `buttonScreenRect` helper.
