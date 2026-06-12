@@ -14,7 +14,11 @@ enum KeychainHelper {
         ]
     }
 
-    static func set(account: String, value: String) {
+    /// Returns whether the value actually landed in the Keychain. Callers that
+    /// delete-then-set (the accessibility migration) MUST check this — treating
+    /// a failed set as success after a delete destroys the stored token.
+    @discardableResult
+    static func set(account: String, value: String) -> Bool {
         let data = Data(value.utf8)
 
         // Try to update existing item first
@@ -25,13 +29,14 @@ enum KeychainHelper {
         let updateStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
 
         if updateStatus == errSecItemNotFound {
-            add(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain")
+            return add(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain")
         } else if updateStatus != errSecSuccess {
             AppLogger.oauth.error("Keychain update failed for \(account, privacy: .public): \(updateStatus)")
             // Fallback: delete and re-add
             SecItemDelete(searchQuery as CFDictionary)
-            add(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain fallback")
+            return add(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain fallback")
         }
+        return true
     }
 
     static func get(account: String) -> String? {
@@ -53,7 +58,7 @@ enum KeychainHelper {
 
     // MARK: - Internal
 
-    private static func add(searchQuery: [String: Any], data: Data, account: String, logPrefix: String) {
+    private static func add(searchQuery: [String: Any], data: Data, account: String, logPrefix: String) -> Bool {
         var addQuery = searchQuery
         addQuery[kSecValueData as String] = data
         addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
@@ -61,5 +66,6 @@ enum KeychainHelper {
         if status != errSecSuccess {
             AppLogger.oauth.error("\(logPrefix, privacy: .public) add failed for \(account, privacy: .public): \(status)")
         }
+        return status == errSecSuccess
     }
 }

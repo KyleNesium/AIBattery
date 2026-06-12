@@ -28,7 +28,12 @@ struct OAuthManagerConcurrencyTests {
         let didCompile = await task.value
         #expect(didCompile)
         // The signature below must compile — that's the assertion.
-        _ = OAuthManager.postToken as (([String: String]) async -> Result<OAuthManager.TokenResult, OAuthManager.AuthError>)
+        // (transport/retryPolicy default args aren't part of the function value,
+        // so the coercion spells out the full uncurried signature.)
+        _ = OAuthManager.postToken as (
+            ([String: String], @Sendable (URLRequest) async throws -> (Data, URLResponse), RetryPolicy)
+            async -> Result<OAuthManager.TokenResult, OAuthManager.AuthError>
+        )
     }
 
     // MARK: - Sendable conformance
