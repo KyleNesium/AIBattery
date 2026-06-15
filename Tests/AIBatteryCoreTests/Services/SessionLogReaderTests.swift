@@ -530,8 +530,11 @@ struct SessionLogReaderTests {
             }
         }
 
-        // Must complete well within 5 seconds — any deadlock would hang here.
-        let result = group.wait(timeout: .now() + 5)
+        // A genuine deadlock hangs *forever*, so the timeout only needs to be large
+        // enough to never trip on a slow/loaded CI runner (e.g. a release build
+        // sharing the macos-15 box). 30s is generous margin — a real deadlock still
+        // fails the test, but legitimate slowness under contention does not flake it.
+        let result = group.wait(timeout: .now() + 30)
         #expect(result == .success)
     }
 
