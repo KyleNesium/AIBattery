@@ -1,8 +1,8 @@
 # Changelog
 
-## [2.5.0] — 2026-06-15
+## [2.5.1] — 2026-06-15
 
-Engineering-review hardening release: multi-account correctness (cross-account refresh race, per-account calibration), stale-data notification gating, Keychain migration safety, and faster auth-failure recovery.
+Hotfix for a false "Limit reached" that could appear in the popover on stale data.
 
 ### Fixed
 - **No more false "Limit reached" in the popover on stale data.** The menu bar already
@@ -16,6 +16,12 @@ Engineering-review hardening release: multi-account correctness (cross-account r
   7-day/throttled reading lingered in the cache and could surface that false alarm; the
   rate-limit cache now migrates on identity resolution and prunes orphans at launch,
   exactly as the token ledger does.
+
+## [2.5.0] — 2026-06-15
+
+Engineering-review hardening release: multi-account correctness (cross-account refresh race, per-account calibration), stale-data notification gating, Keychain migration safety, and faster auth-failure recovery.
+
+### Fixed
 - **Account switching mid-refresh can no longer mix up accounts' data.** A poll now
   requests the token for the exact account it started with (instead of whichever
   account is active by the time the request fires), and a fetch whose account was
