@@ -65,4 +65,46 @@ extension RateLimitFetcher {
             )
         }
     }
+
+    /// Move a pending account's cached + persisted rate limits to its resolved org id,
+    /// then drop the pending entry. Called from `OAuthManager.resolveAccountIdentity`
+    /// alongside `TokenLedger.migrate`, so a `pending-<uuid>`'s first-fetch blob follows
+    /// the account instead of orphaning under the dead pending key (where it would be
+    /// reloaded every launch and could surface a stale "Limit reached" — the v2.5.0 bug).
+    ///
+    /// The resolved id wins if it already has data (a fresh fetch landed first); otherwise
+    /// the pending blob carries over. The pending key is always removed.
+    func migrate(from oldId: String, to newId: String, defaults: UserDefaults = .standard) {
+        guard oldId != newId else { return }
+        if cachedResults[newId] == nil, let old = cachedResults[oldId] {
+            cachedResults[newId] = old
+        }
+        cachedResults.removeValue(forKey: oldId)
+
+        let oldKey = Self.persistKeyPrefix + oldId
+        let newKey = Self.persistKeyPrefix + newId
+        if defaults.data(forKey: newKey) == nil, let blob = defaults.data(forKey: oldKey) {
+            defaults.set(blob, forKey: newKey)
+        }
+        defaults.removeObject(forKey: oldKey)
+    }
+
+    /// Drop cached + persisted rate limits for accounts the user no longer has —
+    /// orphaned `pending-<uuid>` ids left by pre-migration identity resolutions and
+    /// removed accounts. Called once on launch with the live account ids (mirrors
+    /// `TokenLedger.pruneAccounts`).
+    ///
+    /// No-op when `liveAccountIds` is empty so a logged-out / fresh-launch transient
+    /// can never wipe a legitimately-cached account's bars.
+    func pruneAccounts(keeping liveAccountIds: Set<String>, defaults: UserDefaults = .standard) {
+        guard !liveAccountIds.isEmpty else { return }
+        cachedResults = cachedResults.filter { liveAccountIds.contains($0.key) }
+        let prefix = Self.persistKeyPrefix
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            let accountId = String(key.dropFirst(prefix.count))
+            if !liveAccountIds.contains(accountId) {
+                defaults.removeObject(forKey: key)
+            }
+        }
+    }
 }

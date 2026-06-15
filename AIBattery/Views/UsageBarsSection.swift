@@ -5,6 +5,10 @@ struct FiveHourBarSection: View {
     let limits: RateLimitUsage
     let source: RateLimitSource?
     var tokenTotal: Int = 0
+    /// Whether the displayed snapshot came from a fresh fetch. When `false` (cached /
+    /// unconfirmed data), the throttle / "Limit reached" alarm is suppressed — a stale
+    /// percentage is fine, a stale alarm is a false alarm. Mirrors the menu bar's gate.
+    var confirmed: Bool = true
 
     var body: some View {
         UsageBar(
@@ -15,7 +19,8 @@ struct FiveHourBarSection: View {
             isBinding: limits.representativeClaim == RateLimitUsage.fiveHourWindow,
             isThrottled: limits.isWindowThrottled(RateLimitUsage.fiveHourWindow),
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.fiveHourWindow),
-            tokenTotal: tokenTotal
+            tokenTotal: tokenTotal,
+            confirmed: confirmed
         )
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
@@ -27,6 +32,8 @@ struct SevenDayBarSection: View {
     let limits: RateLimitUsage
     let source: RateLimitSource?
     var tokenTotal: Int = 0
+    /// See `FiveHourBarSection.confirmed`.
+    var confirmed: Bool = true
 
     var body: some View {
         UsageBar(
@@ -37,7 +44,8 @@ struct SevenDayBarSection: View {
             isBinding: limits.representativeClaim == RateLimitUsage.sevenDayWindow,
             isThrottled: limits.isWindowThrottled(RateLimitUsage.sevenDayWindow),
             estimatedTimeToLimit: limits.estimatedTimeToLimit(for: RateLimitUsage.sevenDayWindow),
-            tokenTotal: tokenTotal
+            tokenTotal: tokenTotal,
+            confirmed: confirmed
         )
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
@@ -53,14 +61,44 @@ struct UsageBar: View {
     var isThrottled: Bool = false
     var estimatedTimeToLimit: TimeInterval?
     var tokenTotal: Int = 0
+    /// Whether the displayed data came from a fresh fetch (vs cached/unconfirmed).
+    var confirmed: Bool = true
 
-    /// Display percent — clamps to 100 when throttled so the UI doesn't show "99% Throttled".
-    private var displayPercent: Double { isThrottled ? max(percent, 100) : percent }
+    /// Throttle/limit alarm state, gated on `confirmed`. A stale percentage is fine to
+    /// show; a stale "Throttled" / "Limit reached" alarm is a false alarm (the menu bar
+    /// already suppresses it via the same gate). The next fresh fetch restores the truth.
+    struct AlarmState: Equatable {
+        let displayPercent: Double
+        let throttled: Bool
+        let limitReached: Bool
+        let wasExhausted: Bool
+
+        init(percent: Double, isThrottled: Bool, confirmed: Bool) {
+            let effectiveThrottled = confirmed && isThrottled
+            // Clamp to 100 only on a *confirmed* throttle so the UI doesn't show
+            // "99% Throttled"; never fabricate 100% from an unconfirmed throttle.
+            let shown = effectiveThrottled ? max(percent, 100) : percent
+            displayPercent = shown
+            throttled = effectiveThrottled
+            // Mutually exclusive with `throttled` — "Throttled" wins over "Limit reached"
+            // (matches the footer's if/else-if precedence), so the flag means exactly
+            // "show Limit reached". Both are gated on confirmed data.
+            limitReached = confirmed && !effectiveThrottled && shown >= 100
+            wasExhausted = effectiveThrottled || shown >= 100
+        }
+    }
+
+    private var alarm: AlarmState {
+        AlarmState(percent: percent, isThrottled: isThrottled, confirmed: confirmed)
+    }
+
+    /// Display percent — clamps to 100 on a confirmed throttle so the UI doesn't show "99% Throttled".
+    private var displayPercent: Double { alarm.displayPercent }
 
     private var headerTooltip: String {
         var parts = ["\(label) rate limit: \(Int(displayPercent))% used"]
         if isBinding { parts.append("This window is the binding constraint") }
-        if isThrottled { parts.append("Currently rate limited") }
+        if alarm.throttled { parts.append("Currently rate limited") }
         if let reset = resetsAt {
             let diff = reset.timeIntervalSinceNow
             if diff > 0 {
@@ -78,7 +116,7 @@ struct UsageBar: View {
             percent: displayPercent,
             barColor: ThemeColors.barColor(percent: displayPercent),
             accessibilityLabel: "\(label) rate limit usage \(Int(displayPercent)) percent",
-            accessibilityValue: isThrottled ? "Rate limited" : "\(max(0, Int(100 - displayPercent))) percent remaining",
+            accessibilityValue: alarm.throttled ? "Rate limited" : "\(max(0, Int(100 - displayPercent))) percent remaining",
             tickInterval: resetTickInterval,
             headerLeading: {
                 HStack(spacing: Spacing.inner) {
@@ -96,7 +134,7 @@ struct UsageBar: View {
                             .accessibilityLabel("Binding constraint")
                             .help("This window is the active rate limit constraint")
                     }
-                    if isThrottled {
+                    if alarm.throttled {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
@@ -133,11 +171,11 @@ struct UsageBar: View {
                                 .font(Typography.tinyLabel)
                                 .foregroundStyle(ThemeColors.success)
                         }
-                    } else if isThrottled {
+                    } else if alarm.throttled {
                         Text("Throttled")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
-                    } else if displayPercent >= 100 {
+                    } else if alarm.limitReached {
                         Text("Limit reached")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
@@ -190,6 +228,6 @@ struct UsageBar: View {
     /// Whether the window was at or near exhaustion (throttled or 100%+).
     /// Reset celebration/soon states only make sense after high usage.
     private var wasExhausted: Bool {
-        isThrottled || displayPercent >= 100
+        alarm.wasExhausted
     }
 }

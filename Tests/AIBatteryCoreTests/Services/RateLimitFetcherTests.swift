@@ -691,6 +691,85 @@ struct RateLimitFetcherTests {
         #expect(restored.fetchedAt <= Date())
     }
 
+    // MARK: - Orphan migration & pruning (pending-id resolution + launch cleanup)
+
+    //
+    // When a `pending-<uuid>` account resolves to its real org id, its cached +
+    // persisted rate limits must follow it (mirroring TokenLedger.migrate) — otherwise
+    // the pending blob orphans under the dead key, gets reloaded every launch, and a
+    // stale "throttled"/100% reading can surface a false "Limit reached" (the v2.5.0 bug).
+    // Launch pruning drops any rate-limit entry for an account the user no longer has.
+
+    @Test func migrate_movesCacheAndPersistedBlob_andDropsOld() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+
+        let fetcher = RateLimitFetcher()
+        fetcher.setCachedResult(Self.makeFreshResult(), for: tempId)
+        fetcher.persistRateLimits(Self.makeFreshResult(), accountId: tempId, defaults: defaults)
+
+        fetcher.migrate(from: tempId, to: realId, defaults: defaults)
+
+        // Cache + persisted blob now live under the real id; the pending key is gone.
+        #expect(fetcher.cachedOrEmpty(accountId: realId).rateLimits?.fiveHourUtilization == 0.42)
+        #expect(fetcher.cachedOrEmpty(accountId: tempId).rateLimits == nil)
+        #expect(defaults.data(forKey: RateLimitFetcher.persistKeyPrefix + realId) != nil)
+        #expect(defaults.data(forKey: RateLimitFetcher.persistKeyPrefix + tempId) == nil)
+    }
+
+    @Test func migrate_keepsResolvedDataWhenAlreadyPresent_butStillDropsPending() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+
+        // A fresh fetch already landed under the real id — it must win over the older
+        // pending blob, not get clobbered.
+        let fresh = Self.makeFreshResult()
+        let stalePending = APIFetchResult(
+            rateLimits: RateLimitUsage(
+                representativeClaim: "seven_day",
+                fiveHourUtilization: 0.03, fiveHourReset: Date().addingTimeInterval(3_600), fiveHourStatus: "allowed",
+                sevenDayUtilization: 0.99, sevenDayReset: Date().addingTimeInterval(86_400), sevenDayStatus: "throttled",
+                overallStatus: "throttled"
+            ),
+            rateLimitSource: .oauthUsageEndpoint, profile: nil, fetchedAt: Date()
+        )
+
+        let fetcher = RateLimitFetcher()
+        fetcher.setCachedResult(fresh, for: realId)
+        fetcher.setCachedResult(stalePending, for: tempId)
+
+        fetcher.migrate(from: tempId, to: realId, defaults: defaults)
+
+        #expect(fetcher.cachedOrEmpty(accountId: realId).rateLimits?.fiveHourUtilization == 0.42)
+        #expect(fetcher.cachedOrEmpty(accountId: tempId).rateLimits == nil)
+    }
+
+    @Test func pruneAccounts_dropsOrphans_keepsLiveAndSkipsEmptySet() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let liveId = "org-live-\(UUID().uuidString)"
+        let orphanId = "pending-\(UUID().uuidString)"
+
+        let fetcher = RateLimitFetcher()
+        fetcher.persistRateLimits(Self.makeFreshResult(), accountId: liveId, defaults: defaults)
+        fetcher.persistRateLimits(Self.makeFreshResult(), accountId: orphanId, defaults: defaults)
+        fetcher.restorePersistedRateLimits(defaults: defaults)
+
+        // Empty live set is a guarded no-op (logged-out transient must not wipe bars).
+        fetcher.pruneAccounts(keeping: [], defaults: defaults)
+        #expect(fetcher.cachedOrEmpty(accountId: orphanId).rateLimits != nil)
+
+        fetcher.pruneAccounts(keeping: [liveId], defaults: defaults)
+        #expect(fetcher.cachedOrEmpty(accountId: liveId).rateLimits?.fiveHourUtilization == 0.42)
+        #expect(fetcher.cachedOrEmpty(accountId: orphanId).rateLimits == nil)
+        #expect(defaults.data(forKey: RateLimitFetcher.persistKeyPrefix + liveId) != nil)
+        #expect(defaults.data(forKey: RateLimitFetcher.persistKeyPrefix + orphanId) == nil)
+    }
+
     // MARK: - Contract tests: interpretClaudeCodeClientData
 
     /// client_data 429 + high utilization but body status still "allowed" —
