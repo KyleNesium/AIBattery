@@ -47,12 +47,21 @@ struct PanelToggleState {
 /// Manages the NSStatusItem and a floating NSPanel directly, replacing SwiftUI's MenuBarExtra.
 /// Uses a standalone NSPanel instead of NSPopover — immune to macOS auto-hide and focus changes.
 /// The panel stays open until the user clicks the status item again or presses Escape.
+///
+/// Split across extension files (v2.4.0 precedent — same shape as UsageViewModel):
+/// - `StatusBarManager+ButtonUpdate.swift` — menu-bar image rendering + recovery sparkle
+/// - `StatusBarManager+Countdown.swift` — countdown ticker + reset-date resolution
+/// - `StatusBarManager+Panel.swift` — panel toggle/positioning + panel/hosting types
+///
+/// Stored state the extensions touch is declared without `private` so it stays
+/// visible across the extension files in the same module (extensions in other
+/// files cannot see `private` members).
 @MainActor
 public final class StatusBarManager: NSObject {
-    private var statusItem: NSStatusItem?
-    private var panel: PopoverPanel?
-    private var hostingView: TransparentHostingView<PopoverContentView>?
-    private weak var viewModel: UsageViewModel?
+    var statusItem: NSStatusItem?
+    var panel: PopoverPanel?
+    var hostingView: TransparentHostingView<PopoverContentView>?
+    weak var viewModel: UsageViewModel?
     private var cancellables = Set<AnyCancellable>()
     /// Last observed value of the multi-account toggle — used to filter the
     /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
@@ -64,11 +73,11 @@ public final class StatusBarManager: NSObject {
     nonisolated(unsafe) private var clickOutsideMonitor: Any?
     /// Toggle state machine — tracks intended panel visibility.
     /// All dismiss paths (including system-initiated orderOut) call toggleState.dismiss() via onDismiss callback.
-    private var toggleState = PanelToggleState()
+    var toggleState = PanelToggleState()
     nonisolated(unsafe) private var deactivationObserver: Any?
-    private let panelShowLog = OSLog(subsystem: "com.kylenesium.AIBattery", category: .pointsOfInterest)
+    let panelShowLog = OSLog(subsystem: "com.kylenesium.AIBattery", category: .pointsOfInterest)
     /// Timestamp of last click — debounces rapid clicks during toggle.
-    private var lastClickAt: Date = .distantPast
+    var lastClickAt: Date = .distantPast
     nonisolated(unsafe) private var appearanceObserver: NSKeyValueObservation?
     nonisolated(unsafe) private var frameObserver: Any?
     /// Debounce token for the panel-resize observer below. Stored on the
@@ -78,28 +87,33 @@ public final class StatusBarManager: NSObject {
     /// Absolute Y coordinate of the panel's top edge (just below the menu bar).
     /// Set by `positionPanel` and used by the resize observer to keep the top anchored.
     /// Re-derived in the resize observer so display/geometry changes don't detach the panel.
-    private var panelTopY: CGFloat = 0
+    var panelTopY: CGFloat = 0
 
     /// Gap between the menu bar button and the panel's top edge.
-    private static let panelMargin: CGFloat = 4
+    static let panelMargin: CGFloat = 4
 
     // Snapshot of current render state
-    private var currentPercent: Double = 0
-    private var currentColor: NSColor = .systemGreen
-    private var currentIsThrottled: Bool = false
+    var currentPercent: Double = 0
+    var currentColor: NSColor = .systemGreen
+    var currentIsThrottled: Bool = false
     /// Whether we've received at least one update (so we can detect real transitions vs initial state).
-    private var hasReceivedFirstUpdate: Bool = false
+    var hasReceivedFirstUpdate: Bool = false
+
+    /// Key describing the last menu-bar image actually rendered — `updateButton`
+    /// skips the NSAttributedString+NSImage rebuild when nothing visible changed
+    /// (countdown ticks fire every 10s; the text changes ~once a minute).
+    var lastRenderKey: MenuBarRenderKey?
 
     // Recovery sparkle: 30s celebration after throttle clears
-    private var isSparkleActive: Bool = false
-    nonisolated(unsafe) private var sparkleTimer: Timer?
+    var isSparkleActive: Bool = false
+    nonisolated(unsafe) var sparkleTimer: Timer?
     /// Duration of the recovery sparkle effect after throttle clears.
     static let sparkleDuration: TimeInterval = 30
 
     // Countdown ticker: 1s timer to keep menu bar countdown in sync with popover
-    nonisolated(unsafe) private var countdownTimer: Timer?
+    nonisolated(unsafe) var countdownTimer: Timer?
     /// The reset date currently being counted down to (nil = no active countdown).
-    private var activeResetDate: Date?
+    var activeResetDate: Date?
 
     public override init() {
         super.init()
@@ -340,392 +354,5 @@ public final class StatusBarManager: NSObject {
         appearanceObserver?.invalidate()
         sparkleTimer?.invalidate()
         countdownTimer?.invalidate()
-    }
-
-    // MARK: - Button update
-
-    private func updateButton(_ button: NSStatusBarButton, viewModel: UsageViewModel) {
-        let metricMode = resolveMetricMode(viewModel: viewModel)
-        let activePercent = viewModel.snapshot?.percent(for: metricMode) ?? 0
-        let activeRateLimits = viewModel.snapshot?.rateLimits
-        // Delegate the whole menu-bar text/percent/countdown decision to a pure
-        // resolver. Pulling it out of this MainActor-isolated method means the wiring
-        // (which count gates the multi-account branch, how active and per-account
-        // resets compose, single-account fallback) is testable end-to-end. v2.2.0
-        // shipped a regression because the gate logic lived inline here and the
-        // wiring fix (P2 from codex review) was never covered by a test.
-        let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
-        let perAccount = viewModel.perAccountRateLimits
-        // Same eligible-account filter the fan-out uses (non-pending AND authenticated)
-        // via the shared `multiAccountDisplayIDs()`, so the menu-bar `order` can't drift
-        // from the fan-out candidate set — e.g. rendering a "—" slot for an account that
-        // resolved to a real org ID but is now signed out (which the fan-out skips).
-        let order = OAuthManager.shared.multiAccountDisplayIDs()
-        // Suppress the throttle alarm while the snapshot is unconfirmed (served from
-        // cache — e.g. the instant-paint right after wake). A stale percentage is fine;
-        // a stale "limit reached" is a false alarm. The next fresh fetch restores it.
-        let confirmed = !viewModel.isShowingCachedData
-        let display = MenuBarMultiAccountText.resolveDisplay(
-            toggleOn: showAll,
-            perAccount: perAccount,
-            order: order,
-            activeRateLimits: activeRateLimits,
-            activePercent: activePercent,
-            metricMode: metricMode,
-            confirmed: confirmed,
-            now: Date(),
-            countdownResetDate: Self.countdownResetDate(for:now:)
-        )
-        let percent = display.percent
-        let isExhausted = display.isExhausted
-        let displayText = display.text
-        let countdownReset = display.countdownReset
-
-        let isDarkMenuBar = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        let starColor = resolveStarColor(metricMode: metricMode, percent: percent, isThrottled: isExhausted, isDarkMenuBar: isDarkMenuBar)
-
-        // Recovery-sparkle transition detection keys off CONFIRMED data only — a cached
-        // wake-paint must not register as a throttle→recovery transition (which would
-        // fire a spurious "recovered" sparkle). On unconfirmed data, preserve the last
-        // confirmed throttle state for transition tracking while still updating the icon.
-        if confirmed {
-            updateSparkleState(isThrottled: isExhausted)
-        }
-        updateRenderState(percent: percent, color: starColor, isThrottled: confirmed ? isExhausted : currentIsThrottled)
-
-        button.image = MenuBarIcon.combinedStatusBarImage(
-            text: displayText,
-            percent: percent,
-            color: starColor,
-            isBroken: isExhausted,
-            isSparkle: isSparkleActive,
-            menuBarAppearance: button.effectiveAppearance
-        )
-        // Title is baked into the image — leaving it set would add AppKit's bezel padding
-        // back around the text, which is exactly what we're avoiding here.
-        button.title = ""
-        button.setAccessibilityValue(displayText)
-        updateStatusItemWidth(button: button)
-        // Never grey out — the icon always shows the last known state.
-        // Other menu bar apps (Battery, WiFi) don't dim on stale data.
-
-        // Start or stop the countdown ticker based on whether we have an active countdown.
-        if let resetDate = countdownReset {
-            startCountdownTimer(resetDate: resetDate, button: button)
-        } else {
-            stopCountdownTimer()
-        }
-    }
-
-    private func resolveMetricMode(viewModel: UsageViewModel) -> MetricMode {
-        let autoMetricMode = UserDefaults.standard.bool(forKey: UserDefaultsKeys.autoMetricMode)
-        if autoMetricMode {
-            return viewModel.resolvedMetricMode
-        }
-        let raw = UserDefaults.standard.string(forKey: UserDefaultsKeys.metricMode) ?? "5h"
-        return MetricMode(rawValue: raw) ?? .fiveHour
-    }
-
-    private func updateStatusItemWidth(button: NSStatusBarButton) {
-        guard let statusItem, let image = button.image else { return }
-        // Setting `statusItem.length = image.size.width` (rather than + 2) eliminates
-        // the 1pt-per-side `NSButton` image-centering padding: when button width equals
-        // image width, `imageRect(forBounds:)` returns origin.x = 0 and the image is
-        // flush against both edges.
-        //
-        // The remaining `NSStatusBarWindow` chrome of 8pt on each side (total window
-        // width = length + 16) is enforced by AppKit for third-party `NSStatusItem`s
-        // and cannot be eliminated via public API — system items like Battery / WiFi
-        // render inside ControlCenter's private content view which bypasses it.
-        statusItem.length = image.size.width
-    }
-
-    private func resolveStarColor(metricMode: MetricMode, percent: Double, isThrottled: Bool, isDarkMenuBar: Bool) -> NSColor {
-        if isThrottled {
-            ThemeColors.barNSColor(percent: 100)
-        } else if metricMode == .contextHealth {
-            ThemeColors.contextHealthNSColor(percent: percent)
-        } else {
-            ThemeColors.barNSColor(percent: percent, isDarkMenuBar: isDarkMenuBar)
-        }
-    }
-
-    private func updateSparkleState(isThrottled: Bool) {
-        if hasReceivedFirstUpdate && currentIsThrottled && !isThrottled {
-            startRecoverySparkle()
-        }
-        if isThrottled {
-            stopRecoverySparkle()
-        }
-    }
-
-    private func updateRenderState(percent: Double, color: NSColor, isThrottled: Bool) {
-        currentPercent = percent
-        currentColor = color
-        currentIsThrottled = isThrottled
-        hasReceivedFirstUpdate = true
-    }
-
-    /// Returns the reset date for countdown display when throttled or any window hits 100%.
-    /// Priority: binding reset when throttled, otherwise earliest *future* reset of any
-    /// exhausted window. Past dates are filtered out — the window has already reset, so
-    /// another (still-future) window's countdown should take over instead of dropping to
-    /// a stale percentage.
-    private func countdownResetDate(for rateLimits: RateLimitUsage) -> Date? {
-        Self.countdownResetDate(for: rateLimits, now: .now)
-    }
-
-    /// Pure, deterministic version of `countdownResetDate(for:)` — exposed at file scope
-    /// and parameterized on `now` so tests can assert handoff behaviour between the
-    /// 5-hour and 7-day windows without having to pin wall-clock time.
-    /// `nonisolated` because the implementation only reads its arguments — no shared
-    /// state — so tests can call it synchronously from outside the MainActor.
-    nonisolated static func countdownResetDate(for rateLimits: RateLimitUsage, now: Date) -> Date? {
-        // Keeps only reset timestamps that are still in the future; the 5-hour reset
-        // can fire while the 7-day window is still exhausted, and we want the valid
-        // 7-day countdown to take over rather than `min()` locking onto the past one.
-        let future: (Date?) -> Date? = { date in
-            guard let date, date.timeIntervalSince(now) > 0 else { return nil }
-            return date
-        }
-
-        if rateLimits.isThrottled {
-            return future(rateLimits.bindingReset)
-        }
-
-        let fiveExhausted = rateLimits.fiveHourPercent >= 100
-        let sevenExhausted = rateLimits.sevenDayPercent >= 100
-        let futureFive = fiveExhausted ? future(rateLimits.fiveHourReset) : nil
-        let futureSeven = sevenExhausted ? future(rateLimits.sevenDayReset) : nil
-
-        return [futureFive, futureSeven].compactMap { $0 }.min()
-    }
-
-    // MARK: - Recovery sparkle (throttle → green transition)
-
-    private func startRecoverySparkle() {
-        isSparkleActive = true
-        sparkleTimer?.invalidate()
-        sparkleTimer = Timer.scheduledTimer(withTimeInterval: Self.sparkleDuration, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.stopRecoverySparkle()
-            }
-        }
-    }
-
-    private func stopRecoverySparkle() {
-        isSparkleActive = false
-        sparkleTimer?.invalidate()
-        sparkleTimer = nil
-    }
-
-    // MARK: - Countdown ticker
-
-    /// Starts (or re-uses) a repeating timer that updates the menu bar countdown text
-    /// every tick. Tick interval adapts: 1s when <60s remain, 10s otherwise.
-    /// This keeps the menu bar countdown in sync with the popover's TimelineView.
-    private func startCountdownTimer(resetDate: Date, button: NSStatusBarButton) {
-        let interval = countdownTickInterval(for: resetDate)
-        // Re-use existing timer if targeting the same reset date at the same interval
-        if activeResetDate == resetDate, countdownTimer?.timeInterval == interval {
-            return
-        }
-        stopCountdownTimer()
-        activeResetDate = resetDate
-        countdownTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self, weak button] _ in
-            MainActor.assumeIsolated {
-                guard let self, let button, let vm = self.viewModel else { return }
-                let remaining = resetDate.timeIntervalSinceNow
-                if remaining <= 0 {
-                    // Countdown expired — refresh display to show percentage
-                    self.stopCountdownTimer()
-                    self.updateButton(button, viewModel: vm)
-                    return
-                }
-                // Rebuild the combined image so the baked countdown text updates.
-                // `updateButton` also re-evaluates the tick interval via `startCountdownTimer`,
-                // which short-circuits when interval/resetDate are unchanged.
-                self.updateButton(button, viewModel: vm)
-            }
-        }
-    }
-
-    private func stopCountdownTimer() {
-        countdownTimer?.invalidate()
-        countdownTimer = nil
-        activeResetDate = nil
-    }
-
-    /// 1s ticks when <60s remain (live countdown feel), 10s otherwise (low overhead).
-    private func countdownTickInterval(for resetDate: Date) -> TimeInterval {
-        let diff = resetDate.timeIntervalSinceNow
-        return (diff > 0 && diff < 60) ? 1 : 10
-    }
-
-    // MARK: - Panel toggle
-
-    @objc private func statusItemClicked() {
-        let now = Date()
-        guard now.timeIntervalSince(lastClickAt) > 0.1 else { return }
-        lastClickAt = now
-        guard let panel, let button = statusItem?.button else { return }
-
-        // Resume from idle suspension when user clicks the menu bar icon.
-        // Global event monitors may not fire without Accessibility permission,
-        // so this direct interaction is the reliable resume path.
-        if let vm = viewModel, vm.isSuspended {
-            vm.resumeFromUserInteraction()
-        }
-
-        let action = toggleState.toggle()
-        switch action {
-        case .hide:
-            panel.orderOut(nil)
-        case .show:
-            // Refit panel to current SwiftUI content size — settings may have
-            // collapsed while the panel was hidden, leaving a stale frame.
-            if let hosting = hostingView {
-                let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
-                let maxPanelHeight = screenMaxHeight - 40
-                let fittingHeight = min(max(hosting.fittingSize.height, Layout.panelMinHeight), maxPanelHeight)
-                let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
-                panel.setContentSize(NSSize(width: fittingWidth, height: fittingHeight))
-            }
-            positionPanel(relativeTo: button)
-            os_signpost(.begin, log: panelShowLog, name: "PanelShow")
-            panel.orderFrontRegardless()
-            panel.makeKey()
-            os_signpost(.end, log: panelShowLog, name: "PanelShow")
-        }
-    }
-
-    private func positionPanel(relativeTo button: NSStatusBarButton) {
-        guard let panel, let buttonWindow = button.window else { return }
-        let buttonRect = button.convert(button.bounds, to: nil)
-        let screenRect = buttonWindow.convertToScreen(buttonRect)
-
-        let panelWidth = panel.frame.width
-        let panelHeight = panel.frame.height
-        let margin = Self.panelMargin
-
-        // Prefer left-align to status item; flip to right-align if panel would overflow
-        var x: CGFloat
-        if let screen = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame {
-            let leftAligned = screenRect.minX
-            let rightAligned = screenRect.maxX - panelWidth
-
-            if leftAligned + panelWidth + margin > screen.maxX {
-                // Near right edge — right-align to the status item
-                x = max(screen.minX + margin, rightAligned)
-            } else {
-                // Normal — left-align to the status item
-                x = max(screen.minX + margin, leftAligned)
-            }
-        } else {
-            x = screenRect.minX
-        }
-
-        let y = screenRect.minY - panelHeight - margin
-
-        // Store absolute top anchor so the resize observer can keep top pinned
-        panelTopY = screenRect.minY - margin
-
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
-    }
-
-    /// Returns the panel's ideal top Y coordinate derived from the status button's
-    /// current screen position. Nil if the button is not attached to a window.
-    private func currentTopAnchor() -> CGFloat? {
-        guard let button = statusItem?.button, let buttonWindow = button.window else {
-            return nil
-        }
-        let buttonRect = button.convert(button.bounds, to: nil)
-        let screenRect = buttonWindow.convertToScreen(buttonRect)
-        return screenRect.minY - Self.panelMargin
-    }
-}
-
-// MARK: - Panel subclass
-
-/// Borderless panel that can become key (accepts keyboard events).
-/// `hidesOnDeactivate` must return false — LSUIElement menu bar apps don't maintain
-/// proper activation state, so the panel would auto-hide immediately after showing.
-/// Manual click-outside + deactivation observers handle dismissal instead.
-/// `onDismiss` is called for every orderOut path, including system-initiated ones,
-/// ensuring toggleState never desyncs.
-private class PopoverPanel: NSPanel {
-    var onDismiss: (() -> Void)?
-
-    override var canBecomeKey: Bool { true }
-    override var hidesOnDeactivate: Bool {
-        get { false }
-        set { /* ignore — manual dismiss via observers */ }
-    }
-
-    override func orderOut(_ sender: Any?) {
-        super.orderOut(sender)
-        onDismiss?()
-    }
-
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { // Escape
-            orderOut(nil)
-        } else if event.keyCode == 12 && event.modifierFlags.contains(.command) { // Cmd+Q
-            NSApplication.shared.terminate(nil)
-        } else if !event.modifierFlags.contains(.command) {
-            // Forward unmodified keys to SwiftUI via notification
-            switch event.charactersIgnoringModifiers {
-            case "1", "2", "3", "r":
-                NotificationCenter.default.post(
-                    name: .panelKeyPress,
-                    object: event.charactersIgnoringModifiers
-                )
-            default:
-                // Arrow keys: keyCode 123 = left, 124 = right
-                if event.keyCode == 123 || event.keyCode == 124 {
-                    NotificationCenter.default.post(
-                        name: .panelKeyPress,
-                        object: event.keyCode == 123 ? "left" : "right"
-                    )
-                } else {
-                    super.keyDown(with: event)
-                }
-            }
-        } else {
-            super.keyDown(with: event)
-        }
-    }
-}
-
-// MARK: - SwiftUI content
-
-/// Wrapper view that switches between authenticated and unauthenticated states.
-private struct PopoverContentView: View {
-    @ObservedObject var viewModel: UsageViewModel
-    @ObservedObject var oauthManager: OAuthManager
-
-    var body: some View {
-        Group {
-            if oauthManager.isAuthenticated {
-                UsagePopoverView(viewModel: viewModel)
-            } else {
-                AuthView(oauthManager: oauthManager)
-            }
-        }
-        .frame(width: Layout.popoverWidth)
-        .background(ThemeColors.panelBackground)
-    }
-}
-
-// MARK: - Transparent hosting view
-
-/// NSHostingView subclass that suppresses the default opaque background fill,
-/// allowing the SwiftUI-level background to control the panel's appearance.
-final class TransparentHostingView<Content: View>: NSHostingView<Content> {
-    override var isOpaque: Bool { false }
-
-    override func draw(_ dirtyRect: NSRect) {
-        // Skip super — the default implementation fills with the window background color.
-        // SwiftUI content renders via the layer pipeline, not draw(), so this is safe.
     }
 }

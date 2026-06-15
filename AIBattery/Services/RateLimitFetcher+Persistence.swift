@@ -20,7 +20,8 @@ extension RateLimitFetcher {
     }
 
     /// Save rate limits to UserDefaults for instant display on next launch.
-    func persistRateLimits(_ result: APIFetchResult, accountId: String) {
+    /// `defaults` is injectable for tests (precedent: `NotificationManager.migrateAlertKeys`).
+    func persistRateLimits(_ result: APIFetchResult, accountId: String, defaults: UserDefaults = .standard) {
         guard result.rateLimits != nil || result.standardLimits != nil else { return }
         let key = Self.persistKeyPrefix + accountId
         let persisted = PersistedRateLimits(
@@ -30,15 +31,16 @@ extension RateLimitFetcher {
             fetchedAt: result.fetchedAt
         )
         if let data = try? JSONEncoder().encode(persisted) {
-            UserDefaults.standard.set(data, forKey: key)
+            defaults.set(data, forKey: key)
         }
     }
 
     /// Restore persisted rate limits into the in-memory cache on launch.
     /// Always restores — stale data is better than empty bars on wake from sleep.
     /// Fresh fetches replace stale data naturally on the first successful poll.
-    func restorePersistedRateLimits() {
-        let defaults = UserDefaults.standard
+    /// Self-heals: a blob that fails to decode is removed so it cannot wedge
+    /// every subsequent launch; other accounts' entries still restore.
+    func restorePersistedRateLimits(defaults: UserDefaults = .standard) {
         let prefix = Self.persistKeyPrefix
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
             let accountId = String(key.dropFirst(prefix.count))

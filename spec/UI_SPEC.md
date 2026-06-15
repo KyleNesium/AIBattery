@@ -164,7 +164,7 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 
 ### Panel Visibility Safety (PG-01)
 
-All popover animations are naturally gated by SwiftUI's view lifecycle. When the panel is hidden (`orderOut`), `NSHostingView` removes all views from the rendering tree — no layout passes occur, no `.animation()` modifiers evaluate, and no `withAnimation` blocks can be triggered (no user interaction possible). `MarqueeText` explicitly calls `cancelAndStop()` in `.onDisappear`. The `StatusBarManager` breath timer operates at the AppKit layer outside the `NSHostingView` and is not a popover animation. Verified by code audit — no runtime gating logic is needed.
+All popover animations are naturally gated by SwiftUI's view lifecycle. When the panel is hidden (`orderOut`), `NSHostingView` removes all views from the rendering tree — no layout passes occur, no `.animation()` modifiers evaluate, and no `withAnimation` blocks can be triggered (no user interaction possible). `MarqueeText` explicitly calls `cancelAndStop()` in `.onDisappear`. The only AppKit-layer timers (`StatusBarManager` countdown ticker and the one-shot 30s sparkle end-timer) are not popover animations. Verified by code audit — no runtime gating logic is needed.
 
 Values propagate to header + menu bar immediately via `@AppStorage` (settings) and `@Published` (account names).
 
@@ -445,7 +445,7 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 **Multi-account display** (when `aibattery_showAllAccountsInMenuBar == true` and ≥2 authenticated accounts exist):
 - Text format: `"<a>%\u{00A0}|\u{00A0}<b>%[\u{00A0}|\u{00A0}<c>%]"` — non-breaking spaces around `|` so a single slot doesn't break across the separator. Pure formatting via `MenuBarMultiAccountText.build(order:limits:metricMode:)`.
 - Order: `AccountStore.accounts` order (user-controlled, mirrors the popover account picker).
-- Star color & breath: driven by the **worst** account's percent (max across `perAccountRateLimits.values`).
+- Star color: driven by the **worst** account's percent (max across `perAccountRateLimits.values`).
 - Broken star: triggered if any account has `isThrottled == true` OR any account has 100%+ utilization.
 - Countdown mode: triggered only when **at least one account is actually exhausted** (throttled or 100%+ on a window). `StatusBarManager` calls the existing `countdownResetDate(for:now:)` per account and picks `.min()`. Healthy accounts with normal future resets never pin the menu bar into countdown mode — the new `42% | 23%` text remains visible.
 - Empty/missing slot: `"—"` (e.g. account fetched but data not yet present).
@@ -463,11 +463,10 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
 
 **Three render modes** based on state:
 
-1. **Normal mode**: star appearance depends on usage band
-   - **Below 80%**: plain star, no glow, no animation (timer stopped)
-   - **Orange band (80–95%)**: static star-shaped glow (1.25× star size, 18% alpha) directly around the star. No breathing, no timer.
-   - **Red band (≥95%, not throttled)**: breathing star with 12-pointed star glow (spiky, aggressive). Star scale 1.0–1.14x, glow alpha 0.12–0.32. Timer active.
-   - Sine-wave breathing factor from discrete pulse step
+1. **Normal mode**: star appearance depends on usage band (all static — no animation timers)
+   - **Below 80%**: plain star, no glow
+   - **Orange band (80–95%)**: static star-shaped glow (1.25× star size, 18% alpha) directly around the star
+   - **Red band (≥95%, not throttled)**: star with a static 12-pointed star glow (spiky, aggressive) at 1.15× outer radius, 0.12 alpha
 
 2. **Broken mode (throttled)**: a static "spiky" star — **no animation, no fragments** (`renderThrottledIcon`)
    - A 12-pointed star glow behind (outer radius 1.3×, inner radius 0.65×, color at 0.35 alpha) — spiky and aggressive, signalling the throttle
@@ -476,27 +475,21 @@ This ensures the user sees actionable "2h 15m" instead of a stuck "100%" when ca
    - No timer needed — single cached image, zero CPU wake-ups
 
 3. **Recovery sparkle (throttle → green transition)**: 30s celebration effect after throttle clears
-   - Star drawn at normal size, surrounded by subtle twinkling cross sparkles
-   - 8 pre-defined sparkle positions evenly spaced around the star (8–9pt from center)
-   - Each frame shows 2-3 sparkles (rotating subset), frames change every 500ms (half pulse rate)
+   - Star drawn at normal size, flanked by two static cross sparkles (left + right, 8.2pt from center)
    - Each sparkle is a + cross shape (1.6pt arm, 0.7pt stroke width, 0.7 alpha)
    - Triggered by `StatusBarManager` detecting `isThrottled` going from true → false
-   - Automatically stops after 30 seconds, returning to normal breathing mode
+   - A one-shot 30s timer (`sparkleTimer`) ends the effect, returning to the normal star
 
-**Animation**: `StatusBarManager` runs a repeating timer (4s full cycle, 8 discrete steps). Sparkle mode ticks every 500ms (all 8 steps). Red band (≥95%) ticks every 1s (steps by 2) — halves CPU wakeups with imperceptible visual change. Timer restarts automatically when transitioning between sparkle and red band modes.
-- Active only when visually impactful: sparkle active or critical usage (≥95%). Throttled uses static broken star — no timer. Orange band (80–95%) uses static glow — no timer. Below 80%, breathing is imperceptible — timer stopped to save wake-ups.
-- Recovery sparkle overlaid for 30s after throttle clears
-- Pauses on screen sleep, resumes on wake
-- Timer callback uses `MainActor.assumeIsolated` (no async dispatch overhead)
+**Animation**: none — every icon variant is a static cached image; there is no frame-animation timer. The only icon-related timer is the one-shot 30s `sparkleTimer` that ends the recovery sparkle. (A pulse-step frame system existed historically but its driver was removed; the dead frame machinery was deleted in v2.5.0.)
 
 **Star color selection** (by `StatusBarManager`):
 - Rate limit modes: `ThemeColors.barNSColor(percent:isDarkMenuBar:)` (green < 50%, yellow/gold 50–80%, orange 80–95%, red ≥ 95%). On light menu bars (`isDarkMenuBar == false`) the 50–80% band uses `menuBarGold` (#B88F00) instead of `systemYellow`, which washes out against a light backdrop
 - Context health mode: `ThemeColors.contextHealthNSColor` (green < 60%, orange 60–80%, red ≥ 80%)
 - Throttled: always red/critical band
 
-**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) × 100 + `pulseStep` (0–7) for normal, `10_100 + pulseStep` for broken, `10_200 + pulseStep` for sparkle (all `+ colorHash &* 100_000`). The broken key includes `pulseStep` even though the throttled icon is static, so up to 8 broken entries are possible. Max entries: 21×8 + 8 + 8 = 184 per color variant. Cache invalidates on colorblind or appearance change.
+**Quantized caching**: cache key = `quantizedPercent` (every 5%, 21 buckets) for normal, `10_100` for broken, `10_200` for sparkle (all `+ colorHash &* 100_000`). Max entries: 21 + 1 + 1 = 23 per color variant. Cache invalidates on colorblind or appearance change.
 
-- **`statusBarImage(for:color:isBroken:isSparkle:pulseStep:menuBarAppearance:)`**: public static method for StatusBarManager's native AppKit button. `menuBarAppearance` defaults to `nil` (falls back to `NSApp.effectiveAppearance`); StatusBarManager passes `button.effectiveAppearance` for accurate wallpaper-tinted rendering.
+- **`statusBarImage(for:color:isBroken:isSparkle:menuBarAppearance:)`**: public static method for StatusBarManager's native AppKit button. `menuBarAppearance` defaults to `nil` (falls back to `NSApp.effectiveAppearance`); StatusBarManager passes `button.effectiveAppearance` for accurate wallpaper-tinted rendering.
 
 ## Accessibility
 

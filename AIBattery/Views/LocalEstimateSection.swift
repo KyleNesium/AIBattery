@@ -21,8 +21,8 @@ struct LocalEstimateSection: View {
 
     private var activeLimit: Int? {
         window == .fiveHour
-            ? LocalUsageEstimate.effectiveFiveHourLimit
-            : LocalUsageEstimate.effectiveSevenDayLimit
+            ? LocalUsageEstimate.effectiveFiveHourLimit()
+            : LocalUsageEstimate.effectiveSevenDayLimit()
     }
 
     private var limitSource: LocalUsageEstimate.LimitSource? {

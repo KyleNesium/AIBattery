@@ -7,31 +7,6 @@ import AppKit
 struct MenuBarIconTests {
     private let testColor: NSColor = .systemGreen
 
-    // MARK: - Breath parameters
-
-    @Test func breathFactor_rangeIsZeroToOne() {
-        for step in 0..<MenuBarIcon.pulseSteps {
-            let factor = MenuBarIcon.breathFactor(for: step)
-            #expect(factor >= 0.0)
-            #expect(factor <= 1.0)
-        }
-    }
-
-    @Test func starScaleRange_increasesWithPercent() {
-        let low = MenuBarIcon.starScaleRange(for: 35)
-        let high = MenuBarIcon.starScaleRange(for: 99)
-        // Min is always 1.0 (base size), max grows with usage
-        #expect(low.min == 1.0)
-        #expect(high.max > low.max)
-    }
-
-    @Test func glowAlphaRange_increasesWithPercent() {
-        let low = MenuBarIcon.glowAlphaRange(for: 35)
-        let high = MenuBarIcon.glowAlphaRange(for: 99)
-        #expect(high.min > low.min)
-        #expect(high.max > low.max)
-    }
-
     // MARK: - Quantized percent
 
     @Test func quantizedPercent_roundsDown() {
@@ -52,51 +27,35 @@ struct MenuBarIconTests {
     // MARK: - Cache key
 
     @Test func cacheKey_normalDistinctFromBroken() {
-        let normalKey = MenuBarIcon.cacheKey(quantizedPercent: 50, colorHash: 0, isBroken: false, isSparkle: false, pulseStep: 0)
-        let brokenKey = MenuBarIcon.cacheKey(quantizedPercent: 50, colorHash: 0, isBroken: true, isSparkle: false, pulseStep: 0)
+        let normalKey = MenuBarIcon.cacheKey(quantizedPercent: 50, colorHash: 0, isBroken: false, isSparkle: false)
+        let brokenKey = MenuBarIcon.cacheKey(quantizedPercent: 50, colorHash: 0, isBroken: true, isSparkle: false)
         #expect(normalKey != brokenKey)
     }
 
-    @Test func cacheKey_normalEncodesPulseStep() {
-        let step0 = MenuBarIcon.cacheKey(quantizedPercent: 50, colorHash: 0, isBroken: false, isSparkle: false, pulseStep: 0)
-        let step3 = MenuBarIcon.cacheKey(quantizedPercent: 50, colorHash: 0, isBroken: false, isSparkle: false, pulseStep: 3)
-        #expect(step0 != step3)
-    }
-
     @Test func cacheKey_differentPercentsAreDistinct() {
-        let key0 = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: false, isSparkle: false, pulseStep: 0)
-        let key50 = MenuBarIcon.cacheKey(quantizedPercent: 50, colorHash: 0, isBroken: false, isSparkle: false, pulseStep: 0)
+        let key0 = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: false, isSparkle: false)
+        let key50 = MenuBarIcon.cacheKey(quantizedPercent: 50, colorHash: 0, isBroken: false, isSparkle: false)
         #expect(key0 != key50)
-    }
-
-    @Test func cacheKey_brokenPulseStepsAreDistinct() {
-        let step0 = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: true, isSparkle: false, pulseStep: 0)
-        let step4 = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: true, isSparkle: false, pulseStep: 4)
-        let step7 = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: true, isSparkle: false, pulseStep: 7)
-        #expect(step0 != step4)
-        #expect(step4 != step7)
     }
 
     @Test func cacheKey_noCollisionAt100Percent() {
         // 100% normal and broken must not collide (was a bug with *10 + 1000 base)
-        for step in 0..<MenuBarIcon.pulseSteps {
-            let normalKey = MenuBarIcon.cacheKey(quantizedPercent: 100, colorHash: 0, isBroken: false, isSparkle: false, pulseStep: step)
-            let brokenKey = MenuBarIcon.cacheKey(quantizedPercent: 100, colorHash: 0, isBroken: true, isSparkle: false, pulseStep: step)
-            #expect(normalKey != brokenKey)
-        }
+        let normalKey = MenuBarIcon.cacheKey(quantizedPercent: 100, colorHash: 0, isBroken: false, isSparkle: false)
+        let brokenKey = MenuBarIcon.cacheKey(quantizedPercent: 100, colorHash: 0, isBroken: true, isSparkle: false)
+        #expect(normalKey != brokenKey)
     }
 
     @Test func cacheKey_sparkleDistinctFromNormalAndBroken() {
-        let normalKey = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: false, isSparkle: false, pulseStep: 0)
-        let brokenKey = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: true, isSparkle: false, pulseStep: 0)
-        let sparkleKey = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: false, isSparkle: true, pulseStep: 0)
+        let normalKey = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: false, isSparkle: false)
+        let brokenKey = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: true, isSparkle: false)
+        let sparkleKey = MenuBarIcon.cacheKey(quantizedPercent: 0, colorHash: 0, isBroken: false, isSparkle: true)
         #expect(normalKey != sparkleKey)
         #expect(brokenKey != sparkleKey)
     }
 
     @Test func cacheKey_differentColorsAreDistinct() {
-        let greenKey = MenuBarIcon.cacheKey(quantizedPercent: 75, colorHash: 42, isBroken: false, isSparkle: false, pulseStep: 0)
-        let orangeKey = MenuBarIcon.cacheKey(quantizedPercent: 75, colorHash: 99, isBroken: false, isSparkle: false, pulseStep: 0)
+        let greenKey = MenuBarIcon.cacheKey(quantizedPercent: 75, colorHash: 42, isBroken: false, isSparkle: false)
+        let orangeKey = MenuBarIcon.cacheKey(quantizedPercent: 75, colorHash: 99, isBroken: false, isSparkle: false)
         #expect(greenKey != orangeKey)
     }
 
@@ -129,47 +88,42 @@ struct MenuBarIconTests {
     // MARK: - Rendered icon properties
 
     @Test func normalIcon_isCorrectSizeNonTemplate() {
-        let icon = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 0)
+        let icon = MenuBarIcon.statusBarImage(for: 50, color: testColor)
         #expect(icon.size.width == MenuBarIcon.iconSize)
         #expect(icon.size.height == MenuBarIcon.iconSize)
         #expect(icon.isTemplate == false)
     }
 
     @Test func brokenIcon_isCorrectSizeNonTemplate() {
-        let icon = MenuBarIcon.statusBarImage(for: 100, color: .systemRed, isBroken: true, pulseStep: 0)
+        let icon = MenuBarIcon.statusBarImage(for: 100, color: .systemRed, isBroken: true)
         #expect(icon.size.width == MenuBarIcon.iconSize)
         #expect(icon.size.height == MenuBarIcon.iconSize)
         #expect(icon.isTemplate == false)
     }
 
-    @Test func differentPulseSteps_produceDifferentInstances() {
-        let step0 = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 0)
-        let step4 = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 4)
-        #expect(step0 !== step4)
+    @Test func sameInputs_returnSameCachedInstance() {
+        let first = MenuBarIcon.statusBarImage(for: 50, color: testColor)
+        let second = MenuBarIcon.statusBarImage(for: 50, color: testColor)
+        #expect(first === second)
     }
 
-    @Test func samePulseStep_returnsSameCachedInstance() {
-        let first = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 2)
-        let second = MenuBarIcon.statusBarImage(for: 50, color: testColor, pulseStep: 2)
-        #expect(first === second)
+    @Test func distinctStates_produceDistinctCachedInstances() {
+        let normal = MenuBarIcon.statusBarImage(for: 50, color: testColor)
+        let broken = MenuBarIcon.statusBarImage(for: 50, color: testColor, isBroken: true)
+        let sparkle = MenuBarIcon.statusBarImage(for: 50, color: testColor, isSparkle: true)
+        #expect(normal !== broken)
+        #expect(normal !== sparkle)
+        #expect(broken !== sparkle)
     }
 
     // MARK: - Sparkle icon (recovery effect)
 
     @Test func sparkleIcon_isCorrectSizeNonTemplate() {
-        let icon = MenuBarIcon.statusBarImage(for: 10, color: .systemGreen, isSparkle: true, pulseStep: 0)
+        let icon = MenuBarIcon.statusBarImage(for: 10, color: .systemGreen, isSparkle: true)
         #expect(icon.size.width == MenuBarIcon.iconSize)
         #expect(icon.size.height == MenuBarIcon.iconSize)
         #expect(icon.isTemplate == false)
     }
-
-    @Test func sparkleIcon_differentStepsProduceDifferentInstances() {
-        let step0 = MenuBarIcon.statusBarImage(for: 10, color: .systemGreen, isSparkle: true, pulseStep: 0)
-        let step3 = MenuBarIcon.statusBarImage(for: 10, color: .systemGreen, isSparkle: true, pulseStep: 3)
-        #expect(step0 !== step3)
-    }
-
-    // MARK: - Context health color
 
     // Note: test for `ThemeColors.contextHealthNSColor` with specific color assertions
     // lives in ThemeColorsTests — that suite is `.serialized` and controls the global

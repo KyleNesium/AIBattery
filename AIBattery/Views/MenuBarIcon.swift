@@ -1,66 +1,18 @@
-import SwiftUI
 import AppKit
 
-struct MenuBarIcon: View {
-    let requestsPercent: Double
-    let isBroken: Bool
-    let pulseStep: Int
-
-    init(requestsPercent: Double, isBroken: Bool = false, pulseStep: Int = 0) {
-        self.requestsPercent = requestsPercent
-        self.isBroken = isBroken
-        self.pulseStep = pulseStep
-    }
-
-    var body: some View {
-        Image(nsImage: Self.cachedIcon(
-            for: requestsPercent,
-            color: ThemeColors.barNSColor(percent: requestsPercent),
-            isBroken: isBroken,
-            isSparkle: false,
-            pulseStep: pulseStep
-        ))
-    }
-
+/// Renders the menu bar star icon as cached static `NSImage`s.
+/// Namespace-only — never instantiated. Kept `@MainActor` so the mutable
+/// icon cache statics share the isolation of their only caller (`StatusBarManager`).
+@MainActor
+enum MenuBarIcon {
     // MARK: - Constants
 
     /// Icon canvas size — larger than the star to give the glow room to breathe.
     static let iconSize: CGFloat = Layout.iconSize
 
-    /// Number of discrete pulse steps per breathing cycle.
-    /// 8 steps at 4s cycle = 500ms per tick — smooth enough to appear fluid
-    /// while halving CPU usage from timer wakeups and image generation.
-    static let pulseSteps = 8
-
-    // MARK: - Glow breath parameters
-
-    /// Star scale range (min, max) for the breathing animation.
-    /// The star itself grows and shrinks. Higher usage = bigger breath.
-    /// Only called for percent >= 30 (below that, sparkle mode is used instead).
-    static func starScaleRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
-        switch percent {
-        case ..<60: (1.00, 1.08)
-        case ..<80: (1.00, 1.10)
-        case ..<95: (1.00, 1.12)
-        default: (1.00, 1.14)
-        }
-    }
-
-    /// Glow halo alpha range (min, max) for the soft aura behind the star.
-    /// Below 80% no halo is drawn (timer is stopped, static icon only).
-    static func glowAlphaRange(for percent: Double) -> (min: CGFloat, max: CGFloat) {
-        switch percent {
-        case ..<80: (0.0, 0.0)
-        case ..<95: (0.08, 0.25)
-        default: (0.12, 0.32)
-        }
-    }
-
-    /// Sine-wave breath factor (0.0–1.0) from a discrete pulse step.
-    static func breathFactor(for step: Int) -> CGFloat {
-        let phase = CGFloat(step) / CGFloat(pulseSteps)
-        return (sin(phase * 2 * .pi - .pi / 2) + 1) / 2
-    }
+    /// Glow halo alpha for the red band (≥95%). Below 95% the orange band draws
+    /// its own star-shaped glow and lower bands draw no halo at all.
+    static let redBandHaloAlpha: CGFloat = 0.12
 
     // MARK: - Cache key
 
@@ -70,18 +22,18 @@ struct MenuBarIcon: View {
         return Int((clamped / 5).rounded(.down)) * 5
     }
 
-    /// Composite cache key incorporating percent, color, state, and pulse step.
+    /// Composite cache key incorporating percent, color, and state.
     /// Color hash distinguishes the same percent across metric modes
     /// (e.g. rate limit green vs context health yellow at 75%).
-    /// Max entries: 21×8 + 8 + 8 = 184 per color variant.
-    static func cacheKey(quantizedPercent: Int, colorHash: Int, isBroken: Bool, isSparkle: Bool, pulseStep: Int) -> Int {
+    /// Max entries: 21 + 1 + 1 = 23 per color variant.
+    static func cacheKey(quantizedPercent: Int, colorHash: Int, isBroken: Bool, isSparkle: Bool) -> Int {
         if isBroken {
-            return 10_100 + pulseStep + colorHash &* 100_000
+            return 10_100 + colorHash &* 100_000
         }
         if isSparkle {
-            return 10_200 + pulseStep + colorHash &* 100_000
+            return 10_200 + colorHash &* 100_000
         }
-        return quantizedPercent * 100 + pulseStep + colorHash &* 100_000
+        return quantizedPercent + colorHash &* 100_000
     }
 
     // MARK: - Icon cache
@@ -98,16 +50,16 @@ struct MenuBarIcon: View {
     /// macOS battery has ~1pt between text and icon; our 22pt canvas has ~4pt whitespace on each side.
     private static let iconAlignmentInsets = NSEdgeInsets(top: 0, left: 1, bottom: 0, right: 5)
 
-    static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, isSparkle: Bool = false, pulseStep: Int = 0, menuBarAppearance: NSAppearance? = nil) -> NSImage {
-        cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep, menuBarAppearance: menuBarAppearance)
+    static func statusBarImage(for percent: Double, color: NSColor, isBroken: Bool = false, isSparkle: Bool = false, menuBarAppearance: NSAppearance? = nil) -> NSImage {
+        cachedIcon(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, menuBarAppearance: menuBarAppearance)
     }
 
     /// Horizontal whitespace trimmed from each side of the `iconSize` canvas when
     /// compositing into `combinedStatusBarImage`. Larger value = narrower visible icon.
-    /// The star's outer vertex (including max breathing) sits at ~center ± 7.5pt, and
-    /// the halo at 95%+ reaches ~center ± 8.6pt. Trimming 4pt on each side keeps the
-    /// star fully visible and only cuts ~0.6pt off the outer ring of the red-band halo,
-    /// which is drawn at < 15% alpha and thus imperceptible.
+    /// The star's outer vertex sits at ~center ± 7.5pt, and the halo at 95%+ reaches
+    /// ~center ± 8.6pt. Trimming 4pt on each side keeps the star fully visible and only
+    /// cuts ~0.6pt off the outer ring of the red-band halo, which is drawn at < 15%
+    /// alpha and thus imperceptible.
     private static let iconCanvasPadding: CGFloat = 4
 
     /// Renders the percentage/countdown text and the star into a single tightly-packed
@@ -137,7 +89,7 @@ struct MenuBarIcon: View {
         let textSize = attributed.size()
         let textWidth = ceil(textSize.width)
 
-        let icon = statusBarImage(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, pulseStep: 0, menuBarAppearance: menuBarAppearance)
+        let icon = statusBarImage(for: percent, color: color, isBroken: isBroken, isSparkle: isSparkle, menuBarAppearance: menuBarAppearance)
         let canvasSize = icon.size.width // 22pt, contains star + halo with ~3pt padding each side
         let iconVisibleWidth = canvasSize - 2 * iconCanvasPadding
         let gap: CGFloat = 2
@@ -165,7 +117,7 @@ struct MenuBarIcon: View {
         return image
     }
 
-    static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, pulseStep: Int, menuBarAppearance: NSAppearance? = nil) -> NSImage {
+    static func cachedIcon(for percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, menuBarAppearance: NSAppearance? = nil) -> NSImage {
         let currentAppearance = menuBarAppearance ?? NSApp?.effectiveAppearance
         let appearanceName = currentAppearance?.name.rawValue ?? ""
         let currentColorblind = ThemeColors.isColorblind
@@ -181,7 +133,7 @@ struct MenuBarIcon: View {
             }
 
             let qPercent = quantizedPercent(percent)
-            let k = cacheKey(quantizedPercent: qPercent, colorHash: colorHash, isBroken: isBroken, isSparkle: isSparkle, pulseStep: pulseStep)
+            let k = cacheKey(quantizedPercent: qPercent, colorHash: colorHash, isBroken: isBroken, isSparkle: isSparkle)
             return (k, iconCache[k])
         }
 
@@ -190,12 +142,12 @@ struct MenuBarIcon: View {
         // Render without holding the lock — NSImage creation is thread-safe
         // but can be slow; no need to serialize rendering across threads.
         let icon: NSImage = if isBroken {
-            // Throttled: static multi-pointed star at peak intensity (no animation)
+            // Throttled: static multi-pointed star at peak intensity
             renderThrottledIcon(color: color)
         } else if isSparkle {
-            renderSparkleIcon(color: color, pulseStep: pulseStep)
+            renderSparkleIcon(color: color)
         } else {
-            renderIcon(percent: percent, color: color, pulseStep: pulseStep)
+            renderIcon(percent: percent, color: color)
         }
 
         // Bake alignment rect into the icon so statusBarImage can return
@@ -212,20 +164,15 @@ struct MenuBarIcon: View {
 
     // MARK: - Normal star rendering
 
-    static func renderIcon(percent: Double, color: NSColor, pulseStep: Int) -> NSImage {
+    static func renderIcon(percent: Double, color: NSColor) -> NSImage {
         let size = iconSize
         let outerRadius: CGFloat = 6.5
         let innerRadius: CGFloat = 2.0
 
-        // Orange band (80–95%): static glow, no breathing animation.
-        // Red band (≥95%): breathing pulse continues.
+        // Orange band (80–95%): star-shaped glow directly around the star.
+        // Red band (≥95%): spiky 12-pointed halo. Below 80%: no glow.
         let isOrangeBand = percent >= 80 && percent < 95
-        let breath = isOrangeBand ? CGFloat(0.5) : breathFactor(for: pulseStep)
-        let scaleRange = starScaleRange(for: percent)
-        let alphaRange = glowAlphaRange(for: percent)
-
-        let starScale = isOrangeBand ? CGFloat(1.0) : scaleRange.min + (scaleRange.max - scaleRange.min) * breath
-        let haloAlpha = alphaRange.min + (alphaRange.max - alphaRange.min) * breath
+        let isRedBand = percent >= 95
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
@@ -242,31 +189,25 @@ struct MenuBarIcon: View {
                 ctx.setFillColor(color.withAlphaComponent(0.18).cgColor)
                 ctx.addPath(glowPath.asCGPath)
                 ctx.fillPath()
-            } else if haloAlpha > 0.01 {
-                let haloR = outerRadius * starScale * 1.15
-                ctx.setFillColor(color.withAlphaComponent(haloAlpha).cgColor)
-                if percent >= 95 {
-                    // Red band: many-pointed star glow (spiky, aggressive)
-                    let glowPath = multiPointStarPath(
-                        center: center,
-                        outerRadius: haloR,
-                        innerRadius: haloR * 0.55,
-                        points: 12
-                    )
-                    ctx.addPath(glowPath.asCGPath)
-                    ctx.fillPath()
-                } else {
-                    // Normal: soft circular halo
-                    let rect = CGRect(x: center.x - haloR, y: center.y - haloR, width: haloR * 2, height: haloR * 2)
-                    ctx.fillEllipse(in: rect)
-                }
+            } else if isRedBand {
+                // Red band: many-pointed star glow (spiky, aggressive)
+                let haloR = outerRadius * 1.15
+                ctx.setFillColor(color.withAlphaComponent(redBandHaloAlpha).cgColor)
+                let glowPath = multiPointStarPath(
+                    center: center,
+                    outerRadius: haloR,
+                    innerRadius: haloR * 0.55,
+                    points: 12
+                )
+                ctx.addPath(glowPath.asCGPath)
+                ctx.fillPath()
             }
 
-            // Star — static for orange band, breathing for others
+            // Star at base size
             let path = starPath(
                 center: center,
-                outerRadius: outerRadius * starScale,
-                innerRadius: innerRadius * starScale
+                outerRadius: outerRadius,
+                innerRadius: innerRadius
             )
             ctx.setFillColor(color.cgColor)
             ctx.addPath(path.asCGPath)
@@ -280,7 +221,7 @@ struct MenuBarIcon: View {
 
     // MARK: - Throttled star rendering (static, many-pointed)
 
-    /// Static many-pointed star for throttled state — no animation, no fragments.
+    /// Static many-pointed star for throttled state — no fragments.
     /// Uses a 12-pointed star shape with the normal 4-pointed star overlaid for depth.
     static func renderThrottledIcon(color: NSColor) -> NSImage {
         let size = iconSize
@@ -316,27 +257,13 @@ struct MenuBarIcon: View {
 
     // MARK: - Sparkle star rendering (green / healthy)
 
-    /// Pre-computed sparkle positions: angle (radians) and distance from center.
-    /// 8 sparkles arranged around the star — close enough to be visible at menu bar size.
-    private static let sparklePositions: [(angle: CGFloat, dist: CGFloat)] = [
+    /// Sparkle positions flanking the star: angle (radians) and distance from center.
+    private static let sparkleOffsets: [(angle: CGFloat, dist: CGFloat)] = [
         (0.0, 8.2), // right
-        (0.8, 8.8), // upper right
-        (1.57, 8.0), // top
-        (2.4, 8.6), // upper left
         (3.14, 8.2), // left
-        (3.9, 8.8), // lower left
-        (4.71, 8.0), // bottom
-        (5.5, 8.6), // lower right
     ]
 
-    /// Each pulse step shows a different subset of sparkles (indices into sparklePositions).
-    /// 8 frames with 2-3 sparkles each — celebratory twinkling for recovery.
-    private static let sparkleFrames: [[Int]] = [
-        [0, 4], [1, 5], [2, 6], [3, 7],
-        [0, 3, 6], [1, 5], [2, 4, 7], [0, 6],
-    ]
-
-    static func renderSparkleIcon(color: NSColor, pulseStep: Int) -> NSImage {
+    static func renderSparkleIcon(color: NSColor) -> NSImage {
         let size = iconSize
 
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
@@ -345,17 +272,13 @@ struct MenuBarIcon: View {
             let outerRadius: CGFloat = 6.5
             let innerRadius: CGFloat = 2.0
 
-            // Draw the star at normal size (no breathing — green is calm)
+            // Draw the star at normal size (green is calm)
             let path = starPath(center: center, outerRadius: outerRadius, innerRadius: innerRadius)
             ctx.setFillColor(color.cgColor)
             ctx.addPath(path.asCGPath)
             ctx.fillPath()
-            // Draw sparkles — subtle cross shapes that slowly twinkle around the star
-            let frameIndex = (pulseStep / 2) % sparkleFrames.count
-            let activeIndices = sparkleFrames[frameIndex]
-
-            for idx in activeIndices {
-                let pos = sparklePositions[idx]
+            // Draw sparkles — subtle cross shapes flanking the star
+            for pos in sparkleOffsets {
                 let sx = center.x + pos.dist * cos(pos.angle)
                 let sy = center.y + pos.dist * sin(pos.angle)
 
