@@ -1,10 +1,21 @@
 # Changelog
 
-## [2.5.0] — 2026-06-12
+## [2.5.0] — 2026-06-15
 
 Engineering-review hardening release: multi-account correctness (cross-account refresh race, per-account calibration), stale-data notification gating, Keychain migration safety, and faster auth-failure recovery.
 
 ### Fixed
+- **No more false "Limit reached" in the popover on stale data.** The menu bar already
+  suppresses a throttle/limit alarm while showing cached/unconfirmed data (a stale
+  percentage is fine; a stale alarm is not) — but the popover's 5-Hour/7-Day bars did
+  not, so a cached reading could render "Limit reached" / "Throttled" (and clamp to
+  100%) on a window that was actually fine, until the first fresh poll corrected it.
+  The popover bars now honor the same fresh-data gate. Separately, a `pending-<uuid>`
+  account's first-fetch rate-limit blob was never migrated to its resolved org id (only
+  the token ledger was) nor pruned on launch, so an old pending blob with a high
+  7-day/throttled reading lingered in the cache and could surface that false alarm; the
+  rate-limit cache now migrates on identity resolution and prunes orphans at launch,
+  exactly as the token ledger does.
 - **Account switching mid-refresh can no longer mix up accounts' data.** A poll now
   requests the token for the exact account it started with (instead of whichever
   account is active by the time the request fires), and a fetch whose account was

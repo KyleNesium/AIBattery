@@ -66,16 +66,21 @@ public final class OAuthManager: ObservableObject {
         updateAuthState()
     }
 
-    /// Launch-time maintenance: drop token-ledger entries for accounts the user no
-    /// longer has — orphaned `pending-<uuid>` ids left by pre-migration identity
-    /// resolutions, removed accounts, and any stray test ids that leaked into the file.
+    /// Launch-time maintenance: drop the token-ledger AND rate-limit cache entries for
+    /// accounts the user no longer has — orphaned `pending-<uuid>` ids left by
+    /// pre-migration identity resolutions, removed accounts, and any stray test ids that
+    /// leaked in. Pruning the rate-limit cache here is what clears the stale
+    /// `pending-*` blobs that could otherwise surface a false "Limit reached".
     ///
     /// Deliberately NOT called from `init` (and exposed as a separate public method)
     /// so unit-test `OAuthManager()` construction never mutates the real
-    /// `token-ledger.json`. Call once from the app's launch path. Internally guarded
-    /// against an empty live set so a logged-out launch can't wipe held history.
+    /// `token-ledger.json` or persisted rate limits. Call once from the app's launch
+    /// path. Both prunes are internally guarded against an empty live set so a logged-out
+    /// launch can't wipe held history.
     public func pruneOrphanedLedgerAccounts() {
-        TokenLedger.shared.pruneAccounts(keeping: Set(accountStore.accounts.map(\.id)))
+        let liveIds = Set(accountStore.accounts.map(\.id))
+        TokenLedger.shared.pruneAccounts(keeping: liveIds)
+        RateLimitFetcher.shared.pruneAccounts(keeping: liveIds)
     }
 
     // MARK: - Public API
@@ -290,6 +295,12 @@ public final class OAuthManager: ObservableObject {
         // Move the token-ledger high-water marks from the pending id to the real org id
         // so the account's accumulated history follows it instead of orphaning.
         TokenLedger.shared.migrate(from: tempId, to: realOrgId)
+
+        // Same for the rate-limit cache: the pending id's first-fetch blob must follow
+        // the account, otherwise it orphans under the dead pending key and gets reloaded
+        // every launch — where a stale "throttled"/100% reading can surface a false
+        // "Limit reached" on the resolved account.
+        RateLimitFetcher.shared.migrate(from: tempId, to: realOrgId)
 
         // Clean up refresh tasks
         if let task = refreshTasks.removeValue(forKey: tempId) {

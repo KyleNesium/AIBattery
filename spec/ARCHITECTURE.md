@@ -135,7 +135,7 @@ AIBattery/
       GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
       GaugeRow.swift              — Shared "labelled gauge row" shell: VStack[Header HStack + GaugeBar + TimelineView footer]. Accepts headerLeading / headerTrailing / footer ViewBuilders. Owns accessibility wiring and timeline schedule. Backs UsageBar (5h/7d) and StandardLimitBar.
       LinkActionButton.swift      — Inline link-styled action button (Size.standard for settings, .compact for in-banner). One canonical implementation for Add Account, Test, Download, Install Update — all routed through ThemeColors.action with consistent icon/label spacing.
-    UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars
+    UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars; UsageBar.AlarmState gates throttle/limit alarm on confirmed (fresh) data
     LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable
     StandardLimitsSection.swift   — Standard per-model API rate limit display (fallback)
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
@@ -220,7 +220,7 @@ Tests/AIBatteryCoreTests/
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
     VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence
     SparkleUpdateServiceTests.swift — Sparkle configuration verification (auto-check disabled, singleton)
-    RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation, Retry-After parsing
+    RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation, Retry-After parsing, pending→resolved cache migration + launch orphan pruning
     RateLimitFetcherConcurrencyTests.swift — nonisolated header helpers (`parseRetryAfter`, `quotaThrottleLikely`) callable + actor-independent
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload, file size guard
     UsageAggregatorTests.swift    — empty state, stats-only, JSONL-only, model filtering, dedup, project grouping
@@ -237,6 +237,7 @@ Tests/AIBatteryCoreTests/
     ActivityTrendTests.swift      — Token-based trend computation (vs-yesterday/week/month)
     DeferredRenderingTests.swift  — Deferred rendering state machine
     GaugeBarTests.swift           — Percent clamping, bar rendering edge cases
+    UsageBarAlarmStateTests.swift — Popover bar throttle/limit alarm gated on confirmed data (no false "Limit reached" on cached)
     InsightsViewFormatterTests.swift — Insights section formatting helpers
     SessionInfoFormatterTests.swift — Session detail formatting, idle detection, time
     StatusBarToggleTests.swift    — Status bar show/dismiss state transitions
