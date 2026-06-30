@@ -185,7 +185,10 @@ struct UsageBar: View {
                         Text("Limit reached")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
-                    } else if let estimate = estimatedTimeToLimit {
+                    } else if confirmed, let estimate = estimatedTimeToLimit {
+                        // Burn-rate "time to limit" is a prediction off the API utilization —
+                        // suppress it on unconfirmed/stale data (same gate as the alarm), else a
+                        // stale 100% reading shows "~0s to limit" next to the corrected low %.
                         let estimateText = "~\(DurationFormatter.compact(estimate)) to limit"
                         Text(estimateText)
                             .font(Typography.tinyLabel)
