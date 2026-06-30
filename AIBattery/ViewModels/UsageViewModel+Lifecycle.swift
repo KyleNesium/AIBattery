@@ -60,7 +60,7 @@ extension UsageViewModel {
                             rateLimitSource: cached.rateLimitSource,
                             standardLimits: cached.standardLimits,
                             accountId: accountId,
-                            rateLimitPercentConfirmed: false
+                            rateLimitsFresh: false
                         )
                         if result != self.snapshot { self.snapshot = result }
                         self.isShowingCachedData = true

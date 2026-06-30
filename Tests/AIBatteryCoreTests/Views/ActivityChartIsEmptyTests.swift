@@ -80,7 +80,7 @@ struct ActivityChartIsEmptyTests {
             rateLimits: nil,
             rateLimitSource: nil,
             standardLimits: nil,
-            rateLimitPercentConfirmed: true,
+            rateLimitsFresh: true,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,

@@ -8,7 +8,7 @@ struct UsageSnapshotTests {
     private func makeSnapshot(
         modelTokens: [ModelTokenSummary] = [],
         rateLimits: RateLimitUsage? = nil,
-        rateLimitPercentConfirmed: Bool = true,
+        rateLimitsFresh: Bool = true,
         tokenHealth: TokenHealthStatus? = nil,
         topSessionHealths: [TokenHealthStatus] = [],
         todayMessages: Int = 0,
@@ -22,7 +22,7 @@ struct UsageSnapshotTests {
             rateLimits: rateLimits,
             rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
             standardLimits: nil,
-            rateLimitPercentConfirmed: rateLimitPercentConfirmed,
+            rateLimitsFresh: rateLimitsFresh,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -112,7 +112,7 @@ struct UsageSnapshotTests {
             rateLimits: limits,
             rateLimitSource: nil,
             standardLimits: nil,
-            rateLimitPercentConfirmed: true,
+            rateLimitsFresh: true,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -184,6 +184,46 @@ struct UsageSnapshotTests {
 
     @Test func resolvedPercent_noData_isZero() {
         #expect(UsageSnapshot.resolvedPercent(api: nil, local: nil, confirmed: false) == 0)
+    }
+
+    // MARK: - rateLimitPercentConfirmed(for:) — per-window confirmation
+
+    @Test func rateLimitPercentConfirmed_perWindow_throttleDoesNotConfirmOtherWindow() {
+        // 5h genuinely throttled, 7d a stale 100%/allowed reading, data NOT fresh this cycle.
+        // The throttled 5h window is confirmed (authoritative); the stale 7d window is NOT —
+        // so a throttle on one window can't make the other's stale 100% read as confirmed.
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Date().addingTimeInterval(3_600), fiveHourStatus: "throttled",
+            sevenDayUtilization: 1.0, sevenDayReset: Date().addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits, rateLimitsFresh: false)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow) == true)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow) == false)
+    }
+
+    @Test func rateLimitPercentConfirmed_freshData_bothWindowsConfirmed() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits, rateLimitsFresh: true)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow) == true)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow) == true)
+    }
+
+    @Test func rateLimitPercentConfirmed_staleNotThrottled_notConfirmed() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Date().addingTimeInterval(3_600), fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits, rateLimitsFresh: false)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow) == false)
     }
 
     @Test func percent_contextHealth_usesTokenHealth() {

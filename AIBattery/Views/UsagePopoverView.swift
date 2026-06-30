@@ -161,7 +161,7 @@ public struct UsagePopoverView: View {
                     switch mode {
                     case .fiveHour:
                         if let limits = snapshot.rateLimits {
-                            FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.fiveHourWindowTokens(resetsAt: limits.fiveHourReset), displayPercent: snapshot.percent(for: .fiveHour), confirmed: snapshot.rateLimitPercentConfirmed)
+                            FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.fiveHourWindowTokens(resetsAt: limits.fiveHourReset), displayPercent: snapshot.percent(for: .fiveHour), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow))
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(
@@ -176,7 +176,7 @@ public struct UsagePopoverView: View {
                         }
                     case .sevenDay:
                         if let limits = snapshot.rateLimits {
-                            SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayWindowTokens(resetsAt: limits.sevenDayReset), displayPercent: snapshot.percent(for: .sevenDay), confirmed: snapshot.rateLimitPercentConfirmed)
+                            SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayWindowTokens(resetsAt: limits.sevenDayReset), displayPercent: snapshot.percent(for: .sevenDay), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(

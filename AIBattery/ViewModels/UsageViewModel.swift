@@ -113,13 +113,18 @@ public final class UsageViewModel: ObservableObject {
                 Task { [weak self] in
                     guard let self else { return }
                     let result = await self.aggregateOffMain(
-                        rateLimits: cached.rateLimits,
+                        // Cold-start paint of persisted limits: clear rollover artifacts and
+                        // mark not-fresh so a stale 100% reads as the real low % and arms no
+                        // alarm until the first fetch confirms it (mirrors wake/wasEmpty paths).
+                        rateLimits: cached.rateLimits?.withClearedRolloverArtifacts(),
                         rateLimitSource: cached.rateLimitSource,
                         standardLimits: cached.standardLimits,
-                        accountId: accountId
+                        accountId: accountId,
+                        rateLimitsFresh: false
                     )
                     self.snapshot = result
                     self.isShowingCachedData = true
+                    self.rateLimitsFresh = false
                     self.isLoading = false
                 }
             }
@@ -161,7 +166,7 @@ public final class UsageViewModel: ObservableObject {
         rateLimitSource: RateLimitSource? = nil,
         standardLimits: StandardRateLimits? = nil,
         accountId: String? = nil,
-        rateLimitPercentConfirmed: Bool = true
+        rateLimitsFresh: Bool = true
     ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
             _ = await inflight.value
@@ -169,7 +174,7 @@ public final class UsageViewModel: ObservableObject {
 
         let agg = aggregator
         let task = Task.detached {
-            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitPercentConfirmed: rateLimitPercentConfirmed)
+            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitsFresh: rateLimitsFresh)
         }
         inflightAggregation = task
         let (result, effects) = await task.value
@@ -207,7 +212,7 @@ public final class UsageViewModel: ObservableObject {
         // Skip network work when not authenticated — still aggregate local data.
         guard oauthManager.isAuthenticated else {
             rateLimitsFresh = false
-            let result = await aggregateOffMain(rateLimits: nil, rateLimitPercentConfirmed: false)
+            let result = await aggregateOffMain(rateLimits: nil, rateLimitsFresh: false)
             if result.totalMessages > 0, result != snapshot { snapshot = result }
             isLoading = false
             return
@@ -222,7 +227,7 @@ public final class UsageViewModel: ObservableObject {
                 rateLimits: apiResult?.rateLimits,
                 rateLimitSource: apiResult?.rateLimitSource,
                 standardLimits: apiResult?.standardLimits,
-                rateLimitPercentConfirmed: false
+                rateLimitsFresh: false
             )
             if result != snapshot { snapshot = result }
             isLoading = false
@@ -246,7 +251,7 @@ public final class UsageViewModel: ObservableObject {
                     rateLimitSource: cached.rateLimitSource,
                     standardLimits: cached.standardLimits,
                     accountId: accountId,
-                    rateLimitPercentConfirmed: false
+                    rateLimitsFresh: false
                 )
                 snapshot = earlyResult
                 isShowingCachedData = true
@@ -313,19 +318,16 @@ public final class UsageViewModel: ObservableObject {
                 "rate limits fresh (source=\(effectiveSource?.rawValue ?? "nil", privacy: .public)): 5h \(Int(rl.fiveHourPercent))% reset \(Int(rl.fiveHourReset?.timeIntervalSinceNow ?? -1))s status=\(rl.fiveHourStatus, privacy: .public); 7d \(Int(rl.sevenDayPercent))% reset \(Int(rl.sevenDayReset?.timeIntervalSinceNow ?? -1))s status=\(rl.sevenDayStatus, privacy: .public); binding=\(rl.bindingWindowShortCode, privacy: .public) overall=\(rl.overallStatus, privacy: .public)"
             )
         }
-        // The displayed percentage is "confirmed" (trust the API utilization) only when
-        // the data is genuinely fresh or an authoritative throttle. Otherwise the held
-        // value may be stale, so `percent(for:)` falls back to the local token estimate.
-        let percentConfirmed = Self.alarmConfirmed(
-            rateLimitsFresh: rateLimitsFresh,
-            displayedIsThrottled: effectiveRateLimits?.isThrottled ?? false
-        )
+        // Persist whether THIS cycle's rate-limit values are genuinely fresh. The snapshot's
+        // `percent(for:)` and the bars derive per-window confirmation from this plus each
+        // window's own throttle status — so the displayed % trusts the API only when fresh
+        // or that window is actually throttled; otherwise it falls back to the local estimate.
         let result = await aggregateOffMain(
             rateLimits: effectiveRateLimits,
             rateLimitSource: effectiveSource,
             standardLimits: api.standardLimits ?? snapshot?.standardLimits,
             accountId: accountId,
-            rateLimitPercentConfirmed: percentConfirmed
+            rateLimitsFresh: rateLimitsFresh
         )
         logCorruptionMetrics()
 

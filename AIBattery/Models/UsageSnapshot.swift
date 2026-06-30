@@ -7,7 +7,7 @@ struct UsageSnapshot: Equatable {
         lhs.rateLimits == rhs.rateLimits
             && lhs.rateLimitSource == rhs.rateLimitSource
             && lhs.standardLimits == rhs.standardLimits
-            && lhs.rateLimitPercentConfirmed == rhs.rateLimitPercentConfirmed
+            && lhs.rateLimitsFresh == rhs.rateLimitsFresh
             && lhs.totalSessions == rhs.totalSessions
             && lhs.totalMessages == rhs.totalMessages
             && lhs.todayMessages == rhs.todayMessages
@@ -54,12 +54,13 @@ struct UsageSnapshot: Equatable {
     let rateLimitSource: RateLimitSource?
     /// Standard per-minute API rate limits (fallback when unified 5h/7d unavailable).
     let standardLimits: StandardRateLimits?
-    /// Whether the rate-limit percentage is backed by genuinely fresh data (fresh unified
-    /// headers this cycle) or an authoritative throttle. When `false`, `percent(for:)`
-    /// prefers the local token estimate over the held (possibly stale) API utilization, so
-    /// a stale 100% reading on wake doesn't render as a maxed-out bar. Reset / throttle /
+    /// Whether the rate-limit *values* came from a genuinely fresh fetch this cycle (unified
+    /// headers AND not cache-served). When `false`, the data is held/stale — so `percent(for:)`
+    /// prefers the local token estimate over the held API utilization (per window, unless that
+    /// window is itself throttled — see below), and the bars suppress the alarm. A stale 100%
+    /// on wake therefore reads as the real low %, not a maxed-out bar. Reset / throttle /
     /// binding still read from `rateLimits`.
-    let rateLimitPercentConfirmed: Bool
+    let rateLimitsFresh: Bool
 
     // From stats-cache.json
     let firstSessionDate: Date?
@@ -115,19 +116,27 @@ struct UsageSnapshot: Equatable {
             Self.resolvedPercent(
                 api: rateLimits?.fiveHourPercent,
                 local: LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens),
-                confirmed: rateLimitPercentConfirmed
+                confirmed: rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow)
             )
         case .sevenDay:
             Self.resolvedPercent(
                 api: rateLimits?.sevenDayPercent,
                 local: LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens),
-                confirmed: rateLimitPercentConfirmed
+                confirmed: rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow)
             )
         case .contextHealth:
             topSessionHealths.first?.usagePercentage
                 ?? tokenHealth?.usagePercentage
                 ?? 0
         }
+    }
+
+    /// Whether a given window's percentage/alarm may trust the API value. Confirmed when the
+    /// data is fresh this cycle OR *this window* is genuinely throttled (authoritative, carries
+    /// a reset, self-expires). Scoped per window so a throttle on one window can't confirm a
+    /// stale near-full reading on the other. Shared by `percent(for:)` and the popover bars.
+    func rateLimitPercentConfirmed(for window: String) -> Bool {
+        rateLimitsFresh || (rateLimits?.isWindowThrottled(window) ?? false)
     }
 
     /// Pick the percentage to display for a rate-limit window. When `confirmed` (data is
