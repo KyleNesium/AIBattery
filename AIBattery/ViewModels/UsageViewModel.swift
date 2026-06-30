@@ -12,6 +12,12 @@ public final class UsageViewModel: ObservableObject {
     @Published var lastFreshFetch: Date?
     /// Whether the most recent API result was served from cache.
     @Published var isShowingCachedData = false
+    /// Whether the displayed rate-limit *values* came from a genuinely fresh fetch this
+    /// cycle (unified headers AND not cache-served). Distinct from `!isShowingCachedData`:
+    /// a fetch can succeed without unified headers (~90% of polls), reusing held stale
+    /// rate limits — which must not arm the "Limit reached" alarm or read as a maxed bar.
+    /// Gates the alarm (with `alarmConfirmed`) and the displayed percentage.
+    @Published var rateLimitsFresh = false
     /// The hysteresis-filtered metric mode for auto mode consumers.
     @Published private(set) var resolvedMetricMode: MetricMode = .fiveHour
     /// Per-account rate limits for the multi-account menu bar display.
@@ -154,7 +160,8 @@ public final class UsageViewModel: ObservableObject {
         rateLimits: RateLimitUsage?,
         rateLimitSource: RateLimitSource? = nil,
         standardLimits: StandardRateLimits? = nil,
-        accountId: String? = nil
+        accountId: String? = nil,
+        rateLimitPercentConfirmed: Bool = true
     ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
             _ = await inflight.value
@@ -162,7 +169,7 @@ public final class UsageViewModel: ObservableObject {
 
         let agg = aggregator
         let task = Task.detached {
-            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId)
+            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitPercentConfirmed: rateLimitPercentConfirmed)
         }
         inflightAggregation = task
         let (result, effects) = await task.value
@@ -199,18 +206,23 @@ public final class UsageViewModel: ObservableObject {
 
         // Skip network work when not authenticated — still aggregate local data.
         guard oauthManager.isAuthenticated else {
-            let result = await aggregateOffMain(rateLimits: nil)
+            rateLimitsFresh = false
+            let result = await aggregateOffMain(rateLimits: nil, rateLimitPercentConfirmed: false)
             if result.totalMessages > 0, result != snapshot { snapshot = result }
             isLoading = false
             return
         }
 
         // Skip network when offline — show local data with cached rate limits.
+        // Held rate limits are stale (no fetch happened): suppress the alarm and let the
+        // displayed percentage fall back to the local estimate.
         guard skipNetworkCheck || NetworkMonitor.shared.isConnected else {
+            rateLimitsFresh = false
             let result = await aggregateOffMain(
                 rateLimits: apiResult?.rateLimits,
                 rateLimitSource: apiResult?.rateLimitSource,
-                standardLimits: apiResult?.standardLimits
+                standardLimits: apiResult?.standardLimits,
+                rateLimitPercentConfirmed: false
             )
             if result != snapshot { snapshot = result }
             isLoading = false
@@ -227,13 +239,18 @@ public final class UsageViewModel: ObservableObject {
             let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
                 let earlyResult = await aggregateOffMain(
-                    rateLimits: cached.rateLimits,
+                    // Clear rollover artifacts on the instant-paint too: a window that just
+                    // reset can carry the previous window's near-full utilization, which
+                    // must not flash as "Limit reached" before the first fresh fetch.
+                    rateLimits: cached.rateLimits?.withClearedRolloverArtifacts(),
                     rateLimitSource: cached.rateLimitSource,
                     standardLimits: cached.standardLimits,
-                    accountId: accountId
+                    accountId: accountId,
+                    rateLimitPercentConfirmed: false
                 )
                 snapshot = earlyResult
                 isShowingCachedData = true
+                rateLimitsFresh = false
             } else {
                 isLoading = true
             }
@@ -253,6 +270,10 @@ public final class UsageViewModel: ObservableObject {
         apiResult = api
         systemStatus = status
         isShowingCachedData = api.isCached
+        // Fresh ONLY when this fetch returned unified rate-limit headers and wasn't
+        // cache-served. A header-less-but-successful fetch reuses held stale limits
+        // (see effectiveRateLimits below) — those must not arm the alarm / maxed bar.
+        rateLimitsFresh = Self.rateLimitsAreFresh(freshRateLimits: api.rateLimits, isCached: api.isCached)
         if !api.isCached { lastFreshFetch = api.fetchedAt }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
@@ -292,11 +313,19 @@ public final class UsageViewModel: ObservableObject {
                 "rate limits fresh (source=\(effectiveSource?.rawValue ?? "nil", privacy: .public)): 5h \(Int(rl.fiveHourPercent))% reset \(Int(rl.fiveHourReset?.timeIntervalSinceNow ?? -1))s status=\(rl.fiveHourStatus, privacy: .public); 7d \(Int(rl.sevenDayPercent))% reset \(Int(rl.sevenDayReset?.timeIntervalSinceNow ?? -1))s status=\(rl.sevenDayStatus, privacy: .public); binding=\(rl.bindingWindowShortCode, privacy: .public) overall=\(rl.overallStatus, privacy: .public)"
             )
         }
+        // The displayed percentage is "confirmed" (trust the API utilization) only when
+        // the data is genuinely fresh or an authoritative throttle. Otherwise the held
+        // value may be stale, so `percent(for:)` falls back to the local token estimate.
+        let percentConfirmed = Self.alarmConfirmed(
+            rateLimitsFresh: rateLimitsFresh,
+            displayedIsThrottled: effectiveRateLimits?.isThrottled ?? false
+        )
         let result = await aggregateOffMain(
             rateLimits: effectiveRateLimits,
             rateLimitSource: effectiveSource,
             standardLimits: api.standardLimits ?? snapshot?.standardLimits,
-            accountId: accountId
+            accountId: accountId,
+            rateLimitPercentConfirmed: percentConfirmed
         )
         logCorruptionMetrics()
 
@@ -448,6 +477,7 @@ public final class UsageViewModel: ObservableObject {
         // render the OLD account's rate limits under the new account's identity.
         apiResult = nil
         isShowingCachedData = false
+        rateLimitsFresh = false
         lastFreshFetch = nil
         errorMessage = nil
         isLoading = true

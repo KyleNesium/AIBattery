@@ -372,6 +372,55 @@ struct UsageViewModelTests {
         #expect(result?.fiveHourUtilization == 0.5)
     }
 
+    // MARK: - rateLimitsAreFresh / alarmConfirmed (wake false-alarm gate)
+
+    //
+    // `isShowingCachedData` only tracks whether the network fetch hit cache. The alarm /
+    // displayed % must instead gate on whether the rate-limit VALUES are fresh: a fetch
+    // can succeed (not cached) yet carry no unified headers (~90% of polls), reusing held
+    // stale limits. These pin the gate that fixes the false "limit reached" on wake.
+
+    @Test func rateLimitsAreFresh_freshHeaders_true() {
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.6, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        #expect(UsageViewModel.rateLimitsAreFresh(freshRateLimits: rl, isCached: false) == true)
+    }
+
+    @Test func rateLimitsAreFresh_fetchSucceededNoHeaders_false() {
+        // The exact bug condition: successful fetch (not cached) but no unified headers.
+        #expect(UsageViewModel.rateLimitsAreFresh(freshRateLimits: nil, isCached: false) == false)
+    }
+
+    @Test func rateLimitsAreFresh_cachedFetch_false() {
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.6, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        // Even cache-served data WITH headers is not "fresh".
+        #expect(UsageViewModel.rateLimitsAreFresh(freshRateLimits: rl, isCached: true) == false)
+    }
+
+    @Test func alarmConfirmed_freshNotThrottled_true() {
+        #expect(UsageViewModel.alarmConfirmed(rateLimitsFresh: true, displayedIsThrottled: false) == true)
+    }
+
+    @Test func alarmConfirmed_staleNotThrottled_false() {
+        // Kills the false "Limit reached": held stale 100% with no throttle is suppressed.
+        #expect(UsageViewModel.alarmConfirmed(rateLimitsFresh: false, displayedIsThrottled: false) == false)
+    }
+
+    @Test func alarmConfirmed_staleButThrottled_true() {
+        // A genuine throttle (authoritative, self-expiring) must keep alarming across the
+        // ~90% of polls that lack fresh headers — no flicker.
+        #expect(UsageViewModel.alarmConfirmed(rateLimitsFresh: false, displayedIsThrottled: true) == true)
+    }
+
     @Test func effectiveRateLimits_noFresh_expiredTTL_returnsNil() {
         let stale = RateLimitUsage(
             representativeClaim: "five_hour",

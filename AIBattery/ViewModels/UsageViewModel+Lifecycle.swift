@@ -54,13 +54,17 @@ extension UsageViewModel {
                     let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
                     if cached.rateLimits != nil || cached.standardLimits != nil {
                         let result = await self.aggregateOffMain(
-                            rateLimits: cached.rateLimits,
+                            // Clear rollover artifacts so a just-reset window's carried-over
+                            // near-full utilization doesn't paint "Limit reached" on wake.
+                            rateLimits: cached.rateLimits?.withClearedRolloverArtifacts(),
                             rateLimitSource: cached.rateLimitSource,
                             standardLimits: cached.standardLimits,
-                            accountId: accountId
+                            accountId: accountId,
+                            rateLimitPercentConfirmed: false
                         )
                         if result != self.snapshot { self.snapshot = result }
                         self.isShowingCachedData = true
+                        self.rateLimitsFresh = false
                     }
                 }
 

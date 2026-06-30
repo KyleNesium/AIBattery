@@ -650,6 +650,42 @@ struct RateLimitFetcherTests {
         #expect(restored.isCached == true)
     }
 
+    @Test func restorePersistedRateLimits_clearsRolloverArtifact() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let accountId = "restore-rollover-\(UUID().uuidString)"
+
+        // A near-full 5h reading on a window that started ~5 min ago (reset ~4h55m out):
+        // the previous window's usage lingering on a freshly-rolled window. Must NOT be
+        // seeded into the snapshot as a stale 100% (which the 24h TTL would then hold and
+        // re-display as "Limit reached" on the next header-less poll — the wake bug).
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.98,
+            fiveHourReset: Date().addingTimeInterval(17_700), // elapsed ~5 min < 10 min grace
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10,
+            sevenDayReset: Date().addingTimeInterval(86_400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let artifact = APIFetchResult(
+            rateLimits: rl, rateLimitSource: .oauthUsageEndpoint, profile: nil, fetchedAt: Date()
+        )
+
+        let fetcher = RateLimitFetcher()
+        fetcher.persistRateLimits(artifact, accountId: accountId, defaults: defaults)
+
+        let restorer = RateLimitFetcher()
+        restorer.restorePersistedRateLimits(defaults: defaults)
+
+        let restored = restorer.cachedOrEmpty(accountId: accountId)
+        // Stale near-full utilization cleared; the valid new-window reset is preserved.
+        #expect(restored.rateLimits?.fiveHourUtilization == 0)
+        #expect(restored.rateLimits?.fiveHourStatus == "allowed")
+        #expect(restored.rateLimits?.fiveHourReset != nil)
+    }
+
     @Test func restorePersistedRateLimits_corruptBlob_removedAndOthersRestore() throws {
         let (defaults, suiteName) = try Self.makeSuiteDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

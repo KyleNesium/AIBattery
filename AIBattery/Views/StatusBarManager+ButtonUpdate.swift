@@ -49,10 +49,14 @@ extension StatusBarManager {
         // from the fan-out candidate set — e.g. rendering a "—" slot for an account that
         // resolved to a real org ID but is now signed out (which the fan-out skips).
         let order = OAuthManager.shared.multiAccountDisplayIDs()
-        // Suppress the throttle alarm while the snapshot is unconfirmed (served from
-        // cache — e.g. the instant-paint right after wake). A stale percentage is fine;
-        // a stale "limit reached" is a false alarm. The next fresh fetch restores it.
-        let confirmed = !viewModel.isShowingCachedData
+        // Suppress the broken-star / countdown alarm unless the rate-limit data is
+        // genuinely fresh this cycle OR an authoritative throttle. A header-less-but-
+        // successful fetch reuses held stale limits (isShowingCachedData stays false), so
+        // gating on `!isShowingCachedData` alone let a stale 100% arm a false alarm on
+        // wake. A genuine throttle on any account stays armed across header-less polls.
+        let anyThrottled = (activeRateLimits?.isThrottled ?? false)
+            || perAccount.values.contains { $0.isThrottled }
+        let confirmed = UsageViewModel.alarmConfirmed(rateLimitsFresh: viewModel.rateLimitsFresh, displayedIsThrottled: anyThrottled)
         let display = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: showAll,
             perAccount: perAccount,

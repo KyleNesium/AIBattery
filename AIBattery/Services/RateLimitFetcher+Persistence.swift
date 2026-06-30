@@ -54,7 +54,12 @@ extension RateLimitFetcher {
             // Clear expired windows so a stale "throttled" flag from before a long
             // absence (e.g. user returns from leave) doesn't display as if they
             // hit the limit. The window has rolled over; status must reset.
-            let normalizedRateLimits = persisted.rateLimits?.withClearedExpiredWindows()
+            // Also clear rollover artifacts so a near-full reading on a just-reset window
+            // isn't seeded into the snapshot as the stale fallback (the value the 24h TTL
+            // then holds and re-displays as "Limit reached" on the next header-less poll).
+            let normalizedRateLimits = persisted.rateLimits?
+                .withClearedExpiredWindows()
+                .withClearedRolloverArtifacts()
             cachedResults[accountId] = APIFetchResult(
                 rateLimits: normalizedRateLimits,
                 rateLimitSource: persisted.rateLimitSource,

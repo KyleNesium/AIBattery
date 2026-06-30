@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.5.2] — 2026-06-30
+
+Fixes a false "5-Hour limit reached" that could appear on wake or after returning from idle.
+
+### Fixed
+- **No more false "5-Hour 100% / Limit reached" on wake or return-from-idle.** Anthropic
+  returns unified rate-limit headers on only ~10% of polls, so most successful fetches
+  reuse the last-known limits (held for up to 24h). The freshness gate keyed off whether
+  the *network fetch* hit cache (`isShowingCachedData`), not whether the rate-limit
+  *values* were fresh — so a successful-but-header-less poll on wake re-displayed a stale
+  high reading as if confirmed, showing a red "Limit reached" on a window that was
+  actually low. The alarm now gates on `rateLimitsFresh || throttled`: a bare ≥100%
+  requires genuinely fresh data (killing the false alarm), while a real throttle still
+  alarms across header-less polls without flickering. Beyond suppressing the alarm, the
+  displayed percentage now falls back to the local token estimate when the rate-limit
+  data isn't fresh-confirmed, so the bar shows the real low % (green) instead of a stale
+  maxed-out red bar. As added hardening, rollover-artifact clearing now also runs on the
+  wake/cold-start instant-paint and on launch cache-restore, so a just-rolled near-full
+  reading is never seeded as the stale fallback.
+
 ## [2.5.1] — 2026-06-15
 
 Hotfix for a false "Limit reached" that could appear in the popover on stale data.

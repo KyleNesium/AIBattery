@@ -55,6 +55,25 @@ extension UsageViewModel {
         previousTotal < 0 || newTotal != previousTotal || newToday != previousToday
     }
 
+    /// Whether the rate-limit *values* on display came from a genuinely fresh fetch this
+    /// cycle — the API returned unified rate-limit headers AND the result was not served
+    /// from cache. Distinct from `!isShowingCachedData`, which only reports whether the
+    /// network *fetch* hit cache: a fetch can succeed (not cached) yet carry no unified
+    /// headers (~90% of polls), in which case the held stale rate limits are reused and
+    /// must NOT be treated as confirmed for alarm or percentage purposes.
+    nonisolated static func rateLimitsAreFresh(freshRateLimits: RateLimitUsage?, isCached: Bool) -> Bool {
+        freshRateLimits != nil && !isCached
+    }
+
+    /// The alarm / displayed-percentage confirmation gate. A bare "Limit reached" (≥100%
+    /// with no throttle) must require genuinely fresh data, so a stale held reading can't
+    /// fire a false alarm on wake. A genuine throttle (explicit API status, carries a
+    /// reset) is authoritative and self-expires via `withClearedExpiredWindows`, so it
+    /// may persist across the ~90% of polls that lack fresh headers without flickering.
+    nonisolated static func alarmConfirmed(rateLimitsFresh: Bool, displayedIsThrottled: Bool) -> Bool {
+        rateLimitsFresh || displayedIsThrottled
+    }
+
     /// Return fresh rate limits, or stale ones if within the TTL window, or nil if expired.
     /// Pure function — injectable `now` for testing.
     ///

@@ -8,9 +8,12 @@ struct UsageSnapshotTests {
     private func makeSnapshot(
         modelTokens: [ModelTokenSummary] = [],
         rateLimits: RateLimitUsage? = nil,
+        rateLimitPercentConfirmed: Bool = true,
         tokenHealth: TokenHealthStatus? = nil,
         topSessionHealths: [TokenHealthStatus] = [],
         todayMessages: Int = 0,
+        fiveHourTokens: Int = 0,
+        sevenDayTokens: Int = 0,
         dailyActivity: [DailyActivity] = []
     ) -> UsageSnapshot {
         let activityStats = UsageSnapshot.computeActivityStats(dailyActivity)
@@ -19,6 +22,7 @@ struct UsageSnapshotTests {
             rateLimits: rateLimits,
             rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
             standardLimits: nil,
+            rateLimitPercentConfirmed: rateLimitPercentConfirmed,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -36,8 +40,8 @@ struct UsageSnapshotTests {
             totalProjectTokens: 0,
             totalProjectUsageTokens: 0,
             totalProjectCost: 0,
-            fiveHourTokens: 0,
-            sevenDayTokens: 0,
+            fiveHourTokens: fiveHourTokens,
+            sevenDayTokens: sevenDayTokens,
             fiveHourTokenBuckets: [:],
             dailyTokenTotals: [:],
             todayModelTokens: [],
@@ -108,6 +112,7 @@ struct UsageSnapshotTests {
             rateLimits: limits,
             rateLimitSource: nil,
             standardLimits: nil,
+            rateLimitPercentConfirmed: true,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -149,6 +154,36 @@ struct UsageSnapshotTests {
     @Test func percent_fiveHour_noRateLimits() {
         let snapshot = makeSnapshot()
         #expect(snapshot.percent(for: .fiveHour) == 0)
+    }
+
+    // MARK: - resolvedPercent (confirmed-aware display %)
+
+    //
+    // Pins the fix for the false "5-hour limit reached" on wake: a header-less-but-
+    // successful fetch reuses held stale rate limits and marks them unconfirmed, so the
+    // displayed % must come from the local estimate, not the stale API utilization.
+
+    @Test func resolvedPercent_confirmed_usesApiOverLocal() {
+        // Genuinely fresh / throttled: trust the API utilization even if local differs.
+        #expect(UsageSnapshot.resolvedPercent(api: 100, local: 7, confirmed: true) == 100)
+    }
+
+    @Test func resolvedPercent_unconfirmed_prefersLocalEstimate() {
+        // The wake bug: held API reads 100% but the data isn't fresh — show local 7%.
+        #expect(UsageSnapshot.resolvedPercent(api: 100, local: 7, confirmed: false) == 7)
+    }
+
+    @Test func resolvedPercent_unconfirmed_uncalibrated_fallsBackToApi() {
+        // No local estimate (account not calibrated) → the held API % is the best we have.
+        #expect(UsageSnapshot.resolvedPercent(api: 100, local: nil, confirmed: false) == 100)
+    }
+
+    @Test func resolvedPercent_confirmed_noApi_usesLocal() {
+        #expect(UsageSnapshot.resolvedPercent(api: nil, local: 42, confirmed: true) == 42)
+    }
+
+    @Test func resolvedPercent_noData_isZero() {
+        #expect(UsageSnapshot.resolvedPercent(api: nil, local: nil, confirmed: false) == 0)
     }
 
     @Test func percent_contextHealth_usesTokenHealth() {
@@ -900,8 +935,8 @@ struct UsageSnapshotTests {
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 36 = 35 compared fields + lastUpdated.
+        // it) AND update this count. 37 = 36 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 36)
+        #expect(mirror.children.count == 37)
     }
 }

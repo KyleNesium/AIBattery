@@ -7,6 +7,7 @@ struct UsageSnapshot: Equatable {
         lhs.rateLimits == rhs.rateLimits
             && lhs.rateLimitSource == rhs.rateLimitSource
             && lhs.standardLimits == rhs.standardLimits
+            && lhs.rateLimitPercentConfirmed == rhs.rateLimitPercentConfirmed
             && lhs.totalSessions == rhs.totalSessions
             && lhs.totalMessages == rhs.totalMessages
             && lhs.todayMessages == rhs.todayMessages
@@ -53,6 +54,12 @@ struct UsageSnapshot: Equatable {
     let rateLimitSource: RateLimitSource?
     /// Standard per-minute API rate limits (fallback when unified 5h/7d unavailable).
     let standardLimits: StandardRateLimits?
+    /// Whether the rate-limit percentage is backed by genuinely fresh data (fresh unified
+    /// headers this cycle) or an authoritative throttle. When `false`, `percent(for:)`
+    /// prefers the local token estimate over the held (possibly stale) API utilization, so
+    /// a stale 100% reading on wake doesn't render as a maxed-out bar. Reset / throttle /
+    /// binding still read from `rateLimits`.
+    let rateLimitPercentConfirmed: Bool
 
     // From stats-cache.json
     let firstSessionDate: Date?
@@ -105,18 +112,34 @@ struct UsageSnapshot: Equatable {
     func percent(for mode: MetricMode) -> Double {
         switch mode {
         case .fiveHour:
-            rateLimits?.fiveHourPercent
-                ?? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens)
-                ?? 0
+            Self.resolvedPercent(
+                api: rateLimits?.fiveHourPercent,
+                local: LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens),
+                confirmed: rateLimitPercentConfirmed
+            )
         case .sevenDay:
-            rateLimits?.sevenDayPercent
-                ?? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens)
-                ?? 0
+            Self.resolvedPercent(
+                api: rateLimits?.sevenDayPercent,
+                local: LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens),
+                confirmed: rateLimitPercentConfirmed
+            )
         case .contextHealth:
             topSessionHealths.first?.usagePercentage
                 ?? tokenHealth?.usagePercentage
                 ?? 0
         }
+    }
+
+    /// Pick the percentage to display for a rate-limit window. When `confirmed` (data is
+    /// genuinely fresh or an authoritative throttle), trust the API utilization. When NOT
+    /// confirmed, prefer the local token estimate so a stale held 100% on wake doesn't
+    /// read as a maxed bar — falling back to the API value only when no local estimate is
+    /// available (account not yet calibrated). Pure for testability.
+    nonisolated static func resolvedPercent(api: Double?, local: Double?, confirmed: Bool) -> Double {
+        if confirmed {
+            return api ?? local ?? 0
+        }
+        return local ?? api ?? 0
     }
 
     /// Token total for the 5-hour rate limit window, aligned to the actual window boundary.
