@@ -600,18 +600,244 @@ struct UsageViewModelTests {
         )
     }
 
-    @Test func alertableRateLimits_freshResult_returnsLimits() {
-        let api = APIFetchResult(rateLimits: Self.makeRateLimits(), profile: nil, isCached: false)
-        #expect(UsageViewModel.alertableRateLimits(api) == api.rateLimits)
+    @Test func alertableRateLimits_freshConfirmed_returnsLimits() {
+        let rl = Self.makeRateLimits()
+        #expect(UsageViewModel.alertableRateLimits(confirmed: rl, rateLimitsFresh: true) == rl)
     }
 
-    @Test func alertableRateLimits_cachedResult_neverAlerts() {
-        let api = APIFetchResult(rateLimits: Self.makeRateLimits(), profile: nil, isCached: true)
-        #expect(UsageViewModel.alertableRateLimits(api) == nil)
+    @Test func alertableRateLimits_notFresh_neverAlerts() {
+        // Cached / header-less / held-stale: notifications must never fire (mirrors the
+        // menu bar alarm gate). Only a genuinely fresh reading may alert.
+        #expect(UsageViewModel.alertableRateLimits(confirmed: Self.makeRateLimits(), rateLimitsFresh: false) == nil)
     }
 
     @Test func alertableRateLimits_freshWithoutLimits_returnsNil() {
-        let api = APIFetchResult(rateLimits: nil, profile: nil, isCached: false)
-        #expect(UsageViewModel.alertableRateLimits(api) == nil)
+        #expect(UsageViewModel.alertableRateLimits(confirmed: nil, rateLimitsFresh: true) == nil)
+    }
+
+    // MARK: - spikeConfirmedRateLimits (confirm-before-alarming on fresh readings)
+
+    //
+    // Pins the fix for the RECURRENCE of the false "5-Hour limit reached" on wake: the
+    // server can return a transport-FRESH but wrong ~100% reading for a window right
+    // after wake (eventual consistency), which the freshness gate trusted. This filter
+    // holds an isolated near-full spike at the previous displayed value until a SECOND
+    // consecutive fresh poll confirms it. "rather show stale than a false used value."
+
+    /// Shared reference resets so memory entries and fresh readings refer to the same
+    /// window instance unless a test deliberately shifts them.
+    private static let fiveHourResetRef = Date().addingTimeInterval(17_700)
+    private static let sevenDayResetRef = Date().addingTimeInterval(86_400)
+
+    private static func makeWindows(
+        fiveHourUtil: Double, fiveHourStatus: String = "allowed",
+        sevenDayUtil: Double = 0.2, sevenDayStatus: String = "allowed",
+        overallStatus: String = "allowed",
+        representativeClaim: String = "five_hour",
+        fiveHourReset: Date? = fiveHourResetRef,
+        sevenDayReset: Date? = sevenDayResetRef
+    ) -> RateLimitUsage {
+        RateLimitUsage(
+            representativeClaim: representativeClaim,
+            fiveHourUtilization: fiveHourUtil,
+            fiveHourReset: fiveHourReset,
+            fiveHourStatus: fiveHourStatus,
+            sevenDayUtilization: sevenDayUtil,
+            sevenDayReset: sevenDayReset,
+            sevenDayStatus: sevenDayStatus,
+            overallStatus: overallStatus
+        )
+    }
+
+    @Test func spikeConfirmed_isolatedSpike_heldAtPreviousValue() {
+        // The exact wake bug: fresh 5h reads 100% but was 2% last poll and isn't yet
+        // confirmed. Show the previous 2%, not the spike. Record it as near-full (keyed
+        // by the window's reset) so a repeat next poll confirms.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0)
+        let previous = Self.makeWindows(fiveHourUtil: 0.02)
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+        )
+        #expect(result.display.fiveHourUtilization == 0.02)
+        #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
+        #expect(result.nearFullWindows == [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef])
+    }
+
+    @Test func spikeConfirmed_repeatedSpike_accepted() {
+        // Second consecutive fresh near-full poll on the SAME window instance (memory
+        // reset matches the fresh reset) — a genuine sustained limit. Trust it.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0)
+        let previous = Self.makeWindows(fiveHourUtil: 0.02)
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef]
+        )
+        #expect(result.display.fiveHourUtilization == 1.0)
+        #expect(result.heldWindows.isEmpty)
+    }
+
+    @Test func spikeConfirmed_staleMemoryFromPreviousWindowInstance_doesNotConfirm() {
+        // The near-full memory predates a window rollover (e.g. an endpoint outage
+        // spanning the reset with no wake/unlock to clear it): its stored reset belongs
+        // to the OLD window instance. A post-rollover fresh glitch must NOT be treated
+        // as a confirmed continuation — the old memory can't vouch for a new window.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0)
+        let previous = Self.makeWindows(fiveHourUtil: 0.04)
+        let staleReset = Self.fiveHourResetRef.addingTimeInterval(-18_000) // previous window's reset
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: [RateLimitUsage.fiveHourWindow: staleReset]
+        )
+        #expect(result.display.fiveHourUtilization == 0.04) // held, not confirmed
+        #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
+    }
+
+    @Test func spikeConfirmed_resetlessReadings_matchViaSentinel() {
+        // Some payloads carry no reset date. Two consecutive reset-less near-full
+        // readings must still confirm each other (sentinel-to-sentinel match).
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0, fiveHourReset: nil)
+        let previous = Self.makeWindows(fiveHourUtil: 0.02, fiveHourReset: nil)
+        let first = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+        )
+        #expect(first.heldWindows == [RateLimitUsage.fiveHourWindow])
+        let second = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: first.nearFullWindows
+        )
+        #expect(second.display.fiveHourUtilization == 1.0)
+        #expect(second.heldWindows.isEmpty)
+    }
+
+    @Test func spikeConfirmed_genuineThrottle_bypassesFilter() {
+        // An authoritative throttle is never debounced — shown immediately. It IS
+        // recorded as near-full, so the poll after the throttle clears (still high,
+        // now "allowed") reads as a confirmed continuation, not an isolated spike.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0, fiveHourStatus: "throttled", overallStatus: "throttled")
+        let previous = Self.makeWindows(fiveHourUtil: 0.02)
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+        )
+        #expect(result.display.fiveHourUtilization == 1.0)
+        #expect(result.display.fiveHourStatus == "throttled")
+        #expect(result.heldWindows.isEmpty)
+        #expect(result.nearFullWindows == [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef])
+    }
+
+    @Test func spikeConfirmed_overallThrottleOnBindingWindow_bypassesHold() {
+        // A payload can assert the throttle only via overallStatus while the per-window
+        // status lags behind as "allowed" (isThrottled treats overall=="throttled" as a
+        // real throttle). The binding window must not be held in that shape — holding
+        // would hide an authoritative throttle behind a substituted low value.
+        let fresh = Self.makeWindows(fiveHourUtil: 0.99, overallStatus: "throttled")
+        let previous = Self.makeWindows(fiveHourUtil: 0.02)
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+        )
+        #expect(result.display.fiveHourUtilization == 0.99)
+        #expect(result.display.overallStatus == "throttled")
+        #expect(result.heldWindows.isEmpty)
+    }
+
+    @Test func spikeConfirmed_throttleJustCleared_stillNearFull_accepted() {
+        // Poll N was genuinely throttled at ~100% (recorded near-full). Poll N+1: the
+        // server clears the throttle but the window is still 96% — a normal transition
+        // near a quota boundary. Must be accepted (shown as 96%/allowed), NOT held as an
+        // "isolated spike" that would re-display the just-cleared throttle.
+        let fresh = Self.makeWindows(fiveHourUtil: 0.96)
+        let previous = Self.makeWindows(fiveHourUtil: 0.99, fiveHourStatus: "throttled", overallStatus: "throttled")
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef]
+        )
+        #expect(result.display.fiveHourUtilization == 0.96)
+        #expect(result.display.fiveHourStatus == "allowed")
+        #expect(result.heldWindows.isEmpty)
+    }
+
+    @Test func spikeConfirmed_heldWindow_neverInheritsPreviousThrottledStatus() {
+        // Near-full memory was cleared (e.g. wake) and the previous displayed value was a
+        // cached pre-sleep throttle. A fresh 100%/allowed reading is held — but the held
+        // window must NOT inherit the previous "throttled" status: the fresh reading said
+        // not-throttled, and a hold must never resurrect a throttle the server cleared.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0)
+        let previous = Self.makeWindows(fiveHourUtil: 1.0, fiveHourStatus: "throttled", overallStatus: "throttled")
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+        )
+        #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
+        #expect(result.display.fiveHourUtilization == 1.0) // previous real value kept
+        #expect(result.display.fiveHourStatus == "allowed") // status never inherited
+        #expect(result.display.overallStatus == "allowed")
+    }
+
+    @Test func spikeConfirmed_bindingHeldWithOtherWindowThrottled_keepsOverallThrottled() {
+        // The binding 5h window is held (isolated spike), but the 7d window is genuinely
+        // throttled per its own status. Forcing overall to "allowed" because the binding
+        // window was held would mask the real 7d throttle — the display's overall status
+        // must stay consistent with its own windows.
+        let fresh = Self.makeWindows(
+            fiveHourUtil: 1.0,
+            sevenDayUtil: 0.99, sevenDayStatus: "throttled"
+        )
+        let previous = Self.makeWindows(fiveHourUtil: 0.02, sevenDayUtil: 0.99, sevenDayStatus: "throttled")
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: [RateLimitUsage.sevenDayWindow: Self.sevenDayResetRef]
+        )
+        #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
+        #expect(result.display.fiveHourUtilization == 0.02) // held
+        #expect(result.display.sevenDayStatus == "throttled") // genuine throttle kept
+        #expect(result.display.overallStatus == "throttled") // not masked by the hold
+    }
+
+    @Test func spikeConfirmed_sustainedHighPrevious_staysHigh() {
+        // Previous displayed was ALSO 100% (a genuine limit already shown). Even though
+        // "held" (near-full memory was cleared, e.g. on wake), substituting the previous
+        // value keeps it at 100% — a real sustained limit is never hidden.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0)
+        let previous = Self.makeWindows(fiveHourUtil: 1.0)
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+        )
+        #expect(result.display.fiveHourUtilization == 1.0)
+    }
+
+    @Test func spikeConfirmed_noPreviousValue_acceptsFreshReading() {
+        // True cold start, no cached previous. There is nothing to hold AT — the fresh
+        // reading is the only real value, and fabricating a 0% would be a false LOW
+        // (hiding a genuinely near-full account and poisoning the persisted cache via
+        // the write-back). Show the real value; the alarm is gated separately.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0)
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: nil, previouslyNearFull: [:]
+        )
+        #expect(result.display == fresh)
+        #expect(result.heldWindows.isEmpty)
+        #expect(result.nearFullWindows == [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef])
+    }
+
+    @Test func spikeConfirmed_perWindowIndependent() {
+        // 5h glitches (jump from low, held); 7d is a genuine sustained limit (confirmed).
+        // One window's hold must not affect the other.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0, sevenDayUtil: 1.0)
+        let previous = Self.makeWindows(fiveHourUtil: 0.02, sevenDayUtil: 0.99)
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: [RateLimitUsage.sevenDayWindow: Self.sevenDayResetRef]
+        )
+        #expect(result.display.fiveHourUtilization == 0.02) // held
+        #expect(result.display.sevenDayUtilization == 1.0) // confirmed
+        #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
+    }
+
+    @Test func spikeConfirmed_lowReading_passesThrough() {
+        let fresh = Self.makeWindows(fiveHourUtil: 0.30)
+        let previous = Self.makeWindows(fiveHourUtil: 0.25)
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+        )
+        #expect(result.display.fiveHourUtilization == 0.30)
+        #expect(result.heldWindows.isEmpty)
+        #expect(result.nearFullWindows.isEmpty)
     }
 }

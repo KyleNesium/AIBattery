@@ -9,6 +9,10 @@ extension Notification.Name {
     static let panelKeyPress = Notification.Name("panelKeyPress")
     /// Panel was dismissed (any path) — SwiftUI views reset transient state.
     static let panelDidDismiss = Notification.Name("panelDidDismiss")
+    /// Panel was ordered front. `orderOut` never fires SwiftUI's `onDisappear` (the
+    /// hosting view stays in the hierarchy), so `onAppear` won't re-fire either —
+    /// this is the re-arm signal for the deferred heavy sections after a re-open.
+    static let panelDidShow = Notification.Name("panelDidShow")
 }
 
 // MARK: - Toggle State Machine
@@ -256,9 +260,25 @@ public final class StatusBarManager: NSObject {
         // Refresh on auth change
         oauthManager.$isAuthenticated
             .removeDuplicates()
-            .sink { authenticated in
+            .sink { [weak self] authenticated in
                 if authenticated {
-                    Task { @MainActor in await viewModel.refresh() }
+                    Task { @MainActor [weak self] in
+                        // The refresh runs FIRST so its awaits give SwiftUI runloop
+                        // cycles to commit the AuthView → UsagePopoverView structural
+                        // swap; only then re-arm the popover's deferred sections if the
+                        // auth flip happened while the panel is open. Signing out swaps
+                        // UsagePopoverView for AuthView (structural removal →
+                        // onDisappear disarms); signing back in re-inserts it with no
+                        // panel close/reopen, so .panelDidShow never re-fires and
+                        // Projects/Insights would stay collapsed on a visible panel.
+                        // Posting before the refresh raced the view insertion — the new
+                        // view's .onReceive subscription may not exist yet, and a
+                        // notification with no subscriber is silently dropped.
+                        await viewModel.refresh()
+                        if let self, self.toggleState.isShowing {
+                            NotificationCenter.default.post(name: .panelDidShow, object: nil)
+                        }
+                    }
                 }
             }
             .store(in: &cancellables)

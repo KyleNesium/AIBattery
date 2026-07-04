@@ -156,37 +156,31 @@ struct UsageSnapshotTests {
         #expect(snapshot.percent(for: .fiveHour) == 0)
     }
 
-    // MARK: - resolvedPercent (confirmed-aware display %)
+    // MARK: - percent(for:) shows the real API value (no local-estimate substitution)
 
     //
-    // Pins the fix for the false "5-hour limit reached" on wake: a header-less-but-
-    // successful fetch reuses held stale rate limits and marks them unconfirmed, so the
-    // displayed % must come from the local estimate, not the stale API utilization.
+    // The displayed % is always the real API utilization when rate limits are present —
+    // never a token-derived guess. A fresh-but-wrong near-full reading is corrected
+    // upstream by refresh()'s spike filter (holding the previous real value), so
+    // percent(for:) does no confirmed-based substitution. LocalUsageEstimate is used only
+    // when there is no API data at all (standard-API-key users).
 
-    @Test func resolvedPercent_confirmed_usesApiOverLocal() {
-        // Genuinely fresh / throttled: trust the API utilization even if local differs.
-        #expect(UsageSnapshot.resolvedPercent(api: 100, local: 7, confirmed: true) == 100)
+    @Test func percent_withApiLimits_usesApiValueEvenWhenNotFresh() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Date().addingTimeInterval(3_600), fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        // Not fresh, and a low local token count — the displayed % is still the held real
+        // API value (100%), NOT a local estimate. Freshness gates only the alarm.
+        let stale = makeSnapshot(rateLimits: limits, rateLimitsFresh: false, fiveHourTokens: 5_000)
+        #expect(stale.percent(for: .fiveHour) == 100)
+        let fresh = makeSnapshot(rateLimits: limits, rateLimitsFresh: true, fiveHourTokens: 5_000)
+        #expect(fresh.percent(for: .fiveHour) == 100)
     }
 
-    @Test func resolvedPercent_unconfirmed_prefersLocalEstimate() {
-        // The wake bug: held API reads 100% but the data isn't fresh — show local 7%.
-        #expect(UsageSnapshot.resolvedPercent(api: 100, local: 7, confirmed: false) == 7)
-    }
-
-    @Test func resolvedPercent_unconfirmed_uncalibrated_fallsBackToApi() {
-        // No local estimate (account not calibrated) → the held API % is the best we have.
-        #expect(UsageSnapshot.resolvedPercent(api: 100, local: nil, confirmed: false) == 100)
-    }
-
-    @Test func resolvedPercent_confirmed_noApi_usesLocal() {
-        #expect(UsageSnapshot.resolvedPercent(api: nil, local: 42, confirmed: true) == 42)
-    }
-
-    @Test func resolvedPercent_noData_isZero() {
-        #expect(UsageSnapshot.resolvedPercent(api: nil, local: nil, confirmed: false) == 0)
-    }
-
-    // MARK: - rateLimitPercentConfirmed(for:) — per-window confirmation
+    // MARK: - rateLimitPercentConfirmed(for:) — per-window confirmation (alarm gate)
 
     @Test func rateLimitPercentConfirmed_perWindow_throttleDoesNotConfirmOtherWindow() {
         // 5h genuinely throttled, 7d a stale 100%/allowed reading, data NOT fresh this cycle.

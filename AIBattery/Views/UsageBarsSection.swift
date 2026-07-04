@@ -5,19 +5,17 @@ struct FiveHourBarSection: View {
     let limits: RateLimitUsage
     let source: RateLimitSource?
     var tokenTotal: Int = 0
-    /// Percentage to display. When the rate-limit data isn't confirmed fresh, the caller
-    /// passes the local-estimate-corrected value (via `UsageSnapshot.percent(for:)`) so a
-    /// stale held 100% doesn't read as a maxed bar. Defaults to the API utilization.
-    var displayPercent: Double?
     /// Whether the displayed snapshot came from a fresh fetch. When `false` (cached /
     /// unconfirmed data), the throttle / "Limit reached" alarm is suppressed — a stale
     /// percentage is fine, a stale alarm is a false alarm. Mirrors the menu bar's gate.
+    /// The displayed percentage is always the real API utilization (`limits`); a
+    /// fresh-but-wrong near-full spike is corrected upstream by `refresh()`'s spike filter.
     var confirmed: Bool = true
 
     var body: some View {
         UsageBar(
             label: "5-Hour",
-            percent: displayPercent ?? limits.fiveHourPercent,
+            percent: limits.fiveHourPercent,
             resetsAt: limits.fiveHourReset,
             source: source,
             isBinding: limits.representativeClaim == RateLimitUsage.fiveHourWindow,
@@ -36,15 +34,13 @@ struct SevenDayBarSection: View {
     let limits: RateLimitUsage
     let source: RateLimitSource?
     var tokenTotal: Int = 0
-    /// See `FiveHourBarSection.displayPercent`.
-    var displayPercent: Double?
     /// See `FiveHourBarSection.confirmed`.
     var confirmed: Bool = true
 
     var body: some View {
         UsageBar(
             label: "7-Day",
-            percent: displayPercent ?? limits.sevenDayPercent,
+            percent: limits.sevenDayPercent,
             resetsAt: limits.sevenDayReset,
             source: source,
             isBinding: limits.representativeClaim == RateLimitUsage.sevenDayWindow,

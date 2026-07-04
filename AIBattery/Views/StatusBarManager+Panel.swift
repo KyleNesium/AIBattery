@@ -37,6 +37,10 @@ extension StatusBarManager {
             panel.orderFrontRegardless()
             panel.makeKey()
             os_signpost(.end, log: panelShowLog, name: "PanelShow")
+            // Re-arm the popover's deferred heavy sections (Projects/Insights). They
+            // collapse on .panelDidDismiss to stop invisible re-rendering; onAppear
+            // won't re-fire on orderFront because the view never left the hierarchy.
+            NotificationCenter.default.post(name: .panelDidShow, object: nil)
         }
     }
 
