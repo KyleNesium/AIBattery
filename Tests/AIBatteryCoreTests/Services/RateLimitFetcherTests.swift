@@ -650,6 +650,98 @@ struct RateLimitFetcherTests {
         #expect(restored.isCached == true)
     }
 
+    @Test func restorePersistedRateLimits_clearsRolloverArtifact() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let accountId = "restore-rollover-\(UUID().uuidString)"
+
+        // A near-full 5h reading on a window that started ~5 min ago (reset ~4h55m out):
+        // the previous window's usage lingering on a freshly-rolled window. Must NOT be
+        // seeded into the snapshot as a stale 100% (which the 24h TTL would then hold and
+        // re-display as "Limit reached" on the next header-less poll — the wake bug).
+        let rl = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.98,
+            fiveHourReset: Date().addingTimeInterval(17_700), // elapsed ~5 min < 10 min grace
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10,
+            sevenDayReset: Date().addingTimeInterval(86_400),
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let artifact = APIFetchResult(
+            rateLimits: rl, rateLimitSource: .oauthUsageEndpoint, profile: nil, fetchedAt: Date()
+        )
+
+        let fetcher = RateLimitFetcher()
+        fetcher.persistRateLimits(artifact, accountId: accountId, defaults: defaults)
+
+        let restorer = RateLimitFetcher()
+        restorer.restorePersistedRateLimits(defaults: defaults)
+
+        let restored = restorer.cachedOrEmpty(accountId: accountId)
+        // Stale near-full utilization cleared; the valid new-window reset is preserved.
+        #expect(restored.rateLimits?.fiveHourUtilization == 0)
+        #expect(restored.rateLimits?.fiveHourStatus == "allowed")
+        #expect(restored.rateLimits?.fiveHourReset != nil)
+    }
+
+    @Test func overrideCachedRateLimits_replacesCacheAndPersistedBlob() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let accountId = "override-\(UUID().uuidString)"
+
+        // A raw fetch cached+persisted a fresh-but-wrong ~100% (the wake glitch) before
+        // the ViewModel's spike filter could hold it.
+        let glitch = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Date().addingTimeInterval(16_800), fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: Date().addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let raw = APIFetchResult(rateLimits: glitch, rateLimitSource: .oauthUsageEndpoint, profile: nil)
+        let fetcher = RateLimitFetcher()
+        fetcher.setCachedResult(raw, for: accountId)
+        fetcher.persistRateLimits(raw, accountId: accountId, defaults: defaults)
+
+        // The spike filter held the window at the previous real value — write it back.
+        let held = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.02, fiveHourReset: Date().addingTimeInterval(16_800), fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: Date().addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        fetcher.overrideCachedRateLimits(held, accountId: accountId, defaults: defaults)
+
+        // In-memory cache corrected (an instant-paint on the NEXT wake shows the held
+        // value, not the glitch) — and non-rate-limit fields preserved.
+        let cached = fetcher.cachedOrEmpty(accountId: accountId)
+        #expect(cached.rateLimits?.fiveHourUtilization == 0.02)
+        #expect(cached.rateLimitSource == .oauthUsageEndpoint)
+
+        // Persisted blob corrected too (a later LAUNCH restore must not resurrect it).
+        let restorer = RateLimitFetcher()
+        restorer.restorePersistedRateLimits(defaults: defaults)
+        #expect(restorer.cachedOrEmpty(accountId: accountId).rateLimits?.fiveHourUtilization == 0.02)
+    }
+
+    @Test func overrideCachedRateLimits_noCachedEntry_noOp() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let accountId = "override-missing-\(UUID().uuidString)"
+
+        let held = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.02, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let fetcher = RateLimitFetcher()
+        // No cached entry for this account — nothing to correct, must not create one.
+        fetcher.overrideCachedRateLimits(held, accountId: accountId, defaults: defaults)
+        #expect(fetcher.cachedOrEmpty(accountId: accountId).rateLimits == nil)
+    }
+
     @Test func restorePersistedRateLimits_corruptBlob_removedAndOthersRestore() throws {
         let (defaults, suiteName) = try Self.makeSuiteDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }

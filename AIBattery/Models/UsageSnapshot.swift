@@ -7,6 +7,7 @@ struct UsageSnapshot: Equatable {
         lhs.rateLimits == rhs.rateLimits
             && lhs.rateLimitSource == rhs.rateLimitSource
             && lhs.standardLimits == rhs.standardLimits
+            && lhs.rateLimitsFresh == rhs.rateLimitsFresh
             && lhs.totalSessions == rhs.totalSessions
             && lhs.totalMessages == rhs.totalMessages
             && lhs.todayMessages == rhs.todayMessages
@@ -53,6 +54,12 @@ struct UsageSnapshot: Equatable {
     let rateLimitSource: RateLimitSource?
     /// Standard per-minute API rate limits (fallback when unified 5h/7d unavailable).
     let standardLimits: StandardRateLimits?
+    /// Whether the rate-limit *values* came from a genuinely fresh fetch this cycle (unified
+    /// headers AND not cache-served). When `false`, the data is held/stale — the bars still
+    /// show the real (held) API percentage, but the alarm is suppressed per window via
+    /// `rateLimitPercentConfirmed(for:)` unless that window is itself throttled. Gates only
+    /// the alarm; never the displayed number.
+    let rateLimitsFresh: Bool
 
     // From stats-cache.json
     let firstSessionDate: Date?
@@ -102,6 +109,13 @@ struct UsageSnapshot: Equatable {
     /// Falls back to local token estimates when API rate limit data is unavailable.
     /// Context health uses the highest usage across all tracked sessions (not just
     /// the most recent), so auto mode and the menu bar reflect the most critical session.
+    /// The displayed percentage is always the **real API utilization** when we have rate
+    /// limits — fresh, or the last-known held value (a header-less-but-successful fetch is
+    /// not a connection error, so the held real value shows; the `refresh()` spike filter
+    /// already holds a fresh-but-wrong near-full reading at the *previous real value*, so a
+    /// false high never reaches here). `LocalUsageEstimate` is used only when there is **no
+    /// API data at all** (standard-API-key users) — it is never substituted for a held API
+    /// reading, because a token-derived guess doesn't make sense once the API has spoken.
     func percent(for mode: MetricMode) -> Double {
         switch mode {
         case .fiveHour:
@@ -117,6 +131,15 @@ struct UsageSnapshot: Equatable {
                 ?? tokenHealth?.usagePercentage
                 ?? 0
         }
+    }
+
+    /// Whether a given window's *alarm* (the red "Limit reached" / broken star) may fire.
+    /// Confirmed when the data is fresh this cycle OR *this window* is genuinely throttled
+    /// (authoritative, carries a reset, self-expires). Scoped per window so a throttle on
+    /// one window can't confirm a stale near-full reading on the other. Gates only the
+    /// alarm — the displayed percentage is always the real API value (see `percent(for:)`).
+    func rateLimitPercentConfirmed(for window: String) -> Bool {
+        rateLimitsFresh || (rateLimits?.isWindowThrottled(window) ?? false)
     }
 
     /// Token total for the 5-hour rate limit window, aligned to the actual window boundary.

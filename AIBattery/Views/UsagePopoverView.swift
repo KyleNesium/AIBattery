@@ -30,7 +30,13 @@ public struct UsagePopoverView: View {
     @State private var accountCountAtAddStart = 0
     @State private var showLogoutConfirm = false
     @State private var logoutRevertTask: Task<Void, Never>?
-    @State private var panelHasAppeared = false
+    /// Gates the heavy sections (Projects/Insights incl. Swift Charts). Armed one
+    /// run-loop after `.panelDidShow` (every real open) so the core bars paint first;
+    /// DISARMED on panel dismiss so a hidden panel stops re-rendering them on every
+    /// @Published change (`orderOut` keeps the hosting view in the hierarchy — without
+    /// the dismiss reset, the full tree re-evaluated invisibly on every poll, burning
+    /// CPU). Never armed by `onAppear` — that fires at setup, not on show.
+    @State private var deferredRender = DeferredRenderState()
 
     /// Cached ordered modes — avoids allocating a new array on every body evaluation.
     @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
@@ -161,7 +167,7 @@ public struct UsagePopoverView: View {
                     switch mode {
                     case .fiveHour:
                         if let limits = snapshot.rateLimits {
-                            FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.fiveHourWindowTokens(resetsAt: limits.fiveHourReset), confirmed: !viewModel.isShowingCachedData)
+                            FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.fiveHourWindowTokens(resetsAt: limits.fiveHourReset), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow))
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(
@@ -176,7 +182,7 @@ public struct UsagePopoverView: View {
                         }
                     case .sevenDay:
                         if let limits = snapshot.rateLimits {
-                            SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayWindowTokens(resetsAt: limits.sevenDayReset), confirmed: !viewModel.isShowingCachedData)
+                            SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayWindowTokens(resetsAt: limits.sevenDayReset), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(
@@ -210,7 +216,7 @@ public struct UsagePopoverView: View {
                 }
                 .animation(MotionConstants.snappy, value: metricModeRaw)
 
-                if panelHasAppeared {
+                if deferredRender.hasAppeared {
                     ProjectUsageGate(snapshot: snapshot)
                     InsightsGate(snapshot: snapshot)
                 }
@@ -267,10 +273,11 @@ public struct UsagePopoverView: View {
             TutorialOverlay(hasData: viewModel.snapshot != nil)
         }
         .onAppear {
+            // No deferredRender.appeared() here: onAppear fires when the hosting view
+            // is attached at setup (launch), NOT on panel show — arming here would race
+            // the launch pre-warm's orderOut and could leave the heavy sections armed
+            // on a never-opened panel. Every real open posts .panelDidShow instead.
             recomputeOrderedModes()
-            DispatchQueue.main.async {
-                panelHasAppeared = true
-            }
         }
         .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
         .onChange(of: autoMetricMode) { _ in
@@ -281,11 +288,17 @@ public struct UsagePopoverView: View {
             guard let key = notification.object as? String else { return }
             handleKeyPress(key)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .panelDidShow)) { _ in
+            // Deferred one run-loop (mirrors onAppear): the re-opened panel paints
+            // the core bars first, then the heavy sections fill in.
+            DispatchQueue.main.async {
+                deferredRender.appeared()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in
             resetTransientPopoverState()
         }
         .onDisappear {
-            panelHasAppeared = false
             resetTransientPopoverState()
         }
     }
@@ -296,6 +309,10 @@ public struct UsagePopoverView: View {
         showSettings = false
         showLogoutConfirm = false
         logoutRevertTask?.cancel()
+        // Collapse the heavy sections while hidden — orderOut doesn't fire
+        // onDisappear, so without this the hidden panel kept re-rendering
+        // Projects/Insights (incl. Swift Charts) on every poll.
+        deferredRender.disappeared()
     }
 
     private func recomputeOrderedModes() {

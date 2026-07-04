@@ -78,6 +78,7 @@ final class UsageAggregator: @unchecked Sendable {
     private var lastRateLimits: RateLimitUsage?
     private var lastStandardLimits: StandardRateLimits?
     private var lastRateLimitSource: RateLimitSource?
+    private var lastRateLimitsFresh = true
     private var lastIdleSessionMinutes: Int = -1
     private var lastAccountId: String?
 
@@ -94,6 +95,7 @@ final class UsageAggregator: @unchecked Sendable {
         rateLimitSource: RateLimitSource? = nil,
         standardLimits: StandardRateLimits? = nil,
         accountId: String? = nil,
+        rateLimitsFresh: Bool = true,
         now: Date = Date()
     ) -> (UsageSnapshot, SideEffects) {
         // Idle session cutoff for context health (0 = never hide)
@@ -108,6 +110,7 @@ final class UsageAggregator: @unchecked Sendable {
            rateLimits == lastRateLimits,
            standardLimits == lastStandardLimits,
            rateLimitSource == lastRateLimitSource,
+           rateLimitsFresh == lastRateLimitsFresh,
            idleSessionMinutes == lastIdleSessionMinutes,
            accountId == lastAccountId {
             let effects = cachedEffects ?? SideEffects(activeUserModel: nil, observedModels: [], accountId: accountId)
@@ -420,6 +423,7 @@ final class UsageAggregator: @unchecked Sendable {
             rateLimits: rateLimits,
             rateLimitSource: rateLimitSource,
             standardLimits: standardLimits,
+            rateLimitsFresh: rateLimitsFresh,
             firstSessionDate: firstSessionDate,
             totalSessions: (statsCache?.totalSessions ?? 0) + additionalSessions,
             totalMessages: (statsCache?.totalMessages ?? 0) + additionalMessages,
@@ -469,6 +473,7 @@ final class UsageAggregator: @unchecked Sendable {
         lastRateLimits = rateLimits
         lastStandardLimits = standardLimits
         lastRateLimitSource = rateLimitSource
+        lastRateLimitsFresh = rateLimitsFresh
         lastIdleSessionMinutes = idleSessionMinutes
         lastAccountId = accountId
         lock.unlock()

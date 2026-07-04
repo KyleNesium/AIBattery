@@ -41,16 +41,16 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 
 ## Refresh Triggers
 
-| Trigger | Interval | Source |
-|---------|----------|--------|
-| Timer | refreshInterval (default 120s, user-configurable 30–300s) | UsageViewModel.pollingTimer |
-| Stats cache write | 2 sec debounce | FileWatcher (DispatchSource on stats-cache.json) |
-| JSONL file change | 2 sec FSEvent latency | FileWatcher (FSEventStream on ~/.claude/projects/) |
-| Fallback | 60 sec | FileWatcher fallback timer |
-| Account switch | On click | Account picker in header |
-| Sleep/wake | Immediate on wake | NSWorkspace.willSleepNotification / didWakeNotification |
-| Network recovery | On connectivity restored | NetworkMonitor (NWPathMonitor) |
-| Adaptive extension | Doubles interval (up to 5 min) after 3 unchanged cycles | AdaptivePollingState |
+| Trigger | Interval | Source | Scope |
+|---------|----------|--------|-------|
+| Timer | refreshInterval (default 120s, user-configurable 30–300s) | UsageViewModel.pollingTimer | Full `refresh()` (network + aggregation) |
+| Stats cache write | 2 sec debounce | FileWatcher (DispatchSource on stats-cache.json) | **Local-only** `refreshLocalData()` — re-aggregates JSONL with the currently displayed rate limits; no network fetch, no poll-timer reset |
+| JSONL file change | 2 sec FSEvent latency | FileWatcher (FSEventStream on ~/.claude/projects/) | **Local-only** `refreshLocalData()` (same as above) |
+| Fallback | 60 sec | FileWatcher fallback timer | **Local-only** `refreshLocalData()` (same as above) |
+| Account switch | On click | Account picker in header | Full `refresh()` |
+| Sleep/wake | Immediate on wake | NSWorkspace.willSleepNotification / didWakeNotification | Full `refresh()` (after cached instant-paint) |
+| Network recovery | On connectivity restored | NetworkMonitor (NWPathMonitor) | Full `refresh()` |
+| Adaptive extension | Doubles interval (up to 5 min) after 3 unchanged cycles; local JSONL changes since the last poll count as "changed" so active use never backs off | AdaptivePollingState | Timer cadence only |
 
 ## Project Tree
 

@@ -8,9 +8,10 @@ cd "$(dirname "$0")/.."
 VERSION="${1:?Usage: generate-appcast.sh <version> [signature-file]}"
 SIGNATURE_FILE="${2:-.build/sparkle-signature.txt}"
 
-# Validate version looks like semver (digits and dots)
-if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
-  echo "Error: VERSION '$VERSION' does not look like semver (expected X.Y.Z)"
+# Validate version: two or three dot-separated numeric components (e.g. 2.6 or 2.6.1).
+# Sparkle's standard comparator handles both, comparing component-wise.
+if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+  echo "Error: VERSION '$VERSION' does not look like a version (expected X.Y or X.Y.Z)"
   exit 1
 fi
 

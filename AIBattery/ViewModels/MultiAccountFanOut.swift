@@ -134,8 +134,13 @@ enum MultiAccountFanOut {
             }
         }
 
-        // Suppress per-account rollover artifacts so a just-reset window doesn't show a
-        // stale near-full reading (mirrors the active-account path in refresh()).
-        return collected.mapValues { $0.withClearedRolloverArtifacts(now: now) }
+        // Normalize per-account results (mirrors the active-account path in refresh()):
+        // clear expired windows first — a failed fetch falls back to cache, and a cached
+        // throttle whose reset passed during an absence must not keep counting as a live
+        // throttle in the menu bar — then suppress rollover artifacts so a just-reset
+        // window doesn't show a stale near-full reading.
+        return collected.mapValues {
+            $0.withClearedExpiredWindows(now: now).withClearedRolloverArtifacts(now: now)
+        }
     }
 }

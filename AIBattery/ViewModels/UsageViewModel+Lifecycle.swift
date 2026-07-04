@@ -18,9 +18,14 @@ extension UsageViewModel {
     func setupFileWatcher() {
         fileWatcher = FileWatcher { [weak self] in
             Task { @MainActor [weak self] in
-                self?.aggregator.invalidate()
-                self?.restartPolling(interval: self?.refreshInterval ?? 60)
-                await self?.refresh()
+                guard let self else { return }
+                self.aggregator.invalidate()
+                // Local-only: a JSONL/stats write changed local token counts, not the
+                // API state. Re-aggregate with the currently displayed rate limits and
+                // leave the poll timer alone — restarting it here starved network polls
+                // during continuous activity (every ~2s burst reset the countdown), and
+                // the old full refresh() fired an API round-trip per burst on top.
+                await self.refreshLocalData()
             }
         }
         fileWatcher?.startWatching()
@@ -49,20 +54,7 @@ extension UsageViewModel {
                 guard let self else { return }
                 // Show cached rate limits immediately so bars appear on wake
                 // without waiting for the API round-trip.
-                let accountId = OAuthManager.shared.accountStore.activeAccountId
-                if let accountId {
-                    let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
-                    if cached.rateLimits != nil || cached.standardLimits != nil {
-                        let result = await self.aggregateOffMain(
-                            rateLimits: cached.rateLimits,
-                            rateLimitSource: cached.rateLimitSource,
-                            standardLimits: cached.standardLimits,
-                            accountId: accountId
-                        )
-                        if result != self.snapshot { self.snapshot = result }
-                        self.isShowingCachedData = true
-                    }
-                }
+                await self.repaintCachedNotFresh()
 
                 self.resumeTimers()
 
@@ -85,7 +77,9 @@ extension UsageViewModel {
             }
         }
 
-        // Screen unlock — resume timers and refresh.
+        // Screen unlock — resume timers and refresh. Repaint from cache first: the
+        // pre-lock snapshot may carry `rateLimitsFresh=true` with hours-old data (a
+        // window can reset during a long lock), and only the wake path used to drop it.
         unlockObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.sessionDidBecomeActiveNotification,
             object: nil,
@@ -93,11 +87,44 @@ extension UsageViewModel {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                await self.repaintCachedNotFresh()
                 self.resumeTimers()
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 await self.refresh(skipNetworkCheck: true)
             }
         }
+    }
+
+    /// Repaint the display from the persisted cache with the freshness flag dropped —
+    /// the return-from-absence baseline (wake, unlock, idle resume). The pre-absence
+    /// snapshot may be hours old yet still marked `rateLimitsFresh=true`, which would
+    /// keep the "Limit reached" alarm armed on stale data until the post-absence fetch
+    /// lands. The cache path applies `withClearedExpiredWindows` (via `cachedOrEmpty`)
+    /// and `withClearedRolloverArtifacts` here, so a window that reset during the
+    /// absence paints as rolled over, not exhausted. Drops the freshness flag even
+    /// when the cache is empty.
+    func repaintCachedNotFresh() async {
+        rateLimitsFresh = false
+        guard let accountId = OAuthManager.shared.accountStore.activeAccountId else { return }
+        let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+        guard cached.rateLimits != nil || cached.standardLimits != nil else { return }
+        let result = await aggregateOffMain(
+            // Clear rollover artifacts so a just-reset window's carried-over
+            // near-full utilization doesn't paint "Limit reached" on return.
+            rateLimits: cached.rateLimits?.withClearedRolloverArtifacts(),
+            rateLimitSource: cached.rateLimitSource,
+            standardLimits: cached.standardLimits,
+            accountId: accountId,
+            rateLimitsFresh: false
+        )
+        // Mirror refresh()'s account-switch guard for the suspension window.
+        guard Self.shouldApplyFetchResult(
+            fetchedAccountId: accountId,
+            activeAccountId: OAuthManager.shared.accountStore.activeAccountId
+        ) else { return }
+        if result != snapshot { snapshot = result }
+        isShowingCachedData = true
+        rateLimitsFresh = false
     }
 
     // MARK: - Refresh interval
@@ -123,9 +150,16 @@ extension UsageViewModel {
     /// Resume from user interaction (e.g., clicking the menu bar icon).
     /// Public entry point for StatusBarManager — the global event monitor may not
     /// fire without Accessibility permission, so direct interaction is the reliable path.
+    /// Repaints from cache only when actually returning from suspension — an ordinary
+    /// click while active must not drop the freshness flag (that would gate a
+    /// legitimately armed alarm every time the popover opens).
     func resumeFromUserInteraction() {
+        let wasSuspended = isSuspended
         resumeTimers()
-        Task { await refresh(skipNetworkCheck: true) }
+        Task {
+            if wasSuspended { await repaintCachedNotFresh() }
+            await refresh(skipNetworkCheck: true)
+        }
     }
 
     /// Resume polling and FileWatcher fallback timer after wake or activity.
@@ -133,6 +167,11 @@ extension UsageViewModel {
         guard isSuspended else { return }
         isSuspended = false
         removeActivityMonitor()
+        // Return-from-absence choke point (wake, screen unlock, idle resume). Forget the
+        // previous-poll near-full memory so a pre-absence near-full reading can't auto-
+        // confirm a post-absence server glitch — the first fresh reading after an absence
+        // must re-confirm before it can arm "Limit reached" (see spikeConfirmedRateLimits).
+        previouslyNearFullWindows = [:]
         adaptivePolling.unchangedCycles = 0
         restartPolling(interval: refreshInterval)
         fileWatcher?.resumeFallbackTimer()
@@ -149,6 +188,7 @@ extension UsageViewModel {
             Task { @MainActor [weak self] in
                 guard let self, self.isSuspended else { return }
                 self.resumeTimers()
+                await self.repaintCachedNotFresh()
                 await self.refresh(skipNetworkCheck: true)
             }
         }

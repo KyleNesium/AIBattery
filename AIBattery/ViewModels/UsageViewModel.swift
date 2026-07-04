@@ -12,6 +12,12 @@ public final class UsageViewModel: ObservableObject {
     @Published var lastFreshFetch: Date?
     /// Whether the most recent API result was served from cache.
     @Published var isShowingCachedData = false
+    /// Whether the displayed rate-limit *values* came from a genuinely fresh fetch this
+    /// cycle (unified headers AND not cache-served). Distinct from `!isShowingCachedData`:
+    /// a fetch can succeed without unified headers (~90% of polls), reusing held stale
+    /// rate limits — which must not arm the "Limit reached" alarm. Gates only the alarm
+    /// (with `alarmConfirmed`); the displayed percentage is always the real API value.
+    @Published var rateLimitsFresh = false
     /// The hysteresis-filtered metric mode for auto mode consumers.
     @Published private(set) var resolvedMetricMode: MetricMode = .fiveHour
     /// Per-account rate limits for the multi-account menu bar display.
@@ -41,6 +47,10 @@ public final class UsageViewModel: ObservableObject {
     // lets the deinit touch them; Timer.invalidate and NSWorkspace.removeObserver
     // are documented thread-safe.
     nonisolated(unsafe) var pollingTimer: Timer?
+    /// One-shot timer armed for the next window reset so an exhausted bar rolls over to
+    /// 0% the moment its countdown ends instead of showing a stale 100% until the next
+    /// poll. Re-armed on every snapshot publish (see `scheduleRolloverClear`).
+    nonisolated(unsafe) private var rolloverClearTimer: Timer?
     private var apiResult: APIFetchResult?
     nonisolated(unsafe) var wakeObserver: NSObjectProtocol?
     nonisolated(unsafe) var sleepObserver: NSObjectProtocol?
@@ -60,6 +70,25 @@ public final class UsageViewModel: ObservableObject {
     /// Used to expire stale fallback data — after `rateLimitStaleTTL` seconds without
     /// fresh data, the fallback is dropped so the UI transitions to StandardRateLimits.
     private var lastFreshRateLimitsAt: Date?
+
+    /// Set by `refreshLocalData()` when a file-system re-aggregate changed the message
+    /// totals between timed polls; consumed (and cleared) by `updateAdaptivePolling`.
+    /// Without it, the FS path keeping `snapshot` current would make every timed poll
+    /// compare equal totals → "unchanged" → polling backs off to the max interval
+    /// during ACTIVE use — the opposite of the adaptive design (activity = fast polls).
+    private var localDataChangedSinceLastPoll = false
+
+    /// Windows that reported near-full utilization on the PREVIOUS fresh poll, keyed by
+    /// that reading's reset instant (see `spikeConfirmedRateLimits`). A fresh near-full
+    /// reading is trusted (shown as "Limit reached") only once the SAME window instance
+    /// (matching reset) has been near-full on two consecutive fresh polls; an isolated
+    /// spike (server eventual-consistency after wake) is held at the previous value.
+    /// Reset-keying means a memory from before a rollover can't confirm the new window
+    /// even when no lifecycle event fired (e.g. an endpoint outage spanning the reset).
+    /// Also cleared on any return-from-absence (`resumeTimers`) and account switch so a
+    /// pre-absence near-full can't auto-confirm a post-absence glitch.
+    /// Internal (not private) so the lifecycle extension's `resumeTimers` can clear it.
+    var previouslyNearFullWindows: [String: Date] = [:]
 
     /// How long stale rate limits are carried forward before expiring (seconds).
     /// 5 minutes handles transient network failures (1-2 poll cycles) without
@@ -107,13 +136,18 @@ public final class UsageViewModel: ObservableObject {
                 Task { [weak self] in
                     guard let self else { return }
                     let result = await self.aggregateOffMain(
-                        rateLimits: cached.rateLimits,
+                        // Cold-start paint of persisted limits: clear rollover artifacts and
+                        // mark not-fresh so a stale 100% reads as the real low % and arms no
+                        // alarm until the first fetch confirms it (mirrors wake/wasEmpty paths).
+                        rateLimits: cached.rateLimits?.withClearedRolloverArtifacts(),
                         rateLimitSource: cached.rateLimitSource,
                         standardLimits: cached.standardLimits,
-                        accountId: accountId
+                        accountId: accountId,
+                        rateLimitsFresh: false
                     )
                     self.snapshot = result
                     self.isShowingCachedData = true
+                    self.rateLimitsFresh = false
                     self.isLoading = false
                 }
             }
@@ -154,7 +188,8 @@ public final class UsageViewModel: ObservableObject {
         rateLimits: RateLimitUsage?,
         rateLimitSource: RateLimitSource? = nil,
         standardLimits: StandardRateLimits? = nil,
-        accountId: String? = nil
+        accountId: String? = nil,
+        rateLimitsFresh: Bool = true
     ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
             _ = await inflight.value
@@ -162,7 +197,7 @@ public final class UsageViewModel: ObservableObject {
 
         let agg = aggregator
         let task = Task.detached {
-            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId)
+            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitsFresh: rateLimitsFresh)
         }
         inflightAggregation = task
         let (result, effects) = await task.value
@@ -199,18 +234,26 @@ public final class UsageViewModel: ObservableObject {
 
         // Skip network work when not authenticated — still aggregate local data.
         guard oauthManager.isAuthenticated else {
-            let result = await aggregateOffMain(rateLimits: nil)
+            rateLimitsFresh = false
+            let result = await aggregateOffMain(rateLimits: nil, rateLimitsFresh: false)
             if result.totalMessages > 0, result != snapshot { snapshot = result }
             isLoading = false
             return
         }
 
-        // Skip network when offline — show local data with cached rate limits.
+        // Skip network when offline — show local data with the currently DISPLAYED
+        // rate limits (not the raw `apiResult`, which still carries any spike glitch
+        // the filter held and corrected downstream), with expired windows cleared so a
+        // throttle whose reset passes while offline doesn't alarm forever. The real
+        // displayed percentage keeps showing; the alarm stays suppressed until a fresh
+        // fetch confirms.
         guard skipNetworkCheck || NetworkMonitor.shared.isConnected else {
+            rateLimitsFresh = false
             let result = await aggregateOffMain(
-                rateLimits: apiResult?.rateLimits,
-                rateLimitSource: apiResult?.rateLimitSource,
-                standardLimits: apiResult?.standardLimits
+                rateLimits: snapshot?.rateLimits?.withClearedExpiredWindows(),
+                rateLimitSource: snapshot?.rateLimitSource,
+                standardLimits: snapshot?.standardLimits,
+                rateLimitsFresh: false
             )
             if result != snapshot { snapshot = result }
             isLoading = false
@@ -227,13 +270,18 @@ public final class UsageViewModel: ObservableObject {
             let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
                 let earlyResult = await aggregateOffMain(
-                    rateLimits: cached.rateLimits,
+                    // Clear rollover artifacts on the instant-paint too: a window that just
+                    // reset can carry the previous window's near-full utilization, which
+                    // must not flash as "Limit reached" before the first fresh fetch.
+                    rateLimits: cached.rateLimits?.withClearedRolloverArtifacts(),
                     rateLimitSource: cached.rateLimitSource,
                     standardLimits: cached.standardLimits,
-                    accountId: accountId
+                    accountId: accountId,
+                    rateLimitsFresh: false
                 )
                 snapshot = earlyResult
                 isShowingCachedData = true
+                rateLimitsFresh = false
             } else {
                 isLoading = true
             }
@@ -253,14 +301,20 @@ public final class UsageViewModel: ObservableObject {
         apiResult = api
         systemStatus = status
         isShowingCachedData = api.isCached
+        // Fresh ONLY when this fetch returned unified rate-limit headers and wasn't
+        // cache-served. A header-less-but-successful fetch reuses held stale limits
+        // (see effectiveRateLimits below) — those must not arm the alarm / maxed bar.
+        rateLimitsFresh = Self.rateLimitsAreFresh(freshRateLimits: api.rateLimits, isCached: api.isCached)
         if !api.isCached { lastFreshFetch = api.fetchedAt }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits, source: api.isCached ? "stale-cache" : "api-fresh")
         // Hold the last good API rate limit data until replaced by a newer API response.
-        // With only ~10% of polls returning unified headers, expiring quickly causes
-        // the UI to flip between API data and local estimates. Stale API data (with
-        // real utilization %) is always more useful than local token estimates.
+        // The primary /api/oauth/usage endpoint returns limits on essentially every
+        // successful poll, but the legacy Messages-probe fallback returns unified
+        // headers on only ~10% of polls — expiring quickly on that path causes the UI
+        // to flip between API data and local estimates. Stale API data (with real
+        // utilization %) is always more useful than local token estimates.
         if api.rateLimits != nil && !api.isCached {
             lastFreshRateLimitsAt = Date()
         }
@@ -279,11 +333,51 @@ public final class UsageViewModel: ObservableObject {
         // Suppress rollover artifacts: a window that just reset can briefly report the
         // previous window's near-full utilization paired with the new reset (server-side
         // eventual consistency). Showing that as "Limit reached" on a fresh window is wrong.
-        let effectiveRateLimits = rawEffectiveRateLimits?.withClearedRolloverArtifacts()
-        if let raw = rawEffectiveRateLimits, let corrected = effectiveRateLimits, raw != corrected {
+        let rolloverCleared = rawEffectiveRateLimits?.withClearedRolloverArtifacts()
+        if let raw = rawEffectiveRateLimits, let corrected = rolloverCleared, raw != corrected {
             AppLogger.network.notice(
                 "Rollover artifact suppressed (binding=\(raw.bindingWindowShortCode, privacy: .public), source=\(effectiveSource?.rawValue ?? "nil", privacy: .public)): 5h \(Int(raw.fiveHourPercent))%→\(Int(corrected.fiveHourPercent))% reset in \(Int(raw.fiveHourReset?.timeIntervalSinceNow ?? -1))s, 7d \(Int(raw.sevenDayPercent))%→\(Int(corrected.sevenDayPercent))% reset in \(Int(raw.sevenDayReset?.timeIntervalSinceNow ?? -1))s"
             )
+        }
+        // Confirm-before-alarming: the rollover guard above only catches a near-full
+        // reading in a window's first ~10 min. But the server can return a transport-FRESH
+        // yet wrong ~100% for a window many minutes into its cycle right after wake — which
+        // `rateLimitsFresh` trusts, painting a false "Limit reached" (the recurrence). Hold
+        // an isolated near-full spike at the previous displayed value until a second
+        // consecutive fresh poll confirms it. Only runs on a genuinely fresh reading; on
+        // header-less / cached polls the held value shows unaltered with the alarm gated.
+        let effectiveRateLimits: RateLimitUsage?
+        if rateLimitsFresh, let fresh = rolloverCleared {
+            let confirmedLimits = Self.spikeConfirmedRateLimits(
+                fresh: fresh,
+                previousDisplayed: snapshot?.rateLimits,
+                previouslyNearFull: previouslyNearFullWindows
+            )
+            previouslyNearFullWindows = confirmedLimits.nearFullWindows
+            if !confirmedLimits.heldWindows.isEmpty {
+                let shown = confirmedLimits.display
+                AppLogger.network.notice(
+                    "Unconfirmed rate-limit spike held (windows=\(confirmedLimits.heldWindows.sorted().joined(separator: ","), privacy: .public), source=\(effectiveSource?.rawValue ?? "nil", privacy: .public)): raw 5h \(Int(fresh.fiveHourPercent))%→\(Int(shown.fiveHourPercent))%, 7d \(Int(fresh.sevenDayPercent))%→\(Int(shown.sevenDayPercent))% — awaiting a second consecutive fresh poll before alarming"
+                )
+                // fetch() already cached+persisted the RAW glitch value before this
+                // filter ran — write the held value back so the glitch can't survive
+                // as the stale fallback a later instant-paint would re-display.
+                // ONLY when every held window substitutes a real (non-zero) prior value:
+                // a hold at a zeroed baseline (window just reset) must not overwrite the
+                // real server reading on disk — a fabricated 0% would then survive
+                // relaunch as "recent" data while the true value is lost.
+                let allHeldSubstitutesReal = confirmedLimits.heldWindows.allSatisfy { window in
+                    window == RateLimitUsage.fiveHourWindow
+                        ? confirmedLimits.display.fiveHourUtilization > 0
+                        : confirmedLimits.display.sevenDayUtilization > 0
+                }
+                if let accountId, allHeldSubstitutesReal {
+                    RateLimitFetcher.shared.overrideCachedRateLimits(confirmedLimits.display, accountId: accountId)
+                }
+            }
+            effectiveRateLimits = confirmedLimits.display
+        } else {
+            effectiveRateLimits = rolloverCleared
         }
         // Per-poll diagnostic of the raw server reading (live via `log stream`), so a
         // recurrence can be matched against the exact utilization/reset the API returned.
@@ -292,11 +386,15 @@ public final class UsageViewModel: ObservableObject {
                 "rate limits fresh (source=\(effectiveSource?.rawValue ?? "nil", privacy: .public)): 5h \(Int(rl.fiveHourPercent))% reset \(Int(rl.fiveHourReset?.timeIntervalSinceNow ?? -1))s status=\(rl.fiveHourStatus, privacy: .public); 7d \(Int(rl.sevenDayPercent))% reset \(Int(rl.sevenDayReset?.timeIntervalSinceNow ?? -1))s status=\(rl.sevenDayStatus, privacy: .public); binding=\(rl.bindingWindowShortCode, privacy: .public) overall=\(rl.overallStatus, privacy: .public)"
             )
         }
+        // Persist whether THIS cycle's rate-limit values are genuinely fresh. The bars
+        // derive per-window ALARM confirmation from this plus each window's own throttle
+        // status; the displayed % is always the real (fresh or held) API value.
         let result = await aggregateOffMain(
             rateLimits: effectiveRateLimits,
             rateLimitSource: effectiveSource,
             standardLimits: api.standardLimits ?? snapshot?.standardLimits,
-            accountId: accountId
+            accountId: accountId,
+            rateLimitsFresh: rateLimitsFresh
         )
         logCorruptionMetrics()
 
@@ -318,13 +416,19 @@ public final class UsageViewModel: ObservableObject {
 
         updateAdaptivePolling(result)
         updateSnapshot(result, api: api)
-        await handlePostFetchAlerts(api: api, status: status)
+        await handlePostFetchAlerts(
+            confirmedRateLimits: effectiveRateLimits,
+            rateLimitsFresh: rateLimitsFresh,
+            status: status
+        )
         // Multi-account menu bar fan-out (no-op when toggle is off).
         // Seed with the active account's just-fetched data — RateLimitFetcher does
         // not short-circuit on cache, so seeding is what keeps net cost at N
-        // requests per cycle for N accounts (instead of N+1).
+        // requests per cycle for N accounts (instead of N+1). Seed the spike-CONFIRMED
+        // value (not the raw fetch) so an unconfirmed spike can't leak into the menu bar.
         let seed: (String, RateLimitUsage)? = {
-            guard let id = accountId, let rl = api.rateLimits, !api.isCached else { return nil }
+            guard let id = accountId, api.rateLimits != nil, !api.isCached,
+                  let rl = effectiveRateLimits else { return nil }
             return (id, rl)
         }()
         await fetchAllAccounts(seed: seed)
@@ -381,6 +485,99 @@ public final class UsageViewModel: ObservableObject {
         }
     }
 
+    /// Local-only refresh for file-system events: JSONL/stats changed on disk, so
+    /// re-aggregate with the currently displayed rate limits — NO network fetch and no
+    /// poll-timer reset. A JSONL write means local token counts changed, not that the
+    /// API state did; network polling stays on the poll timer. (Previously every
+    /// debounced JSONL burst ran the full `refresh()` — an API round-trip every ~2s
+    /// during an active Claude session — and reset the poll timer each time.)
+    func refreshLocalData() async {
+        let accountId = OAuthManager.shared.accountStore.activeAccountId
+        // Capture the display inputs BEFORE suspending so the post-await guard can
+        // detect a concurrent refresh() publishing newer limits mid-flight. Expired
+        // windows are cleared here (the fetch paths clear via cachedOrEmpty /
+        // effectiveRateLimits, but this path re-publishes the displayed value directly —
+        // without clearing, a window whose reset passes between polls would keep
+        // re-painting as throttled/100% on every JSONL burst until the next poll).
+        let baseLimits = snapshot?.rateLimits
+        let baseFresh = rateLimitsFresh
+        let result = await aggregateOffMain(
+            rateLimits: baseLimits?.withClearedExpiredWindows(),
+            rateLimitSource: snapshot?.rateLimitSource,
+            standardLimits: snapshot?.standardLimits,
+            accountId: accountId,
+            rateLimitsFresh: baseFresh
+        )
+        // Mirror refresh()'s stale-result guard: if the user switched accounts while
+        // the aggregate was in flight, this result was built from the OLD account's
+        // displayed rate limits — publishing it would clobber the NEW account's
+        // snapshot (UsageSnapshot carries no accountId, so nothing downstream could
+        // detect the mismatch).
+        guard Self.shouldApplyFetchResult(
+            fetchedAccountId: accountId,
+            activeAccountId: OAuthManager.shared.accountStore.activeAccountId
+        ) else { return }
+        // Interleave guard: a timed refresh() completing during the await publishes
+        // NEWER rate limits (possibly fresh/spike-corrected); a result built from the
+        // pre-refresh limits must not revert them. Because FS events recur every ~2s
+        // during active sessions, a single revert would otherwise stick (each burst
+        // re-captures the reverted value) until the next poll. Dropping the result is
+        // safe — the refresh that invalidated it aggregated the same-or-newer local data.
+        guard snapshot?.rateLimits == baseLimits, rateLimitsFresh == baseFresh else { return }
+        // Keep latest token counts available for 429 auto-calibration (mirrors refresh()).
+        LocalUsageEstimate.latestFiveHourTokens = result.fiveHourTokens
+        LocalUsageEstimate.latestSevenDayTokens = result.sevenDayTokens
+        // Record activity for adaptive polling BEFORE publishing — once `snapshot` is
+        // updated here, the next timed poll compares equal totals and would otherwise
+        // read continuous activity as "no change" and back polling off.
+        if Self.hasDataChanged(
+            previousTotal: snapshot?.totalMessages ?? -1,
+            previousToday: snapshot?.todayMessages ?? -1,
+            newTotal: result.totalMessages,
+            newToday: result.todayMessages
+        ) {
+            localDataChangedSinceLastPoll = true
+        }
+        if result != snapshot { snapshot = result }
+        scheduleRolloverClear(for: result)
+        // Auto mode may need to escalate/de-escalate on the new local data (context
+        // health and token totals both move with JSONL writes).
+        let filtered = UsageSnapshot.applyHysteresis(
+            candidate: result.autoResolvedMode,
+            previous: lastResolvedMode,
+            snapshot: result
+        )
+        lastResolvedMode = filtered
+        // Value-changed guard: this path runs every ~2s during active sessions, and an
+        // unguarded @Published write fires objectWillChange even for the same value —
+        // exactly the hidden-popover re-render churn the FS-local path exists to avoid.
+        if filtered != resolvedMetricMode { resolvedMetricMode = filtered }
+    }
+
+    /// Arm a one-shot timer for the next window reset so the display rolls over the
+    /// moment a countdown ends. Without this, an exhausted window keeps showing
+    /// 100% / "Limit reached" after its reset passes until the next poll or JSONL
+    /// burst lands (up to 5 min under adaptive backoff). The timer fires a local-only
+    /// re-aggregate whose `withClearedExpiredWindows` zeroes the rolled-over window;
+    /// the next timed poll then brings the real fresh value.
+    private func scheduleRolloverClear(for result: UsageSnapshot) {
+        rolloverClearTimer?.invalidate()
+        rolloverClearTimer = nil
+        let resets = [result.rateLimits?.fiveHourReset, result.rateLimits?.sevenDayReset]
+            .compactMap { $0 }
+            .filter { $0.timeIntervalSinceNow > 0 }
+        guard let nextReset = resets.min() else { return }
+        rolloverClearTimer = Timer.scheduledTimer(
+            withTimeInterval: nextReset.timeIntervalSinceNow + 1,
+            repeats: false
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refreshLocalData()
+            }
+        }
+        rolloverClearTimer?.tolerance = 1
+    }
+
     private func updateSnapshot(_ result: UsageSnapshot, api: APIFetchResult) {
         errorMessage = Self.refreshErrorMessage(
             hasRateLimits: api.rateLimits != nil,
@@ -391,6 +588,7 @@ public final class UsageViewModel: ObservableObject {
             authError: api.authError
         )
         if result != snapshot { snapshot = result }
+        scheduleRolloverClear(for: result)
 
         // Apply hysteresis to auto-resolved mode
         let candidate = result.autoResolvedMode
@@ -400,18 +598,22 @@ public final class UsageViewModel: ObservableObject {
             snapshot: result
         )
         lastResolvedMode = filtered
-        resolvedMetricMode = filtered
+        if filtered != resolvedMetricMode { resolvedMetricMode = filtered }
 
         isLoading = false
     }
 
     private func updateAdaptivePolling(_ result: UsageSnapshot) {
+        // OR in activity observed by the FS-triggered local re-aggregates since the
+        // last poll — they update `snapshot`, so the totals comparison alone would
+        // miss all between-poll activity.
         let dataChanged = Self.hasDataChanged(
             previousTotal: snapshot?.totalMessages ?? -1,
             previousToday: snapshot?.todayMessages ?? -1,
             newTotal: result.totalMessages,
             newToday: result.todayMessages
-        )
+        ) || localDataChangedSinceLastPoll
+        localDataChangedSinceLastPoll = false
         let interval = adaptivePolling.evaluate(
             dataChanged: dataChanged,
             baseInterval: refreshInterval
@@ -419,10 +621,16 @@ public final class UsageViewModel: ObservableObject {
         restartPolling(interval: interval)
     }
 
-    private func handlePostFetchAlerts(api: APIFetchResult, status: ClaudeSystemStatus) async {
+    private func handlePostFetchAlerts(
+        confirmedRateLimits: RateLimitUsage?,
+        rateLimitsFresh: Bool,
+        status: ClaudeSystemStatus
+    ) async {
         NotificationManager.shared.checkStatusAlerts(status: status)
 
-        if let limits = Self.alertableRateLimits(api) {
+        // Alert on the spike-confirmed limits, never the raw fetch — a held-but-
+        // unconfirmed near-full spike must not fire a notification the bars won't show.
+        if let limits = Self.alertableRateLimits(confirmed: confirmedRateLimits, rateLimitsFresh: rateLimitsFresh) {
             NotificationManager.shared.checkRateLimitAlerts(rateLimits: limits)
         }
 
@@ -448,6 +656,10 @@ public final class UsageViewModel: ObservableObject {
         // render the OLD account's rate limits under the new account's identity.
         apiResult = nil
         isShowingCachedData = false
+        rateLimitsFresh = false
+        // New account has no spike-confirmation history — start clean so its first fresh
+        // near-full reading must re-confirm before alarming.
+        previouslyNearFullWindows = [:]
         lastFreshFetch = nil
         errorMessage = nil
         isLoading = true
@@ -505,6 +717,7 @@ public final class UsageViewModel: ObservableObject {
 
     deinit {
         pollingTimer?.invalidate()
+        rolloverClearTimer?.invalidate()
         if let monitor = activityMonitor { NSEvent.removeMonitor(monitor) }
         // FileWatcher.deinit handles its own cleanup (cancels sources, streams, timers)
         for observer in [wakeObserver, sleepObserver, lockObserver, unlockObserver].compactMap({ $0 }) {

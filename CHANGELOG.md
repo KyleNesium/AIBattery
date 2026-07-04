@@ -1,5 +1,78 @@
 # Changelog
 
+## [2.6] — 2026-07-04
+
+Fixes a false "5-Hour limit reached" that could appear on wake or after returning from idle,
+changes the display model (the bars now always show the real API percentage, never a local
+token estimate), and cuts idle CPU/network usage during active Claude sessions.
+
+### Performance
+- **File changes no longer trigger network fetches.** Every debounced JSONL/stats write ran
+  the full refresh — an API round-trip every ~2 seconds during an active Claude session —
+  and reset the poll timer each burst (which could starve timed polls entirely). File events
+  now re-aggregate local data only, with the currently displayed rate limits; network
+  polling stays exclusively on the poll timer.
+- **The hidden popover no longer re-renders its heavy sections.** Closing the panel hides
+  the window but keeps the SwiftUI tree alive, so Projects/Insights (including Swift
+  Charts) kept re-evaluating invisibly on every poll. The heavy sections now collapse on
+  panel dismiss and re-arm one frame after reopen (same deferred-first-paint behavior as
+  launch). Together these were the ~10% CPU spikes every couple of seconds.
+
+### Fixed
+- **No more false "5-Hour 100% / Limit reached" on wake or return-from-idle.** Two things
+  could paint a false red "Limit reached" on a window that was actually low:
+  - *A stale reading treated as confirmed.* A fetch can complete without fresh rate-limit
+    data (cache-served after a failure, or a header-less fallback probe), reusing the
+    last-known limits. The
+    alarm now gates on `rateLimitsFresh || throttled` — a bare ≥100% requires genuinely
+    fresh headers this cycle (killing the false alarm), while a real throttle still alarms
+    across header-less polls without flickering. Rollover-artifact clearing also runs on
+    the wake/cold-start instant-paint and launch restore.
+  - *A fresh-but-wrong reading.* The usage endpoint can briefly return a stale ~100% for a
+    window right after wake (server-side eventual consistency); because that response *is*
+    fresh, the freshness gate trusted it. A bare near-full reading (≥95%, not an explicit
+    throttle) that jumps up is now **held at the previous value until a second consecutive
+    fresh poll confirms it** — a one-off spike shows the last-known-good reading, never a
+    false maxed bar. A genuine throttle is authoritative and shown immediately; a sustained
+    limit is confirmed on the next poll. The hold also gates notifications and the
+    multi-account seed, and the near-full memory resets on wake / unlock / idle / account
+    switch so a pre-absence reading can't auto-confirm a post-absence glitch. Throttled
+    windows still count as near-full for tracking, so the poll right after a genuine
+    throttle clears (still ~96%, now allowed) is shown as-is rather than held — and a
+    held window never inherits a previous "throttled" status, so a hold can never
+    re-display a throttle the server just cleared. When a spike is held, the corrected
+    value is also written back to the on-disk cache, so the glitch can't resurface on a
+    later launch or wake instant-paint. The confirmation memory is keyed to each window
+    *instance* (its reset time), so a near-full remembered from before a window rollover
+    — e.g. an endpoint outage spanning the reset — can never vouch for the new window;
+    on a true cold start nothing is held (the fresh reading is the only real value, and
+    a fabricated 0% would be a false low); and a hold at a just-reset 0% baseline is
+    never written to disk over the real server value.
+- **Exhausted bars roll over the moment their countdown ends.** Previously a window that
+  hit 100% kept showing "100% / Limit reached" after "Resets in…" reached zero, until the
+  next poll happened to land (up to 5 minutes). A one-shot timer now fires at the reset
+  instant and clears the rolled-over window immediately; expired windows are also cleared
+  on the file-event path, the offline path, and per-account in the multi-account fan-out
+  (a cached throttle that expired during sleep no longer counts as a live throttle).
+- **Return-from-idle and screen unlock now drop the stale freshness flag.** Only the wake
+  path repainted from cache with the alarm gated; a long screen lock (window can reset
+  mid-lock) briefly kept the pre-lock "Limit reached" armed after unlock. All
+  return-from-absence paths now share the wake path's cached repaint.
+- **File-event refreshes can no longer revert a just-completed poll.** A JSONL burst that
+  raced a timed poll could re-publish the pre-poll rate limits (including un-doing a
+  spike correction) and stick until the next poll; the local path now drops its result
+  when the poll published newer limits mid-flight.
+- **Offline shows the corrected value.** The offline path re-published the raw last fetch
+  — which could still carry a held spike glitch — instead of the corrected displayed
+  value. It now aggregates what's actually displayed, with expired windows cleared, so a
+  throttle whose reset passes while offline stops alarming.
+- **The displayed percentage is always the real API value — never a local estimate.** When
+  rate-limit data is present the bar shows the API utilization (fresh, or the last-known
+  held value on a header-less-but-successful poll); a token-derived estimate is no longer
+  substituted when the data isn't fresh. Freshness gates the *alarm*, not the *number* —
+  so a successful fetch always shows real data. The local estimate remains only for
+  accounts with no unified rate-limit data at all (standard API keys).
+
 ## [2.5.1] — 2026-06-15
 
 Hotfix for a false "Limit reached" that could appear in the popover on stale data.

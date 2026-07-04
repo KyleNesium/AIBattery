@@ -8,9 +8,12 @@ struct UsageSnapshotTests {
     private func makeSnapshot(
         modelTokens: [ModelTokenSummary] = [],
         rateLimits: RateLimitUsage? = nil,
+        rateLimitsFresh: Bool = true,
         tokenHealth: TokenHealthStatus? = nil,
         topSessionHealths: [TokenHealthStatus] = [],
         todayMessages: Int = 0,
+        fiveHourTokens: Int = 0,
+        sevenDayTokens: Int = 0,
         dailyActivity: [DailyActivity] = []
     ) -> UsageSnapshot {
         let activityStats = UsageSnapshot.computeActivityStats(dailyActivity)
@@ -19,6 +22,7 @@ struct UsageSnapshotTests {
             rateLimits: rateLimits,
             rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
             standardLimits: nil,
+            rateLimitsFresh: rateLimitsFresh,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -36,8 +40,8 @@ struct UsageSnapshotTests {
             totalProjectTokens: 0,
             totalProjectUsageTokens: 0,
             totalProjectCost: 0,
-            fiveHourTokens: 0,
-            sevenDayTokens: 0,
+            fiveHourTokens: fiveHourTokens,
+            sevenDayTokens: sevenDayTokens,
             fiveHourTokenBuckets: [:],
             dailyTokenTotals: [:],
             todayModelTokens: [],
@@ -108,6 +112,7 @@ struct UsageSnapshotTests {
             rateLimits: limits,
             rateLimitSource: nil,
             standardLimits: nil,
+            rateLimitsFresh: true,
             firstSessionDate: nil,
             totalSessions: 0,
             totalMessages: 0,
@@ -149,6 +154,70 @@ struct UsageSnapshotTests {
     @Test func percent_fiveHour_noRateLimits() {
         let snapshot = makeSnapshot()
         #expect(snapshot.percent(for: .fiveHour) == 0)
+    }
+
+    // MARK: - percent(for:) shows the real API value (no local-estimate substitution)
+
+    //
+    // The displayed % is always the real API utilization when rate limits are present —
+    // never a token-derived guess. A fresh-but-wrong near-full reading is corrected
+    // upstream by refresh()'s spike filter (holding the previous real value), so
+    // percent(for:) does no confirmed-based substitution. LocalUsageEstimate is used only
+    // when there is no API data at all (standard-API-key users).
+
+    @Test func percent_withApiLimits_usesApiValueEvenWhenNotFresh() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Date().addingTimeInterval(3_600), fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        // Not fresh, and a low local token count — the displayed % is still the held real
+        // API value (100%), NOT a local estimate. Freshness gates only the alarm.
+        let stale = makeSnapshot(rateLimits: limits, rateLimitsFresh: false, fiveHourTokens: 5_000)
+        #expect(stale.percent(for: .fiveHour) == 100)
+        let fresh = makeSnapshot(rateLimits: limits, rateLimitsFresh: true, fiveHourTokens: 5_000)
+        #expect(fresh.percent(for: .fiveHour) == 100)
+    }
+
+    // MARK: - rateLimitPercentConfirmed(for:) — per-window confirmation (alarm gate)
+
+    @Test func rateLimitPercentConfirmed_perWindow_throttleDoesNotConfirmOtherWindow() {
+        // 5h genuinely throttled, 7d a stale 100%/allowed reading, data NOT fresh this cycle.
+        // The throttled 5h window is confirmed (authoritative); the stale 7d window is NOT —
+        // so a throttle on one window can't make the other's stale 100% read as confirmed.
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Date().addingTimeInterval(3_600), fiveHourStatus: "throttled",
+            sevenDayUtilization: 1.0, sevenDayReset: Date().addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits, rateLimitsFresh: false)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow) == true)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow) == false)
+    }
+
+    @Test func rateLimitPercentConfirmed_freshData_bothWindowsConfirmed() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.5, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits, rateLimitsFresh: true)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow) == true)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow) == true)
+    }
+
+    @Test func rateLimitPercentConfirmed_staleNotThrottled_notConfirmed() {
+        let limits = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Date().addingTimeInterval(3_600), fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        let snapshot = makeSnapshot(rateLimits: limits, rateLimitsFresh: false)
+        #expect(snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow) == false)
     }
 
     @Test func percent_contextHealth_usesTokenHealth() {
@@ -900,8 +969,8 @@ struct UsageSnapshotTests {
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 36 = 35 compared fields + lastUpdated.
+        // it) AND update this count. 37 = 36 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 36)
+        #expect(mirror.children.count == 37)
     }
 }

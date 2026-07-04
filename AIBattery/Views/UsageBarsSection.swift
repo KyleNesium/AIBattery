@@ -8,6 +8,8 @@ struct FiveHourBarSection: View {
     /// Whether the displayed snapshot came from a fresh fetch. When `false` (cached /
     /// unconfirmed data), the throttle / "Limit reached" alarm is suppressed — a stale
     /// percentage is fine, a stale alarm is a false alarm. Mirrors the menu bar's gate.
+    /// The displayed percentage is always the real API utilization (`limits`); a
+    /// fresh-but-wrong near-full spike is corrected upstream by `refresh()`'s spike filter.
     var confirmed: Bool = true
 
     var body: some View {
@@ -179,7 +181,10 @@ struct UsageBar: View {
                         Text("Limit reached")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
-                    } else if let estimate = estimatedTimeToLimit {
+                    } else if confirmed, let estimate = estimatedTimeToLimit {
+                        // Burn-rate "time to limit" is a prediction off the API utilization —
+                        // suppress it on unconfirmed/stale data (same gate as the alarm), else a
+                        // stale 100% reading shows "~0s to limit" next to the corrected low %.
                         let estimateText = "~\(DurationFormatter.compact(estimate)) to limit"
                         Text(estimateText)
                             .font(Typography.tinyLabel)

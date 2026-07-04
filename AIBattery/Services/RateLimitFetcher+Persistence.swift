@@ -35,6 +35,34 @@ extension RateLimitFetcher {
         }
     }
 
+    /// Replace the cached (and persisted) rate limits for an account with a corrected
+    /// value, preserving every other field (profile, source, standard limits, fetchedAt).
+    ///
+    /// Called by `UsageViewModel.refresh()` when the spike filter HOLDS an unconfirmed
+    /// near-full reading: `fetch()` already wrote the raw server value to the cache and
+    /// disk before the filter ran, so without this write-back the glitch would survive
+    /// as the "last known good" fallback — and a later instant-paint (wake, cold start,
+    /// launch restore) would re-display it, or seed it as `previousDisplayed` where a
+    /// repeat glitch could confirm it. "Rather show stale than a false used value"
+    /// applies to what we persist, too.
+    ///
+    /// No-op when the account has no cached entry (nothing to correct).
+    func overrideCachedRateLimits(_ rateLimits: RateLimitUsage, accountId: String, defaults: UserDefaults = .standard) {
+        guard let cached = cachedResults[accountId] else { return }
+        let corrected = APIFetchResult(
+            rateLimits: rateLimits,
+            rateLimitSource: cached.rateLimitSource,
+            standardLimits: cached.standardLimits,
+            profile: cached.profile,
+            hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
+            fetchedAt: cached.fetchedAt,
+            isCached: cached.isCached,
+            authError: cached.authError
+        )
+        cachedResults[accountId] = corrected
+        persistRateLimits(corrected, accountId: accountId, defaults: defaults)
+    }
+
     /// Restore persisted rate limits into the in-memory cache on launch.
     /// Always restores — stale data is better than empty bars on wake from sleep.
     /// Fresh fetches replace stale data naturally on the first successful poll.
@@ -54,7 +82,12 @@ extension RateLimitFetcher {
             // Clear expired windows so a stale "throttled" flag from before a long
             // absence (e.g. user returns from leave) doesn't display as if they
             // hit the limit. The window has rolled over; status must reset.
-            let normalizedRateLimits = persisted.rateLimits?.withClearedExpiredWindows()
+            // Also clear rollover artifacts so a near-full reading on a just-reset window
+            // isn't seeded into the snapshot as the stale fallback (the value the 24h TTL
+            // then holds and re-displays as "Limit reached" on the next header-less poll).
+            let normalizedRateLimits = persisted.rateLimits?
+                .withClearedExpiredWindows()
+                .withClearedRolloverArtifacts()
             cachedResults[accountId] = APIFetchResult(
                 rateLimits: normalizedRateLimits,
                 rateLimitSource: persisted.rateLimitSource,
