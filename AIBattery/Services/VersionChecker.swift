@@ -111,8 +111,12 @@ public final class VersionChecker {
         for i in 0..<maxLen {
             let l = i < latestParts.count ? latestParts[i] : 0
             let c = i < currentParts.count ? currentParts[i] : 0
-            if l > c { return true }
-            if l < c { return false }
+            if l > c {
+                return true
+            }
+            if l < c {
+                return false
+            }
         }
         return false
     }

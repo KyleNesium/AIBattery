@@ -236,7 +236,9 @@ public final class UsageViewModel: ObservableObject {
         guard oauthManager.isAuthenticated else {
             rateLimitsFresh = false
             let result = await aggregateOffMain(rateLimits: nil, rateLimitsFresh: false)
-            if result.totalMessages > 0, result != snapshot { snapshot = result }
+            if result.totalMessages > 0, result != snapshot {
+                snapshot = result
+            }
             isLoading = false
             return
         }
@@ -255,7 +257,9 @@ public final class UsageViewModel: ObservableObject {
                 standardLimits: snapshot?.standardLimits,
                 rateLimitsFresh: false
             )
-            if result != snapshot { snapshot = result }
+            if result != snapshot {
+                snapshot = result
+            }
             isLoading = false
             errorMessage = "No internet connection"
             return
@@ -305,7 +309,9 @@ public final class UsageViewModel: ObservableObject {
         // cache-served. A header-less-but-successful fetch reuses held stale limits
         // (see effectiveRateLimits below) — those must not arm the alarm / maxed bar.
         rateLimitsFresh = Self.rateLimitsAreFresh(freshRateLimits: api.rateLimits, isCached: api.isCached)
-        if !api.isCached { lastFreshFetch = api.fetchedAt }
+        if !api.isCached {
+            lastFreshFetch = api.fetchedAt
+        }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits, source: api.isCached ? "stale-cache" : "api-fresh")
@@ -538,7 +544,9 @@ public final class UsageViewModel: ObservableObject {
         ) {
             localDataChangedSinceLastPoll = true
         }
-        if result != snapshot { snapshot = result }
+        if result != snapshot {
+            snapshot = result
+        }
         scheduleRolloverClear(for: result)
         // Auto mode may need to escalate/de-escalate on the new local data (context
         // health and token totals both move with JSONL writes).
@@ -551,7 +559,9 @@ public final class UsageViewModel: ObservableObject {
         // Value-changed guard: this path runs every ~2s during active sessions, and an
         // unguarded @Published write fires objectWillChange even for the same value —
         // exactly the hidden-popover re-render churn the FS-local path exists to avoid.
-        if filtered != resolvedMetricMode { resolvedMetricMode = filtered }
+        if filtered != resolvedMetricMode {
+            resolvedMetricMode = filtered
+        }
     }
 
     /// Arm a one-shot timer for the next window reset so the display rolls over the
@@ -587,7 +597,9 @@ public final class UsageViewModel: ObservableObject {
             totalMessages: result.totalMessages,
             authError: api.authError
         )
-        if result != snapshot { snapshot = result }
+        if result != snapshot {
+            snapshot = result
+        }
         scheduleRolloverClear(for: result)
 
         // Apply hysteresis to auto-resolved mode
@@ -598,7 +610,9 @@ public final class UsageViewModel: ObservableObject {
             snapshot: result
         )
         lastResolvedMode = filtered
-        if filtered != resolvedMetricMode { resolvedMetricMode = filtered }
+        if filtered != resolvedMetricMode {
+            resolvedMetricMode = filtered
+        }
 
         isLoading = false
     }
@@ -718,7 +732,9 @@ public final class UsageViewModel: ObservableObject {
     deinit {
         pollingTimer?.invalidate()
         rolloverClearTimer?.invalidate()
-        if let monitor = activityMonitor { NSEvent.removeMonitor(monitor) }
+        if let monitor = activityMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
         // FileWatcher.deinit handles its own cleanup (cancels sources, streams, timers)
         for observer in [wakeObserver, sleepObserver, lockObserver, unlockObserver].compactMap({ $0 }) {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)

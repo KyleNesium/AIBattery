@@ -50,7 +50,9 @@ struct MoveTransitionBanTests {
 
         while let relativePath = enumerator?.nextObject() as? String {
             guard relativePath.hasSuffix(".swift") else { continue }
-            if Self.allowList.contains(relativePath) { continue }
+            if Self.allowList.contains(relativePath) {
+                continue
+            }
 
             let fullPath = (viewsDir as NSString).appendingPathComponent(relativePath)
             guard let contents = try? String(contentsOfFile: fullPath, encoding: .utf8) else {

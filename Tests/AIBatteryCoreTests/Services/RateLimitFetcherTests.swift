@@ -451,17 +451,23 @@ struct RateLimitFetcherTests {
 
     /// Unwrap a `.success` outcome; nil for `.authFailed` / `.unavailable`.
     private static func successResult(_ outcome: RateLimitFetcher.UsageEndpointOutcome) -> APIFetchResult? {
-        if case .success(let result) = outcome { return result }
+        if case .success(let result) = outcome {
+            return result
+        }
         return nil
     }
 
     private static func isAuthFailed(_ outcome: RateLimitFetcher.UsageEndpointOutcome) -> Bool {
-        if case .authFailed = outcome { return true }
+        if case .authFailed = outcome {
+            return true
+        }
         return false
     }
 
     private static func isUnavailable(_ outcome: RateLimitFetcher.UsageEndpointOutcome) -> Bool {
-        if case .unavailable = outcome { return true }
+        if case .unavailable = outcome {
+            return true
+        }
         return false
     }
 

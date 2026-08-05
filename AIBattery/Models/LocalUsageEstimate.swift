@@ -104,14 +104,18 @@ enum LocalUsageEstimate {
     /// `billingType` first, then the user-selected global tier).
     nonisolated static func effectiveFiveHourLimit(for accountId: String? = AccountStore.persistedActiveAccountId) -> Int? {
         let calibrated = fiveHourLimit(for: accountId)
-        if calibrated > 0 { return calibrated }
+        if calibrated > 0 {
+            return calibrated
+        }
         return PlanTier.effective(forAccountId: accountId)?.estimatedFiveHourLimit
     }
 
     /// Effective 7-day limit: calibrated > plan-based > nil.
     nonisolated static func effectiveSevenDayLimit(for accountId: String? = AccountStore.persistedActiveAccountId) -> Int? {
         let calibrated = sevenDayLimit(for: accountId)
-        if calibrated > 0 { return calibrated }
+        if calibrated > 0 {
+            return calibrated
+        }
         return PlanTier.effective(forAccountId: accountId)?.estimatedSevenDayLimit
     }
 
@@ -122,12 +126,20 @@ enum LocalUsageEstimate {
     ) -> LimitSource? {
         switch window {
         case .fiveHour:
-            if fiveHourLimit(for: accountId) > 0 { return .calibrated }
-            if PlanTier.effective(forAccountId: accountId) != nil { return .planEstimate }
+            if fiveHourLimit(for: accountId) > 0 {
+                return .calibrated
+            }
+            if PlanTier.effective(forAccountId: accountId) != nil {
+                return .planEstimate
+            }
             return nil
         case .sevenDay:
-            if sevenDayLimit(for: accountId) > 0 { return .calibrated }
-            if PlanTier.effective(forAccountId: accountId) != nil { return .planEstimate }
+            if sevenDayLimit(for: accountId) > 0 {
+                return .calibrated
+            }
+            if PlanTier.effective(forAccountId: accountId) != nil {
+                return .planEstimate
+            }
             return nil
         default:
             return nil

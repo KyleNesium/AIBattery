@@ -264,7 +264,9 @@ struct MenuBarMultiAccountTextTests {
             guard let d, d.timeIntervalSince(now) > 0 else { return nil }
             return d
         }
-        if usage.isThrottled { return future(usage.bindingReset) }
+        if usage.isThrottled {
+            return future(usage.bindingReset)
+        }
         let fiveExhausted = usage.fiveHourPercent >= 100
         let sevenExhausted = usage.sevenDayPercent >= 100
         let f = fiveExhausted ? future(usage.fiveHourReset) : nil

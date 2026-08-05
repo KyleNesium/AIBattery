@@ -303,10 +303,14 @@ public final class StatusBarManager: NSObject {
             if let buttonWindow = self.statusItem?.button?.window {
                 let screenPoint = event.window.map { $0.convertPoint(toScreen: event.locationInWindow) }
                     ?? event.locationInWindow
-                if buttonWindow.frame.contains(screenPoint) { return }
+                if buttonWindow.frame.contains(screenPoint) {
+                    return
+                }
             }
             // Ignore clicks on our own panel
-            if let panel = self.panel, panel.frame.contains(NSEvent.mouseLocation) { return }
+            if let panel = self.panel, panel.frame.contains(NSEvent.mouseLocation) {
+                return
+            }
             self.panel?.orderOut(nil)
         }
 
@@ -370,7 +374,9 @@ public final class StatusBarManager: NSObject {
         if let observer = deactivationObserver {
             NotificationCenter.default.removeObserver(observer)
         }
-        if let obs = frameObserver { NotificationCenter.default.removeObserver(obs) }
+        if let obs = frameObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
         appearanceObserver?.invalidate()
         sparkleTimer?.invalidate()
         countdownTimer?.invalidate()

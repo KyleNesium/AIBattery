@@ -243,10 +243,14 @@ struct UsageSnapshot: Equatable {
         guard let previous else { return candidate }
 
         // Throttle always wins immediately (Tier 1 bypass)
-        if let rl = snapshot.rateLimits, rl.isThrottled { return candidate }
+        if let rl = snapshot.rateLimits, rl.isThrottled {
+            return candidate
+        }
 
         // If candidate equals previous, no change needed
-        if candidate == previous { return candidate }
+        if candidate == previous {
+            return candidate
+        }
 
         // Check if previous mode still qualifies within its de-escalation band
         switch previous {
@@ -345,9 +349,13 @@ struct UsageSnapshot: Equatable {
                 trend = thisAvg > 0 ? .up : .flat
             } else {
                 let change = (thisAvg - lastAvg) / lastAvg
-                if change > 0.10 { trend = .up }
-                else if change < -0.10 { trend = .down }
-                else { trend = .flat }
+                if change > 0.10 {
+                    trend = .up
+                } else if change < -0.10 {
+                    trend = .down
+                } else {
+                    trend = .flat
+                }
             }
         }
 

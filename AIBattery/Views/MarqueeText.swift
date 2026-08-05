@@ -57,7 +57,9 @@ struct MarqueeText: View {
                         })
                 )
                 .onPreferenceChange(TextWidthKey.self) { newWidth in
-                    if abs(textWidth - newWidth) > 0.5 { textWidth = newWidth }
+                    if abs(textWidth - newWidth) > 0.5 {
+                        textWidth = newWidth
+                    }
                 }
                 .offset(x: offset)
                 .opacity(textOpacity)

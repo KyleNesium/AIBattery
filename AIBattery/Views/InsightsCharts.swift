@@ -169,7 +169,9 @@ extension InsightsView {
     /// Clock-time label for a 5-hour chart bucket offset.
     /// offset 0 = 5h ago, offset 19 = now. Shows "HH:MM" format.
     static func fiveHourAxisLabel(offset: Int, now: Date = .now) -> String {
-        if offset == 19 { return "Now" }
+        if offset == 19 {
+            return "Now"
+        }
         let minutesAgo = Double(19 - offset) * 15
         let date = now.addingTimeInterval(-minutesAgo * 60)
         let hour = Calendar.current.component(.hour, from: date)

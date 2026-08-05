@@ -277,7 +277,9 @@ public final class OAuthManager: ObservableObject {
 
         var updated = account
         updated.id = realOrgId
-        if let billing = billingType { updated.billingType = billing }
+        if let billing = billingType {
+            updated.billingType = billing
+        }
 
         // Move Keychain entries from temp ID to real org ID
         let tokenData = tokens[tempId]
@@ -314,8 +316,12 @@ public final class OAuthManager: ObservableObject {
     /// Update an existing account's metadata (display name, billing type).
     func updateAccountMetadata(accountId: String, displayName: String? = nil, billingType: String? = nil) {
         guard var record = accountStore.accounts.first(where: { $0.id == accountId }) else { return }
-        if let name = displayName { record.displayName = name }
-        if let billing = billingType { record.billingType = billing }
+        if let name = displayName {
+            record.displayName = name
+        }
+        if let billing = billingType {
+            record.billingType = billing
+        }
         accountStore.update(oldId: accountId, with: record)
     }
 

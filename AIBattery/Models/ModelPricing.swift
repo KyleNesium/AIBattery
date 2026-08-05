@@ -66,7 +66,9 @@ struct ModelPricing {
             }
             return (false, nil)
         }
-        if hit.found { return hit.value }
+        if hit.found {
+            return hit.value
+        }
 
         // Compute outside the lock — avoids nested lock with ModelNameMapper.
         // Linear scan over 6 entries is fine — result is cached per modelId above.

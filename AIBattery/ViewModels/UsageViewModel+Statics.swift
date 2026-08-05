@@ -39,13 +39,21 @@ extension UsageViewModel {
         if authError {
             return "Authentication failed — please log out and reconnect this account."
         }
-        if hasRateLimits { return nil }
-        if hasStandardLimits { return nil }
-        if hasStandardRateLimitHeaders { return nil }
+        if hasRateLimits {
+            return nil
+        }
+        if hasStandardLimits {
+            return nil
+        }
+        if hasStandardRateLimitHeaders {
+            return nil
+        }
         if !hasProfile && totalMessages == 0 {
             return "No usage data yet. Start a Claude Code session to see your stats."
         }
-        if hasProfile { return nil }
+        if hasProfile {
+            return nil
+        }
         return "Unable to reach Anthropic API. Check your internet connection and try again."
     }
 
@@ -90,7 +98,9 @@ extension UsageViewModel {
         ttl: TimeInterval,
         now: Date = .now
     ) -> RateLimitUsage? {
-        if let fresh { return fresh }
+        if let fresh {
+            return fresh
+        }
         guard let stale, let lastFreshAt else { return nil }
         let age = now.timeIntervalSince(lastFreshAt)
         if age <= ttl {
@@ -227,8 +237,12 @@ extension UsageViewModel {
         }
 
         var held: Set<String> = []
-        if holdFiveHour { held.insert(RateLimitUsage.fiveHourWindow) }
-        if holdSevenDay { held.insert(RateLimitUsage.sevenDayWindow) }
+        if holdFiveHour {
+            held.insert(RateLimitUsage.fiveHourWindow)
+        }
+        if holdSevenDay {
+            held.insert(RateLimitUsage.sevenDayWindow)
+        }
 
         // Substitute the previous displayed *utilization* for held windows. The held
         // status is always forced to "allowed" — a hold means "unconfirmed non-throttle
@@ -264,7 +278,9 @@ extension UsageViewModel {
         ttl: TimeInterval,
         now: Date = .now
     ) -> T? {
-        if let fresh { return fresh }
+        if let fresh {
+            return fresh
+        }
         guard let stale, let lastFreshAt else { return nil }
         return now.timeIntervalSince(lastFreshAt) <= ttl ? stale : nil
     }

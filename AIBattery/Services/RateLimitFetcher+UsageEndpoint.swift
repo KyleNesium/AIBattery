@@ -34,7 +34,9 @@ extension RateLimitFetcher {
         headers: [AnyHashable: Any],
         cachedProfile: APIProfile?
     ) -> UsageEndpointOutcome {
-        if statusCode == 401 || statusCode == 403 { return .authFailed }
+        if statusCode == 401 || statusCode == 403 {
+            return .authFailed
+        }
         // 429 carries the quota-throttle signal in its body — accept alongside 2xx so the
         // `markedThrottled` normalization below can fire. Mirrors the sibling
         // `interpretClaudeCodeClientData` contract.

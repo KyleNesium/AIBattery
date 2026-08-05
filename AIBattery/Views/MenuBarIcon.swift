@@ -137,7 +137,9 @@ enum MenuBarIcon {
             return (k, iconCache[k])
         }
 
-        if let cached { return cached }
+        if let cached {
+            return cached
+        }
 
         // Render without holding the lock — NSImage creation is thread-safe
         // but can be slow; no need to serialize rendering across threads.

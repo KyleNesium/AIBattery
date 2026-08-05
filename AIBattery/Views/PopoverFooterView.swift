@@ -161,9 +161,15 @@ struct PopoverFooterView: View {
 
     static func relativeTime(_ date: Date) -> String {
         let elapsed = Date().timeIntervalSince(date)
-        if elapsed < 5 { return "just now" }
-        if elapsed < 60 { return "\(Int(elapsed))s ago" }
-        if elapsed < 3_600 { return "\(Int(elapsed / 60))m ago" }
+        if elapsed < 5 {
+            return "just now"
+        }
+        if elapsed < 60 {
+            return "\(Int(elapsed))s ago"
+        }
+        if elapsed < 3_600 {
+            return "\(Int(elapsed / 60))m ago"
+        }
         return "\(Int(elapsed / 3_600))h ago"
     }
 
