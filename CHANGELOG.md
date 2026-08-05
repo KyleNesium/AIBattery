@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.6.1] — 2026-08-05
+
+Dependency-update release. No app behavior change; ships a security fix in the
+auto-updater itself.
+
+### Security
+- **Sparkle 2.9.4 → 2.9.5** — patch-level update within the existing
+  `"2.6.0"..<"3.0.0"` declared range. Hardens delta-file patching against a
+  symbolic link at the destination path — upstream's complete fix for the
+  symlink issue that 2.9.2 only partially addressed
+  (sparkle-project/Sparkle#2891).
+
+### Tooling
+- **GitHub Actions bumped** across `ci.yml`, `lint.yml`, and `release.yml`
+  (deferred from the v2.6 release): `actions/checkout` v6.0.2 → v7.0.1,
+  `actions/cache` v5.0.5 → v6.1.0, `softprops/action-gh-release`
+  v3.0.0 → v3.0.2. All SHA-pinned. No workflow config changes required —
+  the majors are ESM/runtime migrations, and checkout v7's behavioral
+  change (blocking fork-PR checkout under `pull_request_target`) doesn't
+  apply to these workflows.
+
 ## [2.6] — 2026-07-04
 
 Fixes a false "5-Hour limit reached" that could appear on wake or after returning from idle,
