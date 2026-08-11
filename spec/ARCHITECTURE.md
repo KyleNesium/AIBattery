@@ -219,7 +219,7 @@ Tests/AIBatteryCoreTests/
     TokenLedgerTests.swift        — high-water-mark merge, historical model restoration, per-account isolation, persistence, sort, file size guard
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
     VersionCheckerTests.swift     — semver comparison, tag stripping, cache behavior, persistence
-    SparkleUpdateServiceTests.swift — Sparkle configuration verification (auto-check disabled, singleton)
+    SparkleUpdateServiceTests.swift — Sparkle configuration verification via the never-started testable init (auto-check disabled; NEVER touches .shared — a started updater's failure alert hangs the suite)
     RateLimitFetcherTests.swift   — cache expiry, stale marking, multi-account isolation, Retry-After parsing, pending→resolved cache migration + launch orphan pruning
     RateLimitFetcherConcurrencyTests.swift — nonisolated header helpers (`parseRetryAfter`, `quotaThrottleLikely`) callable + actor-independent
     StatsCacheReaderTests.swift   — decode, caching, invalidation, full payload, file size guard

@@ -18,18 +18,27 @@ public final class SparkleUpdateService {
             updaterDelegate: delegate,
             userDriverDelegate: nil
         )
-
-        let updater = updaterController.updater
-        updater.automaticallyChecksForUpdates = false
-        updater.automaticallyDownloadsUpdates = false
-        updater.updateCheckInterval = 0
-
+        Self.configure(updaterController.updater)
         updaterController.startUpdater()
     }
 
-    /// Testable init that accepts a pre-configured controller.
+    /// The one place update-check policy is set — user-initiated checks only.
+    static func configure(_ updater: SPUUpdater) {
+        updater.automaticallyChecksForUpdates = false
+        updater.automaticallyDownloadsUpdates = false
+        updater.updateCheckInterval = 0
+    }
+
+    /// Testable init: accepts a controller and applies the same configuration as the
+    /// app path, but NEVER calls `startUpdater()`. Tests must use this instead of
+    /// `.shared` — starting a real Sparkle updater inside the test runner makes
+    /// Sparkle's standard user driver raise a modal NSAlert when its host-bundle
+    /// validation or update check fails there, freezing the main thread (and with it
+    /// every @MainActor test) until the dialog is dismissed. That modal was the
+    /// intermittent full-suite hang on loaded local runs and the headless CI runner.
     init(controller: SPUStandardUpdaterController) {
         updaterController = controller
+        Self.configure(controller.updater)
     }
 
     /// Whether Sparkle is ready to check for updates.

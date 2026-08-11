@@ -1,9 +1,30 @@
 # Changelog
 
-## [2.6.1] — 2026-08-05
+## [2.6.1] — 2026-08-11
 
-Dependency-update release. No app behavior change; ships a security fix in the
+Fixes another false "Limit reached" variant and ships a security fix in the
 auto-updater itself.
+
+### Fixed
+- **No more false "7-Day 100% / Limit reached" from a multi-poll server glitch.**
+  The `/api/oauth/usage` endpoint can return a wrong ~100% for a window
+  (server-side eventual consistency) across **several consecutive polls** — observed
+  live 2026-08-11: 7-Day painted 100%/"Limit reached" while the account was at 2%.
+  v2.6's confirm-before-alarming filter held such a spike for one poll and trusted
+  the second consecutive reading; that poll-count rule is now **time-based**: a
+  non-throttled near-full spike stays held at the previous real value until the same
+  window instance has stayed near-full for 10 minutes of consecutive fresh polls.
+  Genuine throttles still alarm instantly; a genuine quota crossing (which the API
+  reports as 100% + "allowed") now alarms up to 10 minutes later — the accepted
+  cost of never alarming falsely.
+- **Test-suite hang root-caused and fixed** (the long-standing main-push CI flake:
+  orphaned test processes killed at the 19-minute job timeout, plus intermittent
+  local hangs). `sample` showed the runner's main thread parked in
+  `-[NSAlert runModal]` inside Sparkle: touching `SparkleUpdateService.shared` in
+  tests started a real updater whose failure alert froze every `@MainActor` test
+  behind a modal dialog. The Sparkle tests now use a never-started controller via
+  the testable init (which applies the identical configuration), so no updater —
+  and no modal — ever exists in the test process.
 
 ### Security
 - **Sparkle 2.9.4 → 2.9.5** — patch-level update within the existing
