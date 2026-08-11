@@ -78,17 +78,20 @@ public final class UsageViewModel: ObservableObject {
     /// during ACTIVE use — the opposite of the adaptive design (activity = fast polls).
     private var localDataChangedSinceLastPoll = false
 
-    /// Windows that reported near-full utilization on the PREVIOUS fresh poll, keyed by
-    /// that reading's reset instant (see `spikeConfirmedRateLimits`). A fresh near-full
-    /// reading is trusted (shown as "Limit reached") only once the SAME window instance
-    /// (matching reset) has been near-full on two consecutive fresh polls; an isolated
-    /// spike (server eventual-consistency after wake) is held at the previous value.
+    /// Per-window memory of the current consecutive near-full spike sequence (reset
+    /// instant + when it started + whether it's confirmed — see
+    /// `spikeConfirmedRateLimits`). A fresh, non-throttled near-full reading is trusted
+    /// (shown as "Limit reached") only once the SAME window instance (matching reset)
+    /// has stayed near-full for `spikeConfirmationMinimumAge` of consecutive fresh
+    /// polls; until then the spike is held at the previous displayed value. Time-based
+    /// (not poll-count-based) because the server's eventual-consistency glitch can span
+    /// several polls (2026-08-11: a false 7-day 100% survived two-poll confirmation).
     /// Reset-keying means a memory from before a rollover can't confirm the new window
     /// even when no lifecycle event fired (e.g. an endpoint outage spanning the reset).
     /// Also cleared on any return-from-absence (`resumeTimers`) and account switch so a
     /// pre-absence near-full can't auto-confirm a post-absence glitch.
     /// Internal (not private) so the lifecycle extension's `resumeTimers` can clear it.
-    var previouslyNearFullWindows: [String: Date] = [:]
+    var previouslyNearFullWindows: [String: UsageViewModel.NearFullMemory] = [:]
 
     /// How long stale rate limits are carried forward before expiring (seconds).
     /// 5 minutes handles transient network failures (1-2 poll cycles) without

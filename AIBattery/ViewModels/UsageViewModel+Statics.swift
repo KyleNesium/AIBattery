@@ -134,12 +134,23 @@ extension UsageViewModel {
         return confirmed
     }
 
+    /// Memory of one window's consecutive near-full fresh readings, carried poll to poll.
+    /// `reset` keys the window instance (sentinel when the reading had no reset date);
+    /// `firstSeen` is when this consecutive near-full sequence started; `confirmed`
+    /// means the reading is trusted (authoritative throttle, accepted cold-start, or a
+    /// spike that persisted past `spikeConfirmationMinimumAge`) and no longer held.
+    struct NearFullMemory: Equatable {
+        let reset: Date
+        let firstSeen: Date
+        let confirmed: Bool
+    }
+
     /// Result of `spikeConfirmedRateLimits`: the limits to display this cycle, the
-    /// windows near-full in the *raw* fresh reading keyed by their reset instant
-    /// (carried to the next poll), and the windows whose fresh spike was held (for logging).
+    /// windows near-full in the *raw* fresh reading (with their spike-sequence memory,
+    /// carried to the next poll), and the windows whose fresh spike was held (for logging).
     struct SpikeConfirmedRateLimits: Equatable {
         let display: RateLimitUsage
-        let nearFullWindows: [String: Date]
+        let nearFullWindows: [String: NearFullMemory]
         let heldWindows: Set<String>
     }
 
@@ -151,6 +162,16 @@ extension UsageViewModel {
     /// fresh reading's reset — absorbs server-side rounding jitter without letting a
     /// *different* window instance (post-rollover) inherit the confirmation.
     nonisolated static let nearFullResetMatchTolerance: TimeInterval = 60
+
+    /// Minimum wall-clock age of a near-full spike sequence before an unconfirmed
+    /// (non-throttled) spike may be accepted and alarmed on. The 2026-08-11 incident
+    /// proved the server's eventual-consistency glitch can span MULTIPLE consecutive
+    /// polls (a false 7-day 100% survived the old two-poll confirmation for several
+    /// minutes while the account was at 2%) — so confirmation must be time-based, not
+    /// poll-count-based. Matches `rolloverArtifactGracePeriod`'s "the server can lie
+    /// for ~10 minutes around a discontinuity" assumption. A genuine quota crossing
+    /// alarms at most this much later — and a real throttle bypasses the hold entirely.
+    nonisolated static let spikeConfirmationMinimumAge: TimeInterval = 600
 
     /// Confirm-before-alarming filter for a **fresh** rate-limit reading.
     ///
@@ -185,7 +206,8 @@ extension UsageViewModel {
     nonisolated static func spikeConfirmedRateLimits(
         fresh: RateLimitUsage,
         previousDisplayed: RateLimitUsage?,
-        previouslyNearFull: [String: Date]
+        previouslyNearFull: [String: NearFullMemory],
+        now: Date = .now
     ) -> SpikeConfirmedRateLimits {
         let threshold = RateLimitUsage.rolloverArtifactUtilizationThreshold
 
@@ -198,25 +220,31 @@ extension UsageViewModel {
         let fiveHourNearFull = fresh.fiveHourUtilization >= threshold
         let sevenDayNearFull = fresh.sevenDayUtilization >= threshold
 
-        var nearFull: [String: Date] = [:]
-        if fiveHourNearFull {
-            nearFull[RateLimitUsage.fiveHourWindow] = fresh.fiveHourReset ?? Self.nearFullNoResetSentinel
-        }
-        if sevenDayNearFull {
-            nearFull[RateLimitUsage.sevenDayWindow] = fresh.sevenDayReset ?? Self.nearFullNoResetSentinel
-        }
-
-        // A remembered near-full only confirms the SAME window instance: its stored
+        // A remembered near-full only vouches for the SAME window instance: its stored
         // reset must match the fresh reading's reset (within jitter tolerance). A memory
-        // from before a rollover carries the old reset and can't confirm the new window.
-        func wasNearFull(_ window: String, freshReset: Date?) -> Bool {
-            guard let remembered = previouslyNearFull[window] else { return false }
+        // from before a rollover carries the old reset and can't vouch for the new window.
+        func matchedMemory(_ window: String, freshReset: Date?) -> NearFullMemory? {
+            guard let remembered = previouslyNearFull[window] else { return nil }
             let current = freshReset ?? Self.nearFullNoResetSentinel
-            return abs(remembered.timeIntervalSince(current)) <= Self.nearFullResetMatchTolerance
+            guard abs(remembered.reset.timeIntervalSince(current)) <= Self.nearFullResetMatchTolerance else {
+                return nil
+            }
+            return remembered
         }
 
-        // Hold a non-throttled window that is near-full now but wasn't near-full on the
-        // previous fresh poll — an unconfirmed upward jump. An explicit throttle is
+        // A matched memory confirms the spike only when it is authoritative (`confirmed`
+        // — a throttle or an already-accepted reading) or the consecutive near-full
+        // sequence has persisted past `spikeConfirmationMinimumAge`. Mere consecutiveness
+        // is NOT enough: the server's eventual-consistency glitch can span several polls
+        // (2026-08-11 false 7-day 100%), so an unconfirmed spike stays held until it has
+        // been near-full for the minimum wall-clock age.
+        func memoryConfirms(_ window: String, freshReset: Date?) -> Bool {
+            guard let memory = matchedMemory(window, freshReset: freshReset) else { return false }
+            return memory.confirmed || now.timeIntervalSince(memory.firstSeen) >= Self.spikeConfirmationMinimumAge
+        }
+
+        // Hold a non-throttled window that is near-full now but whose spike sequence is
+        // not yet confirmed — an unconfirmed upward jump. An explicit throttle is
         // authoritative and never held; an overall "throttled" counts as a throttle on
         // the binding window (isThrottled treats it as real even when the per-window
         // status lags behind as "allowed"). With no previous displayed value there is
@@ -226,11 +254,34 @@ extension UsageViewModel {
         let holdFiveHour = fiveHourNearFull && previousDisplayed != nil
             && fresh.fiveHourStatus != "throttled"
             && !(overallThrottled && !bindingIsSevenDay)
-            && !wasNearFull(RateLimitUsage.fiveHourWindow, freshReset: fresh.fiveHourReset)
+            && !memoryConfirms(RateLimitUsage.fiveHourWindow, freshReset: fresh.fiveHourReset)
         let holdSevenDay = sevenDayNearFull && previousDisplayed != nil
             && fresh.sevenDayStatus != "throttled"
             && !(overallThrottled && bindingIsSevenDay)
-            && !wasNearFull(RateLimitUsage.sevenDayWindow, freshReset: fresh.sevenDayReset)
+            && !memoryConfirms(RateLimitUsage.sevenDayWindow, freshReset: fresh.sevenDayReset)
+
+        // Build the carried memory AFTER the hold decision so `confirmed` can encode
+        // "this reading is being displayed as fresh" (throttle bypass, accepted
+        // cold-start, sustained confirmation) — a confirmed memory keeps subsequent
+        // polls of the same window instance accepted without re-holding. `firstSeen`
+        // is preserved from the matched memory so the sequence ages across held polls.
+        var nearFull: [String: NearFullMemory] = [:]
+        if fiveHourNearFull {
+            let reset = fresh.fiveHourReset ?? Self.nearFullNoResetSentinel
+            nearFull[RateLimitUsage.fiveHourWindow] = NearFullMemory(
+                reset: reset,
+                firstSeen: matchedMemory(RateLimitUsage.fiveHourWindow, freshReset: fresh.fiveHourReset)?.firstSeen ?? now,
+                confirmed: !holdFiveHour
+            )
+        }
+        if sevenDayNearFull {
+            let reset = fresh.sevenDayReset ?? Self.nearFullNoResetSentinel
+            nearFull[RateLimitUsage.sevenDayWindow] = NearFullMemory(
+                reset: reset,
+                firstSeen: matchedMemory(RateLimitUsage.sevenDayWindow, freshReset: fresh.sevenDayReset)?.firstSeen ?? now,
+                confirmed: !holdSevenDay
+            )
+        }
 
         guard holdFiveHour || holdSevenDay else {
             return SpikeConfirmedRateLimits(display: fresh, nearFullWindows: nearFull, heldWindows: [])

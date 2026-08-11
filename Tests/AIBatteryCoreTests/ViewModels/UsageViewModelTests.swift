@@ -618,16 +618,31 @@ struct UsageViewModelTests {
     // MARK: - spikeConfirmedRateLimits (confirm-before-alarming on fresh readings)
 
     //
-    // Pins the fix for the RECURRENCE of the false "5-Hour limit reached" on wake: the
-    // server can return a transport-FRESH but wrong ~100% reading for a window right
-    // after wake (eventual consistency), which the freshness gate trusted. This filter
-    // holds an isolated near-full spike at the previous displayed value until a SECOND
-    // consecutive fresh poll confirms it. "rather show stale than a false used value."
+    // Pins the fix for the RECURRENCE of the false "limit reached" alarms: the server
+    // can return a transport-FRESH but wrong ~100% reading (eventual consistency after
+    // wake or around other discontinuities), which the freshness gate trusted. This
+    // filter holds a non-throttled near-full spike at the previous displayed value
+    // until the SAME window instance has stayed near-full for
+    // `spikeConfirmationMinimumAge` of consecutive fresh polls. Time-based, not
+    // poll-count-based: on 2026-08-11 a false 7-day 100% (account actually at 2%)
+    // spanned multiple polls and sailed through the old two-poll confirmation.
+    // "rather show stale than a false used value."
 
+    /// Fixed "now" so age arithmetic in these tests is deterministic.
+    private static let spikeNow = Date()
     /// Shared reference resets so memory entries and fresh readings refer to the same
     /// window instance unless a test deliberately shifts them.
-    private static let fiveHourResetRef = Date().addingTimeInterval(17_700)
-    private static let sevenDayResetRef = Date().addingTimeInterval(86_400)
+    private static let fiveHourResetRef = spikeNow.addingTimeInterval(17_700)
+    private static let sevenDayResetRef = spikeNow.addingTimeInterval(86_400)
+
+    /// Memory entry helper: a near-full sequence that started `age` seconds ago.
+    private static func nearFullMemory(
+        reset: Date, age: TimeInterval = 0, confirmed: Bool = false
+    ) -> UsageViewModel.NearFullMemory {
+        UsageViewModel.NearFullMemory(
+            reset: reset, firstSeen: spikeNow.addingTimeInterval(-age), confirmed: confirmed
+        )
+    }
 
     private static func makeWindows(
         fiveHourUtil: Double, fiveHourStatus: String = "allowed",
@@ -651,58 +666,127 @@ struct UsageViewModelTests {
 
     @Test func spikeConfirmed_isolatedSpike_heldAtPreviousValue() {
         // The exact wake bug: fresh 5h reads 100% but was 2% last poll and isn't yet
-        // confirmed. Show the previous 2%, not the spike. Record it as near-full (keyed
-        // by the window's reset) so a repeat next poll confirms.
+        // confirmed. Show the previous 2%, not the spike. Record it as an unconfirmed
+        // near-full sequence starting NOW (keyed by the window's reset) so persistence
+        // past the minimum age eventually confirms.
         let fresh = Self.makeWindows(fiveHourUtil: 1.0)
         let previous = Self.makeWindows(fiveHourUtil: 0.02)
         let result = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 0.02)
         #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
-        #expect(result.nearFullWindows == [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef])
+        #expect(result.nearFullWindows == [
+            RateLimitUsage.fiveHourWindow: Self.nearFullMemory(reset: Self.fiveHourResetRef),
+        ])
     }
 
-    @Test func spikeConfirmed_repeatedSpike_accepted() {
-        // Second consecutive fresh near-full poll on the SAME window instance (memory
-        // reset matches the fresh reset) — a genuine sustained limit. Trust it.
+    @Test func spikeConfirmed_repeatedSpikeWithinMinimumAge_staysHeld() {
+        // THE 2026-08-11 BUG: the server's eventual-consistency glitch returned a false
+        // 7-day ~100% (account actually at 2%) on MULTIPLE consecutive polls — the old
+        // "second consecutive poll confirms" rule accepted it and painted a false
+        // "Limit reached". Consecutiveness alone is not confirmation: an unconfirmed
+        // spike sequence younger than `spikeConfirmationMinimumAge` must STAY held,
+        // and the sequence's firstSeen must be preserved (not restarted) so it can
+        // still age into confirmation.
+        let fresh = Self.makeWindows(fiveHourUtil: 0.06, sevenDayUtil: 1.0, representativeClaim: "seven_day")
+        let previous = Self.makeWindows(fiveHourUtil: 0.02, sevenDayUtil: 0.02, representativeClaim: "seven_day")
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: [
+                RateLimitUsage.sevenDayWindow: Self.nearFullMemory(reset: Self.sevenDayResetRef, age: 90),
+            ],
+            now: Self.spikeNow
+        )
+        #expect(result.display.sevenDayUtilization == 0.02) // still held at previous real value
+        #expect(result.heldWindows == [RateLimitUsage.sevenDayWindow])
+        #expect(result.nearFullWindows == [
+            RateLimitUsage.sevenDayWindow: Self.nearFullMemory(reset: Self.sevenDayResetRef, age: 90),
+        ])
+    }
+
+    @Test func spikeConfirmed_spikePersistingPastMinimumAge_accepted() {
+        // A near-full sequence that has persisted past the minimum age on the same
+        // window instance is a genuine sustained limit — trust it, and mark the memory
+        // confirmed so later polls stay accepted without re-holding.
         let fresh = Self.makeWindows(fiveHourUtil: 1.0)
         let previous = Self.makeWindows(fiveHourUtil: 0.02)
         let result = UsageViewModel.spikeConfirmedRateLimits(
             fresh: fresh, previousDisplayed: previous,
-            previouslyNearFull: [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef]
+            previouslyNearFull: [
+                RateLimitUsage.fiveHourWindow: Self.nearFullMemory(
+                    reset: Self.fiveHourResetRef,
+                    age: UsageViewModel.spikeConfirmationMinimumAge + 1
+                ),
+            ],
+            now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 1.0)
         #expect(result.heldWindows.isEmpty)
+        #expect(result.nearFullWindows[RateLimitUsage.fiveHourWindow]?.confirmed == true)
+    }
+
+    @Test func spikeConfirmed_firstSeenPreservedAcrossHeldPolls_thenConfirms() {
+        // Chain of polls: t0 spike (held), t0+90s spike (held, firstSeen preserved),
+        // past minimum age (confirmed). The sequence start must survive every held
+        // poll or a persistent real limit could never age into confirmation.
+        let fresh = Self.makeWindows(fiveHourUtil: 1.0)
+        let previous = Self.makeWindows(fiveHourUtil: 0.02)
+        let t0 = Self.spikeNow
+        let first = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: t0
+        )
+        #expect(first.heldWindows == [RateLimitUsage.fiveHourWindow])
+        let second = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: first.nearFullWindows, now: t0.addingTimeInterval(90)
+        )
+        #expect(second.heldWindows == [RateLimitUsage.fiveHourWindow])
+        #expect(second.nearFullWindows[RateLimitUsage.fiveHourWindow]?.firstSeen == t0)
+        let third = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: second.nearFullWindows,
+            now: t0.addingTimeInterval(UsageViewModel.spikeConfirmationMinimumAge)
+        )
+        #expect(third.display.fiveHourUtilization == 1.0)
+        #expect(third.heldWindows.isEmpty)
     }
 
     @Test func spikeConfirmed_staleMemoryFromPreviousWindowInstance_doesNotConfirm() {
         // The near-full memory predates a window rollover (e.g. an endpoint outage
         // spanning the reset with no wake/unlock to clear it): its stored reset belongs
         // to the OLD window instance. A post-rollover fresh glitch must NOT be treated
-        // as a confirmed continuation — the old memory can't vouch for a new window.
+        // as a confirmed continuation — even an aged/confirmed old memory can't vouch
+        // for a new window.
         let fresh = Self.makeWindows(fiveHourUtil: 1.0)
         let previous = Self.makeWindows(fiveHourUtil: 0.04)
         let staleReset = Self.fiveHourResetRef.addingTimeInterval(-18_000) // previous window's reset
         let result = UsageViewModel.spikeConfirmedRateLimits(
             fresh: fresh, previousDisplayed: previous,
-            previouslyNearFull: [RateLimitUsage.fiveHourWindow: staleReset]
+            previouslyNearFull: [
+                RateLimitUsage.fiveHourWindow: Self.nearFullMemory(reset: staleReset, age: 7_200, confirmed: true),
+            ],
+            now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 0.04) // held, not confirmed
         #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
+        // The new window's sequence starts fresh — the old instance's firstSeen must not carry over.
+        #expect(result.nearFullWindows[RateLimitUsage.fiveHourWindow]?.firstSeen == Self.spikeNow)
     }
 
     @Test func spikeConfirmed_resetlessReadings_matchViaSentinel() {
-        // Some payloads carry no reset date. Two consecutive reset-less near-full
-        // readings must still confirm each other (sentinel-to-sentinel match).
+        // Some payloads carry no reset date. Consecutive reset-less near-full readings
+        // must still form one sequence (sentinel-to-sentinel match) and confirm once
+        // the sequence persists past the minimum age.
         let fresh = Self.makeWindows(fiveHourUtil: 1.0, fiveHourReset: nil)
         let previous = Self.makeWindows(fiveHourUtil: 0.02, fiveHourReset: nil)
         let first = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: Self.spikeNow
         )
         #expect(first.heldWindows == [RateLimitUsage.fiveHourWindow])
         let second = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: previous, previouslyNearFull: first.nearFullWindows
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: first.nearFullWindows,
+            now: Self.spikeNow.addingTimeInterval(UsageViewModel.spikeConfirmationMinimumAge)
         )
         #expect(second.display.fiveHourUtilization == 1.0)
         #expect(second.heldWindows.isEmpty)
@@ -715,12 +799,16 @@ struct UsageViewModelTests {
         let fresh = Self.makeWindows(fiveHourUtil: 1.0, fiveHourStatus: "throttled", overallStatus: "throttled")
         let previous = Self.makeWindows(fiveHourUtil: 0.02)
         let result = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 1.0)
         #expect(result.display.fiveHourStatus == "throttled")
         #expect(result.heldWindows.isEmpty)
-        #expect(result.nearFullWindows == [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef])
+        // An authoritative throttle is a CONFIRMED memory — the poll after the throttle
+        // clears must be accepted immediately regardless of the sequence's age.
+        #expect(result.nearFullWindows == [
+            RateLimitUsage.fiveHourWindow: Self.nearFullMemory(reset: Self.fiveHourResetRef, confirmed: true),
+        ])
     }
 
     @Test func spikeConfirmed_overallThrottleOnBindingWindow_bypassesHold() {
@@ -731,7 +819,7 @@ struct UsageViewModelTests {
         let fresh = Self.makeWindows(fiveHourUtil: 0.99, overallStatus: "throttled")
         let previous = Self.makeWindows(fiveHourUtil: 0.02)
         let result = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 0.99)
         #expect(result.display.overallStatus == "throttled")
@@ -747,7 +835,14 @@ struct UsageViewModelTests {
         let previous = Self.makeWindows(fiveHourUtil: 0.99, fiveHourStatus: "throttled", overallStatus: "throttled")
         let result = UsageViewModel.spikeConfirmedRateLimits(
             fresh: fresh, previousDisplayed: previous,
-            previouslyNearFull: [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef]
+            // The throttle poll recorded a CONFIRMED memory moments ago — its age is
+            // irrelevant, authority carries over to the just-cleared continuation.
+            previouslyNearFull: [
+                RateLimitUsage.fiveHourWindow: Self.nearFullMemory(
+                    reset: Self.fiveHourResetRef, age: 120, confirmed: true
+                ),
+            ],
+            now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 0.96)
         #expect(result.display.fiveHourStatus == "allowed")
@@ -762,7 +857,7 @@ struct UsageViewModelTests {
         let fresh = Self.makeWindows(fiveHourUtil: 1.0)
         let previous = Self.makeWindows(fiveHourUtil: 1.0, fiveHourStatus: "throttled", overallStatus: "throttled")
         let result = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: Self.spikeNow
         )
         #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
         #expect(result.display.fiveHourUtilization == 1.0) // previous real value kept
@@ -782,7 +877,10 @@ struct UsageViewModelTests {
         let previous = Self.makeWindows(fiveHourUtil: 0.02, sevenDayUtil: 0.99, sevenDayStatus: "throttled")
         let result = UsageViewModel.spikeConfirmedRateLimits(
             fresh: fresh, previousDisplayed: previous,
-            previouslyNearFull: [RateLimitUsage.sevenDayWindow: Self.sevenDayResetRef]
+            previouslyNearFull: [
+                RateLimitUsage.sevenDayWindow: Self.nearFullMemory(reset: Self.sevenDayResetRef, confirmed: true),
+            ],
+            now: Self.spikeNow
         )
         #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
         #expect(result.display.fiveHourUtilization == 0.02) // held
@@ -797,7 +895,7 @@ struct UsageViewModelTests {
         let fresh = Self.makeWindows(fiveHourUtil: 1.0)
         let previous = Self.makeWindows(fiveHourUtil: 1.0)
         let result = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 1.0)
     }
@@ -809,11 +907,15 @@ struct UsageViewModelTests {
         // the write-back). Show the real value; the alarm is gated separately.
         let fresh = Self.makeWindows(fiveHourUtil: 1.0)
         let result = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: nil, previouslyNearFull: [:]
+            fresh: fresh, previousDisplayed: nil, previouslyNearFull: [:], now: Self.spikeNow
         )
         #expect(result.display == fresh)
         #expect(result.heldWindows.isEmpty)
-        #expect(result.nearFullWindows == [RateLimitUsage.fiveHourWindow: Self.fiveHourResetRef])
+        // The accepted cold-start reading is CONFIRMED memory: it is being displayed as
+        // fresh, so subsequent polls of the same window instance must not re-hold it.
+        #expect(result.nearFullWindows == [
+            RateLimitUsage.fiveHourWindow: Self.nearFullMemory(reset: Self.fiveHourResetRef, confirmed: true),
+        ])
     }
 
     @Test func spikeConfirmed_perWindowIndependent() {
@@ -823,18 +925,28 @@ struct UsageViewModelTests {
         let previous = Self.makeWindows(fiveHourUtil: 0.02, sevenDayUtil: 0.99)
         let result = UsageViewModel.spikeConfirmedRateLimits(
             fresh: fresh, previousDisplayed: previous,
-            previouslyNearFull: [RateLimitUsage.sevenDayWindow: Self.sevenDayResetRef]
+            previouslyNearFull: [
+                RateLimitUsage.sevenDayWindow: Self.nearFullMemory(reset: Self.sevenDayResetRef, confirmed: true),
+            ],
+            now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 0.02) // held
         #expect(result.display.sevenDayUtilization == 1.0) // confirmed
         #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
     }
 
-    @Test func spikeConfirmed_lowReading_passesThrough() {
+    @Test func spikeConfirmed_lowReading_passesThroughAndClearsMemory() {
+        // A low reading always passes through, and it ENDS any tracked near-full
+        // sequence — the next spike starts a new sequence with a new firstSeen (a dip
+        // proves the previous spike was not a sustained limit).
         let fresh = Self.makeWindows(fiveHourUtil: 0.30)
         let previous = Self.makeWindows(fiveHourUtil: 0.25)
         let result = UsageViewModel.spikeConfirmedRateLimits(
-            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:]
+            fresh: fresh, previousDisplayed: previous,
+            previouslyNearFull: [
+                RateLimitUsage.fiveHourWindow: Self.nearFullMemory(reset: Self.fiveHourResetRef, age: 300),
+            ],
+            now: Self.spikeNow
         )
         #expect(result.display.fiveHourUtilization == 0.30)
         #expect(result.heldWindows.isEmpty)
