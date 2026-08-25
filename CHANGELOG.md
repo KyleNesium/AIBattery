@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.6.1] — 2026-08-11
+## [2.6.1] — 2026-08-25
 
 Fixes another false "Limit reached" variant and ships a security fix in the
 auto-updater itself.
@@ -27,11 +27,15 @@ auto-updater itself.
   and no modal — ever exists in the test process.
 
 ### Security
-- **Sparkle 2.9.4 → 2.9.5** — patch-level update within the existing
-  `"2.6.0"..<"3.0.0"` declared range. Hardens delta-file patching against a
-  symbolic link at the destination path — upstream's complete fix for the
-  symlink issue that 2.9.2 only partially addressed
-  (sparkle-project/Sparkle#2891).
+- **Sparkle 2.9.4 → 2.9.6** — patch-level updates within the existing
+  `"2.6.0"..<"3.0.0"` declared range, picking up two upstream security
+  releases: 2.9.5 hardens delta-file patching against a symbolic link at the
+  destination path (the complete fix for the symlink issue 2.9.2 only
+  partially addressed, sparkle-project/Sparkle#2891); 2.9.6 hardens the
+  installer's handling of the downloaded archive, fixes a privilege
+  escalation affecting Sparkle processes running as root, and rejects
+  package-based installs when signing validation fails
+  (sparkle-project/Sparkle#2895, #2897, #2898).
 
 ### Tooling
 - **GitHub Actions bumped** across `ci.yml`, `lint.yml`, and `release.yml`
