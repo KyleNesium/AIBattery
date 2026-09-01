@@ -27,7 +27,9 @@ extension RateLimitFetcher {
         cachedProfile: APIProfile?,
         callerStandardLimits: StandardRateLimits?
     ) -> APIFetchResult? {
-        if statusCode == 401 || statusCode == 403 { return nil }
+        if statusCode == 401 || statusCode == 403 {
+            return nil
+        }
         guard (200..<300).contains(statusCode) || statusCode == 429 else { return nil }
 
         let headerRL = RateLimitUsage.parse(headers: headers)

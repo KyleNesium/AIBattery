@@ -122,7 +122,9 @@ extension UsageViewModel {
             fetchedAccountId: accountId,
             activeAccountId: OAuthManager.shared.accountStore.activeAccountId
         ) else { return }
-        if result != snapshot { snapshot = result }
+        if result != snapshot {
+            snapshot = result
+        }
         isShowingCachedData = true
         rateLimitsFresh = false
     }
@@ -157,7 +159,9 @@ extension UsageViewModel {
         let wasSuspended = isSuspended
         resumeTimers()
         Task {
-            if wasSuspended { await repaintCachedNotFresh() }
+            if wasSuspended {
+                await repaintCachedNotFresh()
+            }
             await refresh(skipNetworkCheck: true)
         }
     }

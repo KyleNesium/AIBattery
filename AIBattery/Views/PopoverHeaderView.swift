@@ -253,7 +253,9 @@ struct PopoverHeaderView: View {
 
     /// Label for an account: display name if set, otherwise "User N".
     private func accountLabel(_ account: AccountRecord, index: Int) -> String {
-        if let name = account.displayName, !name.isEmpty { return name }
+        if let name = account.displayName, !name.isEmpty {
+            return name
+        }
         return "User \(index + 1)"
     }
 }

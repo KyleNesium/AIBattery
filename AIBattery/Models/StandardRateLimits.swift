@@ -48,7 +48,9 @@ struct StandardRateLimits: Equatable, Codable {
 
         func intHeader(_ keys: String...) -> Int? {
             for key in keys {
-                if let val = normalized[key.lowercased()], let n = Int(val) { return n }
+                if let val = normalized[key.lowercased()], let n = Int(val) {
+                    return n
+                }
             }
             return nil
         }
@@ -59,11 +61,17 @@ struct StandardRateLimits: Equatable, Codable {
                 // ISO 8601 timestamps
                 let iso = ISO8601DateFormatter()
                 iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let date = iso.date(from: val) { return date }
+                if let date = iso.date(from: val) {
+                    return date
+                }
                 iso.formatOptions = [.withInternetDateTime]
-                if let date = iso.date(from: val) { return date }
+                if let date = iso.date(from: val) {
+                    return date
+                }
                 // Unix timestamps
-                if let ts = TimeInterval(val) { return Date(timeIntervalSince1970: ts) }
+                if let ts = TimeInterval(val) {
+                    return Date(timeIntervalSince1970: ts)
+                }
             }
             return nil
         }

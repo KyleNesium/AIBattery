@@ -101,10 +101,14 @@ enum MultiAccountFanOut {
         guard enabled else { return nil }
 
         let idsToFetch = provider.multiAccountDisplayIDs().filter { $0 != seed?.accountId }
-        if idsToFetch.isEmpty, seed == nil { return nil }
+        if idsToFetch.isEmpty, seed == nil {
+            return nil
+        }
 
         var collected: [String: RateLimitUsage] = [:]
-        if let seed { collected[seed.accountId] = seed.rateLimits }
+        if let seed {
+            collected[seed.accountId] = seed.rateLimits
+        }
 
         if !idsToFetch.isEmpty {
             let fetched = await withTaskGroup(of: (String, RateLimitUsage?).self) { group -> [String: RateLimitUsage] in
@@ -125,7 +129,9 @@ enum MultiAccountFanOut {
                 }
                 var inner: [String: RateLimitUsage] = [:]
                 for await (id, limits) in group {
-                    if let limits { inner[id] = limits }
+                    if let limits {
+                        inner[id] = limits
+                    }
                 }
                 return inner
             }

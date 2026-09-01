@@ -30,7 +30,9 @@ struct RateLimitUsage: Equatable, Codable {
         representativeClaim: String,
         window: String
     ) -> String {
-        if let explicitStatus { return explicitStatus }
+        if let explicitStatus {
+            return explicitStatus
+        }
         guard overallStatus == "throttled" else { return overallStatus }
         return representativeClaim == window ? "throttled" : "allowed"
     }
@@ -337,7 +339,9 @@ struct RateLimitUsage: Equatable, Codable {
         }
 
         func string(_ value: Any?) -> String? {
-            if let value = value as? String, !value.isEmpty { return value }
+            if let value = value as? String, !value.isEmpty {
+                return value
+            }
             return nil
         }
 
@@ -354,17 +358,25 @@ struct RateLimitUsage: Equatable, Codable {
                 }
                 let iso = ISO8601DateFormatter()
                 iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let date = iso.date(from: text) { return date }
+                if let date = iso.date(from: text) {
+                    return date
+                }
                 iso.formatOptions = [.withInternetDateTime]
-                if let date = iso.date(from: text) { return date }
+                if let date = iso.date(from: text) {
+                    return date
+                }
             }
             return nil
         }
 
         func parseUtilization(_ value: Any?) -> Double? {
             let raw: Double? = {
-                if let number = value as? NSNumber { return number.doubleValue }
-                if let text = value as? String { return Double(text) }
+                if let number = value as? NSNumber {
+                    return number.doubleValue
+                }
+                if let text = value as? String {
+                    return Double(text)
+                }
                 return nil
             }()
             guard let raw else { return nil }
@@ -381,7 +393,9 @@ struct RateLimitUsage: Equatable, Codable {
 
         func firstValue(in json: Any, paths: [[String]]) -> Any? {
             for path in paths {
-                if let value = lookup(in: json, path: path) { return value }
+                if let value = lookup(in: json, path: path) {
+                    return value
+                }
             }
             return nil
         }

@@ -99,8 +99,12 @@ struct UsageBar: View {
 
     private var headerTooltip: String {
         var parts = ["\(label) rate limit: \(Int(displayPercent))% used"]
-        if isBinding { parts.append("This window is the binding constraint") }
-        if alarm.throttled { parts.append("Currently rate limited") }
+        if isBinding {
+            parts.append("This window is the binding constraint")
+        }
+        if alarm.throttled {
+            parts.append("Currently rate limited")
+        }
         if let reset = resetsAt {
             let diff = reset.timeIntervalSinceNow
             if diff > 0 {

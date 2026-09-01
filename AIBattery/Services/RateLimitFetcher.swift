@@ -248,7 +248,9 @@ final class RateLimitFetcher {
     /// throttle; if they say "allowed" with low utilization, the 429 is from another
     /// source and we must not pretend the user hit their quota.
     nonisolated static func quotaThrottleLikely(_ rl: RateLimitUsage) -> Bool {
-        if rl.isThrottled { return true }
+        if rl.isThrottled {
+            return true
+        }
         let bindingUtilization = rl.representativeClaim == RateLimitUsage.sevenDayWindow
             ? rl.sevenDayUtilization
             : rl.fiveHourUtilization

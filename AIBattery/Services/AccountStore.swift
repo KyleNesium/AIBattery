@@ -80,8 +80,12 @@ public final class AccountStore: ObservableObject {
             let existing = accounts[existingIndex]
             var merged = newRecord
             merged.addedAt = min(existing.addedAt, newRecord.addedAt)
-            if merged.displayName == nil { merged.displayName = existing.displayName }
-            if merged.billingType == nil { merged.billingType = existing.billingType }
+            if merged.displayName == nil {
+                merged.displayName = existing.displayName
+            }
+            if merged.billingType == nil {
+                merged.billingType = existing.billingType
+            }
 
             AppLogger.oauth.info("Merging duplicate account \(oldId, privacy: .public) → \(newRecord.id, privacy: .public)")
 

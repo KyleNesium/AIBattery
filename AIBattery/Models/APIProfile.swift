@@ -80,7 +80,9 @@ struct APIProfile {
 
         func firstValue(in json: Any, paths: [[String]]) -> String? {
             for path in paths {
-                if let value = string(lookup(in: json, path: path)) { return value }
+                if let value = string(lookup(in: json, path: path)) {
+                    return value
+                }
             }
             return nil
         }

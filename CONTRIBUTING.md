@@ -42,12 +42,12 @@ This keeps documentation accurate and makes it easy for others to understand the
 
 ## Code Style
 
-- Zero external dependencies — Apple frameworks only
+- One external dependency: Sparkle 2.x (auto-updates); otherwise Apple frameworks only
 - One primary type per file, filename matches type name
 - Services use `static let shared` singleton pattern
 - Models are plain `Codable` structs
 - Views take data via init parameters (not `@EnvironmentObject`)
-- `UsageViewModel` is the only `ObservableObject`
+- `ObservableObject`s are `UsageViewModel`, `AccountStore`, and `OAuthManager` (all `@MainActor`)
 - Use `TokenFormatter` for all numeric display
 - Use `ModelNameMapper` for model ID → display name
 - 4-space indentation (see `.editorconfig`)
@@ -69,7 +69,7 @@ swift test
 open .build/AIBattery.app
 ```
 
-All tests must pass before opening a PR. CI runs on every push and PR — see `.github/workflows/ci.yml`.
+All tests must pass before opening a PR. CI runs on push to `main` and once when a PR leaves draft (`ready_for_review`) — not on every PR push; use `workflow_dispatch` to force a re-run. See `.github/workflows/ci.yml`.
 
 ## Pull Requests
 

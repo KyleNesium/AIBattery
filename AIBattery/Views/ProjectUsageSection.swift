@@ -121,7 +121,9 @@ struct ProjectUsageSection: View {
                 Button(action: {
                     withAnimation(MotionConstants.standard) {
                         showAll.toggle()
-                        if !showAll { searchText = "" }
+                        if !showAll {
+                            searchText = ""
+                        }
                     }
                 }) {
                     Text(showAll ? "Show less" : "Show more")

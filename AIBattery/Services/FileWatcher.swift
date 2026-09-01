@@ -188,8 +188,12 @@ final class FileWatcher {
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, !self.isStopped else { return }
-                if invalidateSessionLog { SessionLogReader.shared.invalidate() }
-                if invalidateStatsCache { StatsCacheReader.shared.invalidate() }
+                if invalidateSessionLog {
+                    SessionLogReader.shared.invalidate()
+                }
+                if invalidateStatsCache {
+                    StatsCacheReader.shared.invalidate()
+                }
                 self.onChange()
             }
         }
@@ -199,7 +203,9 @@ final class FileWatcher {
 
     deinit {
         debounceWorkItem?.cancel()
-        if let source = fileSource { source.cancel() }
+        if let source = fileSource {
+            source.cancel()
+        }
         if let stream = fsEventStream {
             FSEventStreamStop(stream)
             FSEventStreamInvalidate(stream)

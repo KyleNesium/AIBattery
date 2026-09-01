@@ -17,14 +17,18 @@ struct AlertSettingsSection: View {
                 .font(Typography.caption)
                 .help("Notify on Claude.ai outages and incidents")
                 .onChange(of: alertStatus) { on in
-                    if on { NotificationManager.shared.requestPermission() }
+                    if on {
+                        NotificationManager.shared.requestPermission()
+                    }
                 }
             Toggle("Rate Limit", isOn: $alertRateLimit)
                 .toggleStyle(.checkbox)
                 .font(Typography.caption)
                 .help("Notify when usage exceeds threshold")
                 .onChange(of: alertRateLimit) { on in
-                    if on { NotificationManager.shared.requestPermission() }
+                    if on {
+                        NotificationManager.shared.requestPermission()
+                    }
                 }
             if alertStatus {
                 LinkActionButton(

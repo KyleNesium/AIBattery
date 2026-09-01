@@ -78,17 +78,20 @@ public final class UsageViewModel: ObservableObject {
     /// during ACTIVE use — the opposite of the adaptive design (activity = fast polls).
     private var localDataChangedSinceLastPoll = false
 
-    /// Windows that reported near-full utilization on the PREVIOUS fresh poll, keyed by
-    /// that reading's reset instant (see `spikeConfirmedRateLimits`). A fresh near-full
-    /// reading is trusted (shown as "Limit reached") only once the SAME window instance
-    /// (matching reset) has been near-full on two consecutive fresh polls; an isolated
-    /// spike (server eventual-consistency after wake) is held at the previous value.
+    /// Per-window memory of the current consecutive near-full spike sequence (reset
+    /// instant + when it started + whether it's confirmed — see
+    /// `spikeConfirmedRateLimits`). A fresh, non-throttled near-full reading is trusted
+    /// (shown as "Limit reached") only once the SAME window instance (matching reset)
+    /// has stayed near-full for `spikeConfirmationMinimumAge` of consecutive fresh
+    /// polls; until then the spike is held at the previous displayed value. Time-based
+    /// (not poll-count-based) because the server's eventual-consistency glitch can span
+    /// several polls (2026-08-11: a false 7-day 100% survived two-poll confirmation).
     /// Reset-keying means a memory from before a rollover can't confirm the new window
     /// even when no lifecycle event fired (e.g. an endpoint outage spanning the reset).
     /// Also cleared on any return-from-absence (`resumeTimers`) and account switch so a
     /// pre-absence near-full can't auto-confirm a post-absence glitch.
     /// Internal (not private) so the lifecycle extension's `resumeTimers` can clear it.
-    var previouslyNearFullWindows: [String: Date] = [:]
+    var previouslyNearFullWindows: [String: UsageViewModel.NearFullMemory] = [:]
 
     /// How long stale rate limits are carried forward before expiring (seconds).
     /// 5 minutes handles transient network failures (1-2 poll cycles) without
@@ -236,7 +239,9 @@ public final class UsageViewModel: ObservableObject {
         guard oauthManager.isAuthenticated else {
             rateLimitsFresh = false
             let result = await aggregateOffMain(rateLimits: nil, rateLimitsFresh: false)
-            if result.totalMessages > 0, result != snapshot { snapshot = result }
+            if result.totalMessages > 0, result != snapshot {
+                snapshot = result
+            }
             isLoading = false
             return
         }
@@ -255,7 +260,9 @@ public final class UsageViewModel: ObservableObject {
                 standardLimits: snapshot?.standardLimits,
                 rateLimitsFresh: false
             )
-            if result != snapshot { snapshot = result }
+            if result != snapshot {
+                snapshot = result
+            }
             isLoading = false
             errorMessage = "No internet connection"
             return
@@ -305,7 +312,9 @@ public final class UsageViewModel: ObservableObject {
         // cache-served. A header-less-but-successful fetch reuses held stale limits
         // (see effectiveRateLimits below) — those must not arm the alarm / maxed bar.
         rateLimitsFresh = Self.rateLimitsAreFresh(freshRateLimits: api.rateLimits, isCached: api.isCached)
-        if !api.isCached { lastFreshFetch = api.fetchedAt }
+        if !api.isCached {
+            lastFreshFetch = api.fetchedAt
+        }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
         Self.recordThrottleEvent(api.rateLimits, source: api.isCached ? "stale-cache" : "api-fresh")
@@ -538,7 +547,9 @@ public final class UsageViewModel: ObservableObject {
         ) {
             localDataChangedSinceLastPoll = true
         }
-        if result != snapshot { snapshot = result }
+        if result != snapshot {
+            snapshot = result
+        }
         scheduleRolloverClear(for: result)
         // Auto mode may need to escalate/de-escalate on the new local data (context
         // health and token totals both move with JSONL writes).
@@ -551,7 +562,9 @@ public final class UsageViewModel: ObservableObject {
         // Value-changed guard: this path runs every ~2s during active sessions, and an
         // unguarded @Published write fires objectWillChange even for the same value —
         // exactly the hidden-popover re-render churn the FS-local path exists to avoid.
-        if filtered != resolvedMetricMode { resolvedMetricMode = filtered }
+        if filtered != resolvedMetricMode {
+            resolvedMetricMode = filtered
+        }
     }
 
     /// Arm a one-shot timer for the next window reset so the display rolls over the
@@ -587,7 +600,9 @@ public final class UsageViewModel: ObservableObject {
             totalMessages: result.totalMessages,
             authError: api.authError
         )
-        if result != snapshot { snapshot = result }
+        if result != snapshot {
+            snapshot = result
+        }
         scheduleRolloverClear(for: result)
 
         // Apply hysteresis to auto-resolved mode
@@ -598,7 +613,9 @@ public final class UsageViewModel: ObservableObject {
             snapshot: result
         )
         lastResolvedMode = filtered
-        if filtered != resolvedMetricMode { resolvedMetricMode = filtered }
+        if filtered != resolvedMetricMode {
+            resolvedMetricMode = filtered
+        }
 
         isLoading = false
     }
@@ -718,7 +735,9 @@ public final class UsageViewModel: ObservableObject {
     deinit {
         pollingTimer?.invalidate()
         rolloverClearTimer?.invalidate()
-        if let monitor = activityMonitor { NSEvent.removeMonitor(monitor) }
+        if let monitor = activityMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
         // FileWatcher.deinit handles its own cleanup (cancels sources, streams, timers)
         for observer in [wakeObserver, sleepObserver, lockObserver, unlockObserver].compactMap({ $0 }) {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)

@@ -312,7 +312,9 @@ final class SessionLogReader: @unchecked Sendable {
             // replacing "/" with "-". Decode back to a path and check if any component
             // starts with "." (hidden directory).
             let decodedPath = "/" + dir.lastPathComponent.dropFirst().replacingOccurrences(of: "-", with: "/")
-            if decodedPath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) { continue }
+            if decodedPath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) {
+                continue
+            }
 
             let dirPath = dir.path
             currentDirPaths.insert(dirPath)
@@ -321,7 +323,9 @@ final class SessionLogReader: @unchecked Sendable {
             let dirModDate: Date?
             if let attrs = try? fm.attributesOfItem(atPath: dirPath) {
                 dirModDate = attrs[.modificationDate] as? Date
-                if let md = dirModDate { newDirModDates[dirPath] = md }
+                if let md = dirModDate {
+                    newDirModDates[dirPath] = md
+                }
             } else {
                 dirModDate = nil
             }
@@ -366,7 +370,9 @@ final class SessionLogReader: @unchecked Sendable {
 
         discoveredFiles = jsonlFiles
         discoveryDirModDates = newDirModDates
-        if forceFullEnum { lastFullEnumerationDate = Date() }
+        if forceFullEnum {
+            lastFullEnumerationDate = Date()
+        }
         return jsonlFiles
     }
 
@@ -378,7 +384,9 @@ final class SessionLogReader: @unchecked Sendable {
                   let currentDate = attrs[.modificationDate] as? Date else {
                 return true // Can't stat → assume changed
             }
-            if currentDate != cachedDate { return true }
+            if currentDate != cachedDate {
+                return true
+            }
         }
         return false
     }

@@ -8,7 +8,9 @@ enum ModelNameMapper {
 
     static func displayName(for modelId: String) -> String {
         lock.withLock {
-            if let cached = cache[modelId] { return cached }
+            if let cached = cache[modelId] {
+                return cached
+            }
             let result = computeDisplayName(for: modelId)
             cache[modelId] = result
             return result
@@ -60,8 +62,12 @@ enum ModelNameMapper {
             let familyName = familyParts.map { String($0.prefix(1)).uppercased() + $0.dropFirst() }.joined(separator: " ")
             let version = versionParts.joined(separator: ".")
 
-            if familyName.isEmpty { return version.isEmpty ? modelId : version }
-            if version.isEmpty { return familyName }
+            if familyName.isEmpty {
+                return version.isEmpty ? modelId : version
+            }
+            if version.isEmpty {
+                return familyName
+            }
             return "\(familyName) \(version)"
         }
 

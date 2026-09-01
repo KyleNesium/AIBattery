@@ -161,12 +161,16 @@ extension InsightsView {
         }
         if value >= 1_000_000 {
             let m = Double(value) / 1_000_000
-            if m >= 999.5 { return "1.0B" }
+            if m >= 999.5 {
+                return "1.0B"
+            }
             return m == m.rounded() ? "\(Int(m))M" : String(format: "%.1fM", m)
         }
         if value >= 1_000 {
             let k = Double(value) / 1_000
-            if k >= 999.5 { return "1.0M" }
+            if k >= 999.5 {
+                return "1.0M"
+            }
             return k == k.rounded() ? "\(Int(k))K" : String(format: "%.0fK", k)
         }
         return "\(value)"

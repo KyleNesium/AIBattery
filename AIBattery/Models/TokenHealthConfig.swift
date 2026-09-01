@@ -78,10 +78,14 @@ struct TokenHealthConfig {
 
     static func contextWindow(for model: String) -> Int {
         // Try exact match first (O(1) dictionary lookup)
-        if let window = contextWindows[model] { return window }
+        if let window = contextWindows[model] {
+            return window
+        }
         // Try prefix match via pre-computed lookup (no string allocations per key)
         let modelPrefix = model.split(separator: "-").prefix(3).joined(separator: "-")
-        if let window = prefixLookup[modelPrefix] { return window }
+        if let window = prefixLookup[modelPrefix] {
+            return window
+        }
         return defaultContextWindow
     }
 }

@@ -74,10 +74,16 @@ enum ActivityTrendComputation {
 
     static func copyText(_ data: ActivityTrendData) -> String {
         var lines: [String] = []
-        if let change = data.change { lines.append("\(change.symbol) \(change.label)") }
-        if let stat = data.stat { lines.append(stat) }
+        if let change = data.change {
+            lines.append("\(change.symbol) \(change.label)")
+        }
+        if let stat = data.stat {
+            lines.append(stat)
+        }
         lines.append("Throttled: \(data.throttleCount > 0 ? "\(data.throttleCount)×" : "0")")
-        if let peak = data.peak { lines.append(peak) }
+        if let peak = data.peak {
+            lines.append(peak)
+        }
         return lines.joined(separator: " · ")
     }
 

@@ -1,6 +1,6 @@
 # AI Battery — AI Agent Guide
 
-macOS menu bar app showing Claude API usage at a glance. Built with Swift/SwiftUI, SPM, macOS 13+.
+macOS menu bar app showing Claude API usage at a glance. Built with Swift 6 / SwiftUI, SPM, macOS 13+.
 
 ## Spec-Driven Workflow
 
@@ -23,37 +23,41 @@ The `spec/` folder is the single source of truth.
 ```bash
 swift build -c release
 
-# Bundle and launch
+# Quick bundle for local smoke-testing — no codesign, no Sparkle.framework
 mkdir -p .build/AIBattery.app/Contents/MacOS
 cp .build/release/AIBattery .build/AIBattery.app/Contents/MacOS/
 cp AIBattery/Info.plist .build/AIBattery.app/Contents/
 open .build/AIBattery.app
+
+# Full signed bundle (what CI/release actually ships): entitlements,
+# Sparkle.framework, codesign, zip + dmg
+./scripts/build-app.sh
 ```
 
 ## Testing
 
 ```bash
-# Run all tests (requires Xcode installed for Swift Testing framework)
+# Run all tests (requires Xcode for the Swift Testing framework)
 swift test
 ```
 
-Tests use Swift's `Testing` framework with `@testable import AIBatteryCore`.
+1116 tests across 72 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
-- **AIBatteryCore** (`.target`) — all logic: models, services, views, utilities
-- **AIBattery** (`.executableTarget`) — thin `@main` entry point, imports AIBatteryCore
+- **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities
+- **AIBattery** (`.executableTarget`, path `AIBatteryApp/`) — thin `@main` entry point, imports AIBatteryCore
 - **AIBatteryCoreTests** (`.testTarget`) — unit tests, `@testable import AIBatteryCore`
 
-CI runs on every push via GitHub Actions (`macos-15` runner): build → test → bundle.
+CI (`macos-15`): build → test → verify signed bundle. Runs on push to `main`, and once when a PR leaves draft — **not** on later pushes to that PR (force a re-run via `workflow_dispatch`). A separate Lint job (SwiftLint + SwiftFormat) runs on every PR push touching `.swift`/lint-config files; run `swiftformat AIBattery/ AIBatteryApp/ Tests/` and `swiftlint` locally before pushing to avoid a red check.
 
 ## Code Conventions
 
 - **Singletons**: Services use `static let shared`
 - **Models**: Plain structs, `Codable` where needed
 - **Views**: Data via init params — no `EnvironmentObject`
-- **State**: `UsageViewModel` is the only `ObservableObject` (`@MainActor`)
+- **State**: Three `@MainActor` `ObservableObject`s — `UsageViewModel`, `AccountStore`, `OAuthManager` — injected via `@ObservedObject`
 - **Formatting**: `TokenFormatter` for numbers, `ModelNameMapper` for model IDs
-- **Dependencies**: Sparkle 2 for auto-update + Apple frameworks
+- **Dependencies**: Sparkle 2 for auto-update + Apple frameworks only
 - **File naming**: One primary type per file, filename matches type name
 
 ## Key Design Decisions
@@ -67,10 +71,9 @@ These aren't obvious from reading the code — know them before making changes:
 - `OAuthManager.exchangeCode()` returns `Result<Void, AuthError>` — callers handle typed errors. Validates state parameter for CSRF protection.
 - `APIFetchResult.isCached` distinguishes fresh API data from stale cache — always check before treating as fresh. The `RateLimitFetcher` cache never expires (stale data beats empty bars); individual rate-limit windows are cleared at their own reset via `withClearedExpiredWindows`.
 - OAuth refresh: transient errors (network + server 5xx) keep `isAuthenticated` true (retry next cycle); only auth errors trigger logout. Token endpoint retries 5xx up to 2 times with backoff. Token refresh fires 5 min before expiry to avoid clock-skew 401s. Concurrent refresh attempts are serialized via a shared task.
-- StatusChecker backs off 60s after failures — no immediate retries
+- StatusChecker backs off exponentially after failures (60s → 120s → 240s, capped at 5 min, ±20% jitter) — no immediate retries
 - SessionLogReader per-file cache stores fingerprints only (modDate + fileSize); raw entry arrays released after merge into cachedAllEntries. On dirty cycle, only changed files re-parsed — eliminates double-storage. Trailing JSONL lines without closing `}` are skipped; leftover buffer capped at 1MB (oversized lines discarded)
 - NotificationManager fires once per outage via `UNUserNotificationCenter`, deduplicates per component, resets on recovery
-- `~/.claude.json` oauthAccount may not match the OAuth token's org if user switched accounts
 
 ## Security
 
@@ -79,5 +82,6 @@ These aren't obvious from reading the code — know them before making changes:
 - JSONL reads are token-count-only — never parse, store, or display message content
 - Notifications use `UNUserNotificationCenter` — no shell process or string escaping needed
 - PKCE (SHA-256) protects the OAuth code exchange — the verifier never leaves the process
-- App bundle is ad-hoc codesigned with hardened runtime — gives Keychain a stable identity for ACL whitelisting
+- `SecureNetworking` uses an ephemeral `URLSession` (no disk cache/cookies) and caps responses at 2MB, discarding anything larger
+- App bundle is codesigned with hardened runtime — ad-hoc locally, Developer ID + notarization in CI release builds — giving Keychain a stable identity for ACL whitelisting
 - All network requests use HTTPS with system certificate validation — no custom trust or pinning overrides

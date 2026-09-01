@@ -28,9 +28,15 @@ struct ThrottleTracker {
     static func parseTimestamps(_ raw: [Any]?) -> [Double] {
         guard let raw else { return [] }
         return raw.compactMap { element in
-            if let d = element as? Double { return d }
-            if let s = element as? String { return Double(s) }
-            if let i = element as? Int { return Double(i) }
+            if let d = element as? Double {
+                return d
+            }
+            if let s = element as? String {
+                return Double(s)
+            }
+            if let i = element as? Int {
+                return Double(i)
+            }
             return nil
         }
     }

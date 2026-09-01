@@ -126,7 +126,9 @@ enum ThemeColors {
 
     /// Color for the "caution" semantic (idle badges, staleness, warnings).
     static var caution: Color {
-        if isColorblind { return amber }
+        if isColorblind {
+            return amber
+        }
         return deepOrange
     }
 

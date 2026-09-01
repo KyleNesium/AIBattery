@@ -50,8 +50,12 @@ enum SessionInfoFormatter {
     /// Full session detail string for tooltip hover.
     static func detailTooltip(for health: TokenHealthStatus) -> String {
         var parts: [String] = []
-        if !health.id.isEmpty { parts.append("Session: \(health.id)") }
-        if !health.model.isEmpty { parts.append("Model: \(ModelNameMapper.displayName(for: health.model))") }
+        if !health.id.isEmpty {
+            parts.append("Session: \(health.id)")
+        }
+        if !health.model.isEmpty {
+            parts.append("Model: \(ModelNameMapper.displayName(for: health.model))")
+        }
         parts.append("Context: \(TokenFormatter.format(health.totalUsed))/\(TokenFormatter.format(health.usableWindow))")
         parts.append("Input: \(TokenFormatter.format(health.inputTokens)) · Output: \(TokenFormatter.format(health.outputTokens))")
         if health.cacheReadTokens > 0 || health.cacheWriteTokens > 0 {
@@ -73,17 +77,27 @@ enum SessionInfoFormatter {
         var lines: [String] = []
         lines.append("Context Health")
         lines.append("─────────────")
-        if !health.id.isEmpty { lines.append("Session:  \(health.id)") }
-        if !health.model.isEmpty { lines.append("Model:    \(ModelNameMapper.displayName(for: health.model))") }
-        if let name = health.projectName { lines.append("Project:  \(name)") }
+        if !health.id.isEmpty {
+            lines.append("Session:  \(health.id)")
+        }
+        if !health.model.isEmpty {
+            lines.append("Model:    \(ModelNameMapper.displayName(for: health.model))")
+        }
+        if let name = health.projectName {
+            lines.append("Project:  \(name)")
+        }
         if let branch = health.gitBranch, branch != "HEAD", !branch.isEmpty {
             lines.append("Branch:   \(branch)")
         }
         lines.append("Context:  \(health.totalUsed)/\(health.usableWindow) (\(Int(health.usagePercentage))%)")
         lines.append("Input:    \(health.inputTokens)")
         lines.append("Output:   \(health.outputTokens)")
-        if health.cacheReadTokens > 0 { lines.append("Cache R:  \(health.cacheReadTokens)") }
-        if health.cacheWriteTokens > 0 { lines.append("Cache W:  \(health.cacheWriteTokens)") }
+        if health.cacheReadTokens > 0 {
+            lines.append("Cache R:  \(health.cacheReadTokens)")
+        }
+        if health.cacheWriteTokens > 0 {
+            lines.append("Cache W:  \(health.cacheWriteTokens)")
+        }
         lines.append("Turns:    \(health.turnCount)")
         if let duration = health.sessionDuration {
             lines.append("Duration: \(DurationFormatter.compact(duration))")
@@ -128,8 +142,12 @@ enum SessionInfoFormatter {
 
     static func formatSessionTime(_ date: Date, now: Date = Date()) -> String {
         let elapsed = now.timeIntervalSince(date)
-        if elapsed < 60 { return "just now" }
-        if elapsed < 3_600 { return "\(Int(elapsed / 60))m ago" }
+        if elapsed < 60 {
+            return "just now"
+        }
+        if elapsed < 3_600 {
+            return "\(Int(elapsed / 60))m ago"
+        }
         let time = timeFormatter.string(from: date)
 
         if calendar.isDate(date, inSameDayAs: now) {

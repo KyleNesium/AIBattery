@@ -42,7 +42,9 @@ final class TokenHealthMonitor: Sendable {
             } else {
                 // Stop scanning once we hit a different session far enough back
                 // (current session entries tend to be clustered near the end)
-                if entries[i].timestamp < cutoff.addingTimeInterval(-3_600) { break }
+                if entries[i].timestamp < cutoff.addingTimeInterval(-3_600) {
+                    break
+                }
             }
         }
 
@@ -56,7 +58,9 @@ final class TokenHealthMonitor: Sendable {
             let model = sessionEntries.last?.model ?? ""
             guard let status = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model, now: now) else { continue }
 
-            if sessionId == currentSessionId { current = status }
+            if sessionId == currentSessionId {
+                current = status
+            }
             if (status.lastActivity ?? .distantPast) > cutoff {
                 recentResults.append(status)
             }
