@@ -23,7 +23,7 @@ struct OAuthManagerConcurrencyTests {
         let task = Task.detached(priority: .userInitiated) { @Sendable () async -> Bool in
             // Cancel before invoking to avoid any real network traffic.
             // The point of this test is the call-site compile, not the runtime behaviour.
-            return true
+            true
         }
         let didCompile = await task.value
         #expect(didCompile)

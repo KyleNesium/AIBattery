@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.6.1] — 2026-08-25
+## [2.6.1] — 2026-09-01
 
 Fixes another false "Limit reached" variant and ships a security fix in the
 auto-updater itself.
