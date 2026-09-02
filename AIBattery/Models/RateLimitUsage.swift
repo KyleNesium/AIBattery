@@ -53,6 +53,53 @@ struct RateLimitUsage: Equatable, Codable {
     /// Overall status
     let overallStatus: String // "allowed" or "throttled"
 
+    /// Which provider produced this reading. Decodes as `.claude` for pre-v2.7
+    /// persisted snapshots. Drives window labels only — thresholds and guards
+    /// are provider-neutral.
+    let provider: AIProvider
+
+    /// Actual window durations from the provider payload (Codex sends them;
+    /// Anthropic doesn't — nil means "assume 300 / 10080").
+    let fiveHourWindowMinutes: Int?
+    let sevenDayWindowMinutes: Int?
+
+    init(
+        representativeClaim: String,
+        fiveHourUtilization: Double, fiveHourReset: Date?, fiveHourStatus: String,
+        sevenDayUtilization: Double, sevenDayReset: Date?, sevenDayStatus: String,
+        overallStatus: String,
+        provider: AIProvider = .claude,
+        fiveHourWindowMinutes: Int? = nil,
+        sevenDayWindowMinutes: Int? = nil
+    ) {
+        self.representativeClaim = representativeClaim
+        self.fiveHourUtilization = fiveHourUtilization
+        self.fiveHourReset = fiveHourReset
+        self.fiveHourStatus = fiveHourStatus
+        self.sevenDayUtilization = sevenDayUtilization
+        self.sevenDayReset = sevenDayReset
+        self.sevenDayStatus = sevenDayStatus
+        self.overallStatus = overallStatus
+        self.provider = provider
+        self.fiveHourWindowMinutes = fiveHourWindowMinutes
+        self.sevenDayWindowMinutes = sevenDayWindowMinutes
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        representativeClaim = try c.decode(String.self, forKey: .representativeClaim)
+        fiveHourUtilization = try c.decode(Double.self, forKey: .fiveHourUtilization)
+        fiveHourReset = try c.decodeIfPresent(Date.self, forKey: .fiveHourReset)
+        fiveHourStatus = try c.decode(String.self, forKey: .fiveHourStatus)
+        sevenDayUtilization = try c.decode(Double.self, forKey: .sevenDayUtilization)
+        sevenDayReset = try c.decodeIfPresent(Date.self, forKey: .sevenDayReset)
+        sevenDayStatus = try c.decode(String.self, forKey: .sevenDayStatus)
+        overallStatus = try c.decode(String.self, forKey: .overallStatus)
+        provider = try c.decodeIfPresent(AIProvider.self, forKey: .provider) ?? .claude
+        fiveHourWindowMinutes = try c.decodeIfPresent(Int.self, forKey: .fiveHourWindowMinutes)
+        sevenDayWindowMinutes = try c.decodeIfPresent(Int.self, forKey: .sevenDayWindowMinutes)
+    }
+
     // MARK: - Convenience
 
     /// Resolve a per-window value by the binding window (`representativeClaim`):
@@ -79,15 +126,18 @@ struct RateLimitUsage: Equatable, Codable {
         bindingValue(fiveHour: fiveHourReset, sevenDay: sevenDayReset)
     }
 
+    /// "7-Day" for Claude, "Weekly" for Codex — same 7-day window, provider vocabulary.
+    var sevenDayDisplayLabel: String { provider.secondaryWindowLabel }
+
     /// Human-readable label for the binding window.
     var bindingWindowLabel: String {
-        bindingValue(fiveHour: "5-hour", sevenDay: "7-day")
+        bindingValue(fiveHour: "5-hour", sevenDay: provider == .codex ? "Weekly" : "7-day")
     }
 
     /// Compact code for the binding window, for the menu bar: "5H" or "7D".
     /// Lets a throttled countdown say which window you're waiting on (hours vs a day+).
     var bindingWindowShortCode: String {
-        bindingValue(fiveHour: "5H", sevenDay: "7D")
+        bindingValue(fiveHour: "5H", sevenDay: provider.secondaryWindowShortCode)
     }
 
     /// Whether the user is currently throttled.
@@ -122,7 +172,10 @@ struct RateLimitUsage: Equatable, Codable {
             sevenDayUtilization: sevenDayUtilization,
             sevenDayReset: sevenDayReset,
             sevenDayStatus: window == Self.sevenDayWindow ? "throttled" : sevenDayStatus,
-            overallStatus: "throttled"
+            overallStatus: "throttled",
+            provider: provider,
+            fiveHourWindowMinutes: fiveHourWindowMinutes,
+            sevenDayWindowMinutes: sevenDayWindowMinutes
         )
     }
 
@@ -161,7 +214,10 @@ struct RateLimitUsage: Equatable, Codable {
             sevenDayUtilization: sevenDayExpired ? 0 : sevenDayUtilization,
             sevenDayReset: sevenDayExpired ? nil : sevenDayReset,
             sevenDayStatus: (sevenDayExpired || sevenDayUnboundedThrottle) ? "allowed" : sevenDayStatus,
-            overallStatus: bindingCleared ? "allowed" : overallStatus
+            overallStatus: bindingCleared ? "allowed" : overallStatus,
+            provider: provider,
+            fiveHourWindowMinutes: fiveHourWindowMinutes,
+            sevenDayWindowMinutes: sevenDayWindowMinutes
         )
     }
 
@@ -211,7 +267,10 @@ struct RateLimitUsage: Equatable, Codable {
             sevenDayUtilization: sevenDayArtifact ? 0 : sevenDayUtilization,
             sevenDayReset: sevenDayReset,
             sevenDayStatus: sevenDayArtifact ? "allowed" : sevenDayStatus,
-            overallStatus: bindingCleared ? "allowed" : overallStatus
+            overallStatus: bindingCleared ? "allowed" : overallStatus,
+            provider: provider,
+            fiveHourWindowMinutes: fiveHourWindowMinutes,
+            sevenDayWindowMinutes: sevenDayWindowMinutes
         )
     }
 
