@@ -43,6 +43,20 @@ struct CodexTokenClientTests {
         #expect(body.contains("client_id=app_EMoamEEZ73f0CkXaXp7hrann"))
     }
 
+    @Test func exchangeEscapesPlusInCode() async throws {
+        let captured = CapturedRequest()
+        _ = await CodexTokenClient.exchangeCode("ab+cd", verifier: "VERIF", transport: { request in
+            await captured.set(request)
+            return (Data("{\"id_token\":\"i\",\"access_token\":\"a\",\"refresh_token\":\"r\"}".utf8),
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        })
+        let request = try #require(await captured.get())
+        let bodyData = try #require(request.httpBody)
+        let body = try #require(String(data: bodyData, encoding: .utf8))
+        #expect(body.contains("code=ab%2Bcd"))
+        #expect(!body.contains("code=ab+cd"))
+    }
+
     @Test func refreshSendsJSONBody() async throws {
         let captured = CapturedRequest()
         _ = await CodexTokenClient.refresh(refreshToken: "rt-9", transport: { request in

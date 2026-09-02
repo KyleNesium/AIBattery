@@ -75,11 +75,18 @@ enum CodexTokenClient {
             URLQueryItem(name: "code_verifier", value: verifier),
         ]
 
+        // `URLComponents.percentEncodedQuery` follows RFC 3986 query rules, which
+        // leave a literal `+` unescaped. In an `application/x-www-form-urlencoded`
+        // body a server decodes `+` as SPACE (RFC 1866/WHATWG semantics), so any
+        // value containing `+` — `code` comes from OpenAI's server, not under our
+        // control — must have it escaped to `%2B` or it gets silently corrupted.
+        let encodedQuery = (components.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B")
+
         var request = URLRequest(url: CodexOAuthConstants.tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 30
-        request.httpBody = Data((components.percentEncodedQuery ?? "").utf8)
+        request.httpBody = Data(encodedQuery.utf8)
 
         return await send(request, transport: transport)
     }
