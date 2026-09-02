@@ -37,10 +37,14 @@ enum CodexCallbackParser {
 /// button opens the browser; stops itself after the first callback hit or
 /// on `stop()` (cancel / popover closed). Non-callback paths (favicon…)
 /// get a 404 and the listener keeps waiting.
+///
+/// Thread safety: all mutable state (listener, hasDelivered) is queue-confined.
+/// Every connection handler and send completion runs on the private queue,
+/// making plain property access inherently serialized.
 final class CodexCallbackServer: @unchecked Sendable {
     private let port: UInt16
     private var listener: NWListener?
-    private var hasDelivered = false
+    private var hasDelivered = false // queue-confined: every access happens on `queue`
     private let queue = DispatchQueue(label: "codex-oauth-callback")
 
     init(port: UInt16 = CodexOAuthConstants.callbackPort) {
@@ -63,23 +67,21 @@ final class CodexCallbackServer: @unchecked Sendable {
                 let result = CodexCallbackParser.parse(requestHead: head)
                 if case .failure(.notCallbackPath) = result {
                     Self.respond(connection, status: "404 Not Found", body: "Not found") {}
-                    return // keep listening — this was favicon or noise
+                    return // keep listening — this was favicon or noise; flag untouched
                 }
-                // For callback-path results (success or auth error), enforce one-shot delivery
+                // For callback-path results, enforce one-shot delivery (runs on queue, so check-and-set is serialized)
                 guard let self else { return }
-                queue.sync {
-                    guard !self.hasDelivered else {
-                        Self.respond(connection, status: "404 Not Found", body: "Not found") {}
-                        return
-                    }
-                    self.hasDelivered = true
+                guard !self.hasDelivered else {
+                    connection.cancel() // duplicate callback hit: close silently, no onRequest
+                    return
                 }
+                self.hasDelivered = true
                 let message = (try? result.get()) != nil
                     ? "You're signed in — return to AI Battery."
                     : "Sign-in failed — return to AI Battery and try again."
                 Self.respond(connection, status: "200 OK",
                              body: "<html><body style=\"font-family:-apple-system\"><h3>\(message)</h3></body></html>") { [weak self] in
-                    self?.stopOnQueue()
+                    self?.stopOnQueue() // send completion runs on queue; call directly, not via public stop()
                     onRequest(result)
                 }
             }
