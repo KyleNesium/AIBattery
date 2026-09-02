@@ -188,7 +188,7 @@ public final class OAuthManager: ObservableObject {
             case .expired: "Authorization code expired. Please re-authenticate."
             case .networkError: "Network error. Check your connection and try again."
             case .serverError(let code): "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
-            case .maxAccountsReached: "Maximum of \(AccountStore.maxAccounts) accounts reached. Remove one before adding another."
+            case .maxAccountsReached: "Maximum of \(AccountStore.maxAccountsPerProvider) accounts per provider reached. Remove one before adding another."
             case .unknownError(let msg): msg
             }
         }

@@ -7,8 +7,8 @@ import os
 /// published so SwiftUI views react to account changes.
 @MainActor
 public final class AccountStore: ObservableObject {
-    /// Maximum number of accounts supported.
-    nonisolated static let maxAccounts = 3
+    /// Maximum number of accounts per provider (3 Claude + 3 Codex).
+    nonisolated static let maxAccountsPerProvider = 3
 
     /// The persisted active account ID, readable off-MainActor (UserDefaults is
     /// thread-safe). Used by nonisolated read paths (e.g. `LocalUsageEstimate`)
@@ -27,8 +27,16 @@ public final class AccountStore: ObservableObject {
         accounts.first { $0.id == activeAccountId }
     }
 
+    public func accounts(for provider: AIProvider) -> [AccountRecord] {
+        accounts.filter { $0.provider == provider }
+    }
+
+    public func canAddAccount(provider: AIProvider) -> Bool {
+        accounts(for: provider).count < Self.maxAccountsPerProvider
+    }
+
     public var canAddAccount: Bool {
-        accounts.count < Self.maxAccounts
+        AIProvider.allCases.contains { canAddAccount(provider: $0) }
     }
 
     public init() {
@@ -38,8 +46,8 @@ public final class AccountStore: ObservableObject {
     // MARK: - Mutations
 
     public func add(_ record: AccountRecord) {
-        guard accounts.count < Self.maxAccounts else {
-            AppLogger.oauth.warning("Cannot add account — max \(Self.maxAccounts) reached")
+        guard accounts(for: record.provider).count < Self.maxAccountsPerProvider else {
+            AppLogger.oauth.warning("Cannot add account — max \(Self.maxAccountsPerProvider) \(record.provider.rawValue, privacy: .public) accounts reached")
             return
         }
         guard !accounts.contains(where: { $0.id == record.id }) else {
@@ -133,5 +141,13 @@ public final class AccountStore: ObservableObject {
         if let active = activeAccountId, !accounts.contains(where: { $0.id == active }) {
             activeAccountId = accounts.first?.id
         }
+    }
+
+    // MARK: - Display & Ordering
+
+    /// Claude block first, insertion order preserved within each provider.
+    /// Single source of display order for picker, fan-out, and menu bar.
+    nonisolated static func displayOrdered(_ accounts: [AccountRecord]) -> [AccountRecord] {
+        accounts.filter { $0.provider == .claude } + accounts.filter { $0.provider == .codex }
     }
 }

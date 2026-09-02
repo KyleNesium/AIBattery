@@ -64,7 +64,7 @@ extension AccountStore {
         accounts: [AccountRecord],
         isAuthenticated: (String) -> Bool
     ) -> [String] {
-        accounts
+        displayOrdered(accounts)
             .filter { !$0.isPendingIdentity }
             .filter { isAuthenticated($0.id) }
             .map(\.id)

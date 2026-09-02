@@ -34,14 +34,20 @@ struct AccountStoreTests {
 
     @Test func add_threeAccounts() {
         let store = makeCleanStore()
-        let r1 = AccountRecord(id: "org-1", displayName: nil, billingType: nil, addedAt: Date())
-        let r2 = AccountRecord(id: "org-2", displayName: nil, billingType: nil, addedAt: Date())
-        let r3 = AccountRecord(id: "org-3", displayName: nil, billingType: nil, addedAt: Date())
+        let r1 = AccountRecord(id: "org-1", displayName: nil, billingType: nil, addedAt: Date(), provider: .claude)
+        let r2 = AccountRecord(id: "org-2", displayName: nil, billingType: nil, addedAt: Date(), provider: .claude)
+        let r3 = AccountRecord(id: "org-3", displayName: nil, billingType: nil, addedAt: Date(), provider: .claude)
+        let r4 = AccountRecord(id: "org-4", displayName: nil, billingType: nil, addedAt: Date(), provider: .codex)
+        let r5 = AccountRecord(id: "org-5", displayName: nil, billingType: nil, addedAt: Date(), provider: .codex)
+        let r6 = AccountRecord(id: "org-6", displayName: nil, billingType: nil, addedAt: Date(), provider: .codex)
         store.add(r1)
         store.add(r2)
         store.add(r3)
+        store.add(r4)
+        store.add(r5)
+        store.add(r6)
 
-        #expect(store.accounts.count == 3)
+        #expect(store.accounts.count == 6)
         #expect(store.activeAccountId == "org-1")
         #expect(!store.canAddAccount)
     }
@@ -185,8 +191,8 @@ struct AccountStoreTests {
         #expect(store2.activeAccountId == "org-1")
     }
 
-    @Test func maxAccounts_isThree() {
-        #expect(AccountStore.maxAccounts == 3)
+    @Test func maxAccountsPerProvider_isThree() {
+        #expect(AccountStore.maxAccountsPerProvider == 3)
     }
 
     // MARK: - Edge cases
