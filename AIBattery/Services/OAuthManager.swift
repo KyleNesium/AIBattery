@@ -148,12 +148,12 @@ public final class OAuthManager: ObservableObject {
     /// Start the OAuth flow: generates PKCE, returns the authorization URL to open in browser.
     func startAuthFlow(addingAccount: Bool = false) -> URL? {
         isAddingAccount = addingAccount
-        let (verifier, challenge) = generatePKCE()
+        let (verifier, challenge) = OAuthPKCE.generatePKCE()
         pendingVerifier = verifier
 
         // Separate state parameter — never reuse the PKCE verifier as state,
         // because the state is reflected in redirect URLs and server logs.
-        let state = generateRandomState()
+        let state = OAuthPKCE.generateState()
         pendingState = state
 
         guard var components = URLComponents(string: authBaseURL) else { return nil }
@@ -528,28 +528,6 @@ public final class OAuthManager: ObservableObject {
         return .failure(lastError)
     }
 
-    // MARK: - PKCE (SHA-256) & State
-
-    /// Generate a random state parameter (separate from the PKCE verifier).
-    private func generateRandomState() -> String {
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        return Data(bytes).base64URLEncoded()
-    }
-
-    private func generatePKCE() -> (verifier: String, challenge: String) {
-        // 32 random bytes → base64url → verifier
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        let verifier = Data(bytes).base64URLEncoded()
-
-        // SHA-256(verifier) → base64url → challenge
-        let digest = SHA256.hash(data: Data(verifier.utf8))
-        let challenge = Data(digest).base64URLEncoded()
-
-        return (verifier, challenge)
-    }
-
     // MARK: - Per-Account Keychain Storage
 
     /// Local alias so the `OAuthManager` body keeps reading `AccountTokens` — the
@@ -682,16 +660,5 @@ public final class OAuthManager: ObservableObject {
     private static func setAndVerify(account: String, value: String) -> Bool {
         KeychainHelper.set(account: account, value: value)
             && KeychainHelper.get(account: account) == value
-    }
-}
-
-// MARK: - Base64URL encoding (RFC 7636)
-
-private extension Data {
-    func base64URLEncoded() -> String {
-        base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
     }
 }
