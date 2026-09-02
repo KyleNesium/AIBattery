@@ -1,7 +1,6 @@
 import CryptoKit
 import Foundation
 import Testing
-
 @testable import AIBatteryCore
 
 @Suite("OAuthPKCE")
