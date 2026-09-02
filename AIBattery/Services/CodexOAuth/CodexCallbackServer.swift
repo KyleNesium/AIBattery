@@ -40,6 +40,7 @@ enum CodexCallbackParser {
 final class CodexCallbackServer: @unchecked Sendable {
     private let port: UInt16
     private var listener: NWListener?
+    private var hasDelivered = false
     private let queue = DispatchQueue(label: "codex-oauth-callback")
 
     init(port: UInt16 = CodexOAuthConstants.callbackPort) {
@@ -49,8 +50,10 @@ final class CodexCallbackServer: @unchecked Sendable {
     func start(onRequest: @escaping @Sendable (Result<(code: String, state: String), CodexCallbackError>) -> Void) throws {
         let listener = try NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: port)!)
         self.listener = listener
+        // Capture queue directly to avoid weak self escape to .global()
+        let queue = self.queue
         listener.newConnectionHandler = { [weak self] connection in
-            connection.start(queue: self?.queue ?? .global())
+            connection.start(queue: queue)
             connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { data, _, _, _ in
                 guard let data, let head = String(data: data, encoding: .utf8)?
                     .components(separatedBy: "\r\n").first else {
@@ -62,12 +65,21 @@ final class CodexCallbackServer: @unchecked Sendable {
                     Self.respond(connection, status: "404 Not Found", body: "Not found") {}
                     return // keep listening — this was favicon or noise
                 }
+                // For callback-path results (success or auth error), enforce one-shot delivery
+                guard let self else { return }
+                queue.sync {
+                    guard !self.hasDelivered else {
+                        Self.respond(connection, status: "404 Not Found", body: "Not found") {}
+                        return
+                    }
+                    self.hasDelivered = true
+                }
                 let message = (try? result.get()) != nil
                     ? "You're signed in — return to AI Battery."
                     : "Sign-in failed — return to AI Battery and try again."
                 Self.respond(connection, status: "200 OK",
                              body: "<html><body style=\"font-family:-apple-system\"><h3>\(message)</h3></body></html>") { [weak self] in
-                    self?.stop()
+                    self?.stopOnQueue()
                     onRequest(result)
                 }
             }
@@ -76,6 +88,12 @@ final class CodexCallbackServer: @unchecked Sendable {
     }
 
     func stop() {
+        queue.async { [weak self] in
+            self?.stopOnQueue()
+        }
+    }
+
+    private func stopOnQueue() {
         listener?.cancel()
         listener = nil
     }
