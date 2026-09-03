@@ -129,7 +129,13 @@ public final class UsageViewModel: ObservableObject {
         // Show cached rate limits quickly — JSONL scan runs off main thread.
         let accountId = OAuthManager.shared.accountStore.activeAccountId
         if let accountId {
-            let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+            // Route by the active account's provider — a Codex account's cache lives in
+            // CodexRateLimitFetcher, not RateLimitFetcher. Mirrors the wasEmpty routing
+            // in refresh() (Task 14).
+            let provider = OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+            let cached = provider == .codex
+                ? CodexRateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+                : RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
                 // Persisted rate limits from last session — treat as still-valid
                 // so the stale TTL keeps them alive until a fresh API response.
@@ -274,7 +280,10 @@ public final class UsageViewModel: ObservableObject {
         // Show cached rate limits immediately while API call is in-flight.
         // This eliminates the empty-bars delay on launch.
         if wasEmpty, let accountId {
-            let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+            let provider = oauthManager.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+            let cached = provider == .codex
+                ? CodexRateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+                : RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
                 let earlyResult = await aggregateOffMain(
                     // Clear rollover artifacts on the instant-paint too: a window that just
@@ -461,8 +470,11 @@ public final class UsageViewModel: ObservableObject {
 
         async let fetchedStatus = StatusChecker.shared.fetchStatus()
 
+        let provider = oauthManager.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
         let api: APIFetchResult = if let token = accessToken, let id = accountId {
-            await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
+            provider == .codex
+                ? await CodexRateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
+                : await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
         } else {
             APIFetchResult(rateLimits: nil, profile: nil)
         }
@@ -477,6 +489,10 @@ public final class UsageViewModel: ObservableObject {
     ) {
         guard let id = accountId else { return }
         guard let account = oauthManager.accountStore.accounts.first(where: { $0.id == id }) else { return }
+        // Codex identities are resolved at auth time (real account id from the JWT) —
+        // the Anthropic pending-identity machinery (temp-UUID -> org-ID migration)
+        // must never touch them.
+        guard account.provider == .claude else { return }
 
         if account.isPendingIdentity {
             if let orgId = api.profile?.organizationId {

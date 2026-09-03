@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 import os
 
 /// Manages Anthropic OAuth 2.0 authentication with PKCE for multiple accounts.
@@ -40,6 +39,11 @@ public final class OAuthManager: ObservableObject {
 
     /// Whether the current auth flow is for adding a second account.
     private var isAddingAccount = false
+
+    /// In-flight Codex OAuth session (PKCE verifier, state, callback server).
+    /// Discarded when the flow completes or is cancelled. Internal (not
+    /// private) so `OAuthManager+Codex.swift` can drive it.
+    var codexAuthSession: CodexAuthSession?
 
     /// Per-account in-memory token cache, keyed by account ID.
     private var tokens: [String: AccountTokens] = [:]
@@ -148,12 +152,12 @@ public final class OAuthManager: ObservableObject {
     /// Start the OAuth flow: generates PKCE, returns the authorization URL to open in browser.
     func startAuthFlow(addingAccount: Bool = false) -> URL? {
         isAddingAccount = addingAccount
-        let (verifier, challenge) = generatePKCE()
+        let (verifier, challenge) = OAuthPKCE.generatePKCE()
         pendingVerifier = verifier
 
         // Separate state parameter — never reuse the PKCE verifier as state,
         // because the state is reflected in redirect URLs and server logs.
-        let state = generateRandomState()
+        let state = OAuthPKCE.generateState()
         pendingState = state
 
         guard var components = URLComponents(string: authBaseURL) else { return nil }
@@ -188,7 +192,7 @@ public final class OAuthManager: ObservableObject {
             case .expired: "Authorization code expired. Please re-authenticate."
             case .networkError: "Network error. Check your connection and try again."
             case .serverError(let code): "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
-            case .maxAccountsReached: "Maximum of \(AccountStore.maxAccounts) accounts reached. Remove one before adding another."
+            case .maxAccountsReached: "Maximum of \(AccountStore.maxAccountsPerProvider) accounts per provider reached. Remove one before adding another."
             case .unknownError(let msg): msg
             }
         }
@@ -330,10 +334,15 @@ public final class OAuthManager: ObservableObject {
         let targetId = accountId ?? accountStore.activeAccountId
         guard let id = targetId else { return }
 
+        let removedProvider = provider(for: id)
+
         tokens.removeValue(forKey: id)
         refreshTasks[id]?.cancel()
         refreshTasks.removeValue(forKey: id)
         deleteTokens(for: id)
+        if removedProvider == .codex {
+            cancelCodexAuthFlow()
+        }
         accountStore.remove(id: id)
 
         // Clear PKCE state if in the middle of a flow
@@ -353,7 +362,7 @@ public final class OAuthManager: ObservableObject {
         tokens[accountId]?.refreshToken != nil
     }
 
-    private func updateAuthState() {
+    func updateAuthState() {
         guard let activeId = accountStore.activeAccountId,
               let acctTokens = tokens[activeId],
               acctTokens.refreshToken != nil else {
@@ -366,6 +375,10 @@ public final class OAuthManager: ObservableObject {
     // MARK: - Token Refresh
 
     private func refreshAccessToken(_ refresh: String, accountId: String) async -> String? {
+        if provider(for: accountId) == .codex {
+            return await refreshCodexAccessToken(refresh, accountId: accountId)
+        }
+
         let body: [String: String] = [
             "grant_type": "refresh_token",
             "refresh_token": refresh,
@@ -388,6 +401,36 @@ public final class OAuthManager: ObservableObject {
             // Transient errors (network, 5xx) keep isAuthenticated so we retry next cycle.
             if error.isTransient {
                 AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), will retry next cycle")
+            } else {
+                signOut(accountId: accountId)
+            }
+            return nil
+        }
+    }
+
+    /// Codex counterpart of `refreshAccessToken` above — same disposition on
+    /// failure (transient keeps `isAuthenticated`, auth errors sign out), but
+    /// exchanges via `CodexTokenClient` and derives expiry from the JWT `exp`
+    /// claim rather than an `expires_in` field.
+    private func refreshCodexAccessToken(_ refresh: String, accountId: String) async -> String? {
+        let result = await CodexTokenClient.refresh(refreshToken: refresh)
+        switch result {
+        case .success(let set):
+            let expires = JWTDecoder.expiry(set.accessToken) ?? Date().addingTimeInterval(3_600)
+            tokens[accountId] = AccountTokens(
+                accessToken: set.accessToken,
+                refreshToken: set.refreshToken ?? refresh, // rotate only when a new one arrives
+                expiresAt: expires
+            )
+            saveTokens(for: accountId)
+            updateAuthState()
+            return set.accessToken
+        case .failure(let error):
+            // Identical disposition to the Anthropic arm above: transient errors
+            // (network, 5xx) keep isAuthenticated and retry next cycle; only
+            // genuine auth errors sign the account out.
+            if error.isTransient {
+                AppLogger.oauth.warning("Codex OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), will retry next cycle")
             } else {
                 signOut(accountId: accountId)
             }
@@ -528,28 +571,6 @@ public final class OAuthManager: ObservableObject {
         return .failure(lastError)
     }
 
-    // MARK: - PKCE (SHA-256) & State
-
-    /// Generate a random state parameter (separate from the PKCE verifier).
-    private func generateRandomState() -> String {
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        return Data(bytes).base64URLEncoded()
-    }
-
-    private func generatePKCE() -> (verifier: String, challenge: String) {
-        // 32 random bytes → base64url → verifier
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        let verifier = Data(bytes).base64URLEncoded()
-
-        // SHA-256(verifier) → base64url → challenge
-        let digest = SHA256.hash(data: Data(verifier.utf8))
-        let challenge = Data(digest).base64URLEncoded()
-
-        return (verifier, challenge)
-    }
-
     // MARK: - Per-Account Keychain Storage
 
     /// Local alias so the `OAuthManager` body keeps reading `AccountTokens` — the
@@ -557,17 +578,36 @@ public final class OAuthManager: ObservableObject {
     /// code can evolve separately. See `OAuthTokenStorage.swift` for layout details.
     typealias AccountTokens = OAuthTokenStorage.AccountTokens
 
+    /// The account's provider, looked up from `accountStore`. Accounts not yet
+    /// in the store (mid-add — the Anthropic flow stores tokens under a
+    /// temporary `pending-*` id before the record exists) default to `.claude`,
+    /// which is correct because only the Anthropic flow does that.
+    private func provider(for accountId: String) -> AIProvider {
+        accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+    }
+
     private func saveTokens(for accountId: String) {
         guard let data = tokens[accountId] else { return }
-        OAuthTokenStorage.save(data, for: accountId)
+        OAuthTokenStorage.save(data, for: Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
 
     private func loadTokens(for accountId: String) -> AccountTokens {
-        OAuthTokenStorage.load(for: accountId)
+        OAuthTokenStorage.load(for: Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
 
     private func deleteTokens(for accountId: String) {
-        OAuthTokenStorage.delete(for: accountId)
+        OAuthTokenStorage.delete(for: Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
+    }
+
+    /// Write a token set into the in-memory cache + persistent storage for any
+    /// provider. `OAuthTokenStorage.save` already persists the expiry to
+    /// UserDefaults, so this does not write it a second time. Used by the
+    /// Codex flow (`OAuthManager+Codex.swift`), which can't reach the private
+    /// `tokens` dict directly since it lives in a different file.
+    func storeTokens(accountId: String, provider: AIProvider, accessToken: String?, refreshToken: String?, expiresAt: Date?) {
+        let data = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
+        tokens[accountId] = data
+        OAuthTokenStorage.save(data, for: Self.tokenStorageKey(accountId: accountId, provider: provider))
     }
 
     private func loadAllTokens() {
@@ -682,16 +722,5 @@ public final class OAuthManager: ObservableObject {
     private static func setAndVerify(account: String, value: String) -> Bool {
         KeychainHelper.set(account: account, value: value)
             && KeychainHelper.get(account: account) == value
-    }
-}
-
-// MARK: - Base64URL encoding (RFC 7636)
-
-private extension Data {
-    func base64URLEncoded() -> String {
-        base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
     }
 }

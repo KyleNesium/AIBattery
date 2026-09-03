@@ -39,7 +39,7 @@ struct SevenDayBarSection: View {
 
     var body: some View {
         UsageBar(
-            label: "7-Day",
+            label: limits.sevenDayDisplayLabel,
             percent: limits.sevenDayPercent,
             resetsAt: limits.sevenDayReset,
             source: source,

@@ -5,6 +5,8 @@ enum RateLimitSource: String, Equatable, Codable {
     case oauthUsageEndpoint
     case claudeCodeClientData
     case anthropicAPIHeaders
+    case codexUsageEndpoint
+    case codexSessionLog
 
     var shortLabel: String {
         switch self {
@@ -14,6 +16,10 @@ enum RateLimitSource: String, Equatable, Codable {
             "Via Claude Code"
         case .anthropicAPIHeaders:
             "Via Anthropic API"
+        case .codexUsageEndpoint:
+            "Via OpenAI API"
+        case .codexSessionLog:
+            "Via Codex CLI"
         }
     }
 
@@ -25,6 +31,10 @@ enum RateLimitSource: String, Equatable, Codable {
             "Usage data from Claude Code account metadata."
         case .anthropicAPIHeaders:
             "Usage data from Anthropic API response headers."
+        case .codexUsageEndpoint:
+            "Usage data from OpenAI's ChatGPT usage endpoint."
+        case .codexSessionLog:
+            "Usage data from the newest Codex CLI session log on this Mac (endpoint unreachable)."
         }
     }
 }
