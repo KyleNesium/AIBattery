@@ -150,3 +150,33 @@ enum MultiAccountFanOut {
         }
     }
 }
+
+// MARK: - Provider dispatch
+
+extension CodexRateLimitFetcher: RateLimitFetching {}
+
+/// Routes a per-account rate-limit fetch to the provider's fetcher.
+/// The seams stay protocol-typed so MultiAccountFanOut tests keep working
+/// with pure mocks.
+@MainActor
+struct ProviderDispatchingFetcher: RateLimitFetching {
+    let providerForAccount: (String) -> AIProvider
+    let claude: any RateLimitFetching
+    let codex: any RateLimitFetching
+
+    func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
+        switch providerForAccount(accountId) {
+        case .claude: await claude.fetch(accessToken: accessToken, accountId: accountId)
+        case .codex: await codex.fetch(accessToken: accessToken, accountId: accountId)
+        }
+    }
+
+    /// Production wiring: unknown ids default to .claude (pre-provider behavior).
+    static func live(accountStore: AccountStore) -> ProviderDispatchingFetcher {
+        ProviderDispatchingFetcher(
+            providerForAccount: { id in accountStore.accounts.first { $0.id == id }?.provider ?? .claude },
+            claude: RateLimitFetcher.shared,
+            codex: CodexRateLimitFetcher.shared
+        )
+    }
+}
