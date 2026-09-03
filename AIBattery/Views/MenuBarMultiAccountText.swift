@@ -28,12 +28,14 @@ enum MenuBarMultiAccountText {
     ///
     /// - Parameters:
     ///   - order: account IDs in display order (typically `AccountStore.accounts.map(\.id)`).
+    ///   - providers: per-account provider, keyed by account ID. Defaults to empty (single provider mode).
     ///   - limits: per-account `RateLimitUsage`, keyed by account ID. Missing entries → "—".
     ///   - metricMode: the active metric mode. `.contextHealth` falls back to `.fiveHour`
     ///     because context health is per-session, not per-account, and would not
     ///     produce a meaningful per-account number.
     static func build(
         order: [String],
+        providers: [String: AIProvider] = [:],
         limits: [String: RateLimitUsage],
         metricMode: MetricMode
     ) -> Output {
@@ -43,12 +45,68 @@ enum MenuBarMultiAccountText {
             let pct = percent(for: usage, mode: resolvedMode)
             return "\(Int(pct.rounded()))%"
         }
-        let text = parts.joined(separator: separator)
+
+        // Determine if we have mixed providers (single provider vs mixed).
+        let distinctProviders = Set(providers.values)
+        let hasMixedProviders = distinctProviders.count > 1
+
+        let text: String = if hasMixedProviders {
+            // Group by provider and emit glyph-prefixed groups joined by two spaces
+            buildMixedProviderText(order: order, providers: providers, parts: parts)
+        } else {
+            // Single provider or empty providers: legacy format (no glyphs)
+            parts.joined(separator: separator)
+        }
+
         let worstPercent = limits.values
             .map { percent(for: $0, mode: resolvedMode) }
             .max() ?? 0
         let anyThrottled = limits.values.contains { isExhausted($0) }
         return Output(text: text, worstPercent: worstPercent, anyThrottled: anyThrottled)
+    }
+
+    /// Build text for mixed-provider display: groups prefixed with glyphs, joined by two spaces.
+    /// e.g. "✦\u{00A0}42%\u{00A0}|\u{00A0}23%  ⬡\u{00A0}57%"
+    private static func buildMixedProviderText(
+        order: [String],
+        providers: [String: AIProvider],
+        parts: [String]
+    ) -> String {
+        // Group accounts by provider in order
+        var groups: [(provider: AIProvider, accountParts: [String])] = []
+        var currentProvider: AIProvider?
+        var currentParts: [String] = []
+
+        for (i, id) in order.enumerated() {
+            let provider = providers[id] ?? .claude
+            if currentProvider == nil {
+                currentProvider = provider
+            }
+
+            if provider == currentProvider {
+                currentParts.append(parts[i])
+            } else {
+                // Provider changed: save current group and start new one
+                if let provider = currentProvider {
+                    groups.append((provider: provider, accountParts: currentParts))
+                }
+                currentProvider = provider
+                currentParts = [parts[i]]
+            }
+        }
+
+        // Add the final group
+        if let provider = currentProvider {
+            groups.append((provider: provider, accountParts: currentParts))
+        }
+
+        // Format each group with glyph + separator, then join groups by two spaces
+        let formattedGroups = groups.map { group in
+            let groupText = group.accountParts.joined(separator: separator)
+            return "\(group.provider.glyph)\u{00A0}\(groupText)"
+        }
+
+        return formattedGroups.joined(separator: "  ")
     }
 
     /// Whether the toggle would render a multi-account display given current state.
@@ -77,6 +135,7 @@ enum MenuBarMultiAccountText {
     /// - Parameters:
     ///   - toggleOn: `aibattery_showAllAccountsInMenuBar` UserDefaults value.
     ///   - perAccount: `UsageViewModel.perAccountRateLimits` (keyed by accountId).
+    ///   - providers: per-account provider, keyed by account ID. Defaults to empty (single provider mode).
     ///   - order: account IDs in display order (typically authenticated, non-pending
     ///     accounts from `AccountStore.accounts`).
     ///   - activeRateLimits: the active account's `RateLimitUsage` from
@@ -98,6 +157,7 @@ enum MenuBarMultiAccountText {
     static func resolveDisplay(
         toggleOn: Bool,
         perAccount: [String: RateLimitUsage],
+        providers: [String: AIProvider] = [:],
         order: [String],
         activeRateLimits: RateLimitUsage?,
         activePercent: Double,
@@ -116,7 +176,7 @@ enum MenuBarMultiAccountText {
         let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: perAccount.count)
 
         if useMulti {
-            let multi = build(order: order, limits: perAccount, metricMode: metricMode)
+            let multi = build(order: order, providers: providers, limits: perAccount, metricMode: metricMode)
             let percent = max(multi.worstPercent, activePercent)
             let isExhausted = confirmed && (multi.anyThrottled || (activeRateLimits?.isThrottled ?? false))
             let reset: Date? = confirmed
