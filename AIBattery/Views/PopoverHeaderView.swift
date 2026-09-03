@@ -4,7 +4,7 @@ struct PopoverHeaderView: View {
     let snapshot: UsageSnapshot?
     @ObservedObject var accountStore: AccountStore
     @Binding var showSettings: Bool
-    @Binding var isAddingAccount: Bool
+    let onAddAccount: (AIProvider) -> Void
     let onSwitchAccount: (String) -> Void
     let onUpdateFound: (VersionChecker.UpdateInfo?) -> Void
     let availableUpdate: VersionChecker.UpdateInfo?
@@ -207,9 +207,13 @@ struct PopoverHeaderView: View {
 
     /// Account picker — shows display name if set, otherwise "User N".
     private var accountPicker: some View {
-        Menu {
+        // Single ordered array shared by the menu items and the label lookup below,
+        // so "User N" numbering stays consistent between the two (Claude block first,
+        // insertion order preserved within each provider — see AccountStore.displayOrdered).
+        let ordered = AccountStore.displayOrdered(accountStore.accounts)
+        return Menu {
             let activeId = accountStore.activeAccountId
-            ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
+            ForEach(Array(ordered.enumerated()), id: \.element.id) { index, account in
                 Button(action: {
                     withAnimation(MotionConstants.standard) {
                         onSwitchAccount(account.id)
@@ -223,18 +227,18 @@ struct PopoverHeaderView: View {
                     }
                 }
             }
-            if accountStore.canAddAccount {
+            if accountStore.canAddAccount(provider: .claude) || accountStore.canAddAccount(provider: .codex) {
                 Divider()
-                Button(action: { isAddingAccount = true }) {
-                    HStack {
-                        Image(systemName: "plus.circle")
-                        Text("Add Account")
-                    }
+                if accountStore.canAddAccount(provider: .claude) {
+                    Button { onAddAccount(.claude) } label: { Label("Add Claude Account…", systemImage: "plus") }
+                }
+                if accountStore.canAddAccount(provider: .codex) {
+                    Button { onAddAccount(.codex) } label: { Label("Add Codex Account…", systemImage: "plus") }
                 }
             }
         } label: {
-            if let activeIndex = accountStore.accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
-                Text(accountLabel(accountStore.accounts[activeIndex], index: activeIndex))
+            if let activeIndex = ordered.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
+                Text(accountLabel(ordered[activeIndex], index: activeIndex))
                     .font(Typography.caption)
                     .foregroundStyle(ThemeColors.secondaryLabel)
                     .lineLimit(1)
@@ -248,14 +252,23 @@ struct PopoverHeaderView: View {
         .menuStyle(.borderlessButton)
         .frame(maxWidth: Layout.accountPickerMaxWidth)
         .accessibilityLabel("Switch account")
-        .accessibilityHint("Select which Claude account to display")
+        .accessibilityHint("Select which account to display")
     }
 
-    /// Label for an account: display name if set, otherwise "User N".
+    /// Prefix the provider glyph only when the account set spans both providers —
+    /// a single-provider setup (the common case) stays exactly as before.
+    private var showsProviderGlyphs: Bool {
+        Set(accountStore.accounts.map(\.provider)).count > 1
+    }
+
+    /// Label for an account: display name if set, otherwise "User N", prefixed with
+    /// the provider glyph when both Claude and Codex accounts are present.
     private func accountLabel(_ account: AccountRecord, index: Int) -> String {
-        if let name = account.displayName, !name.isEmpty {
-            return name
+        let base: String = if let name = account.displayName, !name.isEmpty {
+            name
+        } else {
+            "User \(index + 1)"
         }
-        return "User \(index + 1)"
+        return showsProviderGlyphs ? "\(account.provider.glyph) \(base)" : base
     }
 }

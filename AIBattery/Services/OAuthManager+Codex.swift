@@ -58,6 +58,15 @@ extension OAuthManager {
 
     /// Shared by the OAuth flow and the auth.json importer (Task 10).
     func registerCodexAccount(accountId: String, tokenSet: CodexTokenSet) {
+        // Guard the cap here too — a 4th Codex sign-in must not persist tokens for an
+        // account AccountStore.add will silently reject, which would otherwise orphan
+        // a Keychain entry. The UI also hides "Add Codex Account…" at the cap, but this
+        // is the real protection (a sign-in can still race a stale UI state).
+        guard accountStore.canAddAccount(provider: .codex)
+            || accountStore.accounts.contains(where: { $0.id == accountId }) else {
+            AppLogger.oauth.warning("Codex sign-in rejected — per-provider account cap reached")
+            return
+        }
         storeTokens(
             accountId: accountId,
             provider: .codex,

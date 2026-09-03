@@ -129,7 +129,13 @@ public final class UsageViewModel: ObservableObject {
         // Show cached rate limits quickly — JSONL scan runs off main thread.
         let accountId = OAuthManager.shared.accountStore.activeAccountId
         if let accountId {
-            let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+            // Route by the active account's provider — a Codex account's cache lives in
+            // CodexRateLimitFetcher, not RateLimitFetcher. Mirrors the wasEmpty routing
+            // in refresh() (Task 14).
+            let provider = OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+            let cached = provider == .codex
+                ? CodexRateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+                : RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
                 // Persisted rate limits from last session — treat as still-valid
                 // so the stale TTL keeps them alive until a fresh API response.

@@ -24,7 +24,7 @@ public struct UsagePopoverView: View {
     /// Popover width scales with system text size, capped to avoid overflow.
     @ScaledMetric(relativeTo: .body) private var scaledWidth: CGFloat = Layout.popoverWidth
     @State private var showSettings = false
-    @State private var isAddingAccount = false
+    @State private var addingProvider: AIProvider?
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
     @State private var accountCountAtAddStart = 0
@@ -86,17 +86,18 @@ public struct UsagePopoverView: View {
     }
 
     public var body: some View {
-        if isAddingAccount {
+        if let addingProvider {
             AuthView(
                 oauthManager: OAuthManager.shared,
+                provider: addingProvider,
                 isAddingAccount: true,
-                onCancel: { isAddingAccount = false }
+                onCancel: { self.addingProvider = nil }
             )
             .onAppear { accountCountAtAddStart = accountStore.accounts.count }
             .onReceive(accountStore.$accounts) { newAccounts in
                 // Auth completed for new account — detect actual addition, not initial publish
-                if newAccounts.count > accountCountAtAddStart && isAddingAccount {
-                    isAddingAccount = false
+                if newAccounts.count > accountCountAtAddStart && self.addingProvider != nil {
+                    self.addingProvider = nil
                     Task { await viewModel.refresh() }
                 }
             }
@@ -111,7 +112,7 @@ public struct UsagePopoverView: View {
                 snapshot: viewModel.snapshot,
                 accountStore: accountStore,
                 showSettings: $showSettings,
-                isAddingAccount: $isAddingAccount,
+                onAddAccount: { addingProvider = $0 },
                 onSwitchAccount: { accountId in
                     viewModel.switchAccount(to: accountId)
                 },
@@ -125,7 +126,10 @@ public struct UsagePopoverView: View {
                 SettingsRow(
                     viewModel: viewModel,
                     accountStore: accountStore,
-                    onAddAccount: { isAddingAccount = true }
+                    // Settings' "Add Account" link stays Claude-only (SettingsRow isn't
+                    // part of this task's scope to split into per-provider buttons — its
+                    // copy already reads "another Claude account").
+                    onAddAccount: { addingProvider = .claude }
                 )
                 .transition(.opacity)
                 // No StyledDivider here — the always-present divider above the footer
