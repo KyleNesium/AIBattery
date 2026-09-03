@@ -51,4 +51,17 @@ struct CodexSessionRateLimitScannerTests {
         #expect(CodexSessionRateLimitScanner.newestSessionFile(in: root) == new)
         try? FileManager.default.removeItem(at: root)
     }
+
+    @Test func survivesMultiByteCharacterAtTailBoundary() throws {
+        // Tail seek can land mid-multi-byte character. Byte-level split + per-line
+        // decode should survive this: partial first line fails to decode, but the
+        // scan continues to find the valid rate_limits line.
+        var data = Data([0x9F, 0x98, 0x80]) // trailing bytes of 😀 emoji
+        data.append(UInt8(ascii: "\n"))
+        let lineStr = tokenCountLine(primaryPercent: 77)
+        let lineData = try #require(lineStr.data(using: .utf8))
+        data.append(lineData)
+        let usage = try #require(CodexSessionRateLimitScanner.extractLatestRateLimits(fromTail: data))
+        #expect(abs(usage.fiveHourUtilization - 0.77) < 0.0001)
+    }
 }

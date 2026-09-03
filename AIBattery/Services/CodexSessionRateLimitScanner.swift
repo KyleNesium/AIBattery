@@ -39,21 +39,16 @@ enum CodexSessionRateLimitScanner {
     }
 
     nonisolated static func extractLatestRateLimits(fromTail data: Data) -> RateLimitUsage? {
-        // Split on newlines; the FIRST line of a tail slice may be partial —
-        // JSON parse failure naturally skips it. Scan backwards for the last
-        // token_count event carrying rate_limits. Never reads message content:
-        // only payload.type and payload.rate_limits are touched.
-        guard let text = String(data: data, encoding: .utf8) else { return nil }
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false).reversed() {
-            let lineStr = String(line)
-            guard lineStr.contains("\"rate_limits\""),
-                  let lineData = lineStr.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+        // Split on 0x0A bytes BEFORE UTF-8 decoding: the tail seek can land mid
+        // multi-byte character, and decoding the whole buffer at once would fail
+        // outright. Per-line decode confines the damage to the partial first line.
+        for lineData in data.split(separator: UInt8(ascii: "\n")).reversed() {
+            guard let line = String(data: lineData, encoding: .utf8),
+                  line.contains("\"rate_limits\"") else { continue }
+            guard let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                   let payload = obj["payload"] as? [String: Any],
                   payload["type"] as? String == "token_count",
-                  let rateLimits = payload["rate_limits"] as? [String: Any] else {
-                continue
-            }
+                  let rateLimits = payload["rate_limits"] as? [String: Any] else { continue }
             return CodexUsageParser.parseSessionRateLimits(rateLimits)
         }
         return nil
