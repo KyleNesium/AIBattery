@@ -25,7 +25,7 @@ struct RateLimitUsageProviderTests {
             fiveHourUtilization: 0.21, fiveHourReset: Date(), fiveHourStatus: "allowed",
             sevenDayUtilization: 0.03, sevenDayReset: Date(), sevenDayStatus: "allowed",
             overallStatus: "allowed",
-            provider: .codex, fiveHourWindowMinutes: 300, sevenDayWindowMinutes: 10080
+            provider: .codex, fiveHourWindowMinutes: 300, sevenDayWindowMinutes: 10_080
         )
         #expect(usage.sevenDayDisplayLabel == "Weekly")
         #expect(usage.provider == .codex)

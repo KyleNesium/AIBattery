@@ -17,11 +17,15 @@ struct AccountStoreProviderTests {
 
     @Test func capIsPerProvider() {
         let store = makeCleanStore()
-        for i in 1...3 { store.add(record("c\(i)", .claude)) }
+        for i in 1...3 {
+            store.add(record("c\(i)", .claude))
+        }
         #expect(!store.canAddAccount(provider: .claude))
         #expect(store.canAddAccount(provider: .codex)) // full Claude side must not block Codex
         #expect(store.canAddAccount) // any-provider variant
-        for i in 1...3 { store.add(record("x\(i)", .codex)) }
+        for i in 1...3 {
+            store.add(record("x\(i)", .codex))
+        }
         #expect(store.accounts.count == 6)
         #expect(!store.canAddAccount)
         store.add(record("x4", .codex)) // over cap — must be rejected
