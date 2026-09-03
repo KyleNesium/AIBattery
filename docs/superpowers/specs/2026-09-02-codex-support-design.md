@@ -55,7 +55,7 @@ per-model tokens, API-equivalent cost).
 
 ## 2. Auth
 
-- New `CodexOAuthClient` beside `OAuthManager`, mirroring its structure and policies:
+- Codex auth is implemented as `CodexAuthSession` + `CodexCallbackServer` (flow), `CodexTokenClient` (exchange/refresh HTTP), and provider routing inside `OAuthManager` (storage keys, refresh dispatch, account registration) — same observable contract: PKCE S256, state validation, Keychain `refreshToken_codex_<accountId>`, identical token-lifecycle policies.
   - PKCE S256 + state validation (CSRF), `Result<Void, AuthError>` from code exchange.
   - Refresh token in Keychain via `OAuthTokenStorage` with provider-scoped keys
     (`refreshToken_codex_<accountId>`); access token memory-only; expiry in UserDefaults.
