@@ -47,7 +47,10 @@ enum MenuBarMultiAccountText {
         }
 
         // Determine if we have mixed providers (single provider vs mixed).
-        let distinctProviders = Set(providers.values)
+        // Derived from the accounts actually being DISPLAYED (`order`), not every known
+        // entry in `providers` — a provider whose accounts were all filtered out of
+        // `order` (e.g. a fetch failure) must not force glyph grouping on regardless.
+        let distinctProviders = Set(order.compactMap { providers[$0] })
         let hasMixedProviders = distinctProviders.count > 1
 
         let text: String = if hasMixedProviders {

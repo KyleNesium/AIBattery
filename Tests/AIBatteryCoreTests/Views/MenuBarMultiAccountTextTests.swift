@@ -648,4 +648,20 @@ struct MenuBarMultiAccountTextTests {
         )
         #expect(output.text == "42%\u{00A0}|\u{00A0}23%")
     }
+
+    @Test("Glyphs derive from the displayed set, not every known provider")
+    func glyphsIgnoreProvidersFilteredOutOfOrder() {
+        // "x1" is a known Codex account (e.g. its rate-limit fetch failed and it was
+        // filtered out of the displayed `order`) but still present in `providers`.
+        // Only accounts actually rendered may drive the mixed-provider glyph decision.
+        let limits = ["c1": Self.usage(fiveHourUtilization: 0.42), "c2": Self.usage(fiveHourUtilization: 0.23)]
+        let providers: [String: AIProvider] = ["c1": .claude, "c2": .claude, "x1": .codex]
+        let output = MenuBarMultiAccountText.build(
+            order: ["c1", "c2"], // x1 not displayed
+            providers: providers,
+            limits: limits,
+            metricMode: .fiveHour
+        )
+        #expect(output.text == "42%\u{00A0}|\u{00A0}23%") // legacy format — no glyphs
+    }
 }
