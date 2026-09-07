@@ -1050,6 +1050,35 @@ struct UsageAggregatorTests {
         #expect(effects.accountId == nil)
     }
 
+    /// Pins the contract `UsageViewModel` relies on for a Codex active account (F1a):
+    /// Codex has no local (JSONL) data layer yet, so the ViewModel routes
+    /// `accountId: nil` into aggregation for Codex accounts specifically to skip this
+    /// merge — a Codex account must never gain a persistent TokenLedger entry seeded
+    /// from Claude-JSONL token counts (irreversible cross-provider pollution).
+    @Test func aggregate_noAccountId_skipsLedgerMerge() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+        let lines = [
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 100, output: 50, messageId: "no-ledger-1"),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let ledgerURL = dir.appendingPathComponent("token-ledger.json")
+        let ledger = TokenLedger(fileURL: ledgerURL)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader, ledger: ledger)
+
+        _ = aggregator.aggregate(rateLimits: nil, accountId: nil)
+        ledger.flushForTesting()
+
+        // No merge ever ran against the ledger, so it never became dirty and never wrote.
+        #expect(!FileManager.default.fileExists(atPath: ledgerURL.path))
+    }
+
     // MARK: - Tool call count merge
 
     @Test func aggregate_jsonlMoreToolCalls_jsonlWins() throws {

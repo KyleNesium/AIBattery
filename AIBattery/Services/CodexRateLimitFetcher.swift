@@ -215,6 +215,32 @@ extension CodexRateLimitFetcher {
         }
     }
 
+    /// Replace the cached (and persisted) rate limits for an account with a corrected
+    /// value, preserving every other field. Mirrors
+    /// `RateLimitFetcher.overrideCachedRateLimits` (see that type's doc comment for the
+    /// full rationale): the ViewModel's spike filter can hold an unconfirmed near-full
+    /// reading at the previous value, but `fetch()` already wrote the raw glitch to
+    /// this cache/persisted blob before the filter ran — without this write-back the
+    /// glitch survives as the "last known good" fallback and resurfaces on a later
+    /// instant-paint (wake, cold start, launch restore).
+    ///
+    /// No-op when the account has no cached entry (nothing to correct).
+    func overrideCachedRateLimits(_ rateLimits: RateLimitUsage, accountId: String, defaults: UserDefaults = .standard) {
+        guard let cached = cachedResults[accountId] else { return }
+        let corrected = APIFetchResult(
+            rateLimits: rateLimits,
+            rateLimitSource: cached.rateLimitSource,
+            standardLimits: cached.standardLimits,
+            profile: cached.profile,
+            hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
+            fetchedAt: cached.fetchedAt,
+            isCached: cached.isCached,
+            authError: cached.authError
+        )
+        cachedResults[accountId] = corrected
+        persistRateLimits(corrected, accountId: accountId, defaults: defaults)
+    }
+
     /// Restore persisted rate limits into the in-memory cache on launch.
     /// Self-heals: a blob that fails to decode is removed so it cannot wedge
     /// every subsequent launch; other accounts' entries still restore.
