@@ -952,4 +952,33 @@ struct UsageViewModelTests {
         #expect(result.heldWindows.isEmpty)
         #expect(result.nearFullWindows.isEmpty)
     }
+
+    @Test func spikeConfirmed_heldCodexSpike_keepsProviderAndWindowMinutes() {
+        // A held (unconfirmed) Codex spike must not revert to Claude vocabulary mid-hold:
+        // `display` is rebuilt from scratch by this filter, so provider/window-minutes
+        // must be threaded from the fresh reading exactly like markedThrottled() does —
+        // otherwise a held Codex reading would decode as .claude (Weekly→7-Day, WK→7D).
+        let fresh = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Self.fiveHourResetRef, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: Self.sevenDayResetRef, sevenDayStatus: "allowed",
+            overallStatus: "allowed",
+            provider: .codex, fiveHourWindowMinutes: 300, sevenDayWindowMinutes: 10_080
+        )
+        let previous = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.02, fiveHourReset: Self.fiveHourResetRef, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: Self.sevenDayResetRef, sevenDayStatus: "allowed",
+            overallStatus: "allowed",
+            provider: .codex, fiveHourWindowMinutes: 300, sevenDayWindowMinutes: 10_080
+        )
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: Self.spikeNow
+        )
+        #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
+        #expect(result.display.fiveHourUtilization == 0.02) // held at previous value
+        #expect(result.display.provider == .codex)
+        #expect(result.display.fiveHourWindowMinutes == 300)
+        #expect(result.display.sevenDayWindowMinutes == 10_080)
+    }
 }

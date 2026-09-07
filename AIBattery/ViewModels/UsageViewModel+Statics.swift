@@ -316,7 +316,10 @@ extension UsageViewModel {
             sevenDayUtilization: holdSevenDay ? (previousDisplayed?.sevenDayUtilization ?? 0) : fresh.sevenDayUtilization,
             sevenDayReset: fresh.sevenDayReset,
             sevenDayStatus: displaySevenDayStatus,
-            overallStatus: displayOverallStatus
+            overallStatus: displayOverallStatus,
+            provider: fresh.provider,
+            fiveHourWindowMinutes: fresh.fiveHourWindowMinutes,
+            sevenDayWindowMinutes: fresh.sevenDayWindowMinutes
         )
         return SpikeConfirmedRateLimits(display: display, nearFullWindows: nearFull, heldWindows: held)
     }
