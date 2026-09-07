@@ -19,7 +19,11 @@ struct SettingsRow: View {
                 accountNameRow(account, index: index)
             }
 
-            if accountStore.canAddAccount {
+            // Claude-specific: this link only ever drives the Claude add-account flow
+            // (see onAddAccount), so it must gate on the Claude cap specifically — the
+            // any-provider `canAddAccount` would keep showing this at 3 Claude + <3 Codex
+            // accounts, where the flow it triggers is guaranteed to be rejected downstream.
+            if accountStore.canAddAccount(provider: .claude) {
                 HStack(spacing: Spacing.section) {
                     Spacer().frame(width: Layout.settingsLabel)
                     LinkActionButton(

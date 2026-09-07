@@ -212,8 +212,12 @@ public final class OAuthManager: ObservableObject {
         guard let verifier = pendingVerifier else { return .failure(.noVerifier) }
         let expectedState = pendingState
 
-        // Check account limit when adding
-        if isAddingAccount && !accountStore.canAddAccount {
+        // Check account limit when adding. Must be the CLAUDE-specific cap: the
+        // any-provider `canAddAccount` reads true whenever ANY provider has room, so at
+        // 3 Claude + <3 Codex accounts it would let this (Claude-only) flow proceed past
+        // this guard only to have `accountStore.add` silently reject the 4th Claude
+        // account further down — after tokens have already been written to Keychain.
+        if isAddingAccount && !accountStore.canAddAccount(provider: .claude) {
             return .failure(.maxAccountsReached)
         }
 
@@ -257,6 +261,15 @@ public final class OAuthManager: ObservableObject {
                 addedAt: Date()
             )
             accountStore.add(record)
+            // `add` silently no-ops past the per-provider cap (e.g. the network round-trip
+            // above gave a concurrent add time to fill it). Bail out BEFORE persisting
+            // tokens for an account that was never actually added — otherwise
+            // `refreshToken_pending-<uuid>` orphans in Keychain and this function would
+            // still report `.success` with a stuck overlay.
+            guard accountStore.accounts.contains(where: { $0.id == tempId }) else {
+                isAddingAccount = false
+                return .failure(.maxAccountsReached)
+            }
             accountStore.setActive(id: tempId)
 
             tokens[tempId] = AccountTokens(
