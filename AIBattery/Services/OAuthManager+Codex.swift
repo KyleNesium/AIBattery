@@ -45,8 +45,7 @@ extension OAuthManager {
                 guard let accountId = JWTDecoder.chatGPTAccountId(idToken: tokenSet.idToken) else {
                     return .failure(.unknownError("Could not read account identity from sign-in response"))
                 }
-                registerCodexAccount(accountId: accountId, tokenSet: tokenSet)
-                return .success(())
+                return registerCodexAccount(accountId: accountId, tokenSet: tokenSet)
             }
         }
     }
@@ -57,7 +56,13 @@ extension OAuthManager {
     }
 
     /// Shared by the OAuth flow and the auth.json importer (Task 10).
-    func registerCodexAccount(accountId: String, tokenSet: CodexTokenSet) {
+    ///
+    /// Returns `.failure(.maxAccountsReached)` when the per-provider cap blocks
+    /// registration. Previously returned `Void` and silently no-op'd on the cap guard,
+    /// which let `completeCodexAuthFlow` report `.success` with a stuck overlay even
+    /// though nothing was registered — callers must propagate this Result.
+    @discardableResult
+    func registerCodexAccount(accountId: String, tokenSet: CodexTokenSet) -> Result<Void, AuthError> {
         // Guard the cap here too — a 4th Codex sign-in must not persist tokens for an
         // account AccountStore.add will silently reject, which would otherwise orphan
         // a Keychain entry. The UI also hides "Add Codex Account…" at the cap, but this
@@ -65,7 +70,7 @@ extension OAuthManager {
         guard accountStore.canAddAccount(provider: .codex)
             || accountStore.accounts.contains(where: { $0.id == accountId }) else {
             AppLogger.oauth.warning("Codex sign-in rejected — per-provider account cap reached")
-            return
+            return .failure(.maxAccountsReached)
         }
         storeTokens(
             accountId: accountId,
@@ -79,5 +84,6 @@ extension OAuthManager {
         }
         accountStore.setActive(id: accountId)
         updateAuthState()
+        return .success(())
     }
 }

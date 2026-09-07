@@ -34,14 +34,17 @@ enum CodexAuthFileImporter {
         guard let data = try? Data(contentsOf: CodexPaths.authJSON), let imported = parse(data) else {
             return .failure(.unknownError("No Codex CLI login found at ~/.codex/auth.json"))
         }
-        guard manager.accountStore.canAddAccount(provider: .codex)
-            || manager.accountStore.accounts.contains(where: { $0.id == imported.accountId }) else {
-            return .failure(.unknownError("Codex account limit reached (max \(AccountStore.maxAccountsPerProvider))"))
-        }
-        manager.registerCodexAccount(
+        // `registerCodexAccount` enforces the per-provider cap itself and now reports the
+        // outcome via Result (F5) — no need to duplicate the check here, which would risk
+        // the two guards drifting or double-reporting the same rejection differently.
+        switch manager.registerCodexAccount(
             accountId: imported.accountId,
             tokenSet: CodexTokenSet(idToken: imported.idToken, accessToken: imported.accessToken, refreshToken: imported.refreshToken)
-        )
-        return .success(imported.accountId)
+        ) {
+        case .success:
+            return .success(imported.accountId)
+        case .failure(let error):
+            return .failure(error)
+        }
     }
 }
