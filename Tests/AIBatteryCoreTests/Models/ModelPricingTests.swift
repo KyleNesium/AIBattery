@@ -176,4 +176,47 @@ struct ModelPricingTests {
         let second = ModelPricing.pricing(for: "totally-fake-model-xyz-12345")
         #expect(second == nil)
     }
+
+    // MARK: - OpenAI (Codex) models
+
+    @Test func pricing_gpt54() {
+        let pricing = ModelPricing.pricing(for: "gpt-5.4")
+        #expect(pricing?.inputPerMillion == 2.50)
+        #expect(pricing?.outputPerMillion == 15.00)
+        #expect(pricing?.cacheReadPerMillion == 0.25)
+        #expect(pricing?.cacheWritePerMillion == 2.50) // no separate cache-write price → input rate
+    }
+
+    @Test func pricing_gpt56Sol_longestPrefixWins() {
+        let pricing = ModelPricing.pricing(for: "gpt-5.6-sol")
+        #expect(pricing?.inputPerMillion == 4.00)
+        #expect(pricing?.outputPerMillion == 20.00)
+    }
+
+    @Test func pricing_gpt5Mini_notMatchedAsGpt5() {
+        let pricing = ModelPricing.pricing(for: "gpt-5-mini")
+        #expect(pricing?.inputPerMillion == 0.25)
+        #expect(pricing?.outputPerMillion == 2.00)
+    }
+
+    @Test func pricing_gpt5Base() {
+        let pricing = ModelPricing.pricing(for: "gpt-5")
+        #expect(pricing?.inputPerMillion == 1.25)
+        #expect(pricing?.outputPerMillion == 10.00)
+    }
+
+    @Test func pricing_unknownGPT_isNil() {
+        #expect(ModelPricing.pricing(for: "gpt-4o") == nil)
+    }
+
+    @Test func openAITable_isOrderedLongestPrefixFirst() {
+        let prefixes = OpenAIModelPricing.table.map(\.prefix)
+        for (i, prefix) in prefixes.enumerated() {
+            for later in prefixes[(i + 1)...] {
+                // An earlier, shorter prefix must never be a prefix of a later entry —
+                // it would shadow the more specific row.
+                #expect(!later.hasPrefix(prefix), "\(prefix) would shadow \(later)")
+            }
+        }
+    }
 }
