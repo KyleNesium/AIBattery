@@ -1388,4 +1388,9 @@ struct UsageAggregatorTests {
         #expect(snapshot.provider == .claude)
         #expect(snapshot.firstSessionDate == earliest)
     }
+
+    @Test func convenienceInit_perProvider_stampsProvider() {
+        #expect(UsageAggregator(provider: .claude).provider == .claude)
+        #expect(UsageAggregator(provider: .codex).provider == .codex)
+    }
 }

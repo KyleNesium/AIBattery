@@ -38,7 +38,11 @@ public final class UsageViewModel: ObservableObject {
     // files in the same module. `aggregator`, `fileWatcher`, `pollingTimer`,
     // and the sleep/wake observers are read or written by
     // `UsageViewModel+Lifecycle.swift`; nothing else in the module touches them.
-    let aggregator = UsageAggregator()
+    /// One aggregator per provider — each owns its own reader cache + redundant-
+    /// aggregation fingerprint. `aggregator` stays the Claude one (legacy name used by
+    /// the lifecycle extension); `aggregator(for:)` routes by the active provider.
+    let aggregator = UsageAggregator(provider: .claude)
+    let codexAggregator = UsageAggregator(provider: .codex)
     /// Serializes concurrent aggregateOffMain calls — only one detached task runs at a time.
     private var inflightAggregation: Task<(UsageSnapshot, UsageAggregator.SideEffects), Never>?
     var fileWatcher: FileWatcher?
@@ -133,9 +137,7 @@ public final class UsageViewModel: ObservableObject {
             // CodexRateLimitFetcher, not RateLimitFetcher. Mirrors the wasEmpty routing
             // in refresh() (Task 14).
             let provider = OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
-            let cached = provider == .codex
-                ? CodexRateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
-                : RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+            let cached = Self.cachedResult(for: provider, accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
                 // Persisted rate limits from last session — treat as still-valid
                 // so the stale TTL keeps them alive until a fresh API response.
@@ -151,10 +153,8 @@ public final class UsageViewModel: ObservableObject {
                         rateLimits: cached.rateLimits?.withClearedRolloverArtifacts(),
                         rateLimitSource: cached.rateLimitSource,
                         standardLimits: cached.standardLimits,
-                        // Codex has no local (JSONL) data layer yet (Plan 2) — never let the
-                        // Claude JSONL aggregator merge Claude-derived tokens into a Codex
-                        // account's persistent TokenLedger entry.
-                        accountId: provider == .codex ? nil : accountId,
+                        accountId: accountId,
+                        provider: provider,
                         rateLimitsFresh: false
                     )
                     self.snapshot = result
@@ -201,13 +201,14 @@ public final class UsageViewModel: ObservableObject {
         rateLimitSource: RateLimitSource? = nil,
         standardLimits: StandardRateLimits? = nil,
         accountId: String? = nil,
+        provider: AIProvider = .claude,
         rateLimitsFresh: Bool = true
     ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
             _ = await inflight.value
         }
 
-        let agg = aggregator
+        let agg = aggregator(for: provider)
         let task = Task.detached {
             agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitsFresh: rateLimitsFresh)
         }
@@ -215,13 +216,33 @@ public final class UsageViewModel: ObservableObject {
         let (result, effects) = await task.value
 
         // Apply side effects before clearing inflightAggregation so the next
-        // caller sees consistent RateLimitFetcher state.
-        RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
-        if let id = effects.accountId {
-            RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)
+        // caller sees consistent RateLimitFetcher state. The observed-model list feeds
+        // the Claude Messages-probe fallback only — gpt-* IDs must never land there.
+        if effects.provider == .claude {
+            RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
+            if let id = effects.accountId {
+                RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)
+            }
         }
         inflightAggregation = nil
         return result
+    }
+
+    func aggregator(for provider: AIProvider) -> UsageAggregator {
+        provider == .codex ? codexAggregator : aggregator
+    }
+
+    /// Provider of an account in the store (Claude when unknown — legacy records).
+    func provider(ofAccount accountId: String?) -> AIProvider {
+        OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+    }
+
+    /// The right fetcher's cached result for an account — each provider persists under
+    /// its own key prefix, so asking the wrong fetcher yields empty bars.
+    static func cachedResult(for provider: AIProvider, accountId: String) -> APIFetchResult {
+        provider == .codex
+            ? CodexRateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+            : RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
     }
 
     /// - Parameter skipNetworkCheck: When true, bypasses the offline guard. Used on wake
@@ -244,7 +265,8 @@ public final class UsageViewModel: ObservableObject {
 
         let oauthManager = OAuthManager.shared
 
-        // Skip network work when not authenticated — still aggregate local data.
+        // Skip network work when not authenticated — still aggregate local data
+        // (Claude's, the historical default for the signed-out state).
         guard oauthManager.isAuthenticated else {
             rateLimitsFresh = false
             let result = await aggregateOffMain(rateLimits: nil, rateLimitsFresh: false)
@@ -263,10 +285,13 @@ public final class UsageViewModel: ObservableObject {
         // fetch confirms.
         guard skipNetworkCheck || NetworkMonitor.shared.isConnected else {
             rateLimitsFresh = false
+            let offlineAccountId = oauthManager.accountStore.activeAccountId
             let result = await aggregateOffMain(
                 rateLimits: snapshot?.rateLimits?.withClearedExpiredWindows(),
                 rateLimitSource: snapshot?.rateLimitSource,
                 standardLimits: snapshot?.standardLimits,
+                accountId: offlineAccountId,
+                provider: provider(ofAccount: offlineAccountId),
                 rateLimitsFresh: false
             )
             if result != snapshot {
@@ -279,17 +304,15 @@ public final class UsageViewModel: ObservableObject {
 
         let wasEmpty = snapshot == nil
         let accountId = oauthManager.accountStore.activeAccountId
-        // Resolved once and reused for every ledger/calibration/write-back gate below —
-        // Codex has no local (JSONL) data layer yet (Plan 2), so none of that Claude-only
-        // machinery may run (or persist) under a Codex account id.
-        let accountProvider = oauthManager.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+        // Resolved once and reused for every aggregate / write-back / status routing
+        // decision below — each provider has its own local data layer, fetcher cache,
+        // and status feed.
+        let accountProvider = provider(ofAccount: accountId)
 
         // Show cached rate limits immediately while API call is in-flight.
         // This eliminates the empty-bars delay on launch.
         if wasEmpty, let accountId {
-            let cached = accountProvider == .codex
-                ? CodexRateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
-                : RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+            let cached = Self.cachedResult(for: accountProvider, accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
                 let earlyResult = await aggregateOffMain(
                     // Clear rollover artifacts on the instant-paint too: a window that just
@@ -298,7 +321,8 @@ public final class UsageViewModel: ObservableObject {
                     rateLimits: cached.rateLimits?.withClearedRolloverArtifacts(),
                     rateLimitSource: cached.rateLimitSource,
                     standardLimits: cached.standardLimits,
-                    accountId: accountProvider == .codex ? nil : accountId,
+                    accountId: accountId,
+                    provider: accountProvider,
                     rateLimitsFresh: false
                 )
                 snapshot = earlyResult
@@ -426,10 +450,8 @@ public final class UsageViewModel: ObservableObject {
             rateLimits: effectiveRateLimits,
             rateLimitSource: effectiveSource,
             standardLimits: api.standardLimits ?? snapshot?.standardLimits,
-            // Codex has no local (JSONL) data layer yet (Plan 2) — accountId: nil skips
-            // the ledger merge in UsageAggregator so Claude-derived token high-water
-            // marks never persist under a Codex account id (irreversible otherwise).
-            accountId: accountProvider == .codex ? nil : accountId,
+            accountId: accountId,
+            provider: accountProvider,
             rateLimitsFresh: rateLimitsFresh
         )
         logCorruptionMetrics()
@@ -440,11 +462,9 @@ public final class UsageViewModel: ObservableObject {
 
         // Auto-calibrate local usage limits when API returns fresh utilization data.
         // This lets us estimate percentages from local tokens when the API is unavailable.
-        // Skipped entirely for Codex: `result.fiveHourTokens`/`sevenDayTokens` here are
-        // Claude-JSONL derived (Codex has no local data layer yet — Plan 2), so deriving
-        // a "local estimate" limit from Claude token counts ÷ Codex utilization would be
-        // nonsensical cross-provider math persisted under the Codex account id.
-        if let rl = api.rateLimits, !api.isCached, accountProvider != .codex {
+        // Provider-safe: `result` was aggregated from the active provider's own local
+        // data, so tokens ÷ utilization is same-provider math either way.
+        if let rl = api.rateLimits, !api.isCached {
             LocalUsageEstimate.calibrate(
                 fiveHourUtilization: rl.fiveHourUtilization,
                 sevenDayUtilization: rl.sevenDayUtilization,
@@ -459,7 +479,8 @@ public final class UsageViewModel: ObservableObject {
         await handlePostFetchAlerts(
             confirmedRateLimits: effectiveRateLimits,
             rateLimitsFresh: rateLimitsFresh,
-            status: status
+            status: status,
+            provider: accountProvider
         )
         // Multi-account menu bar fan-out (no-op when toggle is off).
         // Seed with the active account's just-fetched data — RateLimitFetcher does
@@ -490,9 +511,9 @@ public final class UsageViewModel: ObservableObject {
             nil
         }
 
-        async let fetchedStatus = StatusChecker.shared.fetchStatus()
+        let provider = provider(ofAccount: accountId)
+        async let fetchedStatus = StatusChecker.shared(for: provider).fetchStatus()
 
-        let provider = oauthManager.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
         let api: APIFetchResult = if let token = accessToken, let id = accountId {
             provider == .codex
                 ? await CodexRateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
@@ -526,7 +547,7 @@ public final class UsageViewModel: ObservableObject {
     }
 
     private func logCorruptionMetrics() {
-        let corruptLines = SessionLogReader.shared.lastCorruptLineCount
+        let corruptLines = SessionLogReader.shared.lastCorruptLineCount + CodexSessionLogReader.shared.lastCorruptLineCount
         if corruptLines > 0 {
             AppLogger.files.warning("JSONL corruption: \(corruptLines) lines skipped or failed to decode")
         }
@@ -540,9 +561,7 @@ public final class UsageViewModel: ObservableObject {
     /// during an active Claude session — and reset the poll timer each time.)
     func refreshLocalData() async {
         let accountId = OAuthManager.shared.accountStore.activeAccountId
-        // Codex has no local (JSONL) data layer yet (Plan 2) — never let this re-aggregate
-        // merge Claude-derived tokens into a Codex account's persistent TokenLedger entry.
-        let accountProvider = OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+        let accountProvider = provider(ofAccount: accountId)
         // Capture the display inputs BEFORE suspending so the post-await guard can
         // detect a concurrent refresh() publishing newer limits mid-flight. Expired
         // windows are cleared here (the fetch paths clear via cachedOrEmpty /
@@ -555,7 +574,8 @@ public final class UsageViewModel: ObservableObject {
             rateLimits: baseLimits?.withClearedExpiredWindows(),
             rateLimitSource: snapshot?.rateLimitSource,
             standardLimits: snapshot?.standardLimits,
-            accountId: accountProvider == .codex ? nil : accountId,
+            accountId: accountId,
+            provider: accountProvider,
             rateLimitsFresh: baseFresh
         )
         // Mirror refresh()'s stale-result guard: if the user switched accounts while
@@ -682,9 +702,13 @@ public final class UsageViewModel: ObservableObject {
     private func handlePostFetchAlerts(
         confirmedRateLimits: RateLimitUsage?,
         rateLimitsFresh: Bool,
-        status: ClaudeSystemStatus
+        status: ClaudeSystemStatus,
+        provider: AIProvider
     ) async {
-        NotificationManager.shared.checkStatusAlerts(status: status)
+        NotificationManager.shared.checkStatusAlerts(
+            status: status,
+            components: StatusChecker.shared(for: provider).config.knownComponents
+        )
 
         // Alert on the spike-confirmed limits, never the raw fetch — a held-but-
         // unconfirmed near-full spike must not fire a notification the bars won't show.
@@ -713,6 +737,8 @@ public final class UsageViewModel: ObservableObject {
         // in refresh() re-aggregates from apiResult, so a stale value here would
         // render the OLD account's rate limits under the new account's identity.
         apiResult = nil
+        // The status feed follows the provider — drop the old one until the next fetch.
+        systemStatus = nil
         isShowingCachedData = false
         rateLimitsFresh = false
         // New account has no spike-confirmation history — start clean so its first fresh
