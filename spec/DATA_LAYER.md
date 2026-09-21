@@ -127,16 +127,21 @@ Account/workspace info extracted from Anthropic response headers or `client_data
 
 `parse(headers:)` reads `anthropic-organization-id`, `anthropic-workspace-id`/`anthropic-workspace`, and `anthropic-workspace-name`/`x-workspace-name`. A `parse(clientData:)` overload extracts the same fields from the Claude Code client-data JSON.
 
+### AIProvider (`Models/AIProvider.swift`)
+
+`enum AIProvider: String, Codable, CaseIterable, Sendable { case claude, codex }` — exactly two providers by design (no plugin registry). `displayName` ("Claude" / "Codex"), `glyph` (✦ `U+2726` / ⬡ `U+2B21` — text glyphs so they bake into the menu-bar string), `secondaryWindowLabel` ("7-Day" / "Weekly"), `secondaryWindowShortCode` ("7D" / "WK").
+
 ### AccountRecord (`Models/AccountRecord.swift`)
 
 Per-account identity record. Stored as JSON array in UserDefaults.
 
 | Field | Type |
 |-------|------|
-| `id` | `String` — organizationId (or `"pending-<UUID>"` before first API call) |
+| `id` | `String` — Claude: organizationId (or `"pending-<UUID>"` before first API call); Codex: the ChatGPT `account_id` from the ID token (resolved at auth time, never pending) |
 | `displayName` | `String?` — user-editable label (max 30 chars) |
 | `billingType` | `String?` |
 | `addedAt` | `Date` |
+| `provider` | `AIProvider` — custom `init(from:)` uses `decodeIfPresent` with default `.claude`, so pre-Codex persisted arrays load unchanged (no migration step) |
 
 Computed: `isPendingIdentity: Bool` — true when `id` starts with `"pending-"`
 
@@ -149,7 +154,7 @@ Combined result from a single Messages API call.
 | Field | Type |
 |-------|------|
 | `rateLimits` | `RateLimitUsage?` |
-| `rateLimitSource` | `RateLimitSource?` — `.oauthUsageEndpoint` (primary), `.anthropicAPIHeaders`, or `.claudeCodeClientData` |
+| `rateLimitSource` | `RateLimitSource?` — `.oauthUsageEndpoint` (primary), `.anthropicAPIHeaders`, `.claudeCodeClientData`; Codex: `.codexUsageEndpoint`, `.codexSessionLog` |
 | `standardLimits` | `StandardRateLimits?` — per-minute API limits (fallback when 5h/7d unavailable) |
 | `profile` | `APIProfile?` |
 | `hasStandardRateLimitHeaders` | `Bool` — true when standard `anthropic-ratelimit-*` headers present |
@@ -188,6 +193,10 @@ Parsed from Claude Code usage metadata or Anthropic's legacy unified rate limit 
 | `sevenDayReset` | `Date?` |
 | `sevenDayStatus` | `String` |
 | `overallStatus` | `String` — `"allowed"` or `"throttled"` |
+| `provider` | `AIProvider` — which provider produced the reading; decodes as `.claude` for pre-Codex persisted blobs. Drives `sevenDayDisplayLabel` ("7-Day" / "Weekly") and the notification vocabulary. |
+| `fiveHourWindowMinutes` / `sevenDayWindowMinutes` | `Int?` — actual window lengths from Codex payloads (300 / 10080); nil for Claude (windows are implicitly 5h/7d) |
+
+Codex readings are parsed by `CodexUsageParser` (`Models/CodexUsageParser.swift`): `parseUsageResponse(_ data:)` for the `wham/usage` JSON (`rate_limit.primary_window` / `secondary_window` with `used_percent`, `reset_at` / `resets_at`, `limit_window_seconds` / `window_minutes`; `rate_limit_reached_type` → throttled) and `parseSessionRateLimits(_:)` for the `rate_limits` object in a session-log `token_count` event. Both return nil when neither window is present. All hardening below (`markedThrottled`, `withClearedExpiredWindows`, `withClearedRolloverArtifacts`, spike confirmation) is provider-neutral and applies unchanged.
 
 Computed: `requestsPercentUsed` (binding window utilization × 100), `fiveHourPercent`, `sevenDayPercent`, `bindingReset`, `bindingWindowLabel`, `isThrottled` (true if `overallStatus`, `fiveHourStatus`, or `sevenDayStatus` is `"throttled"`), `estimatedTimeToLimit(for window: String) -> TimeInterval?` (burn rate = utilization / elapsed, projects when 100% reached; returns nil if utilization ≤ 20%, elapsed < 60s, or estimate exceeds reset time)
 
@@ -361,12 +370,14 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 | `.oauthUsageEndpoint` | `"Via Anthropic API"` | OAuth usage endpoint |
 | `.claudeCodeClientData` | `"Via Claude Code"` | Claude Code account metadata |
 | `.anthropicAPIHeaders` | `"Via Anthropic API"` | Anthropic API response headers |
+| `.codexUsageEndpoint` | `"Via OpenAI API"` | `chatgpt.com/backend-api/wham/usage` |
+| `.codexSessionLog` | `"Via Codex CLI"` | Newest rollout's last `rate_limits` snapshot on this Mac (endpoint unreachable; always surfaced as cached) |
 
 ### ClaudeSystemStatus + StatusIndicator (`Models/ClaudeSystemStatus.swift`)
 
 `ClaudeSystemStatus`: `indicator: StatusIndicator`, `description: String`, `incidentNames: [String]`, `statusPageURL: String`, `componentStatuses: [String: StatusIndicator]` (keyed by Statuspage component ID, default empty). Computed: `incidentName: String?` (first incident, convenience accessor).
 
-`StatusComponent`: `id: String`, `name: String`, `alertKey: String`. Catalog: `StatusChecker.knownComponents` (5 entries: claude.ai, Console, Claude API, Claude Code, Claude for Gov).
+`StatusComponent`: `id: String`, `name: String`, `alertKey: String`. Catalogs live on `StatusFeedConfig`: `.claude.knownComponents` (5: claude.ai, Console, Claude API, Claude Code, Claude for Gov — also exposed as the legacy `StatusChecker.knownComponents`) and `.codex.knownComponents` (5: Codex API, Codex CLI, Codex in ChatGPT Desktop, Codex Web, Codex VS Code extension). `ClaudeSystemStatus.unknown(statusPageURL:)` builds an unknown status that still links to the right provider's page. The type name is historical — the struct is provider-neutral.
 
 `StatusIndicator`: enum with cases `.operational`, `.degradedPerformance`, `.partialOutage`, `.majorOutage`, `.maintenance`, `.unknown`. Has `severity: Int` for comparison (higher = worse). `from(_:)` maps Statuspage API strings to cases — notably `"elevated"` maps to `.degradedPerformance` (yellow). Also used to parse incident impact strings (`"none"`, `"minor"`, `"major"`, `"critical"`).
 
@@ -380,7 +391,8 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - Auth URL: `https://claude.ai/oauth/authorize`
 - Token URL: `https://console.anthropic.com/v1/oauth/token`
 - Scopes: `org:create_api_key user:profile user:inference`
-- **Multi-account**: supports up to 3 accounts (separate Claude orgs). Each account's refresh token stored in Keychain (`refreshToken_{accountId}`); access token held in memory only (re-derived from refresh on launch); expiry timestamp in UserDefaults (`aibattery_expiresAt_{accountId}`). `AccountStore` tracks known accounts; `activeAccountId` drives which one polls. New accounts get a temporary `"pending-<UUID>"` ID until the first API call returns the real `anthropic-organization-id`.
+- **Multi-account**: supports up to 3 accounts **per provider** (3 Claude orgs + 3 Codex/ChatGPT accounts). Each account's refresh token stored in Keychain (`refreshToken_{accountId}` for Claude, `refreshToken_codex_{accountId}` for Codex — `OAuthManager.tokenStorageKey(accountId:provider:)`); access token held in memory only (re-derived from refresh on launch); expiry timestamp in UserDefaults (`aibattery_expiresAt_{storageKey}`). `AccountStore` tracks known accounts; `activeAccountId` drives which one polls. New Claude accounts get a temporary `"pending-<UUID>"` ID until the first API call returns the real `anthropic-organization-id`; Codex accounts are identified immediately from the ID token's account id.
+- **Codex routing** (`Services/OAuthManager+Codex.swift`): `startCodexAuthFlow() -> URL?` (binds 127.0.0.1:1455 via `CodexAuthSession.begin()`; nil when the port is busy), `completeCodexAuthFlow() async -> Result<Void, AuthError>` (awaits the redirect through `OneShotMailbox` — a redirect that lands before the await is buffered, never dropped — validates `state`, exchanges the code via `CodexTokenClient`, derives the account id with `JWTDecoder.chatGPTAccountId`, then `registerCodexAccount`), `cancelCodexAuthFlow()` (releases the port), `registerCodexAccount(accountId:tokenSet:) -> Result<Void, AuthError>` (returns `.maxAccountsReached` at the per-provider cap **before** persisting tokens, so a rejected sign-in never orphans a Keychain entry; shared with `CodexAuthFileImporter`). Refresh dispatch: Codex accounts refresh through `CodexTokenClient.refresh`, with the same 5-min buffer / transient-vs-auth split / serialization as Claude. The 180 s callback timeout and "cancelled" both surface as `.unknownError` with a user message.
 - `startAuthFlow(addingAccount:)` → opens browser with PKCE challenge. `addingAccount` flag tracks whether this is an additional-account flow. Generates a separate random `state` parameter (never reuses the PKCE verifier).
 - `exchangeCode(_:) -> Result<Void, AuthError>` → exchanges auth code for access + refresh tokens. Creates `AccountRecord` with pending ID, stores refresh token in Keychain and expiry in UserDefaults (access token stays in memory). Validates state parameter (CSRF protection). Only clears PKCE state on success.
 - `getAccessToken()` → returns active account's valid token, refreshes 5 minutes before expiry. `getAccessToken(for:)` for specific account. Serializes concurrent refresh attempts per account via `refreshTasks` dictionary.
@@ -399,14 +411,15 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 ### AccountStore (`Services/AccountStore.swift`)
 - `@MainActor ObservableObject`, owned by `OAuthManager`
 - Published: `accounts: [AccountRecord]`, `activeAccountId: String?`
-- Computed: `activeAccount`, `canAddAccount` (< maxAccounts)
+- Computed: `activeAccount`, `accounts(for: AIProvider)`, `canAddAccount(provider:)` (< 3 for that provider), `canAddAccount` (any provider has room — UI gates use the per-provider form)
 - `add(_:)` — appends record, sets as active if first, rejects duplicates and over-max
 - `remove(id:)` — removes account, auto-switches active to remaining
 - `setActive(id:)` — changes active account (no-op for unknown IDs)
 - `update(oldId:with:)` — replaces account record, handles identity resolution (pending → real org ID). Detects and merges duplicates (same org authed twice): preserves earliest `addedAt`, keeps existing `displayName`/`billingType` when new record has nil. Handles index ordering correctly when removing the old entry.
 - Persistence: JSON-encoded `[AccountRecord]` to `UserDefaults(aibattery_accounts)` + `activeAccountId` string to `UserDefaults(aibattery_activeAccountId)`
 - Load on init: fixes dangling `activeAccountId` pointing at removed accounts
-- `nonisolated static let maxAccounts = 3`
+- `nonisolated static let maxAccountsPerProvider = 3`
+- `displayOrdered(_:)` — Claude block first, insertion order within each provider. Single source of display order for the picker, the fan-out, and the menu bar (keeps glyph groups contiguous).
 
 ### RateLimitFetcher (`Services/RateLimitFetcher.swift`)
 - Singleton: `.shared`
@@ -438,18 +451,29 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - Non-model 400/404 errors: extracts rate limit headers if present and returns as success; otherwise returns `.networkError` (never silently falls through to header-less success)
 - `static parseRetryAfter(_ value: String?, maxDelay: Double = 30) -> Double?` — parses `Retry-After` header; returns nil for nil/non-numeric/zero/negative; caps at `maxDelay`
 
-### StatusChecker (`Services/StatusChecker.swift`)
-- Singleton: `.shared`
-- `fetchStatus() async -> ClaudeSystemStatus`
-- GET `https://status.claude.com/api/v2/summary.json`
-- Timeout: 5 sec
-- `knownComponents: [StatusComponent]` catalog of all 5 tracked components (claude.ai, Console, Claude API, Claude Code, Claude for Gov)
-- Uses ALL API-returned components for worst-status calculation (no filter)
+### StatusChecker (`Services/StatusChecker.swift`, `Services/OpenAIStatusFeed.swift`)
+- One instance per feed: `.shared` = `StatusChecker(config: .claude)`, `.codex` = `StatusChecker(config: .codex)`; `shared(for: AIProvider)` routes. Each has its own cache + backoff state.
+- `StatusFeedConfig { summaryURL, statusPageBaseURL, knownComponents, componentFilter: Set<String>? }`. `.claude`: `https://status.claude.com/api/v2/summary.json`, filter **nil** (unchanged behaviour). `.codex`: `https://status.openai.com/api/v2/summary.json`, `https://status.openai.com`, filter = the five Codex component IDs (see CONSTANTS.md).
+- `fetchStatus() async -> ClaudeSystemStatus`; timeout 5 sec; `.unknown(statusPageURL: config.statusPageBaseURL)` on any error
+- `parseStatus(_ summary: StatusPageSummary, config:)` — `nonisolated static`, pure. Without a filter it uses ALL API-returned components for the worst-status calculation. With a filter, only filtered components populate `componentStatuses` / drive the worst indicator / description, and an active incident counts only when its `components` list names a filtered component (or lists none). A filtered feed whose components are all absent from the summary reports `.unknown` rather than the whole page's unrelated indicator. The Statuspage JSON models (`StatusPageSummary`, `StatusPageComponent`, `StatusPageIncident` — the latter now with optional `components`) are internal so tests build summaries directly.
+- Legacy statics kept for callers/tests: `StatusChecker.statusPageBaseURL` (Claude page) and `StatusChecker.knownComponents` (Claude catalog); `fetchAndParse(url:timeout:)` wraps `fetchAndParse(config:timeout:)`.
 - Populates `componentStatuses: [String: StatusIndicator]` dictionary keyed by component ID
 - **Incident impact escalation**: when components report "operational" but active incidents exist, factors in incident `impact` field (`"none"`, `"minor"`, `"major"`, `"critical"`) to determine overall indicator. If impact is `"none"` but incidents are active, escalates to at least `.degradedPerformance` (yellow dot).
 - Checks for active incidents (status not `resolved` or `postmortem`)
 - Returns `.unknown` on any error
 - **Backoff**: exponential backoff with jitter on failure — base 60s doubles per failure, capped at 5 min, ±20% jitter to prevent thundering herd; stored once per failure increment (not re-randomized on every check); resets on success
+
+### CodexRateLimitFetcher (`Services/CodexRateLimitFetcher.swift`)
+- `@MainActor`, Singleton: `.shared` — the Codex mirror of `RateLimitFetcher`, same shape on purpose
+- `fetch(accessToken:accountId:) async -> APIFetchResult` — `GET https://chatgpt.com/backend-api/wham/usage` with `Authorization: Bearer`, `ChatGPT-Account-Id: <accountId>`, `Accept: application/json`, `User-Agent: AIBattery/{version} (macOS)`; timeout 30 s
+- **Pure interpreter** `interpretUsageResponse(statusCode:data:) -> UsageOutcome`: 401/403 → `.authFailed`; 2xx or 429 with a parseable body → `.success` (429 additionally `markedThrottled()` — the quota signal is in the body, not headers); anything else → `.unavailable`
+- **Degradation chain** (spec §6): endpoint → `CodexSessionRateLimitScanner.latestRateLimits()` (newest rollout's last `rate_limits`, surfaced with `isCached: true`, `fetchedAt` = file mtime, source `.codexSessionLog`; cached in memory, **never persisted**) → `cachedOrEmpty` (held stale cache, `withClearedExpiredWindows`)
+- **Endpoint backoff** (spec §6): per-account `EndpointBackoff { failureCount, lastFailedAt, currentDelay }` driven by `RetryPolicy.statusCheck` (60 s → 120 s → 240 s, cap 300 s, ±20% jitter). Transport errors and `.unavailable` record a failure; while `shouldSkipEndpoint` is true `fetch` skips the network and serves the session-log fallback. A `.success` or `.authFailed` (the endpoint answered) clears the backoff. Pure helpers `shouldSkipEndpoint(_:now:)` / `recordingFailure(_:now:policy:)` are `nonisolated static`.
+- **Consecutive auth-failure tracking**: `consecutiveAuthFailures[accountId]`, `authErrorThreshold = 3` → `APIFetchResult.authError = true` (same reconnect prompt as Claude)
+- **Persistence**: `aibattery_codexRateLimits_{accountId}` (`PersistedCodexRateLimits { rateLimits, rateLimitSource, fetchedAt }`); `restorePersistedRateLimits` self-heals corrupt blobs, clamps future timestamps, applies `withClearedExpiredWindows`; `overrideCachedRateLimits(_:accountId:defaults:)` is the spike-hold write-back target for Codex accounts (`UsageViewModel.refresh` routes by provider); `clearCache(accountId:)` on sign-out
+
+### CodexSessionRateLimitScanner (`Services/CodexSessionRateLimitScanner.swift`)
+- `nonisolated static` enum. `latestRateLimits(sessionsRoot:) -> (RateLimitUsage, asOf: Date)?` reads the **tail 256 KB** of the newest `.jsonl` under `~/.codex/sessions`, splits on `0x0A` **before** UTF-8 decoding (a tail seek can land mid multi-byte character), scans lines newest-first for a `token_count` payload with `rate_limits`, and parses it via `CodexUsageParser.parseSessionRateLimits`. Never decodes non-matching lines.
 
 ### StatsCacheReader (`Services/StatsCacheReader.swift`)
 - `@MainActor`, Singleton: `.shared`
@@ -460,8 +484,11 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - **File size guard**: `maxFileSize = 10_000_000` (10 MB). Rejects files exceeding this before `Data(contentsOf:)` — stats-cache.json is typically a few KB; anything larger suggests a symlink to a large file or runaway writer. Guard checked in both stat-based and fallback code paths.
 - `lastModificationDate: Date?` — exposes cached file modification date (read-only). Used by `UsageAggregator` as a fingerprint component for redundant aggregation skip.
 
+### UsageEntrySource (`Services/UsageEntrySource.swift`)
+- Protocol both session-log readers implement: `readAllUsageEntries() -> [AssistantUsageEntry]`, `invalidate()` (non-blocking), `lastCorruptLineCount: Int`. `UsageAggregator` depends on this seam, not on a concrete reader, so it runs unchanged on Claude or Codex entries.
+
 ### SessionLogReader (`Services/SessionLogReader.swift`)
-- NOT `@MainActor` (file I/O must not block UI), Singleton: `.shared`, `@unchecked Sendable` + NSLock
+- Claude Code reader. NOT `@MainActor` (file I/O must not block UI), Singleton: `.shared`, `@unchecked Sendable` + NSLock; conforms to `UsageEntrySource`
 - `readAllUsageEntries() -> [AssistantUsageEntry]`
 - Discovers JSONL by recursively enumerating each `~/.claude/projects/*` directory for `.jsonl` files (subagent files under `*/subagents/` are picked up by the recursion, not a dedicated glob).
 - **Non-Claude-Code directory filter**: decodes the encoded project-dir name back to a path and skips it when any path component is dot-prefixed (hidden, e.g. `.claude-mem`). Filters out MCP observer sessions and other tools that write JSONL to `~/.claude/projects/`.
@@ -480,8 +507,28 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)
 - **Corruption tracking**: `lastCorruptLineCount` (public getter) counts decode failures and oversized line skips per `readAllUsageEntries()` call; reset at start of each call (before cache check) to avoid stale values on cache hits
 
+### CodexSessionLogParser (`Services/CodexSessionLogParser.swift`)
+- Pure per-file state machine (`struct`, `mutating func consume(line: Data, lineIndex: Int) -> AssistantUsageEntry?`), one instance per file parse. Inspects **only three** line types via `JSONSerialization`:
+  - `session_meta` → `sessionId` (`payload.id` ?? `payload.session_id`), `cwd`, `gitBranch` (`payload.git.branch`)
+  - `turn_context` → `currentModel` (`payload.model`, e.g. `gpt-5.4`, `gpt-5.6-sol`)
+  - `event_msg` with `payload.type == "token_count"` → one entry from **`info.last_token_usage`** (never the cumulative `total_token_usage` — same double-counting hazard class as stats-cache). Skipped (not counted as corrupt) when `info` is null (rate-limit-only refresh) or no `turn_context` has been seen yet (unattributable model).
+  - Every other `type` — notably `response_item`, which carries message content — returns nil **on `type` alone; `payload` is never read**.
+- Field mapping (design spec §4): `inputTokens = max(0, input_tokens − cached_input_tokens − cache_write_input_tokens)` (fresh input only; both cache fields are subsets of `input_tokens`), `cacheReadTokens = cached_input_tokens`, `cacheWriteTokens = cache_write_input_tokens`, `outputTokens = output_tokens` (reasoning tokens are a subset, already included), `model = currentModel`, `sessionId`/`cwd`/`gitBranch` from state (falls back to `fallbackSessionId` = file-name stem when there is no `session_meta`), `timestamp` = the line's top-level ISO-8601 timestamp, `messageId = "<sessionId>:<ordinal>"` (the line's `ordinal` field; line index if absent), `toolCallCount = 0` (would require decoding `response_item`).
+- `static mightBeRelevant(_:)` — byte pre-filter for `"session_meta"` / `"turn_context"` / `"token_count"` before JSON decode (false positives are fine; `consume` gates on `type`).
+- `corruptLineCount` — lines that passed the pre-filter but failed to decode as a JSON object with a `type`.
+
+### CodexSessionLogReader (`Services/CodexSessionLogReader.swift`)
+- Codex reader, sibling of `SessionLogReader` with the same discipline. NOT `@MainActor`, Singleton: `.shared`, `@unchecked Sendable` + NSLock + `pendingInvalidation` `AtomicBool` (non-blocking `invalidate()`); conforms to `UsageEntrySource`. `init(sessionsURL:)` defaults to `CodexPaths.sessions`.
+- **Discovery**: `FileManager.enumerator` over the whole root (`YYYY/MM/DD/*.jsonl`), `.skipsHiddenFiles`, regular files only, **symlink boundary** (resolved path must stay under the resolved root). Cached with `discoveryTTL = 60s` + a root-directory mtime check (the nested date directories make per-directory mtimes a poor "new file" signal).
+- **Streaming**: FileHandle, 64 KB chunks, `mightBeRelevant` pre-filter, 1 MB oversized-line discard (`lastCorruptLineCount += 1`), leftover compaction, trailing data only processed when it ends with `}` (a partial tail is "still being written", not corrupt). `lastCorruptLineCount` also accumulates each file's parser `corruptLineCount`; reset at the start of every `readAllUsageEntries()`.
+- **Per-file fingerprint cache** (`FileCacheEntry { modDate, fileSize, entries?, messageIds }`), **incremental rebuild** (unchanged files skipped, changed files purge their previous `messageIds` then re-parse, deleted files purged), **eviction** of raw arrays for files not modified today, `cachedAllEntries` authoritative merged result sorted ascending. `cacheEntriesWithLiveEntriesCountForTesting()` test hook.
+- Local volume observed on the reference machine: ~540 rollouts / 340 MB — hence the same never-load-a-whole-file rule as the Claude reader.
+
 ### UsageAggregator (`Services/UsageAggregator.swift`)
-- `@unchecked Sendable` + NSLock, created per-ViewModel (not singleton)
+- `@unchecked Sendable` + NSLock, created per-ViewModel (not singleton) — **one instance per provider**: `UsageAggregator(provider: .claude)` wires `StatsCacheReader.shared` + `SessionLogReader.shared`; `UsageAggregator(provider: .codex)` wires **no stats cache** + `CodexSessionLogReader.shared`. Designated init `init(statsCacheReader: StatsCacheReader?, sessionLogReader: any UsageEntrySource, ledger:, provider:)`.
+- `provider: AIProvider` is stamped onto every `UsageSnapshot` and `SideEffects` it produces. `isTrackedModel(_:provider:)` (`nonisolated static`) is the model-ID filter: `claude-` for Claude, `gpt-` for Codex — replaces the former hardcoded `hasPrefix("claude-")` in the all-JSONL floor, project accumulation, and `buildModelTokens`.
+- With no stats cache (Codex): `totalSessions`/`totalMessages` come purely from JSONL (`additional*` over an empty base), `longestSession*`/`peakHour` history are nil/JSONL-only, and `firstSessionDate` falls back to the earliest entry's timestamp (the fallback also applies to Claude when `stats-cache.json` is absent).
+- Callers apply `SideEffects.activeUserModel` / `observedModels` to `RateLimitFetcher` **only when `effects.provider == .claude`** — the observed-model list feeds the Claude Messages-probe fallback and must never contain `gpt-*` IDs.
 - **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
 - **Time window constants**: `fiveHourWindow` (18,000s), `sevenDayWindow` (604,800s — rolling 7×86400 for rate-limit token count, mirrors Anthropic's sliding-window quota), `twentyFourHourWindow` (86,400s), `fiveHourBucketCount` (20), `bucketDuration` (900s). The aggregator computes two distinct 7-day cutoffs: `sevenDayRateLimitCutoff` (rolling, drives `sevenDayTokens`) and `sevenDaysAgo` (calendar-day, drives `weekTokenMap` UI breakdown).
 - **Injectable `now`**: `aggregate(...)` accepts `now: Date = Date()`. Production callers use the default; tests pin window-boundary behavior with deterministic timestamps independent of wall-clock time of day.
@@ -492,9 +539,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - **Single-pass filtering**: iterates all entries once to extract today's entries (avoids separate `.filter()` passes)
 - Reads: stats cache, all JSONL entries (single scan)
 - **Token aggregation**: always all-time mode — stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache. All models from `modelUsage` are shown (no recency filter) so totals match the Anthropic dashboard.
-- **Non-Claude model filter**: excludes model IDs that don't start with `"claude-"` (e.g. `"synthetic"`)
+- **Provider model filter**: excludes model IDs outside the aggregator's provider prefix (`claude-` / `gpt-`) — e.g. `"synthetic"`, or a stray other-provider entry
 - **Token ledger merge**: after `buildModelTokens`, merges with `TokenLedger.shared.merge()` when `accountId` is non-nil. Preserves high-water marks and restores historical models lost from stats-cache. Skipped when unauthenticated (nil account).
-- **`buildModelTokens` helper**: private static method that filters non-Claude models, maps to `ModelTokenSummary`, and sorts by `totalTokens` descending
+- **`buildModelTokens(from:provider:)` helper**: private static method that applies the provider model filter, maps to `ModelTokenSummary` (cost via `ModelPricing.pricing(for:)`, which routes `gpt-` IDs to `OpenAIModelPricing`), and sorts by `totalTokens` descending
 - **`buildProjectTokens` helper**: private static method that groups all JSONL entries by full `cwd` path (nil/empty → "Other"), accumulates 4 token types per project, computes cost per entry via `ModelPricing.pricing(for:)`, and returns `[ProjectTokenSummary]` sorted by `totalTokens` descending. Display name uses `lastPathComponent` of the cwd. Filters non-Claude models. Project data is JSONL-only (stats-cache lacks per-entry cwd).
 - **All-dates daily activity merge**: groups all JSONL entries by date via `entriesByDate` dictionary, then merges every date into `dailyActivity` (not just today). This fills gaps between a stale stats-cache rebuild date and the present. If JSONL has more messages for a date than the cache entry, replaces it; if no entry exists, appends one. Preserves the higher of JSONL or cache tool-call counts.
 - **Hourly merge + todayHourCounts**: extracts hour-of-day from today's JSONL entries into `todayHourCounts` (today-only, for the 24H chart). Also merges into all-time `hourCounts` using `max()` per hour. Peak hour is computed after the merge so it reflects live data.
@@ -533,17 +580,17 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 
 ### FileWatcher (`Services/FileWatcher.swift`)
 - `@MainActor`, created per-ViewModel
-- Dual watch: DispatchSource on `stats-cache.json` + FSEventStream on `~/.claude/projects/`
+- Triple watch: DispatchSource on `stats-cache.json` + FSEventStream on `~/.claude/projects/` + FSEventStream on `~/.codex/sessions/`. The Codex stream is created only when the directory exists (no Codex CLI → silently skipped, **no** fallback timer); `codexWatchFailed` is set only when the directory exists but stream creation failed. Both streams share `makeDirectoryStream(path:onEvent:)`; the `WeakBox` handed to the C callback carries the per-stream handler.
 - DispatchSource monitors: write, rename, delete events
 - FSEventStream flags: `kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes`
 - WeakBox wrapper for C callback to prevent retain cycles
 - Debounce: 2 seconds via `DispatchWorkItem`
-- **Selective cache invalidation**: stats-cache watcher only invalidates `StatsCacheReader`, JSONL watcher only invalidates `SessionLogReader` — avoids unnecessary cache rebuilds when only one data source changed. Fallback timer invalidates both (safe catch-all)
+- **Selective cache invalidation**: stats-cache watcher only invalidates `StatsCacheReader`, the Claude JSONL watcher only `SessionLogReader`, the Codex watcher only `CodexSessionLogReader` — avoids unnecessary cache rebuilds when only one data source changed. Fallback timer invalidates the Claude pair (safe catch-all); the ViewModel's `onChange` invalidates **both** aggregators
 - Fallback timer: 60 seconds — starts if either DispatchSource or FSEventStream fails (ensures changes are picked up even if one watcher is unavailable)
 - Calls `onChange` closure → invalidates the aggregator and triggers `viewModel.refreshLocalData()` — a **local-only** re-aggregation with the currently displayed rate limits. **No network fetch and no poll-timer reset**: a JSONL/stats write means local token counts changed, not the API state. (Previously the FS path ran the full `refresh()` — an API round-trip every ~2s during an active Claude session — and reset the poll timer per burst, which both hammered the network and could starve the timer during continuous activity.) `refreshLocalData()` captures the displayed rate limits **before** suspending (cleared via `withClearedExpiredWindows` so an expired throttle can't re-paint per burst), re-aggregates, updates `LocalUsageEstimate.latest*Tokens` for 429 auto-calibration, publishes the snapshot if changed, and re-applies auto-mode hysteresis (context health / token totals move with JSONL writes) with a value-changed guard on the `@Published` write. Two post-await guards protect the publish: the account-switch guard (`shouldApplyFetchResult`) and an **interleave guard** — if a concurrent timed `refresh()` published newer rate limits (or flipped `rateLimitsFresh`) while the aggregate was in flight, the result is dropped rather than reverting the display to pre-refresh values (FS events recur every ~2s, so a single revert would otherwise stick until the next poll). Network polling stays exclusively on the poll timer.
 - **Stats-cache retry**: if `stats-cache.json` doesn't exist on launch (normal before first `/stats` run), retries with exponential backoff (60s base, doubles each retry, capped at 300s, max 10 retries ~30 min). Counter resets on success or `stopWatching()`
 - **Failure logging**: logs via `AppLogger.files.warning` when file descriptors fail to open, projects directory not found, or FSEventStream creation fails — falls back to timer in all cases
-- File paths sourced from `ClaudePaths` (centralized)
+- File paths sourced from `ClaudePaths` / `CodexPaths` (centralized)
 
 ### NotificationManager (`Services/NotificationManager.swift`)
 - Singleton: `.shared`, `@MainActor`
@@ -555,6 +602,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - **Batch delivery**: queues alerts for 500ms via `Task.sleep`; single alert sent as-is, multiple alerts combined into one notification ("AI Battery: Multiple alerts"). Uses structured concurrency (no GCD queues).
 - Delivery: uses `UNUserNotificationCenter` for native macOS notifications with the app's own icon. Each notification gets a unique identifier (`aibattery-{UUID}`).
 - Notification: title "AI Battery: {label} is down", body includes status text, default sound
+
+- `checkStatusAlerts(status:components:)` — iterates the **active provider's** feed components (`StatusChecker.shared(for:).config.knownComponents`; defaults to the Claude catalog). Alert keys are disjoint across providers (`claudeAPI` … vs `codexAPI` …).
+- `checkRateLimitAlerts(rateLimits:)` labels windows via `windowLabels(for: rateLimits.provider)` → `("5-Hour", "7-Day")` for Claude, `("5-Hour", "Weekly")` for Codex. Dedup keys (`rateLimit5h`, `rateLimit7d`) are provider-neutral.
 
 #### Rate Limit Alerts
 - `checkRateLimitAlerts(rateLimits:)` — reads `aibattery_alertRateLimit` (Bool) and `aibattery_rateLimitThreshold` (Double, default 80)
@@ -618,6 +668,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - **Polling constants**: `defaultRefreshInterval` (120s), `minRefreshInterval` (30s), `maxRefreshInterval` (300s), `initialPollDelay` (2s)
 - Static helpers: `clampedRefreshInterval(_:)` (clamps stored interval to [min, max], zero/negative → default), `refreshErrorMessage(hasRateLimits:hasStandardLimits:hasProfile:hasStandardRateLimitHeaders:totalMessages:authError:)` (error string or nil — `authError: true` overrides everything and returns the "log out and reconnect" prompt; otherwise: rate limits present → nil; standard limits present → nil; public API headers without Claude Code windows → nil; profile present but no windows → nil; neither present + no messages → first-use prompt; neither present → network error), `hasDataChanged(previousTotal:previousToday:newTotal:newToday:)` (adaptive polling change detection)
 - **Throttle tracking** (delegates to `ThrottleTracker`): `recordThrottleEvent(_:source:)` uses `ThrottleTracker.evaluate(_:)` to detect the normal→throttled transition (genuine throttle only — explicit `isThrottled`; 100% utilization is *not* counted as a throttle event), records timestamp to UserDefaults `aibattery_throttleTimestamps` via `ThrottleTracker.appendAndPrune`. Emits one structured `AppLogger.network` line on each throttle on/off transition (binding window, reset timestamp, source: `api-fresh`/`stale-cache`) so a stuck throttle state is diagnosable. `throttleCount(days:)` reads timestamps from UserDefaults, parses via `ThrottleTracker.parseTimestamps(_:)` (handles Double/String/Int storage variants), counts via `ThrottleTracker.count(timestamps:days:)`.
+- **Provider routing**: owns `aggregator` (`UsageAggregator(provider: .claude)`) and `codexAggregator`; `aggregator(for:)`, `provider(ofAccount:)` (`.claude` for legacy records) and `cachedResult(for:accountId:)` (the right fetcher's cache) are the routing helpers. `aggregateOffMain(rateLimits:rateLimitSource:standardLimits:accountId:provider:rateLimitsFresh:)` runs the provider's aggregator and applies `RateLimitFetcher` side effects only for `.claude` effects. Every aggregate path — `init` cold-start paint, `refresh()` (instant-paint, main aggregate, offline branch), `refreshLocalData()`, `repaintCachedNotFresh()` — passes the active account's provider **and real account id** (Codex tokens now merge into that account's own `TokenLedger` entry and calibrate `LocalUsageEstimate` from Codex-derived local tokens). `fetchAPIData` picks `CodexRateLimitFetcher` / `RateLimitFetcher` and `StatusChecker.shared(for:)`; `handlePostFetchAlerts` passes the provider's components to `NotificationManager`; the spike-hold write-back calls the provider's `overrideCachedRateLimits`. `switchAccount` also clears `systemStatus` (the feed follows the provider). `logCorruptionMetrics` sums both readers' `lastCorruptLineCount`.
 - `refresh()`: captures the active account ID at poll start, then fetches a token **pinned to that account** via `OAuthManager.getAccessToken(for:)` (never the unpinned `getAccessToken()` — a mid-poll account switch would otherwise send account B's token on a request cached/persisted under account A's key), passes to `RateLimitFetcher.shared.fetch(accessToken:accountId:)`. Status check runs concurrently via `async let`. Guards against stale results **before any published state is written** — `shouldApplyFetchResult(fetchedAccountId:activeAccountId:)` (pure static) discards the result if the active account changed mid-flight, so `apiResult`/`systemStatus`/`isShowingCachedData`/`rateLimitsFresh`/`lastFreshFetch` are only assigned for the still-active account. `rateLimitsFresh = rateLimitsAreFresh(freshRateLimits: api.rateLimits, isCached: api.isCached)`; the offline / unauthenticated / instant-paint branches set it `false` and pass `rateLimitPercentConfirmed: false` to the aggregator. The offline branch aggregates the currently **displayed** limits (`snapshot?.rateLimits?.withClearedExpiredWindows()`) — never the raw `apiResult`, which can still carry a spike glitch the filter held and corrected downstream (`overrideCachedRateLimits` fixes the fetcher cache, not `apiResult`). On a fresh reading, the rollover-cleared limits are then run through `spikeConfirmedRateLimits(fresh:previousDisplayed:previouslyNearFull:)` (see RateLimitUsage below) — an isolated fresh near-full spike is held at the previous displayed value until confirmed by a second consecutive fresh poll. The spike-confirmed value is what feeds aggregation, notifications, and the multi-account fan-out seed. After the guard: resolves pending identity (`resolveAccountIdentity`) or updates metadata (`updateAccountMetadata`) from API response. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — no data races). Calls `NotificationManager.shared.checkStatusAlerts(status:)` and `checkRateLimitAlerts(rateLimits:)` only when `alertableRateLimits(confirmed:rateLimitsFresh:)` returns non-nil (genuinely fresh + spike-confirmed). Checks `VersionChecker.shared.checkForUpdate()` when no update cached. Tracks staleness from API result.
 - **Rate limit stale TTL**: when the API returns nil rate limits, previously-fetched values are carried forward for up to `rateLimitStaleTTL` (86,400s / 24 hours — holds through overnight sleep cycles). After expiry, nil is passed to the aggregator so the UI transitions to `StandardRateLimits` fallback. `effectiveRateLimits(fresh:stale:lastFreshAt:ttl:now:)` is a pure static function with injectable `now` for testing. `effectiveValue(fresh:stale:lastFreshAt:ttl:now:)` is the generic version used for `rateLimitSource`. Prevents the "stale data treadmill" where frozen percentages were carried forward indefinitely.
 - `switchAccount(to:)` — sets active account, clears snapshot/staleness/errors, triggers refresh, then triggers `fetchAllAccounts()` so the multi-account map stays current.
@@ -653,12 +704,28 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - `projects` / `projectsPath` — `~/.claude/projects/`
 - Used by FileWatcher, StatsCacheReader, SessionLogReader, UsageAggregator
 
+### CodexPaths (`Utilities/CodexPaths.swift`)
+- Read-only paths for Codex CLI data: `root` (`~/.codex`), `sessions` / `sessionsPath` (`~/.codex/sessions`, rollout JSONL nested `YYYY/MM/DD`), `authJSON` / `authJSONPath` (`~/.codex/auth.json`). AIBattery never writes here.
+- Used by FileWatcher, CodexSessionLogReader, CodexSessionRateLimitScanner, CodexAuthFileImporter
+
+### JWTDecoder (`Utilities/JWTDecoder.swift`)
+- Unverified base64url decode of JWT claims (the token came over TLS from the issuer; we only read metadata). `chatGPTAccountId(idToken:)` (`https://api.openai.com/auth` → `chatgpt_account_id`), `expiry(_:)` (`exp`). Malformed input → nil. Token values are never logged.
+
+### OAuthPKCE (`Utilities/OAuthPKCE.swift`)
+- Shared by both providers' flows: `generatePKCE() -> (verifier, challenge)` (S256), `generateState()` (URL-safe random), `Data.base64URLEncoded()`.
+
 ### TokenFormatter (`Utilities/TokenFormatter.swift`)
 - `format(_ count: Int) -> String` — 500 → "500", 2500 → "2.5K", 15000 → "15K", 3200000 → "3.2M", 1500000000 → "1.5B"
 - Supports K/M/B suffixes with rollover (999.5K → "1.0M", 999.5M → "1.0B")
 - Guards against negative input (returns "0")
 
+### OpenAIModelPricing (`Models/OpenAIModelPricing.swift`)
+- `table: [(prefix, ModelPricing)]` ordered longest-prefix-first; `pricing(for:)` matches the lowercased model ID exactly or at a `-`/`.` boundary, so `gpt-5-mini` never falls through to `gpt-5` and `gpt-5.6-sol` beats `gpt-5`. Unknown `gpt-*` (e.g. `gpt-4o`) → nil (no cost shown rather than a wrong one).
+- Rates fetched 2026-09-21 from developers.openai.com/api/docs/pricing (table in CONSTANTS.md). `cacheWritePerMillion` = input rate (OpenAI has no separate cache-write price); `cacheReadPerMillion` = cached-input rate. Presentation keeps the **API-equivalent cost** framing.
+- `ModelPricing.pricing(for:)` routes any `gpt-` ID here before the Claude display-name scan (same per-ID cache).
+
 ### ModelNameMapper (`Utilities/ModelNameMapper.swift`)
+- `gpt-` IDs take their own branch: `"GPT-" + version` with dash-suffixes capitalised — `gpt-5.4` → "GPT-5.4", `gpt-5.6-sol` → "GPT-5.6 Sol", `gpt-5-mini` → "GPT-5 Mini", `gpt-5.3-codex` → "GPT-5.3 Codex".
 - `displayName(for modelId: String) -> String`
 - Strips "claude-" prefix via `hasPrefix`/`dropFirst`, strips trailing date segment (8+ consecutive digits) using manual character iteration (no regex — avoids NSRegularExpression bridging overhead), converts hyphens to dots, capitalizes family
 - **Result cache**: static `[String: String]` dictionary. Model IDs are immutable — same input always gives same output. Cache is permanent and small (~20 entries max). Access is guarded by an `NSLock` (`nonisolated(unsafe)` cache + `lock.withLock`) since Swift Testing runs suites concurrently.

@@ -108,7 +108,8 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 - **Account picker**: always-visible dropdown Menu next to title
   - Label: display name if set, otherwise `"User N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
   - Menu items: display name or `"User N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
-  - "Add Account" item (plus.circle icon) below divider when `canAddAccount` (< max) — triggers AuthView overlay
+  - Account rows are `AccountStore.displayOrdered` (Claude block first). When the account set spans **both providers**, every row is prefixed with the provider glyph (`✦` Claude / `⬡` Codex); single-provider setups render exactly as before.
+  - Below the divider: **"Add Claude Account…"** when `canAddAccount(provider: .claude)` and **"Add Codex Account…"** when `canAddAccount(provider: .codex)` (plus.circle icons) — each opens the AuthView overlay for that provider. Settings' inline "Add Account" link stays Claude-only.
   - `.menuStyle(.borderlessButton)`, `.frame(maxWidth: Layout.accountPickerMaxWidth)` (100pt)
 - Gear button: `gearshape`, 11pt, toggles Settings panel
 - Loading spinner: ProgressView at 0.6 scale
@@ -263,9 +264,9 @@ Padding: H 16, V 8
 
 ### ❷b Local Estimate Fallback (`Views/LocalEstimateSection.swift`)
 
-Shown when Anthropic's unified 5h/7d rate limit headers are unavailable (e.g., API header removal — see issue #141). Renders one window (5h or 7d) based on the active metric mode, so the mode selector and auto-mode work identically to the API data path.
+Shown when the provider's 5h/7d rate limit data is unavailable (e.g., API header removal — see issue #141). Renders one window (5h or 7d) based on the active metric mode, so the mode selector and auto-mode work identically to the API data path.
 
-- **Label row**: `"{Window} Usage"` (.buttonLabel) + percentage (.monoValue, copyable) + token count with limit (`"X / Y"`, .monoValue, ThemeColors.secondaryLabel, copyable)
+- **Label row**: `"{Window} Usage"` (.buttonLabel) — window label via `windowLabel(_:provider:)`: "5-Hour" for both providers; "7-Day" (Claude) / "Weekly" (Codex) from `snapshot.provider` + percentage (.monoValue, copyable) + token count with limit (`"X / Y"`, .monoValue, ThemeColors.secondaryLabel, copyable)
 - **Gauge bar**: same style as rate limit bars (GaugeBar, 8pt height, 3pt radius), colored by percent via `ThemeColors.barColor`
 - **Remaining row**: `"~X remaining"` (.tinyLabel, ThemeColors.secondaryLabel) — `~` prefix when limit is estimated from plan tier
 - **Limit sources**: calibrated from prior API headers (exact) or inferred from `PlanTier` (estimated). `limitSource` property distinguishes the two.
@@ -371,7 +372,9 @@ Insight rows display cumulative stats using `insightRow(label:value:tooltip:)` h
 |-----|-------|-------|-----------|
 | Period | `"Period"` | `"Nov 6 – Mar 16, 2026"` (date range) | `firstSessionDate` exists |
 | Longest | `"Longest"` | `"{duration} · {messages} turns"` | `longestSessionDuration` exists & messages > 0 |
-| All Time | `"All Time"` | `"{totalTokens} tokens · {totalSessions} sessions"` | Always (at bottom) |
+| All Time | `"All Time"` | `"{totalTokens} tokens · {totalSessions} sessions"` | Always (at bottom). Tooltip via `allTimeTooltip(for: snapshot.provider)` — Claude: "Cumulative tokens across all sessions"; Codex: states the figure is rebuilt from retained session logs (no lifetime cache, bounded by log retention) |
+
+Codex accounts have no stats-cache: `Period` starts at the earliest retained rollout, `Longest` hides (nil), tool-call counts are 0, and the cost breakdown uses `OpenAIModelPricing` with `GPT-…` display names.
 
 Date range uses `DateFormatters.formatDateRange(from:to:)` — same year omits start year, cross-year includes both.
 
@@ -380,8 +383,10 @@ Padding: H 16, V 8
 ### ❻ Footer (`PopoverFooterView`)
 
 Links row in HStack (spacing 10):
-1. **Usage**: chart.bar icon (`Typography.monoTiny`, 10pt) + "Usage" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `claude.ai/settings/usage`
-2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `status.claude.com`
+1. **Usage**: chart.bar icon (`Typography.monoTiny`, 10pt) + "Usage" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `usageDashboardURL(for: provider)`: `claude.ai/settings/usage` (Claude) / `chatgpt.com/codex/settings/usage` (Codex)
+2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `statusPageURL(systemStatus:provider:)` — the live status's own page URL, else the provider's default (`status.claude.com` / `status.openai.com`)
+
+`PopoverFooterView` takes `provider: AIProvider` (the active account's; `.claude` default). The logout hint reads "Sign out of active {Provider} account".
 3. _(Spacer)_
 4. **Logout**: rectangle.portrait.and.arrow.right icon (`Typography.monoTiny`, 10pt) + "Logout" → two-tap confirmation (first tap shows "Confirm?" in red, auto-reverts after 3s, second tap clears OAuth tokens)
 5. **Quit**: xmark.circle icon (`Typography.monoTiny`, 10pt) + "Quit" → terminates app (also via Cmd+Q keyboard shortcut)
@@ -396,11 +401,21 @@ All text: .caption2, ThemeColors.secondaryLabel. Padding: H 16, V 8 (section).
 
 Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray. Non-operational dots overlay a small white SF Symbol inside the circle so severity is distinguishable without color (`exclamationmark` for degraded, `xmark` for partial/major outage, `wrench.adjustable` for maintenance). Operational and unknown stay plain dots. Symbol size scales off `Layout.dotSizeSmall * 0.72`.
 
+### Sign-in (`Views/AuthView.swift`)
+
+Parameterised by `provider: AIProvider` (title subtitle, copy, flow). The signed-out root shows a "Sign in with Codex/Claude instead" footnote toggle; the add-account overlay already knows its provider.
+- **Claude**: Sign In → browser → paste authorization code → Connect (unchanged).
+- **Codex**: "Sign In with ChatGPT" → browser round-trip to a local callback (127.0.0.1:1455) → the account lands in `AccountStore` and the overlay auto-dismisses; no code to paste. While waiting: spinner + "Complete the sign-in in your browser…" + Cancel (releases the port). Port busy → inline error "Couldn't start sign-in (port 1455 busy — is a Codex CLI login running?)".
+- **Import Codex CLI login** (`LinkActionButton`, `square.and.arrow.down`): shown only when `~/.codex/auth.json` holds a ChatGPT-mode login. The availability check runs once in `.task` (off the render path), never inside `body`.
+
 ### Loading / Error / Empty States
 
 - **Loading**: centered spinner (0.8 scale) + "Loading...", 80pt height
 - **Error**: orange triangle + message + blue "Retry" button, 100pt height
 - **Empty**: "No Claude Code data found" + "Start a Claude Code session to populate usage data.\nData appears automatically once Claude Code is running.", 80pt height
+
+### Tutorial copy
+Provider-neutral: "5-hour and 7-day (Weekly for Codex) bars … your provider's sliding window limits"; "Monitors your active Claude Code or Codex sessions".
 
 ## Menu Bar
 
@@ -451,6 +466,7 @@ The **popover's 5-Hour/7-Day bars** read from a single source of truth — the (
 
 **Multi-account display** (when `aibattery_showAllAccountsInMenuBar == true` and ≥2 authenticated accounts exist):
 - Text format: `"<a>%\u{00A0}|\u{00A0}<b>%[\u{00A0}|\u{00A0}<c>%]"` — non-breaking spaces around `|` so a single slot doesn't break across the separator. Pure formatting via `MenuBarMultiAccountText.build(order:limits:metricMode:)`.
+- **Mixed providers**: when the *displayed* accounts span both providers, slots are grouped by provider with a glyph prefix — `✦ 42% | 23%  ⬡ 57%` (two spaces between groups, non-breaking within a group). Single-provider sets keep the legacy unprefixed format. Throttled countdown prefixes the binding window's short code (`7D` / `WK`).
 - Order: `AccountStore.accounts` order (user-controlled, mirrors the popover account picker).
 - Star color: driven by the **worst** account's percent (max across `perAccountRateLimits.values`).
 - Broken star: triggered if any account has `isThrottled == true` OR any account has 100%+ utilization.

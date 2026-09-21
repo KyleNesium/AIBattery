@@ -115,14 +115,14 @@ per-model tokens, API-equivalent cost).
 
   | `AssistantUsageEntry` | Codex source |
   |---|---|
-  | `inputTokens` | `last_token_usage.input_tokens − cached_input_tokens` (fresh input only) |
+  | `inputTokens` | `max(0, last_token_usage.input_tokens − cached_input_tokens − cache_write_input_tokens)` (fresh input only — both cache fields are subsets of `input_tokens`; amended during Plan 2 from "− cached" only, which double-counted cache writes) |
   | `cacheReadTokens` | `last_token_usage.cached_input_tokens` |
   | `cacheWriteTokens` | `last_token_usage.cache_write_input_tokens` |
   | `outputTokens` | `last_token_usage.output_tokens` (reasoning tokens are a subset, already included) |
   | `model` | most recent `turn_context.model` |
   | `sessionId` / `cwd` / `gitBranch` | `session_meta` payload |
   | `timestamp` | the `token_count` line's timestamp |
-  | `messageId` | synthesized `<session_id>-<event index>` (uniqueness only; no Codex stats-cache dedup needed) |
+  | `messageId` | synthesized `<session_id>:<ordinal>` — the line's own `ordinal` field (falls back to the line index); the file-name stem stands in for `session_id` when a file has no `session_meta` (uniqueness only; no Codex stats-cache dedup needed) |
   | `toolCallCount` | `0` in v1 — tool-call counting would require parsing `response_item` lines, which are skipped for privacy; tool-call stats hide for Codex |
 - `CodexPaths` sibling of `ClaudePaths` (`~/.codex/sessions`). `FileWatcher` gains a second
   FSEvents root; local-only refresh triggers work identically for Codex activity.
@@ -145,9 +145,10 @@ per-model tokens, API-equivalent cost).
 - `AuthView` parameterized by provider (title, glyph, start-flow callback); Codex adds the
   "Import current CLI login" affordance when `~/.codex/auth.json` exists.
 - Menu bar per §3. Settings unchanged except cap wording ("up to 3 accounts per provider").
-- Status feed: Codex accounts use OpenAI's status feed as the `status.claude` equivalent **if** a
-  clean public JSON exists (Research item R3); otherwise v1 keeps the status section Claude-only —
-  non-blocking either way.
+- Status feed: Codex accounts use OpenAI's status feed (`https://status.openai.com/api/v2/summary.json`,
+  same Atlassian Statuspage schema — R3 resolved YES). Because that page lists 25+ unrelated
+  products, the Codex feed is **filtered to the five Codex components** (Codex API, CLI, ChatGPT
+  Desktop, Web, VS Code extension); incidents count only when they name one of them.
 
 ## 6. Error handling
 
@@ -180,7 +181,7 @@ per-model tokens, API-equivalent cost).
 |---|---|---|---|
 | R1 | OpenAI OAuth parameters (client-id, localhost port, scopes, token endpoint) | Read `codex-rs` login source | None needed — flow is known to exist (CLI uses it) |
 | R2 | ChatGPT backend usage endpoint route + headers | Read `codex-rs` / CodexBar source | Session-log `rate_limits` snapshots ship regardless |
-| R3 | OpenAI public status JSON | Check status.openai.com API | Status section stays Claude-only in v1 |
+| R3 | OpenAI public status JSON | Check status.openai.com API — **resolved 2026-09-21: Statuspage schema confirmed, component IDs recorded in `spec/CONSTANTS.md`** | Status section stays Claude-only in v1 |
 
 ## Out of scope
 
