@@ -41,7 +41,7 @@ extension InsightsView {
 
     /// Codex has no stats-cache / lifetime ledger source — its all-time figures are
     /// rebuilt from whatever session logs still exist, so say so.
-    static func allTimeTooltip(for provider: AIProvider) -> String {
+    nonisolated static func allTimeTooltip(for provider: AIProvider) -> String {
         switch provider {
         case .claude: "Cumulative tokens across all sessions"
         case .codex: "Cumulative tokens across retained Codex session logs — no lifetime cache, so bounded by log retention"

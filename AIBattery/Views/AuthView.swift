@@ -21,6 +21,10 @@ public struct AuthView: View {
     @State private var isWaitingForCode = false
     @State private var isExchanging = false
     @State private var errorMessage: String?
+    /// Whether `~/.codex/auth.json` holds an importable ChatGPT-mode login. Resolved
+    /// once off the render path (`.task`) — a file read inside `body` re-ran on every
+    /// evaluation (Plan 1 review F8).
+    @State private var cliLoginAvailable = false
 
     public init(
         oauthManager: OAuthManager,
@@ -251,7 +255,7 @@ public struct AuthView: View {
                 .accessibilityHint("Opens browser to sign in with your OpenAI account")
                 .help("Opens browser to sign in with your OpenAI account")
 
-                if CodexAuthFileImporter.cliLoginAvailable {
+                if cliLoginAvailable {
                     LinkActionButton(
                         label: "Import Codex CLI login",
                         icon: "square.and.arrow.down",
@@ -261,6 +265,10 @@ public struct AuthView: View {
                         action: importCodexCLILogin
                     )
                 }
+            }
+            .task {
+                let available = await Task.detached { CodexAuthFileImporter.cliLoginAvailable }.value
+                cliLoginAvailable = available
             }
         } else {
             // Waiting for the local callback server to receive the OAuth redirect.

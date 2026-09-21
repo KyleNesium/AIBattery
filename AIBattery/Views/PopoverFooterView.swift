@@ -122,7 +122,7 @@ struct PopoverFooterView: View {
     }
 
     /// Provider's web usage dashboard. Codex: the ChatGPT Codex usage settings page.
-    static func usageDashboardURL(for provider: AIProvider) -> URL {
+    nonisolated static func usageDashboardURL(for provider: AIProvider) -> URL {
         switch provider {
         case .claude: URL(string: "https://claude.ai/settings/usage")!
         case .codex: URL(string: "https://chatgpt.com/codex/settings/usage")!
