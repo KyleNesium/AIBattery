@@ -50,18 +50,24 @@ public final class NotificationManager {
         let threshold = UserDefaults.standard.double(forKey: UserDefaultsKeys.rateLimitThreshold)
         let effectiveThreshold = threshold > 0 ? threshold : 80.0
 
+        let labels = Self.windowLabels(for: rateLimits.provider)
         checkRateLimitWindow(
             key: "rateLimit5h",
-            label: "5-Hour",
+            label: labels.fiveHour,
             percent: rateLimits.fiveHourPercent,
             threshold: effectiveThreshold
         )
         checkRateLimitWindow(
             key: "rateLimit7d",
-            label: "7-Day",
+            label: labels.secondary,
             percent: rateLimits.sevenDayPercent,
             threshold: effectiveThreshold
         )
+    }
+
+    /// Notification vocabulary per provider: Anthropic says "7-Day", OpenAI says "Weekly".
+    nonisolated static func windowLabels(for provider: AIProvider) -> (fiveHour: String, secondary: String) {
+        ("5-Hour", provider.secondaryWindowLabel)
     }
 
     /// Pure function for testability: whether an alert should fire given the current state.

@@ -107,4 +107,18 @@ struct NotificationManagerTests {
         #expect(!defaults.bool(forKey: UserDefaultsKeys.alertStatus))
         defaults.removePersistentDomain(forName: suite)
     }
+
+    // MARK: - Provider-aware window labels (Plan 1 review F7)
+
+    @Test func windowLabels_claude_are5HourAnd7Day() {
+        let labels = NotificationManager.windowLabels(for: .claude)
+        #expect(labels.fiveHour == "5-Hour")
+        #expect(labels.secondary == "7-Day")
+    }
+
+    @Test func windowLabels_codex_secondaryIsWeekly() {
+        let labels = NotificationManager.windowLabels(for: .codex)
+        #expect(labels.fiveHour == "5-Hour")
+        #expect(labels.secondary == "Weekly")
+    }
 }

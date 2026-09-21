@@ -32,6 +32,44 @@ final class CodexRateLimitFetcher {
     private var consecutiveAuthFailures: [String: Int] = [:]
     static let authErrorThreshold = 3
 
+    /// Per-account exponential backoff for the usage endpoint (spec §6: 60 s → 120 s →
+    /// 240 s, capped at 5 min, ±20% jitter via `RetryPolicy.statusCheck`). While backing
+    /// off, `fetch` skips the network and serves the session-log fallback — no
+    /// immediate retries against an endpoint that just failed. Auth failures are NOT
+    /// backed off (they have their own counter and must surface promptly).
+    struct EndpointBackoff: Sendable, Equatable {
+        var failureCount = 0
+        var lastFailedAt: Date?
+        var currentDelay: TimeInterval = 0
+    }
+
+    private var backoff: [String: EndpointBackoff] = [:]
+
+    nonisolated static func shouldSkipEndpoint(_ state: EndpointBackoff, now: Date) -> Bool {
+        guard let failedAt = state.lastFailedAt, state.failureCount > 0 else { return false }
+        return now.timeIntervalSince(failedAt) < state.currentDelay
+    }
+
+    nonisolated static func recordingFailure(_ state: EndpointBackoff, now: Date, policy: RetryPolicy = .statusCheck) -> EndpointBackoff {
+        var next = state
+        next.failureCount += 1
+        next.lastFailedAt = now
+        next.currentDelay = policy.delay(forAttempt: next.failureCount)
+        return next
+    }
+
+    func isInBackoffForTesting(accountId: String, now: Date = Date()) -> Bool {
+        Self.shouldSkipEndpoint(backoff[accountId] ?? EndpointBackoff(), now: now)
+    }
+
+    func recordEndpointFailureForTesting(accountId: String, now: Date) {
+        backoff[accountId] = Self.recordingFailure(backoff[accountId] ?? EndpointBackoff(), now: now)
+    }
+
+    func resetEndpointBackoffForTesting(accountId: String) {
+        backoff[accountId] = nil
+    }
+
     /// User-Agent string built from bundle version at startup — same construction
     /// as `RateLimitFetcher.userAgent`.
     let userAgent: String = {
@@ -88,6 +126,11 @@ final class CodexRateLimitFetcher {
     /// releases MainActor during the network suspension, so the 30s timeout
     /// does not freeze the UI.
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
+        if Self.shouldSkipEndpoint(backoff[accountId] ?? EndpointBackoff(), now: Date()) {
+            AppLogger.network.info("codex usage endpoint in backoff (attempt \(self.backoff[accountId]?.failureCount ?? 0)) — using session log fallback")
+            return sessionLogFallback(accountId: accountId)
+        }
+
         var request = URLRequest(url: Self.usageURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -99,6 +142,7 @@ final class CodexRateLimitFetcher {
         do {
             let (data, response) = try await SecureNetworking.data(for: request)
             guard let http = response as? HTTPURLResponse else {
+                recordEndpointFailure(accountId: accountId)
                 return sessionLogFallback(accountId: accountId)
             }
 
@@ -107,10 +151,12 @@ final class CodexRateLimitFetcher {
             switch Self.interpretUsageResponse(statusCode: http.statusCode, data: data) {
             case .success(let result):
                 consecutiveAuthFailures[accountId] = 0
+                backoff[accountId] = nil
                 cachedResults[accountId] = result
                 persistRateLimits(result, accountId: accountId)
                 return result
             case .authFailed:
+                backoff[accountId] = nil // the endpoint answered; the token is the problem
                 return registerAuthFailure(accountId: accountId)
             case .unavailable:
                 // Diagnostic: log a body preview on unexpected error statuses (2xx + 429
@@ -120,12 +166,20 @@ final class CodexRateLimitFetcher {
                         AppLogger.network.warning("codex usage endpoint error \(http.statusCode): \(bodyStr)")
                     }
                 }
+                recordEndpointFailure(accountId: accountId)
                 return sessionLogFallback(accountId: accountId)
             }
         } catch {
             AppLogger.network.warning("codex usage endpoint failed: \(error.localizedDescription)")
+            recordEndpointFailure(accountId: accountId)
             return sessionLogFallback(accountId: accountId)
         }
+    }
+
+    private func recordEndpointFailure(accountId: String) {
+        let next = Self.recordingFailure(backoff[accountId] ?? EndpointBackoff(), now: Date())
+        backoff[accountId] = next
+        AppLogger.network.warning("codex usage endpoint unavailable — backing off \(Int(next.currentDelay))s (attempt \(next.failureCount))")
     }
 
     /// Record a 401/403 from the usage endpoint and return the cached fallback.
