@@ -212,6 +212,7 @@ OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing
 
 | Model prefix | Input | Output | Cache Read |
 |-------|-------|--------|------------|
+| gpt-6-astra | $10.00 | $50.00 | $1.00 |
 | gpt-5.6-sol | $4.00 | $20.00 | $0.40 |
 | gpt-5.6-terra | $2.00 | $12.00 | $0.20 |
 | gpt-5.6-luna | $0.20 | $1.20 | $0.02 |
@@ -226,6 +227,8 @@ OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing
 | gpt-5-mini | $0.25 | $2.00 | $0.025 |
 | gpt-5-nano | $0.05 | $0.40 | $0.005 |
 | gpt-5 | $1.25 | $10.00 | $0.125 |
+
+IDs absent from the pricing page fall through to their longest listed prefix (e.g. `gpt-5.1-codex-mini` → the `gpt-5.1` row). Unknown families (`gpt-4o`) show no cost.
 
 ## Display Settings
 

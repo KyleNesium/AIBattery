@@ -11,6 +11,7 @@ enum OpenAIModelPricing {
     /// Ordered longest-prefix-first so `gpt-5.6-sol` matches before `gpt-5`, and
     /// `gpt-5-mini` never falls through to the `gpt-5` row.
     static let table: [(prefix: String, pricing: ModelPricing)] = [
+        ("gpt-6-astra", rate(input: 10.00, output: 50.00, cached: 1.00)),
         ("gpt-5.6-terra", rate(input: 2.00, output: 12.00, cached: 0.20)),
         ("gpt-5.6-luna", rate(input: 0.20, output: 1.20, cached: 0.02)),
         ("gpt-5.6-sol", rate(input: 4.00, output: 20.00, cached: 0.40)),

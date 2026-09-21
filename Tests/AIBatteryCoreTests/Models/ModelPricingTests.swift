@@ -205,6 +205,14 @@ struct ModelPricingTests {
         #expect(pricing?.outputPerMillion == 10.00)
     }
 
+    @Test func pricing_gpt6Astra() {
+        // Seen in real ~/.codex/sessions logs (1.5k turns); rates from the OpenAI pricing page 2026-09-21.
+        let pricing = ModelPricing.pricing(for: "gpt-6-astra")
+        #expect(pricing?.inputPerMillion == 10.00)
+        #expect(pricing?.outputPerMillion == 50.00)
+        #expect(pricing?.cacheReadPerMillion == 1.00)
+    }
+
     @Test func pricing_unknownGPT_isNil() {
         #expect(ModelPricing.pricing(for: "gpt-4o") == nil)
     }
