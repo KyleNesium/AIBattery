@@ -31,10 +31,11 @@ public final class NotificationManager {
         }
     }
 
-    /// Check status page and fire alerts for all components when alerts are enabled.
-    func checkStatusAlerts(status: ClaudeSystemStatus) {
+    /// Check status page and fire alerts for the given feed's components when alerts
+    /// are enabled. Defaults to the Claude feed; callers pass the active provider's.
+    func checkStatusAlerts(status: ClaudeSystemStatus, components: [StatusComponent] = StatusChecker.knownComponents) {
         guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertStatus) else { return }
-        for component in StatusChecker.knownComponents {
+        for component in components {
             let indicator = status.componentStatuses[component.id] ?? .unknown
             checkComponentStatus(key: component.alertKey, label: component.name, indicator: indicator)
         }
