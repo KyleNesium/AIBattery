@@ -177,7 +177,8 @@ public struct UsagePopoverView: View {
                             LocalEstimateSection(
                                 fiveHourTokens: snapshot.fiveHourTokens,
                                 sevenDayTokens: snapshot.sevenDayTokens,
-                                window: .fiveHour
+                                window: .fiveHour,
+                                provider: snapshot.provider
                             )
                             StyledDivider()
                         } else if let stdLimits = snapshot.standardLimits {
@@ -192,7 +193,8 @@ public struct UsagePopoverView: View {
                             LocalEstimateSection(
                                 fiveHourTokens: snapshot.fiveHourTokens,
                                 sevenDayTokens: snapshot.sevenDayTokens,
-                                window: .sevenDay
+                                window: .sevenDay,
+                                provider: snapshot.provider
                             )
                             StyledDivider()
                         } else if let stdLimits = snapshot.standardLimits {
@@ -249,6 +251,7 @@ public struct UsagePopoverView: View {
             StyledDivider()
             PopoverFooterView(
                 systemStatus: viewModel.systemStatus,
+                provider: accountStore.activeAccount?.provider ?? .claude,
                 isLoading: viewModel.isLoading,
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isShowingCachedData: viewModel.isShowingCachedData,

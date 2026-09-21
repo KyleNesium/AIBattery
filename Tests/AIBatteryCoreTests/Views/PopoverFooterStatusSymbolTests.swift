@@ -51,4 +51,21 @@ struct PopoverFooterStatusSymbolTests {
                     "\(state) should overlay a symbol so it reads without color")
         }
     }
+
+    // MARK: - Provider-aware links (Plan 2)
+
+    @Test func usageDashboardURL_claude() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .claude).absoluteString == "https://claude.ai/settings/usage")
+    }
+
+    @Test func usageDashboardURL_codex() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .codex).absoluteString == "https://chatgpt.com/codex/settings/usage")
+    }
+
+    @Test func statusPageURL_prefersLiveStatus_thenProviderDefault() {
+        let live = ClaudeSystemStatus.unknown(statusPageURL: "https://status.example.invalid")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: live, provider: .codex) == "https://status.example.invalid")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: nil, provider: .codex) == "https://status.openai.com")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: nil, provider: .claude) == "https://status.claude.com")
+    }
 }
