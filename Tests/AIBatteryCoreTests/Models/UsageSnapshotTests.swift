@@ -14,7 +14,8 @@ struct UsageSnapshotTests {
         todayMessages: Int = 0,
         fiveHourTokens: Int = 0,
         sevenDayTokens: Int = 0,
-        dailyActivity: [DailyActivity] = []
+        dailyActivity: [DailyActivity] = [],
+        provider: AIProvider = .claude
     ) -> UsageSnapshot {
         let activityStats = UsageSnapshot.computeActivityStats(dailyActivity)
         return UsageSnapshot(
@@ -54,7 +55,8 @@ struct UsageSnapshotTests {
             hourCounts: [:],
             todayHourCounts: [:],
             tokenHealth: tokenHealth,
-            topSessionHealths: topSessionHealths
+            topSessionHealths: topSessionHealths,
+            provider: provider
         )
     }
 
@@ -969,8 +971,18 @@ struct UsageSnapshotTests {
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 37 = 36 compared fields + lastUpdated.
+        // it) AND update this count. 38 = 37 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 37)
+        #expect(mirror.children.count == 38)
+    }
+
+    // MARK: - Provider (Plan 2)
+
+    @Test func equality_differsOnProvider() {
+        let claude = makeSnapshot()
+        let codex = makeSnapshot(provider: .codex)
+        #expect(claude != codex)
+        #expect(claude.provider == .claude)
+        #expect(codex.provider == .codex)
     }
 }

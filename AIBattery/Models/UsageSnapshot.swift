@@ -42,6 +42,7 @@ struct UsageSnapshot: Equatable {
             // busiestDayOfWeek is a tuple — compare components manually
             && lhs.busiestDayOfWeek?.name == rhs.busiestDayOfWeek?.name
             && lhs.busiestDayOfWeek?.averageCount == rhs.busiestDayOfWeek?.averageCount
+            && lhs.provider == rhs.provider
     }
 
     /// Weekday symbols from the user's current calendar (Sunday = index 0).
@@ -391,6 +392,11 @@ struct UsageSnapshot: Equatable {
 
     // Top sessions sorted by highest context usage (up to 5, within last 24h)
     let topSessionHealths: [TokenHealthStatus]
+
+    /// Which provider's local data built this snapshot. Views use it for labels
+    /// ("7-Day" vs "Weekly"), footer links, and the Insights data-source caveat.
+    /// Declared last with a default so the memberwise init stays source-compatible.
+    var provider: AIProvider = .claude
 }
 
 struct ModelTokenSummary: Identifiable, Equatable {

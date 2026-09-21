@@ -6,10 +6,19 @@ final class UsageAggregator: @unchecked Sendable {
         let activeUserModel: String?
         let observedModels: [String]
         let accountId: String?
+        /// Which provider's local data produced these effects. Callers only feed
+        /// `activeUserModel` / `observedModels` into `RateLimitFetcher` (the Claude
+        /// Messages-probe model list) when this is `.claude`.
+        var provider: AIProvider = .claude
     }
 
-    private let statsCacheReader: StatsCacheReader
-    private let sessionLogReader: SessionLogReader
+    /// Optional: Codex has no stats-cache equivalent — its all-time figures derive
+    /// purely from session JSONL (bounded by log retention; the UI says so).
+    private let statsCacheReader: StatsCacheReader?
+    private let sessionLogReader: any UsageEntrySource
+    /// Which provider's entries this aggregator tracks. Drives the model-ID filter
+    /// (`isTrackedModel`) and is stamped onto every `UsageSnapshot` it produces.
+    let provider: AIProvider
     /// Persistent high-water-mark store for all-time per-model totals. Injectable so
     /// tests don't write to the user's real `token-ledger.json` (default `.shared`).
     private let ledger: TokenLedger
@@ -17,14 +26,37 @@ final class UsageAggregator: @unchecked Sendable {
     /// from racing on cachedSnapshot, lastRateLimits, etc.
     private let lock = NSLock()
 
-    init(statsCacheReader: StatsCacheReader, sessionLogReader: SessionLogReader, ledger: TokenLedger = .shared) {
+    init(
+        statsCacheReader: StatsCacheReader?,
+        sessionLogReader: any UsageEntrySource,
+        ledger: TokenLedger = .shared,
+        provider: AIProvider = .claude
+    ) {
         self.statsCacheReader = statsCacheReader
         self.sessionLogReader = sessionLogReader
         self.ledger = ledger
+        self.provider = provider
     }
 
-    convenience init() {
-        self.init(statsCacheReader: .shared, sessionLogReader: .shared)
+    /// Production wiring per provider: Claude reads `~/.claude` (stats cache + JSONL);
+    /// Codex reads `~/.codex/sessions` only.
+    convenience init(provider: AIProvider = .claude) {
+        switch provider {
+        case .claude:
+            self.init(statsCacheReader: .shared, sessionLogReader: SessionLogReader.shared, provider: .claude)
+        case .codex:
+            self.init(statsCacheReader: nil, sessionLogReader: CodexSessionLogReader.shared, provider: .codex)
+        }
+    }
+
+    /// Model IDs that belong to a provider's local data. Anything else (e.g. the
+    /// `"synthetic"` pseudo-model Claude Code writes, or a Claude entry that somehow
+    /// lands in a Codex scan) is excluded from per-model tokens, projects and cost.
+    nonisolated static func isTrackedModel(_ modelId: String, provider: AIProvider) -> Bool {
+        switch provider {
+        case .claude: modelId.hasPrefix("claude-")
+        case .codex: modelId.hasPrefix("gpt-")
+        }
     }
 
     private static let dateFormatter = DateFormatters.dateKey
@@ -104,7 +136,7 @@ final class UsageAggregator: @unchecked Sendable {
         // Narrow lock scope: only guards cached-state reads/writes, not I/O.
         // Prevents blocking invalidate() callers on main actor during JSONL scans.
         lock.lock()
-        let statsCacheModDate = statsCacheReader.lastModificationDate
+        let statsCacheModDate = statsCacheReader?.lastModificationDate
         if let cached = cachedSnapshot,
            statsCacheModDate == lastStatsCacheModDate,
            rateLimits == lastRateLimits,
@@ -113,14 +145,14 @@ final class UsageAggregator: @unchecked Sendable {
            rateLimitsFresh == lastRateLimitsFresh,
            idleSessionMinutes == lastIdleSessionMinutes,
            accountId == lastAccountId {
-            let effects = cachedEffects ?? SideEffects(activeUserModel: nil, observedModels: [], accountId: accountId)
+            let effects = cachedEffects ?? SideEffects(activeUserModel: nil, observedModels: [], accountId: accountId, provider: provider)
             lock.unlock()
             return (cached, effects)
         }
         lock.unlock()
 
         // Expensive I/O runs without holding the lock.
-        let statsCache = statsCacheReader.read()
+        let statsCache = statsCacheReader?.read()
         let allEntries = sessionLogReader.readAllUsageEntries()
 
         // Side effects deferred to caller (RateLimitFetcher is @MainActor):
@@ -238,12 +270,12 @@ final class UsageAggregator: @unchecked Sendable {
             }
 
             // Accumulate all JSONL model tokens (all dates) as a floor for all-time totals.
-            if entry.model.hasPrefix("claude-") {
+            if Self.isTrackedModel(entry.model, provider: provider) {
                 Self.accumulate(into: &allJsonlModelTokensMap, key: entry.model, entry: entry)
             }
 
             // --- Project accumulation ---
-            if entry.model.hasPrefix("claude-") {
+            if Self.isTrackedModel(entry.model, provider: provider) {
                 let projKey: String
                 let projName: String
                 if let cwd = entry.cwd, !cwd.isEmpty, (cwd as NSString).lastPathComponent != "/" {
@@ -291,9 +323,9 @@ final class UsageAggregator: @unchecked Sendable {
         let projectTokens = Self.buildProjectTokensFromMap(projectMap)
 
         // Build windowed model tokens from accumulated maps
-        let todayModelTokens = Self.buildModelTokens(from: todayTokenMap)
-        let weekModelTokens = Self.buildModelTokens(from: weekTokenMap)
-        let monthModelTokens = Self.buildModelTokens(from: monthTokenMap)
+        let todayModelTokens = Self.buildModelTokens(from: todayTokenMap, provider: provider)
+        let weekModelTokens = Self.buildModelTokens(from: weekTokenMap, provider: provider)
+        let monthModelTokens = Self.buildModelTokens(from: monthTokenMap, provider: provider)
 
         // All-time model tokens: stats cache + uncached JSONL
         var modelTokensMap: TokenMap = [:]
@@ -324,7 +356,7 @@ final class UsageAggregator: @unchecked Sendable {
                 cacheWrite: max(existing.cacheWrite, jsonl.cacheWrite)
             )
         }
-        let rawModelTokens = Self.buildModelTokens(from: modelTokensMap)
+        let rawModelTokens = Self.buildModelTokens(from: modelTokensMap, provider: provider)
 
         // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
         let modelTokens: [ModelTokenSummary] = if let accountId {
@@ -333,9 +365,11 @@ final class UsageAggregator: @unchecked Sendable {
             rawModelTokens
         }
 
-        // First session date
+        // First session date — stats cache when present, else the earliest JSONL entry
+        // (entries are sorted ascending). Codex always takes the fallback.
         let firstSessionDate = statsCache?.firstSessionDate
             .flatMap { Self.isoFormatter.date(from: $0) }
+            ?? allEntries.first?.timestamp
 
         // Token health assessment — single-pass grouping for current + top sessions
         let healthResult = TokenHealthMonitor.shared.assessSessions(entries: allEntries, topLimit: 5, idleCutoffMinutes: idleSessionMinutes)
@@ -455,14 +489,16 @@ final class UsageAggregator: @unchecked Sendable {
             hourCounts: hourCounts,
             todayHourCounts: todayHourCounts,
             tokenHealth: tokenHealth,
-            topSessionHealths: topSessionHealths
+            topSessionHealths: topSessionHealths,
+            provider: provider
         )
 
         // Build side effects for @MainActor callers to apply
         let effects = SideEffects(
             activeUserModel: allEntries.last?.model,
             observedModels: observedModels,
-            accountId: accountId
+            accountId: accountId,
+            provider: provider
         )
 
         // Cache the result and fingerprint (lock protects mutable state only)
@@ -514,9 +550,9 @@ final class UsageAggregator: @unchecked Sendable {
         }.sorted { $0.totalTokens > $1.totalTokens }
     }
 
-    private static func buildModelTokens(from map: TokenMap) -> [ModelTokenSummary] {
+    private static func buildModelTokens(from map: TokenMap, provider: AIProvider) -> [ModelTokenSummary] {
         map.compactMap { modelId, tokens in
-            guard modelId.hasPrefix("claude-") else { return nil }
+            guard isTrackedModel(modelId, provider: provider) else { return nil }
             let cost = ModelPricing.pricing(for: modelId)?.cost(
                 input: tokens.input, output: tokens.output,
                 cacheRead: tokens.cacheRead, cacheWrite: tokens.cacheWrite
