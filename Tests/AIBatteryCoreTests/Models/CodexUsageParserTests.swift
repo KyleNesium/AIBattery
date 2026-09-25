@@ -55,4 +55,12 @@ struct CodexUsageParserTests {
         #expect(CodexUsageParser.parseUsageResponse(Data("{}".utf8)) == nil)
         #expect(CodexUsageParser.parseSessionRateLimits([:]) == nil)
     }
+
+    @Test func parseUsage_returnsLimitsAndPlanInOnePass() {
+        let parsed = CodexUsageParser.parseUsage(whamBody)
+        #expect(parsed.planType == "team")
+        #expect(abs((parsed.rateLimits?.fiveHourUtilization ?? 0) - 0.21) < 0.0001)
+        let empty = CodexUsageParser.parseUsage(Data("{}".utf8))
+        #expect(empty.rateLimits == nil && empty.planType == nil)
+    }
 }

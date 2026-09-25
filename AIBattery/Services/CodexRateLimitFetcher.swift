@@ -106,7 +106,8 @@ final class CodexRateLimitFetcher {
             return .unavailable
         }
 
-        guard let rateLimits = CodexUsageParser.parseUsageResponse(data) else {
+        let parsed = CodexUsageParser.parseUsage(data)
+        guard let rateLimits = parsed.rateLimits else {
             return .unavailable
         }
 
@@ -116,7 +117,7 @@ final class CodexRateLimitFetcher {
             rateLimits: normalized,
             rateLimitSource: .codexUsageEndpoint,
             profile: nil,
-            planType: CodexUsageParser.planType(data)
+            planType: parsed.planType
         ))
     }
 

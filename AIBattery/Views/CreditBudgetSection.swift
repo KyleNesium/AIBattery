@@ -16,7 +16,7 @@ struct CreditBudgetSection: View {
 
     private var headerTooltip: String {
         var parts = ["Codex credits: \(Int(alarm.displayPercent))% of this period's budget used"]
-        parts.append("\(Self.credits(budget.used)) of \(Self.credits(budget.limit)) \(budget.unit)s")
+        parts.append("\(CodexCreditBudget.formatCredits(budget.used)) of \(CodexCreditBudget.formatCredits(budget.limit)) \(budget.unit)s")
         if let planType = budget.planType {
             parts.append("Plan: \(planType)")
         }
@@ -29,16 +29,12 @@ struct CreditBudgetSection: View {
         return parts.joined(separator: "\n")
     }
 
-    static func credits(_ value: Double) -> String {
-        CodexCreditBudget.formatCredits(value)
-    }
-
     var body: some View {
         GaugeRow(
             percent: alarm.displayPercent,
             barColor: ThemeColors.barColor(percent: alarm.displayPercent),
             accessibilityLabel: "Codex credits \(Int(alarm.displayPercent)) percent used",
-            accessibilityValue: alarm.throttled ? "Credits exhausted" : "\(Self.credits(budget.remaining)) credits remaining",
+            accessibilityValue: alarm.throttled ? "Credits exhausted" : "\(CodexCreditBudget.formatCredits(budget.remaining)) credits remaining",
             headerLeading: {
                 HStack(spacing: Spacing.inner) {
                     Text("Credits")
@@ -67,7 +63,7 @@ struct CreditBudgetSection: View {
                     Text("\(Int(alarm.displayPercent))%")
                         .font(Typography.monoValue)
                         .copyable("\(Int(alarm.displayPercent))%")
-                    Text("\(Self.credits(budget.used)) / \(Self.credits(budget.limit))")
+                    Text("\(CodexCreditBudget.formatCredits(budget.used)) / \(CodexCreditBudget.formatCredits(budget.limit))")
                         .font(Typography.monoValue)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .copyable("\(Int(budget.used)) / \(Int(budget.limit)) \(budget.unit)s")
@@ -85,7 +81,7 @@ struct CreditBudgetSection: View {
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
                     } else {
-                        let remainingText = "\(Self.credits(budget.remaining)) remaining"
+                        let remainingText = "\(CodexCreditBudget.formatCredits(budget.remaining)) remaining"
                         Text(remainingText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)

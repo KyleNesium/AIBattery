@@ -128,6 +128,8 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 
 ### ❶b Settings (`SettingsRow` — private struct, decomposed into sub-views)
 
+Below the account-name rows: one `LinkActionButton` per provider with room — "Add Claude account" / "Add Codex account" (each gated on `canAddAccount(provider:)`) — and the caption "Up to 3 accounts per provider." `onAddAccount: (AIProvider) -> Void`.
+
 Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppStorage` toggle only redraws its own section.
 
 **Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body. Subtle dividers (`Divider().opacity(0.5)`) separate account names, refresh, display, alerts, and startup sub-sections.

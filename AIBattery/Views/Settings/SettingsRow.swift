@@ -4,7 +4,7 @@ import SwiftUI
 struct SettingsRow: View {
     let viewModel: UsageViewModel
     @ObservedObject var accountStore: AccountStore
-    let onAddAccount: () -> Void
+    let onAddAccount: (AIProvider) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.gap) {
@@ -19,21 +19,35 @@ struct SettingsRow: View {
                 accountNameRow(account, index: index)
             }
 
-            // Claude-specific: this link only ever drives the Claude add-account flow
-            // (see onAddAccount), so it must gate on the Claude cap specifically — the
-            // any-provider `canAddAccount` would keep showing this at 3 Claude + <3 Codex
-            // accounts, where the flow it triggers is guaranteed to be rejected downstream.
-            if accountStore.canAddAccount(provider: .claude) {
-                HStack(spacing: Spacing.section) {
-                    Spacer().frame(width: Layout.settingsLabel)
+            // One add link per provider, each gated on its own cap (spec §5:
+            // "up to 3 accounts per provider").
+            HStack(spacing: Spacing.section) {
+                Spacer().frame(width: Layout.settingsLabel)
+                if accountStore.canAddAccount(provider: .claude) {
                     LinkActionButton(
-                        label: "Add Account",
+                        label: "Add Claude account",
                         icon: "plus.circle",
                         help: "Sign in with another Claude account",
                         accessibilityLabel: "Add another Claude account",
-                        action: onAddAccount
+                        action: { onAddAccount(.claude) }
                     )
                 }
+                if accountStore.canAddAccount(provider: .codex) {
+                    LinkActionButton(
+                        label: "Add Codex account",
+                        icon: "plus.circle",
+                        help: "Sign in with a Codex (ChatGPT or OpenAI API key) account",
+                        accessibilityLabel: "Add a Codex account",
+                        action: { onAddAccount(.codex) }
+                    )
+                }
+                Spacer()
+            }
+            HStack(spacing: Spacing.section) {
+                Spacer().frame(width: Layout.settingsLabel)
+                Text("Up to \(AccountStore.maxAccountsPerProvider) accounts per provider.")
+                    .font(Typography.tinyLabel)
+                    .foregroundStyle(ThemeColors.tertiaryLabel)
             }
 
             StyledDivider()

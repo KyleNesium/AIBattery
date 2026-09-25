@@ -213,7 +213,6 @@ public final class OAuthManager: ObservableObject {
         let expectedState = pendingState
 
         // Check account limit when adding. Must be the CLAUDE-specific cap: the
-        // any-provider `canAddAccount` reads true whenever ANY provider has room, so at
         // 3 Claude + <3 Codex accounts it would let this (Claude-only) flow proceed past
         // this guard only to have `accountStore.add` silently reject the 4th Claude
         // account further down — after tokens have already been written to Keychain.
@@ -427,7 +426,7 @@ public final class OAuthManager: ObservableObject {
     /// claim rather than an `expires_in` field.
     private func refreshCodexAccessToken(_ refresh: String, accountId: String) async -> String? {
         // API-key accounts store the key as their "refresh token" — it IS the credential.
-        if accountStore.accounts.first(where: { $0.id == accountId })?.isAPIKeyAccount == true {
+        if accountStore.account(id: accountId)?.isAPIKeyAccount == true {
             tokens[accountId] = AccountTokens(accessToken: refresh, refreshToken: refresh, expiresAt: .distantFuture)
             return refresh
         }
@@ -601,7 +600,7 @@ public final class OAuthManager: ObservableObject {
     /// temporary `pending-*` id before the record exists) default to `.claude`,
     /// which is correct because only the Anthropic flow does that.
     private func provider(for accountId: String) -> AIProvider {
-        accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+        accountStore.provider(of: accountId)
     }
 
     private func saveTokens(for accountId: String) {

@@ -116,19 +116,6 @@ final class StatusChecker {
         case failure(Error)
     }
 
-    /// Legacy entry point (Claude feed at an arbitrary URL) — kept for the concurrency
-    /// tests that pin `fetchAndParse` as callable off-MainActor.
-    nonisolated static func fetchAndParse(url: URL, timeout: TimeInterval) async -> FetchOutcome {
-        let claude = StatusFeedConfig.claude
-        let config = StatusFeedConfig(
-            summaryURL: url,
-            statusPageBaseURL: claude.statusPageBaseURL,
-            knownComponents: claude.knownComponents,
-            componentFilter: claude.componentFilter
-        )
-        return await fetchAndParse(config: config, timeout: timeout)
-    }
-
     /// Off-MainActor fetch + decode + parse. Pure: takes a feed config, returns an
     /// outcome. All instance state lives on MainActor; this never touches `self`.
     nonisolated static func fetchAndParse(config: StatusFeedConfig, timeout: TimeInterval) async -> FetchOutcome {
@@ -195,11 +182,12 @@ final class StatusChecker {
         var worstIndicator = StatusIndicator.from(worstComponent.status)
 
         // Check for active incidents. With a component filter, an incident counts only
-        // when it names a filtered component (or names none — Statuspage allows that).
+        // when it explicitly names a filtered component — one with no component list
+        // could be about anything else on the page and must not colour this feed.
         let activeIncidents = summary.incidents.filter { incident in
             guard incident.status != "resolved", incident.status != "postmortem" else { return false }
-            guard let filter = config.componentFilter, let affected = incident.components else { return true }
-            return affected.contains { filter.contains($0.id) }
+            guard let filter = config.componentFilter else { return true }
+            return incident.components?.contains { filter.contains($0.id) } ?? false
         }
         let activeIncident = activeIncidents.first
 

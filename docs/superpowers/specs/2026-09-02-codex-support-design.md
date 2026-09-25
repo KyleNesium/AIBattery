@@ -47,7 +47,8 @@ per-model tokens, API-equivalent cost).
   (custom `init(from:)` using `decodeIfPresent`) — existing persisted accounts load unchanged; no
   migration step.
 - Account IDs remain strings: Anthropic org ID for Claude; `auth.json`-style `account_id` for
-  Codex. The `"pending-<UUID>"` → real-ID resolution flow applies to both providers.
+  Codex (from the ID token at auth time, so Codex never uses the `"pending-<UUID>"` flow —
+  that resolution path stays Claude-only; API-key accounts use `openai-api-<sha256 prefix>`).
 - `AccountStore` stays single. Cap becomes per-provider:
   `maxAccountsPerProvider = 3`, `canAddAccount(provider:)`.
 - Display order: store order, with the account picker and menu-bar grouping sorting Claude accounts
@@ -140,8 +141,10 @@ per-model tokens, API-equivalent cost).
 
 ## 5. UI
 
-- Account picker rows show a provider glyph (✦ Claude, ⬡ Codex); "Add Account…" splits into
-  "Claude account…" / "Codex account…" respecting per-provider caps.
+- Account picker rows show a provider glyph (✦ Claude, ⬡ Codex) **when the account set spans both
+  providers** (a single-provider setup renders unchanged); Codex rows append the plan ("· Plus",
+  "· Business", "· API"). "Add Account…" splits into "Claude account…" / "Codex account…"
+  respecting per-provider caps, in both the header picker and Settings.
 - `AuthView` parameterized by provider (title, glyph, start-flow callback); Codex adds the
   "Import current CLI login" affordance when `~/.codex/auth.json` exists.
 - Menu bar per §3. Settings unchanged except cap wording ("up to 3 accounts per provider").
@@ -183,10 +186,33 @@ per-model tokens, API-equivalent cost).
 | R2 | ChatGPT backend usage endpoint route + headers | Read `codex-rs` / CodexBar source | Session-log `rate_limits` snapshots ship regardless |
 | R3 | OpenAI public status JSON | Check status.openai.com API — **resolved 2026-09-21: Statuspage schema confirmed, component IDs recorded in `spec/CONSTANTS.md`** | Status section stays Claude-only in v1 |
 
+## Amendments (2026-09-25, user-directed during local testing)
+
+The first Codex account tested was a **Business plan with spend controls**, whose `wham/usage`
+payload has `rate_limit: null` — the original windows-only design fell through to Claude's
+plan-tier estimate. Two directives extended the design:
+
+1. **"Completely reworked for Codex only."** Under a Codex account nothing Anthropic-shaped is
+   reachable: no plan-tier / local-estimate fallback, provider-worded errors and empty state, ⬡
+   header, and a layout chosen by `CodexDisplayKind`.
+2. **"Cater for API rates and for subscriptions."** Three billing models:
+   - **Subscriptions** (Free/Plus/Pro/Team): 5h + Weekly windows (§3), the plan name synced from
+     `plan_type`, and a purchased-credit balance row (`credits.balance`) under the Weekly bar.
+   - **Spend-control plans** (Business/Enterprise): `spend_control.individual_limit` → one
+     **Credits** bar (used / limit, remaining, period reset); both windows mirror the budget %
+     so the menu bar, auto mode, notifications and spike filter work unchanged; throttled on
+     `spend_control.reached`, `credits.has_credits == false` or a `rate_limit_reached_type`.
+   - **API-key accounts** (`auth_mode: "apikey"` or a pasted key): key held in the Keychain as the
+     account credential, per-minute limits from OpenAI's `x-ratelimit-*` headers on a 16-token
+     `gpt-5-nano` `/v1/responses` probe (a fraction of a cent per poll — accepted cost), rendered
+     as "API Limits"; cost rows are a real bill (no "~"). The fan-out routes API-key accounts to
+     the probe, never to the ChatGPT endpoint.
+
+This supersedes the former "Codex credits balance display" out-of-scope item.
+
 ## Out of scope
 
 - Providers beyond Claude and Codex (no plugin registry — exactly two providers, dispatched by enum).
-- Codex "credits" balance display (`credits` field parsed but not surfaced in v1).
 - Cross-provider combined/aggregate views (each account renders its own provider's data).
 - Writing to any `~/.codex` file (read-only, same as `~/.claude`).
 

@@ -87,7 +87,10 @@ AIBattery/
     APIFetchResult.swift          — Combined result from a single Messages API call
     APIProfile.swift              — Organization info from API response headers
     RateLimitUsage.swift          — Unified rate limit header parsing (5h/7d windows); provider tag + optional window minutes (Codex payloads)
-    CodexUsageParser.swift        — Parses `wham/usage` JSON and session-log `rate_limits` snapshots into RateLimitUsage
+    CodexUsageParser.swift        — Parses `wham/usage` JSON (windows, credit budget, plan — one pass) and session-log `rate_limits` snapshots into RateLimitUsage
+    CodexDisplayKind.swift        — windows / credits / apiLimits layout selector
+    CodexAccessMode.swift         — chatgpt / apiKey account access mode
+    CodexCreditBudget.swift       — Spend-control budget + purchased-credit balance
     OpenAIModelPricing.swift      — `gpt-5.x` pricing table (longest-prefix match on the raw model ID)
     StatsCache.swift              — Codable for stats-cache.json
     SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry
@@ -109,7 +112,8 @@ AIBattery/
     OAuthManager+Codex.swift      — Codex provider routing: `tokenStorageKey`, `startCodexAuthFlow` / `completeCodexAuthFlow` / `cancelCodexAuthFlow`, `registerCodexAccount` (cap-guarded, returns Result)
     CodexOAuth/
       CodexOAuthConstants.swift   — client-id, port 1455, scopes, authorize/token URLs lifted from codex-rs
-      CodexAuthSession.swift      — In-flight PKCE state + `OneShotMailbox` (buffers a redirect that lands before the UI awaits it)
+      CodexAuthSession.swift      — In-flight PKCE state; awaits the redirect through `OneShotMailbox`
+      OneShotMailbox.swift        — Main-actor one-shot mailbox (buffers a redirect that lands before the UI awaits it)
       CodexCallbackServer.swift   — One-shot NWListener on 127.0.0.1:1455, parses the OAuth redirect (`CodexCallbackParser`)
       CodexTokenClient.swift      — Code exchange (form-encoded) + refresh (JSON) against auth.openai.com
       CodexAuthFileImporter.swift — Read-only import of `~/.codex/auth.json` (ChatGPT mode only) to seed the first Codex account
@@ -118,7 +122,7 @@ AIBattery/
     UsageEntrySource.swift        — Protocol both session-log readers implement (readAllUsageEntries / invalidate / lastCorruptLineCount)
     CodexSessionLogParser.swift   — Per-file state machine: session_meta → identity, turn_context → model, token_count.last_token_usage → AssistantUsageEntry
     CodexSessionLogReader.swift   — Streaming reader over `~/.codex/sessions/YYYY/MM/DD/*.jsonl` (fingerprint cache, eviction, symlink boundary)
-    OpenAIStatusFeed.swift        — `StatusFeedConfig.codex`: status.openai.com filtered to the five Codex components
+    StatusFeedConfig+Codex.swift  — `StatusFeedConfig.codex`: status.openai.com filtered to the five Codex components
     OAuthTokenStorage.swift       — Keychain (refresh token) + UserDefaults (expiry) persistence layer extracted from OAuthManager
     RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)
     RateLimitFetcher+UsageEndpoint.swift  — Dedicated `/api/oauth/usage` primary path: `interpretUsageEndpoint` (pure) + async `fetchUsageEndpoint` wrapper
@@ -143,7 +147,9 @@ AIBattery/
     UsageViewModel+Statics.swift  — `nonisolated static` pure helpers: refresh-interval clamping, error-message string, change detection, TTL-guarded effective rate-limits / values
     UsageViewModel+Lifecycle.swift — File watcher setup, sleep/wake/screen-lock observers, idle-suspend + activity-monitor resume, polling timer (start/restart/updateInterval)
     UsageViewModel+FanOut.swift   — Thin wrapper: `scheduleFanOut` + `fetchAllAccounts(seed:)` delegate to `MultiAccountFanOut.resolve` and assign the result to `perAccountRateLimits`
-    MultiAccountFanOut.swift      — Multi-account fan-out orchestration (`ProviderDispatchingFetcher` routes each account to its provider's fetcher) (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
+    MultiAccountFanOut.swift      — Multi-account fan-out orchestration
+    ProviderDispatchingFetcher.swift — Routes each fan-out fetch: Claude → RateLimitFetcher, Codex ChatGPT → CodexRateLimitFetcher.fetch, Codex API key → fetchAPIKeyLimits (never the ChatGPT endpoint)
+    UsageViewModel+ProviderRouting.swift — Aggregator / fetcher-cache / fetch / status routing by the active account's provider + Codex plan-name sync (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel core: stored state, setup (observers/monitors/panel construction), deinit. Split per the UsageViewModel precedent; shared state declared non-private for cross-file extensions
     StatusBarManager+ButtonUpdate.swift — Menu-bar image rendering (`updateButton`), `MenuBarRenderKey` render-skip (image rebuilt only when text/percent-bucket/color/broken/sparkle/appearance changed), recovery sparkle

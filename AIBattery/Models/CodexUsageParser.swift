@@ -5,9 +5,18 @@ nonisolated enum CodexUsageParser {
 
     /// Parse wham/usage JSON response body.
     nonisolated static func parseUsageResponse(_ data: Data) -> RateLimitUsage? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
-        guard let dict = json as? [String: Any] else { return nil }
+        parseUsage(data).rateLimits
+    }
 
+    /// One-pass parse of the wham/usage body: rate limits (windows or credit budget)
+    /// plus the plan name — callers that need both avoid decoding the JSON twice.
+    nonisolated static func parseUsage(_ data: Data) -> (rateLimits: RateLimitUsage?, planType: String?) {
+        guard let json = try? JSONSerialization.jsonObject(with: data),
+              let dict = json as? [String: Any] else { return (nil, nil) }
+        return (parseUsageDict(dict), dict["plan_type"] as? String)
+    }
+
+    private nonisolated static func parseUsageDict(_ dict: [String: Any]) -> RateLimitUsage? {
         let reachedType = dict["rate_limit_reached_type"] as? String
         let budget = parseCreditBudget(dict)
 

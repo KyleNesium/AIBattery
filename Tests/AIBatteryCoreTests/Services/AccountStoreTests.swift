@@ -17,7 +17,7 @@ struct AccountStoreTests {
         #expect(store.accounts.isEmpty)
         #expect(store.activeAccountId == nil)
         #expect(store.activeAccount == nil)
-        #expect(store.canAddAccount)
+        #expect(store.canAddAccount(provider: .claude))
     }
 
     @Test func add_singleAccount() {
@@ -29,7 +29,7 @@ struct AccountStoreTests {
         #expect(store.accounts.first?.id == "org-1")
         #expect(store.activeAccountId == "org-1")
         #expect(store.activeAccount?.id == "org-1")
-        #expect(store.canAddAccount)
+        #expect(store.canAddAccount(provider: .claude))
     }
 
     @Test func add_threeAccounts() {
@@ -49,7 +49,7 @@ struct AccountStoreTests {
 
         #expect(store.accounts.count == 6)
         #expect(store.activeAccountId == "org-1")
-        #expect(!store.canAddAccount)
+        #expect(!store.canAddAccount(provider: .claude))
     }
 
     @Test func add_rejectsOverMax() {
@@ -83,7 +83,7 @@ struct AccountStoreTests {
 
         #expect(store.accounts.isEmpty)
         #expect(store.activeAccountId == nil)
-        #expect(store.canAddAccount)
+        #expect(store.canAddAccount(provider: .claude))
     }
 
     @Test func remove_switchesToOther() {
@@ -258,7 +258,7 @@ struct AccountStoreTests {
 
         #expect(store.accounts.count == 1)
         #expect(store.activeAccountId == "org-1")
-        #expect(store.canAddAccount)
+        #expect(store.canAddAccount(provider: .claude))
     }
 
     @Test func remove_nonexistentId_isNoOp() {

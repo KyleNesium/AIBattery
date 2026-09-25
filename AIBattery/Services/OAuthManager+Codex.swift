@@ -25,12 +25,18 @@ extension OAuthManager {
             return .failure(.maxAccountsReached)
         }
         storeTokens(accountId: accountId, provider: .codex, accessToken: key, refreshToken: key, expiresAt: .distantFuture)
-        if !accountStore.accounts.contains(where: { $0.id == accountId }) {
-            accountStore.add(AccountRecord(id: accountId, billingType: "api", addedAt: Date(), provider: .codex, codexAccessMode: .apiKey))
-        }
-        accountStore.setActive(id: accountId)
-        updateAuthState()
+        activateCodexAccount(AccountRecord(id: accountId, billingType: "api", addedAt: Date(), provider: .codex, codexAccessMode: .apiKey))
         return .success(())
+    }
+
+    /// Shared tail of both Codex registrations: add the record if new, make it
+    /// active, republish auth state.
+    private func activateCodexAccount(_ record: AccountRecord) {
+        if accountStore.account(id: record.id) == nil {
+            accountStore.add(record)
+        }
+        accountStore.setActive(id: record.id)
+        updateAuthState()
     }
 
     nonisolated static func tokenStorageKey(accountId: String, provider: AIProvider) -> String {
@@ -111,11 +117,7 @@ extension OAuthManager {
             refreshToken: tokenSet.refreshToken,
             expiresAt: JWTDecoder.expiry(tokenSet.accessToken) ?? Date().addingTimeInterval(3_600)
         )
-        if !accountStore.accounts.contains(where: { $0.id == accountId }) {
-            accountStore.add(Self.makeCodexAccountRecord(accountId: accountId))
-        }
-        accountStore.setActive(id: accountId)
-        updateAuthState()
+        activateCodexAccount(Self.makeCodexAccountRecord(accountId: accountId))
         return .success(())
     }
 }

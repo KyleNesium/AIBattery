@@ -73,6 +73,11 @@ struct RateLimitUsage: Equatable, Codable {
     /// merely reports a purchased-credit balance keeps its windowed layout.
     var isCreditBudget: Bool { (creditBudget?.limit ?? 0) > 0 }
 
+    /// Actual window lengths: from the payload when the provider sends them (Codex),
+    /// else the 5-hour / 7-day defaults (spec §3: "defaulted to 300/10080 when absent").
+    var fiveHourDuration: TimeInterval { TimeInterval(fiveHourWindowMinutes ?? 300) * 60 }
+    var sevenDayDuration: TimeInterval { TimeInterval(sevenDayWindowMinutes ?? 10_080) * 60 }
+
     /// Purchased-credit balance on subscription plans, if reported.
     var creditBalance: Double? { creditBudget?.balance }
 
@@ -273,11 +278,11 @@ struct RateLimitUsage: Equatable, Codable {
     func withClearedRolloverArtifacts(now: Date = .now) -> RateLimitUsage {
         let fiveHourArtifact = Self.isRolloverArtifact(
             utilization: fiveHourUtilization, reset: fiveHourReset,
-            windowDuration: Self.fiveHourWindowDuration, now: now
+            windowDuration: fiveHourDuration, now: now
         )
         let sevenDayArtifact = Self.isRolloverArtifact(
             utilization: sevenDayUtilization, reset: sevenDayReset,
-            windowDuration: Self.sevenDayWindowDuration, now: now
+            windowDuration: sevenDayDuration, now: now
         )
 
         guard fiveHourArtifact || sevenDayArtifact else { return self }
@@ -323,8 +328,8 @@ struct RateLimitUsage: Equatable, Codable {
         let remaining = reset.timeIntervalSinceNow
         guard remaining > 0 else { return nil }
 
-        // Window duration inferred from window type
-        let windowDuration: TimeInterval = window == Self.sevenDayWindow ? 7 * 24 * 3_600 : 5 * 3_600
+        // Window duration from the payload when present, else the provider default
+        let windowDuration: TimeInterval = window == Self.sevenDayWindow ? sevenDayDuration : fiveHourDuration
         let elapsed = windowDuration - remaining
 
         guard elapsed > 60 else { return nil } // Need meaningful elapsed time

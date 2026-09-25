@@ -69,10 +69,10 @@ struct MetricModeTests {
     }
 
     @Test func pickerModes_singleBudgetKinds_hideRedundantWindowTab() {
-        #expect(MetricMode.pickerModes(provider: .codex, kind: .credits) == [.fiveHour, .contextHealth])
-        #expect(MetricMode.pickerModes(provider: .codex, kind: .apiLimits) == [.fiveHour, .contextHealth])
-        #expect(MetricMode.pickerModes(provider: .codex, kind: .windows) == MetricMode.allCases)
-        #expect(MetricMode.pickerModes(provider: .claude, kind: .windows) == MetricMode.allCases)
+        #expect(MetricMode.pickerModes(kind: .credits) == [.fiveHour, .contextHealth])
+        #expect(MetricMode.pickerModes(kind: .apiLimits) == [.fiveHour, .contextHealth])
+        #expect(MetricMode.pickerModes(kind: .windows) == MetricMode.allCases)
+        #expect(MetricMode.pickerModes(kind: .windows) == MetricMode.allCases)
     }
 
     @Test func displayKind_derivation() {

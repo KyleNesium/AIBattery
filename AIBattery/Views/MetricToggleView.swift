@@ -23,7 +23,7 @@ struct MetricToggleView: View {
                 .padding(.trailing, Spacing.section)
 
             HStack(spacing: Spacing.small) {
-                ForEach(MetricMode.pickerModes(provider: provider, kind: kind), id: \.rawValue) { mode in
+                ForEach(MetricMode.pickerModes(kind: kind), id: \.rawValue) { mode in
                     tabButton(for: mode)
                 }
             }

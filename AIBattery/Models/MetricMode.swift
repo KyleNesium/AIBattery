@@ -37,7 +37,7 @@ enum MetricMode: String, CaseIterable {
 
     /// Tabs to show in the picker. Single-budget kinds collapse 5h/Weekly into one tab
     /// (the `.fiveHour` slot) so there is no redundant second tab.
-    static func pickerModes(provider: AIProvider, kind: CodexDisplayKind) -> [MetricMode] {
+    static func pickerModes(kind: CodexDisplayKind) -> [MetricMode] {
         kind == .windows ? allCases : [.fiveHour, .contextHealth]
     }
 

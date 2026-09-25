@@ -22,12 +22,11 @@ struct AccountStoreProviderTests {
         }
         #expect(!store.canAddAccount(provider: .claude))
         #expect(store.canAddAccount(provider: .codex)) // full Claude side must not block Codex
-        #expect(store.canAddAccount) // any-provider variant
         for i in 1...3 {
             store.add(record("x\(i)", .codex))
         }
         #expect(store.accounts.count == 6)
-        #expect(!store.canAddAccount)
+        #expect(!store.canAddAccount(provider: .codex))
         store.add(record("x4", .codex)) // over cap — must be rejected
         #expect(store.accounts.count == 6)
     }
@@ -45,5 +44,16 @@ struct AccountStoreProviderTests {
         let mixed = [record("x1", .codex), record("c1", .claude)]
         let ids = AccountStore.multiAccountDisplayIDs(accounts: mixed, isAuthenticated: { _ in true })
         #expect(ids == ["c1", "x1"])
+    }
+
+    @Test func lookupHelpers_defaultUnknownIdsToClaude() {
+        let store = makeCleanStore()
+        store.add(record("c1", .claude))
+        store.add(record("x1", .codex))
+        #expect(store.account(id: "x1")?.provider == .codex)
+        #expect(store.account(id: "nope") == nil)
+        #expect(store.provider(of: "x1") == .codex)
+        #expect(store.provider(of: "nope") == .claude)
+        #expect(store.provider(of: nil) == .claude)
     }
 }

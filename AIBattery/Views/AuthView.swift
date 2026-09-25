@@ -18,7 +18,7 @@ public struct AuthView: View {
     /// small "Sign in with X instead" footnote link in the footer.
     var onToggleProvider: (() -> Void)?
     @State private var authCode: String = ""
-    @State private var isWaitingForCode = false
+    @State private var isAwaitingSignIn = false
     @State private var isExchanging = false
     @State private var errorMessage: String?
     /// Whether `~/.codex/auth.json` holds an importable ChatGPT-mode login. Resolved
@@ -130,7 +130,7 @@ public struct AuthView: View {
 
     @ViewBuilder
     private var claudeContent: some View {
-        if !isWaitingForCode {
+        if !isAwaitingSignIn {
             // Step 1: Start auth
             VStack(spacing: Spacing.section) {
                 Text(isAddingAccount
@@ -198,7 +198,7 @@ public struct AuthView: View {
 
                 HStack(spacing: Spacing.section) {
                     Button("Cancel") {
-                        isWaitingForCode = false
+                        isAwaitingSignIn = false
                         authCode = ""
                         errorMessage = nil
                     }
@@ -235,7 +235,7 @@ public struct AuthView: View {
 
     @ViewBuilder
     private var codexContent: some View {
-        if !isWaitingForCode {
+        if !isAwaitingSignIn {
             VStack(spacing: Spacing.section) {
                 Text("Connect your OpenAI account to see Codex usage and rate limits.")
                     .font(Typography.caption)
@@ -315,7 +315,7 @@ public struct AuthView: View {
 
                 Button("Cancel") {
                     oauthManager.cancelCodexAuthFlow()
-                    isWaitingForCode = false
+                    isAwaitingSignIn = false
                 }
                 .buttonStyle(.plain)
                 .font(Typography.caption)
@@ -334,7 +334,7 @@ public struct AuthView: View {
             return
         }
         NSWorkspace.shared.open(url)
-        isWaitingForCode = true
+        isAwaitingSignIn = true
     }
 
     private func startCodexAuth() {
@@ -343,7 +343,7 @@ public struct AuthView: View {
             errorMessage = "Couldn't start sign-in (port 1455 busy — is a Codex CLI login running?)"
             return
         }
-        isWaitingForCode = true
+        isAwaitingSignIn = true
         // Start awaiting the callback BEFORE opening the browser. The local callback
         // server can receive the OAuth redirect before this Task's first `await` runs
         // if the browser round-trips fast (it's all localhost) — opening the browser
@@ -351,7 +351,7 @@ public struct AuthView: View {
         // drops the callback and hangs the waiting state. See Task 9 review.
         Task {
             let result = await oauthManager.completeCodexAuthFlow()
-            isWaitingForCode = false
+            isAwaitingSignIn = false
             if case .failure(let error) = result {
                 errorMessage = error.userMessage
             }

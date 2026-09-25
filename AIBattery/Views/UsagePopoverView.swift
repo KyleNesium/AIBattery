@@ -136,10 +136,7 @@ public struct UsagePopoverView: View {
                 SettingsRow(
                     viewModel: viewModel,
                     accountStore: accountStore,
-                    // Settings' "Add Account" link stays Claude-only (SettingsRow isn't
-                    // part of this task's scope to split into per-provider buttons — its
-                    // copy already reads "another Claude account").
-                    onAddAccount: { addingProvider = .claude }
+                    onAddAccount: { addingProvider = $0 }
                 )
                 .transition(.opacity)
                 // No StyledDivider here — the always-present divider above the footer

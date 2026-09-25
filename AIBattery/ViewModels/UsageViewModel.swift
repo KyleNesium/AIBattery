@@ -136,7 +136,7 @@ public final class UsageViewModel: ObservableObject {
             // Route by the active account's provider — a Codex account's cache lives in
             // CodexRateLimitFetcher, not RateLimitFetcher. Mirrors the wasEmpty routing
             // in refresh() (Task 14).
-            let provider = OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
+            let provider = provider(ofAccount: accountId)
             let cached = Self.cachedResult(for: provider, accountId: accountId)
             if cached.rateLimits != nil || cached.standardLimits != nil {
                 // Persisted rate limits from last session — treat as still-valid
@@ -215,7 +215,7 @@ public final class UsageViewModel: ObservableObject {
         inflightAggregation = task
         var (result, effects) = await task.value
         // Pay-per-token accounts: the cost rows are a real bill, not subscription value.
-        result.costIsBilled = OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.isAPIKeyAccount ?? false
+        result.costIsBilled = OAuthManager.shared.accountStore.account(id: accountId)?.isAPIKeyAccount ?? false
 
         // Apply side effects before clearing inflightAggregation so the next
         // caller sees consistent RateLimitFetcher state. The observed-model list feeds
@@ -228,23 +228,6 @@ public final class UsageViewModel: ObservableObject {
         }
         inflightAggregation = nil
         return result
-    }
-
-    func aggregator(for provider: AIProvider) -> UsageAggregator {
-        provider == .codex ? codexAggregator : aggregator
-    }
-
-    /// Provider of an account in the store (Claude when unknown — legacy records).
-    func provider(ofAccount accountId: String?) -> AIProvider {
-        OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.provider ?? .claude
-    }
-
-    /// The right fetcher's cached result for an account — each provider persists under
-    /// its own key prefix, so asking the wrong fetcher yields empty bars.
-    static func cachedResult(for provider: AIProvider, accountId: String) -> APIFetchResult {
-        provider == .codex
-            ? CodexRateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
-            : RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
     }
 
     /// - Parameter skipNetworkCheck: When true, bypasses the offline guard. Used on wake
@@ -427,11 +410,7 @@ public final class UsageViewModel: ObservableObject {
                     // would leave the raw glitch alive in the Codex fetcher's own cache/
                     // `aibattery_codexRateLimits_<id>` blob, surviving relaunch as a false
                     // "Limit reached" (the false-alarm bug class v2.6.1 fixed for Claude).
-                    if accountProvider == .codex {
-                        CodexRateLimitFetcher.shared.overrideCachedRateLimits(confirmedLimits.display, accountId: accountId)
-                    } else {
-                        RateLimitFetcher.shared.overrideCachedRateLimits(confirmedLimits.display, accountId: accountId)
-                    }
+                    Self.overrideCachedRateLimits(confirmedLimits.display, for: accountProvider, accountId: accountId)
                 }
             }
             effectiveRateLimits = confirmedLimits.display
@@ -498,63 +477,6 @@ public final class UsageViewModel: ObservableObject {
     }
 
     // MARK: - Refresh helpers
-
-    private func fetchAPIData(
-        oauthManager: OAuthManager,
-        accountId: String?
-    ) async -> (APIFetchResult, ClaudeSystemStatus) {
-        // Pin the token to the account this fetch was filed under. Resolving the
-        // ACTIVE account's token at await-time would, after a mid-poll account
-        // switch, send account B's token on a request cached and persisted under
-        // account A's key.
-        let accessToken: String? = if let id = accountId {
-            await oauthManager.getAccessToken(for: id)
-        } else {
-            nil
-        }
-
-        let provider = provider(ofAccount: accountId)
-        async let fetchedStatus = StatusChecker.shared(for: provider).fetchStatus()
-
-        let isAPIKey = oauthManager.accountStore.accounts.first { $0.id == accountId }?.isAPIKeyAccount ?? false
-        let api: APIFetchResult = if let token = accessToken, let id = accountId {
-            switch (provider, isAPIKey) {
-            case (.codex, true): await CodexRateLimitFetcher.shared.fetchAPIKeyLimits(apiKey: token, accountId: id)
-            case (.codex, false): await CodexRateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
-            case (.claude, _): await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
-            }
-        } else {
-            APIFetchResult(rateLimits: nil, profile: nil)
-        }
-
-        return await (api, fetchedStatus)
-    }
-
-    private func resolveAccountIdentity(
-        oauthManager: OAuthManager,
-        accountId: String?,
-        api: APIFetchResult
-    ) {
-        guard let id = accountId else { return }
-        guard let account = oauthManager.accountStore.accounts.first(where: { $0.id == id }) else { return }
-        // Codex identities are resolved at auth time (real account id from the JWT) —
-        // the Anthropic pending-identity machinery (temp-UUID -> org-ID migration)
-        // must never touch them. Only the plan name is synced from the usage payload.
-        guard account.provider == .claude else {
-            if let plan = api.planType, !api.isCached, account.billingType != plan {
-                oauthManager.updateAccountMetadata(accountId: id, billingType: plan)
-            }
-            return
-        }
-
-        if account.isPendingIdentity {
-            if let orgId = api.profile?.organizationId {
-                oauthManager.resolveAccountIdentity(tempId: id, realOrgId: orgId)
-            } else if Date().timeIntervalSince(account.addedAt) > 3_600 {
-                errorMessage = "Account identity could not be confirmed. Try removing and re-adding this account."
-            }
-        }
-    }
 
     private func logCorruptionMetrics() {
         let corruptLines = SessionLogReader.shared.lastCorruptLineCount + CodexSessionLogReader.shared.lastCorruptLineCount

@@ -62,9 +62,18 @@ struct StatusCheckerComponentFilterTests {
         #expect(status.incidentNames == ["Codex API errors"])
     }
 
-    @Test func filter_incidentWithoutComponentList_stillCounts() {
+    @Test func filter_incidentWithoutComponentList_isIgnored() {
+        // Spec §5: incidents count only when they name a Codex component. An incident
+        // with no component list could be about anything on OpenAI's page.
         let incident = StatusPageIncident(id: "i3", name: "Elevated errors", status: "identified", impact: "minor", components: nil)
         let status = StatusChecker.parseStatus(summary(components: [codexAPI], incidents: [incident]), config: config(filter: ["codex-api"]))
+        #expect(status.indicator == .operational)
+        #expect(status.incidentNames.isEmpty)
+    }
+
+    @Test func noFilter_incidentWithoutComponentList_stillCounts() {
+        let incident = StatusPageIncident(id: "i3", name: "Elevated errors", status: "identified", impact: "minor", components: nil)
+        let status = StatusChecker.parseStatus(summary(components: [codexAPI], incidents: [incident]), config: config(filter: nil))
         #expect(status.indicator == .degradedPerformance)
     }
 

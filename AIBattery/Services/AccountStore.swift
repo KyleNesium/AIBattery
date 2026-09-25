@@ -35,8 +35,16 @@ public final class AccountStore: ObservableObject {
         accounts(for: provider).count < Self.maxAccountsPerProvider
     }
 
-    public var canAddAccount: Bool {
-        AIProvider.allCases.contains { canAddAccount(provider: $0) }
+    /// The record for an id, if known.
+    public func account(id: String?) -> AccountRecord? {
+        guard let id else { return nil }
+        return accounts.first { $0.id == id }
+    }
+
+    /// Provider of an account; `.claude` for unknown ids (pre-provider records and
+    /// the signed-out state) — the single home for a lookup that used to be repeated.
+    public func provider(of id: String?) -> AIProvider {
+        account(id: id)?.provider ?? .claude
     }
 
     public init() {
