@@ -42,6 +42,16 @@ public struct UsagePopoverView: View {
     @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
     private var orderedModes: [MetricMode] { cachedOrderedModes }
 
+    /// Shape of the active account's quota (windows / credits / per-minute API limits).
+    private func displayKind(_ snapshot: UsageSnapshot) -> CodexDisplayKind {
+        guard snapshot.provider == .codex else { return .windows }
+        return CodexDisplayKind.of(
+            rateLimits: snapshot.rateLimits,
+            standardLimits: snapshot.standardLimits,
+            apiKeyAccount: accountStore.activeAccount?.isAPIKeyAccount ?? false
+        )
+    }
+
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
         self.accountStore = OAuthManager.shared.accountStore
@@ -140,7 +150,7 @@ public struct UsagePopoverView: View {
                     pickerBinding: pickerBinding,
                     snapshot: snapshot,
                     provider: snapshot.provider,
-                    creditBudget: snapshot.rateLimits?.isCreditBudget == true
+                    kind: displayKind(snapshot)
                 )
 
                 // Local estimate header — shown once when API rate limits are unavailable
@@ -172,7 +182,7 @@ public struct UsagePopoverView: View {
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
-                        if let limits = snapshot.rateLimits, let budget = limits.creditBudget {
+                        if let limits = snapshot.rateLimits, limits.isCreditBudget, let budget = limits.creditBudget {
                             // Codex credit budget: one bar stands in for both windows.
                             CreditBudgetSection(limits: limits, budget: budget, source: snapshot.rateLimitSource, confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
                             StyledDivider()
@@ -188,15 +198,18 @@ public struct UsagePopoverView: View {
                             )
                             StyledDivider()
                         } else if let stdLimits = snapshot.standardLimits {
-                            StandardLimitsSection(limits: stdLimits)
+                            StandardLimitsSection(limits: stdLimits, provider: snapshot.provider)
                             StyledDivider()
                         }
                     case .sevenDay:
-                        if snapshot.rateLimits?.isCreditBudget == true {
-                            // Rendered once in the .fiveHour slot as the Credits bar.
+                        if displayKind(snapshot) != .windows {
+                            // Rendered once in the .fiveHour slot as the Credits / API Limits bar.
                             EmptyView()
                         } else if let limits = snapshot.rateLimits {
                             SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayWindowTokens(resetsAt: limits.sevenDayReset), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
+                            if let balance = limits.creditBalance {
+                                CreditBalanceRow(balance: balance, unlimited: limits.creditBudget?.unlimited ?? false)
+                            }
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(
@@ -207,7 +220,7 @@ public struct UsagePopoverView: View {
                             )
                             StyledDivider()
                         } else if let stdLimits = snapshot.standardLimits {
-                            StandardLimitsSection(limits: stdLimits)
+                            StandardLimitsSection(limits: stdLimits, provider: snapshot.provider)
                             StyledDivider()
                         }
                     case .contextHealth:
@@ -261,6 +274,7 @@ public struct UsagePopoverView: View {
             PopoverFooterView(
                 systemStatus: viewModel.systemStatus,
                 provider: accountStore.activeAccount?.provider ?? .claude,
+                apiKeyAccount: accountStore.activeAccount?.isAPIKeyAccount ?? false,
                 isLoading: viewModel.isLoading,
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isShowingCachedData: viewModel.isShowingCachedData,

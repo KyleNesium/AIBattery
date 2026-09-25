@@ -25,6 +25,9 @@ public struct AuthView: View {
     /// once off the render path (`.task`) — a file read inside `body` re-ran on every
     /// evaluation (Plan 1 review F8).
     @State private var cliLoginAvailable = false
+    /// Codex API-key entry (pay-per-token accounts).
+    @State private var showAPIKeyField = false
+    @State private var apiKeyInput = ""
 
     public init(
         oauthManager: OAuthManager,
@@ -259,10 +262,39 @@ public struct AuthView: View {
                     LinkActionButton(
                         label: "Import Codex CLI login",
                         icon: "square.and.arrow.down",
-                        help: "Seed a Codex account from your existing Codex CLI login",
+                        help: "Seed a Codex account from your existing Codex CLI login (ChatGPT or API key)",
                         accessibilityLabel: "Import Codex CLI login",
                         accessibilityHint: "Seeds a Codex account without a browser round-trip",
                         action: importCodexCLILogin
+                    )
+                }
+
+                if showAPIKeyField {
+                    VStack(spacing: Spacing.inner) {
+                        SecureField("sk-…", text: $apiKeyInput)
+                            .textFieldStyle(.roundedBorder)
+                            .font(Typography.monoCaption)
+                            .onSubmit(submitAPIKey)
+                            .accessibilityLabel("OpenAI API key")
+                        HStack {
+                            Text("Pay-per-token: shows per-minute API limits and real spend at API rates.")
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(ThemeColors.tertiaryLabel)
+                            Spacer()
+                            Button("Connect", action: submitAPIKey)
+                                .buttonStyle(.borderedProminent)
+                                .tint(ThemeColors.action)
+                                .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+                } else {
+                    LinkActionButton(
+                        label: "Use an OpenAI API key instead",
+                        icon: "key",
+                        help: "For Codex in API-key mode (pay-per-token) — no ChatGPT subscription",
+                        accessibilityLabel: "Use an OpenAI API key",
+                        accessibilityHint: "Shows a field to paste an OpenAI API key",
+                        action: { showAPIKeyField = true }
                     )
                 }
             }
@@ -327,6 +359,16 @@ public struct AuthView: View {
             // and UsagePopoverView's onChange dismisses the overlay.
         }
         NSWorkspace.shared.open(url)
+    }
+
+    private func submitAPIKey() {
+        errorMessage = nil
+        if case .failure(let error) = oauthManager.registerCodexAPIKey(apiKeyInput) {
+            errorMessage = error.userMessage
+        } else {
+            apiKeyInput = ""
+        }
+        // Success auto-dismisses via AccountStore, like the OAuth flow.
     }
 
     private func importCodexCLILogin() {

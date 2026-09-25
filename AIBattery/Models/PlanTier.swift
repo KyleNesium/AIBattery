@@ -85,7 +85,7 @@ enum PlanTier: String, CaseIterable, Codable {
         if let accountId,
            let data = defaults.data(forKey: UserDefaultsKeys.accounts),
            let records = try? JSONDecoder().decode([AccountRecord].self, from: data),
-           let billing = records.first(where: { $0.id == accountId })?.billingType,
+           let billing = records.first(where: { $0.id == accountId && $0.provider == .claude })?.billingType,
            let tier = PlanTier(billingType: billing) {
             return tier
         }

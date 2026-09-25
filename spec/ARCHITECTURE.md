@@ -22,9 +22,9 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 
 | Boundary | Claude | Codex |
 |---|---|---|
-| Auth | `OAuthManager` paste-code PKCE flow | `CodexAuthSession` + `CodexCallbackServer` (localhost:1455 redirect) + `CodexTokenClient`; one-click `CodexAuthFileImporter` from `~/.codex/auth.json` |
+| Auth | `OAuthManager` paste-code PKCE flow | ChatGPT: `CodexAuthSession` + `CodexCallbackServer` (localhost:1455 redirect) + `CodexTokenClient`; API key: `registerCodexAPIKey` (Keychain, no refresh); one-click `CodexAuthFileImporter` from `~/.codex/auth.json` (either mode) |
 | Token storage | Keychain `refreshToken_<accountId>` | Keychain `refreshToken_codex_<accountId>` (`OAuthManager.tokenStorageKey`) |
-| Rate limits | `RateLimitFetcher` (`/api/oauth/usage` → probes) | `CodexRateLimitFetcher` (`chatgpt.com/backend-api/wham/usage` → `CodexSessionRateLimitScanner` session-log fallback), with per-account endpoint backoff |
+| Rate limits | `RateLimitFetcher` (`/api/oauth/usage` → probes) | `CodexRateLimitFetcher`: subscriptions → windows, Business/Enterprise → credit budget (`chatgpt.com/backend-api/wham/usage` → session-log fallback); API keys → per-minute `x-ratelimit-*` via `api.openai.com/v1/responses` probe; per-account endpoint backoff |
 | Local data | `SessionLogReader` (`~/.claude/projects`) + `StatsCacheReader` | `CodexSessionLogReader` (`~/.codex/sessions`, no stats cache) — both implement `UsageEntrySource` |
 | Aggregation | `UsageAggregator(provider: .claude)` | `UsageAggregator(provider: .codex)` — same class, `gpt-` model filter, JSONL-derived `firstSessionDate` |
 | Pricing / names / context | Claude tables | `OpenAIModelPricing`, `gpt-` branch in `ModelNameMapper`, `TokenHealthConfig.openAIDefaultContextWindow` |
@@ -350,6 +350,7 @@ CHANGELOG.md                      — Release notes per version
 10. `GET https://status.openai.com/api/v2/summary.json` — OpenAI system status, filtered to Codex components (every refresh interval while a Codex account is active)
 11. `GET https://auth.openai.com/oauth/authorize` — Codex OAuth login (opens in browser, one-time; redirects to `http://localhost:1455/auth/callback`)
 12. `POST https://auth.openai.com/oauth/token` — Codex token exchange + auto-refresh
+13. `POST https://api.openai.com/v1/responses` — **API-key Codex accounts only**: a 16-token nano probe whose response headers carry the per-minute `x-ratelimit-*` limits (the Codex mirror of the Claude Messages probe; no ChatGPT windows exist for API keys)
 
 ## Local File Access (exhaustive)
 

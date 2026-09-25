@@ -69,7 +69,12 @@ struct RateLimitUsage: Equatable, Codable {
     /// a single "Credits" bar instead of 5h/Weekly. nil for windowed plans and Claude.
     let creditBudget: CodexCreditBudget?
 
-    var isCreditBudget: Bool { creditBudget != nil }
+    /// True only for a real spend-control budget (limit > 0). A subscription plan that
+    /// merely reports a purchased-credit balance keeps its windowed layout.
+    var isCreditBudget: Bool { (creditBudget?.limit ?? 0) > 0 }
+
+    /// Purchased-credit balance on subscription plans, if reported.
+    var creditBalance: Double? { creditBudget?.balance }
 
     init(
         representativeClaim: String,

@@ -16,6 +16,9 @@ struct APIFetchResult {
     /// True when the Messages API persistently rejects the access token (≥3 consecutive
     /// 401/403 responses). Surface to the user so they can reconnect the account.
     let authError: Bool
+    /// Codex plan (`plan_type` from wham/usage: free / plus / pro / team / business / …),
+    /// or "api" for API-key accounts. Synced onto `AccountRecord.billingType`.
+    let planType: String?
 
     init(
         rateLimits: RateLimitUsage?,
@@ -25,7 +28,8 @@ struct APIFetchResult {
         hasStandardRateLimitHeaders: Bool = false,
         fetchedAt: Date = Date(),
         isCached: Bool = false,
-        authError: Bool = false
+        authError: Bool = false,
+        planType: String? = nil
     ) {
         self.rateLimits = rateLimits
         self.rateLimitSource = rateLimits == nil ? nil : (rateLimitSource ?? .anthropicAPIHeaders)
@@ -35,5 +39,6 @@ struct APIFetchResult {
         self.fetchedAt = fetchedAt
         self.isCached = isCached
         self.authError = authError
+        self.planType = planType
     }
 }

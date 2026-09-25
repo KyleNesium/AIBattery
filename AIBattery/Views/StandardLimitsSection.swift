@@ -4,6 +4,13 @@ import SwiftUI
 /// Shows per-minute request and token limits from standard Anthropic API headers.
 struct StandardLimitsSection: View {
     let limits: StandardRateLimits
+    var provider: AIProvider = .claude
+
+    private var banner: String {
+        provider == .codex
+            ? "OpenAI API limits (per minute, pay-per-token)"
+            : "Showing API rate limits (5h/7d usage unavailable)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.gap) {
@@ -12,7 +19,7 @@ struct StandardLimitsSection: View {
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .accessibilityHidden(true)
-                Text("Showing API rate limits (5h/7d usage unavailable)")
+                Text(banner)
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }

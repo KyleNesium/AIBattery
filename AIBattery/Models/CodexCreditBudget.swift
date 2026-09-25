@@ -19,6 +19,9 @@ struct CodexCreditBudget: Codable, Equatable, Sendable {
     /// `credits.unlimited`.
     let unlimited: Bool
     let planType: String?
+    /// Purchased-credit balance (`credits.balance`) on subscription plans — spent only once
+    /// the rate-limit windows are exhausted. nil when the plan doesn't report one.
+    var balance: Double? = nil
 
     /// Human-readable credit amounts: 7 006.3 → "7.0K", 32 768 → "32.8K", 950 → "950".
     static func formatCredits(_ value: Double) -> String {

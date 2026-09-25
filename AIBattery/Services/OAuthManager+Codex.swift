@@ -1,6 +1,38 @@
+import CryptoKit
 import Foundation
 
 extension OAuthManager {
+    /// Stable, key-free account id for an API-key account: `openai-api-` + the first 24
+    /// hex chars of SHA-256(key). The key itself never appears in UserDefaults.
+    nonisolated static func apiKeyAccountId(for apiKey: String) -> String {
+        let digest = SHA256.hash(data: Data(apiKey.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        return "openai-api-" + hex.prefix(24)
+    }
+
+    /// Register a Codex account backed by an OpenAI API key (pay-per-token). The key
+    /// is stored in the Keychain as the account's "refresh token" (and served as the
+    /// access token with no expiry); `billingType` is "api".
+    @discardableResult
+    func registerCodexAPIKey(_ rawKey: String) -> Result<Void, AuthError> {
+        let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard key.hasPrefix("sk-"), key.count >= 20 else {
+            return .failure(.unknownError("That doesn't look like an OpenAI API key (expected sk-…)."))
+        }
+        let accountId = Self.apiKeyAccountId(for: key)
+        guard accountStore.canAddAccount(provider: .codex)
+            || accountStore.accounts.contains(where: { $0.id == accountId }) else {
+            return .failure(.maxAccountsReached)
+        }
+        storeTokens(accountId: accountId, provider: .codex, accessToken: key, refreshToken: key, expiresAt: .distantFuture)
+        if !accountStore.accounts.contains(where: { $0.id == accountId }) {
+            accountStore.add(AccountRecord(id: accountId, billingType: "api", addedAt: Date(), provider: .codex, codexAccessMode: .apiKey))
+        }
+        accountStore.setActive(id: accountId)
+        updateAuthState()
+        return .success(())
+    }
+
     nonisolated static func tokenStorageKey(accountId: String, provider: AIProvider) -> String {
         provider == .codex ? "codex_\(accountId)" : accountId
     }

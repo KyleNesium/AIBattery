@@ -15,14 +15,16 @@ struct UsageSnapshotTests {
         fiveHourTokens: Int = 0,
         sevenDayTokens: Int = 0,
         dailyActivity: [DailyActivity] = [],
-        provider: AIProvider = .claude
+        provider: AIProvider = .claude,
+        standardLimits: StandardRateLimits? = nil,
+        costIsBilled: Bool = false
     ) -> UsageSnapshot {
         let activityStats = UsageSnapshot.computeActivityStats(dailyActivity)
         return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
             rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
-            standardLimits: nil,
+            standardLimits: standardLimits,
             rateLimitsFresh: rateLimitsFresh,
             firstSessionDate: nil,
             totalSessions: 0,
@@ -56,7 +58,8 @@ struct UsageSnapshotTests {
             todayHourCounts: [:],
             tokenHealth: tokenHealth,
             topSessionHealths: topSessionHealths,
-            provider: provider
+            provider: provider,
+            costIsBilled: costIsBilled
         )
     }
 
@@ -971,9 +974,9 @@ struct UsageSnapshotTests {
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 38 = 37 compared fields + lastUpdated.
+        // it) AND update this count. 39 = 38 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 38)
+        #expect(mirror.children.count == 39)
     }
 
     // MARK: - Provider (Plan 2)
@@ -993,5 +996,16 @@ struct UsageSnapshotTests {
         #expect(!snapshot.isUsingLocalEstimate)
         #expect(snapshot.percent(for: .fiveHour) == 0)
         #expect(snapshot.percent(for: .sevenDay) == 0)
+    }
+
+    @Test func codexAPIKeySnapshot_percentUsesPerMinuteTokenLimit() {
+        let std = StandardRateLimits(requestsLimit: 100, requestsRemaining: 90, requestsReset: nil, tokensLimit: 1_000, tokensRemaining: 250, tokensReset: nil)
+        let snapshot = makeSnapshot(provider: .codex, standardLimits: std)
+        #expect(snapshot.percent(for: .fiveHour) == 75)
+        #expect(snapshot.percent(for: .sevenDay) == 75)
+    }
+
+    @Test func equality_differsOnCostIsBilled() {
+        #expect(makeSnapshot(costIsBilled: false) != makeSnapshot(costIsBilled: true))
     }
 }

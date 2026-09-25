@@ -4,6 +4,8 @@ struct PopoverFooterView: View {
     let systemStatus: ClaudeSystemStatus?
     /// Active account's provider — drives the Usage/Status link targets and copy.
     var provider: AIProvider = .claude
+    /// Codex API-key account — the usage dashboard is the platform billing page.
+    var apiKeyAccount: Bool = false
     let isLoading: Bool
     let lastFreshFetch: Date?
     var isShowingCachedData: Bool = false
@@ -22,7 +24,7 @@ struct PopoverFooterView: View {
                     label: "Usage",
                     tooltip: "Open \(provider.displayName) usage dashboard in browser"
                 ) {
-                    NSWorkspace.shared.open(Self.usageDashboardURL(for: provider))
+                    NSWorkspace.shared.open(Self.usageDashboardURL(for: provider, apiKeyAccount: apiKeyAccount))
                 }
 
                 // Status Page — colored dot acts as status indicator
@@ -122,10 +124,12 @@ struct PopoverFooterView: View {
     }
 
     /// Provider's web usage dashboard. Codex: the ChatGPT Codex usage settings page.
-    nonisolated static func usageDashboardURL(for provider: AIProvider) -> URL {
+    nonisolated static func usageDashboardURL(for provider: AIProvider, apiKeyAccount: Bool = false) -> URL {
         switch provider {
         case .claude: URL(string: "https://claude.ai/settings/usage")!
-        case .codex: URL(string: "https://chatgpt.com/codex/settings/usage")!
+        case .codex: apiKeyAccount
+            ? URL(string: "https://platform.openai.com/usage")!
+            : URL(string: "https://chatgpt.com/codex/settings/usage")!
         }
     }
 

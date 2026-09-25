@@ -68,4 +68,16 @@ struct PopoverFooterStatusSymbolTests {
         #expect(PopoverFooterView.statusPageURL(systemStatus: nil, provider: .codex) == "https://status.openai.com")
         #expect(PopoverFooterView.statusPageURL(systemStatus: nil, provider: .claude) == "https://status.claude.com")
     }
+
+    @Test func usageDashboardURL_codexAPIKey_isPlatformUsage() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .codex, apiKeyAccount: true).absoluteString == "https://platform.openai.com/usage")
+    }
+
+    @Test func planLabel_capitalisesPlans_andUppercasesAPI() {
+        #expect(PopoverHeaderView.planLabel("plus") == "Plus")
+        #expect(PopoverHeaderView.planLabel("business") == "Business")
+        #expect(PopoverHeaderView.planLabel("api") == "API")
+        #expect(PopoverHeaderView.planLabel("") == nil)
+        #expect(PopoverHeaderView.planLabel(nil) == nil)
+    }
 }

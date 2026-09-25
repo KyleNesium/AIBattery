@@ -108,4 +108,27 @@ struct CodexCreditBudgetTests {
         #expect(CodexCreditBudget.formatCredits(950) == "950")
         #expect(CodexCreditBudget.formatCredits(1_260_000) == "1.3M")
     }
+
+    // MARK: - Subscription plans with purchased credits
+
+    @Test func windowedPlanWithCreditsBalance_exposesBalanceNotBudget() throws {
+        let body = Data("""
+        {"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":21,"reset_at":1788267090,"limit_window_seconds":18000},
+          "secondary_window":{"used_percent":63.5,"reset_at":1788853890,"limit_window_seconds":604800}},
+         "credits":{"has_credits":true,"unlimited":false,"balance":"3944.1197930574417"}}
+        """.utf8)
+        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        #expect(!usage.isCreditBudget) // windows still drive the bars
+        #expect(abs((usage.creditBalance ?? 0) - 3_944.12) < 0.01)
+        #expect(usage.creditBudget?.planType == "plus")
+        #expect(usage.sevenDayDisplayLabel == "Weekly")
+    }
+
+    @Test func planType_surfacesOnFetchResult() {
+        let body = Data(#"{"plan_type":"pro","rate_limit":{"primary_window":{"used_percent":1,"reset_at":1788267090,"limit_window_seconds":18000}}}"#.utf8)
+        guard case .success(let result) = CodexRateLimitFetcher.interpretUsageResponse(statusCode: 200, data: body) else {
+            Issue.record("expected success"); return
+        }
+        #expect(result.planType == "pro")
+    }
 }

@@ -426,6 +426,11 @@ public final class OAuthManager: ObservableObject {
     /// exchanges via `CodexTokenClient` and derives expiry from the JWT `exp`
     /// claim rather than an `expires_in` field.
     private func refreshCodexAccessToken(_ refresh: String, accountId: String) async -> String? {
+        // API-key accounts store the key as their "refresh token" — it IS the credential.
+        if accountStore.accounts.first(where: { $0.id == accountId })?.isAPIKeyAccount == true {
+            tokens[accountId] = AccountTokens(accessToken: refresh, refreshToken: refresh, expiresAt: .distantFuture)
+            return refresh
+        }
         let result = await CodexTokenClient.refresh(refreshToken: refresh)
         switch result {
         case .success(let set):

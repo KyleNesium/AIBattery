@@ -213,7 +213,9 @@ public final class UsageViewModel: ObservableObject {
             agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitsFresh: rateLimitsFresh)
         }
         inflightAggregation = task
-        let (result, effects) = await task.value
+        var (result, effects) = await task.value
+        // Pay-per-token accounts: the cost rows are a real bill, not subscription value.
+        result.costIsBilled = OAuthManager.shared.accountStore.accounts.first { $0.id == accountId }?.isAPIKeyAccount ?? false
 
         // Apply side effects before clearing inflightAggregation so the next
         // caller sees consistent RateLimitFetcher state. The observed-model list feeds
@@ -514,10 +516,13 @@ public final class UsageViewModel: ObservableObject {
         let provider = provider(ofAccount: accountId)
         async let fetchedStatus = StatusChecker.shared(for: provider).fetchStatus()
 
+        let isAPIKey = oauthManager.accountStore.accounts.first { $0.id == accountId }?.isAPIKeyAccount ?? false
         let api: APIFetchResult = if let token = accessToken, let id = accountId {
-            provider == .codex
-                ? await CodexRateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
-                : await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
+            switch (provider, isAPIKey) {
+            case (.codex, true): await CodexRateLimitFetcher.shared.fetchAPIKeyLimits(apiKey: token, accountId: id)
+            case (.codex, false): await CodexRateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
+            case (.claude, _): await RateLimitFetcher.shared.fetch(accessToken: token, accountId: id)
+            }
         } else {
             APIFetchResult(rateLimits: nil, profile: nil)
         }
@@ -534,8 +539,13 @@ public final class UsageViewModel: ObservableObject {
         guard let account = oauthManager.accountStore.accounts.first(where: { $0.id == id }) else { return }
         // Codex identities are resolved at auth time (real account id from the JWT) —
         // the Anthropic pending-identity machinery (temp-UUID -> org-ID migration)
-        // must never touch them.
-        guard account.provider == .claude else { return }
+        // must never touch them. Only the plan name is synced from the usage payload.
+        guard account.provider == .claude else {
+            if let plan = api.planType, !api.isCached, account.billingType != plan {
+                oauthManager.updateAccountMetadata(accountId: id, billingType: plan)
+            }
+            return
+        }
 
         if account.isPendingIdentity {
             if let orgId = api.profile?.organizationId {

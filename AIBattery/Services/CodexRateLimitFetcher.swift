@@ -115,8 +115,90 @@ final class CodexRateLimitFetcher {
         return .success(APIFetchResult(
             rateLimits: normalized,
             rateLimitSource: .codexUsageEndpoint,
-            profile: nil
+            profile: nil,
+            planType: CodexUsageParser.planType(data)
         ))
+    }
+
+    // MARK: - API-key accounts (pay-per-token)
+
+    nonisolated static let apiKeyProbeURL = URL(string: "https://api.openai.com/v1/responses")!
+    /// Cheapest-first probe models; a 400/404 "model not found" moves to the next.
+    nonisolated static let apiKeyProbeModels = ["gpt-5-nano", "gpt-5-mini", "gpt-5"]
+
+    /// Minimal Responses API call whose reply carries the `x-ratelimit-*` headers
+    /// (the Codex mirror of the Claude Messages probe). 16 output tokens of the
+    /// nano model — a fraction of a cent per poll.
+    nonisolated static func apiKeyProbeRequest(apiKey: String, model: String, userAgent: String) -> URLRequest {
+        var request = URLRequest(url: apiKeyProbeURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 30
+        let body: [String: Any] = ["model": model, "input": ".", "max_output_tokens": 16]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    /// Pure interpretation of the probe: 401/403 → `.authFailed`; any response that
+    /// carries the rate-limit headers (2xx, 429, even 400) → `.success` with
+    /// `standardLimits`; otherwise `.unavailable`.
+    nonisolated static func interpretAPIKeyProbe(statusCode: Int, headers: [AnyHashable: Any], now: Date = Date()) -> UsageOutcome {
+        if statusCode == 401 || statusCode == 403 {
+            return .authFailed
+        }
+        guard statusCode < 500, let limits = StandardRateLimits.parse(openAIHeaders: headers, now: now) else {
+            return .unavailable
+        }
+        return .success(APIFetchResult(
+            rateLimits: nil,
+            standardLimits: limits,
+            profile: nil,
+            hasStandardRateLimitHeaders: true,
+            planType: "api"
+        ))
+    }
+
+    /// Fetch per-minute limits for an API-key account. Same caching, backoff,
+    /// auth-failure and persistence discipline as `fetch`; no session-log fallback
+    /// (rollouts carry no API-key limits).
+    func fetchAPIKeyLimits(apiKey: String, accountId: String) async -> APIFetchResult {
+        if Self.shouldSkipEndpoint(backoff[accountId] ?? EndpointBackoff(), now: Date()) {
+            return cachedOrEmpty(accountId: accountId)
+        }
+        for model in Self.apiKeyProbeModels {
+            let request = Self.apiKeyProbeRequest(apiKey: apiKey, model: model, userAgent: userAgent)
+            do {
+                let (_, response) = try await SecureNetworking.data(for: request)
+                guard let http = response as? HTTPURLResponse else { break }
+                AppLogger.network.info("openai api probe (\(model, privacy: .public)): status=\(http.statusCode)")
+                switch Self.interpretAPIKeyProbe(statusCode: http.statusCode, headers: http.allHeaderFields) {
+                case .success(let result):
+                    consecutiveAuthFailures[accountId] = 0
+                    backoff[accountId] = nil
+                    cachedResults[accountId] = result
+                    persistRateLimits(result, accountId: accountId)
+                    return result
+                case .authFailed:
+                    backoff[accountId] = nil
+                    return registerAuthFailure(accountId: accountId)
+                case .unavailable:
+                    // A model-not-found 400/404 without headers → try the next probe model.
+                    if http.statusCode == 400 || http.statusCode == 404 {
+                        continue
+                    }
+                    recordEndpointFailure(accountId: accountId)
+                    return cachedOrEmpty(accountId: accountId)
+                }
+            } catch {
+                AppLogger.network.warning("openai api probe failed: \(error.localizedDescription)")
+                recordEndpointFailure(accountId: accountId)
+                return cachedOrEmpty(accountId: accountId)
+            }
+        }
+        recordEndpointFailure(accountId: accountId)
+        return cachedOrEmpty(accountId: accountId)
     }
 
     /// Fetches Codex rate limits for a specific account.
@@ -223,10 +305,13 @@ final class CodexRateLimitFetcher {
             return APIFetchResult(
                 rateLimits: cached.rateLimits?.withClearedExpiredWindows(),
                 rateLimitSource: cached.rateLimitSource,
+                standardLimits: cached.standardLimits,
                 profile: nil,
+                hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
                 fetchedAt: cached.fetchedAt,
                 isCached: true,
-                authError: authError
+                authError: authError,
+                planType: cached.planType
             )
         }
         return APIFetchResult(rateLimits: nil, profile: nil, authError: authError)
@@ -252,17 +337,21 @@ extension CodexRateLimitFetcher {
         let rateLimits: RateLimitUsage?
         let rateLimitSource: RateLimitSource?
         let fetchedAt: Date
+        var standardLimits: StandardRateLimits? = nil
+        var planType: String? = nil
     }
 
     /// Save rate limits to UserDefaults for instant display on next launch.
     /// `defaults` is injectable for tests.
     func persistRateLimits(_ result: APIFetchResult, accountId: String, defaults: UserDefaults = .standard) {
-        guard result.rateLimits != nil else { return }
+        guard result.rateLimits != nil || result.standardLimits != nil else { return }
         let key = Self.persistKeyPrefix + accountId
         let persisted = PersistedCodexRateLimits(
             rateLimits: result.rateLimits,
             rateLimitSource: result.rateLimitSource,
-            fetchedAt: result.fetchedAt
+            fetchedAt: result.fetchedAt,
+            standardLimits: result.standardLimits,
+            planType: result.planType
         )
         if let data = try? JSONEncoder().encode(persisted) {
             defaults.set(data, forKey: key)
@@ -289,7 +378,8 @@ extension CodexRateLimitFetcher {
             hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
             fetchedAt: cached.fetchedAt,
             isCached: cached.isCached,
-            authError: cached.authError
+            authError: cached.authError,
+            planType: cached.planType
         )
         cachedResults[accountId] = corrected
         persistRateLimits(corrected, accountId: accountId, defaults: defaults)
@@ -313,9 +403,12 @@ extension CodexRateLimitFetcher {
             cachedResults[accountId] = APIFetchResult(
                 rateLimits: normalizedRateLimits,
                 rateLimitSource: persisted.rateLimitSource,
+                standardLimits: persisted.standardLimits,
                 profile: nil,
+                hasStandardRateLimitHeaders: persisted.standardLimits != nil,
                 fetchedAt: fetchedAt,
-                isCached: true
+                isCached: true,
+                planType: persisted.planType
             )
         }
     }

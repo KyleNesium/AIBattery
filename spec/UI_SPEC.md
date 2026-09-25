@@ -108,7 +108,7 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 - **Account picker**: always-visible dropdown Menu next to title
   - Label: display name if set, otherwise `"User N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
   - Menu items: display name or `"User N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
-  - Account rows are `AccountStore.displayOrdered` (Claude block first). When the account set spans **both providers**, every row is prefixed with the provider glyph (`✦` Claude / `⬡` Codex); single-provider setups render exactly as before.
+  - Account rows are `AccountStore.displayOrdered` (Claude block first). Codex rows append the plan when known: "· Plus", "· Business", "· API" (`PopoverHeaderView.planLabel`, from `AccountRecord.billingType`). When the account set spans **both providers**, every row is prefixed with the provider glyph (`✦` Claude / `⬡` Codex); single-provider setups render exactly as before.
   - Below the divider: **"Add Claude Account…"** when `canAddAccount(provider: .claude)` and **"Add Codex Account…"** when `canAddAccount(provider: .codex)` (plus.circle icons) — each opens the AuthView overlay for that provider. Settings' inline "Add Account" link stays Claude-only.
   - `.menuStyle(.borderlessButton)`, `.frame(maxWidth: Layout.accountPickerMaxWidth)` (100pt)
 - Gear button: `gearshape`, 11pt, toggles Settings panel
@@ -272,6 +272,14 @@ Codex-native replacement for **both** rate-limit bars when `snapshot.rateLimits?
 - Alarm gating identical to `UsageBar.AlarmState` (confirmed data only)
 - The metric toggle shows **Credits | Context** (`MetricMode.pickerModes`); a stored `.sevenDay` selection highlights the Credits tab. Menu bar shows the credit % in either rate-limit mode; a throttled countdown is prefixed `CR`.
 
+### ❷a′ Codex API-key accounts (`Views/StandardLimitsSection.swift`, `provider: .codex`)
+
+`CodexDisplayKind.apiLimits`: the `.fiveHour` slot renders `StandardLimitsSection` with the banner "OpenAI API limits (per minute, pay-per-token)" — Requests and Tokens bars from `x-ratelimit-*`; the `.sevenDay` slot renders nothing; the toggle reads **API Limits | Context**; the menu bar % is the per-minute token utilisation. Cost rows in Projects and Insights drop the "~" (`snapshot.costIsBilled`) because they are a real bill at API rates. Footer Usage link → `platform.openai.com/usage`.
+
+### ❷a″ Subscription credits balance (`CreditBalanceRow` in `Views/UsageBarsSection.swift`)
+
+Windowed Codex plans that report `credits.balance` show a one-line row under the Weekly bar: `creditcard` icon + "Credits balance: 3.9K" (or "Credits: unlimited") + "used once limits are reached" (tertiary).
+
 ### ❷b Local Estimate Fallback (`Views/LocalEstimateSection.swift`)
 
 Shown when Anthropic's 5h/7d rate limit data is unavailable (e.g., API header removal — see issue #141). **Claude only** — `isUsingLocalEstimate` is false for Codex snapshots, so a Codex account never shows plan-tier estimates. Renders one window (5h or 7d) based on the active metric mode, so the mode selector and auto-mode work identically to the API data path.
@@ -416,7 +424,8 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 Parameterised by `provider: AIProvider` (title subtitle, copy, flow). The signed-out root shows a "Sign in with Codex/Claude instead" footnote toggle; the add-account overlay already knows its provider.
 - **Claude**: Sign In → browser → paste authorization code → Connect (unchanged).
 - **Codex**: "Sign In with ChatGPT" → browser round-trip to a local callback (127.0.0.1:1455) → the account lands in `AccountStore` and the overlay auto-dismisses; no code to paste. While waiting: spinner + "Complete the sign-in in your browser…" + Cancel (releases the port). Port busy → inline error "Couldn't start sign-in (port 1455 busy — is a Codex CLI login running?)".
-- **Import Codex CLI login** (`LinkActionButton`, `square.and.arrow.down`): shown only when `~/.codex/auth.json` holds a ChatGPT-mode login. The availability check runs once in `.task` (off the render path), never inside `body`.
+- **Import Codex CLI login** (`LinkActionButton`, `square.and.arrow.down`): shown only when `~/.codex/auth.json` holds a login — ChatGPT mode or API-key mode. The availability check runs once in `.task` (off the render path), never inside `body`.
+- **Use an OpenAI API key instead** (`LinkActionButton`, `key`): reveals a `SecureField("sk-…")` + "Connect" (+ a one-line pay-per-token explainer). Registers via `OAuthManager.registerCodexAPIKey`; invalid keys show an inline error.
 
 ### Loading / Error / Empty States
 

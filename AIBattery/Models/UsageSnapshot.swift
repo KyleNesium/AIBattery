@@ -43,6 +43,7 @@ struct UsageSnapshot: Equatable {
             && lhs.busiestDayOfWeek?.name == rhs.busiestDayOfWeek?.name
             && lhs.busiestDayOfWeek?.averageCount == rhs.busiestDayOfWeek?.averageCount
             && lhs.provider == rhs.provider
+            && lhs.costIsBilled == rhs.costIsBilled
     }
 
     /// Weekday symbols from the user's current calendar (Sunday = index 0).
@@ -121,11 +122,11 @@ struct UsageSnapshot: Equatable {
         switch mode {
         case .fiveHour:
             rateLimits?.fiveHourPercent
-                ?? (provider == .claude ? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens) : nil)
+                ?? (provider == .claude ? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens) : standardLimits?.tokensPercent)
                 ?? 0
         case .sevenDay:
             rateLimits?.sevenDayPercent
-                ?? (provider == .claude ? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens) : nil)
+                ?? (provider == .claude ? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens) : standardLimits?.tokensPercent)
                 ?? 0
         case .contextHealth:
             topSessionHealths.first?.usagePercentage
@@ -399,6 +400,10 @@ struct UsageSnapshot: Equatable {
     /// ("7-Day" vs "Weekly"), footer links, and the Insights data-source caveat.
     /// Declared last with a default so the memberwise init stays source-compatible.
     var provider: AIProvider = .claude
+
+    /// True for pay-per-token accounts (Codex API key): the cost figures are an actual
+    /// bill at API rates, not the subscription "API-equivalent" framing.
+    var costIsBilled: Bool = false
 }
 
 struct ModelTokenSummary: Identifiable, Equatable {

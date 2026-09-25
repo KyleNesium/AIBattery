@@ -21,20 +21,24 @@ enum MetricMode: String, CaseIterable {
         }
     }
 
-    /// Picker label in the active provider's vocabulary. A Codex credit budget has no
-    /// separate windows, so both rate-limit modes read "Credits".
-    func shortLabel(provider: AIProvider, creditBudget: Bool) -> String {
+    /// Picker label in the active provider's vocabulary. A Codex credit budget or
+    /// API-key account has no separate windows, so both rate-limit modes share one label.
+    func shortLabel(provider: AIProvider, kind: CodexDisplayKind) -> String {
         switch self {
-        case .fiveHour: creditBudget ? "Credits" : "5 Hour"
-        case .sevenDay: creditBudget ? "Credits" : (provider == .codex ? "Weekly" : "7 Day")
+        case .fiveHour, .sevenDay:
+            switch kind {
+            case .credits: "Credits"
+            case .apiLimits: "API Limits"
+            case .windows: self == .fiveHour ? "5 Hour" : (provider == .codex ? "Weekly" : "7 Day")
+            }
         case .contextHealth: "Context"
         }
     }
 
-    /// Tabs to show in the picker. A credit budget collapses 5h/Weekly into one
-    /// "Credits" tab (the `.fiveHour` slot) so there is no redundant second tab.
-    static func pickerModes(provider: AIProvider, creditBudget: Bool) -> [MetricMode] {
-        creditBudget ? [.fiveHour, .contextHealth] : allCases
+    /// Tabs to show in the picker. Single-budget kinds collapse 5h/Weekly into one tab
+    /// (the `.fiveHour` slot) so there is no redundant second tab.
+    static func pickerModes(provider: AIProvider, kind: CodexDisplayKind) -> [MetricMode] {
+        kind == .windows ? allCases : [.fiveHour, .contextHealth]
     }
 
     /// Returns all modes ordered with `current` first, remaining in `allCases` order.

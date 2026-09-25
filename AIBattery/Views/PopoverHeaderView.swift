@@ -270,6 +270,20 @@ struct PopoverHeaderView: View {
         } else {
             "User \(index + 1)"
         }
-        return showsProviderGlyphs ? "\(account.provider.glyph) \(base)" : base
+        let labelled = showsProviderGlyphs ? "\(account.provider.glyph) \(base)" : base
+        // Codex plans are worth a word: "· Plus", "· Business", "· API".
+        if account.provider == .codex, let plan = Self.planLabel(account.billingType) {
+            return "\(labelled) · \(plan)"
+        }
+        return labelled
+    }
+
+    /// "plus" → "Plus", "api" → "API"; nil for empty/unknown.
+    nonisolated static func planLabel(_ billingType: String?) -> String? {
+        guard let raw = billingType?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        if raw.lowercased() == "api" {
+            return "API"
+        }
+        return raw.prefix(1).uppercased() + raw.dropFirst().lowercased()
     }
 }

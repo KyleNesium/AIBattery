@@ -54,7 +54,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex OAuth token | `https://auth.openai.com/oauth/token` |
 | OpenAI Status API | `https://status.openai.com/api/v2/summary.json` |
 | OpenAI Status Page | `https://status.openai.com` |
-| Codex Usage Dashboard | `https://chatgpt.com/codex/settings/usage` |
+| Codex Usage Dashboard | `https://chatgpt.com/codex/settings/usage` (ChatGPT accounts) / `https://platform.openai.com/usage` (API-key accounts) |
+| OpenAI API-key probe | `POST https://api.openai.com/v1/responses` — `{"model": <gpt-5-nano → gpt-5-mini → gpt-5>, "input": ".", "max_output_tokens": 16}`; limits read from `x-ratelimit-limit/remaining/reset-requests|tokens` (Go-duration resets) |
 | GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
 | Sparkle Appcast | `https://kylenesium.github.io/AIBattery/appcast.xml` |
 
@@ -77,6 +78,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Secondary window label | "7-Day" / `7D` (Claude), "Weekly" / `WK` (Codex) — `AIProvider.secondaryWindowLabel` / `secondaryWindowShortCode`; "Credits" / `CR` for a Codex credit budget (`RateLimitUsage.isCreditBudget`) |
 | Codex credit budget source | `wham/usage` → `spend_control.individual_limit` (`limit`, `used`, `remaining`, `used_percent`, `reset_at`, `unit`), `spend_control.reached`, `credits.has_credits` / `unlimited` |
 | Codex model-ID prefix | `gpt-` (`UsageAggregator.isTrackedModel`); Claude `claude-` |
+| Codex API-key account id | `openai-api-` + first 24 hex chars of SHA-256(key) (`OAuthManager.apiKeyAccountId`) |
+| Codex plan label | `AccountRecord.billingType` ← `plan_type` (`"api"` for API-key accounts), rendered "· Plus" / "· API" in the picker |
 | Quota throttle threshold | `0.95` (`RateLimitFetcher.quotaExhaustionThreshold`) — binding utilization at/above which a header-less 429 is still treated as a quota throttle. Below this, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block. |
 | Rollover artifact utilization threshold | `0.95` (`RateLimitUsage.rolloverArtifactUtilizationThreshold`) — dual role. (1) Rollover artifacts: a window reading at/above this is treated as a stale rollover artifact (not a genuine limit) when the window also just started (see grace period below). (2) Spike filter near-full threshold: `UsageViewModel.spikeConfirmedRateLimits` treats a fresh reading at/above this as "near-full" — held at the previous displayed value until the spike sequence is confirmed (see minimum age below; no window-age condition). Tuning this value changes both behaviors. |
 | Spike-filter confirmation minimum age | `600` sec / 10 min (`UsageViewModel.spikeConfirmationMinimumAge`) — an unconfirmed (non-throttled) near-full spike is held at the previous displayed value until the SAME window instance has stayed near-full for this much wall-clock time of consecutive fresh polls (`NearFullMemory.firstSeen` is preserved across held polls). Time-based, not poll-count-based: the 2026-08-11 incident showed the server's eventual-consistency glitch spanning multiple polls, which defeated the old 2-consecutive-polls rule. Genuine throttles bypass the hold entirely; an accepted reading marks its memory `confirmed` so continuations never re-hold. Cost: a genuine limit crossing (reported as 100% + `"allowed"`) alarms up to this much later. |
