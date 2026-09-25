@@ -63,6 +63,14 @@ struct RateLimitUsage: Equatable, Codable {
     let fiveHourWindowMinutes: Int?
     let sevenDayWindowMinutes: Int?
 
+    /// Codex credit budget (Business / Enterprise plans): when set, both windows above
+    /// mirror the budget's `usedPercent` / `resetsAt` so every percent path (menu bar,
+    /// auto mode, notifications, spike filter) works unchanged, and the popover renders
+    /// a single "Credits" bar instead of 5h/Weekly. nil for windowed plans and Claude.
+    let creditBudget: CodexCreditBudget?
+
+    var isCreditBudget: Bool { creditBudget != nil }
+
     init(
         representativeClaim: String,
         fiveHourUtilization: Double, fiveHourReset: Date?, fiveHourStatus: String,
@@ -70,7 +78,8 @@ struct RateLimitUsage: Equatable, Codable {
         overallStatus: String,
         provider: AIProvider = .claude,
         fiveHourWindowMinutes: Int? = nil,
-        sevenDayWindowMinutes: Int? = nil
+        sevenDayWindowMinutes: Int? = nil,
+        creditBudget: CodexCreditBudget? = nil
     ) {
         self.representativeClaim = representativeClaim
         self.fiveHourUtilization = fiveHourUtilization
@@ -83,6 +92,7 @@ struct RateLimitUsage: Equatable, Codable {
         self.provider = provider
         self.fiveHourWindowMinutes = fiveHourWindowMinutes
         self.sevenDayWindowMinutes = sevenDayWindowMinutes
+        self.creditBudget = creditBudget
     }
 
     init(from decoder: Decoder) throws {
@@ -98,6 +108,7 @@ struct RateLimitUsage: Equatable, Codable {
         provider = try c.decodeIfPresent(AIProvider.self, forKey: .provider) ?? .claude
         fiveHourWindowMinutes = try c.decodeIfPresent(Int.self, forKey: .fiveHourWindowMinutes)
         sevenDayWindowMinutes = try c.decodeIfPresent(Int.self, forKey: .sevenDayWindowMinutes)
+        creditBudget = try c.decodeIfPresent(CodexCreditBudget.self, forKey: .creditBudget)
     }
 
     // MARK: - Convenience
@@ -127,17 +138,24 @@ struct RateLimitUsage: Equatable, Codable {
     }
 
     /// "7-Day" for Claude, "Weekly" for Codex — same 7-day window, provider vocabulary.
-    var sevenDayDisplayLabel: String { provider.secondaryWindowLabel }
+    /// "Credits" when the reading is a Codex credit budget.
+    var sevenDayDisplayLabel: String { isCreditBudget ? "Credits" : provider.secondaryWindowLabel }
 
     /// Human-readable label for the binding window.
     var bindingWindowLabel: String {
-        bindingValue(fiveHour: "5-hour", sevenDay: provider == .codex ? "Weekly" : "7-day")
+        if isCreditBudget {
+            return "Credits"
+        }
+        return bindingValue(fiveHour: "5-hour", sevenDay: provider == .codex ? "Weekly" : "7-day")
     }
 
-    /// Compact code for the binding window, for the menu bar: "5H" or "7D".
+    /// Compact code for the binding window, for the menu bar: "5H", "7D"/"WK", or "CR".
     /// Lets a throttled countdown say which window you're waiting on (hours vs a day+).
     var bindingWindowShortCode: String {
-        bindingValue(fiveHour: "5H", sevenDay: provider.secondaryWindowShortCode)
+        if isCreditBudget {
+            return "CR"
+        }
+        return bindingValue(fiveHour: "5H", sevenDay: provider.secondaryWindowShortCode)
     }
 
     /// Whether the user is currently throttled.
@@ -175,7 +193,8 @@ struct RateLimitUsage: Equatable, Codable {
             overallStatus: "throttled",
             provider: provider,
             fiveHourWindowMinutes: fiveHourWindowMinutes,
-            sevenDayWindowMinutes: sevenDayWindowMinutes
+            sevenDayWindowMinutes: sevenDayWindowMinutes,
+            creditBudget: creditBudget
         )
     }
 
@@ -217,7 +236,8 @@ struct RateLimitUsage: Equatable, Codable {
             overallStatus: bindingCleared ? "allowed" : overallStatus,
             provider: provider,
             fiveHourWindowMinutes: fiveHourWindowMinutes,
-            sevenDayWindowMinutes: sevenDayWindowMinutes
+            sevenDayWindowMinutes: sevenDayWindowMinutes,
+            creditBudget: creditBudget
         )
     }
 
@@ -270,7 +290,8 @@ struct RateLimitUsage: Equatable, Codable {
             overallStatus: bindingCleared ? "allowed" : overallStatus,
             provider: provider,
             fiveHourWindowMinutes: fiveHourWindowMinutes,
-            sevenDayWindowMinutes: sevenDayWindowMinutes
+            sevenDayWindowMinutes: sevenDayWindowMinutes,
+            creditBudget: creditBudget
         )
     }
 

@@ -6,6 +6,10 @@ struct MetricToggleView: View {
     let pickerBinding: Binding<String>
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
     let snapshot: UsageSnapshot?
+    /// Active provider + whether its reading is a credit budget — drives tab labels
+    /// ("7 Day" / "Weekly" / "Credits") and which tabs exist.
+    var provider: AIProvider = .claude
+    var creditBudget: Bool = false
 
     /// Cached ordered modes — avoids allocating a new array on every body evaluation.
     @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
@@ -18,7 +22,7 @@ struct MetricToggleView: View {
                 .padding(.trailing, Spacing.section)
 
             HStack(spacing: Spacing.small) {
-                ForEach(MetricMode.allCases, id: \.rawValue) { mode in
+                ForEach(MetricMode.pickerModes(provider: provider, creditBudget: creditBudget), id: \.rawValue) { mode in
                     tabButton(for: mode)
                 }
             }
@@ -26,7 +30,7 @@ struct MetricToggleView: View {
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.gap)
         .accessibilityLabel("Metric mode")
-        .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
+        .accessibilityHint(creditBudget ? "Switch between credits and context health views" : "Switch between 5-hour, \(provider.secondaryWindowLabel.lowercased()), and context health views")
         .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric (keys: 1, 2, 3)")
         .onAppear { recomputeOrderedModes() }
         .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
@@ -40,7 +44,11 @@ struct MetricToggleView: View {
     private static let selectedFill: Color = ThemeColors.surfaceLevel2
 
     private func tabButton(for mode: MetricMode) -> some View {
-        let isSelected = pickerBinding.wrappedValue == mode.rawValue
+        // With a credit budget the .sevenDay mode is hidden but may still be the stored
+        // selection — treat it as the Credits tab so the highlight doesn't vanish.
+        let selectedRaw = pickerBinding.wrappedValue
+        let isSelected = selectedRaw == mode.rawValue
+            || (creditBudget && mode == .fiveHour && selectedRaw == MetricMode.sevenDay.rawValue)
         let isHovered = hoveredMode == mode && !isSelected
 
         return Button {
@@ -52,7 +60,7 @@ struct MetricToggleView: View {
                 UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.metricMode)
             }
         } label: {
-            Text(mode.shortLabel)
+            Text(mode.shortLabel(provider: provider, creditBudget: creditBudget))
                 .font(Typography.caption)
                 .foregroundStyle(isSelected && !autoMetricMode ? .primary : ThemeColors.secondaryLabel)
                 .frame(maxWidth: .infinity)

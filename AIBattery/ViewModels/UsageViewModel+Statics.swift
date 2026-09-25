@@ -34,7 +34,8 @@ extension UsageViewModel {
         hasProfile: Bool,
         hasStandardRateLimitHeaders: Bool,
         totalMessages: Int,
-        authError: Bool = false
+        authError: Bool = false,
+        provider: AIProvider = .claude
     ) -> String? {
         if authError {
             return "Authentication failed — please log out and reconnect this account."
@@ -49,12 +50,16 @@ extension UsageViewModel {
             return nil
         }
         if !hasProfile && totalMessages == 0 {
-            return "No usage data yet. Start a Claude Code session to see your stats."
+            return provider == .codex
+                ? "No usage data yet. Start a Codex session to see your stats."
+                : "No usage data yet. Start a Claude Code session to see your stats."
         }
         if hasProfile {
             return nil
         }
-        return "Unable to reach Anthropic API. Check your internet connection and try again."
+        return provider == .codex
+            ? "Unable to reach OpenAI. Check your internet connection and try again."
+            : "Unable to reach Anthropic API. Check your internet connection and try again."
     }
 
     /// Whether snapshot data has changed compared to previous values. Used by adaptive polling.
@@ -319,7 +324,8 @@ extension UsageViewModel {
             overallStatus: displayOverallStatus,
             provider: fresh.provider,
             fiveHourWindowMinutes: fresh.fiveHourWindowMinutes,
-            sevenDayWindowMinutes: fresh.sevenDayWindowMinutes
+            sevenDayWindowMinutes: fresh.sevenDayWindowMinutes,
+            creditBudget: fresh.creditBudget
         )
         return SpikeConfirmedRateLimits(display: display, nearFullWindows: nearFull, heldWindows: held)
     }

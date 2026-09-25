@@ -50,7 +50,7 @@ public final class NotificationManager {
         let threshold = UserDefaults.standard.double(forKey: UserDefaultsKeys.rateLimitThreshold)
         let effectiveThreshold = threshold > 0 ? threshold : 80.0
 
-        let labels = Self.windowLabels(for: rateLimits.provider)
+        let labels = Self.windowLabels(for: rateLimits)
         checkRateLimitWindow(
             key: "rateLimit5h",
             label: labels.fiveHour,
@@ -68,6 +68,12 @@ public final class NotificationManager {
     /// Notification vocabulary per provider: Anthropic says "7-Day", OpenAI says "Weekly".
     nonisolated static func windowLabels(for provider: AIProvider) -> (fiveHour: String, secondary: String) {
         ("5-Hour", provider.secondaryWindowLabel)
+    }
+
+    /// Reading-aware variant: a Codex credit budget mirrors one number onto both windows,
+    /// so both alerts are simply "Credits".
+    nonisolated static func windowLabels(for rateLimits: RateLimitUsage) -> (fiveHour: String, secondary: String) {
+        rateLimits.isCreditBudget ? ("Credits", "Credits") : windowLabels(for: rateLimits.provider)
     }
 
     /// Pure function for testability: whether an alert should fire given the current state.

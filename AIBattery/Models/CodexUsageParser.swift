@@ -8,14 +8,66 @@ nonisolated enum CodexUsageParser {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
         guard let dict = json as? [String: Any] else { return nil }
 
-        guard let rateLimit = dict["rate_limit"] as? [String: Any] else { return nil }
-
-        let primary = rateLimit["primary_window"]
-        let secondary = rateLimit["secondary_window"]
-
         let reachedType = dict["rate_limit_reached_type"] as? String
+        let budget = parseCreditBudget(dict)
 
-        return assemble(primaryAny: primary, secondaryAny: secondary, reachedType: reachedType)
+        // Windowed plans (Plus / Pro / Team): primary + secondary windows.
+        if let rateLimit = dict["rate_limit"] as? [String: Any],
+           let windowed = assemble(primaryAny: rateLimit["primary_window"], secondaryAny: rateLimit["secondary_window"], reachedType: reachedType, budget: budget) {
+            return windowed
+        }
+
+        // Spend-control plans (Business / Enterprise): `rate_limit` is null and the
+        // budget lives in `spend_control.individual_limit`. Mirror it onto both windows.
+        guard let budget else { return nil }
+        let utilization = min(max(budget.usedPercent / 100.0, 0), 1)
+        let throttled = budget.reached || !budget.hasCredits || reachedType != nil
+        let status = throttled ? "throttled" : "allowed"
+        return RateLimitUsage(
+            representativeClaim: RateLimitUsage.sevenDayWindow,
+            fiveHourUtilization: utilization,
+            fiveHourReset: budget.resetsAt,
+            fiveHourStatus: status,
+            sevenDayUtilization: utilization,
+            sevenDayReset: budget.resetsAt,
+            sevenDayStatus: status,
+            overallStatus: status,
+            provider: .codex,
+            creditBudget: budget
+        )
+    }
+
+    /// `spend_control.individual_limit` + `credits` → `CodexCreditBudget`. Numbers arrive
+    /// as strings ("32768", "7006.29…") or numbers; both are accepted.
+    nonisolated static func parseCreditBudget(_ dict: [String: Any]) -> CodexCreditBudget? {
+        guard let spend = dict["spend_control"] as? [String: Any],
+              let limit = spend["individual_limit"] as? [String: Any] else { return nil }
+        func number(_ value: Any?) -> Double? {
+            if let n = value as? NSNumber {
+                return n.doubleValue
+            }
+            if let s = value as? String {
+                return Double(s)
+            }
+            return nil
+        }
+        guard let limitValue = number(limit["limit"]), limitValue > 0 else { return nil }
+        let used = number(limit["used"]) ?? 0
+        let remaining = number(limit["remaining"]) ?? max(0, limitValue - used)
+        let usedPercent = number(limit["used_percent"]) ?? (used / limitValue * 100)
+        let credits = dict["credits"] as? [String: Any]
+        return CodexCreditBudget(
+            usedPercent: min(max(usedPercent, 0), 100),
+            used: used,
+            limit: limitValue,
+            remaining: remaining,
+            unit: (limit["unit"] as? String) ?? "credit",
+            resetsAt: number(limit["reset_at"]).map { Date(timeIntervalSince1970: $0) },
+            reached: (spend["reached"] as? Bool) ?? false,
+            hasCredits: (credits?["has_credits"] as? Bool) ?? true,
+            unlimited: (credits?["unlimited"] as? Bool) ?? false,
+            planType: dict["plan_type"] as? String
+        )
     }
 
     /// Parse rate_limits from session-log token_count event.
@@ -107,7 +159,8 @@ nonisolated enum CodexUsageParser {
     private nonisolated static func assemble(
         primaryAny: Any?,
         secondaryAny: Any?,
-        reachedType: String?
+        reachedType: String?,
+        budget: CodexCreditBudget? = nil
     ) -> RateLimitUsage? {
         let primary = primaryAny as? [String: Any]
         let secondary = secondaryAny as? [String: Any]
@@ -166,7 +219,8 @@ nonisolated enum CodexUsageParser {
             overallStatus: overallStatus,
             provider: .codex,
             fiveHourWindowMinutes: fiveHourMinutes,
-            sevenDayWindowMinutes: sevenDayMinutes
+            sevenDayWindowMinutes: sevenDayMinutes,
+            creditBudget: budget
         )
     }
 }

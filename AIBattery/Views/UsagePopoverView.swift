@@ -138,7 +138,9 @@ public struct UsagePopoverView: View {
             } else if let snapshot = viewModel.snapshot {
                 MetricToggleView(
                     pickerBinding: pickerBinding,
-                    snapshot: snapshot
+                    snapshot: snapshot,
+                    provider: snapshot.provider,
+                    creditBudget: snapshot.rateLimits?.isCreditBudget == true
                 )
 
                 // Local estimate header — shown once when API rate limits are unavailable
@@ -170,7 +172,11 @@ public struct UsagePopoverView: View {
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
-                        if let limits = snapshot.rateLimits {
+                        if let limits = snapshot.rateLimits, let budget = limits.creditBudget {
+                            // Codex credit budget: one bar stands in for both windows.
+                            CreditBudgetSection(limits: limits, budget: budget, source: snapshot.rateLimitSource, confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
+                            StyledDivider()
+                        } else if let limits = snapshot.rateLimits {
                             FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.fiveHourWindowTokens(resetsAt: limits.fiveHourReset), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow))
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
@@ -186,7 +192,10 @@ public struct UsagePopoverView: View {
                             StyledDivider()
                         }
                     case .sevenDay:
-                        if let limits = snapshot.rateLimits {
+                        if snapshot.rateLimits?.isCreditBudget == true {
+                            // Rendered once in the .fiveHour slot as the Credits bar.
+                            EmptyView()
+                        } else if let limits = snapshot.rateLimits {
                             SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayWindowTokens(resetsAt: limits.sevenDayReset), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
@@ -245,7 +254,7 @@ public struct UsagePopoverView: View {
                     Task { await viewModel.refresh() }
                 }
             } else if !showSettings {
-                PopoverEmptyView()
+                PopoverEmptyView(provider: accountStore.activeAccount?.provider ?? .claude)
             }
 
             StyledDivider()

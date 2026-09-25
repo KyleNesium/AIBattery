@@ -121,11 +121,11 @@ struct UsageSnapshot: Equatable {
         switch mode {
         case .fiveHour:
             rateLimits?.fiveHourPercent
-                ?? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens)
+                ?? (provider == .claude ? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens) : nil)
                 ?? 0
         case .sevenDay:
             rateLimits?.sevenDayPercent
-                ?? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens)
+                ?? (provider == .claude ? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens) : nil)
                 ?? 0
         case .contextHealth:
             topSessionHealths.first?.usagePercentage
@@ -174,8 +174,10 @@ struct UsageSnapshot: Equatable {
     }
 
     /// Whether the 5h/7d data comes from local token estimation (no API data).
+    /// Claude only — the calibration / plan-tier machinery is Anthropic-specific and a
+    /// Codex account must never fall back to it.
     var isUsingLocalEstimate: Bool {
-        rateLimits == nil && (fiveHourTokens > 0 || sevenDayTokens > 0)
+        provider == .claude && rateLimits == nil && (fiveHourTokens > 0 || sevenDayTokens > 0)
     }
 
     /// De-escalation requires the metric to drop this many percentage points below its

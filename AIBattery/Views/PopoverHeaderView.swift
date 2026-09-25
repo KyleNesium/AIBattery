@@ -20,7 +20,8 @@ struct PopoverHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
             HStack(alignment: .center, spacing: Spacing.inner) {
-                Image(systemName: "sparkle")
+                // ✦ for Claude, ⬡ for Codex — the header follows the active account.
+                Image(systemName: accountStore.activeAccount?.provider == .codex ? "hexagon" : "sparkle")
                     .font(Typography.heroValue)
                     .foregroundStyle(.primary)
                 Text("AI Battery")

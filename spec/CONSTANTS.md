@@ -74,7 +74,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex OAuth scopes | `openid profile email offline_access api.connectors.read api.connectors.invoke` (verbatim from codex-rs; `originator=codex_cli_rs`) |
 | Codex rate-limit persistence key | `aibattery_codexRateLimits_{accountId}` |
 | Provider glyphs | `✦` U+2726 (Claude), `⬡` U+2B21 (Codex) — `AIProvider.glyph` |
-| Secondary window label | "7-Day" / `7D` (Claude), "Weekly" / `WK` (Codex) — `AIProvider.secondaryWindowLabel` / `secondaryWindowShortCode` |
+| Secondary window label | "7-Day" / `7D` (Claude), "Weekly" / `WK` (Codex) — `AIProvider.secondaryWindowLabel` / `secondaryWindowShortCode`; "Credits" / `CR` for a Codex credit budget (`RateLimitUsage.isCreditBudget`) |
+| Codex credit budget source | `wham/usage` → `spend_control.individual_limit` (`limit`, `used`, `remaining`, `used_percent`, `reset_at`, `unit`), `spend_control.reached`, `credits.has_credits` / `unlimited` |
 | Codex model-ID prefix | `gpt-` (`UsageAggregator.isTrackedModel`); Claude `claude-` |
 | Quota throttle threshold | `0.95` (`RateLimitFetcher.quotaExhaustionThreshold`) — binding utilization at/above which a header-less 429 is still treated as a quota throttle. Below this, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block. |
 | Rollover artifact utilization threshold | `0.95` (`RateLimitUsage.rolloverArtifactUtilizationThreshold`) — dual role. (1) Rollover artifacts: a window reading at/above this is treated as a stale rollover artifact (not a genuine limit) when the window also just started (see grace period below). (2) Spike filter near-full threshold: `UsageViewModel.spikeConfirmedRateLimits` treats a fresh reading at/above this as "near-full" — held at the previous displayed value until the spike sequence is confirmed (see minimum age below; no window-age condition). Tuning this value changes both behaviors. |

@@ -48,4 +48,24 @@ struct MetricModeTests {
         #expect(MetricMode.allCases.contains(.sevenDay))
         #expect(MetricMode.allCases.contains(.contextHealth))
     }
+
+    // MARK: - Provider-aware labels (Codex-native popover)
+
+    @Test func shortLabel_codexWindowedPlan_saysWeekly() {
+        #expect(MetricMode.sevenDay.shortLabel(provider: .codex, creditBudget: false) == "Weekly")
+        #expect(MetricMode.fiveHour.shortLabel(provider: .codex, creditBudget: false) == "5 Hour")
+        #expect(MetricMode.sevenDay.shortLabel(provider: .claude, creditBudget: false) == "7 Day")
+    }
+
+    @Test func shortLabel_codexCreditBudget_collapsesToCredits() {
+        #expect(MetricMode.fiveHour.shortLabel(provider: .codex, creditBudget: true) == "Credits")
+        #expect(MetricMode.sevenDay.shortLabel(provider: .codex, creditBudget: true) == "Credits")
+        #expect(MetricMode.contextHealth.shortLabel(provider: .codex, creditBudget: true) == "Context")
+    }
+
+    @Test func pickerModes_codexCreditBudget_hideRedundantWindowTab() {
+        #expect(MetricMode.pickerModes(provider: .codex, creditBudget: true) == [.fiveHour, .contextHealth])
+        #expect(MetricMode.pickerModes(provider: .codex, creditBudget: false) == MetricMode.allCases)
+        #expect(MetricMode.pickerModes(provider: .claude, creditBudget: false) == MetricMode.allCases)
+    }
 }

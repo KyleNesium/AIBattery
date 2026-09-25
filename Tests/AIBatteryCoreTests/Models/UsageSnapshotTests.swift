@@ -985,4 +985,13 @@ struct UsageSnapshotTests {
         #expect(claude.provider == .claude)
         #expect(codex.provider == .codex)
     }
+
+    // MARK: - Codex never uses Claude local estimates
+
+    @Test func codexSnapshot_neverUsesLocalEstimate() {
+        let snapshot = makeSnapshot(fiveHourTokens: 5_000_000, sevenDayTokens: 20_000_000, provider: .codex)
+        #expect(!snapshot.isUsingLocalEstimate)
+        #expect(snapshot.percent(for: .fiveHour) == 0)
+        #expect(snapshot.percent(for: .sevenDay) == 0)
+    }
 }

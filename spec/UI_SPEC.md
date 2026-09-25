@@ -104,7 +104,7 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 ### ❶ Header (`PopoverHeaderView`)
 
 - Header HStack alignment: `.center` (not `.firstTextBaseline`). The title (`Typography.sectionHeader`) and the account picker (`Typography.caption`) are different sizes; baseline-aligning them put the picker visibly below the title cap. `.center` aligns their visual centers.
-- Title: `"✦ AI Battery"` (`Typography.sectionHeader` = `.subheadline.bold()`)
+- Title: `"✦ AI Battery"` (`Typography.sectionHeader` = `.subheadline.bold()`); the leading SF symbol is `sparkle` for a Claude account and `hexagon` for a Codex account
 - **Account picker**: always-visible dropdown Menu next to title
   - Label: display name if set, otherwise `"User N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
   - Menu items: display name or `"User N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
@@ -262,9 +262,19 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 
 Padding: H 16, V 8
 
+### ❷a Codex Credits Bar (`Views/CreditBudgetSection.swift`)
+
+Codex-native replacement for **both** rate-limit bars when `snapshot.rateLimits?.creditBudget != nil` (Business / Enterprise spend-control plans). Rendered in the `.fiveHour` slot; the `.sevenDay` slot renders nothing.
+
+- **Label row**: `"Credits"` (.buttonLabel; tooltip: % used, `used of limit credits`, plan, reset time, source) + optional `unlimited` badge + danger triangle when throttled; trailing `"{percent}%"` (.monoValue) + `"{used} / {limit}"` (`CodexCreditBudget.formatCredits`, .monoValue, secondaryLabel, copyable)
+- **Gauge bar**: shared `GaugeRow`, colored via `ThemeColors.barColor`
+- **Footer**: `"{remaining} remaining"` (or "Budget reached" / "Credits depleted" in danger) + `"Resets in …"` countdown
+- Alarm gating identical to `UsageBar.AlarmState` (confirmed data only)
+- The metric toggle shows **Credits | Context** (`MetricMode.pickerModes`); a stored `.sevenDay` selection highlights the Credits tab. Menu bar shows the credit % in either rate-limit mode; a throttled countdown is prefixed `CR`.
+
 ### ❷b Local Estimate Fallback (`Views/LocalEstimateSection.swift`)
 
-Shown when the provider's 5h/7d rate limit data is unavailable (e.g., API header removal — see issue #141). Renders one window (5h or 7d) based on the active metric mode, so the mode selector and auto-mode work identically to the API data path.
+Shown when Anthropic's 5h/7d rate limit data is unavailable (e.g., API header removal — see issue #141). **Claude only** — `isUsingLocalEstimate` is false for Codex snapshots, so a Codex account never shows plan-tier estimates. Renders one window (5h or 7d) based on the active metric mode, so the mode selector and auto-mode work identically to the API data path.
 
 - **Label row**: `"{Window} Usage"` (.buttonLabel) — window label via `windowLabel(_:provider:)`: "5-Hour" for both providers; "7-Day" (Claude) / "Weekly" (Codex) from `snapshot.provider` + percentage (.monoValue, copyable) + token count with limit (`"X / Y"`, .monoValue, ThemeColors.secondaryLabel, copyable)
 - **Gauge bar**: same style as rate limit bars (GaugeBar, 8pt height, 3pt radius), colored by percent via `ThemeColors.barColor`
@@ -412,7 +422,8 @@ Parameterised by `provider: AIProvider` (title subtitle, copy, flow). The signed
 
 - **Loading**: centered spinner (0.8 scale) + "Loading...", 80pt height
 - **Error**: orange triangle + message + blue "Retry" button, 100pt height
-- **Empty**: "No Claude Code data found" + "Start a Claude Code session to populate usage data.\nData appears automatically once Claude Code is running.", 80pt height
+- **Empty**: "No {Claude Code|Codex} data found" + "Start a {tool} session to populate usage data.\nData appears automatically once {tool} is running.", 80pt height — tool name follows the active provider
+- **Error copy** (footer message): "Unable to reach Anthropic API…" / "Unable to reach OpenAI…" and "Start a Claude Code session…" / "Start a Codex session…" per provider
 
 ### Tutorial copy
 Provider-neutral: "5-hour and 7-day (Weekly for Codex) bars … your provider's sliding window limits"; "Monitors your active Claude Code or Codex sessions".

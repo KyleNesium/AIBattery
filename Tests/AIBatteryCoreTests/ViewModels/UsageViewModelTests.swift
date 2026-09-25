@@ -981,4 +981,30 @@ struct UsageViewModelTests {
         #expect(result.display.fiveHourWindowMinutes == 300)
         #expect(result.display.sevenDayWindowMinutes == 10_080)
     }
+
+    // MARK: - Provider-aware error copy
+
+    @Test func refreshErrorMessage_codex_networkErrorNamesOpenAI() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 10, provider: .codex
+        )
+        #expect(msg == "Unable to reach OpenAI. Check your internet connection and try again.")
+    }
+
+    @Test func refreshErrorMessage_codex_firstUseNamesCodex() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 0, provider: .codex
+        )
+        #expect(msg == "No usage data yet. Start a Codex session to see your stats.")
+    }
+
+    @Test func refreshErrorMessage_claudeDefault_unchanged() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 10
+        )
+        #expect(msg == "Unable to reach Anthropic API. Check your internet connection and try again.")
+    }
 }
