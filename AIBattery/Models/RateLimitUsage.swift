@@ -53,6 +53,74 @@ struct RateLimitUsage: Equatable, Codable {
     /// Overall status
     let overallStatus: String // "allowed" or "throttled"
 
+    /// Which provider produced this reading. Decodes as `.claude` for pre-v2.7
+    /// persisted snapshots. Drives window labels only — thresholds and guards
+    /// are provider-neutral.
+    let provider: AIProvider
+
+    /// Actual window durations from the provider payload (Codex sends them;
+    /// Anthropic doesn't — nil means "assume 300 / 10080").
+    let fiveHourWindowMinutes: Int?
+    let sevenDayWindowMinutes: Int?
+
+    /// Codex credit budget (Business / Enterprise plans): when set, both windows above
+    /// mirror the budget's `usedPercent` / `resetsAt` so every percent path (menu bar,
+    /// auto mode, notifications, spike filter) works unchanged, and the popover renders
+    /// a single "Credits" bar instead of 5h/Weekly. nil for windowed plans and Claude.
+    let creditBudget: CodexCreditBudget?
+
+    /// True only for a real spend-control budget (limit > 0). A subscription plan that
+    /// merely reports a purchased-credit balance keeps its windowed layout.
+    var isCreditBudget: Bool { (creditBudget?.limit ?? 0) > 0 }
+
+    /// Actual window lengths: from the payload when the provider sends them (Codex),
+    /// else the 5-hour / 7-day defaults (spec §3: "defaulted to 300/10080 when absent").
+    var fiveHourDuration: TimeInterval { TimeInterval(fiveHourWindowMinutes ?? 300) * 60 }
+    var sevenDayDuration: TimeInterval { TimeInterval(sevenDayWindowMinutes ?? 10_080) * 60 }
+
+    /// Purchased-credit balance on subscription plans, if reported.
+    var creditBalance: Double? { creditBudget?.balance }
+
+    init(
+        representativeClaim: String,
+        fiveHourUtilization: Double, fiveHourReset: Date?, fiveHourStatus: String,
+        sevenDayUtilization: Double, sevenDayReset: Date?, sevenDayStatus: String,
+        overallStatus: String,
+        provider: AIProvider = .claude,
+        fiveHourWindowMinutes: Int? = nil,
+        sevenDayWindowMinutes: Int? = nil,
+        creditBudget: CodexCreditBudget? = nil
+    ) {
+        self.representativeClaim = representativeClaim
+        self.fiveHourUtilization = fiveHourUtilization
+        self.fiveHourReset = fiveHourReset
+        self.fiveHourStatus = fiveHourStatus
+        self.sevenDayUtilization = sevenDayUtilization
+        self.sevenDayReset = sevenDayReset
+        self.sevenDayStatus = sevenDayStatus
+        self.overallStatus = overallStatus
+        self.provider = provider
+        self.fiveHourWindowMinutes = fiveHourWindowMinutes
+        self.sevenDayWindowMinutes = sevenDayWindowMinutes
+        self.creditBudget = creditBudget
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        representativeClaim = try c.decode(String.self, forKey: .representativeClaim)
+        fiveHourUtilization = try c.decode(Double.self, forKey: .fiveHourUtilization)
+        fiveHourReset = try c.decodeIfPresent(Date.self, forKey: .fiveHourReset)
+        fiveHourStatus = try c.decode(String.self, forKey: .fiveHourStatus)
+        sevenDayUtilization = try c.decode(Double.self, forKey: .sevenDayUtilization)
+        sevenDayReset = try c.decodeIfPresent(Date.self, forKey: .sevenDayReset)
+        sevenDayStatus = try c.decode(String.self, forKey: .sevenDayStatus)
+        overallStatus = try c.decode(String.self, forKey: .overallStatus)
+        provider = try c.decodeIfPresent(AIProvider.self, forKey: .provider) ?? .claude
+        fiveHourWindowMinutes = try c.decodeIfPresent(Int.self, forKey: .fiveHourWindowMinutes)
+        sevenDayWindowMinutes = try c.decodeIfPresent(Int.self, forKey: .sevenDayWindowMinutes)
+        creditBudget = try c.decodeIfPresent(CodexCreditBudget.self, forKey: .creditBudget)
+    }
+
     // MARK: - Convenience
 
     /// Resolve a per-window value by the binding window (`representativeClaim`):
@@ -79,15 +147,25 @@ struct RateLimitUsage: Equatable, Codable {
         bindingValue(fiveHour: fiveHourReset, sevenDay: sevenDayReset)
     }
 
+    /// "7-Day" for Claude, "Weekly" for Codex — same 7-day window, provider vocabulary.
+    /// "Credits" when the reading is a Codex credit budget.
+    var sevenDayDisplayLabel: String { isCreditBudget ? "Credits" : provider.secondaryWindowLabel }
+
     /// Human-readable label for the binding window.
     var bindingWindowLabel: String {
-        bindingValue(fiveHour: "5-hour", sevenDay: "7-day")
+        if isCreditBudget {
+            return "Credits"
+        }
+        return bindingValue(fiveHour: "5-hour", sevenDay: provider == .codex ? "Weekly" : "7-day")
     }
 
-    /// Compact code for the binding window, for the menu bar: "5H" or "7D".
+    /// Compact code for the binding window, for the menu bar: "5H", "7D"/"WK", or "CR".
     /// Lets a throttled countdown say which window you're waiting on (hours vs a day+).
     var bindingWindowShortCode: String {
-        bindingValue(fiveHour: "5H", sevenDay: "7D")
+        if isCreditBudget {
+            return "CR"
+        }
+        return bindingValue(fiveHour: "5H", sevenDay: provider.secondaryWindowShortCode)
     }
 
     /// Whether the user is currently throttled.
@@ -122,7 +200,11 @@ struct RateLimitUsage: Equatable, Codable {
             sevenDayUtilization: sevenDayUtilization,
             sevenDayReset: sevenDayReset,
             sevenDayStatus: window == Self.sevenDayWindow ? "throttled" : sevenDayStatus,
-            overallStatus: "throttled"
+            overallStatus: "throttled",
+            provider: provider,
+            fiveHourWindowMinutes: fiveHourWindowMinutes,
+            sevenDayWindowMinutes: sevenDayWindowMinutes,
+            creditBudget: creditBudget
         )
     }
 
@@ -161,7 +243,11 @@ struct RateLimitUsage: Equatable, Codable {
             sevenDayUtilization: sevenDayExpired ? 0 : sevenDayUtilization,
             sevenDayReset: sevenDayExpired ? nil : sevenDayReset,
             sevenDayStatus: (sevenDayExpired || sevenDayUnboundedThrottle) ? "allowed" : sevenDayStatus,
-            overallStatus: bindingCleared ? "allowed" : overallStatus
+            overallStatus: bindingCleared ? "allowed" : overallStatus,
+            provider: provider,
+            fiveHourWindowMinutes: fiveHourWindowMinutes,
+            sevenDayWindowMinutes: sevenDayWindowMinutes,
+            creditBudget: creditBudget
         )
     }
 
@@ -192,11 +278,11 @@ struct RateLimitUsage: Equatable, Codable {
     func withClearedRolloverArtifacts(now: Date = .now) -> RateLimitUsage {
         let fiveHourArtifact = Self.isRolloverArtifact(
             utilization: fiveHourUtilization, reset: fiveHourReset,
-            windowDuration: Self.fiveHourWindowDuration, now: now
+            windowDuration: fiveHourDuration, now: now
         )
         let sevenDayArtifact = Self.isRolloverArtifact(
             utilization: sevenDayUtilization, reset: sevenDayReset,
-            windowDuration: Self.sevenDayWindowDuration, now: now
+            windowDuration: sevenDayDuration, now: now
         )
 
         guard fiveHourArtifact || sevenDayArtifact else { return self }
@@ -211,7 +297,11 @@ struct RateLimitUsage: Equatable, Codable {
             sevenDayUtilization: sevenDayArtifact ? 0 : sevenDayUtilization,
             sevenDayReset: sevenDayReset,
             sevenDayStatus: sevenDayArtifact ? "allowed" : sevenDayStatus,
-            overallStatus: bindingCleared ? "allowed" : overallStatus
+            overallStatus: bindingCleared ? "allowed" : overallStatus,
+            provider: provider,
+            fiveHourWindowMinutes: fiveHourWindowMinutes,
+            sevenDayWindowMinutes: sevenDayWindowMinutes,
+            creditBudget: creditBudget
         )
     }
 
@@ -238,8 +328,8 @@ struct RateLimitUsage: Equatable, Codable {
         let remaining = reset.timeIntervalSinceNow
         guard remaining > 0 else { return nil }
 
-        // Window duration inferred from window type
-        let windowDuration: TimeInterval = window == Self.sevenDayWindow ? 7 * 24 * 3_600 : 5 * 3_600
+        // Window duration from the payload when present, else the provider default
+        let windowDuration: TimeInterval = window == Self.sevenDayWindow ? sevenDayDuration : fiveHourDuration
         let elapsed = windowDuration - remaining
 
         guard elapsed > 60 else { return nil } // Need meaningful elapsed time

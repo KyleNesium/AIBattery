@@ -37,7 +37,7 @@ extension UsageViewModel {
             enabled: enabled,
             seed: seed,
             provider: OAuthManager.shared,
-            fetcher: RateLimitFetcher.shared
+            fetcher: ProviderDispatchingFetcher.live(accountStore: OAuthManager.shared.accountStore)
         )
         if let resolved {
             perAccountRateLimits = resolved

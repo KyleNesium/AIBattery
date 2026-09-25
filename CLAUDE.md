@@ -1,6 +1,6 @@
 # AI Battery — AI Agent Guide
 
-macOS menu bar app showing Claude API usage at a glance. Built with Swift 6 / SwiftUI, SPM, macOS 13+.
+macOS menu bar app showing Claude and Codex (OpenAI) usage at a glance — up to 3 accounts per provider. Built with Swift 6 / SwiftUI, SPM, macOS 13+.
 
 ## Spec-Driven Workflow
 
@@ -41,7 +41,7 @@ open .build/AIBattery.app
 swift test
 ```
 
-1116 tests across 72 files, using `import Testing` + `@testable import AIBatteryCore`.
+1275 tests across 99 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities
@@ -64,6 +64,10 @@ CI (`macos-15`): build → test → verify signed bundle. Runs on push to `main`
 
 These aren't obvious from reading the code — know them before making changes:
 
+- **Two providers, one pipeline.** Every account has an `AIProvider`; the active account's provider drives fetcher, status feed, aggregator, labels and links. Dispatch points are listed in `spec/ARCHITECTURE.md` — add a new provider-specific behaviour at one of those seams, never by branching in a view.
+- Codex runs under three billing models and the popover follows `CodexDisplayKind`: subscriptions (windows + optional purchased-credit balance), spend-control plans (credit budget), API keys (per-minute `x-ratelimit-*` from a 16-token `/v1/responses` probe; costs are a real bill, `snapshot.costIsBilled`). API-key accounts store the key as their Keychain "refresh token" and never touch the token endpoint.
+- Codex **Business/Enterprise** plans have no 5h/weekly windows — `wham/usage` returns `rate_limit: null` and a `spend_control.individual_limit` credit budget. `CodexUsageParser` maps it to a `RateLimitUsage` with `creditBudget` set (both windows mirror the budget %), the popover shows one Credits bar with a Credits | Context toggle, and nothing Anthropic-specific (plan tiers, local estimates, "7-Day", "Anthropic API" copy) is reachable under a Codex account.
+- Codex local data comes from `~/.codex/sessions` rollouts via `CodexSessionLogParser` → the **same** `AssistantUsageEntry`, so `UsageAggregator` is shared (one instance per provider, `claude-`/`gpt-` model filter). Only `session_meta`, `turn_context` and `token_count.last_token_usage` are decoded — `response_item` (message content) is rejected on `type`. Codex has no stats cache: all-time figures are bounded by rollout retention and the UI says so.
 - Claude Code 5-hour / 7-day usage may come from Claude Code client metadata rather than public `/v1/messages` headers
 - Legacy unified `anthropic-ratelimit-unified-*` headers still exist in some paths, but public Anthropic API docs now describe standard `anthropic-ratelimit-*` headers instead
 - JSONL must be streamed via `FileHandle` (never load full file into memory)
@@ -71,13 +75,14 @@ These aren't obvious from reading the code — know them before making changes:
 - `OAuthManager.exchangeCode()` returns `Result<Void, AuthError>` — callers handle typed errors. Validates state parameter for CSRF protection.
 - `APIFetchResult.isCached` distinguishes fresh API data from stale cache — always check before treating as fresh. The `RateLimitFetcher` cache never expires (stale data beats empty bars); individual rate-limit windows are cleared at their own reset via `withClearedExpiredWindows`.
 - OAuth refresh: transient errors (network + server 5xx) keep `isAuthenticated` true (retry next cycle); only auth errors trigger logout. Token endpoint retries 5xx up to 2 times with backoff. Token refresh fires 5 min before expiry to avoid clock-skew 401s. Concurrent refresh attempts are serialized via a shared task.
-- StatusChecker backs off exponentially after failures (60s → 120s → 240s, capped at 5 min, ±20% jitter) — no immediate retries
+- StatusChecker backs off exponentially after failures (60s → 120s → 240s, capped at 5 min, ±20% jitter) — no immediate retries. One `StatusChecker` per feed (`.shared` Claude, `.codex` OpenAI filtered to the five Codex components). `CodexRateLimitFetcher` applies the same backoff curve per account to the `wham/usage` endpoint and serves the session-log fallback meanwhile
 - SessionLogReader per-file cache stores fingerprints only (modDate + fileSize); raw entry arrays released after merge into cachedAllEntries. On dirty cycle, only changed files re-parsed — eliminates double-storage. Trailing JSONL lines without closing `}` are skipped; leftover buffer capped at 1MB (oversized lines discarded)
 - NotificationManager fires once per outage via `UNUserNotificationCenter`, deduplicates per component, resets on recovery
 
 ## Security
 
-- OAuth refresh token lives in macOS Keychain under service `"AIBattery"` — access token is memory-only (re-derived from refresh on launch), expiry timestamp in UserDefaults. Only 1 Keychain item per account to minimize Sparkle update prompts.
+- OAuth refresh token lives in macOS Keychain under service `"AIBattery"` (`refreshToken_<id>` Claude, `refreshToken_codex_<id>` Codex) — access token is memory-only (re-derived from refresh on launch), expiry timestamp in UserDefaults. Only 1 Keychain item per account to minimize Sparkle update prompts.
+- Codex OAuth binds a one-shot listener on **127.0.0.1:1455 only** (never wildcard); `~/.codex` is read-only (`auth.json` is read once on the user's explicit import click)
 - Never log token values — mask or redact in error messages
 - JSONL reads are token-count-only — never parse, store, or display message content
 - Notifications use `UNUserNotificationCenter` — no shell process or string escaping needed

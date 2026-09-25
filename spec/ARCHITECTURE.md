@@ -16,28 +16,46 @@
 
 Single `UsageViewModel` owns all state. Views read `viewModel.snapshot`.
 
-Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is shown. Multi-account add-account flow is handled inline by UsagePopoverView (shows AuthView as overlay).
+Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is shown. Multi-account add-account flow is handled inline by UsagePopoverView (shows AuthView as overlay, parameterised by `AIProvider`).
+
+**Two providers, one pipeline.** Every account carries an `AIProvider` (`.claude` / `.codex`). The architecture is "provider seams on the existing pipeline" (design spec `docs/superpowers/specs/2026-09-02-codex-support-design.md`): one `AccountStore`, one `UsageViewModel`, one `UsageSnapshot`/UI. Provider dispatch happens at exactly these boundaries, always keyed off the **active account's provider**:
+
+| Boundary | Claude | Codex |
+|---|---|---|
+| Auth | `OAuthManager` paste-code PKCE flow | ChatGPT: `CodexAuthSession` + `CodexCallbackServer` (localhost:1455 redirect) + `CodexTokenClient`; API key: `registerCodexAPIKey` (Keychain, no refresh); one-click `CodexAuthFileImporter` from `~/.codex/auth.json` (either mode) |
+| Token storage | Keychain `refreshToken_<accountId>` | Keychain `refreshToken_codex_<accountId>` (`OAuthManager.tokenStorageKey`) |
+| Rate limits | `RateLimitFetcher` (`/api/oauth/usage` → probes) | `CodexRateLimitFetcher`: subscriptions → windows, Business/Enterprise → credit budget (`chatgpt.com/backend-api/wham/usage` → session-log fallback); API keys → per-minute `x-ratelimit-*` via `api.openai.com/v1/responses` probe; per-account endpoint backoff |
+| Local data | `SessionLogReader` (`~/.claude/projects`) + `StatsCacheReader` | `CodexSessionLogReader` (`~/.codex/sessions`, no stats cache) — both implement `UsageEntrySource` |
+| Aggregation | `UsageAggregator(provider: .claude)` | `UsageAggregator(provider: .codex)` — same class, `gpt-` model filter, JSONL-derived `firstSessionDate` |
+| Pricing / names / context | Claude tables | `OpenAIModelPricing`, `gpt-` branch in `ModelNameMapper`, `TokenHealthConfig.openAIDefaultContextWindow` |
+| Status feed | `StatusChecker.shared` (`StatusFeedConfig.claude`) | `StatusChecker.codex` (`StatusFeedConfig.codex`, filtered to Codex components) |
+| File watching | FSEvents on `~/.claude/projects` + DispatchSource on `stats-cache.json` | second FSEvents root on `~/.codex/sessions` |
+| UI vocabulary | "7-Day", ✦ glyph, `claude.ai/settings/usage`, `status.claude.com` | "Weekly", ⬡ glyph, `chatgpt.com/codex/settings/usage`, `status.openai.com` |
+
+Local logs are machine-wide per provider: every Codex account shows the same `~/.codex/sessions` analytics (exactly as multiple Claude accounts share `~/.claude`).
 
 ## Data Flow
 
 ```
-                    ┌──────────────────┐
-                    │  UsageViewModel   │
-                    │  (refresh loop)   │
-                    └────────┬─────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              ▼              ▼              ▼
-     RateLimitFetcher   StatusChecker   UsageAggregator
-     (usage→probe)      (status.claude)  (merge all data)
-     → APIFetchResult:                         │
-       rateLimits +              ┌─────────────┤
-       orgProfile                ▼             ▼
-                           StatsCacheReader  SessionLogReader
-                           (stats-cache.json) (JSONL files)
+                         ┌──────────────────┐
+                         │  UsageViewModel   │  active account → AIProvider
+                         │  (refresh loop)   │
+                         └────────┬─────────┘
+                                  │ dispatch by provider
+        ┌─────────────────────────┼─────────────────────────┐
+        ▼                         ▼                         ▼
+ RateLimitFetcher /        StatusChecker.shared /    UsageAggregator(.claude) /
+ CodexRateLimitFetcher     StatusChecker.codex       UsageAggregator(.codex)
+ → APIFetchResult          (status.claude /          (merge local data → UsageSnapshot.provider)
+   (rateLimits +           status.openai, filtered)          │
+    provider tag)                              ┌─────────────┴─────────────┐
+                                               ▼                           ▼
+                                   Claude: StatsCacheReader +    Codex: CodexSessionLogReader
+                                           SessionLogReader              (~/.codex/sessions JSONL)
+                                           (~/.claude)
 ```
 
-`refresh()` runs: gets active account + token from `OAuthManager`, passes both to `RateLimitFetcher.fetch(accessToken:accountId:)` for per-account rate limits + org profile. Status check runs concurrently. After fetch, resolves pending account identity or updates metadata. Aggregation runs on the main actor (same thread as FileWatcher cache invalidation — avoids data races).
+`refresh()` runs: gets active account + token from `OAuthManager`, resolves the account's provider once, and passes the token to that provider's fetcher (`RateLimitFetcher.fetch` or `CodexRateLimitFetcher.fetch`). The provider's status check runs concurrently. After fetch, Claude accounts resolve pending identity / update metadata (Codex identities are fixed at auth time from the ID token). Aggregation runs off-main in the provider's aggregator; `UsageSnapshot.provider` tells the views which vocabulary and links to use.
 
 ## Refresh Triggers
 
@@ -46,6 +64,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 | Timer | refreshInterval (default 120s, user-configurable 30–300s) | UsageViewModel.pollingTimer | Full `refresh()` (network + aggregation) |
 | Stats cache write | 2 sec debounce | FileWatcher (DispatchSource on stats-cache.json) | **Local-only** `refreshLocalData()` — re-aggregates JSONL with the currently displayed rate limits; no network fetch, no poll-timer reset |
 | JSONL file change | 2 sec FSEvent latency | FileWatcher (FSEventStream on ~/.claude/projects/) | **Local-only** `refreshLocalData()` (same as above) |
+| Codex rollout write | 2 sec FSEvent latency | FileWatcher (second FSEventStream on ~/.codex/sessions/, only when the directory exists) | **Local-only** `refreshLocalData()` — invalidates only `CodexSessionLogReader` |
 | Fallback | 60 sec | FileWatcher fallback timer | **Local-only** `refreshLocalData()` (same as above) |
 | Account switch | On click | Account picker in header | Full `refresh()` |
 | Sleep/wake | Immediate on wake | NSWorkspace.willSleepNotification / didWakeNotification | Full `refresh()` (after cached instant-paint) |
@@ -63,17 +82,23 @@ AIBattery/
   AIBattery-AppStore.entitlements — App Store entitlements (sandbox + network.client + .claude/ read)
   PrivacyInfo.xcprivacy           — Privacy manifest (UserDefaults + FileTimestamp API declarations)
   Models/
-    AccountRecord.swift           — Per-account identity record (Codable, Identifiable)
+    AIProvider.swift              — `.claude` / `.codex` enum: display name, glyph (✦ / ⬡), secondary-window label ("7-Day" / "Weekly")
+    AccountRecord.swift           — Per-account identity record (Codable, Identifiable); `provider` decodes as `.claude` for pre-Codex records
     APIFetchResult.swift          — Combined result from a single Messages API call
     APIProfile.swift              — Organization info from API response headers
-    RateLimitUsage.swift          — Unified rate limit header parsing (5h/7d windows)
+    RateLimitUsage.swift          — Unified rate limit header parsing (5h/7d windows); provider tag + optional window minutes (Codex payloads)
+    CodexUsageParser.swift        — Parses `wham/usage` JSON (windows, credit budget, plan — one pass) and session-log `rate_limits` snapshots into RateLimitUsage
+    CodexDisplayKind.swift        — windows / credits / apiLimits layout selector
+    CodexAccessMode.swift         — chatgpt / apiKey account access mode
+    CodexCreditBudget.swift       — Spend-control budget + purchased-credit balance
+    OpenAIModelPricing.swift      — `gpt-5.x` pricing table (longest-prefix match on the raw model ID)
     StatsCache.swift              — Codable for stats-cache.json
     SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry
-    UsageSnapshot.swift           — UsageSnapshot, ModelTokenSummary
+    UsageSnapshot.swift           — UsageSnapshot (carries `provider`), ModelTokenSummary
     ProjectTokenSummary.swift     — Per-project token totals + cost from JSONL cwd
     MetricMode.swift              — MetricMode enum (5h / 7d / context)
     TrendDirection.swift          — TrendDirection enum (up / down / flat)
-    ClaudeSystemStatus.swift      — ClaudeSystemStatus, StatusIndicator, StatusComponent
+    ClaudeSystemStatus.swift      — ClaudeSystemStatus (provider-neutral despite the name), StatusIndicator, StatusComponent
     TokenHealthConfig.swift       — Health thresholds + context window lookup
     TokenHealthStatus.swift       — HealthBand, HealthWarning, TokenHealthStatus (Identifiable by sessionId)
     ModelPricing.swift            — Per-model pricing lookup + cost calculation
@@ -82,21 +107,35 @@ AIBattery/
     RateLimitSource.swift         — Enum tracking where rate limit data came from (API / local estimate / standard)
     StandardRateLimits.swift      — Standard per-model request/token rate limits from API headers
   Services/
-    AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3)
+    AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3 per provider; Claude-first `displayOrdered`)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, auto-refresh; `postToken` is `nonisolated static` so the network call releases MainActor cleanly. Concurrent-refresh serialization preserved via `refreshTasks[accountId]`
+    OAuthManager+Codex.swift      — Codex provider routing: `tokenStorageKey`, `startCodexAuthFlow` / `completeCodexAuthFlow` / `cancelCodexAuthFlow`, `registerCodexAccount` (cap-guarded, returns Result)
+    CodexOAuth/
+      CodexOAuthConstants.swift   — client-id, port 1455, scopes, authorize/token URLs lifted from codex-rs
+      CodexAuthSession.swift      — In-flight PKCE state; awaits the redirect through `OneShotMailbox`
+      OneShotMailbox.swift        — Main-actor one-shot mailbox (buffers a redirect that lands before the UI awaits it)
+      CodexCallbackServer.swift   — One-shot NWListener on 127.0.0.1:1455, parses the OAuth redirect (`CodexCallbackParser`)
+      CodexTokenClient.swift      — Code exchange (form-encoded) + refresh (JSON) against auth.openai.com
+      CodexAuthFileImporter.swift — Read-only import of `~/.codex/auth.json` (ChatGPT mode only) to seed the first Codex account
+    CodexRateLimitFetcher.swift   — `chatgpt.com/backend-api/wham/usage` fetch, per-account cache/persistence (`aibattery_codexRateLimits_`), auth-failure counter, endpoint backoff, session-log fallback
+    CodexSessionRateLimitScanner.swift — Tail-scans the newest rollout for the last `rate_limits` snapshot (fallback source, always `isCached`)
+    UsageEntrySource.swift        — Protocol both session-log readers implement (readAllUsageEntries / invalidate / lastCorruptLineCount)
+    CodexSessionLogParser.swift   — Per-file state machine: session_meta → identity, turn_context → model, token_count.last_token_usage → AssistantUsageEntry
+    CodexSessionLogReader.swift   — Streaming reader over `~/.codex/sessions/YYYY/MM/DD/*.jsonl` (fingerprint cache, eviction, symlink boundary)
+    StatusFeedConfig+Codex.swift  — `StatusFeedConfig.codex`: status.openai.com filtered to the five Codex components
     OAuthTokenStorage.swift       — Keychain (refresh token) + UserDefaults (expiry) persistence layer extracted from OAuthManager
     RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)
     RateLimitFetcher+UsageEndpoint.swift  — Dedicated `/api/oauth/usage` primary path: `interpretUsageEndpoint` (pure) + async `fetchUsageEndpoint` wrapper
     RateLimitFetcher+ClientData.swift     — Claude Code `/api/oauth/claude_cli/client_data` fallback path: `interpretClaudeCodeClientData` (pure), async `fetchClaudeCodeClientData` wrapper, and `containsStandardRateLimitHeaders` (`nonisolated static`, called from the Messages path too)
     RateLimitFetcher+Persistence.swift    — UserDefaults-backed per-account cache: `PersistedRateLimits` (file-private), `persistRateLimits` (called by `fetch` on success), `restorePersistedRateLimits` (called from init; runs `withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence is dropped)
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
-    SessionLogReader.swift        — JSONL streaming reader (FileHandle, 64KB chunks)
-    FileWatcher.swift             — DispatchSource + FSEventStream for live updates
-    UsageAggregator.swift         — Merges all data sources → UsageSnapshot
+    SessionLogReader.swift        — Claude JSONL streaming reader (FileHandle, 64KB chunks)
+    FileWatcher.swift             — DispatchSource + two FSEventStreams (~/.claude/projects, ~/.codex/sessions) for live updates
+    UsageAggregator.swift         — Merges a provider's data sources → UsageSnapshot (one instance per provider)
     TokenHealthMonitor.swift      — Analyzes session tokens → health status (single + top N sessions)
     TokenLedger.swift             — Persistent per-model token high-water marks (Application Support)
     NetworkMonitor.swift          — NWPathMonitor connectivity observer (triggers refresh on recovery)
-    StatusChecker.swift           — Fetches status.claude.com system status; HTTP fetch + decode + parse run via `nonisolated static func fetchAndParse(url:timeout:)` returning a `Sendable FetchOutcome`
+    StatusChecker.swift           — Feed-configurable Statuspage client (`StatusFeedConfig`; `.shared` = Claude, `.codex` = OpenAI); HTTP fetch + decode + parse via `nonisolated static func fetchAndParse(config:timeout:)` returning a `Sendable FetchOutcome`; optional component filter
     SingleInstanceGuard.swift     — POSIX flock single-instance guard, SIGTERM handler
     NotificationManager.swift     — Status outage + rate limit alerts via UNUserNotificationCenter
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
@@ -104,11 +143,13 @@ AIBattery/
     SparkleUpdateService.swift     — Sparkle 2 wrapper for user-initiated auto-update
     SparkleUpdateDelegate.swift   — SPUUpdaterDelegate: error tracking + update cycle logging
   ViewModels/
-    UsageViewModel.swift          — @MainActor ObservableObject, single source of truth (state + init + refresh orchestration + throttle bookkeeping + deinit)
+    UsageViewModel.swift          — @MainActor ObservableObject, single source of truth (state + init + refresh orchestration + throttle bookkeeping + deinit); owns one `UsageAggregator` per provider and routes every fetch/aggregate/status call by the active account's provider
     UsageViewModel+Statics.swift  — `nonisolated static` pure helpers: refresh-interval clamping, error-message string, change detection, TTL-guarded effective rate-limits / values
     UsageViewModel+Lifecycle.swift — File watcher setup, sleep/wake/screen-lock observers, idle-suspend + activity-monitor resume, polling timer (start/restart/updateInterval)
     UsageViewModel+FanOut.swift   — Thin wrapper: `scheduleFanOut` + `fetchAllAccounts(seed:)` delegate to `MultiAccountFanOut.resolve` and assign the result to `perAccountRateLimits`
-    MultiAccountFanOut.swift      — Multi-account fan-out orchestration (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
+    MultiAccountFanOut.swift      — Multi-account fan-out orchestration
+    ProviderDispatchingFetcher.swift — Routes each fan-out fetch: Claude → RateLimitFetcher, Codex ChatGPT → CodexRateLimitFetcher.fetch, Codex API key → fetchAPIKeyLimits (never the ChatGPT endpoint)
+    UsageViewModel+ProviderRouting.swift — Aggregator / fetcher-cache / fetch / status routing by the active account's provider + Codex plan-name sync (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
   Views/
     StatusBarManager.swift        — NSStatusItem + floating NSPanel core: stored state, setup (observers/monitors/panel construction), deinit. Split per the UsageViewModel precedent; shared state declared non-private for cross-file extensions
     StatusBarManager+ButtonUpdate.swift — Menu-bar image rendering (`updateButton`), `MenuBarRenderKey` render-skip (image rebuilt only when text/percent-bucket/color/broken/sparkle/appearance changed), recovery sparkle
@@ -121,7 +162,7 @@ AIBattery/
     PopoverHeaderView.swift       — Header row, account picker, update banner (ENABLE_VERSION_CHECKER)
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
-    PopoverFooterView.swift       — Footer links, logout confirm, status indicator, timestamp
+    PopoverFooterView.swift       — Footer links (provider-aware Usage/Status targets), logout confirm, status indicator, timestamp
     UsageGateViews.swift          — ProjectUsageGate, InsightsGate — data-availability wrappers
     Settings/
       SettingsRow.swift           — Inline settings container: account names + sub-sections
@@ -129,14 +170,14 @@ AIBattery/
       DisplaySettingsSection.swift — Display toggles + idle session cutoff slider
       AlertSettingsSection.swift  — Status alerts + rate limit alerts
       LaunchAtLoginSection.swift  — Launch at Login toggle
-    AuthView.swift                 — OAuth login/paste-code screen
+    AuthView.swift                 — OAuth login screen, parameterised by provider: Claude paste-code flow / Codex browser round-trip + "Import Codex CLI login"
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
     Components/
       GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
       GaugeRow.swift              — Shared "labelled gauge row" shell: VStack[Header HStack + GaugeBar + TimelineView footer]. Accepts headerLeading / headerTrailing / footer ViewBuilders. Owns accessibility wiring and timeline schedule. Backs UsageBar (5h/7d) and StandardLimitBar.
       LinkActionButton.swift      — Inline link-styled action button (Size.standard for settings, .compact for in-banner). One canonical implementation for Add Account, Test, Download, Install Update — all routed through ThemeColors.action with consistent icon/label spacing.
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars; UsageBar.AlarmState gates throttle/limit alarm on confirmed (fresh) data
-    LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable
+    LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable (window label follows provider vocabulary)
     StandardLimitsSection.swift   — Standard per-model API rate limit display (fallback)
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting, clipboard export
@@ -155,12 +196,15 @@ AIBattery/
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
   Utilities/
     TokenFormatter.swift          — Format tokens ("18.9M")
-    ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"
+    ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"; "gpt-5.6-sol" → "GPT-5.6 Sol"
     UserDefaultsKeys.swift        — Centralized @AppStorage / UserDefaults key constants
     DateFormatters.swift          — Shared DateFormatter / ISO8601DateFormatter instances (allocated once)
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
+    CodexPaths.swift              — `~/.codex/sessions`, `~/.codex/auth.json` (read-only)
+    JWTDecoder.swift              — Unverified-claims decode of the Codex ID/access token (account id, expiry)
+    OAuthPKCE.swift               — Shared PKCE S256 verifier/challenge + state generation for both providers
     AppPaths.swift                — AIBattery's own Application Support directory (shared by SingleInstanceGuard + TokenLedger)
     SecureNetworking.swift        — Ephemeral URLSession + response size guard (2 MB limit) + resource timeout (30s)
     DurationFormatter.swift       — Compact time duration formatting ("2h 5m", "1d 1h", "soon")
@@ -215,6 +259,12 @@ Tests/AIBatteryCoreTests/
     SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
     SessionLogReaderDiscoveryTests.swift — TTL-based discovery fallback, cache expiry
     SessionLogReaderIntegrationTests.swift — End-to-end JSONL scanning + merge behavior
+    CodexSessionLogParserTests.swift — Codex rollout line state machine + AssistantUsageEntry field mapping (real-fixture lines)
+    CodexSessionLogReaderTests.swift — Nested date-dir discovery, fingerprint cache, eviction, deletion, partial tail, symlink boundary
+    CodexRateLimitFetcherTests.swift / CodexRateLimitFetcherBackoffTests.swift — wham/usage interpretation, spike write-back, endpoint backoff
+    CodexSessionRateLimitScannerTests.swift — session-log rate_limits fallback
+    CodexAuthFileImporterTests / CodexCallbackParserTests / CodexOAuthConstantsTests / CodexTokenClientTests / OAuthManagerCodexRoutingTests / OneShotMailboxTests — Codex auth pieces
+    StatusCheckerComponentFilterTests.swift / OpenAIStatusFeedTests.swift — feed config + Codex component filter
     TokenHealthMonitorTests.swift — band classification, overflow guards, turn warnings, velocity, rapid consumption, custom config
     TokenLedgerTests.swift        — high-water-mark merge, historical model restoration, per-account isolation, persistence, sort, file size guard
     NotificationManagerTests.swift — shouldAlert() pure function threshold tests
@@ -289,6 +339,8 @@ CHANGELOG.md                      — Release notes per version
 
 ## Network Calls (exhaustive)
 
+**Claude accounts**
+
 1. `GET https://api.anthropic.com/api/oauth/usage` — **primary** rate-limit fetch (dedicated usage endpoint, no model probe needed; first call every cycle)
 2. `GET https://api.anthropic.com/api/oauth/claude_cli/client_data` — Claude Code usage windows + account metadata (fallback)
 3. `POST https://api.anthropic.com/v1/messages?beta=true` — legacy unified/public rate-limit headers + org profile (probe fallback, ~10% hit rate)
@@ -298,13 +350,24 @@ CHANGELOG.md                      — Release notes per version
 7. `GET https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` — update check (once per 24h)
 8. `GET https://kylenesium.github.io/AIBattery/appcast.xml` — Sparkle update feed (on user-initiated update check)
 
+**Codex accounts** (only when a Codex account exists / is active)
+
+9. `GET https://chatgpt.com/backend-api/wham/usage` — Codex rate limits (`Authorization: Bearer`, `ChatGPT-Account-Id`); per-account exponential backoff on failure, session-log fallback
+10. `GET https://status.openai.com/api/v2/summary.json` — OpenAI system status, filtered to Codex components (every refresh interval while a Codex account is active)
+11. `GET https://auth.openai.com/oauth/authorize` — Codex OAuth login (opens in browser, one-time; redirects to `http://localhost:1455/auth/callback`)
+12. `POST https://auth.openai.com/oauth/token` — Codex token exchange + auto-refresh
+13. `POST https://api.openai.com/v1/responses` — **API-key Codex accounts only**: a 16-token nano probe whose response headers carry the per-minute `x-ratelimit-*` limits (the Codex mirror of the Claude Messages probe; no ChatGPT windows exist for API keys)
+
 ## Local File Access (exhaustive)
 
-1. macOS Keychain, service `"AIBattery"` — Per-account OAuth refresh token only (`refreshToken_{accountId}`); access token held in memory, expiry in UserDefaults
+1. macOS Keychain, service `"AIBattery"` — Per-account OAuth refresh token only (`refreshToken_{accountId}` for Claude, `refreshToken_codex_{accountId}` for Codex); access token held in memory, expiry in UserDefaults
 2. UserDefaults `aibattery_accounts` + `aibattery_activeAccountId` — Multi-account registry (JSON-encoded [AccountRecord])
 3. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
 4. `~/.claude/projects/*/[session-id].jsonl` — per-message token data
 5. `~/.claude/projects/*/subagents/*.jsonl` — subagent session data
+6. `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` — Codex CLI rollouts, **token counts only** (`session_meta`, `turn_context`, `token_count`; `response_item` content is never decoded)
+7. `~/.codex/auth.json` — read once, on the user's explicit "Import Codex CLI login" click (never watched, never written)
+8. UserDefaults `aibattery_codexRateLimits_{accountId}` — persisted Codex rate-limit snapshot (mirror of `aibattery_rateLimits_`)
 
 ## App Store Distribution (Future — Blockers)
 

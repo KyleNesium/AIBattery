@@ -71,13 +71,18 @@ struct ModelPricing {
         }
 
         // Compute outside the lock — avoids nested lock with ModelNameMapper.
-        // Linear scan over 6 entries is fine — result is cached per modelId above.
-        let display = ModelNameMapper.displayName(for: modelId).lowercased()
         var result: ModelPricing?
-        for (key, pricing) in pricingTable {
-            if display.contains(key) {
-                result = pricing
-                break
+        if modelId.lowercased().hasPrefix("gpt-") {
+            // Codex / OpenAI models — matched on the raw ID (see OpenAIModelPricing).
+            result = OpenAIModelPricing.pricing(for: modelId)
+        } else {
+            // Linear scan over 6 entries is fine — result is cached per modelId above.
+            let display = ModelNameMapper.displayName(for: modelId).lowercased()
+            for (key, pricing) in pricingTable {
+                if display.contains(key) {
+                    result = pricing
+                    break
+                }
             }
         }
 

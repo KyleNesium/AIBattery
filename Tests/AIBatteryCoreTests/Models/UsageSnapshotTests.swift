@@ -14,14 +14,17 @@ struct UsageSnapshotTests {
         todayMessages: Int = 0,
         fiveHourTokens: Int = 0,
         sevenDayTokens: Int = 0,
-        dailyActivity: [DailyActivity] = []
+        dailyActivity: [DailyActivity] = [],
+        provider: AIProvider = .claude,
+        standardLimits: StandardRateLimits? = nil,
+        costIsBilled: Bool = false
     ) -> UsageSnapshot {
         let activityStats = UsageSnapshot.computeActivityStats(dailyActivity)
         return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
             rateLimitSource: rateLimits == nil ? nil : .anthropicAPIHeaders,
-            standardLimits: nil,
+            standardLimits: standardLimits,
             rateLimitsFresh: rateLimitsFresh,
             firstSessionDate: nil,
             totalSessions: 0,
@@ -54,7 +57,9 @@ struct UsageSnapshotTests {
             hourCounts: [:],
             todayHourCounts: [:],
             tokenHealth: tokenHealth,
-            topSessionHealths: topSessionHealths
+            topSessionHealths: topSessionHealths,
+            provider: provider,
+            costIsBilled: costIsBilled
         )
     }
 
@@ -969,8 +974,38 @@ struct UsageSnapshotTests {
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 37 = 36 compared fields + lastUpdated.
+        // it) AND update this count. 39 = 38 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 37)
+        #expect(mirror.children.count == 39)
+    }
+
+    // MARK: - Provider (Plan 2)
+
+    @Test func equality_differsOnProvider() {
+        let claude = makeSnapshot()
+        let codex = makeSnapshot(provider: .codex)
+        #expect(claude != codex)
+        #expect(claude.provider == .claude)
+        #expect(codex.provider == .codex)
+    }
+
+    // MARK: - Codex never uses Claude local estimates
+
+    @Test func codexSnapshot_neverUsesLocalEstimate() {
+        let snapshot = makeSnapshot(fiveHourTokens: 5_000_000, sevenDayTokens: 20_000_000, provider: .codex)
+        #expect(!snapshot.isUsingLocalEstimate)
+        #expect(snapshot.percent(for: .fiveHour) == 0)
+        #expect(snapshot.percent(for: .sevenDay) == 0)
+    }
+
+    @Test func codexAPIKeySnapshot_percentUsesPerMinuteTokenLimit() {
+        let std = StandardRateLimits(requestsLimit: 100, requestsRemaining: 90, requestsReset: nil, tokensLimit: 1_000, tokensRemaining: 250, tokensReset: nil)
+        let snapshot = makeSnapshot(provider: .codex, standardLimits: std)
+        #expect(snapshot.percent(for: .fiveHour) == 75)
+        #expect(snapshot.percent(for: .sevenDay) == 75)
+    }
+
+    @Test func equality_differsOnCostIsBilled() {
+        #expect(makeSnapshot(costIsBilled: false) != makeSnapshot(costIsBilled: true))
     }
 }

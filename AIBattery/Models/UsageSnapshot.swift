@@ -42,6 +42,8 @@ struct UsageSnapshot: Equatable {
             // busiestDayOfWeek is a tuple — compare components manually
             && lhs.busiestDayOfWeek?.name == rhs.busiestDayOfWeek?.name
             && lhs.busiestDayOfWeek?.averageCount == rhs.busiestDayOfWeek?.averageCount
+            && lhs.provider == rhs.provider
+            && lhs.costIsBilled == rhs.costIsBilled
     }
 
     /// Weekday symbols from the user's current calendar (Sunday = index 0).
@@ -120,11 +122,11 @@ struct UsageSnapshot: Equatable {
         switch mode {
         case .fiveHour:
             rateLimits?.fiveHourPercent
-                ?? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens)
+                ?? (provider == .claude ? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens) : standardLimits?.tokensPercent)
                 ?? 0
         case .sevenDay:
             rateLimits?.sevenDayPercent
-                ?? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens)
+                ?? (provider == .claude ? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens) : standardLimits?.tokensPercent)
                 ?? 0
         case .contextHealth:
             topSessionHealths.first?.usagePercentage
@@ -173,8 +175,10 @@ struct UsageSnapshot: Equatable {
     }
 
     /// Whether the 5h/7d data comes from local token estimation (no API data).
+    /// Claude only — the calibration / plan-tier machinery is Anthropic-specific and a
+    /// Codex account must never fall back to it.
     var isUsingLocalEstimate: Bool {
-        rateLimits == nil && (fiveHourTokens > 0 || sevenDayTokens > 0)
+        provider == .claude && rateLimits == nil && (fiveHourTokens > 0 || sevenDayTokens > 0)
     }
 
     /// De-escalation requires the metric to drop this many percentage points below its
@@ -391,6 +395,15 @@ struct UsageSnapshot: Equatable {
 
     // Top sessions sorted by highest context usage (up to 5, within last 24h)
     let topSessionHealths: [TokenHealthStatus]
+
+    /// Which provider's local data built this snapshot. Views use it for labels
+    /// ("7-Day" vs "Weekly"), footer links, and the Insights data-source caveat.
+    /// Declared last with a default so the memberwise init stays source-compatible.
+    var provider: AIProvider = .claude
+
+    /// True for pay-per-token accounts (Codex API key): the cost figures are an actual
+    /// bill at API rates, not the subscription "API-equivalent" framing.
+    var costIsBilled: Bool = false
 }
 
 struct ModelTokenSummary: Identifiable, Equatable {

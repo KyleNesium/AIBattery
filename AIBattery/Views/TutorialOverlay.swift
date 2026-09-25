@@ -10,12 +10,12 @@ struct TutorialOverlay: View {
     private let steps: [(title: String, description: String, icon: String)] = [
         (
             "Rate Limits",
-            "The 5-hour and 7-day bars show your current usage against Anthropic's sliding window limits. The \"binding\" badge marks whichever window is constraining you.",
+            "The 5-hour and 7-day (Weekly for Codex) bars show your current usage against your provider's sliding window limits. The \"binding\" badge marks whichever window is constraining you.",
             "chart.bar.fill"
         ),
         (
             "Context Health",
-            "Monitors your active Claude Code sessions. The gauge shows how much of the usable context window is consumed. Orange and red bands warn when quality may degrade.",
+            "Monitors your active Claude Code or Codex sessions. The gauge shows how much of the usable context window is consumed. Orange and red bands warn when quality may degrade.",
             "brain.head.profile"
         ),
         (

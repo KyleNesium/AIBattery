@@ -1,25 +1,64 @@
 import Foundation
 import os
 
-/// Fetches Claude system status from the public Statuspage API.
-/// Checks all known status page components.
+/// One provider's public Statuspage feed: where to fetch, where to link, which
+/// components matter. Claude and OpenAI both run Atlassian Statuspage, so a single
+/// parser serves both — only the config differs.
+struct StatusFeedConfig: Sendable {
+    let summaryURL: URL
+    /// Base URL of the human-facing status page (footer link).
+    let statusPageBaseURL: String
+    /// Components the app alerts on (and, for a filtered feed, the only ones that
+    /// drive the overall indicator).
+    let knownComponents: [StatusComponent]
+    /// nil → every component in the summary counts toward the worst indicator /
+    /// description / incident escalation (Claude: the page IS the product).
+    /// Non-nil → only these component IDs count. OpenAI's page lists 25+ unrelated
+    /// products (Sora, Images, …) whose outages must not paint the Codex dot red.
+    let componentFilter: Set<String>?
+
+    /// status.claude.com — unchanged behaviour from before provider support.
+    static let claude = StatusFeedConfig(
+        summaryURL: URL(string: "https://status.claude.com/api/v2/summary.json")!,
+        statusPageBaseURL: "https://status.claude.com",
+        knownComponents: [
+            StatusComponent(id: "rwppv331jlwc", name: "claude.ai", alertKey: "claudeAI"),
+            StatusComponent(id: "0qbwn08sd68x", name: "Console", alertKey: "console"),
+            StatusComponent(id: "k8w3r06qmzrp", name: "Claude API", alertKey: "claudeAPI"),
+            StatusComponent(id: "yyzkbfz2thpt", name: "Claude Code", alertKey: "claudeCode"),
+            StatusComponent(id: "0scnb50nvy53", name: "Claude for Gov", alertKey: "claudeForGov"),
+        ],
+        componentFilter: nil
+    )
+}
+
+/// Fetches a provider's system status from its public Statuspage API and reduces it
+/// to one indicator. One instance per feed (`shared` = Claude, `codex` = OpenAI),
+/// each with its own cache and exponential backoff.
 @MainActor
 final class StatusChecker {
-    static let shared = StatusChecker()
+    static let shared = StatusChecker(config: .claude)
+    static let codex = StatusChecker(config: .codex)
 
-    private let summaryURL = URL(string: "https://status.claude.com/api/v2/summary.json")!
+    static func shared(for provider: AIProvider) -> StatusChecker {
+        switch provider {
+        case .claude: shared
+        case .codex: codex
+        }
+    }
 
-    /// Base URL for the public status page.
-    nonisolated static let statusPageBaseURL = "https://status.claude.com"
+    let config: StatusFeedConfig
 
-    /// All status page components the app can alert on.
-    nonisolated static let knownComponents: [StatusComponent] = [
-        StatusComponent(id: "rwppv331jlwc", name: "claude.ai", alertKey: "claudeAI"),
-        StatusComponent(id: "0qbwn08sd68x", name: "Console", alertKey: "console"),
-        StatusComponent(id: "k8w3r06qmzrp", name: "Claude API", alertKey: "claudeAPI"),
-        StatusComponent(id: "yyzkbfz2thpt", name: "Claude Code", alertKey: "claudeCode"),
-        StatusComponent(id: "0scnb50nvy53", name: "Claude for Gov", alertKey: "claudeForGov"),
-    ]
+    init(config: StatusFeedConfig) {
+        self.config = config
+    }
+
+    /// Base URL for the Claude status page. Kept as a static for `ClaudeSystemStatus.unknown`
+    /// and legacy call sites; provider-aware code reads `config.statusPageBaseURL`.
+    nonisolated static let statusPageBaseURL = StatusFeedConfig.claude.statusPageBaseURL
+
+    /// Claude components the app alerts on (legacy static; see `StatusFeedConfig.claude`).
+    nonisolated static var knownComponents: [StatusComponent] { StatusFeedConfig.claude.knownComponents }
 
     nonisolated private static let jsonDecoder = JSONDecoder()
     private var cachedStatus: ClaudeSystemStatus?
@@ -41,12 +80,12 @@ final class StatusChecker {
         // Skip fetch if we recently failed (exponential backoff)
         if let failedAt = lastFailedAt, failureCount > 0,
            Date().timeIntervalSince(failedAt) < currentBackoff {
-            return cachedStatus ?? .unknown
+            return cachedStatus ?? .unknown(statusPageURL: config.statusPageBaseURL)
         }
 
         // Hop off MainActor for the HTTP request, decode, and parse.
         // We re-enter MainActor only to mutate cache/backoff state.
-        let outcome = await Self.fetchAndParse(url: summaryURL, timeout: 5)
+        let outcome = await Self.fetchAndParse(config: config, timeout: 5)
         switch outcome {
         case let .success(status):
             cachedStatus = status
@@ -57,14 +96,14 @@ final class StatusChecker {
             failureCount += 1
             updateBackoff()
             lastFailedAt = Date()
-            AppLogger.network.warning("StatusChecker HTTP \(code), backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
-            return cachedStatus ?? .unknown
+            AppLogger.network.warning("StatusChecker(\(self.config.statusPageBaseURL, privacy: .public)) HTTP \(code), backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
+            return cachedStatus ?? .unknown(statusPageURL: config.statusPageBaseURL)
         case let .failure(error):
             failureCount += 1
             updateBackoff()
             lastFailedAt = Date()
-            AppLogger.network.warning("StatusChecker fetch failed: \(error.localizedDescription, privacy: .public), backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
-            return cachedStatus ?? .unknown
+            AppLogger.network.warning("StatusChecker(\(self.config.statusPageBaseURL, privacy: .public)) fetch failed: \(error.localizedDescription, privacy: .public), backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
+            return cachedStatus ?? .unknown(statusPageURL: config.statusPageBaseURL)
         }
     }
 
@@ -77,10 +116,10 @@ final class StatusChecker {
         case failure(Error)
     }
 
-    /// Off-MainActor fetch + decode + parse. Pure: takes a URL, returns an outcome.
-    /// All instance state lives on MainActor; this function never touches `self`.
-    nonisolated static func fetchAndParse(url: URL, timeout: TimeInterval) async -> FetchOutcome {
-        var request = URLRequest(url: url)
+    /// Off-MainActor fetch + decode + parse. Pure: takes a feed config, returns an
+    /// outcome. All instance state lives on MainActor; this never touches `self`.
+    nonisolated static func fetchAndParse(config: StatusFeedConfig, timeout: TimeInterval) async -> FetchOutcome {
+        var request = URLRequest(url: config.summaryURL)
         request.timeoutInterval = timeout
         do {
             let (data, response) = try await SecureNetworking.data(for: request)
@@ -91,24 +130,33 @@ final class StatusChecker {
                 return .httpError(http.statusCode)
             }
             let summary = try jsonDecoder.decode(StatusPageSummary.self, from: data)
-            return .success(parseStatus(summary))
+            return .success(parseStatus(summary, config: config))
         } catch {
             return .failure(error)
         }
     }
 
-    /// Pure parser — exposed as `nonisolated static` so tests can exercise it
-    /// off-MainActor and `fetchAndParse` can call it without an actor hop.
-    /// Filescope visibility because `StatusPageSummary` is fileprivate.
-    nonisolated fileprivate static func parseStatus(_ summary: StatusPageSummary) -> ClaudeSystemStatus {
-        let components = summary.components
+    /// Pure parser — `nonisolated static` so tests exercise it off-MainActor and
+    /// `fetchAndParse` calls it without an actor hop. With a `componentFilter`, only
+    /// the filtered components (and incidents touching them) drive the result.
+    nonisolated static func parseStatus(_ summary: StatusPageSummary, config: StatusFeedConfig) -> ClaudeSystemStatus {
+        let components: [StatusPageComponent] = if let filter = config.componentFilter {
+            summary.components.filter { filter.contains($0.id) }
+        } else {
+            summary.components
+        }
         guard !components.isEmpty else {
-            // Fallback to overall status
+            // Fallback to overall status — for a filtered feed whose components are all
+            // missing from the summary we know nothing Codex-specific, so report unknown
+            // rather than the whole page's (unrelated) indicator.
+            if config.componentFilter != nil {
+                return .unknown(statusPageURL: config.statusPageBaseURL)
+            }
             return ClaudeSystemStatus(
                 indicator: StatusIndicator.from(summary.status.indicator),
                 description: summary.status.description,
                 incidentNames: [],
-                statusPageURL: StatusChecker.statusPageBaseURL
+                statusPageURL: config.statusPageBaseURL
             )
         }
 
@@ -133,9 +181,13 @@ final class StatusChecker {
         guard let worstComponent else { return .unknown }
         var worstIndicator = StatusIndicator.from(worstComponent.status)
 
-        // Check for active incidents
+        // Check for active incidents. With a component filter, an incident counts only
+        // when it explicitly names a filtered component — one with no component list
+        // could be about anything else on the page and must not colour this feed.
         let activeIncidents = summary.incidents.filter { incident in
-            incident.status != "resolved" && incident.status != "postmortem"
+            guard incident.status != "resolved", incident.status != "postmortem" else { return false }
+            guard let filter = config.componentFilter else { return true }
+            return incident.components?.contains { filter.contains($0.id) } ?? false
         }
         let activeIncident = activeIncidents.first
 
@@ -168,34 +220,37 @@ final class StatusChecker {
             indicator: worstIndicator,
             description: description,
             incidentNames: activeIncidents.map(\.name),
-            statusPageURL: StatusChecker.statusPageBaseURL,
+            statusPageURL: config.statusPageBaseURL,
             componentStatuses: componentStatuses
         )
     }
 }
 
-// MARK: - Statuspage JSON models
+// MARK: - Statuspage JSON models (internal so tests can build summaries directly)
 
-private struct StatusPageSummary: Codable {
+struct StatusPageSummary: Codable {
     let status: StatusPageStatus
     let components: [StatusPageComponent]
     let incidents: [StatusPageIncident]
 }
 
-private struct StatusPageStatus: Codable {
+struct StatusPageStatus: Codable {
     let indicator: String
     let description: String
 }
 
-private struct StatusPageComponent: Codable {
+struct StatusPageComponent: Codable {
     let id: String
     let name: String
     let status: String
 }
 
-private struct StatusPageIncident: Codable {
+struct StatusPageIncident: Codable {
     let id: String
     let name: String
     let status: String
     let impact: String
+    /// Components the incident lists as affected (Statuspage includes these; optional
+    /// because the app tolerates their absence).
+    var components: [StatusPageComponent]? = nil
 }

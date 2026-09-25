@@ -8,6 +8,7 @@ struct LocalEstimateSection: View {
     let fiveHourTokens: Int
     let sevenDayTokens: Int
     let window: MetricMode
+    var provider: AIProvider = .claude
 
     private var activeTokens: Int {
         window == .fiveHour ? fiveHourTokens : sevenDayTokens
@@ -30,7 +31,12 @@ struct LocalEstimateSection: View {
     }
 
     private var activeLabel: String {
-        window == .fiveHour ? "5-Hour" : "7-Day"
+        Self.windowLabel(window, provider: provider)
+    }
+
+    /// Window label in the provider's vocabulary: Anthropic "7-Day", OpenAI "Weekly".
+    nonisolated static func windowLabel(_ window: MetricMode, provider: AIProvider) -> String {
+        window == .fiveHour ? "5-Hour" : provider.secondaryWindowLabel
     }
 
     var body: some View {

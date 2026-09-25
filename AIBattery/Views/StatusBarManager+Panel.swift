@@ -154,13 +154,22 @@ final class PopoverPanel: NSPanel {
 struct PopoverContentView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject var oauthManager: OAuthManager
+    /// Which provider the signed-out root offers to sign in with. Flipped by the
+    /// "Sign in with X instead" footnote link inside AuthView.
+    @State private var signedOutProvider: AIProvider = .claude
 
     var body: some View {
         Group {
             if oauthManager.isAuthenticated {
                 UsagePopoverView(viewModel: viewModel)
             } else {
-                AuthView(oauthManager: oauthManager)
+                AuthView(
+                    oauthManager: oauthManager,
+                    provider: signedOutProvider,
+                    onToggleProvider: {
+                        signedOutProvider = signedOutProvider == .claude ? .codex : .claude
+                    }
+                )
             }
         }
         .frame(width: Layout.popoverWidth)

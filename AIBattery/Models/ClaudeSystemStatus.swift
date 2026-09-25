@@ -24,6 +24,11 @@ struct ClaudeSystemStatus {
         incidentNames: [],
         statusPageURL: StatusChecker.statusPageBaseURL
     )
+
+    /// Unknown status that still links to the right provider's status page.
+    static func unknown(statusPageURL: String) -> ClaudeSystemStatus {
+        ClaudeSystemStatus(indicator: .unknown, description: "Status unavailable", incidentNames: [], statusPageURL: statusPageURL)
+    }
 }
 
 enum StatusIndicator: String {

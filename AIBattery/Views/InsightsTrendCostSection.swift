@@ -98,7 +98,7 @@ extension InsightsView {
                 ForEach(models) { model in
                     let active = isActive(model)
                     let modelTokensText = TokenFormatter.format(model.totalTokens)
-                    let modelCost = "~\(ModelPricing.formatCompactCost(model.estimatedCost))"
+                    let modelCost = "\(snapshot.costIsBilled ? "" : "~")\(ModelPricing.formatCompactCost(model.estimatedCost))"
                     let activeSuffix = active ? " \u{00B7} active" : ""
                     let copyText = "\(model.displayName)\(activeSuffix) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
                     HStack(spacing: Spacing.gap) {

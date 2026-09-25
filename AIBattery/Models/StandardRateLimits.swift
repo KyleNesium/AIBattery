@@ -32,7 +32,83 @@ struct StandardRateLimits: Equatable, Codable {
     /// Whether the account is at or near the token limit.
     var isTokensExhausted: Bool { tokensRemaining <= 0 }
 
-    // MARK: - Parsing
+    // MARK: - Parsing (OpenAI)
+
+    /// Parse OpenAI `x-ratelimit-*` headers (per developers.openai.com rate-limit guide):
+    /// `-limit-requests`, `-remaining-requests`, `-reset-requests` (Go duration, e.g. "6m0s"),
+    /// and the `-tokens` trio. `-project-tokens` headers are ignored. Returns nil when
+    /// neither limit/remaining pair is present.
+    static func parse(openAIHeaders headers: [AnyHashable: Any], now: Date = Date()) -> StandardRateLimits? {
+        var normalized = [String: String]()
+        for (key, value) in headers {
+            if let k = key as? String, let v = value as? String {
+                normalized[k.lowercased()] = v
+            }
+        }
+        func int(_ key: String) -> Int? {
+            normalized[key].flatMap { Int($0) }
+        }
+        func reset(_ key: String) -> Date? {
+            normalized[key].flatMap(parseGoDuration).map { now.addingTimeInterval($0) }
+        }
+
+        let requestsLimit = int("x-ratelimit-limit-requests")
+        let requestsRemaining = int("x-ratelimit-remaining-requests")
+        let tokensLimit = int("x-ratelimit-limit-tokens")
+        let tokensRemaining = int("x-ratelimit-remaining-tokens")
+        guard (requestsLimit != nil && requestsRemaining != nil)
+            || (tokensLimit != nil && tokensRemaining != nil) else { return nil }
+
+        return StandardRateLimits(
+            requestsLimit: requestsLimit ?? 0,
+            requestsRemaining: requestsRemaining ?? 0,
+            requestsReset: reset("x-ratelimit-reset-requests"),
+            tokensLimit: tokensLimit ?? 0,
+            tokensRemaining: tokensRemaining ?? 0,
+            tokensReset: reset("x-ratelimit-reset-tokens")
+        )
+    }
+
+    /// Go-style duration ("1s", "6m0s", "1h2m3.5s", "20ms") → seconds. nil if unparseable.
+    static func parseGoDuration(_ text: String) -> TimeInterval? {
+        var total: TimeInterval = 0
+        var number = ""
+        var unit = ""
+        var sawComponent = false
+        func flush() -> Bool {
+            guard let value = Double(number) else { return false }
+            switch unit {
+            case "h": total += value * 3_600
+            case "m": total += value * 60
+            case "s": total += value
+            case "ms": total += value / 1_000
+            default: return false
+            }
+            sawComponent = true
+            number = ""
+            unit = ""
+            return true
+        }
+        for ch in text {
+            if ch.isNumber || ch == "." {
+                if !unit.isEmpty {
+                    guard flush() else { return nil }
+                }
+                number.append(ch)
+            } else if ch.isLetter {
+                guard !number.isEmpty else { return nil }
+                unit.append(ch)
+            } else {
+                return nil
+            }
+        }
+        if !number.isEmpty {
+            guard flush() else { return nil }
+        }
+        return sawComponent ? total : nil
+    }
+
+    // MARK: - Parsing (Anthropic)
 
     /// Parse standard rate limit headers from an HTTP response.
     static func parse(headers: [AnyHashable: Any]) -> StandardRateLimits? {

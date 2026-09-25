@@ -2,6 +2,10 @@ import SwiftUI
 
 struct PopoverFooterView: View {
     let systemStatus: ClaudeSystemStatus?
+    /// Active account's provider — drives the Usage/Status link targets and copy.
+    var provider: AIProvider = .claude
+    /// Codex API-key account — the usage dashboard is the platform billing page.
+    var apiKeyAccount: Bool = false
     let isLoading: Bool
     let lastFreshFetch: Date?
     var isShowingCachedData: Bool = false
@@ -18,11 +22,9 @@ struct PopoverFooterView: View {
                 FooterLink(
                     icon: "chart.bar",
                     label: "Usage",
-                    tooltip: "Open usage dashboard in browser"
+                    tooltip: "Open \(provider.displayName) usage dashboard in browser"
                 ) {
-                    if let url = URL(string: "https://claude.ai/settings/usage") {
-                        NSWorkspace.shared.open(url)
-                    }
+                    NSWorkspace.shared.open(Self.usageDashboardURL(for: provider, apiKeyAccount: apiKeyAccount))
                 }
 
                 // Status Page — colored dot acts as status indicator
@@ -31,7 +33,7 @@ struct PopoverFooterView: View {
                     tooltip: statusTooltip,
                     accessibilityLabel: "System status: \(statusTooltip)"
                 ) {
-                    if let url = URL(string: StatusChecker.statusPageBaseURL) {
+                    if let url = URL(string: Self.statusPageURL(systemStatus: systemStatus, provider: provider)) {
                         NSWorkspace.shared.open(url)
                     }
                 } leading: {
@@ -45,7 +47,7 @@ struct PopoverFooterView: View {
                     icon: showLogoutConfirm ? "exclamationmark.triangle" : "rectangle.portrait.and.arrow.right",
                     label: showLogoutConfirm ? "Confirm?" : "Logout",
                     accessibilityLabel: showLogoutConfirm ? "Confirm logout" : "Logout",
-                    accessibilityHint: "Sign out of active Claude account",
+                    accessibilityHint: "Sign out of active \(provider.displayName) account",
                     showsExternalArrow: false,
                     foregroundOverride: showLogoutConfirm ? ThemeColors.danger : nil,
                     action: {
@@ -119,6 +121,22 @@ struct PopoverFooterView: View {
 
     private var systemIndicator: StatusIndicator? {
         systemStatus?.indicator
+    }
+
+    /// Provider's web usage dashboard. Codex: the ChatGPT Codex usage settings page.
+    nonisolated static func usageDashboardURL(for provider: AIProvider, apiKeyAccount: Bool = false) -> URL {
+        switch provider {
+        case .claude: URL(string: "https://claude.ai/settings/usage")!
+        case .codex: apiKeyAccount
+            ? URL(string: "https://platform.openai.com/usage")!
+            : URL(string: "https://chatgpt.com/codex/settings/usage")!
+        }
+    }
+
+    /// Status page to open: the live status's own URL when we have one (it already
+    /// reflects the feed), else the provider's default page.
+    static func statusPageURL(systemStatus: ClaudeSystemStatus?, provider: AIProvider) -> String {
+        systemStatus?.statusPageURL ?? StatusChecker.shared(for: provider).config.statusPageBaseURL
     }
 
     private var statusColor: Color {

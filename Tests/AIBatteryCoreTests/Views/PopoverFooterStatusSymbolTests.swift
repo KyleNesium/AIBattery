@@ -51,4 +51,33 @@ struct PopoverFooterStatusSymbolTests {
                     "\(state) should overlay a symbol so it reads without color")
         }
     }
+
+    // MARK: - Provider-aware links (Plan 2)
+
+    @Test func usageDashboardURL_claude() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .claude).absoluteString == "https://claude.ai/settings/usage")
+    }
+
+    @Test func usageDashboardURL_codex() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .codex).absoluteString == "https://chatgpt.com/codex/settings/usage")
+    }
+
+    @Test func statusPageURL_prefersLiveStatus_thenProviderDefault() {
+        let live = ClaudeSystemStatus.unknown(statusPageURL: "https://status.example.invalid")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: live, provider: .codex) == "https://status.example.invalid")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: nil, provider: .codex) == "https://status.openai.com")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: nil, provider: .claude) == "https://status.claude.com")
+    }
+
+    @Test func usageDashboardURL_codexAPIKey_isPlatformUsage() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .codex, apiKeyAccount: true).absoluteString == "https://platform.openai.com/usage")
+    }
+
+    @Test func planLabel_capitalisesPlans_andUppercasesAPI() {
+        #expect(PopoverHeaderView.planLabel("plus") == "Plus")
+        #expect(PopoverHeaderView.planLabel("business") == "Business")
+        #expect(PopoverHeaderView.planLabel("api") == "API")
+        #expect(PopoverHeaderView.planLabel("") == nil)
+        #expect(PopoverHeaderView.planLabel(nil) == nil)
+    }
 }

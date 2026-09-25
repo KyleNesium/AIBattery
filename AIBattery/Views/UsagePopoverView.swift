@@ -24,7 +24,7 @@ public struct UsagePopoverView: View {
     /// Popover width scales with system text size, capped to avoid overflow.
     @ScaledMetric(relativeTo: .body) private var scaledWidth: CGFloat = Layout.popoverWidth
     @State private var showSettings = false
-    @State private var isAddingAccount = false
+    @State private var addingProvider: AIProvider?
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
     @State private var accountCountAtAddStart = 0
@@ -41,6 +41,16 @@ public struct UsagePopoverView: View {
     /// Cached ordered modes — avoids allocating a new array on every body evaluation.
     @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
     private var orderedModes: [MetricMode] { cachedOrderedModes }
+
+    /// Shape of the active account's quota (windows / credits / per-minute API limits).
+    private func displayKind(_ snapshot: UsageSnapshot) -> CodexDisplayKind {
+        guard snapshot.provider == .codex else { return .windows }
+        return CodexDisplayKind.of(
+            rateLimits: snapshot.rateLimits,
+            standardLimits: snapshot.standardLimits,
+            apiKeyAccount: accountStore.activeAccount?.isAPIKeyAccount ?? false
+        )
+    }
 
     public init(viewModel: UsageViewModel) {
         self.viewModel = viewModel
@@ -86,17 +96,18 @@ public struct UsagePopoverView: View {
     }
 
     public var body: some View {
-        if isAddingAccount {
+        if let addingProvider {
             AuthView(
                 oauthManager: OAuthManager.shared,
+                provider: addingProvider,
                 isAddingAccount: true,
-                onCancel: { isAddingAccount = false }
+                onCancel: { self.addingProvider = nil }
             )
             .onAppear { accountCountAtAddStart = accountStore.accounts.count }
             .onReceive(accountStore.$accounts) { newAccounts in
                 // Auth completed for new account — detect actual addition, not initial publish
-                if newAccounts.count > accountCountAtAddStart && isAddingAccount {
-                    isAddingAccount = false
+                if newAccounts.count > accountCountAtAddStart && self.addingProvider != nil {
+                    self.addingProvider = nil
                     Task { await viewModel.refresh() }
                 }
             }
@@ -111,7 +122,7 @@ public struct UsagePopoverView: View {
                 snapshot: viewModel.snapshot,
                 accountStore: accountStore,
                 showSettings: $showSettings,
-                isAddingAccount: $isAddingAccount,
+                onAddAccount: { addingProvider = $0 },
                 onSwitchAccount: { accountId in
                     viewModel.switchAccount(to: accountId)
                 },
@@ -125,7 +136,7 @@ public struct UsagePopoverView: View {
                 SettingsRow(
                     viewModel: viewModel,
                     accountStore: accountStore,
-                    onAddAccount: { isAddingAccount = true }
+                    onAddAccount: { addingProvider = $0 }
                 )
                 .transition(.opacity)
                 // No StyledDivider here — the always-present divider above the footer
@@ -134,7 +145,9 @@ public struct UsagePopoverView: View {
             } else if let snapshot = viewModel.snapshot {
                 MetricToggleView(
                     pickerBinding: pickerBinding,
-                    snapshot: snapshot
+                    snapshot: snapshot,
+                    provider: snapshot.provider,
+                    kind: displayKind(snapshot)
                 )
 
                 // Local estimate header — shown once when API rate limits are unavailable
@@ -166,33 +179,45 @@ public struct UsagePopoverView: View {
                 ForEach(orderedModes, id: \.rawValue) { mode in
                     switch mode {
                     case .fiveHour:
-                        if let limits = snapshot.rateLimits {
+                        if let limits = snapshot.rateLimits, limits.isCreditBudget, let budget = limits.creditBudget {
+                            // Codex credit budget: one bar stands in for both windows.
+                            CreditBudgetSection(limits: limits, budget: budget, source: snapshot.rateLimitSource, confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
+                            StyledDivider()
+                        } else if let limits = snapshot.rateLimits {
                             FiveHourBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.fiveHourWindowTokens(resetsAt: limits.fiveHourReset), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.fiveHourWindow))
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(
                                 fiveHourTokens: snapshot.fiveHourTokens,
                                 sevenDayTokens: snapshot.sevenDayTokens,
-                                window: .fiveHour
+                                window: .fiveHour,
+                                provider: snapshot.provider
                             )
                             StyledDivider()
                         } else if let stdLimits = snapshot.standardLimits {
-                            StandardLimitsSection(limits: stdLimits)
+                            StandardLimitsSection(limits: stdLimits, provider: snapshot.provider)
                             StyledDivider()
                         }
                     case .sevenDay:
-                        if let limits = snapshot.rateLimits {
+                        if displayKind(snapshot) != .windows {
+                            // Rendered once in the .fiveHour slot as the Credits / API Limits bar.
+                            EmptyView()
+                        } else if let limits = snapshot.rateLimits {
                             SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayWindowTokens(resetsAt: limits.sevenDayReset), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
+                            if let balance = limits.creditBalance {
+                                CreditBalanceRow(balance: balance, unlimited: limits.creditBudget?.unlimited ?? false)
+                            }
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(
                                 fiveHourTokens: snapshot.fiveHourTokens,
                                 sevenDayTokens: snapshot.sevenDayTokens,
-                                window: .sevenDay
+                                window: .sevenDay,
+                                provider: snapshot.provider
                             )
                             StyledDivider()
                         } else if let stdLimits = snapshot.standardLimits {
-                            StandardLimitsSection(limits: stdLimits)
+                            StandardLimitsSection(limits: stdLimits, provider: snapshot.provider)
                             StyledDivider()
                         }
                     case .contextHealth:
@@ -239,12 +264,14 @@ public struct UsagePopoverView: View {
                     Task { await viewModel.refresh() }
                 }
             } else if !showSettings {
-                PopoverEmptyView()
+                PopoverEmptyView(provider: accountStore.activeAccount?.provider ?? .claude)
             }
 
             StyledDivider()
             PopoverFooterView(
                 systemStatus: viewModel.systemStatus,
+                provider: accountStore.activeAccount?.provider ?? .claude,
+                apiKeyAccount: accountStore.activeAccount?.isAPIKeyAccount ?? false,
                 isLoading: viewModel.isLoading,
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isShowingCachedData: viewModel.isShowingCachedData,

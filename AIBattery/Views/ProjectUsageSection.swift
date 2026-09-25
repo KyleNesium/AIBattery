@@ -93,7 +93,7 @@ struct ProjectUsageSection: View {
 
     private var headerRow: some View {
         let totalTokensText = TokenFormatter.format(snapshot.totalProjectTokens)
-        let costText = "~\(ModelPricing.formatCompactCost(snapshot.totalProjectCost))"
+        let costText = "\(snapshot.costIsBilled ? "" : "~")\(ModelPricing.formatCompactCost(snapshot.totalProjectCost))"
         return HStack {
             CollapsibleSectionHeader(
                 title: "Projects",
@@ -164,7 +164,7 @@ struct ProjectUsageSection: View {
 
     private func projectRow(_ project: ProjectTokenSummary, index: Int) -> some View {
         let tokensText = TokenFormatter.format(project.totalTokens)
-        let costText = "~\(ModelPricing.formatCompactCost(project.estimatedCost))"
+        let costText = "\(snapshot.costIsBilled ? "" : "~")\(ModelPricing.formatCompactCost(project.estimatedCost))"
         let copyText = "\(project.projectName) \u{00B7} \(costText) \u{00B7} \(tokensText)"
         return HStack(spacing: Spacing.gap) {
             Text("\(index + 1)")
