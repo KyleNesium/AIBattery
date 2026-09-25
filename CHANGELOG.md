@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased] — Codex (OpenAI) accounts
+
+AI Battery becomes a two-provider battery: up to 3 Claude **and** 3 Codex
+accounts, switchable from the header picker (✦ / ⬡ glyphs when both exist).
+
+### Added
+- **Codex accounts** via ChatGPT sign-in (browser round-trip, no code to paste),
+  one-click import of the Codex CLI login, or an OpenAI API key.
+- **Three Codex billing models**, each with its own layout: subscriptions
+  (5-hour + Weekly windows, purchased-credit balance), Business/Enterprise
+  spend controls (one Credits budget bar), and API keys (per-minute OpenAI
+  request/token limits, costs shown as a real bill at API rates).
+- **Codex Insights**: token usage, per-model API-equivalent cost, Projects and
+  Context Health rebuilt from `~/.codex/sessions` rollouts (token counts only).
+- `gpt-5.x` / `gpt-6-astra` pricing, GPT display names, OpenAI status feed
+  filtered to Codex components, plan name in the account picker.
+
+### Changed
+- Every popover label, link and error follows the active account's provider
+  ("Weekly" instead of "7-Day" for Codex; OpenAI status and usage links).
+- Rate-limit window lengths reported by the provider now drive the rollover
+  guard and burn-rate estimate (Claude defaults unchanged).
+
+### Security
+- Codex OAuth callback binds to 127.0.0.1 only; API keys live in the Keychain
+  under a hashed account id and are never sent to chatgpt.com.
+
 ## [2.6.1] — 2026-09-01
 
 Fixes another false "Limit reached" variant and ships a security fix in the
