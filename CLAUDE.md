@@ -41,7 +41,7 @@ open .build/AIBattery.app
 swift test
 ```
 
-1266 tests across 98 files, using `import Testing` + `@testable import AIBatteryCore`.
+1268 tests across 98 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities
