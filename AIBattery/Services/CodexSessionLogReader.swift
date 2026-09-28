@@ -233,18 +233,23 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
 
         while true {
             guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
+            // Bytes already searched for a newline on a previous pass — a multi-megabyte
+            // line arrives in many chunks and must not be rescanned from its start each time.
+            let alreadyScanned = leftover.count
             leftover.append(chunk)
 
-            if leftover.count > maxLineSize, leftover.firstIndex(of: UInt8(ascii: "\n")) == nil {
+            if leftover.count > maxLineSize, leftover[(leftover.startIndex + alreadyScanned)...].firstIndex(of: UInt8(ascii: "\n")) == nil {
                 lastCorruptLineCount += 1
                 AppLogger.files.warning("Skipping oversized Codex JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
                 continue
             }
 
-            while let newlineIndex = leftover.firstIndex(of: UInt8(ascii: "\n")) {
+            var searchFrom = leftover.startIndex + alreadyScanned
+            while let newlineIndex = leftover[searchFrom...].firstIndex(of: UInt8(ascii: "\n")) {
                 let lineData = Data(leftover[leftover.startIndex..<newlineIndex])
                 leftover = leftover[(newlineIndex + 1)...]
+                searchFrom = leftover.startIndex
                 process(lineData)
             }
 

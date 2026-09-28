@@ -85,4 +85,21 @@ struct CodexAPIKeyAccountTests {
         #expect(CodexAuthFileImporter.parseCredential(chatgpt) == .chatGPT(CodexImportedAuth(accountId: "acc", idToken: "i", accessToken: "a", refreshToken: "r")))
         #expect(CodexAuthFileImporter.parseCredential(Data(#"{"auth_mode":"apikey","OPENAI_API_KEY":""}"#.utf8)) == nil)
     }
+
+    // MARK: - Free key validation via GET /v1/models (verified live: bad key → 401 invalid_api_key)
+
+    @Test func validationRequest_shape() {
+        let request = CodexRateLimitFetcher.apiKeyValidationRequest(apiKey: "sk-test", userAgent: "AIBattery/test")
+        #expect(request.url?.absoluteString == "https://api.openai.com/v1/models")
+        #expect(request.httpMethod == "GET")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-test")
+    }
+
+    @Test func interpretValidation_outcomes() {
+        #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 200) == .valid)
+        #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 401) == .invalid)
+        #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 403) == .invalid)
+        #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 429) == .valid) // rate-limited but authenticated
+        #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 503) == .unknown)
+    }
 }

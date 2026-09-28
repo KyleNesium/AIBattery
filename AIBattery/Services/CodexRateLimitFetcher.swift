@@ -123,6 +123,41 @@ final class CodexRateLimitFetcher {
 
     // MARK: - API-key accounts (pay-per-token)
 
+    nonisolated static let apiKeyValidationURL = URL(string: "https://api.openai.com/v1/models")!
+
+    enum APIKeyValidation: Equatable {
+        case valid
+        case invalid
+        /// Couldn't reach OpenAI / server error — not evidence either way.
+        case unknown
+    }
+
+    /// Free authentication check used when a key is entered: `GET /v1/models` answers
+    /// 401 `invalid_api_key` for a bad key (verified live 2026-09-28) and 200 for a good one.
+    nonisolated static func apiKeyValidationRequest(apiKey: String, userAgent: String) -> URLRequest {
+        var request = URLRequest(url: apiKeyValidationURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 15
+        return request
+    }
+
+    nonisolated static func interpretAPIKeyValidation(statusCode: Int) -> APIKeyValidation {
+        switch statusCode {
+        case 401, 403: .invalid
+        case 200..<300, 429: .valid // 429 = authenticated but rate-limited
+        default: .unknown
+        }
+    }
+
+    func validateAPIKey(_ apiKey: String) async -> APIKeyValidation {
+        let request = Self.apiKeyValidationRequest(apiKey: apiKey, userAgent: userAgent)
+        guard let (_, response) = try? await SecureNetworking.data(for: request),
+              let http = response as? HTTPURLResponse else { return .unknown }
+        return Self.interpretAPIKeyValidation(statusCode: http.statusCode)
+    }
+
     nonisolated static let apiKeyProbeURL = URL(string: "https://api.openai.com/v1/responses")!
     /// Cheapest-first probe models; a 400/404 "model not found" moves to the next.
     nonisolated static let apiKeyProbeModels = ["gpt-5-nano", "gpt-5-mini", "gpt-5"]

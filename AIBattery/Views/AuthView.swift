@@ -281,10 +281,16 @@ public struct AuthView: View {
                                 .font(Typography.tinyLabel)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
                             Spacer()
-                            Button("Connect", action: submitAPIKey)
-                                .buttonStyle(.borderedProminent)
-                                .tint(ThemeColors.action)
-                                .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            Button(action: submitAPIKey) {
+                                if isExchanging {
+                                    ProgressView().scaleEffect(0.6)
+                                } else {
+                                    Text("Connect")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(ThemeColors.action)
+                            .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isExchanging)
                         }
                     }
                 } else {
@@ -362,13 +368,26 @@ public struct AuthView: View {
     }
 
     private func submitAPIKey() {
+        let key = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty, !isExchanging else { return }
         errorMessage = nil
-        if case .failure(let error) = oauthManager.registerCodexAPIKey(apiKeyInput) {
-            errorMessage = error.userMessage
-        } else {
-            apiKeyInput = ""
+        isExchanging = true
+        Task {
+            // Free check first so a mistyped key fails here, not on the first paid probe.
+            // A transient failure (.unknown) doesn't block — the account can still be added.
+            let validation = await CodexRateLimitFetcher.shared.validateAPIKey(key)
+            isExchanging = false
+            if validation == .invalid {
+                errorMessage = "OpenAI rejected this API key. Check it at platform.openai.com/api-keys."
+                return
+            }
+            if case .failure(let error) = oauthManager.registerCodexAPIKey(key) {
+                errorMessage = error.userMessage
+            } else {
+                apiKeyInput = ""
+            }
+            // Success auto-dismisses via AccountStore, like the OAuth flow.
         }
-        // Success auto-dismisses via AccountStore, like the OAuth flow.
     }
 
     private func importCodexCLILogin() {

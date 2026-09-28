@@ -19,6 +19,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex OAuth callback timeout | 180 sec — abandoned sign-in releases port 1455 | CodexAuthSession |
 | Codex session-log tail scan | 256 KB of the newest rollout | CodexSessionRateLimitScanner |
 | Codex reader discovery TTL | 60 sec (+ root-dir mtime check) | CodexSessionLogReader |
+| Codex line pre-filter head | 512 bytes (`CodexSessionLogParser.relevanceHeadBytes`) | CodexSessionLogParser |
+| OpenAI API-key validation | `GET https://api.openai.com/v1/models`, 15 s timeout — 401/403 invalid, 2xx/429 valid, else unknown | CodexRateLimitFetcher |
 | Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |

@@ -116,4 +116,15 @@ struct CodexSessionLogParserTests {
         #expect(first.model == "gpt-5.4")
         #expect(second.model == "gpt-5.6-sol")
     }
+
+    @Test func mightBeRelevant_onlyInspectsTheLineHead() {
+        // Rollout lines put `type` (and payload.type) within the first ~100 bytes; the
+        // pre-filter reads only the head so multi-megabyte response_item lines aren't
+        // scanned end-to-end. A marker buried past the head is deliberately not seen.
+        let padding = String(repeating: "x", count: CodexSessionLogParser.relevanceHeadBytes + 10)
+        let buried = Data(#"{"type":"response_item","payload":{"text":"\#(padding)","type":"token_count"}}"#.utf8)
+        #expect(!CodexSessionLogParser.mightBeRelevant(buried))
+        #expect(CodexSessionLogParser.mightBeRelevant(line(tokenCount)))
+        #expect(CodexSessionLogParser.relevanceHeadBytes >= 256)
+    }
 }

@@ -34,11 +34,18 @@ struct CodexSessionLogParser {
         "\"session_meta\"", "\"turn_context\"", "\"token_count\"",
     ].compactMap { $0.data(using: .utf8) }
 
+    /// How much of a line the pre-filter inspects. Rollout lines carry `type` (and
+    /// `payload.type`) within the first ~100 bytes, so scanning the head is enough —
+    /// and it keeps multi-megabyte `response_item` lines from being scanned end to end
+    /// (the cold scan of a 340 MB tree dropped from ~15 s with whole-line scanning).
+    static let relevanceHeadBytes = 512
+
     /// Cheap byte pre-filter run before JSON decoding. May admit false positives
-    /// (e.g. a `response_item` whose text mentions "token_count") — `consume`
+    /// (e.g. a `response_item` whose head mentions "token_count") — `consume`
     /// still gates on the real `type` field.
     static func mightBeRelevant(_ line: Data) -> Bool {
-        relevantMarkers.contains { line.range(of: $0) != nil }
+        let head = line.count > relevanceHeadBytes ? line.prefix(relevanceHeadBytes) : line[...]
+        return relevantMarkers.contains { head.range(of: $0) != nil }
     }
 
     /// Feed one complete JSONL line (no trailing newline).
