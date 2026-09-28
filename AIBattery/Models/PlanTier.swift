@@ -84,11 +84,53 @@ enum PlanTier: String, CaseIterable, Codable {
     ) -> PlanTier? {
         if let accountId,
            let data = defaults.data(forKey: UserDefaultsKeys.accounts),
-           let records = try? JSONDecoder().decode([AccountRecord].self, from: data),
-           let billing = records.first(where: { $0.id == accountId && $0.provider == .claude })?.billingType,
+           let billing = claudeBillingTypes(in: data)[accountId],
            let tier = PlanTier(billingType: billing) {
             return tier
         }
         return current
+    }
+
+    // MARK: - Accounts-blob decode cache (perf backlog #9)
+
+    /// `effective` is read several times per popover render in local-estimate mode.
+    /// Decoding the persisted `[AccountRecord]` JSON each time was the cost; the blob
+    /// only changes when an account is added/renamed/re-billed, so cache the decoded
+    /// `accountId → billingType` map for the last blob seen (Data equality is a cheap
+    /// memcmp). Claude accounts only — Codex plans never map to Claude tiers.
+    /// Keyed by blob so concurrent readers of different blobs (parallel tests; a
+    /// mid-write race in production) never evict each other. Production holds one
+    /// entry; the cap only bounds pathological churn.
+    nonisolated(unsafe) private static var decodedAccounts: [Data: [String: String]] = [:]
+    nonisolated(unsafe) private static var decodeCounts: [Data: Int] = [:]
+    private static let decodeLock = NSLock()
+    private static let decodedAccountsCap = 8
+
+    private static func claudeBillingTypes(in data: Data) -> [String: String] {
+        decodeLock.lock()
+        defer { decodeLock.unlock() }
+        if let cached = decodedAccounts[data] {
+            return cached
+        }
+        decodeCounts[data, default: 0] += 1
+        let records = (try? JSONDecoder().decode([AccountRecord].self, from: data)) ?? []
+        var billing: [String: String] = [:]
+        for record in records where record.provider == .claude {
+            if let type = record.billingType {
+                billing[record.id] = type
+            }
+        }
+        if decodedAccounts.count >= decodedAccountsCap {
+            decodedAccounts.removeAll(keepingCapacity: true)
+        }
+        decodedAccounts[data] = billing
+        return billing
+    }
+
+    /// How many times a given accounts blob has been decoded (tests pin decode-once).
+    static func accountsDecodeCountForTesting(for data: Data) -> Int {
+        decodeLock.lock()
+        defer { decodeLock.unlock() }
+        return decodeCounts[data] ?? 0
     }
 }

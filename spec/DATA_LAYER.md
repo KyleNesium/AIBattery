@@ -368,7 +368,7 @@ Static: `current: PlanTier?` — the user-selected global tier, persisted to Use
 
 `init?(billingType:)` — maps an account's API-reported `billingType` string to a tier (lowercased, separators stripped; `"pro"`, `"max5x"`, `"max20x"`, `"team"`/`"teams"`; anything unrecognized → nil rather than guessing).
 
-`effective(forAccountId:defaults:)` — the tier for a specific account's estimates: the account's `billingType` when it maps to a known tier, else `current`. Reads the persisted `AccountRecord` JSON directly (`UserDefaultsKeys.accounts`) so nonisolated estimate paths don't cross into the `@MainActor` `AccountStore`.
+`effective(forAccountId:defaults:)` — the tier for a specific account's estimates: the account's `billingType` when it maps to a known tier, else `current`. Reads the persisted `AccountRecord` JSON directly (`UserDefaultsKeys.accounts`) so nonisolated estimate paths don't cross into the `@MainActor` `AccountStore`; the decoded `accountId → billingType` map (Claude accounts only) is cached for the last blob seen (lock-protected, Data-equality check), so repeated reads per popover render decode once (perf backlog #9).
 
 Conforms to `CaseIterable`, `Codable`.
 
