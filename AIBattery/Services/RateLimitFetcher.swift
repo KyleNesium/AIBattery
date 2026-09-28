@@ -91,12 +91,15 @@ final class RateLimitFetcher {
     /// Called after every aggregation cycle; the list rarely changes, so skip the
     /// UserDefaults write when it hasn't (perf backlog #8).
     func setObservedModels(_ models: [String], accountId: String, defaults: UserDefaults = .standard) {
-        let unchanged = observedModels == models
-            && defaults.stringArray(forKey: Self.observedModelsKeyPrefix + accountId) == models
         observedModels = models
-        guard !unchanged else { return }
+        guard lastPersistedObservedModels[accountId] != models else { return }
+        lastPersistedObservedModels[accountId] = models
         defaults.set(models, forKey: Self.observedModelsKeyPrefix + accountId)
     }
+
+    /// Last list written per account — the write-skip compares against this, not
+    /// against a UserDefaults read, so the common unchanged cycle costs nothing.
+    private var lastPersistedObservedModels: [String: [String]] = [:]
 
     func saveWorkingModel(_ model: String, accountId: String) {
         lastWorkingModel[accountId] = model
