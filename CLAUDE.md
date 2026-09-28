@@ -41,7 +41,7 @@ open .build/AIBattery.app
 swift test
 ```
 
-1281 tests across 100 files, using `import Testing` + `@testable import AIBatteryCore`.
+1284 tests across 101 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities
@@ -70,7 +70,7 @@ These aren't obvious from reading the code — know them before making changes:
 - Codex local data comes from `~/.codex/sessions` rollouts via `CodexSessionLogParser` → the **same** `AssistantUsageEntry`, so `UsageAggregator` is shared (one instance per provider, `claude-`/`gpt-` model filter). Only `session_meta`, `turn_context` and `token_count.last_token_usage` are decoded — `response_item` (message content) is rejected on `type`. Codex has no stats cache: all-time figures are bounded by rollout retention and the UI says so.
 - Claude Code 5-hour / 7-day usage may come from Claude Code client metadata rather than public `/v1/messages` headers
 - Legacy unified `anthropic-ratelimit-unified-*` headers still exist in some paths, but public Anthropic API docs now describe standard `anthropic-ratelimit-*` headers instead
-- JSONL must be streamed via `FileHandle` (never load full file into memory)
+- JSONL must be streamed via `FileHandle` (never load full file into memory); newline search goes through `Data.firstNewlineIndex(from:)` (memchr) resumed per chunk — `Data.firstIndex(of:)` was the cold-scan bottleneck for both readers
 - JSONL tokens must not double-count with `stats-cache.json` (see DATA_LAYER.md)
 - `OAuthManager.exchangeCode()` returns `Result<Void, AuthError>` — callers handle typed errors. Validates state parameter for CSRF protection.
 - `APIFetchResult.isCached` distinguishes fresh API data from stale cache — always check before treating as fresh. The `RateLimitFetcher` cache never expires (stale data beats empty bars); individual rate-limit windows are cleared at their own reset via `withClearedExpiredWindows`.

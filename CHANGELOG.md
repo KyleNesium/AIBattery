@@ -18,6 +18,9 @@ accounts, switchable from the header picker (✦ / ⬡ glyphs when both exist).
   filtered to Codex components, plan name in the account picker.
 
 ### Changed
+- Cold JSONL scans are 3–10× faster for both providers (memchr newline search,
+  head-only Codex line pre-filter): Claude 8.6 s → 2.3 s and Codex 15.3 s → 1.5 s
+  on the reference machine.
 - Every popover label, link and error follows the active account's provider
   ("Weekly" instead of "7-Day" for Codex; OpenAI status and usage links).
 - Rate-limit window lengths reported by the provider now drive the rollover

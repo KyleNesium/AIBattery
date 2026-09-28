@@ -199,6 +199,7 @@ AIBattery/
     ModelNameMapper.swift         — "claude-opus-4-6-20250929" → "Opus 4.6"; "gpt-5.6-sol" → "GPT-5.6 Sol"
     UserDefaultsKeys.swift        — Centralized @AppStorage / UserDefaults key constants
     DateFormatters.swift          — Shared DateFormatter / ISO8601DateFormatter instances (allocated once)
+    Data+Newline.swift            — `firstNewlineIndex(from:)`: memchr-backed newline search shared by both JSONL readers
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
@@ -259,6 +260,7 @@ Tests/AIBatteryCoreTests/
     SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
     SessionLogReaderDiscoveryTests.swift — TTL-based discovery fallback, cache expiry
     SessionLogReaderIntegrationTests.swift — End-to-end JSONL scanning + merge behavior
+    SessionLogReaderRealDataTests.swift / CodexSessionLogReaderRealDataTests.swift — Opt-in (env-gated) full-scale scans of the developer's real trees: timing + ordering/uniqueness/cache invariants
     CodexSessionLogParserTests.swift — Codex rollout line state machine + AssistantUsageEntry field mapping (real-fixture lines)
     CodexSessionLogReaderTests.swift — Nested date-dir discovery, fingerprint cache, eviction, deletion, partial tail, symlink boundary
     CodexRateLimitFetcherTests.swift / CodexRateLimitFetcherBackoffTests.swift — wham/usage interpretation, spike write-back, endpoint backoff

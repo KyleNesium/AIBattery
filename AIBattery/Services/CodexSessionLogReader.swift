@@ -238,7 +238,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             let alreadyScanned = leftover.count
             leftover.append(chunk)
 
-            if leftover.count > maxLineSize, leftover[(leftover.startIndex + alreadyScanned)...].firstIndex(of: UInt8(ascii: "\n")) == nil {
+            if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
                 lastCorruptLineCount += 1
                 AppLogger.files.warning("Skipping oversized Codex JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
@@ -246,7 +246,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
 
             var searchFrom = leftover.startIndex + alreadyScanned
-            while let newlineIndex = leftover[searchFrom...].firstIndex(of: UInt8(ascii: "\n")) {
+            while let newlineIndex = leftover.firstNewlineIndex(from: searchFrom) {
                 let lineData = Data(leftover[leftover.startIndex..<newlineIndex])
                 leftover = leftover[(newlineIndex + 1)...]
                 searchFrom = leftover.startIndex

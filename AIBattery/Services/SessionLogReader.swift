@@ -406,21 +406,26 @@ final class SessionLogReader: @unchecked Sendable {
 
         while true {
             guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
+            // Bytes already searched for a newline on a previous pass — a multi-megabyte
+            // line arrives in many chunks and must not be rescanned from its start each time.
+            let alreadyScanned = leftover.count
             leftover.append(chunk)
 
             // Safety: if leftover exceeds max line size without finding a newline,
             // the JSONL line is malformed — discard and move on.
-            if leftover.count > maxLineSize, leftover.firstIndex(of: UInt8(ascii: "\n")) == nil {
+            if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
                 lastCorruptLineCount += 1
                 AppLogger.files.warning("Skipping oversized JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
                 continue
             }
 
-            // Process complete lines
-            while let newlineIndex = leftover.firstIndex(of: UInt8(ascii: "\n")) {
+            // Process complete lines (memchr-backed search, resumed where the last pass stopped)
+            var searchFrom = leftover.startIndex + alreadyScanned
+            while let newlineIndex = leftover.firstNewlineIndex(from: searchFrom) {
                 let lineData = leftover[leftover.startIndex..<newlineIndex]
                 leftover = leftover[(newlineIndex + 1)...]
+                searchFrom = leftover.startIndex
 
                 guard !lineData.isEmpty else { continue }
 
