@@ -748,6 +748,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - "claude-opus-4-6-20250929" → "Opus 4.6"
 
 ### DateFormatters (`Utilities/DateFormatters.swift`)
+- `iso8601NoFraction` + `parseISO8601(_:)` (fractional first, then plain) — the header/JSON parsers (`StandardRateLimits.parse`, `RateLimitUsage.parse(clientData:)`) route through this instead of allocating and reconfiguring an `ISO8601DateFormatter` per call.
 - Enum (no instances) — centralized, allocated-once date formatters
 - `dateKey: DateFormatter` — `"yyyy-MM-dd"`, `en_US_POSIX` locale. Used for daily activity date keys, stats cache lookups.
 - `iso8601: ISO8601DateFormatter` — with `.withFractionalSeconds`. Used for JSONL timestamps, firstSessionDate.

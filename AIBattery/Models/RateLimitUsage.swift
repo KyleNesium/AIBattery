@@ -446,13 +446,7 @@ struct RateLimitUsage: Equatable, Codable {
                     let seconds = unix > 10_000_000_000 ? unix / 1_000.0 : unix
                     return Date(timeIntervalSince1970: seconds)
                 }
-                let iso = ISO8601DateFormatter()
-                iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let date = iso.date(from: text) {
-                    return date
-                }
-                iso.formatOptions = [.withInternetDateTime]
-                if let date = iso.date(from: text) {
+                if let date = DateFormatters.parseISO8601(text) {
                     return date
                 }
             }

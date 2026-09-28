@@ -135,13 +135,7 @@ struct StandardRateLimits: Equatable, Codable {
             for key in keys {
                 guard let val = normalized[key.lowercased()] else { continue }
                 // ISO 8601 timestamps
-                let iso = ISO8601DateFormatter()
-                iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let date = iso.date(from: val) {
-                    return date
-                }
-                iso.formatOptions = [.withInternetDateTime]
-                if let date = iso.date(from: val) {
+                if let date = DateFormatters.parseISO8601(val) {
                     return date
                 }
                 // Unix timestamps
