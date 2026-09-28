@@ -38,7 +38,7 @@ final class RateLimitFetcher {
     /// Populated by UsageAggregator after each aggregation cycle. Replaces the old hardcoded
     /// list so the probe list self-heals when Anthropic deprecates model IDs.
     private(set) var observedModels: [String] = []
-    private static let observedModelsKeyPrefix = "aibattery_observedModels_"
+    static let observedModelsKeyPrefix = "aibattery_observedModels_"
 
     /// Per-account last working model ID — persisted to UserDefaults so the app
     /// starts with a known-good model after restart instead of retrying from the top.
@@ -88,9 +88,14 @@ final class RateLimitFetcher {
 
     /// Persist observed models for the given account so they survive app restarts.
     /// Called by UsageAggregator after each aggregation cycle.
-    func setObservedModels(_ models: [String], accountId: String) {
+    /// Called after every aggregation cycle; the list rarely changes, so skip the
+    /// UserDefaults write when it hasn't (perf backlog #8).
+    func setObservedModels(_ models: [String], accountId: String, defaults: UserDefaults = .standard) {
+        let unchanged = observedModels == models
+            && defaults.stringArray(forKey: Self.observedModelsKeyPrefix + accountId) == models
         observedModels = models
-        UserDefaults.standard.set(models, forKey: Self.observedModelsKeyPrefix + accountId)
+        guard !unchanged else { return }
+        defaults.set(models, forKey: Self.observedModelsKeyPrefix + accountId)
     }
 
     func saveWorkingModel(_ model: String, accountId: String) {
