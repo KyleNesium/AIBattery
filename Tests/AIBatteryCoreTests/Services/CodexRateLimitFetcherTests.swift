@@ -108,4 +108,49 @@ struct CodexRateLimitFetcherTests {
         fetcher.overrideCachedRateLimits(held, accountId: accountId, defaults: defaults)
         #expect(fetcher.cachedOrEmpty(accountId: accountId).rateLimits == nil)
     }
+
+    // MARK: - Orphan pruning + API-key persistence (post-review)
+
+    @Test func pruneAccounts_dropsOrphans_keepsLiveAndSkipsEmptySet() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let liveId = "codex-live-\(UUID().uuidString)"
+        let orphanId = "codex-gone-\(UUID().uuidString)"
+        guard case .success(let result) = CodexRateLimitFetcher.interpretUsageResponse(statusCode: 200, data: goodBody) else {
+            Issue.record("expected success"); return
+        }
+        let fetcher = CodexRateLimitFetcher()
+        fetcher.persistRateLimits(result, accountId: liveId, defaults: defaults)
+        fetcher.persistRateLimits(result, accountId: orphanId, defaults: defaults)
+        fetcher.restorePersistedRateLimits(defaults: defaults)
+
+        fetcher.pruneAccounts(keeping: [], defaults: defaults) // guarded no-op
+        #expect(fetcher.cachedOrEmpty(accountId: orphanId).rateLimits != nil)
+
+        fetcher.pruneAccounts(keeping: [liveId], defaults: defaults)
+        #expect(fetcher.cachedOrEmpty(accountId: liveId).rateLimits != nil)
+        #expect(fetcher.cachedOrEmpty(accountId: orphanId).rateLimits == nil)
+        #expect(defaults.data(forKey: CodexRateLimitFetcher.persistKeyPrefix + liveId) != nil)
+        #expect(defaults.data(forKey: CodexRateLimitFetcher.persistKeyPrefix + orphanId) == nil)
+    }
+
+    @Test func apiKeyLimits_persistAndRestore_withoutRateLimits() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let id = "openai-api-\(UUID().uuidString.prefix(8))"
+        let headers: [AnyHashable: Any] = ["x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900"]
+        guard case .success(let result) = CodexRateLimitFetcher.interpretAPIKeyProbe(statusCode: 200, headers: headers) else {
+            Issue.record("expected success"); return
+        }
+        let fetcher = CodexRateLimitFetcher()
+        fetcher.persistRateLimits(result, accountId: id, defaults: defaults)
+        let restored = CodexRateLimitFetcher()
+        restored.restorePersistedRateLimits(defaults: defaults)
+        let cached = restored.cachedOrEmpty(accountId: id)
+        #expect(cached.rateLimits == nil)
+        #expect(cached.standardLimits?.tokensLimit == 1_000)
+        #expect(cached.hasStandardRateLimitHeaders)
+        #expect(cached.planType == "api")
+        #expect(cached.isCached)
+    }
 }

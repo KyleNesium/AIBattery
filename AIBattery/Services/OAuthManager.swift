@@ -85,6 +85,7 @@ public final class OAuthManager: ObservableObject {
         let liveIds = Set(accountStore.accounts.map(\.id))
         TokenLedger.shared.pruneAccounts(keeping: liveIds)
         RateLimitFetcher.shared.pruneAccounts(keeping: liveIds)
+        CodexRateLimitFetcher.shared.pruneAccounts(keeping: liveIds)
     }
 
     // MARK: - Public API
@@ -354,6 +355,10 @@ public final class OAuthManager: ObservableObject {
         deleteTokens(for: id)
         if removedProvider == .codex {
             cancelCodexAuthFlow()
+            // Drop the signed-out account's cached/persisted Codex reading (which for an
+            // API-key account includes per-minute limits) — nothing else prunes it until
+            // the next launch sweep.
+            CodexRateLimitFetcher.shared.clearCache(accountId: id)
         }
         accountStore.remove(id: id)
 

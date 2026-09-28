@@ -323,6 +323,21 @@ final class CodexRateLimitFetcher {
         cachedResults.removeValue(forKey: accountId)
         defaults.removeObject(forKey: Self.persistKeyPrefix + accountId)
     }
+
+    /// Drop cached + persisted entries for accounts that no longer exist (launch-time
+    /// orphan sweep, mirrors `RateLimitFetcher.pruneAccounts`). No-op on an empty live
+    /// set so a logged-out / fresh-launch transient can't wipe held state.
+    func pruneAccounts(keeping liveAccountIds: Set<String>, defaults: UserDefaults = .standard) {
+        guard !liveAccountIds.isEmpty else { return }
+        cachedResults = cachedResults.filter { liveAccountIds.contains($0.key) }
+        let prefix = Self.persistKeyPrefix
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            let accountId = String(key.dropFirst(prefix.count))
+            if !liveAccountIds.contains(accountId) {
+                defaults.removeObject(forKey: key)
+            }
+        }
+    }
 }
 
 // MARK: - Persistence
