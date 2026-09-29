@@ -25,6 +25,53 @@ struct CodexTokenClientTests {
         #expect(!error.isTransient)
     }
 
+    /// A 429 (or any other unexpected status) from the token endpoint says nothing about
+    /// the refresh token — it must be retried next cycle, never sign the account out.
+    @Test func rateLimitedAndUnexpectedStatusesAreTransient() {
+        for status in [408, 425, 429, 499] {
+            let result = CodexTokenClient.interpretTokenResponse(statusCode: status, data: Data())
+            guard case .failure(let error) = result else { Issue.record("expected failure for \(status)"); return }
+            #expect(error.isTransient, "status \(status) must be transient")
+        }
+    }
+
+    /// Codex sign-in errors speak for OpenAI, never Anthropic, and a user cancel is silent.
+    @Test func codexErrorsUseOpenAIVoice() {
+        guard case .failure(let rejected) = CodexTokenClient.interpretTokenResponse(statusCode: 400, data: Data()) else {
+            Issue.record("expected failure"); return
+        }
+        #expect(rejected.userMessage.contains("OpenAI"))
+        #expect(!rejected.userMessage.contains("Anthropic"))
+        #expect(!rejected.userMessage.contains("authorization code"))
+
+        guard case .failure(let transient) = CodexTokenClient.interpretTokenResponse(statusCode: 502, data: Data()) else {
+            Issue.record("expected failure"); return
+        }
+        #expect(transient.userMessage.contains("OpenAI"))
+        #expect(!transient.userMessage.contains("Anthropic"))
+
+        let cancelled = OAuthManager.AuthError.codexCallbackFailure(.providerError("cancelled"))
+        #expect(cancelled.isCancellation)
+        #expect(cancelled.userMessage.isEmpty)
+        let timeout = OAuthManager.AuthError.codexCallbackFailure(.providerError("timeout"))
+        #expect(!timeout.isCancellation)
+        #expect(timeout.userMessage.contains("timed out"))
+        #expect(!timeout.userMessage.contains("providerError"))
+        let denied = OAuthManager.AuthError.codexCallbackFailure(.providerError("access_denied"))
+        #expect(denied.userMessage.contains("access_denied"))
+        #expect(OAuthManager.AuthError.codexCallbackFailure(.missingState).userMessage.contains("redirect"))
+    }
+
+    /// The refresh grant is not guaranteed to echo `id_token`; only the code exchange
+    /// needs it (to derive the account id). A 200 without it is still a good token set.
+    @Test func refreshResponseWithoutIdTokenIsAccepted() throws {
+        let body = Data(#"{"access_token":"a2","refresh_token":"r2"}"#.utf8)
+        let set = try CodexTokenClient.interpretTokenResponse(statusCode: 200, data: body).get()
+        #expect(set.idToken == nil)
+        #expect(set.accessToken == "a2")
+        #expect(set.refreshToken == "r2")
+    }
+
     @Test func exchangeSendsFormEncodedBody() async throws {
         let captured = CapturedRequest()
         _ = await CodexTokenClient.exchangeCode("CODE1", verifier: "VERIF", transport: { request in

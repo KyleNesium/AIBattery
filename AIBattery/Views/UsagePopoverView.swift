@@ -297,7 +297,7 @@ public struct UsagePopoverView: View {
         .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
         .contentShape(Rectangle())
         .overlay {
-            TutorialOverlay(hasData: viewModel.snapshot != nil)
+            TutorialOverlay(hasData: viewModel.snapshot != nil, kind: viewModel.snapshot.map(displayKind) ?? .windows)
         }
         .onAppear {
             // No deferredRender.appeared() here: onAppear fires when the hosting view
@@ -355,7 +355,11 @@ public struct UsagePopoverView: View {
             withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.fiveHour.rawValue }
         case "2":
             viewModel.resetHysteresis()
-            withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.sevenDay.rawValue }
+            // Single-budget kinds (Credits / API Limits) have no second window tab — "2"
+            // selects the one budget tab instead of a hidden mode.
+            let collapsed = viewModel.snapshot.map { displayKind($0) != .windows } ?? false
+            let target: MetricMode = collapsed ? .fiveHour : .sevenDay
+            withAnimation(MotionConstants.snappy) { metricModeRaw = target.rawValue }
         case "3":
             viewModel.resetHysteresis()
             withAnimation(MotionConstants.snappy) { metricModeRaw = MetricMode.contextHealth.rawValue }

@@ -56,8 +56,63 @@ struct CodexCreditBudgetTests {
         #expect(usage.isThrottled)
     }
 
-    @Test func noWindowsNoSpendControl_returnsNil() {
-        #expect(CodexUsageParser.parseUsageResponse(Data(#"{"plan_type":"business","rate_limit":null,"credits":{"has_credits":true}}"#.utf8)) == nil)
+    /// A Business/Enterprise workspace with no individual spend cap answers 200 with
+    /// `rate_limit: null` and no `individual_limit`. That is a healthy account with no
+    /// quota to show — not an outage. It must parse to an uncapped credit reading so the
+    /// fetcher never backs off / falls back on a valid answer.
+    @Test func noWindowsNoSpendControl_isUncappedCreditReading() throws {
+        let body = Data(#"{"plan_type":"business","rate_limit":null,"credits":{"has_credits":true,"unlimited":false}}"#.utf8)
+        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let budget = try #require(usage.creditBudget)
+        #expect(usage.isCreditBudget)
+        #expect(budget.isUncapped)
+        #expect(budget.limit == 0)
+        #expect(usage.fiveHourUtilization == 0)
+        #expect(usage.overallStatus == "allowed")
+        guard case .success = CodexRateLimitFetcher.interpretUsageResponse(statusCode: 200, data: body) else {
+            Issue.record("uncapped body must be .success"); return
+        }
+    }
+
+    @Test func noWindowsNoSpendControl_creditsDepleted_isThrottled() throws {
+        let body = Data(#"{"plan_type":"business","rate_limit":null,"credits":{"has_credits":false,"unlimited":false}}"#.utf8)
+        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        #expect(usage.creditBudget?.isUncapped == true)
+        #expect(usage.isThrottled)
+    }
+
+    @Test func unparseableAndEmptyBodies_stillReturnNil() {
+        #expect(CodexUsageParser.parseUsageResponse(Data("junk".utf8)) == nil)
+        #expect(CodexUsageParser.parseUsageResponse(Data("{}".utf8)) == nil)
+        // A subscription plan whose windows are missing is still "no data", not uncapped.
+        #expect(CodexUsageParser.parseUsageResponse(Data(#"{"plan_type":"plus","rate_limit":{}}"#.utf8)) == nil)
+    }
+
+    /// The rollover-artifact filter reasons in 5h / 7-day window lengths. A credit budget
+    /// resets on its own period (weekly / monthly) far beyond those lengths, so a genuine
+    /// 96% reading must survive the filter — it previously zeroed the menu bar / alerts.
+    @Test func rolloverFilter_neverZeroesCreditBudget() throws {
+        let body = try Data(#require(String(data: businessBody, encoding: .utf8)?
+                .replacingOccurrences(of: "\"used_percent\":21", with: "\"used_percent\":96").utf8))
+        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let now = Date(timeIntervalSince1970: 1_790_812_800 - 484_869) // 5.6 days before the reset
+        let filtered = usage.withClearedRolloverArtifacts(now: now)
+        #expect(abs(filtered.fiveHourUtilization - 0.96) < 0.0001)
+        #expect(abs(filtered.sevenDayUtilization - 0.96) < 0.0001)
+        #expect(filtered.creditBudget?.usedPercent == 96)
+    }
+
+    /// Same guard, provider-agnostic: a reset further away than the window is long can
+    /// never be "a window that just started".
+    @Test func rolloverFilter_ignoresResetsBeyondWindowLength() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let usage = RateLimitUsage(
+            representativeClaim: RateLimitUsage.fiveHourWindow,
+            fiveHourUtilization: 0.97, fiveHourReset: now.addingTimeInterval(6 * 3_600), fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1, sevenDayReset: now.addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        #expect(abs(usage.withClearedRolloverArtifacts(now: now).fiveHourUtilization - 0.97) < 0.0001)
     }
 
     @Test func windowedPlan_hasNoCreditBudget() throws {

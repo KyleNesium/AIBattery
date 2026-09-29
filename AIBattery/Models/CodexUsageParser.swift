@@ -18,17 +18,31 @@ nonisolated enum CodexUsageParser {
 
     private nonisolated static func parseUsageDict(_ dict: [String: Any]) -> RateLimitUsage? {
         let reachedType = dict["rate_limit_reached_type"] as? String
-        let budget = parseCreditBudget(dict)
+        let parsedBudget = parseCreditBudget(dict)
 
         // Windowed plans (Plus / Pro / Team): primary + secondary windows.
         if let rateLimit = dict["rate_limit"] as? [String: Any],
-           let windowed = assemble(primaryAny: rateLimit["primary_window"], secondaryAny: rateLimit["secondary_window"], reachedType: reachedType, budget: budget) {
+           let windowed = assemble(primaryAny: rateLimit["primary_window"], secondaryAny: rateLimit["secondary_window"], reachedType: reachedType, budget: parsedBudget) {
             return windowed
+        }
+
+        // A windowed plan whose windows failed to parse is "no data", not a budget.
+        if dict["rate_limit"] is [String: Any] {
+            return nil
         }
 
         // Spend-control plans (Business / Enterprise): `rate_limit` is null and the
         // budget lives in `spend_control.individual_limit`. Mirror it onto both windows.
-        guard let budget, budget.limit > 0 else { return nil }
+        // A workspace without an individual cap answers with neither — that is a healthy,
+        // unmetered account (`uncapped`), never an outage.
+        let budget: CodexCreditBudget
+        if let parsedBudget, parsedBudget.limit > 0 {
+            budget = parsedBudget
+        } else if dict["plan_type"] != nil || dict["credits"] != nil || dict["spend_control"] != nil {
+            budget = uncappedBudget(dict, credits: parsedBudget)
+        } else {
+            return nil
+        }
         let utilization = min(max(budget.usedPercent / 100.0, 0), 1)
         let throttled = budget.reached || !budget.hasCredits || reachedType != nil
         let status = throttled ? "throttled" : "allowed"
@@ -43,6 +57,23 @@ nonisolated enum CodexUsageParser {
             overallStatus: status,
             provider: .codex,
             creditBudget: budget
+        )
+    }
+
+    /// Reading for a spend-control plan with no individual cap: nothing used, nothing
+    /// limited, `uncapped` set. Carries the `credits` flags so a depleted workspace still
+    /// reads as throttled.
+    private nonisolated static func uncappedBudget(_ dict: [String: Any], credits: CodexCreditBudget?) -> CodexCreditBudget {
+        let creditsDict = dict["credits"] as? [String: Any]
+        let spend = dict["spend_control"] as? [String: Any]
+        return CodexCreditBudget(
+            usedPercent: 0, used: 0, limit: 0, remaining: 0, unit: "credit", resetsAt: nil,
+            reached: (spend?["reached"] as? Bool) ?? false,
+            hasCredits: credits?.hasCredits ?? ((creditsDict?["has_credits"] as? Bool) ?? true),
+            unlimited: credits?.unlimited ?? ((creditsDict?["unlimited"] as? Bool) ?? false),
+            planType: dict["plan_type"] as? String,
+            balance: credits?.balance,
+            uncapped: true
         )
     }
 

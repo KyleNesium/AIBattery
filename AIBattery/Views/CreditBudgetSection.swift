@@ -15,8 +15,14 @@ struct CreditBudgetSection: View {
     }
 
     private var headerTooltip: String {
-        var parts = ["Codex credits: \(Int(alarm.displayPercent))% of this period's budget used"]
-        parts.append("\(CodexCreditBudget.formatCredits(budget.used)) of \(CodexCreditBudget.formatCredits(budget.limit)) \(budget.unit)s")
+        var parts: [String] = if budget.isUncapped {
+            ["Codex credits: this plan has no individual spend cap, so there is nothing to meter"]
+        } else {
+            [
+                "Codex credits: \(Int(alarm.displayPercent))% of this period's budget used",
+                "\(CodexCreditBudget.formatCredits(budget.used)) of \(CodexCreditBudget.formatCredits(budget.limit)) \(budget.unit)s",
+            ]
+        }
         if let planType = budget.planType {
             parts.append("Plan: \(planType)")
         }
@@ -34,15 +40,15 @@ struct CreditBudgetSection: View {
             percent: alarm.displayPercent,
             barColor: ThemeColors.barColor(percent: alarm.displayPercent),
             accessibilityLabel: "Codex credits \(Int(alarm.displayPercent)) percent used",
-            accessibilityValue: alarm.throttled ? "Credits exhausted" : "\(CodexCreditBudget.formatCredits(budget.remaining)) credits remaining",
+            accessibilityValue: alarm.throttled ? "Credits exhausted" : (budget.isUncapped ? "No spend cap" : "\(CodexCreditBudget.formatCredits(budget.remaining)) credits remaining"),
             headerLeading: {
                 HStack(spacing: Spacing.inner) {
                     Text("Credits")
                         .font(Typography.buttonLabel)
                         .accessibilityAddTraits(.isHeader)
                         .help(headerTooltip)
-                    if budget.unlimited {
-                        Text("unlimited")
+                    if budget.unlimited || budget.isUncapped {
+                        Text(budget.isUncapped ? "no cap" : "unlimited")
                             .font(Typography.badgeLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .padding(.horizontal, Spacing.small)
@@ -60,13 +66,20 @@ struct CreditBudgetSection: View {
             },
             headerTrailing: {
                 HStack(spacing: Spacing.inner) {
-                    Text("\(Int(alarm.displayPercent))%")
-                        .font(Typography.monoValue)
-                        .copyable("\(Int(alarm.displayPercent))%")
-                    Text("\(CodexCreditBudget.formatCredits(budget.used)) / \(CodexCreditBudget.formatCredits(budget.limit))")
-                        .font(Typography.monoValue)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
-                        .copyable("\(Int(budget.used)) / \(Int(budget.limit)) \(budget.unit)s")
+                    if budget.isUncapped {
+                        Text("—")
+                            .font(Typography.monoValue)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                            .help("No individual spend cap on this plan")
+                    } else {
+                        Text("\(Int(alarm.displayPercent))%")
+                            .font(Typography.monoValue)
+                            .copyable("\(Int(alarm.displayPercent))%")
+                        Text("\(CodexCreditBudget.formatCredits(budget.used)) / \(CodexCreditBudget.formatCredits(budget.limit))")
+                            .font(Typography.monoValue)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                            .copyable("\(Int(budget.used)) / \(Int(budget.limit)) \(budget.unit)s")
+                    }
                 }
             },
             footer: { now in
@@ -76,6 +89,10 @@ struct CreditBudgetSection: View {
                         Text(budget.hasCredits ? "Budget reached" : "Credits depleted")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
+                    } else if budget.isUncapped {
+                        Text("No spend cap on this plan")
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
                     } else if alarm.limitReached {
                         Text("Budget reached")
                             .font(Typography.tinyLabel)

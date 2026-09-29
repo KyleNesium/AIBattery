@@ -158,4 +158,45 @@ public final class AccountStore: ObservableObject {
     nonisolated static func displayOrdered(_ accounts: [AccountRecord]) -> [AccountRecord] {
         accounts.filter { $0.provider == .claude } + accounts.filter { $0.provider == .codex }
     }
+
+    /// Whether a set of accounts spans both providers — the only case where labels
+    /// carry the provider glyph (a single-provider setup stays exactly as before).
+    nonisolated static func spansBothProviders(_ accounts: [AccountRecord]) -> Bool {
+        Set(accounts.map(\.provider)).count > 1
+    }
+
+    /// The one label an account gets everywhere it is listed (header picker, Settings
+    /// rows): display name if set, otherwise "User N" where N is the account's position
+    /// in `displayOrdered`, prefixed with the provider glyph in a mixed setup and, for
+    /// Codex, optionally suffixed with the plan ("· Business", "· API").
+    nonisolated static func displayLabel(
+        for account: AccountRecord,
+        index: Int,
+        showsProviderGlyph: Bool,
+        includePlan: Bool
+    ) -> String {
+        let base: String = if let name = account.displayName, !name.isEmpty {
+            name
+        } else {
+            "User \(index + 1)"
+        }
+        let labelled = showsProviderGlyph ? "\(account.provider.glyph) \(base)" : base
+        if includePlan, account.provider == .codex, let plan = planLabel(account.billingType) {
+            return "\(labelled) · \(plan)"
+        }
+        return labelled
+    }
+
+    /// "plus" → "Plus", "api" → "API", "chatgpt_team" → "ChatGPT Team"; nil for empty/unknown.
+    nonisolated static func planLabel(_ billingType: String?) -> String? {
+        guard let raw = billingType?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        let words = raw.split(whereSeparator: { $0 == "_" || $0 == "-" || $0 == " " })
+        return words.map { word -> String in
+            switch word.lowercased() {
+            case "api": "API"
+            case "chatgpt": "ChatGPT"
+            default: word.prefix(1).uppercased() + word.dropFirst().lowercased()
+            }
+        }.joined(separator: " ")
+    }
 }

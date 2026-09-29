@@ -84,6 +84,31 @@ struct UsageViewModelTests {
         #expect(msg == "Unable to reach Anthropic API. Check your internet connection and try again.")
     }
 
+    /// A Codex result never carries a profile, so a first-run user whose endpoint call
+    /// failed used to be told to "start a Codex session". The fetcher now flags the
+    /// failure and the copy says what actually happened.
+    @Test func refreshErrorMessage_codexEndpointUnavailable_saysUnreachable() {
+        let failed = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 0,
+            provider: .codex, endpointUnavailable: true
+        )
+        #expect(failed == "Unable to reach OpenAI. Check your internet connection and try again.")
+        let fresh = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 0,
+            provider: .codex, endpointUnavailable: false
+        )
+        #expect(fresh == "No usage data yet. Start a Codex session to see your stats.")
+        // Auth errors still win.
+        let auth = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 0,
+            authError: true, provider: .codex, endpointUnavailable: true
+        )
+        #expect(auth?.contains("Authentication failed") == true)
+    }
+
     @Test func refreshErrorMessage_hasRateLimits_returnsNil() {
         let msg = UsageViewModel.refreshErrorMessage(
             hasRateLimits: true,

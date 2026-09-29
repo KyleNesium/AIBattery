@@ -998,11 +998,21 @@ struct UsageSnapshotTests {
         #expect(snapshot.percent(for: .sevenDay) == 0)
     }
 
+    /// The menu bar follows the tighter per-minute limit: tokens here (75% > 10%).
     @Test func codexAPIKeySnapshot_percentUsesPerMinuteTokenLimit() {
         let std = StandardRateLimits(requestsLimit: 100, requestsRemaining: 90, requestsReset: nil, tokensLimit: 1_000, tokensRemaining: 250, tokensReset: nil)
         let snapshot = makeSnapshot(provider: .codex, standardLimits: std)
         #expect(snapshot.percent(for: .fiveHour) == 75)
         #expect(snapshot.percent(for: .sevenDay) == 75)
+    }
+
+    /// …and requests when that is the binding one — a 16-token probe barely moves the
+    /// token bar, so a request-capped key must not read "0%".
+    @Test func codexAPIKeySnapshot_percentUsesRequestLimitWhenTighter() {
+        let std = StandardRateLimits(requestsLimit: 10, requestsRemaining: 2, requestsReset: nil, tokensLimit: 100_000, tokensRemaining: 99_000, tokensReset: nil)
+        let snapshot = makeSnapshot(provider: .codex, standardLimits: std)
+        #expect(snapshot.percent(for: .fiveHour) == 80)
+        #expect(snapshot.percent(for: .sevenDay) == 80)
     }
 
     @Test func equality_differsOnCostIsBilled() {

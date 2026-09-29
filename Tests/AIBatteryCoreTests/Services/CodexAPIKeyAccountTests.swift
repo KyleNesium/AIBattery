@@ -42,6 +42,19 @@ struct CodexAPIKeyAccountTests {
         }
     }
 
+    /// OpenAI answers 403 for model / region / verification restrictions on a perfectly
+    /// valid key. Only 401 means the key itself is bad; a 403 must fall through to the
+    /// next probe model (and never tell the user to "log out and reconnect").
+    @Test func probe403_isNotAnAuthFailure() {
+        guard case .unavailable = CodexRateLimitFetcher.interpretAPIKeyProbe(statusCode: 403, headers: [:], now: now) else {
+            Issue.record("403 without headers must be unavailable, not authFailed"); return
+        }
+        #expect(CodexRateLimitFetcher.probeShouldTryNextModel(statusCode: 403))
+        #expect(CodexRateLimitFetcher.probeShouldTryNextModel(statusCode: 404))
+        #expect(CodexRateLimitFetcher.probeShouldTryNextModel(statusCode: 400))
+        #expect(!CodexRateLimitFetcher.probeShouldTryNextModel(statusCode: 503))
+    }
+
     @Test func probeRequest_shape() throws {
         let request = CodexRateLimitFetcher.apiKeyProbeRequest(apiKey: "sk-test-123", model: "gpt-5-nano", userAgent: "AIBattery/test")
         #expect(request.url?.absoluteString == "https://api.openai.com/v1/responses")
@@ -98,7 +111,7 @@ struct CodexAPIKeyAccountTests {
     @Test func interpretValidation_outcomes() {
         #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 200) == .valid)
         #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 401) == .invalid)
-        #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 403) == .invalid)
+        #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 403) == .unknown) // restricted, not necessarily bad
         #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 429) == .valid) // rate-limited but authenticated
         #expect(CodexRateLimitFetcher.interpretAPIKeyValidation(statusCode: 503) == .unknown)
     }

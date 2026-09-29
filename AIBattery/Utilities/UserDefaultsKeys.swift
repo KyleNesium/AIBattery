@@ -20,6 +20,9 @@ enum UserDefaultsKeys {
     static let colorblindMode = "aibattery_colorblindMode"
     static let showAllAccountsInMenuBar = "aibattery_showAllAccountsInMenuBar"
     static let hasSeenTutorial = "aibattery_hasSeenTutorial"
+    /// Provider the signed-out root offers first — the last one the user used/removed,
+    /// so a Codex-only user isn't dropped onto the Claude sign-in after a sign-out.
+    static let signedOutProvider = "aibattery_signedOutProvider"
     static let idleSessionMinutes = "aibattery_idleSessionMinutes"
     static let throttleTimestamps = "aibattery_throttleTimestamps"
     static let planTier = "aibattery_planTier"

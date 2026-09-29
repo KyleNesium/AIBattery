@@ -22,6 +22,13 @@ struct CodexCreditBudget: Codable, Equatable, Sendable {
     /// Purchased-credit balance (`credits.balance`) on subscription plans — spent only once
     /// the rate-limit windows are exhausted. nil when the plan doesn't report one.
     var balance: Double? = nil
+    /// True when the plan reports neither rate-limit windows nor an individual spend cap
+    /// (a Business / Enterprise workspace without spend controls): a healthy account with
+    /// nothing to meter. `limit` is 0 and `usedPercent` is 0 in that case. Optional so
+    /// blobs persisted before the field existed still decode.
+    var uncapped: Bool? = nil
+
+    var isUncapped: Bool { uncapped == true }
 
     /// Human-readable credit amounts: 7 006.3 → "7.0K", 32 768 → "32.8K", 950 → "950".
     static func formatCredits(_ value: Double) -> String {

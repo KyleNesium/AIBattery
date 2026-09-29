@@ -20,6 +20,11 @@ struct APIFetchResult {
     /// or "api" for API-key accounts. Synced onto `AccountRecord.billingType`.
     let planType: String?
 
+    /// True when this cycle's provider request failed (transport error, 5xx, backoff)
+    /// and there was nothing cached to serve — distinguishes "provider unreachable" from
+    /// "account has no data yet" in the popover's error copy.
+    let endpointUnavailable: Bool
+
     init(
         rateLimits: RateLimitUsage?,
         rateLimitSource: RateLimitSource? = nil,
@@ -29,8 +34,10 @@ struct APIFetchResult {
         fetchedAt: Date = Date(),
         isCached: Bool = false,
         authError: Bool = false,
-        planType: String? = nil
+        planType: String? = nil,
+        endpointUnavailable: Bool = false
     ) {
+        self.endpointUnavailable = endpointUnavailable
         self.rateLimits = rateLimits
         self.rateLimitSource = rateLimits == nil ? nil : (rateLimitSource ?? .anthropicAPIHeaders)
         self.standardLimits = standardLimits

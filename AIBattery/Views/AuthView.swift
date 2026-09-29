@@ -14,8 +14,8 @@ public struct AuthView: View {
     var isAddingAccount: Bool = false
     var onCancel: (() -> Void)?
     /// Only set for the signed-out root (never for the add-account overlay, which
-    /// already knows which provider button the user clicked). Non-nil enables the
-    /// small "Sign in with X instead" footnote link in the footer.
+    /// already knows which provider button the user clicked). Non-nil shows the
+    /// Claude | Codex provider picker above the sign-in content.
     var onToggleProvider: (() -> Void)?
     @State private var authCode: String = ""
     @State private var isAwaitingSignIn = false
@@ -63,6 +63,41 @@ public struct AuthView: View {
 
             StyledDivider()
 
+            // Signed-out root only: both providers get equal billing. The add-account
+            // overlay already knows which provider the user picked.
+            if let onToggleProvider, !isAwaitingSignIn {
+                let selection = Binding<AIProvider>(
+                    get: { provider },
+                    set: { newValue in
+                        if newValue != provider {
+                            onToggleProvider()
+                        }
+                    }
+                )
+                Picker("Provider", selection: selection) {
+                    Text("\(AIProvider.claude.glyph) Claude").tag(AIProvider.claude)
+                    Text("\(AIProvider.codex.glyph) Codex").tag(AIProvider.codex)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityLabel("Provider to sign in with")
+                .accessibilityHint("Choose between a Claude account and a Codex (OpenAI) account")
+                .help("Choose which provider to sign in with")
+            }
+
+            if !isAddingAccount, let reason = oauthManager.lastSignOutReason {
+                HStack(spacing: Spacing.inner) {
+                    Image(systemName: "info.circle")
+                        .font(Typography.tinyLabel)
+                        .foregroundStyle(ThemeColors.caution)
+                    Text(reason)
+                        .font(Typography.tinyLabel)
+                        .foregroundStyle(ThemeColors.caution)
+                        .multilineTextAlignment(.leading)
+                }
+                .accessibilityElement(children: .combine)
+            }
+
             if provider == .codex {
                 codexContent
             } else {
@@ -97,17 +132,6 @@ public struct AuthView: View {
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.secondaryLabel)
                         .keyboardShortcut("q", modifiers: .command)
-                    if let onToggleProvider {
-                        Spacer()
-                        Button(action: onToggleProvider) {
-                            Text(provider == .claude ? "Sign in with Codex instead" : "Sign in with Claude instead")
-                        }
-                        .buttonStyle(.plain)
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
-                        .accessibilityLabel(provider == .claude ? "Sign in with Codex instead" : "Sign in with Claude instead")
-                        .accessibilityHint("Switches the sign-in flow to the other provider")
-                    }
                 }
                 Spacer()
             }
@@ -237,7 +261,9 @@ public struct AuthView: View {
     private var codexContent: some View {
         if !isAwaitingSignIn {
             VStack(spacing: Spacing.section) {
-                Text("Connect your OpenAI account to see Codex usage and rate limits.")
+                Text(isAddingAccount
+                    ? "Connect another ChatGPT or OpenAI account to watch a second Codex quota."
+                    : "Connect your ChatGPT or OpenAI account to see Codex usage, credits and rate limits.")
                     .font(Typography.caption)
                     .foregroundStyle(ThemeColors.secondaryLabel)
                     .multilineTextAlignment(.center)
@@ -291,7 +317,21 @@ public struct AuthView: View {
                             .buttonStyle(.borderedProminent)
                             .tint(ThemeColors.action)
                             .disabled(apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isExchanging)
+                            .accessibilityLabel(isExchanging ? "Connecting" : "Connect API key")
+                            .accessibilityHint("Validates the key and adds the account")
                         }
+                        LinkActionButton(
+                            label: "Use ChatGPT sign-in instead",
+                            icon: "arrow.uturn.backward",
+                            help: "Go back to the ChatGPT browser sign-in",
+                            accessibilityLabel: "Use ChatGPT sign-in instead",
+                            accessibilityHint: "Hides the API key field",
+                            action: {
+                                showAPIKeyField = false
+                                apiKeyInput = ""
+                                errorMessage = nil
+                            }
+                        )
                     }
                 } else {
                     LinkActionButton(
@@ -322,6 +362,7 @@ public struct AuthView: View {
                 Button("Cancel") {
                     oauthManager.cancelCodexAuthFlow()
                     isAwaitingSignIn = false
+                    errorMessage = nil
                 }
                 .buttonStyle(.plain)
                 .font(Typography.caption)
@@ -358,7 +399,7 @@ public struct AuthView: View {
         Task {
             let result = await oauthManager.completeCodexAuthFlow()
             isAwaitingSignIn = false
-            if case .failure(let error) = result {
+            if case .failure(let error) = result, !error.isCancellation {
                 errorMessage = error.userMessage
             }
             // Success needs no handling here — the account lands in AccountStore
@@ -371,6 +412,11 @@ public struct AuthView: View {
         let key = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !isExchanging else { return }
         errorMessage = nil
+        // Shape check before any network: an obvious typo fails instantly and offline.
+        guard OAuthManager.looksLikeOpenAIAPIKey(key) else {
+            errorMessage = OAuthManager.AuthError.malformedAPIKeyMessage
+            return
+        }
         isExchanging = true
         Task {
             // Free check first so a mistyped key fails here, not on the first paid probe.
@@ -385,6 +431,10 @@ public struct AuthView: View {
                 errorMessage = error.userMessage
             } else {
                 apiKeyInput = ""
+                if validation == .unknown {
+                    // Not a failure — say so, since the first refresh will do the real check.
+                    errorMessage = "Couldn't verify the key right now (offline?). Added anyway — it's checked on the first refresh."
+                }
             }
             // Success auto-dismisses via AccountStore, like the OAuth flow.
         }

@@ -3,7 +3,10 @@ import Foundation
 /// Token set returned by OpenAI's OAuth token endpoint, for both the
 /// authorization-code exchange and the refresh-token grant.
 struct CodexTokenSet: Equatable {
-    let idToken: String
+    /// Present on the authorization-code exchange (it carries the ChatGPT account id).
+    /// The refresh grant is not guaranteed to echo it, so it is optional here and only
+    /// required by `completeCodexAuthFlow`.
+    let idToken: String?
     let accessToken: String
     let refreshToken: String?
 }
@@ -22,7 +25,7 @@ struct CodexTokenSet: Equatable {
 enum CodexTokenClient {
     /// Decodable shape of the token endpoint's JSON response body.
     private struct TokenResponse: Decodable {
-        let idToken: String
+        let idToken: String?
         let accessToken: String
         let refreshToken: String?
 
@@ -47,14 +50,16 @@ enum CodexTokenClient {
                 accessToken: response.accessToken,
                 refreshToken: response.refreshToken
             ))
-        case 400:
-            return .failure(.invalidCode)
-        case 401, 403:
-            return .failure(.expired)
+        case 400, 401, 403:
+            // Bad/expired code or a dead refresh token — OpenAI's answer is final.
+            return .failure(.codexSignInRejected(statusCode))
         case 500..<600:
-            return .failure(.serverError(statusCode))
+            return .failure(.serverError(statusCode, provider: .codex))
         default:
-            return .failure(.unknownError("Token endpoint returned \(statusCode)"))
+            // 429 / 408 / CDN 4xx say nothing about the refresh token. Treat them as
+            // transient (retry next cycle) — a `.unknownError` here would sign the
+            // account out and delete its Keychain entry.
+            return .failure(.serverError(statusCode, provider: .codex))
         }
     }
 

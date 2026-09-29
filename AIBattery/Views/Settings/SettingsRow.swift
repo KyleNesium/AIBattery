@@ -14,8 +14,8 @@ struct SettingsRow: View {
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .accessibilityAddTraits(.isHeader)
 
-            // Per-account names
-            ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
+            // Per-account names — same order and numbering as the header picker.
+            ForEach(Array(AccountStore.displayOrdered(accountStore.accounts).enumerated()), id: \.element.id) { index, account in
                 accountNameRow(account, index: index)
             }
 
@@ -69,15 +69,31 @@ struct SettingsRow: View {
         let label = accountStore.accounts.count > 1
             ? (isActive ? "Active" : "Account")
             : "Name"
+        let mixed = AccountStore.spansBothProviders(accountStore.accounts)
+        // Placeholder mirrors the header picker's label for this row (glyph + "User N" + plan)
+        // so a Codex row is identifiable before it has a name.
+        let placeholder = AccountStore.displayLabel(
+            for: AccountRecord(id: account.id, billingType: account.billingType, addedAt: account.addedAt, provider: account.provider, codexAccessMode: account.codexAccessMode),
+            index: index, showsProviderGlyph: false, includePlan: true
+        )
+        let identity = AccountStore.displayLabel(for: account, index: index, showsProviderGlyph: mixed, includePlan: true)
         return HStack(spacing: Spacing.section) {
             Text(label)
                 .font(Typography.caption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Layout.settingsLabel, alignment: .trailing)
-            TextField("User \(index + 1)", text: nameBinding(for: account.id))
+            if mixed {
+                Text(account.provider.glyph)
+                    .font(Typography.caption)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
+                    .help("\(account.provider.displayName) account")
+                    .accessibilityLabel("\(account.provider.displayName) account")
+            }
+            TextField(placeholder, text: nameBinding(for: account.id))
                 .textFieldStyle(.roundedBorder)
                 .font(Typography.caption)
                 .help("Display name for this account (max 30 chars)")
+                .accessibilityLabel("Display name for \(identity)")
             if accountStore.accounts.count > 1 {
                 Button(action: {
                     OAuthManager.shared.signOut(accountId: account.id)
@@ -87,8 +103,8 @@ struct SettingsRow: View {
                         .foregroundStyle(ThemeColors.secondaryLabel)
                 }
                 .buttonStyle(.plain)
-                .help("Remove this account")
-                .accessibilityLabel("Remove account \(index + 1)")
+                .help("Remove \(identity)")
+                .accessibilityLabel("Remove \(identity)")
                 .accessibilityHint("Signs out and removes this account")
             }
         }

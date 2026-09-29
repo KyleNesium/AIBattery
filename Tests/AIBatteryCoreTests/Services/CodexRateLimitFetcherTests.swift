@@ -40,6 +40,72 @@ struct CodexRateLimitFetcherTests {
         }
     }
 
+    // MARK: - Session-log fallback vs. endpoint cache
+
+    private func endpointResult(fetchedAt: Date) -> APIFetchResult {
+        guard case .success(let result) = CodexRateLimitFetcher.interpretUsageResponse(statusCode: 200, data: goodBody) else {
+            Issue.record("expected success"); return APIFetchResult(rateLimits: nil, profile: nil)
+        }
+        return APIFetchResult(
+            rateLimits: result.rateLimits, rateLimitSource: result.rateLimitSource, profile: nil,
+            fetchedAt: fetchedAt, planType: result.planType
+        )
+    }
+
+    /// During an outage the session-log snapshot must not replace a newer endpoint
+    /// reading — bars would visibly drop to whatever the CLI last saw hours ago.
+    @Test func sessionLogFallback_onlyWhenNewerThanCachedEndpointReading() {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let cached = endpointResult(fetchedAt: t0)
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0.addingTimeInterval(-3_600)))
+        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: cached, fallbackAsOf: t0.addingTimeInterval(-60)))
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: cached, fallbackAsOf: t0.addingTimeInterval(60)))
+        // A previous fallback (already cached) may be superseded by a newer rollout snapshot.
+        let priorFallback = APIFetchResult(rateLimits: cached.rateLimits, rateLimitSource: .codexSessionLog, profile: nil, fetchedAt: t0, isCached: true)
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: priorFallback, fallbackAsOf: t0.addingTimeInterval(1)))
+    }
+
+    /// The CLI's rollout belongs to whichever ChatGPT account the CLI is logged into, so
+    /// with more than one Codex account it can't be attributed — skip it.
+    @Test func sessionLogFallback_skippedWithMultipleCodexAccounts() {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 1))
+        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 2))
+    }
+
+    // MARK: - clearCache resets per-account failure state
+
+    /// Codex account ids are deterministic (JWT account id / key hash), so sign-out →
+    /// re-login must not inherit the old account's backoff window or auth-failure count.
+    @Test func clearCache_resetsBackoffAndAuthFailures() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let fetcher = CodexRateLimitFetcher()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        fetcher.recordEndpointFailureForTesting(accountId: "acct", now: t0)
+        fetcher.registerAuthFailureForTesting(accountId: "acct")
+        fetcher.registerAuthFailureForTesting(accountId: "acct")
+        #expect(fetcher.isInBackoffForTesting(accountId: "acct", now: t0.addingTimeInterval(1)))
+        #expect(fetcher.consecutiveAuthFailuresForTesting(accountId: "acct") == 2)
+
+        fetcher.clearCache(accountId: "acct", defaults: defaults)
+
+        #expect(!fetcher.isInBackoffForTesting(accountId: "acct", now: t0.addingTimeInterval(1)))
+        #expect(fetcher.consecutiveAuthFailuresForTesting(accountId: "acct") == 0)
+    }
+
+    @Test func pruneAccounts_alsoDropsOrphanFailureState() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let fetcher = CodexRateLimitFetcher()
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        fetcher.recordEndpointFailureForTesting(accountId: "gone", now: t0)
+        fetcher.recordEndpointFailureForTesting(accountId: "live", now: t0)
+        fetcher.pruneAccounts(keeping: ["live"], defaults: defaults)
+        #expect(!fetcher.isInBackoffForTesting(accountId: "gone", now: t0.addingTimeInterval(1)))
+        #expect(fetcher.isInBackoffForTesting(accountId: "live", now: t0.addingTimeInterval(1)))
+    }
+
     // MARK: - overrideCachedRateLimits
 
     //

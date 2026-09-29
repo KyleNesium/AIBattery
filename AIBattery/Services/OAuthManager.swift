@@ -62,6 +62,10 @@ public final class OAuthManager: ObservableObject {
 
     @Published public var isAuthenticated: Bool = false
 
+    /// Why the last sign-out happened when the app did it (rejected refresh token).
+    /// nil after a user-initiated sign-out and cleared once any account authenticates.
+    @Published public var lastSignOutReason: String?
+
     public init() {
         migrateFromLegacy()
         migrateStaleKeychainItems()
@@ -182,8 +186,14 @@ public final class OAuthManager: ObservableObject {
         case invalidCode
         case expired
         case networkError
-        case serverError(Int)
+        /// Transient failure from the provider's token endpoint (5xx, 429, …). The
+        /// provider picks the wording — a Codex sign-in must never blame Anthropic.
+        case serverError(Int, provider: AIProvider = .claude)
         case maxAccountsReached
+        /// OpenAI's token endpoint refused the Codex sign-in (400/401/403). Non-transient.
+        case codexSignInRejected(Int)
+        /// The user cancelled the Codex browser sign-in. Not an error to display.
+        case cancelled
         case unknownError(String)
 
         var userMessage: String {
@@ -192,8 +202,11 @@ public final class OAuthManager: ObservableObject {
             case .invalidCode: "Invalid authorization code. Please try again."
             case .expired: "Authorization code expired. Please re-authenticate."
             case .networkError: "Network error. Check your connection and try again."
-            case .serverError(let code): "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
+            case .serverError(let code, .claude): "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
+            case .serverError(let code, .codex): "OpenAI's sign-in server returned \(code). This is a temporary issue on their end — please try again in a moment."
             case .maxAccountsReached: "Maximum of \(AccountStore.maxAccountsPerProvider) accounts per provider reached. Remove one before adding another."
+            case .codexSignInRejected(let code): "OpenAI rejected the sign-in (HTTP \(code)). Please try again."
+            case .cancelled: ""
             case .unknownError(let msg): msg
             }
         }
@@ -203,6 +216,30 @@ public final class OAuthManager: ObservableObject {
             switch self {
             case .networkError, .serverError: true
             default: false
+            }
+        }
+
+        nonisolated static let malformedAPIKeyMessage = "That doesn't look like an OpenAI API key (expected sk-…)."
+
+        /// True when the user backed out on purpose — callers show no error copy.
+        var isCancellation: Bool {
+            if case .cancelled = self {
+                return true
+            }
+            return false
+        }
+
+        /// Copy for a Codex browser sign-in that ended without a usable redirect.
+        nonisolated static func codexCallbackFailure(_ error: CodexCallbackError) -> AuthError {
+            switch error {
+            case .providerError("cancelled"):
+                .cancelled
+            case .providerError("timeout"):
+                .unknownError("Sign-in timed out after 3 minutes. Please try again.")
+            case .providerError(let reason):
+                .unknownError("OpenAI declined the sign-in (\(reason)). Please try again.")
+            case .missingCode, .missingState, .notCallbackPath:
+                .unknownError("The browser redirect was malformed. Please try again.")
             }
         }
     }
@@ -343,11 +380,16 @@ public final class OAuthManager: ObservableObject {
     }
 
     /// Sign out a specific account (or the active one if nil).
-    func signOut(accountId: String? = nil) {
+    /// - Parameter reason: user-facing copy when the app (not the user) signed the
+    ///   account out, e.g. a rejected refresh token. Shown once on the sign-in screen.
+    func signOut(accountId: String? = nil, reason: String? = nil) {
         let targetId = accountId ?? accountStore.activeAccountId
         guard let id = targetId else { return }
 
         let removedProvider = provider(for: id)
+        // Remember which provider to offer on the signed-out root.
+        UserDefaults.standard.set(removedProvider.rawValue, forKey: UserDefaultsKeys.signedOutProvider)
+        lastSignOutReason = reason
 
         tokens.removeValue(forKey: id)
         refreshTasks[id]?.cancel()
@@ -387,9 +429,18 @@ public final class OAuthManager: ObservableObject {
             return
         }
         isAuthenticated = true
+        lastSignOutReason = nil
     }
 
     // MARK: - Token Refresh
+
+    /// Copy shown on the sign-in screen after a refresh token is rejected.
+    nonisolated static func sessionExpiredReason(for provider: AIProvider) -> String {
+        switch provider {
+        case .claude: "Your Claude session expired or was revoked — sign in again to continue."
+        case .codex: "Your Codex (ChatGPT) session expired or was revoked — sign in again to continue."
+        }
+    }
 
     private func refreshAccessToken(_ refresh: String, accountId: String) async -> String? {
         if provider(for: accountId) == .codex {
@@ -419,7 +470,7 @@ public final class OAuthManager: ObservableObject {
             if error.isTransient {
                 AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), will retry next cycle")
             } else {
-                signOut(accountId: accountId)
+                signOut(accountId: accountId, reason: Self.sessionExpiredReason(for: .claude))
             }
             return nil
         }
@@ -454,7 +505,7 @@ public final class OAuthManager: ObservableObject {
             if error.isTransient {
                 AppLogger.oauth.warning("Codex OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), will retry next cycle")
             } else {
-                signOut(accountId: accountId)
+                signOut(accountId: accountId, reason: Self.sessionExpiredReason(for: .codex))
             }
             return nil
         }

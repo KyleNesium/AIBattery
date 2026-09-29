@@ -46,6 +46,30 @@ struct AccountStoreProviderTests {
         #expect(ids == ["c1", "x1"])
     }
 
+    /// An API-key account has no windowed `RateLimitUsage`, so the multi-account menu
+    /// bar would show a permanent "—" for it. It is excluded from the display set.
+    @Test func multiAccountDisplayIDs_excludesAPIKeyAccounts() {
+        let apiKey = AccountRecord(id: "openai-api-abc", billingType: "api", addedAt: Date(), provider: .codex, codexAccessMode: .apiKey)
+        let ids = AccountStore.multiAccountDisplayIDs(accounts: [record("c1", .claude), apiKey, record("x1", .codex)], isAuthenticated: { _ in true })
+        #expect(ids == ["c1", "x1"])
+    }
+
+    @Test func displayLabel_sharedByPickerAndSettings() {
+        var codex = record("x1", .codex)
+        codex.billingType = "business"
+        let claude = record("c1", .claude)
+        #expect(AccountStore.displayLabel(for: claude, index: 0, showsProviderGlyph: true, includePlan: true) == "✦ User 1")
+        #expect(AccountStore.displayLabel(for: codex, index: 1, showsProviderGlyph: true, includePlan: true) == "⬡ User 2 · Business")
+        #expect(AccountStore.displayLabel(for: codex, index: 1, showsProviderGlyph: true, includePlan: false) == "⬡ User 2")
+        #expect(AccountStore.displayLabel(for: codex, index: 0, showsProviderGlyph: false, includePlan: true) == "User 1 · Business")
+        var named = codex
+        named.displayName = "Work"
+        #expect(AccountStore.displayLabel(for: named, index: 1, showsProviderGlyph: false, includePlan: true) == "Work · Business")
+        #expect(AccountStore.planLabel("chatgpt_team") == "ChatGPT Team")
+        #expect(AccountStore.planLabel("enterprise") == "Enterprise")
+        #expect(AccountStore.planLabel("api") == "API")
+    }
+
     @Test func lookupHelpers_defaultUnknownIdsToClaude() {
         let store = makeCleanStore()
         store.add(record("c1", .claude))

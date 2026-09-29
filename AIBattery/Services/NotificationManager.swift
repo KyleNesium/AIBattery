@@ -23,9 +23,11 @@ public final class NotificationManager {
 
     // MARK: - Public
 
-    /// Fire test notifications for all components (verifies delivery works).
-    func testAlerts() {
-        for component in StatusChecker.knownComponents {
+    /// Fire test notifications for the given feed's components (verifies delivery
+    /// works). Callers pass the active provider's components so a Codex user gets
+    /// OpenAI names, not "claude.ai is down".
+    func testAlerts(components: [StatusComponent] = StatusChecker.knownComponents) {
+        for component in components {
             hasFired.remove(component.alertKey)
             checkComponentStatus(key: component.alertKey, label: component.name, indicator: .majorOutage)
         }
@@ -49,6 +51,18 @@ public final class NotificationManager {
 
         let threshold = UserDefaults.standard.double(forKey: UserDefaultsKeys.rateLimitThreshold)
         let effectiveThreshold = threshold > 0 ? threshold : 80.0
+
+        // A credit budget mirrors one number onto both windows — one alert, not two
+        // identical ones batched into "Multiple alerts".
+        if rateLimits.isCreditBudget {
+            checkRateLimitWindow(
+                key: "rateLimitCredits",
+                label: "Credits",
+                percent: rateLimits.sevenDayPercent,
+                threshold: effectiveThreshold
+            )
+            return
+        }
 
         let labels = Self.windowLabels(for: rateLimits)
         checkRateLimitWindow(

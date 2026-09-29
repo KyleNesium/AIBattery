@@ -592,7 +592,8 @@ public final class UsageViewModel: ObservableObject {
             hasStandardRateLimitHeaders: api.hasStandardRateLimitHeaders,
             totalMessages: result.totalMessages,
             authError: api.authError,
-            provider: result.provider
+            provider: result.provider,
+            endpointUnavailable: api.endpointUnavailable
         )
         if result != snapshot {
             snapshot = result

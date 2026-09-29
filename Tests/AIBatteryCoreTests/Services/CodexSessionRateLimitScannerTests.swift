@@ -52,6 +52,24 @@ struct CodexSessionRateLimitScannerTests {
         try? FileManager.default.removeItem(at: root)
     }
 
+    /// Same symlink boundary as `CodexSessionLogReader`: a link inside
+    /// `~/.codex/sessions` must never make the scanner read a file outside it.
+    @Test func newestSessionFile_ignoresSymlinksEscapingTheRoot() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("codex-scanner-link-\(UUID().uuidString)")
+        let root = base.appendingPathComponent("sessions/2026/09/01")
+        let outside = base.appendingPathComponent("outside")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let real = root.appendingPathComponent("rollout-real.jsonl")
+        let secret = outside.appendingPathComponent("secret.jsonl")
+        try Data("real".utf8).write(to: real)
+        try Data("secret".utf8).write(to: secret)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -3_600)], ofItemAtPath: real.path)
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("rollout-link.jsonl"), withDestinationURL: secret)
+        defer { try? FileManager.default.removeItem(at: base) }
+        #expect(CodexSessionRateLimitScanner.newestSessionFile(in: base.appendingPathComponent("sessions")) == real.standardizedFileURL)
+    }
+
     @Test func survivesMultiByteCharacterAtTailBoundary() throws {
         // Tail seek can land mid-multi-byte character. Byte-level split + per-line
         // decode should survive this: partial first line fails to decode, but the

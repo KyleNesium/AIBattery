@@ -69,9 +69,13 @@ struct RateLimitUsage: Equatable, Codable {
     /// a single "Credits" bar instead of 5h/Weekly. nil for windowed plans and Claude.
     let creditBudget: CodexCreditBudget?
 
-    /// True only for a real spend-control budget (limit > 0). A subscription plan that
-    /// merely reports a purchased-credit balance keeps its windowed layout.
-    var isCreditBudget: Bool { (creditBudget?.limit ?? 0) > 0 }
+    /// True for a real spend-control budget (limit > 0) or an uncapped spend-control plan
+    /// (no windows, no individual limit). A subscription plan that merely reports a
+    /// purchased-credit balance keeps its windowed layout.
+    var isCreditBudget: Bool {
+        guard let creditBudget else { return false }
+        return creditBudget.limit > 0 || creditBudget.isUncapped
+    }
 
     /// Actual window lengths: from the payload when the provider sends them (Codex),
     /// else the 5-hour / 7-day defaults (spec §3: "defaulted to 300/10080 when absent").
@@ -266,6 +270,10 @@ struct RateLimitUsage: Equatable, Codable {
         // A past/at reset is the expired-window case (handled by withClearedExpiredWindows).
         guard timeUntilReset > 0 else { return false }
         let elapsed = windowDuration - timeUntilReset
+        // A reset further away than the window is long is not "a window that just
+        // started" — it's a period this filter knows nothing about (e.g. a monthly
+        // credit budget). Never clear those.
+        guard elapsed >= 0 else { return false }
         return elapsed < rolloverArtifactGracePeriod
     }
 
@@ -276,6 +284,9 @@ struct RateLimitUsage: Equatable, Codable {
     /// data so a window that reset moments ago doesn't read "100% / Limit reached"
     /// until the next poll catches up.
     func withClearedRolloverArtifacts(now: Date = .now) -> RateLimitUsage {
+        // A credit budget mirrors one period-based number onto both windows; the 5h/7d
+        // rollover heuristic does not apply to it (see isRolloverArtifact).
+        guard !isCreditBudget else { return self }
         let fiveHourArtifact = Self.isRolloverArtifact(
             utilization: fiveHourUtilization, reset: fiveHourReset,
             windowDuration: fiveHourDuration, now: now

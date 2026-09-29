@@ -36,7 +36,12 @@ struct AlertSettingsSection: View {
                     size: .compact,
                     help: "Send a test notification",
                     accessibilityLabel: "Test alerts",
-                    action: { NotificationManager.shared.testAlerts() }
+                    action: {
+                        let provider = OAuthManager.shared.accountStore.activeAccount?.provider ?? .claude
+                        NotificationManager.shared.testAlerts(
+                            components: StatusChecker.shared(for: provider).config.knownComponents
+                        )
+                    }
                 )
             }
         }

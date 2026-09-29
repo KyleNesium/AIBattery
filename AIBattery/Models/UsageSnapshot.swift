@@ -122,11 +122,11 @@ struct UsageSnapshot: Equatable {
         switch mode {
         case .fiveHour:
             rateLimits?.fiveHourPercent
-                ?? (provider == .claude ? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens) : standardLimits?.tokensPercent)
+                ?? (provider == .claude ? LocalUsageEstimate.fiveHourPercent(tokens: fiveHourTokens) : standardLimits?.peakPercent)
                 ?? 0
         case .sevenDay:
             rateLimits?.sevenDayPercent
-                ?? (provider == .claude ? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens) : standardLimits?.tokensPercent)
+                ?? (provider == .claude ? LocalUsageEstimate.sevenDayPercent(tokens: sevenDayTokens) : standardLimits?.peakPercent)
                 ?? 0
         case .contextHealth:
             topSessionHealths.first?.usagePercentage

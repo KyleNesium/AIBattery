@@ -66,6 +66,9 @@ extension AccountStore {
     ) -> [String] {
         displayOrdered(accounts)
             .filter { !$0.isPendingIdentity }
+            // API-key accounts have per-minute limits, not windows — the fan-out has no
+            // `RateLimitUsage` for them, so listing them would render a permanent "—" slot.
+            .filter { !$0.isAPIKeyAccount }
             .filter { isAuthenticated($0.id) }
             .map(\.id)
     }

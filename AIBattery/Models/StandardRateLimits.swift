@@ -26,6 +26,10 @@ struct StandardRateLimits: Equatable, Codable {
         return Double(tokensLimit - tokensRemaining) / Double(tokensLimit) * 100.0
     }
 
+    /// The tighter of the two per-minute limits — what the menu bar / auto mode should
+    /// react to for an API-key account (a request cap can bind long before tokens do).
+    var peakPercent: Double { max(requestsPercent, tokensPercent) }
+
     /// Whether the account is at or near the request limit.
     var isRequestsExhausted: Bool { requestsRemaining <= 0 }
 

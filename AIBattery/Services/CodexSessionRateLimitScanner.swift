@@ -25,11 +25,22 @@ enum CodexSessionRateLimitScanner {
     }
 
     nonisolated static func newestSessionFile(in root: URL, fileManager: FileManager = .default) -> URL? {
-        guard let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: [.contentModificationDateKey]) else {
+        guard let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
             return nil
         }
+        // Same symlink boundary as CodexSessionLogReader: a link inside ~/.codex/sessions
+        // must not make us read (and JSON-parse the tail of) an arbitrary file.
+        let resolvedBase = root.resolvingSymlinksInPath().path
+        let resolvedBaseSlash = resolvedBase.hasSuffix("/") ? resolvedBase : resolvedBase + "/"
         var newest: (url: URL, date: Date)?
         for case let url as URL in enumerator where url.pathExtension == "jsonl" {
+            let resolved = url.resolvingSymlinksInPath().path
+            guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
             let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
             if newest == nil || date > newest!.date {
                 newest = (url.standardizedFileURL, date)

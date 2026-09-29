@@ -32,7 +32,7 @@ struct MetricToggleView: View {
         .padding(.vertical, Spacing.gap)
         .accessibilityLabel("Metric mode")
         .accessibilityHint(collapsed ? "Switch between \(MetricMode.fiveHour.shortLabel(provider: provider, kind: kind).lowercased()) and context health views" : "Switch between 5-hour, \(provider.secondaryWindowLabel.lowercased()), and context health views")
-        .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric (keys: 1, 2, 3)")
+        .help(autoMetricMode ? "Disabled while auto mode is active" : (collapsed ? "Select primary metric (keys: 1, 3)" : "Select primary metric (keys: 1, 2, 3)"))
         .onAppear { recomputeOrderedModes() }
         .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
     }

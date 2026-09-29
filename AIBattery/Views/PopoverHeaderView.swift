@@ -239,7 +239,8 @@ struct PopoverHeaderView: View {
             }
         } label: {
             if let activeIndex = ordered.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
-                Text(accountLabel(ordered[activeIndex], index: activeIndex))
+                // Collapsed label has ~100 pt: name + glyph only, the plan lives in the menu rows.
+                Text(accountLabel(ordered[activeIndex], index: activeIndex, includePlan: false))
                     .font(Typography.caption)
                     .foregroundStyle(ThemeColors.secondaryLabel)
                     .lineLimit(1)
@@ -256,34 +257,19 @@ struct PopoverHeaderView: View {
         .accessibilityHint("Select which account to display")
     }
 
-    /// Prefix the provider glyph only when the account set spans both providers —
-    /// a single-provider setup (the common case) stays exactly as before.
-    private var showsProviderGlyphs: Bool {
-        Set(accountStore.accounts.map(\.provider)).count > 1
+    /// Shared with Settings rows via `AccountStore.displayLabel` so the two surfaces
+    /// never disagree on numbering, glyphs or plan suffixes.
+    private func accountLabel(_ account: AccountRecord, index: Int, includePlan: Bool = true) -> String {
+        AccountStore.displayLabel(
+            for: account,
+            index: index,
+            showsProviderGlyph: AccountStore.spansBothProviders(accountStore.accounts),
+            includePlan: includePlan
+        )
     }
 
-    /// Label for an account: display name if set, otherwise "User N", prefixed with
-    /// the provider glyph when both Claude and Codex accounts are present.
-    private func accountLabel(_ account: AccountRecord, index: Int) -> String {
-        let base: String = if let name = account.displayName, !name.isEmpty {
-            name
-        } else {
-            "User \(index + 1)"
-        }
-        let labelled = showsProviderGlyphs ? "\(account.provider.glyph) \(base)" : base
-        // Codex plans are worth a word: "· Plus", "· Business", "· API".
-        if account.provider == .codex, let plan = Self.planLabel(account.billingType) {
-            return "\(labelled) · \(plan)"
-        }
-        return labelled
-    }
-
-    /// "plus" → "Plus", "api" → "API"; nil for empty/unknown.
+    /// "plus" → "Plus", "api" → "API"; nil for empty/unknown. Forwarder kept for callers/tests.
     nonisolated static func planLabel(_ billingType: String?) -> String? {
-        guard let raw = billingType?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
-        if raw.lowercased() == "api" {
-            return "API"
-        }
-        return raw.prefix(1).uppercased() + raw.dropFirst().lowercased()
+        AccountStore.planLabel(billingType)
     }
 }

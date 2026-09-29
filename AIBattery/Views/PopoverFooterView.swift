@@ -93,7 +93,8 @@ struct PopoverFooterView: View {
                         if let lastFetch = lastFreshFetch {
                             RelativeTimeText(
                                 date: lastFetch,
-                                isStale: isShowingCachedData
+                                isStale: isShowingCachedData,
+                                staleTooltip: Self.staleTooltip(source: rateLimitSource, lastFresh: lastFetch)
                             )
                         } else if isLoading {
                             Text("Updating…")
@@ -218,9 +219,27 @@ struct PopoverFooterView: View {
 /// The popover's orderOut removes the view from the hierarchy, so this naturally stops ticking.
 /// When `isStale` is true, shows "Cached" prefix to indicate rate limits may be outdated
 /// (e.g., when API returns 429 without rate limit headers during heavy throttling).
+extension PopoverFooterView {
+    /// Why the footer says "Cached", in the active provider's terms. The Claude path is
+    /// cached when Anthropic rate-limits the probes; the Codex path when OpenAI's usage
+    /// endpoint is unreachable / backing off, possibly showing the CLI session-log reading.
+    nonisolated static func staleTooltip(source: RateLimitSource?, lastFresh: Date) -> String {
+        let when = "Last fresh: \(absoluteTime(lastFresh))"
+        switch source {
+        case .codexSessionLog:
+            return "Showing the last reading from your Codex CLI session log — OpenAI's usage endpoint is unreachable. \(when)"
+        case .codexUsageEndpoint:
+            return "Showing cached values — OpenAI's usage endpoint is unreachable or backing off after an error. \(when)"
+        default:
+            return "Rate limits may be stale — API is rate-limiting probes. \(when)"
+        }
+    }
+}
+
 private struct RelativeTimeText: View {
     let date: Date
     var isStale: Bool = false
+    var staleTooltip: String? = nil
     var alternateText: String? = nil
     var alternateTooltip: String? = nil
 
@@ -239,7 +258,7 @@ private struct RelativeTimeText: View {
                 .help(resolvedAlternate != nil
                     ? (alternateTooltip ?? "")
                     : (isStale
-                        ? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))"
+                        ? (staleTooltip ?? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))")
                         : "Last fetched: \(PopoverFooterView.absoluteTime(date))"))
         }
     }

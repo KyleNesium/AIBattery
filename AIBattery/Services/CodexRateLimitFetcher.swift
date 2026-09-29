@@ -145,9 +145,9 @@ final class CodexRateLimitFetcher {
 
     nonisolated static func interpretAPIKeyValidation(statusCode: Int) -> APIKeyValidation {
         switch statusCode {
-        case 401, 403: .invalid
+        case 401: .invalid
         case 200..<300, 429: .valid // 429 = authenticated but rate-limited
-        default: .unknown
+        default: .unknown // 403 = permission/region-restricted key, not evidence it is bad
         }
     }
 
@@ -177,11 +177,12 @@ final class CodexRateLimitFetcher {
         return request
     }
 
-    /// Pure interpretation of the probe: 401/403 → `.authFailed`; any response that
-    /// carries the rate-limit headers (2xx, 429, even 400) → `.success` with
-    /// `standardLimits`; otherwise `.unavailable`.
+    /// Pure interpretation of the probe: 401 → `.authFailed`; any response that
+    /// carries the rate-limit headers (2xx, 429, even 400/403) → `.success` with
+    /// `standardLimits`; otherwise `.unavailable`. A 403 is a model / region /
+    /// verification restriction on a valid key, never an auth failure.
     nonisolated static func interpretAPIKeyProbe(statusCode: Int, headers: [AnyHashable: Any], now: Date = Date()) -> UsageOutcome {
-        if statusCode == 401 || statusCode == 403 {
+        if statusCode == 401 {
             return .authFailed
         }
         guard statusCode < 500, let limits = StandardRateLimits.parse(openAIHeaders: headers, now: now) else {
@@ -194,6 +195,12 @@ final class CodexRateLimitFetcher {
             hasStandardRateLimitHeaders: true,
             planType: "api"
         ))
+    }
+
+    /// Whether a header-less probe failure on one model should move on to the next
+    /// probe model: 400/404 (model not found) and 403 (model not allowed for this key).
+    nonisolated static func probeShouldTryNextModel(statusCode: Int) -> Bool {
+        statusCode == 400 || statusCode == 403 || statusCode == 404
     }
 
     /// Fetch per-minute limits for an API-key account. Same caching, backoff,
@@ -220,8 +227,8 @@ final class CodexRateLimitFetcher {
                     backoff[accountId] = nil
                     return registerAuthFailure(accountId: accountId)
                 case .unavailable:
-                    // A model-not-found 400/404 without headers → try the next probe model.
-                    if http.statusCode == 400 || http.statusCode == 404 {
+                    // A model-not-found / not-allowed 400/403/404 without headers → next probe model.
+                    if Self.probeShouldTryNextModel(statusCode: http.statusCode) {
                         continue
                     }
                     recordEndpointFailure(accountId: accountId)
@@ -313,12 +320,25 @@ final class CodexRateLimitFetcher {
         return cachedOrEmpty(accountId: accountId, authError: surfaceAuthError)
     }
 
+    /// Whether a session-log snapshot taken at `fallbackAsOf` may replace what is
+    /// cached for the account. Never let an older rollout reading overwrite a newer
+    /// endpoint reading (bars would drop mid-outage), and never attribute the CLI's
+    /// rollout to an account when more than one ChatGPT-backed Codex account exists —
+    /// the CLI is logged into exactly one of them and we can't tell which.
+    nonisolated static func shouldUseSessionLogFallback(cached: APIFetchResult?, fallbackAsOf: Date, codexAccountCount: Int = 1) -> Bool {
+        guard codexAccountCount <= 1 else { return false }
+        guard let cached else { return true }
+        return fallbackAsOf > cached.fetchedAt
+    }
+
     /// Try the Codex CLI session-log scanner when the endpoint is unreachable or
     /// returns a transport error. Caches the fallback result in memory (so the menu
     /// bar reflects it immediately) but never persists it — a session-log snapshot
     /// must not overwrite real endpoint data on disk.
     private func sessionLogFallback(accountId: String) -> APIFetchResult {
-        guard let (rateLimits, asOf) = CodexSessionRateLimitScanner.latestRateLimits() else {
+        let codexAccountCount = OAuthManager.shared.accountStore.accounts.filter { $0.provider == .codex && !$0.isAPIKeyAccount }.count
+        guard let (rateLimits, asOf) = CodexSessionRateLimitScanner.latestRateLimits(),
+              Self.shouldUseSessionLogFallback(cached: cachedResults[accountId], fallbackAsOf: asOf, codexAccountCount: codexAccountCount) else {
             return cachedOrEmpty(accountId: accountId)
         }
         AppLogger.network.info("codex usage endpoint unavailable — using session log fallback")
@@ -350,13 +370,27 @@ final class CodexRateLimitFetcher {
                 planType: cached.planType
             )
         }
-        return APIFetchResult(rateLimits: nil, profile: nil, authError: authError)
+        // Nothing cached: every caller of this path is a failed/backoff/auth cycle, so an
+        // empty result here means the endpoint could not be reached (or refused us).
+        return APIFetchResult(rateLimits: nil, profile: nil, authError: authError, endpointUnavailable: !authError)
     }
 
     /// Remove an account's cached + persisted rate limits. Called from sign-out paths.
     func clearCache(accountId: String, defaults: UserDefaults = .standard) {
         cachedResults.removeValue(forKey: accountId)
+        // Codex ids are deterministic (JWT account id / key hash): a sign-out followed by
+        // re-login must start clean, not inherit a backoff window or auth-failure count.
+        backoff.removeValue(forKey: accountId)
+        consecutiveAuthFailures.removeValue(forKey: accountId)
         defaults.removeObject(forKey: Self.persistKeyPrefix + accountId)
+    }
+
+    func registerAuthFailureForTesting(accountId: String) {
+        _ = registerAuthFailure(accountId: accountId)
+    }
+
+    func consecutiveAuthFailuresForTesting(accountId: String) -> Int {
+        consecutiveAuthFailures[accountId] ?? 0
     }
 
     /// Drop cached + persisted entries for accounts that no longer exist (launch-time
@@ -365,6 +399,8 @@ final class CodexRateLimitFetcher {
     func pruneAccounts(keeping liveAccountIds: Set<String>, defaults: UserDefaults = .standard) {
         guard !liveAccountIds.isEmpty else { return }
         cachedResults = cachedResults.filter { liveAccountIds.contains($0.key) }
+        backoff = backoff.filter { liveAccountIds.contains($0.key) }
+        consecutiveAuthFailures = consecutiveAuthFailures.filter { liveAccountIds.contains($0.key) }
         let prefix = Self.persistKeyPrefix
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
             let accountId = String(key.dropFirst(prefix.count))

@@ -35,7 +35,8 @@ extension UsageViewModel {
         hasStandardRateLimitHeaders: Bool,
         totalMessages: Int,
         authError: Bool = false,
-        provider: AIProvider = .claude
+        provider: AIProvider = .claude,
+        endpointUnavailable: Bool = false
     ) -> String? {
         if authError {
             return "Authentication failed — please log out and reconnect this account."
@@ -48,6 +49,11 @@ extension UsageViewModel {
         }
         if hasStandardRateLimitHeaders {
             return nil
+        }
+        // Codex results never carry a profile, so a first-run user whose endpoint call
+        // failed would otherwise be told to "start a session" instead of the truth.
+        if endpointUnavailable, provider == .codex {
+            return "Unable to reach OpenAI. Check your internet connection and try again."
         }
         if !hasProfile && totalMessages == 0 {
             return provider == .codex

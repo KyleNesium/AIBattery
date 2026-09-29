@@ -154,9 +154,14 @@ final class PopoverPanel: NSPanel {
 struct PopoverContentView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject var oauthManager: OAuthManager
-    /// Which provider the signed-out root offers to sign in with. Flipped by the
-    /// "Sign in with X instead" footnote link inside AuthView.
-    @State private var signedOutProvider: AIProvider = .claude
+    /// Which provider the signed-out root offers to sign in with. Persisted: it follows
+    /// the last account the user signed out of (or was signed out of), so a Codex-only
+    /// user doesn't land on the Claude sign-in. Changed by AuthView's provider picker.
+    @AppStorage(UserDefaultsKeys.signedOutProvider) private var signedOutProviderRaw: String = AIProvider.claude.rawValue
+
+    private var signedOutProvider: AIProvider {
+        AIProvider(rawValue: signedOutProviderRaw) ?? .claude
+    }
 
     var body: some View {
         Group {
@@ -167,7 +172,7 @@ struct PopoverContentView: View {
                     oauthManager: oauthManager,
                     provider: signedOutProvider,
                     onToggleProvider: {
-                        signedOutProvider = signedOutProvider == .claude ? .codex : .claude
+                        signedOutProviderRaw = (signedOutProvider == .claude ? AIProvider.codex : .claude).rawValue
                     }
                 )
             }

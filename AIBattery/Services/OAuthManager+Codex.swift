@@ -13,11 +13,17 @@ extension OAuthManager {
     /// Register a Codex account backed by an OpenAI API key (pay-per-token). The key
     /// is stored in the Keychain as the account's "refresh token" (and served as the
     /// access token with no expiry); `billingType` is "api".
+    /// Cheap local shape check shared by the entry form and `registerCodexAPIKey`.
+    nonisolated static func looksLikeOpenAIAPIKey(_ key: String) -> Bool {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.hasPrefix("sk-") && trimmed.count >= 20
+    }
+
     @discardableResult
     func registerCodexAPIKey(_ rawKey: String) -> Result<Void, AuthError> {
         let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard key.hasPrefix("sk-"), key.count >= 20 else {
-            return .failure(.unknownError("That doesn't look like an OpenAI API key (expected sk-…)."))
+        guard Self.looksLikeOpenAIAPIKey(key) else {
+            return .failure(.unknownError(AuthError.malformedAPIKeyMessage))
         }
         let accountId = Self.apiKeyAccountId(for: key)
         guard accountStore.canAddAccount(provider: .codex)
@@ -70,7 +76,7 @@ extension OAuthManager {
         let callback = await session.awaitCallback()
         switch callback {
         case .failure(let error):
-            return .failure(.unknownError("Sign-in did not complete (\(String(describing: error)))"))
+            return .failure(AuthError.codexCallbackFailure(error))
         case .success(let payload):
             guard payload.state == session.state else {
                 return .failure(.unknownError("State mismatch — possible CSRF, sign-in aborted"))
@@ -80,7 +86,8 @@ extension OAuthManager {
             case .failure(let error):
                 return .failure(error)
             case .success(let tokenSet):
-                guard let accountId = JWTDecoder.chatGPTAccountId(idToken: tokenSet.idToken) else {
+                guard let idToken = tokenSet.idToken,
+                      let accountId = JWTDecoder.chatGPTAccountId(idToken: idToken) else {
                     return .failure(.unknownError("Could not read account identity from sign-in response"))
                 }
                 return registerCodexAccount(accountId: accountId, tokenSet: tokenSet)
