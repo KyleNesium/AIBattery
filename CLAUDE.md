@@ -23,13 +23,12 @@ The `spec/` folder is the single source of truth.
 ```bash
 swift build -c release
 
-# Quick bundle for local smoke-testing — no codesign, no Sparkle.framework
-mkdir -p .build/AIBattery.app/Contents/MacOS
-cp .build/release/AIBattery .build/AIBattery.app/Contents/MacOS/
-cp AIBattery/Info.plist .build/AIBattery.app/Contents/
-open .build/AIBattery.app
+# Local smoke-test bundle. The release binary links Sparkle.framework via
+# @executable_path/../Frameworks, so a bare "copy the binary into an .app"
+# bundle aborts at launch (dyld: Library not loaded). Always use the script:
+./scripts/build-app.sh && open .build/AIBattery.app
 
-# Full signed bundle (what CI/release actually ships): entitlements,
+# The same script is the full signed bundle CI/release ships: entitlements,
 # Sparkle.framework, codesign, zip + dmg
 ./scripts/build-app.sh
 ```
@@ -41,7 +40,7 @@ open .build/AIBattery.app
 swift test
 ```
 
-1288 tests across 102 files, using `import Testing` + `@testable import AIBatteryCore`.
+1309 tests across 102 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities

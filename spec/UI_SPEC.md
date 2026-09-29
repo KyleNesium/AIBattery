@@ -81,7 +81,7 @@ UsagePopoverView (275px, VStack)
 ├── InsightsGate (data check, InsightsView owns collapsed @AppStorage)
 ├── Divider
 ├── footerSection
-└── .overlay { TutorialOverlay(hasData:) } — self-managing visibility via own @AppStorage
+└── .overlay { TutorialOverlay(hasData:kind:) } — self-managing visibility via own @AppStorage
 ```
 
 Conditional states (mutually exclusive with content): Loading | Error | Empty
@@ -106,10 +106,10 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 - Header HStack alignment: `.center` (not `.firstTextBaseline`). The title (`Typography.sectionHeader`) and the account picker (`Typography.caption`) are different sizes; baseline-aligning them put the picker visibly below the title cap. `.center` aligns their visual centers.
 - Title: `"✦ AI Battery"` (`Typography.sectionHeader` = `.subheadline.bold()`); the leading SF symbol is `sparkle` for a Claude account and `hexagon` for a Codex account
 - **Account picker**: always-visible dropdown Menu next to title
-  - Label: display name if set, otherwise `"User N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
+  - Label: display name if set, otherwise `"User N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel). The **collapsed label omits the plan suffix** (`includePlan: false` — it has ~100 pt and "User 2 · Business" was truncating); menu rows keep it.
   - Menu items: display name or `"User N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
-  - Account rows are `AccountStore.displayOrdered` (Claude block first). Codex rows append the plan when known: "· Plus", "· Business", "· API" (`PopoverHeaderView.planLabel`, from `AccountRecord.billingType`). When the account set spans **both providers**, every row is prefixed with the provider glyph (`✦` Claude / `⬡` Codex); single-provider setups render exactly as before.
-  - Below the divider: **"Add Claude Account…"** when `canAddAccount(provider: .claude)` and **"Add Codex Account…"** when `canAddAccount(provider: .codex)` (plus.circle icons) — each opens the AuthView overlay for that provider. Settings' inline "Add Account" link stays Claude-only.
+  - Account rows are `AccountStore.displayOrdered` (Claude block first). Labels come from the shared `AccountStore.displayLabel(for:index:showsProviderGlyph:includePlan:)` so the picker and the Settings rows never disagree on numbering, glyphs or plan suffixes. Codex rows append the plan when known: "· Plus", "· Business", "· ChatGPT Team", "· API" (`AccountStore.planLabel`, from `AccountRecord.billingType`; `PopoverHeaderView.planLabel` forwards to it). When the account set spans **both providers** (`AccountStore.spansBothProviders`), every row is prefixed with the provider glyph (`✦` Claude / `⬡` Codex); single-provider setups render exactly as before.
+  - Below the divider: **"Add Claude Account…"** when `canAddAccount(provider: .claude)` and **"Add Codex Account…"** when `canAddAccount(provider: .codex)` (plus.circle icons) — each opens the AuthView overlay for that provider. Settings has matching inline "Add Claude account" / "Add Codex account" links (❶b).
   - `.menuStyle(.borderlessButton)`, `.frame(maxWidth: Layout.accountPickerMaxWidth)` (100pt)
 - Gear button: `gearshape`, 11pt, toggles Settings panel
 - Loading spinner: ProgressView at 0.6 scale
@@ -132,13 +132,13 @@ Below the account-name rows: one `LinkActionButton` per provider with room — "
 
 Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppStorage` toggle only redraws its own section.
 
-**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body. Subtle dividers (`Divider().opacity(0.5)`) separate account names, refresh, display, alerts, and startup sub-sections.
+**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Account rows iterate `AccountStore.displayOrdered(accounts)` — the **same order and numbering as the header picker**. In a mixed-provider setup each row shows the provider glyph (`✦` / `⬡`, `.help("<Provider> account")`) before the text field; the field's placeholder mirrors the picker label for that row (`"User N"` + plan suffix, no glyph — via `AccountStore.displayLabel(showsProviderGlyph: false, includePlan: true)`) so a Codex row is identifiable before it has a name. The remove button's help / accessibility label is "Remove <label>" using the full glyph + plan identity. Subtle dividers (`Divider().opacity(0.5)`) separate account names, refresh, display, alerts, and startup sub-sections.
 
 **`RefreshSettingsSection`** (owns `refreshInterval`):
 - **Refresh**: Slider (30–300s, step 30) → `aibattery_refreshInterval`
   - Calls `viewModel.updatePollingInterval()` on change
   - Marks: 30s, 1m, 2m, 3m, 4m, 5m
-  - Hint: `"~3 tokens/poll · API data kept until next update"` (.tinyLabel, .tertiaryLabel)
+  - Hint (.tinyLabel, .tertiaryLabel) — `RefreshSettingsSection.pollCostHint(provider:apiKeyAccount:)`, the real per-poll cost for the active account: Claude `"~3 tokens/poll · API data kept until next update"`; Codex ChatGPT `"Reads OpenAI's usage endpoint · no tokens spent · data kept until next update"`; Codex API key `"~16 output tokens/poll, billed at API rates · data kept until next update"`
 
 **`DisplaySettingsSection`** (owns `idleSessionMinutes`, `colorblindMode`, `showAllAccountsInMenuBar`):
 - **Hide idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never). Row label is "Hide idle".
@@ -151,7 +151,8 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
 - **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)
-  - Status: notifies on any of the 5 tracked status page components
+  - Status: notifies on any of the 5 tracked status page components of the active provider's feed
+  - Test: `NotificationManager.testAlerts(components:)` with the **active provider's** components (`StatusChecker.shared(for:).config.knownComponents`) — a Codex user sees "Codex API is down", not "claude.ai is down"
   - Rate Limit: threshold slider (50–95%, step 5, default 80%) appears below when enabled
 
 **`LaunchAtLoginSection`** (owns `launchAtLogin`):
@@ -198,6 +199,7 @@ Single HStack (no container fill, no divider): auto mode button (left) + custom 
 - **Hover** (inactive): `.secondary` text, `ThemeColors.hoverFill` background, `.secondary.opacity(0.4)` stroke.
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Tab buttons dim to `ThemeColors.disabledOpacity` (0.55) and are disabled when auto mode is active.
+- **Keyboard**: keys `1` / `2` / `3` select 5-Hour / 7-Day / Context (`UsagePopoverView`). On the collapsed Codex kinds (Credits, API Limits — `CodexDisplayKind != .windows`) there is no second window tab, so `2` selects the single budget tab (`.fiveHour`) instead of a hidden mode; the tab bar's help text reads "Select primary metric (keys: 1, 3)" when collapsed, "(keys: 1, 2, 3)" otherwise.
 - **Auto highlight**: when auto mode is active, the tab selection syncs to the auto-resolved mode via the single pickerBinding, visually highlighting which tab was chosen.
 - **Behavior**: auto mode uses a **four-tier deterministic escalation ladder** via `snapshot.autoResolvedMode` (no urgency score, no interpolation): **Tier 1** throttled → the throttled rate-limit window (5h/7d by `representativeClaim`); **Tier 2** `max(5h, 7d) >= 80%` (`rateLimitEscalationThreshold`) → the higher-consumed rate-limit window; **Tier 3** active session AND context health `>= 60%` (`contextEscalationThreshold`) → context health; **Tier 4** default → binding (highest-consumed) rate-limit window. A 10pp hysteresis de-escalation band (`UsageViewModel`) holds the prior mode until the metric drops that far below its threshold; upward escalation and throttle bypass hysteresis. Applied in both popover and menu bar label.
 
@@ -271,12 +273,13 @@ Codex-native replacement for **both** rate-limit bars when `snapshot.rateLimits?
 - **Label row**: `"Credits"` (.buttonLabel; tooltip: % used, `used of limit credits`, plan, reset time, source) + optional `unlimited` badge + danger triangle when throttled; trailing `"{percent}%"` (.monoValue) + `"{used} / {limit}"` (`CodexCreditBudget.formatCredits`, .monoValue, secondaryLabel, copyable)
 - **Gauge bar**: shared `GaugeRow`, colored via `ThemeColors.barColor`
 - **Footer**: `"{remaining} remaining"` (or "Budget reached" / "Credits depleted" in danger) + `"Resets in …"` countdown
+- **Uncapped plan** (`budget.isUncapped` — no windows, no individual spend cap): the badge reads `no cap`, the trailing value is a single `"—"` (help "No individual spend cap on this plan") instead of `0% · 0 / 0`, the footer says "No spend cap on this plan", the accessibility value is "No spend cap", and the header tooltip opens with "Codex credits: this plan has no individual spend cap, so there is nothing to meter". A depleted `credits` flag still wins ("Credits depleted").
 - Alarm gating identical to `UsageBar.AlarmState` (confirmed data only)
 - The metric toggle shows **Credits | Context** (`MetricMode.pickerModes`); a stored `.sevenDay` selection highlights the Credits tab. Menu bar shows the credit % in either rate-limit mode; a throttled countdown is prefixed `CR`.
 
 ### ❷a′ Codex API-key accounts (`Views/StandardLimitsSection.swift`, `provider: .codex`)
 
-`CodexDisplayKind.apiLimits`: the `.fiveHour` slot renders `StandardLimitsSection` with the banner "OpenAI API limits (per minute, pay-per-token)" — Requests and Tokens bars from `x-ratelimit-*`; the `.sevenDay` slot renders nothing; the toggle reads **API Limits | Context**; the menu bar % is the per-minute token utilisation. Cost rows in Projects and Insights drop the "~" (`snapshot.costIsBilled`) because they are a real bill at API rates. Footer Usage link → `platform.openai.com/usage`.
+`CodexDisplayKind.apiLimits`: the `.fiveHour` slot renders `StandardLimitsSection` with the banner "OpenAI API limits (per minute, pay-per-token)" — Requests and Tokens bars from `x-ratelimit-*`; the `.sevenDay` slot renders nothing; the toggle reads **API Limits | Context**; the menu bar % is the **tighter** of the per-minute request / token utilisations (`StandardRateLimits.peakPercent`). API-key accounts are **excluded from the multi-account menu bar** (`AccountStore.multiAccountDisplayIDs`) — they have no `RateLimitUsage` and rendered a permanent "—" slot. Cost rows in Projects and Insights drop the "~" (`snapshot.costIsBilled`) because they are a real bill at API rates. Footer Usage link → `platform.openai.com/usage`.
 
 ### ❷a″ Subscription credits balance (`CreditBalanceRow` in `Views/UsageBarsSection.swift`)
 
@@ -415,7 +418,7 @@ All five entries are `FooterLink`s. External links (Usage, Status) pass `showsEx
 
 **Incident banner / timestamp** (mutually exclusive):
 - **Active incidents** (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity). Replaces timestamp.
-- **No incidents**: `"Updated {relative time}"` right-aligned (`Typography.monoTiny` = .system 10pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time.
+- **No incidents**: `"Updated {relative time}"` right-aligned (`Typography.monoTiny` = .system 10pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time. When `isShowingCachedData` the text is prefixed "Cached" and the tooltip explains why in the active source's terms — `PopoverFooterView.staleTooltip(source:lastFresh:)`: `.codexSessionLog` → "Showing the last reading from your Codex CLI session log — OpenAI's usage endpoint is unreachable. Last fresh: …"; `.codexUsageEndpoint` → "Showing cached values — OpenAI's usage endpoint is unreachable or backing off after an error. Last fresh: …"; any Claude source → "Rate limits may be stale — API is rate-limiting probes. Last fresh: …".
 
 All text: .caption2, ThemeColors.secondaryLabel. Padding: H 16, V 8 (section).
 
@@ -423,21 +426,22 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 
 ### Sign-in (`Views/AuthView.swift`)
 
-Parameterised by `provider: AIProvider` (title subtitle, copy, flow). The signed-out root shows a "Sign in with Codex/Claude instead" footnote toggle; the add-account overlay already knows its provider.
+Parameterised by `provider: AIProvider` (title subtitle, copy, flow). On the **signed-out root** (`onToggleProvider != nil`, hidden while a browser sign-in is pending) a segmented `Picker` — **"✦ Claude | ⬡ Codex"** (`.segmented`, labels hidden, accessibility label "Provider to sign in with") — sits below the header divider and gives both providers equal billing; there is no footer "Sign in with X instead" link any more. The offered provider is persisted in `@AppStorage(UserDefaultsKeys.signedOutProvider)` (`PopoverContentView`) and follows the last account the user signed out of (or was signed out of), so a Codex-only user is never dropped onto the Claude sign-in. The add-account overlay already knows its provider and shows no picker.
+- **Sign-out reason** (root only, not the add-account overlay): when `oauthManager.lastSignOutReason` is set — the app signed the account out because its refresh token was rejected — a caution line (`info.circle` + text, `Typography.tinyLabel`, `ThemeColors.caution`) explains it: "Your Claude session expired or was revoked — sign in again to continue." / "Your Codex (ChatGPT) session expired or was revoked — sign in again to continue." Cleared once any account authenticates.
 - **Claude**: Sign In → browser → paste authorization code → Connect (unchanged).
-- **Codex**: "Sign In with ChatGPT" → browser round-trip to a local callback (127.0.0.1:1455) → the account lands in `AccountStore` and the overlay auto-dismisses; no code to paste. While waiting: spinner + "Complete the sign-in in your browser…" + Cancel (releases the port). Port busy → inline error "Couldn't start sign-in (port 1455 busy — is a Codex CLI login running?)".
+- **Codex**: copy "Connect your ChatGPT or OpenAI account to see Codex usage, credits and rate limits." (add-account variant: "Connect another ChatGPT or OpenAI account to watch a second Codex quota."). "Sign In with ChatGPT" → browser round-trip to a local callback (127.0.0.1:1455) → the account lands in `AccountStore` and the overlay auto-dismisses; no code to paste. While waiting: spinner + "Complete the sign-in in your browser…" + Cancel (releases the port, clears any error). Port busy → inline error "Couldn't start sign-in (port 1455 busy — is a Codex CLI login running?)". Errors speak for OpenAI (see `AuthError` in DATA_LAYER.md): a user-cancelled browser flow shows **nothing**; timeout / declined / malformed-redirect / token-endpoint failures each get their own copy, none of it mentioning Anthropic or an "authorization code".
 - **Import Codex CLI login** (`LinkActionButton`, `square.and.arrow.down`): shown only when `~/.codex/auth.json` holds a login — ChatGPT mode or API-key mode. The availability check runs once in `.task` (off the render path), never inside `body`.
-- **Use an OpenAI API key instead** (`LinkActionButton`, `key`): reveals a `SecureField("sk-…")` + "Connect" (+ a one-line pay-per-token explainer). Registers via `OAuthManager.registerCodexAPIKey`; invalid keys show an inline error.
+- **Use an OpenAI API key instead** (`LinkActionButton`, `key`): reveals a `SecureField("sk-…")` + "Connect" (+ a one-line pay-per-token explainer) and a **"Use ChatGPT sign-in instead"** back link (`arrow.uturn.backward`; hides the field, clears input and error). Connect runs the local shape check (`OAuthManager.looksLikeOpenAIAPIKey`) **before any network** — a malformed key fails instantly and offline with "That doesn't look like an OpenAI API key (expected sk-…)." — then the free `/v1/models` validation: `.invalid` (401) → "OpenAI rejected this API key. Check it at platform.openai.com/api-keys."; `.unknown` (offline, 403, 5xx) → the key is **added anyway** with the note "Couldn't verify the key right now (offline?). Added anyway — it's checked on the first refresh."; `.valid` → registered via `OAuthManager.registerCodexAPIKey` and the overlay auto-dismisses.
 
 ### Loading / Error / Empty States
 
 - **Loading**: centered spinner (0.8 scale) + "Loading...", 80pt height
 - **Error**: orange triangle + message + blue "Retry" button, 100pt height
 - **Empty**: "No {Claude Code|Codex} data found" + "Start a {tool} session to populate usage data.\nData appears automatically once {tool} is running.", 80pt height — tool name follows the active provider
-- **Error copy** (footer message): "Unable to reach Anthropic API…" / "Unable to reach OpenAI…" and "Start a Claude Code session…" / "Start a Codex session…" per provider
+- **Error copy** (footer message): "Unable to reach Anthropic API…" / "Unable to reach OpenAI…" and "Start a Claude Code session…" / "Start a Codex session…" per provider. A Codex account whose endpoint call failed with nothing cached (`APIFetchResult.endpointUnavailable`) gets "Unable to reach OpenAI. Check your internet connection and try again." — never the first-run "Start a Codex session" prompt.
 
 ### Tutorial copy
-Provider-neutral: "5-hour and 7-day (Weekly for Codex) bars … your provider's sliding window limits"; "Monitors your active Claude Code or Codex sessions".
+Step 1 follows the active account's quota shape (`TutorialOverlay(hasData:kind:)`, `rateLimitStep(kind:)`): `.windows` → **Rate Limits** "The 5-hour and 7-day (Weekly for Codex) bars show your current usage against your provider's sliding window limits. The "binding" badge marks whichever window is constraining you." (`chart.bar.fill`); `.credits` → **Credits** "The Credits bar shows how much of this period's spend budget your workspace has used, with the remaining credits and when the budget resets." (`creditcard.fill`); `.apiLimits` → **API Limits** "The Requests and Tokens bars show OpenAI's per-minute limits for your API key. Costs below are your real bill at API rates." (`key.fill`). Steps 2–3 are provider-neutral: "Monitors your active Claude Code or Codex sessions…"; the Settings step.
 
 ## Menu Bar
 
@@ -489,7 +493,7 @@ The **popover's 5-Hour/7-Day bars** read from a single source of truth — the (
 **Multi-account display** (when `aibattery_showAllAccountsInMenuBar == true` and ≥2 authenticated accounts exist):
 - Text format: `"<a>%\u{00A0}|\u{00A0}<b>%[\u{00A0}|\u{00A0}<c>%]"` — non-breaking spaces around `|` so a single slot doesn't break across the separator. Pure formatting via `MenuBarMultiAccountText.build(order:limits:metricMode:)`.
 - **Mixed providers**: when the *displayed* accounts span both providers, slots are grouped by provider with a glyph prefix — `✦ 42% | 23%  ⬡ 57%` (two spaces between groups, non-breaking within a group). Single-provider sets keep the legacy unprefixed format. Throttled countdown prefixes the binding window's short code (`7D` / `WK`).
-- Order: `AccountStore.accounts` order (user-controlled, mirrors the popover account picker).
+- Order: `AccountStore.multiAccountDisplayIDs` — `displayOrdered` (Claude block first, mirrors the popover account picker), non-pending, authenticated, **excluding Codex API-key accounts** (no window data → they rendered a permanent "—").
 - Star color: driven by the **worst** account's percent (max across `perAccountRateLimits.values`).
 - Broken star: triggered if any account has `isThrottled == true` OR any account has 100%+ utilization.
 - Countdown mode: triggered only when **at least one account is actually exhausted** (throttled or 100%+ on a window). `StatusBarManager` calls the existing `countdownResetDate(for:now:)` per account and picks `.min()`. Healthy accounts with normal future resets never pin the menu bar into countdown mode — the new `42% | 23%` text remains visible.
@@ -555,9 +559,9 @@ The **popover's 5-Hour/7-Day bars** read from a single source of truth — the (
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)
 
-Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` — parent passes only `hasData: Bool`. Renders when `!hasSeenTutorial && hasData`.
+Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` — parent passes `hasData: Bool` and the active snapshot's `kind: CodexDisplayKind` (default `.windows`). Renders when `!hasSeenTutorial && hasData`.
 
-1. **Rate Limits** — explains 5h/7d bars and binding constraint
+1. **Rate Limits** / **Credits** / **API Limits** — explains the bar the user is actually looking at (windows + binding constraint, the Credits budget, or per-minute API limits; copy under "Tutorial copy" above)
 2. **Context Health** — explains session monitoring and bands
 3. **Settings** — points to gear icon for customization
 
