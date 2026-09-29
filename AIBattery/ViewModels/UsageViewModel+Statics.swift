@@ -34,7 +34,9 @@ extension UsageViewModel {
         hasProfile: Bool,
         hasStandardRateLimitHeaders: Bool,
         totalMessages: Int,
-        authError: Bool = false
+        authError: Bool = false,
+        provider: AIProvider = .claude,
+        endpointUnavailable: Bool = false
     ) -> String? {
         if authError {
             return "Authentication failed — please log out and reconnect this account."
@@ -48,13 +50,22 @@ extension UsageViewModel {
         if hasStandardRateLimitHeaders {
             return nil
         }
+        // Codex results never carry a profile, so a first-run user whose endpoint call
+        // failed would otherwise be told to "start a session" instead of the truth.
+        if endpointUnavailable, provider == .codex {
+            return "Unable to reach OpenAI. Check your internet connection and try again."
+        }
         if !hasProfile && totalMessages == 0 {
-            return "No usage data yet. Start a Claude Code session to see your stats."
+            return provider == .codex
+                ? "No usage data yet. Start a Codex session to see your stats."
+                : "No usage data yet. Start a Claude Code session to see your stats."
         }
         if hasProfile {
             return nil
         }
-        return "Unable to reach Anthropic API. Check your internet connection and try again."
+        return provider == .codex
+            ? "Unable to reach OpenAI. Check your internet connection and try again."
+            : "Unable to reach Anthropic API. Check your internet connection and try again."
     }
 
     /// Whether snapshot data has changed compared to previous values. Used by adaptive polling.
@@ -316,7 +327,11 @@ extension UsageViewModel {
             sevenDayUtilization: holdSevenDay ? (previousDisplayed?.sevenDayUtilization ?? 0) : fresh.sevenDayUtilization,
             sevenDayReset: fresh.sevenDayReset,
             sevenDayStatus: displaySevenDayStatus,
-            overallStatus: displayOverallStatus
+            overallStatus: displayOverallStatus,
+            provider: fresh.provider,
+            fiveHourWindowMinutes: fresh.fiveHourWindowMinutes,
+            sevenDayWindowMinutes: fresh.sevenDayWindowMinutes,
+            creditBudget: fresh.creditBudget
         )
         return SpikeConfirmedRateLimits(display: display, nearFullWindows: nearFull, heldWindows: held)
     }

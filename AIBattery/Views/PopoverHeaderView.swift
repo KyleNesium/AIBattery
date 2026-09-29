@@ -4,7 +4,7 @@ struct PopoverHeaderView: View {
     let snapshot: UsageSnapshot?
     @ObservedObject var accountStore: AccountStore
     @Binding var showSettings: Bool
-    @Binding var isAddingAccount: Bool
+    let onAddAccount: (AIProvider) -> Void
     let onSwitchAccount: (String) -> Void
     let onUpdateFound: (VersionChecker.UpdateInfo?) -> Void
     let availableUpdate: VersionChecker.UpdateInfo?
@@ -20,7 +20,8 @@ struct PopoverHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
             HStack(alignment: .center, spacing: Spacing.inner) {
-                Image(systemName: "sparkle")
+                // ✦ for Claude, ⬡ for Codex — the header follows the active account.
+                Image(systemName: accountStore.activeAccount?.provider == .codex ? "hexagon" : "sparkle")
                     .font(Typography.heroValue)
                     .foregroundStyle(.primary)
                 Text("AI Battery")
@@ -207,9 +208,13 @@ struct PopoverHeaderView: View {
 
     /// Account picker — shows display name if set, otherwise "User N".
     private var accountPicker: some View {
-        Menu {
+        // Single ordered array shared by the menu items and the label lookup below,
+        // so "User N" numbering stays consistent between the two (Claude block first,
+        // insertion order preserved within each provider — see AccountStore.displayOrdered).
+        let ordered = AccountStore.displayOrdered(accountStore.accounts)
+        return Menu {
             let activeId = accountStore.activeAccountId
-            ForEach(Array(accountStore.accounts.enumerated()), id: \.element.id) { index, account in
+            ForEach(Array(ordered.enumerated()), id: \.element.id) { index, account in
                 Button(action: {
                     withAnimation(MotionConstants.standard) {
                         onSwitchAccount(account.id)
@@ -223,18 +228,19 @@ struct PopoverHeaderView: View {
                     }
                 }
             }
-            if accountStore.canAddAccount {
+            if accountStore.canAddAccount(provider: .claude) || accountStore.canAddAccount(provider: .codex) {
                 Divider()
-                Button(action: { isAddingAccount = true }) {
-                    HStack {
-                        Image(systemName: "plus.circle")
-                        Text("Add Account")
-                    }
+                if accountStore.canAddAccount(provider: .claude) {
+                    Button { onAddAccount(.claude) } label: { Label("Add Claude Account…", systemImage: "plus") }
+                }
+                if accountStore.canAddAccount(provider: .codex) {
+                    Button { onAddAccount(.codex) } label: { Label("Add Codex Account…", systemImage: "plus") }
                 }
             }
         } label: {
-            if let activeIndex = accountStore.accounts.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
-                Text(accountLabel(accountStore.accounts[activeIndex], index: activeIndex))
+            if let activeIndex = ordered.firstIndex(where: { $0.id == accountStore.activeAccountId }) {
+                // Collapsed label has ~100 pt: name + glyph only, the plan lives in the menu rows.
+                Text(accountLabel(ordered[activeIndex], index: activeIndex, includePlan: false))
                     .font(Typography.caption)
                     .foregroundStyle(ThemeColors.secondaryLabel)
                     .lineLimit(1)
@@ -248,14 +254,22 @@ struct PopoverHeaderView: View {
         .menuStyle(.borderlessButton)
         .frame(maxWidth: Layout.accountPickerMaxWidth)
         .accessibilityLabel("Switch account")
-        .accessibilityHint("Select which Claude account to display")
+        .accessibilityHint("Select which account to display")
     }
 
-    /// Label for an account: display name if set, otherwise "User N".
-    private func accountLabel(_ account: AccountRecord, index: Int) -> String {
-        if let name = account.displayName, !name.isEmpty {
-            return name
-        }
-        return "User \(index + 1)"
+    /// Shared with Settings rows via `AccountStore.displayLabel` so the two surfaces
+    /// never disagree on numbering, glyphs or plan suffixes.
+    private func accountLabel(_ account: AccountRecord, index: Int, includePlan: Bool = true) -> String {
+        AccountStore.displayLabel(
+            for: account,
+            index: index,
+            showsProviderGlyph: AccountStore.spansBothProviders(accountStore.accounts),
+            includePlan: includePlan
+        )
+    }
+
+    /// "plus" → "Plus", "api" → "API"; nil for empty/unknown. Forwarder kept for callers/tests.
+    nonisolated static func planLabel(_ billingType: String?) -> String? {
+        AccountStore.planLabel(billingType)
     }
 }

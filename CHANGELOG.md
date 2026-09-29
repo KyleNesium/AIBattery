@@ -1,5 +1,84 @@
 # Changelog
 
+## [Unreleased] — Codex (OpenAI) accounts
+
+AI Battery becomes a two-provider battery: up to 3 Claude **and** 3 Codex
+accounts, switchable from the header picker (✦ / ⬡ glyphs when both exist).
+
+### Added
+- **Codex accounts** via ChatGPT sign-in (browser round-trip, no code to paste),
+  one-click import of the Codex CLI login, or an OpenAI API key.
+- **Three Codex billing models**, each with its own layout: subscriptions
+  (5-hour + Weekly windows, purchased-credit balance), Business/Enterprise
+  spend controls (one Credits budget bar), and API keys (per-minute OpenAI
+  request/token limits, costs shown as a real bill at API rates).
+- **Codex Insights**: token usage, per-model API-equivalent cost, Projects and
+  Context Health rebuilt from `~/.codex/sessions` rollouts (token counts only).
+- `gpt-5.x` / `gpt-6-astra` pricing, GPT display names, OpenAI status feed
+  filtered to Codex components, plan name in the account picker.
+
+### Changed
+- Cold JSONL scans are 3–10× faster for both providers (memchr newline search,
+  head-only Codex line pre-filter): Claude 8.6 s → 2.3 s and Codex 15.3 s → 1.5 s
+  on the reference machine.
+- Every popover label, link and error follows the active account's provider
+  ("Weekly" instead of "7-Day" for Codex; OpenAI status and usage links).
+- Rate-limit window lengths reported by the provider now drive the rollover
+  guard and burn-rate estimate (Claude defaults unchanged).
+- **Sign-in screen** offers a Claude | Codex segmented picker instead of a
+  footnote link; the offered provider persists and follows the account you
+  last signed out of, and an app-initiated sign-out (rejected refresh token)
+  explains itself in a caution line.
+- **API-key entry**: the key's shape is checked locally before any network,
+  an unverifiable key (offline) is added with a note and checked on the first
+  refresh, and a "Use ChatGPT sign-in instead" link leads back.
+- Settings account rows use the header picker's order, numbering and provider
+  glyphs; the collapsed picker drops the plan suffix so it no longer truncates;
+  plan labels handle `chatgpt_team` ("ChatGPT Team").
+- Footer "Cached" tooltip explains the Codex session-log / endpoint-backoff
+  case; the refresh-rate hint states the real per-poll cost per provider
+  (Claude ~3 tokens, Codex ChatGPT none, Codex API key ~16 output tokens).
+- Tutorial step 1 matches the account's quota shape (windows / Credits /
+  API Limits); key `2` selects the single budget tab on Credits / API-key
+  accounts; Test alerts fire the active provider's component names.
+- Uncapped Business/Enterprise credit plans render "no cap" instead of
+  "0 remaining"; the API-key menu-bar percent follows the tighter of the
+  per-minute request / token limits, and API-key accounts no longer occupy a
+  permanent "—" slot in the multi-account menu bar.
+
+### Fixed
+- A Business account at 96% credits used could show **0%** in the menu bar:
+  the 5h/7d rollover-artifact filter zeroed the monthly budget. Credit budgets
+  now skip that heuristic, and a reset further away than the window length is
+  never treated as "a window that just started".
+- A Business/Enterprise workspace **without** an individual spend cap
+  (`rate_limit: null`, no `individual_limit`) parsed as an outage and triggered
+  backoff + "Unable to reach OpenAI"; it is now a healthy uncapped reading.
+- OpenAI token-endpoint 429s and unexpected 4xx no longer sign the account out
+  and delete its Keychain entry — they are transient and retried. Refresh
+  responses without `id_token` are accepted (only the code exchange needs it).
+- The Codex CLI session-log fallback can no longer overwrite a newer endpoint
+  reading (bars dropping mid-outage) and is skipped when more than one
+  ChatGPT-backed Codex account exists (the CLI's rollout can't be attributed).
+- API-key probe: only 401 is an auth failure; a 403 (model / region /
+  verification restriction) moves on to the next probe model, and a 403 from
+  `/v1/models` no longer rejects a valid key.
+- Signing out and back into the same Codex account no longer inherits the
+  previous session's endpoint backoff window or auth-failure count.
+- Codex sign-in errors speak for OpenAI: a cancelled browser flow is silent,
+  timeouts / declined sign-ins / malformed redirects have their own copy, and
+  token failures no longer mention "Anthropic's server" or an "authorization
+  code".
+- A credit budget fires one threshold alert instead of two identical ones
+  batched as "Multiple alerts"; a first-run Codex user whose endpoint call
+  failed is told OpenAI is unreachable instead of "start a Codex session".
+- The session rate-limit scanner applies the reader's symlink and
+  regular-file guards to `~/.codex/sessions`.
+
+### Security
+- Codex OAuth callback binds to 127.0.0.1 only; API keys live in the Keychain
+  under a hashed account id and are never sent to chatgpt.com.
+
 ## [2.6.1] — 2026-09-01
 
 Fixes another false "Limit reached" variant and ships a security fix in the

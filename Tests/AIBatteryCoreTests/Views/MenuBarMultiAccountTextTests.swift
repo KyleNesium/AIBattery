@@ -615,4 +615,53 @@ struct MenuBarMultiAccountTextTests {
         #expect(result.countdownReset == nil)
         #expect(result.text == "42%\u{00A0}|\u{00A0}100%") // percent strip, not countdown
     }
+
+    // MARK: - Provider grouping
+
+    @Test("Mixed providers get glyph groups")
+    func mixedProvidersGetGlyphGroups() {
+        let limits = [
+            "c1": Self.usage(fiveHourUtilization: 0.42),
+            "c2": Self.usage(fiveHourUtilization: 0.23),
+            "x1": Self.usage(fiveHourUtilization: 0.57),
+        ]
+        let providers: [String: AIProvider] = ["c1": .claude, "c2": .claude, "x1": .codex]
+        let output = MenuBarMultiAccountText.build(
+            order: ["c1", "c2", "x1"],
+            providers: providers,
+            limits: limits,
+            metricMode: .fiveHour
+        )
+        #expect(output.text == "\u{2726}\u{00A0}42%\u{00A0}|\u{00A0}23%  \u{2B21}\u{00A0}57%")
+        #expect(Int(output.worstPercent.rounded()) == 57)
+    }
+
+    @Test("Single provider keeps legacy format")
+    func singleProviderKeepsLegacyFormat() {
+        let limits = ["c1": Self.usage(fiveHourUtilization: 0.42), "c2": Self.usage(fiveHourUtilization: 0.23)]
+        let providers: [String: AIProvider] = ["c1": .claude, "c2": .claude]
+        let output = MenuBarMultiAccountText.build(
+            order: ["c1", "c2"],
+            providers: providers,
+            limits: limits,
+            metricMode: .fiveHour
+        )
+        #expect(output.text == "42%\u{00A0}|\u{00A0}23%")
+    }
+
+    @Test("Glyphs derive from the displayed set, not every known provider")
+    func glyphsIgnoreProvidersFilteredOutOfOrder() {
+        // "x1" is a known Codex account (e.g. its rate-limit fetch failed and it was
+        // filtered out of the displayed `order`) but still present in `providers`.
+        // Only accounts actually rendered may drive the mixed-provider glyph decision.
+        let limits = ["c1": Self.usage(fiveHourUtilization: 0.42), "c2": Self.usage(fiveHourUtilization: 0.23)]
+        let providers: [String: AIProvider] = ["c1": .claude, "c2": .claude, "x1": .codex]
+        let output = MenuBarMultiAccountText.build(
+            order: ["c1", "c2"], // x1 not displayed
+            providers: providers,
+            limits: limits,
+            metricMode: .fiveHour
+        )
+        #expect(output.text == "42%\u{00A0}|\u{00A0}23%") // legacy format — no glyphs
+    }
 }

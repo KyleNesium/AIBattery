@@ -85,4 +85,11 @@ struct DateFormattersTests {
         components.timeZone = TimeZone(identifier: "UTC")
         return Calendar(identifier: .gregorian).date(from: components)!
     }
+
+    @Test func parseISO8601_acceptsBothShapes_rejectsGarbage() {
+        #expect(DateFormatters.parseISO8601("2026-04-03T12:00:00.250Z") == Date(timeIntervalSince1970: 1_775_217_600.25))
+        #expect(DateFormatters.parseISO8601("2026-04-03T12:00:00Z") == Date(timeIntervalSince1970: 1_775_217_600))
+        #expect(DateFormatters.parseISO8601("1775217600") == nil)
+        #expect(DateFormatters.parseISO8601("") == nil)
+    }
 }

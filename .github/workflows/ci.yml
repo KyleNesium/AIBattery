@@ -88,7 +88,10 @@ jobs:
             set -e
             echo "::endgroup::"
 
-            if grep -q '✘ Test' test-output.txt; then
+            # Swift Testing prints opt-in tests disabled via `.enabled(if:)` as
+            # "✘ Test … skipped." on newer toolchains — only a failed test or a
+            # recorded issue is a failure.
+            if grep -E '✘ (Test|Suite) ' test-output.txt | grep -qv ' skipped'; then
               echo "Test failures detected — aborting"
               exit 1
             fi

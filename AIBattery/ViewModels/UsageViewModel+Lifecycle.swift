@@ -20,6 +20,7 @@ extension UsageViewModel {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.aggregator.invalidate()
+                self.codexAggregator.invalidate()
                 // Local-only: a JSONL/stats write changed local token counts, not the
                 // API state. Re-aggregate with the currently displayed rate limits and
                 // leave the poll timer alone — restarting it here starved network polls
@@ -106,7 +107,9 @@ extension UsageViewModel {
     func repaintCachedNotFresh() async {
         rateLimitsFresh = false
         guard let accountId = OAuthManager.shared.accountStore.activeAccountId else { return }
-        let cached = RateLimitFetcher.shared.cachedOrEmpty(accountId: accountId)
+        // Route by provider — a Codex account's cache lives in CodexRateLimitFetcher.
+        let accountProvider = provider(ofAccount: accountId)
+        let cached = Self.cachedResult(for: accountProvider, accountId: accountId)
         guard cached.rateLimits != nil || cached.standardLimits != nil else { return }
         let result = await aggregateOffMain(
             // Clear rollover artifacts so a just-reset window's carried-over
@@ -115,6 +118,7 @@ extension UsageViewModel {
             rateLimitSource: cached.rateLimitSource,
             standardLimits: cached.standardLimits,
             accountId: accountId,
+            provider: accountProvider,
             rateLimitsFresh: false
         )
         // Mirror refresh()'s account-switch guard for the suspension window.

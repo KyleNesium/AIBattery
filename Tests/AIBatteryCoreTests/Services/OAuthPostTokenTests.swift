@@ -64,7 +64,7 @@ struct OAuthPostTokenTests {
         let stub = TransportStub([.status(500), .status(500), .status(500)])
         let result = await Self.post(stub)
 
-        guard case .failure(.serverError(let code)) = result else {
+        guard case .failure(.serverError(let code, _)) = result else {
             Issue.record("Expected .serverError, got \(result)")
             return
         }

@@ -7,8 +7,8 @@ import os
 /// published so SwiftUI views react to account changes.
 @MainActor
 public final class AccountStore: ObservableObject {
-    /// Maximum number of accounts supported.
-    nonisolated static let maxAccounts = 3
+    /// Maximum number of accounts per provider (3 Claude + 3 Codex).
+    nonisolated static let maxAccountsPerProvider = 3
 
     /// The persisted active account ID, readable off-MainActor (UserDefaults is
     /// thread-safe). Used by nonisolated read paths (e.g. `LocalUsageEstimate`)
@@ -27,8 +27,24 @@ public final class AccountStore: ObservableObject {
         accounts.first { $0.id == activeAccountId }
     }
 
-    public var canAddAccount: Bool {
-        accounts.count < Self.maxAccounts
+    public func accounts(for provider: AIProvider) -> [AccountRecord] {
+        accounts.filter { $0.provider == provider }
+    }
+
+    public func canAddAccount(provider: AIProvider) -> Bool {
+        accounts(for: provider).count < Self.maxAccountsPerProvider
+    }
+
+    /// The record for an id, if known.
+    public func account(id: String?) -> AccountRecord? {
+        guard let id else { return nil }
+        return accounts.first { $0.id == id }
+    }
+
+    /// Provider of an account; `.claude` for unknown ids (pre-provider records and
+    /// the signed-out state) — the single home for a lookup that used to be repeated.
+    public func provider(of id: String?) -> AIProvider {
+        account(id: id)?.provider ?? .claude
     }
 
     public init() {
@@ -38,8 +54,8 @@ public final class AccountStore: ObservableObject {
     // MARK: - Mutations
 
     public func add(_ record: AccountRecord) {
-        guard accounts.count < Self.maxAccounts else {
-            AppLogger.oauth.warning("Cannot add account — max \(Self.maxAccounts) reached")
+        guard accounts(for: record.provider).count < Self.maxAccountsPerProvider else {
+            AppLogger.oauth.warning("Cannot add account — max \(Self.maxAccountsPerProvider) \(record.provider.rawValue, privacy: .public) accounts reached")
             return
         }
         guard !accounts.contains(where: { $0.id == record.id }) else {
@@ -133,5 +149,54 @@ public final class AccountStore: ObservableObject {
         if let active = activeAccountId, !accounts.contains(where: { $0.id == active }) {
             activeAccountId = accounts.first?.id
         }
+    }
+
+    // MARK: - Display & Ordering
+
+    /// Claude block first, insertion order preserved within each provider.
+    /// Single source of display order for picker, fan-out, and menu bar.
+    nonisolated static func displayOrdered(_ accounts: [AccountRecord]) -> [AccountRecord] {
+        accounts.filter { $0.provider == .claude } + accounts.filter { $0.provider == .codex }
+    }
+
+    /// Whether a set of accounts spans both providers — the only case where labels
+    /// carry the provider glyph (a single-provider setup stays exactly as before).
+    nonisolated static func spansBothProviders(_ accounts: [AccountRecord]) -> Bool {
+        Set(accounts.map(\.provider)).count > 1
+    }
+
+    /// The one label an account gets everywhere it is listed (header picker, Settings
+    /// rows): display name if set, otherwise "User N" where N is the account's position
+    /// in `displayOrdered`, prefixed with the provider glyph in a mixed setup and, for
+    /// Codex, optionally suffixed with the plan ("· Business", "· API").
+    nonisolated static func displayLabel(
+        for account: AccountRecord,
+        index: Int,
+        showsProviderGlyph: Bool,
+        includePlan: Bool
+    ) -> String {
+        let base: String = if let name = account.displayName, !name.isEmpty {
+            name
+        } else {
+            "User \(index + 1)"
+        }
+        let labelled = showsProviderGlyph ? "\(account.provider.glyph) \(base)" : base
+        if includePlan, account.provider == .codex, let plan = planLabel(account.billingType) {
+            return "\(labelled) · \(plan)"
+        }
+        return labelled
+    }
+
+    /// "plus" → "Plus", "api" → "API", "chatgpt_team" → "ChatGPT Team"; nil for empty/unknown.
+    nonisolated static func planLabel(_ billingType: String?) -> String? {
+        guard let raw = billingType?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        let words = raw.split(whereSeparator: { $0 == "_" || $0 == "-" || $0 == " " })
+        return words.map { word -> String in
+            switch word.lowercased() {
+            case "api": "API"
+            case "chatgpt": "ChatGPT"
+            default: word.prefix(1).uppercased() + word.dropFirst().lowercased()
+            }
+        }.joined(separator: " ")
     }
 }

@@ -23,18 +23,21 @@ public final class NotificationManager {
 
     // MARK: - Public
 
-    /// Fire test notifications for all components (verifies delivery works).
-    func testAlerts() {
-        for component in StatusChecker.knownComponents {
+    /// Fire test notifications for the given feed's components (verifies delivery
+    /// works). Callers pass the active provider's components so a Codex user gets
+    /// OpenAI names, not "claude.ai is down".
+    func testAlerts(components: [StatusComponent] = StatusChecker.knownComponents) {
+        for component in components {
             hasFired.remove(component.alertKey)
             checkComponentStatus(key: component.alertKey, label: component.name, indicator: .majorOutage)
         }
     }
 
-    /// Check status page and fire alerts for all components when alerts are enabled.
-    func checkStatusAlerts(status: ClaudeSystemStatus) {
+    /// Check status page and fire alerts for the given feed's components when alerts
+    /// are enabled. Defaults to the Claude feed; callers pass the active provider's.
+    func checkStatusAlerts(status: ClaudeSystemStatus, components: [StatusComponent] = StatusChecker.knownComponents) {
         guard UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertStatus) else { return }
-        for component in StatusChecker.knownComponents {
+        for component in components {
             let indicator = status.componentStatuses[component.id] ?? .unknown
             checkComponentStatus(key: component.alertKey, label: component.name, indicator: indicator)
         }
@@ -49,18 +52,42 @@ public final class NotificationManager {
         let threshold = UserDefaults.standard.double(forKey: UserDefaultsKeys.rateLimitThreshold)
         let effectiveThreshold = threshold > 0 ? threshold : 80.0
 
+        // A credit budget mirrors one number onto both windows — one alert, not two
+        // identical ones batched into "Multiple alerts".
+        if rateLimits.isCreditBudget {
+            checkRateLimitWindow(
+                key: "rateLimitCredits",
+                label: "Credits",
+                percent: rateLimits.sevenDayPercent,
+                threshold: effectiveThreshold
+            )
+            return
+        }
+
+        let labels = Self.windowLabels(for: rateLimits)
         checkRateLimitWindow(
             key: "rateLimit5h",
-            label: "5-Hour",
+            label: labels.fiveHour,
             percent: rateLimits.fiveHourPercent,
             threshold: effectiveThreshold
         )
         checkRateLimitWindow(
             key: "rateLimit7d",
-            label: "7-Day",
+            label: labels.secondary,
             percent: rateLimits.sevenDayPercent,
             threshold: effectiveThreshold
         )
+    }
+
+    /// Notification vocabulary per provider: Anthropic says "7-Day", OpenAI says "Weekly".
+    nonisolated static func windowLabels(for provider: AIProvider) -> (fiveHour: String, secondary: String) {
+        ("5-Hour", provider.secondaryWindowLabel)
+    }
+
+    /// Reading-aware variant: a Codex credit budget mirrors one number onto both windows,
+    /// so both alerts are simply "Credits".
+    nonisolated static func windowLabels(for rateLimits: RateLimitUsage) -> (fiveHour: String, secondary: String) {
+        rateLimits.isCreditBudget ? ("Credits", "Credits") : windowLabels(for: rateLimits.provider)
     }
 
     /// Pure function for testability: whether an alert should fire given the current state.

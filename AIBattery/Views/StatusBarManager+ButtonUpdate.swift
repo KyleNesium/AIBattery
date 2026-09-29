@@ -57,9 +57,12 @@ extension StatusBarManager {
         let anyThrottled = (activeRateLimits?.isThrottled ?? false)
             || perAccount.values.contains { $0.isThrottled }
         let confirmed = UsageViewModel.alarmConfirmed(rateLimitsFresh: viewModel.rateLimitsFresh, displayedIsThrottled: anyThrottled)
+        let providers: [String: AIProvider] = Dictionary(uniqueKeysWithValues:
+            OAuthManager.shared.accountStore.accounts.map { ($0.id, $0.provider) })
         let display = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: showAll,
             perAccount: perAccount,
+            providers: providers,
             order: order,
             activeRateLimits: activeRateLimits,
             activePercent: activePercent,

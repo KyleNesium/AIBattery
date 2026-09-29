@@ -14,13 +14,17 @@ import Testing
 /// non-isolated context (the compiler enforces this via `nonisolated`).
 @Suite("StatusChecker — concurrency")
 struct StatusCheckerConcurrencyTests {
+    private static func config(_ url: URL) -> StatusFeedConfig {
+        StatusFeedConfig(summaryURL: url, statusPageBaseURL: "https://status.example.invalid", knownComponents: [], componentFilter: nil)
+    }
+
     /// Calling `fetchAndParse` from a `Task.detached` (non-MainActor)
     /// context must complete without deadlock or crash. The compiler
     /// would reject this call site if `fetchAndParse` were MainActor-isolated.
     @Test func fetchAndParse_callableFromDetachedTask() async throws {
         let url = try #require(URL(string: "http://127.0.0.1:1")) // port 1 refuses immediately
         let outcome = await Task.detached(priority: .userInitiated) {
-            await StatusChecker.fetchAndParse(url: url, timeout: 0.5)
+            await StatusChecker.fetchAndParse(config: Self.config(url), timeout: 0.5)
         }.value
 
         // Outcome should never be .success against a non-routable URL.
@@ -41,7 +45,7 @@ struct StatusCheckerConcurrencyTests {
         let mainActorPingFired = MainActorBox(value: false)
 
         async let fetchTask: Void = {
-            _ = await StatusChecker.fetchAndParse(url: url, timeout: 0.5)
+            _ = await StatusChecker.fetchAndParse(config: Self.config(url), timeout: 0.5)
         }()
 
         // While the fetch is in flight, schedule a MainActor closure.

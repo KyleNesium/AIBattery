@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import AIBatteryCore
 
@@ -50,5 +51,63 @@ struct PopoverFooterStatusSymbolTests {
             #expect(PopoverFooterView.statusSymbol(for: state) != nil,
                     "\(state) should overlay a symbol so it reads without color")
         }
+    }
+
+    // MARK: - Provider-aware links (Plan 2)
+
+    @Test func usageDashboardURL_claude() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .claude).absoluteString == "https://claude.ai/settings/usage")
+    }
+
+    @Test func usageDashboardURL_codex() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .codex).absoluteString == "https://chatgpt.com/codex/settings/usage")
+    }
+
+    @Test func statusPageURL_prefersLiveStatus_thenProviderDefault() {
+        let live = ClaudeSystemStatus.unknown(statusPageURL: "https://status.example.invalid")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: live, provider: .codex) == "https://status.example.invalid")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: nil, provider: .codex) == "https://status.openai.com")
+        #expect(PopoverFooterView.statusPageURL(systemStatus: nil, provider: .claude) == "https://status.claude.com")
+    }
+
+    @Test func usageDashboardURL_codexAPIKey_isPlatformUsage() {
+        #expect(PopoverFooterView.usageDashboardURL(for: .codex, apiKeyAccount: true).absoluteString == "https://platform.openai.com/usage")
+    }
+
+    @Test func planLabel_capitalisesPlans_andUppercasesAPI() {
+        #expect(PopoverHeaderView.planLabel("plus") == "Plus")
+        #expect(PopoverHeaderView.planLabel("business") == "Business")
+        #expect(PopoverHeaderView.planLabel("api") == "API")
+        #expect(PopoverHeaderView.planLabel("") == nil)
+        #expect(PopoverHeaderView.planLabel(nil) == nil)
+    }
+
+    /// "Cached" explains itself in the active provider's terms — a Codex user is never
+    /// told Anthropic's API is rate-limiting probes.
+    @Test func staleTooltip_isProviderAware() {
+        let when = Date(timeIntervalSince1970: 1_800_000_000)
+        let sessionLog = PopoverFooterView.staleTooltip(source: .codexSessionLog, lastFresh: when)
+        #expect(sessionLog.contains("Codex CLI session log"))
+        #expect(sessionLog.contains("OpenAI"))
+        let endpoint = PopoverFooterView.staleTooltip(source: .codexUsageEndpoint, lastFresh: when)
+        #expect(endpoint.contains("OpenAI"))
+        #expect(!endpoint.contains("Anthropic"))
+        let claude = PopoverFooterView.staleTooltip(source: .anthropicAPIHeaders, lastFresh: when)
+        #expect(claude.contains("rate-limiting probes"))
+        #expect(claude.contains("Last fresh:"))
+    }
+
+    @Test func tutorialFirstStep_matchesQuotaShape() {
+        #expect(TutorialOverlay.rateLimitStep(kind: .windows).title == "Rate Limits")
+        #expect(TutorialOverlay.rateLimitStep(kind: .credits).title == "Credits")
+        #expect(TutorialOverlay.rateLimitStep(kind: .credits).description.contains("spend budget"))
+        #expect(TutorialOverlay.rateLimitStep(kind: .apiLimits).title == "API Limits")
+        #expect(TutorialOverlay.rateLimitStep(kind: .apiLimits).description.contains("per-minute"))
+    }
+
+    @Test func pollCostHint_isProviderAware() {
+        #expect(RefreshSettingsSection.pollCostHint(provider: .claude, apiKeyAccount: false).hasPrefix("~3 tokens/poll"))
+        #expect(RefreshSettingsSection.pollCostHint(provider: .codex, apiKeyAccount: false).contains("no tokens spent"))
+        #expect(RefreshSettingsSection.pollCostHint(provider: .codex, apiKeyAccount: true).contains("billed at API rates"))
     }
 }

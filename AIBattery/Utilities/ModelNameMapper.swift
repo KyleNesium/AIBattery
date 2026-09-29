@@ -20,6 +20,15 @@ enum ModelNameMapper {
     private static func computeDisplayName(for modelId: String) -> String {
         guard !modelId.isEmpty else { return "Unknown" }
 
+        // OpenAI / Codex: "gpt-5.4" → "GPT-5.4", "gpt-5.6-sol" → "GPT-5.6 Sol",
+        // "gpt-5-mini" → "GPT-5 Mini". Version token kept verbatim; suffixes capitalised.
+        if modelId.hasPrefix("gpt-") {
+            let parts = modelId.dropFirst(4).split(separator: "-")
+            guard let version = parts.first else { return modelId }
+            let suffixes = parts.dropFirst().map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            return (["GPT-\(version)"] + suffixes).joined(separator: " ")
+        }
+
         // Strip "claude-" prefix
         var name = modelId
         if name.hasPrefix("claude-") {

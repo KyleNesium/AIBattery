@@ -10,6 +10,11 @@ final class FileWatcher {
     // FSEventStreamRef/DispatchWorkItem cleanup APIs are documented thread-safe.
     nonisolated(unsafe) private var fileSource: DispatchSourceFileSystemObject?
     nonisolated(unsafe) private var fsEventStream: FSEventStreamRef?
+    /// Second FSEvents root: `~/.codex/sessions` (Codex CLI rollouts). Absent when the
+    /// directory doesn't exist — that is not a failure and starts no fallback timer.
+    nonisolated(unsafe) private var codexFsEventStream: FSEventStreamRef?
+    /// True only when `~/.codex/sessions` exists but its stream could not be created.
+    private var codexWatchFailed = false
     nonisolated(unsafe) private var debounceWorkItem: DispatchWorkItem?
     nonisolated(unsafe) private var timer: Timer?
     nonisolated(unsafe) private var retryTimer: Timer?
@@ -27,9 +32,10 @@ final class FileWatcher {
         isStopped = false
         watchStatsCache()
         watchProjectsDirectory()
-        // Start fallback timer if either watcher failed — ensures changes are
-        // picked up even if one of the two FS event sources is unavailable.
-        if fileSource == nil || fsEventStream == nil {
+        watchCodexSessionsDirectory()
+        // Start fallback timer if any attempted watcher failed — ensures changes are
+        // picked up even if one of the FS event sources is unavailable.
+        if fileSource == nil || fsEventStream == nil || codexWatchFailed {
             startFallbackTimer()
         }
     }
@@ -43,7 +49,7 @@ final class FileWatcher {
 
     /// Resume the fallback timer if FSEvent watchers are absent.
     func resumeFallbackTimer() {
-        guard timer == nil, fileSource == nil || fsEventStream == nil else { return }
+        guard timer == nil, fileSource == nil || fsEventStream == nil || codexWatchFailed else { return }
         startFallbackTimer()
     }
 
@@ -63,6 +69,14 @@ final class FileWatcher {
             FSEventStreamRelease(stream)
             fsEventStream = nil
         }
+
+        if let stream = codexFsEventStream {
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            codexFsEventStream = nil
+        }
+        codexWatchFailed = false
 
         timer?.invalidate()
         timer = nil
@@ -111,9 +125,27 @@ final class FileWatcher {
             AppLogger.files.warning("FileWatcher: projects directory not found at \(path, privacy: .public), falling back to timer only")
             return
         }
+        fsEventStream = makeDirectoryStream(path: path) { watcher in
+            watcher.debounceNotify(invalidateStatsCache: false, invalidateSessionLog: true, invalidateCodexSessionLog: false)
+        }
+    }
 
+    /// Watch `~/.codex/sessions` for Codex CLI rollout writes. Missing directory →
+    /// silently skipped (no Codex CLI on this machine); creation failure → fallback timer.
+    private func watchCodexSessionsDirectory() {
+        let path = CodexPaths.sessionsPath
+        guard FileManager.default.fileExists(atPath: path) else { return }
+        codexFsEventStream = makeDirectoryStream(path: path) { watcher in
+            watcher.debounceNotify(invalidateStatsCache: false, invalidateSessionLog: false, invalidateCodexSessionLog: true)
+        }
+        codexWatchFailed = codexFsEventStream == nil
+    }
+
+    /// Create + start a file-level FSEventStream on `path` whose callback runs on main.
+    /// `onEvent` receives the still-alive watcher. Returns nil (and logs) on failure.
+    private func makeDirectoryStream(path: String, onEvent: @escaping @MainActor (FileWatcher) -> Void) -> FSEventStreamRef? {
         // Use a weak wrapper so FSEventStream doesn't prevent deallocation
-        let weak = WeakBox(self)
+        let weak = WeakBox(self, onEvent: onEvent)
         let ptr = Unmanaged.passRetained(weak).toOpaque()
 
         var context = FSEventStreamContext()
@@ -129,7 +161,7 @@ final class FileWatcher {
             let box = Unmanaged<WeakBox<FileWatcher>>.fromOpaque(info).takeUnretainedValue()
             guard let watcher = box.value else { return }
             MainActor.assumeIsolated {
-                watcher.debounceNotify(invalidateStatsCache: false, invalidateSessionLog: true)
+                box.onEvent?(watcher)
             }
         }
 
@@ -141,12 +173,12 @@ final class FileWatcher {
             UInt32(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes)
         ) else {
             AppLogger.files.warning("FileWatcher: failed to create FSEventStream for \(path, privacy: .public)")
-            return
+            return nil
         }
 
         FSEventStreamSetDispatchQueue(stream, .main)
         FSEventStreamStart(stream)
-        fsEventStream = stream
+        return stream
     }
 
     /// Retry opening stats-cache with exponential backoff via `RetryPolicy.fileWatch`
@@ -180,9 +212,9 @@ final class FileWatcher {
     }
 
     /// Selective invalidation — only clear the cache for the reader whose data actually changed.
-    /// Stats-cache changes don't require re-scanning JSONL files, and vice versa.
-    /// Fallback timer invalidates both (safe catch-all when FS events are unavailable).
-    private func debounceNotify(invalidateStatsCache: Bool = true, invalidateSessionLog: Bool = true) {
+    /// Stats-cache changes don't require re-scanning JSONL files, and vice versa; a Codex
+    /// rollout write touches neither Claude reader.
+    private func debounceNotify(invalidateStatsCache: Bool = true, invalidateSessionLog: Bool = true, invalidateCodexSessionLog: Bool = false) {
         guard !isStopped else { return }
         debounceWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
@@ -193,6 +225,9 @@ final class FileWatcher {
                 }
                 if invalidateStatsCache {
                     StatsCacheReader.shared.invalidate()
+                }
+                if invalidateCodexSessionLog {
+                    CodexSessionLogReader.shared.invalidate()
                 }
                 self.onChange()
             }
@@ -206,7 +241,7 @@ final class FileWatcher {
         if let source = fileSource {
             source.cancel()
         }
-        if let stream = fsEventStream {
+        for stream in [fsEventStream, codexFsEventStream].compactMap({ $0 }) {
             FSEventStreamStop(stream)
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
@@ -216,9 +251,12 @@ final class FileWatcher {
     }
 }
 
+/// Weak reference + per-stream event handler handed to the FSEvents C callback.
 private final class WeakBox<T: AnyObject> {
     weak var value: T?
-    init(_ value: T) {
+    let onEvent: (@MainActor (T) -> Void)?
+    init(_ value: T, onEvent: (@MainActor (T) -> Void)? = nil) {
         self.value = value
+        self.onEvent = onEvent
     }
 }

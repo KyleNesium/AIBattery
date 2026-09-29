@@ -13,7 +13,16 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Stats-cache retry (base) | 60 sec, exponential (doubles per retry), cap 300 sec, max 10 retries — `RetryPolicy.fileWatch` | FileWatcher |
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
-| Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck` | StatusChecker |
+| Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck` | StatusChecker (one state per feed: Claude, Codex) |
+| Codex usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account; transport errors / 5xx record a failure, 2xx / 429 / 401 / 403 clear it; while backing off the session-log fallback is served without a request. Backoff state + auth-failure counter are dropped by `clearCache` (sign-out) and `pruneAccounts` (launch sweep) | CodexRateLimitFetcher |
+| Codex session-log fallback gate | Used only when ≤ 1 ChatGPT-backed Codex account exists **and** the rollout's mtime is newer than the cached endpoint reading (`shouldUseSessionLogFallback`) | CodexRateLimitFetcher |
+| Codex usage request timeout | 30 sec | CodexRateLimitFetcher |
+| Codex OAuth callback timeout | 180 sec — abandoned sign-in releases port 1455 | CodexAuthSession |
+| Codex session-log tail scan | 256 KB of the newest rollout | CodexSessionRateLimitScanner |
+| Codex reader discovery TTL | 60 sec (+ root-dir mtime check) | CodexSessionLogReader |
+| Codex line pre-filter head | 512 bytes (`CodexSessionLogParser.relevanceHeadBytes`) | CodexSessionLogParser |
+| OpenAI API-key validation | `GET https://api.openai.com/v1/models`, 15 s timeout — **401** invalid, 2xx/429 valid, else (incl. 403) unknown → key added with an "it's checked on the first refresh" note | CodexRateLimitFetcher |
+| OpenAI API-key shape check | `sk-` prefix + ≥ 20 chars (`OAuthManager.looksLikeOpenAIAPIKey`) — run locally before any network | OAuthManager+Codex / AuthView |
 | Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
@@ -44,6 +53,14 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Status API | `https://status.claude.com/api/v2/summary.json` |
 | Usage Dashboard | `https://claude.ai/settings/usage` |
 | Status Page | `https://status.claude.com` |
+| Codex usage endpoint | `https://chatgpt.com/backend-api/wham/usage` (headers `Authorization: Bearer`, `ChatGPT-Account-Id`) |
+| Codex OAuth authorize | `https://auth.openai.com/oauth/authorize` — redirect `http://localhost:1455/auth/callback` |
+| Codex OAuth token | `https://auth.openai.com/oauth/token` |
+| OpenAI Status API | `https://status.openai.com/api/v2/summary.json` |
+| OpenAI Status Page | `https://status.openai.com` |
+| Codex Usage Dashboard | `https://chatgpt.com/codex/settings/usage` (ChatGPT accounts) / `https://platform.openai.com/usage` (API-key accounts) |
+| OpenAI API-key probe | `POST https://api.openai.com/v1/responses` — `{"model": <gpt-5-nano → gpt-5-mini → gpt-5>, "input": ".", "max_output_tokens": 16, "reasoning": {"effort": "minimal"}, "store": false}` (minimal effort so reasoning doesn't eat the cap; `store: false` keeps probes out of the user's dashboard logs; ≈ $0.000007 per probe); limits read from `x-ratelimit-limit/remaining/reset-requests|tokens` (Go-duration resets incl. `ms`/`µs`/`ns`). Next probe model on a header-less **400 / 403 / 404** (`probeShouldTryNextModel`); **401 only** is an auth failure |
+| Codex OAuth token-endpoint statuses | 400 / 401 / 403 → `AuthError.codexSignInRejected` (final, signs out on refresh); 5xx **and any other status** (429, 408, CDN 4xx) → `.serverError(code, provider: .codex)` (transient, retried) — `CodexTokenClient` |
 | GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
 | Sparkle Appcast | `https://kylenesium.github.io/AIBattery/appcast.xml` |
 
@@ -56,14 +73,57 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Probe content | `"."` |
 | Probe max_tokens | `1` |
 | User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
-| Keychain service (OAuth) | `"AIBattery"` |
-| Max accounts | 3 |
+| Keychain service (OAuth) | `"AIBattery"` — items `refreshToken_<accountId>` (Claude) / `refreshToken_codex_<accountId>` (Codex) |
+| Max accounts | 3 **per provider** (`AccountStore.maxAccountsPerProvider`) |
+| Codex OAuth client-id | `app_EMoamEEZ73f0CkXaXp7hrann` (Codex CLI's public client, from `codex-rs`) |
+| Codex OAuth callback port | `1455` (127.0.0.1 only) |
+| Codex OAuth scopes | `openid profile email offline_access api.connectors.read api.connectors.invoke` (verbatim from codex-rs; `originator=codex_cli_rs`) |
+| Codex rate-limit persistence key | `aibattery_codexRateLimits_{accountId}` |
+| Provider glyphs | `✦` U+2726 (Claude), `⬡` U+2B21 (Codex) — `AIProvider.glyph` |
+| Secondary window label | "7-Day" / `7D` (Claude), "Weekly" / `WK` (Codex) — `AIProvider.secondaryWindowLabel` / `secondaryWindowShortCode`; "Credits" / `CR` for a Codex credit budget (`RateLimitUsage.isCreditBudget`) |
+| Codex credit budget source | `wham/usage` → `spend_control.individual_limit` (`limit`, `used`, `remaining`, `used_percent`, `reset_at`, `unit`), `spend_control.reached`, `credits.has_credits` / `unlimited`. `rate_limit: null` with **no** `individual_limit` → `CodexCreditBudget.uncapped = true` (rendered "no cap" / "—" / "No spend cap on this plan"); `RateLimitUsage.isCreditBudget = limit > 0 \|\| uncapped` |
+| Rollover-artifact filter scope | `isRolloverArtifact` is false when `elapsed < 0` (reset further away than the window length); `withClearedRolloverArtifacts` is a no-op when `isCreditBudget` |
+| Codex model-ID prefix | `gpt-` (`UsageAggregator.isTrackedModel`); Claude `claude-` |
+| Codex API-key account id | `openai-api-` + first 24 hex chars of SHA-256(key) (`OAuthManager.apiKeyAccountId`) |
+| Codex plan label | `AccountRecord.billingType` ← `plan_type` (`"api"` for API-key accounts), rendered "· Plus" / "· ChatGPT Team" / "· API" in the picker menu rows and Settings rows (`AccountStore.planLabel`); omitted from the collapsed picker label |
 | Quota throttle threshold | `0.95` (`RateLimitFetcher.quotaExhaustionThreshold`) — binding utilization at/above which a header-less 429 is still treated as a quota throttle. Below this, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block. |
 | Rollover artifact utilization threshold | `0.95` (`RateLimitUsage.rolloverArtifactUtilizationThreshold`) — dual role. (1) Rollover artifacts: a window reading at/above this is treated as a stale rollover artifact (not a genuine limit) when the window also just started (see grace period below). (2) Spike filter near-full threshold: `UsageViewModel.spikeConfirmedRateLimits` treats a fresh reading at/above this as "near-full" — held at the previous displayed value until the spike sequence is confirmed (see minimum age below; no window-age condition). Tuning this value changes both behaviors. |
 | Spike-filter confirmation minimum age | `600` sec / 10 min (`UsageViewModel.spikeConfirmationMinimumAge`) — an unconfirmed (non-throttled) near-full spike is held at the previous displayed value until the SAME window instance has stayed near-full for this much wall-clock time of consecutive fresh polls (`NearFullMemory.firstSeen` is preserved across held polls). Time-based, not poll-count-based: the 2026-08-11 incident showed the server's eventual-consistency glitch spanning multiple polls, which defeated the old 2-consecutive-polls rule. Genuine throttles bypass the hold entirely; an accepted reading marks its memory `confirmed` so continuations never re-hold. Cost: a genuine limit crossing (reported as 100% + `"allowed"`) alarms up to this much later. |
 | Near-full reset match tolerance | `60` sec (`UsageViewModel.nearFullResetMatchTolerance`) — a remembered near-full spike vouches only for the same window instance: its stored reset must match the fresh reading's reset within this tolerance (absorbs server rounding jitter without letting a post-rollover window inherit the old instance's confirmation). |
 | Rollover artifact grace period | `600` sec / 10 min (`RateLimitUsage.rolloverArtifactGracePeriod`) — a near-full reading on a window whose reset implies it started less than this ago is the previous window's usage lingering across the reset boundary; `withClearedRolloverArtifacts` zeroes that utilization (keeps the new reset). You cannot consume ~all of a 5h/7d quota in the first few minutes of a window. |
 | Auth-failure threshold | `3` consecutive 401/403 (`RateLimitFetcher.authErrorThreshold`) — at or above this the returned `APIFetchResult.authError` flips to `true` and the popover footer surfaces *"Authentication failed — please log out and reconnect this account."* |
+
+## User-Facing Copy (provider-aware)
+
+Exact strings that differ per provider or per Codex account kind. Change here first, then in code.
+
+| Surface | String | Source |
+|---------|--------|--------|
+| Sign-in server error (Claude) | `Anthropic's server returned {code}. This is a temporary issue on their end — please try again in a moment.` | `AuthError.serverError(_, provider: .claude)` |
+| Sign-in server error (Codex) | `OpenAI's sign-in server returned {code}. This is a temporary issue on their end — please try again in a moment.` | `AuthError.serverError(_, provider: .codex)` |
+| Codex sign-in rejected | `OpenAI rejected the sign-in (HTTP {code}). Please try again.` | `AuthError.codexSignInRejected` |
+| Codex sign-in cancelled | *(empty — nothing shown)* | `AuthError.cancelled` |
+| Codex callback timeout | `Sign-in timed out after 3 minutes. Please try again.` | `AuthError.codexCallbackFailure(.providerError("timeout"))` |
+| Codex callback declined | `OpenAI declined the sign-in ({reason}). Please try again.` | `AuthError.codexCallbackFailure(.providerError(reason))` |
+| Codex callback malformed | `The browser redirect was malformed. Please try again.` | `AuthError.codexCallbackFailure(.missingCode / .missingState / .notCallbackPath)` |
+| Session expired (Claude) | `Your Claude session expired or was revoked — sign in again to continue.` | `OAuthManager.sessionExpiredReason(for: .claude)` → `lastSignOutReason` |
+| Session expired (Codex) | `Your Codex (ChatGPT) session expired or was revoked — sign in again to continue.` | `OAuthManager.sessionExpiredReason(for: .codex)` → `lastSignOutReason` |
+| Malformed API key | `That doesn't look like an OpenAI API key (expected sk-…).` | `AuthError.malformedAPIKeyMessage` |
+| API key rejected | `OpenAI rejected this API key. Check it at platform.openai.com/api-keys.` | `AuthView` (`.invalid`) |
+| API key unverified | `Couldn't verify the key right now (offline?). Added anyway — it's checked on the first refresh.` | `AuthView` (`.unknown`) |
+| Codex sign-in intro | `Connect your ChatGPT or OpenAI account to see Codex usage, credits and rate limits.` / add-account: `Connect another ChatGPT or OpenAI account to watch a second Codex quota.` | `AuthView.codexContent` |
+| Codex endpoint unreachable | `Unable to reach OpenAI. Check your internet connection and try again.` | `UsageViewModel.refreshErrorMessage` (`endpointUnavailable`) |
+| Poll-cost hint (Claude) | `~3 tokens/poll · API data kept until next update` | `RefreshSettingsSection.pollCostHint` |
+| Poll-cost hint (Codex ChatGPT) | `Reads OpenAI's usage endpoint · no tokens spent · data kept until next update` | `RefreshSettingsSection.pollCostHint` |
+| Poll-cost hint (Codex API key) | `~16 output tokens/poll, billed at API rates · data kept until next update` | `RefreshSettingsSection.pollCostHint` |
+| Cached tooltip (Claude sources) | `Rate limits may be stale — API is rate-limiting probes. Last fresh: {time}` | `PopoverFooterView.staleTooltip` |
+| Cached tooltip (`.codexUsageEndpoint`) | `Showing cached values — OpenAI's usage endpoint is unreachable or backing off after an error. Last fresh: {time}` | `PopoverFooterView.staleTooltip` |
+| Cached tooltip (`.codexSessionLog`) | `Showing the last reading from your Codex CLI session log — OpenAI's usage endpoint is unreachable. Last fresh: {time}` | `PopoverFooterView.staleTooltip` |
+| Tutorial step 1 (`.windows`) | **Rate Limits** — `The 5-hour and 7-day (Weekly for Codex) bars show your current usage against your provider's sliding window limits. The "binding" badge marks whichever window is constraining you.` (`chart.bar.fill`) | `TutorialOverlay.rateLimitStep` |
+| Tutorial step 1 (`.credits`) | **Credits** — `The Credits bar shows how much of this period's spend budget your workspace has used, with the remaining credits and when the budget resets.` (`creditcard.fill`) | `TutorialOverlay.rateLimitStep` |
+| Tutorial step 1 (`.apiLimits`) | **API Limits** — `The Requests and Tokens bars show OpenAI's per-minute limits for your API key. Costs below are your real bill at API rates.` (`key.fill`) | `TutorialOverlay.rateLimitStep` |
+| Uncapped credits | badge `no cap`, value `—` (help `No individual spend cap on this plan`), footer `No spend cap on this plan` | `CreditBudgetSection` |
+| Metric-toggle help | `Select primary metric (keys: 1, 2, 3)` / collapsed kinds: `Select primary metric (keys: 1, 3)` | `MetricToggleView` |
 
 ## Rate Limit Headers
 
@@ -84,7 +144,9 @@ Current public Anthropic API responses may instead expose standard `anthropic-ra
 
 ## Statuspage Component IDs
 
-Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` structs with `id`, `name`, `alertKey`.
+Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecker.knownComponents`) and `StatusFeedConfig.codex.knownComponents` — arrays of `StatusComponent` structs with `id`, `name`, `alertKey`.
+
+**Claude** (`status.claude.com`, no component filter — every component on the page counts):
 
 | Component | ID | Alert Key |
 |-----------|-----|-----------|
@@ -93,6 +155,16 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 | Claude API | `k8w3r06qmzrp` | `claudeAPI` |
 | Claude Code | `yyzkbfz2thpt` | `claudeCode` |
 | Claude for Gov | `0scnb50nvy53` | `claudeForGov` |
+
+**Codex** (`status.openai.com`, read 2026-09-21; **filtered** — only these five drive the indicator, incidents count only when they name one of them):
+
+| Component | ID | Alert Key |
+|-----------|-----|-----------|
+| Codex API | `01KMP3KP5MGE23B80K1EK4S8PV` | `codexAPI` |
+| Codex CLI | `01KMKFAMWKNQ84Z1766MV08ZDE` | `codexCLI` |
+| Codex in ChatGPT Desktop | `01KMKFAMWKQ81YWSE1Z18R6VHR` | `codexDesktop` |
+| Codex Web | `01JVCV8YSWZFRSM1G5CVP253SK` | `codexWeb` |
+| Codex VS Code extension | `01KMP3KP5M8X0EBTVW6KN327EE` | `codexVSCode` |
 
 ## Context Windows
 
@@ -108,6 +180,7 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 | claude-3-opus-20240229 | 200,000 |
 | claude-3-sonnet-20240229 | 200,000 |
 | claude-3-haiku-20240307 | 200,000 |
+| `gpt-*` (any) | 258,400 — `TokenHealthConfig.openAIDefaultContextWindow`, the `model_context_window` Codex CLI 0.152 reports in `token_count` events for the gpt-5.x family |
 | Default fallback | 1,000,000 |
 
 ## Health Thresholds
@@ -137,13 +210,14 @@ Exposed as `StatusChecker.knownComponents` — array of `StatusComponent` struct
 |----------|-------|
 | Rate limit alert | `aibattery_alertRateLimit` (Bool, default false) |
 | Threshold | `aibattery_rateLimitThreshold` (Double, default 80, range 50–95, step 5) |
-| Dedup keys | `rateLimit5h`, `rateLimit7d` |
+| Dedup keys | `rateLimit5h`, `rateLimit7d` (provider-neutral); `rateLimitCredits` — the single alert for a Codex credit budget (label "Credits", `sevenDayPercent`) |
+| Window labels | `NotificationManager.windowLabels(for:)` — "5-Hour" + "7-Day" (Claude) / "Weekly" (Codex) |
 | Delivery | Same `UNUserNotificationCenter` mechanism as status alerts |
 | Deduplication | Fires once when crossing threshold, resets when dropping below |
 
 ## Status Alerts
 
-Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, alerts fire for any of the 5 tracked components.
+Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, alerts fire for any tracked component of the **active account's provider** feed (5 Claude or 5 Codex components).
 
 | Constant | Value |
 |----------|-------|
@@ -176,6 +250,37 @@ Pricing per million tokens:
 | Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
 | Opus 3 | $15 | $75 | $18.75 | $1.50 |
 
+OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29; cache write billed at the input rate, longest prefix wins):
+
+| Model prefix | Input | Output | Cache Read |
+|-------|-------|--------|------------|
+| gpt-6-astra | $10.00 | $50.00 | $1.00 |
+| gpt-6-sol | $2.00 | $10.00 | $0.20 |
+| gpt-6-luna | $0.10 | $0.50 | $0.01 |
+| gpt-5.6-sol | $4.00 | $20.00 | $0.40 |
+| gpt-5.6-terra | $2.00 | $12.00 | $0.20 |
+| gpt-5.6-luna | $0.20 | $1.20 | $0.02 |
+| gpt-5.5 | $5.00 | $30.00 | $0.50 |
+| gpt-5.4-mini | $0.75 | $4.50 | $0.075 |
+| gpt-5.4-nano | $0.20 | $1.25 | $0.02 |
+| gpt-5.4 | $2.50 | $15.00 | $0.25 |
+| gpt-5.3-codex | $1.75 | $14.00 | $0.175 |
+| gpt-5.2-pro | $21.00 | $168.00 | $21.00 |
+| gpt-5.2 | $1.75 | $14.00 | $0.175 |
+| gpt-5.1 | $1.25 | $10.00 | $0.125 |
+| gpt-5-pro | $15.00 | $120.00 | $15.00 |
+| gpt-5-codex | $1.25 | $10.00 | $0.125 |
+| gpt-5-mini | $0.25 | $2.00 | $0.025 |
+| gpt-5-nano | $0.05 | $0.40 | $0.005 |
+| gpt-5 | $1.25 | $10.00 | $0.125 |
+| gpt-4.1-mini | $0.40 | $1.60 | $0.10 |
+| gpt-4.1-nano | $0.10 | $0.40 | $0.025 |
+| gpt-4.1 | $2.00 | $8.00 | $0.50 |
+| gpt-4o-mini | $0.15 | $0.60 | $0.075 |
+| gpt-4o | $2.50 | $10.00 | $1.25 |
+
+IDs absent from the pricing page fall through to their longest listed prefix (e.g. `gpt-5.1-codex-mini` → the `gpt-5.1` row). Unknown families (`gpt-3.5-turbo`) show no cost. The 4.1 / 4o rows exist for API-key accounts, which can run any model.
+
 ## Display Settings
 
 | Constant | Value |
@@ -183,6 +288,7 @@ Pricing per million tokens:
 | Colorblind mode | `aibattery_colorblindMode` (Bool, default false) |
 | Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
+| Signed-out provider | `aibattery_signedOutProvider` (String — `AIProvider` raw value, default `"claude"`) — which provider the signed-out sign-in screen offers first; written by `OAuthManager.signOut` (the removed account's provider) and by the sign-in screen's Claude \| Codex picker |
 | Show all accounts in menu bar | `aibattery_showAllAccountsInMenuBar` (Bool, default false) — when true and ≥2 authenticated accounts exist, the menu bar shows percentages for every account joined by `\u{00A0}|\u{00A0}` (e.g. `42% | 23%`). Star color, broken-star state, and countdown reset are driven by the worst account. `MetricMode.contextHealth` falls back to `.fiveHour` for per-account percents (context health is per-session, not per-account). |
 
 ## Dynamic Probe Model Storage
@@ -398,13 +504,16 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 
 | Constant | Value |
 |----------|-------|
-| Read buffer size | 64 KB |
+| Read buffer size | 64 KB (256 KB measured: no gain) |
+| Newline search | `memchr` via `Data.firstNewlineIndex(from:)`, resumed per chunk — both readers |
 | Max line size | 1 MB — oversized lines discarded (malformed data protection) |
 | Pre-filter marker 1a | `"type":"assistant"` (no space) |
 | Pre-filter marker 1b | `"type": "assistant"` (with space) |
 | Pre-filter marker 2 | `"usage"` |
 | Cache | Unbounded per-file (fingerprint + messageIds retained after entry eviction) |
 | Discovery TTL | 60 sec — forces full re-enumeration regardless of dir mod-date (catches new files on filesystems where directory mtime may not update) |
+
+Codex rollouts (`CodexSessionLogReader` / `CodexSessionLogParser`) reuse the 64 KB buffer, 1 MB line cap and 60 s TTL. Pre-filter markers: `"session_meta"`, `"turn_context"`, `"token_count"`. Only those three `type`s are decoded; `response_item` (message content) is rejected on `type` and never parsed.
 
 ## Activity Chart
 
@@ -418,13 +527,15 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 
 | Path | Purpose |
 |------|---------|
-| macOS Keychain, service `"AIBattery"` | OAuth refresh token only (`refreshToken_{accountId}`); access token in memory, expiry in UserDefaults (`aibattery_expiresAt_{accountId}`) |
+| macOS Keychain, service `"AIBattery"` | OAuth refresh token only (`refreshToken_{accountId}` Claude / `refreshToken_codex_{accountId}` Codex); access token in memory, expiry in UserDefaults (`aibattery_expiresAt_{storageKey}`) |
 | `~/Library/Application Support/AIBattery/aibattery.lock` | Single-instance POSIX file lock |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |
+| `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | Codex CLI rollouts — token counts only (read-only) |
+| `~/.codex/auth.json` | Codex CLI login, read once on explicit "Import Codex CLI login" (read-only) |
 
-All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`).
+All paths are centralized in `ClaudePaths` (`Utilities/ClaudePaths.swift`) and `CodexPaths` (`Utilities/CodexPaths.swift`).
 
 ## Auto Mode Escalation (Tiers)
 

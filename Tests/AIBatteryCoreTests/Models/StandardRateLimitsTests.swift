@@ -58,6 +58,16 @@ struct StandardRateLimitsTests {
         #expect(limits.tokensPercent == 25.0) // 20000/80000 = 25%
     }
 
+    /// The menu bar for an API-key account follows the tighter of the two per-minute
+    /// limits — a 16-token probe barely moves the token bar while requests can bind.
+    @Test func peakPercent_isTheTighterLimit() {
+        let limits = StandardRateLimits(
+            requestsLimit: 10, requestsRemaining: 2, requestsReset: nil,
+            tokensLimit: 100_000, tokensRemaining: 99_000, tokensReset: nil
+        )
+        #expect(limits.peakPercent == 80.0)
+    }
+
     @Test func requestsPercent_zeroLimit_returnsZero() {
         let limits = StandardRateLimits(
             requestsLimit: 0,
