@@ -65,6 +65,10 @@ struct CodexAPIKeyAccountTests {
         #expect(json["model"] as? String == "gpt-5-nano")
         #expect(json["input"] as? String == ".")
         #expect(json["max_output_tokens"] as? Int == 16)
+        // Reasoning would otherwise eat the 16-token cap; stored probes would litter the
+        // user's dashboard logs for 30 days.
+        #expect((json["reasoning"] as? [String: Any])?["effort"] as? String == "minimal")
+        #expect(json["store"] as? Bool == false)
     }
 
     @Test func apiKeyAccountId_isStableAndNeverEmbedsTheKey() {

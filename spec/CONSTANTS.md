@@ -59,7 +59,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | OpenAI Status API | `https://status.openai.com/api/v2/summary.json` |
 | OpenAI Status Page | `https://status.openai.com` |
 | Codex Usage Dashboard | `https://chatgpt.com/codex/settings/usage` (ChatGPT accounts) / `https://platform.openai.com/usage` (API-key accounts) |
-| OpenAI API-key probe | `POST https://api.openai.com/v1/responses` — `{"model": <gpt-5-nano → gpt-5-mini → gpt-5>, "input": ".", "max_output_tokens": 16}`; limits read from `x-ratelimit-limit/remaining/reset-requests|tokens` (Go-duration resets). Next probe model on a header-less **400 / 403 / 404** (`probeShouldTryNextModel`); **401 only** is an auth failure |
+| OpenAI API-key probe | `POST https://api.openai.com/v1/responses` — `{"model": <gpt-5-nano → gpt-5-mini → gpt-5>, "input": ".", "max_output_tokens": 16, "reasoning": {"effort": "minimal"}, "store": false}` (minimal effort so reasoning doesn't eat the cap; `store: false` keeps probes out of the user's dashboard logs; ≈ $0.000007 per probe); limits read from `x-ratelimit-limit/remaining/reset-requests|tokens` (Go-duration resets incl. `ms`/`µs`/`ns`). Next probe model on a header-less **400 / 403 / 404** (`probeShouldTryNextModel`); **401 only** is an auth failure |
 | Codex OAuth token-endpoint statuses | 400 / 401 / 403 → `AuthError.codexSignInRejected` (final, signs out on refresh); 5xx **and any other status** (429, 408, CDN 4xx) → `.serverError(code, provider: .codex)` (transient, retried) — `CodexTokenClient` |
 | GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
 | Sparkle Appcast | `https://kylenesium.github.io/AIBattery/appcast.xml` |
@@ -250,15 +250,19 @@ Pricing per million tokens:
 | Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
 | Opus 3 | $15 | $75 | $18.75 | $1.50 |
 
-OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21; cache write billed at the input rate, longest prefix wins):
+OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29; cache write billed at the input rate, longest prefix wins):
 
 | Model prefix | Input | Output | Cache Read |
 |-------|-------|--------|------------|
 | gpt-6-astra | $10.00 | $50.00 | $1.00 |
+| gpt-6-sol | $2.00 | $10.00 | $0.20 |
+| gpt-6-luna | $0.10 | $0.50 | $0.01 |
 | gpt-5.6-sol | $4.00 | $20.00 | $0.40 |
 | gpt-5.6-terra | $2.00 | $12.00 | $0.20 |
 | gpt-5.6-luna | $0.20 | $1.20 | $0.02 |
 | gpt-5.5 | $5.00 | $30.00 | $0.50 |
+| gpt-5.4-mini | $0.75 | $4.50 | $0.075 |
+| gpt-5.4-nano | $0.20 | $1.25 | $0.02 |
 | gpt-5.4 | $2.50 | $15.00 | $0.25 |
 | gpt-5.3-codex | $1.75 | $14.00 | $0.175 |
 | gpt-5.2-pro | $21.00 | $168.00 | $21.00 |
@@ -269,8 +273,13 @@ OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing
 | gpt-5-mini | $0.25 | $2.00 | $0.025 |
 | gpt-5-nano | $0.05 | $0.40 | $0.005 |
 | gpt-5 | $1.25 | $10.00 | $0.125 |
+| gpt-4.1-mini | $0.40 | $1.60 | $0.10 |
+| gpt-4.1-nano | $0.10 | $0.40 | $0.025 |
+| gpt-4.1 | $2.00 | $8.00 | $0.50 |
+| gpt-4o-mini | $0.15 | $0.60 | $0.075 |
+| gpt-4o | $2.50 | $10.00 | $1.25 |
 
-IDs absent from the pricing page fall through to their longest listed prefix (e.g. `gpt-5.1-codex-mini` → the `gpt-5.1` row). Unknown families (`gpt-4o`) show no cost.
+IDs absent from the pricing page fall through to their longest listed prefix (e.g. `gpt-5.1-codex-mini` → the `gpt-5.1` row). Unknown families (`gpt-3.5-turbo`) show no cost. The 4.1 / 4o rows exist for API-key accounts, which can run any model.
 
 ## Display Settings
 

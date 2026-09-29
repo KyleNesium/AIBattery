@@ -164,7 +164,13 @@ final class CodexRateLimitFetcher {
 
     /// Minimal Responses API call whose reply carries the `x-ratelimit-*` headers
     /// (the Codex mirror of the Claude Messages probe). 16 output tokens of the
-    /// nano model — a fraction of a cent per poll.
+    /// nano model — a fraction of a cent per poll (≈ $0.000007; ≈ $0.30/month at
+    /// one probe a minute).
+    ///
+    /// - `max_output_tokens` counts reasoning tokens too, so `reasoning.effort:
+    ///   minimal` keeps the cap from being spent on hidden reasoning.
+    /// - `store` defaults to true (retained 30 days, visible in the user's dashboard
+    ///   logs) — probes are noise there, so it is off.
     nonisolated static func apiKeyProbeRequest(apiKey: String, model: String, userAgent: String) -> URLRequest {
         var request = URLRequest(url: apiKeyProbeURL)
         request.httpMethod = "POST"
@@ -172,7 +178,13 @@ final class CodexRateLimitFetcher {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 30
-        let body: [String: Any] = ["model": model, "input": ".", "max_output_tokens": 16]
+        let body: [String: Any] = [
+            "model": model,
+            "input": ".",
+            "max_output_tokens": 16,
+            "reasoning": ["effort": "minimal"],
+            "store": false,
+        ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         return request
     }

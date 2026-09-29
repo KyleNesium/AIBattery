@@ -47,6 +47,12 @@ struct OpenAIRateLimitHeadersTests {
         #expect(StandardRateLimits.parseGoDuration("6m0s") == 360)
         #expect(StandardRateLimits.parseGoDuration("1h2m3.5s") == 3_723.5)
         #expect(StandardRateLimits.parseGoDuration("20ms") == 0.02)
+        // Go prints sub-millisecond durations with µs / ns units.
+        #expect(StandardRateLimits.parseGoDuration("500µs") == 0.0005)
+        #expect(StandardRateLimits.parseGoDuration("250us") == 0.00025)
+        #expect(StandardRateLimits.parseGoDuration("1ns") == 0.000000001)
+        #expect(StandardRateLimits.parseGoDuration("1m30s") == 90)
+        #expect(StandardRateLimits.parseGoDuration("8.64s") == 8.64)
         #expect(StandardRateLimits.parseGoDuration("") == nil)
         #expect(StandardRateLimits.parseGoDuration("soon") == nil)
     }

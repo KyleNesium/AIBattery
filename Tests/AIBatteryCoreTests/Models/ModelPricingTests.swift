@@ -214,7 +214,23 @@ struct ModelPricingTests {
     }
 
     @Test func pricing_unknownGPT_isNil() {
-        #expect(ModelPricing.pricing(for: "gpt-4o") == nil)
+        #expect(ModelPricing.pricing(for: "gpt-3.5-turbo") == nil)
+    }
+
+    /// Verified against developers.openai.com/api/docs/pricing on 2026-09-29: the
+    /// mini/nano variants of 5.4 must not fall through to the full 5.4 row, and the
+    /// families an API key can reach (gpt-6 sol/luna, 4.1, 4o) are priced.
+    @Test func openAITable_variantsAndOlderFamilies() throws {
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-5.4-mini")).inputPerMillion == 0.75)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-5.4-nano-2026-08-01")).outputPerMillion == 1.25)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-5.4")).inputPerMillion == 2.50)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-6-sol")).inputPerMillion == 2.00)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-6-luna")).cacheReadPerMillion == 0.01)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4.1-mini")).inputPerMillion == 0.40)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4.1")).outputPerMillion == 8.00)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4o-mini")).inputPerMillion == 0.15)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4o-2024-11-20")).inputPerMillion == 2.50)
+        #expect(OpenAIModelPricing.pricing(for: "gpt-3.5-turbo") == nil)
     }
 
     @Test func openAITable_isOrderedLongestPrefixFirst() {

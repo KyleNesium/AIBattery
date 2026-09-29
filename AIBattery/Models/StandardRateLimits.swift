@@ -86,6 +86,9 @@ struct StandardRateLimits: Equatable, Codable {
             case "m": total += value * 60
             case "s": total += value
             case "ms": total += value / 1_000
+            // Go's Duration.String() prints sub-millisecond values as "500µs" / "1ns".
+            case "us", "µs", "μs": total += value / 1_000_000
+            case "ns": total += value / 1_000_000_000
             default: return false
             }
             sawComponent = true
