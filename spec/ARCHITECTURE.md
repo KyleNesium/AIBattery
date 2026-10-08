@@ -162,7 +162,7 @@ AIBattery/
     MenuBarMultiAccountText.swift — Pure builder for multi-account menu bar text (`42% | 23%`); worst-account percent + throttle + reset selection. Unit-tested without AppKit.
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
     PopoverHeaderView.swift       — Header row: account chip + gear, auto-update banner (ENABLE_VERSION_CHECKER)
-    AccountChipView.swift         — Full-width account chip (provider + identity) that is the switch/add Menu
+    AccountChipView.swift         — Compact account chip (brand badge + provider + identity) whose click pops the AppKit switch/add NSMenu
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
     PopoverFooterView.swift       — Footer links (provider-aware Usage/Status targets), logout confirm, status indicator, timestamp

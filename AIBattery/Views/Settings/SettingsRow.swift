@@ -15,8 +15,8 @@ struct SettingsRow: View {
                 .accessibilityAddTraits(.isHeader)
 
             // Per-account names — same order and per-provider numbering as the header chip menu.
-            ForEach(AccountStore.displayOrdered(accountStore.accounts), id: \.id) { account in
-                accountNameRow(account, index: AccountStore.providerIndex(of: account, in: accountStore.accounts))
+            ForEach(Array(AccountStore.displayOrdered(accountStore.accounts).enumerated()), id: \.element.id) { position, account in
+                accountNameRow(account, index: AccountStore.providerIndex(of: account, in: accountStore.accounts), isFirst: position == 0)
             }
 
             // One add link per provider, each gated on its own cap (spec §5:
@@ -66,11 +66,10 @@ struct SettingsRow: View {
     }
 
     /// Editable name row for a single account.
-    private func accountNameRow(_ account: AccountRecord, index: Int) -> some View {
-        let isActive = account.id == accountStore.activeAccountId
-        let label = accountStore.accounts.count > 1
-            ? (isActive ? "Active" : "Account")
-            : "Name"
+    private func accountNameRow(_ account: AccountRecord, index: Int, isFirst: Bool) -> some View {
+        // One "Accounts" caption for the group (first row only); the badge says which
+        // provider each row is and the header chip already says which one is active.
+        let label = isFirst ? "Accounts" : ""
         let mixed = AccountStore.spansBothProviders(accountStore.accounts)
         // Placeholder is the row's identity *without* the alias (full, unmasked email or
         // workspace, else "Codex N" + plan) — this is where the user sees which account
