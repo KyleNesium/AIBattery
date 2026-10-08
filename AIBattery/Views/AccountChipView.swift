@@ -164,6 +164,9 @@ struct AccountChipView: View {
         // NOT flipped (origin bottom-left), so "below the bottom edge" is a negative y;
         // `popUp` puts the menu's top-left corner at the given point.
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -Spacing.tight), in: view)
+        // `popUp` runs the menu's tracking loop synchronously; SwiftUI misses the
+        // mouse-exit that happens while it runs, so the hover pill would stick.
+        hovered = false
     }
 
     private static func header(_ title: String) -> NSMenuItem {

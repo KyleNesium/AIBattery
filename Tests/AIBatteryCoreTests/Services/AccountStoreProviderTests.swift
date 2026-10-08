@@ -83,6 +83,24 @@ struct AccountStoreProviderTests {
         #expect(store.accounts[0].discoveredIdentity == "Ringier Engineering")
     }
 
+    /// Sign-in, auth.json import and every token refresh that echoes an id_token call
+    /// this: it fills an empty discovered identity and never overwrites one (or an alias).
+    @Test func backfillDiscoveredIdentity_fillsOnlyWhenEmpty() {
+        let store = makeCleanStore()
+        store.add(record("x1", .codex))
+        #expect(store.backfillDiscoveredIdentity(accountId: "x1", identity: "kyle@example.com"))
+        #expect(store.account(id: "x1")?.discoveredIdentity == "kyle@example.com")
+        // Already known → untouched, reports no change.
+        #expect(!store.backfillDiscoveredIdentity(accountId: "x1", identity: "other@example.com"))
+        #expect(store.account(id: "x1")?.discoveredIdentity == "kyle@example.com")
+        // Blank / nil / unknown account → no-op.
+        store.add(record("x2", .codex))
+        #expect(!store.backfillDiscoveredIdentity(accountId: "x2", identity: "   "))
+        #expect(!store.backfillDiscoveredIdentity(accountId: "x2", identity: nil))
+        #expect(!store.backfillDiscoveredIdentity(accountId: "ghost", identity: "a@b.co"))
+        #expect(store.account(id: "x2")?.discoveredIdentity == nil)
+    }
+
     @Test func lookupHelpers_defaultUnknownIdsToClaude() {
         let store = makeCleanStore()
         store.add(record("c1", .claude))

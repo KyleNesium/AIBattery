@@ -499,6 +499,12 @@ public final class OAuthManager: ObservableObject {
                 expiresAt: expires
             )
             saveTokens(for: accountId)
+            // The refresh grant may echo a fresh id_token: the one chance a Codex account
+            // registered before `discoveredIdentity` existed gets its email without a
+            // re-sign-in. No-op once the identity is known.
+            if let idToken = set.idToken {
+                accountStore.backfillDiscoveredIdentity(accountId: accountId, identity: JWTDecoder.email(idToken: idToken))
+            }
             updateAuthState()
             return set.accessToken
         case .failure(let error):

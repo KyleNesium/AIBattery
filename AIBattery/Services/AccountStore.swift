@@ -154,6 +154,18 @@ public final class AccountStore: ObservableObject {
         }
     }
 
+    /// Fill an account's `discoveredIdentity` when it has none. Never overwrites a
+    /// known identity (a changed email claim is not a reason to rename a row under the
+    /// user) and ignores blanks / unknown ids. Returns whether anything changed.
+    @discardableResult
+    public func backfillDiscoveredIdentity(accountId: String, identity: String?) -> Bool {
+        guard let identity = identity?.trimmingCharacters(in: .whitespacesAndNewlines), !identity.isEmpty,
+              var record = account(id: accountId), record.discoveredIdentity == nil else { return false }
+        record.discoveredIdentity = identity
+        update(oldId: accountId, with: record)
+        return true
+    }
+
     // MARK: - Display & Ordering
 
     /// Claude block first, insertion order preserved within each provider.

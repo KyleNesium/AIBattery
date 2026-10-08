@@ -134,10 +134,7 @@ extension OAuthManager {
         activateCodexAccount(record)
         // Re-signing into a known account (or importing it) backfills an identity the
         // record didn't have yet — records created before the field existed.
-        if var existing = accountStore.account(id: accountId), existing.discoveredIdentity == nil, let identity = record.discoveredIdentity {
-            existing.discoveredIdentity = identity
-            accountStore.update(oldId: accountId, with: existing)
-        }
+        accountStore.backfillDiscoveredIdentity(accountId: accountId, identity: record.discoveredIdentity)
         return .success(())
     }
 }
