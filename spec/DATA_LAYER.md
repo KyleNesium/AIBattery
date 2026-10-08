@@ -131,7 +131,7 @@ Account/workspace info extracted from Anthropic response headers or `client_data
 
 ### AIProvider (`Models/AIProvider.swift`)
 
-`enum AIProvider: String, Codable, CaseIterable, Sendable { case claude, codex }` — exactly two providers by design (no plugin registry). `displayName` ("Claude" / "Codex"), `glyph` (✦ `U+2726` / ⬡ `U+2B21` — text glyphs so they bake into the menu-bar string), `secondaryWindowLabel` ("7-Day" / "Weekly"), `secondaryWindowShortCode` ("7D" / "WK").
+`enum AIProvider: String, Codable, CaseIterable, Sendable { case claude, codex }` — exactly two providers by design (no plugin registry). `displayName` ("Claude" / "Codex"), `glyph` (✦ `U+2726` / ⬡ `U+2B21` — text glyphs so they bake into the menu-bar string; **menu-bar only** — SwiftUI surfaces use `symbolName`), `symbolName` (SF Symbol `sparkle` / `hexagon` for the header chip), `secondaryWindowLabel` ("7-Day" / "Weekly"), `secondaryWindowShortCode` ("7D" / "WK").
 
 ### AccountRecord (`Models/AccountRecord.swift`)
 

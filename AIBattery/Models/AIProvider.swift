@@ -23,6 +23,15 @@ public enum AIProvider: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// SF Symbol for SwiftUI surfaces (header chip, sign-in). The text `glyph`
+    /// exists only because the menu-bar status string can't hold an SF Symbol.
+    public var symbolName: String {
+        switch self {
+        case .claude: "sparkle"
+        case .codex: "hexagon"
+        }
+    }
+
     /// Label for the long window: Anthropic calls it 7-day; OpenAI calls it weekly
     /// (it is 7 days for both — 10080 minutes in Codex payloads).
     var secondaryWindowLabel: String {

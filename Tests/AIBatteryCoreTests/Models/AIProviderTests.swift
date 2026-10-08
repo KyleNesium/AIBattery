@@ -13,6 +13,9 @@ struct AIProviderTests {
         #expect(AIProvider.codex.secondaryWindowLabel == "Weekly")
         #expect(AIProvider.claude.secondaryWindowShortCode == "7D")
         #expect(AIProvider.codex.secondaryWindowShortCode == "WK")
+        // SF Symbol for SwiftUI surfaces (the text glyph is for the menu-bar string only).
+        #expect(AIProvider.claude.symbolName == "sparkle")
+        #expect(AIProvider.codex.symbolName == "hexagon")
     }
 
     @Test func accountRecord_decodesLegacyJSONWithoutProvider() throws {

@@ -105,6 +105,53 @@ struct AccountIdentityLabelTests {
         #expect(AccountStore.displayLabel(for: unknown, providerIndex: 1, showsProviderGlyph: false, includePlan: true, maskEmail: true) == "Codex 2")
     }
 
+    // MARK: Chip provider caption
+
+    /// The chip prints the provider name before the identity — unless the identity
+    /// *is* the provider name (an alias "Codex"), which would read "Codex Codex".
+    @Test func chipShowsProviderName_unlessIdentityAlreadyIsIt() {
+        #expect(AccountChipView.showsProviderName(identity: "k•••@example.com", provider: .codex))
+        #expect(AccountChipView.showsProviderName(identity: "Claude 1", provider: .claude))
+        #expect(!AccountChipView.showsProviderName(identity: "Codex", provider: .codex))
+        #expect(!AccountChipView.showsProviderName(identity: " claude ", provider: .claude))
+        // A Claude alias on a Codex account is not redundant with "Codex".
+        #expect(AccountChipView.showsProviderName(identity: "Claude", provider: .codex))
+    }
+
+    // MARK: Chip menu model
+
+    /// The AppKit menu is built from a pure model: one section per provider (always
+    /// both), rows in display order with the active one checked, and an Add row that
+    /// is disabled with the count at the cap.
+    @Test func menuModel_sectionsPerProvider_activeChecked_addDisabledAtCap() {
+        let accounts = [
+            record("x1", .codex, name: "Work", plan: "business"),
+            record("x2", .codex), record("x3", .codex),
+            record("c1", .claude, discovered: "Ringier"),
+        ]
+        let sections = AccountChipView.menuModel(accounts: accounts, activeId: "x2", maskEmail: true)
+        #expect(sections.map(\.provider) == [.claude, .codex])
+
+        let claude = sections[0]
+        #expect(claude.rows.map(\.title) == ["Ringier"])
+        #expect(claude.rows.map(\.isActive) == [false])
+        #expect(claude.addTitle == "Add Claude Account…")
+        #expect(claude.canAdd)
+
+        let codex = sections[1]
+        #expect(codex.rows.map(\.title) == ["Work · Business", "Codex 2", "Codex 3"])
+        #expect(codex.rows.map(\.id) == ["x1", "x2", "x3"])
+        #expect(codex.rows.map(\.isActive) == [false, true, false])
+        #expect(codex.addTitle == "Add Codex Account… (3 of 3)")
+        #expect(!codex.canAdd)
+    }
+
+    @Test func menuModel_emptyProviderStillOffersAdd() {
+        let sections = AccountChipView.menuModel(accounts: [record("c1", .claude)], activeId: "c1", maskEmail: true)
+        #expect(sections[1].rows.isEmpty)
+        #expect(sections[1].canAdd)
+    }
+
     // MARK: Chip accessibility
 
     @Test func chipAccessibilityDescription_isOneCoherentSentence() {

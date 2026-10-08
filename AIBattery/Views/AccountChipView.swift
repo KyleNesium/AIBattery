@@ -1,11 +1,17 @@
+import AppKit
 import SwiftUI
 
 /// The popover's title: a full-width chip naming the active account's provider and
-/// identity, which is also the Menu that switches and adds accounts.
+/// identity. Clicking it pops an AppKit `NSMenu` (switch / add accounts) anchored
+/// to the chip.
 ///
-/// Chip text is `glyph + provider + identity + chevron` — the plan never appears in
-/// the chip (it would truncate the identity at 275pt) and lives in the menu rows,
-/// which carry the full untruncated identity and plan.
+/// Why AppKit: SwiftUI's `Menu` on macOS sizes its label to the control's intrinsic
+/// width and clips the rest, and an overlaid transparent-label `Menu` has no hit
+/// area. A plain full-width `Button` + `NSMenu.popUp` gives a chip we fully draw,
+/// a reliable hit target, native section headers and checkmarks.
+///
+/// Chip text is `symbol + provider + identity + chevron` — the plan never appears in
+/// the chip (it would truncate the identity at 275pt) and lives in the menu rows.
 struct AccountChipView: View {
     @ObservedObject var accountStore: AccountStore
     let onAddAccount: (AIProvider) -> Void
@@ -13,27 +19,25 @@ struct AccountChipView: View {
 
     @AppStorage(UserDefaultsKeys.showFullAccountIdentity) private var showFullAccountIdentity: Bool = false
     @State private var hovered = false
+    @State private var anchor = MenuAnchor()
 
     var body: some View {
         let accounts = accountStore.accounts
         let active = accountStore.activeAccount
-        Menu {
-            ForEach(AIProvider.allCases, id: \.self) { provider in
-                providerSection(provider, accounts: accounts)
-            }
-        } label: {
-            chipLabel(active, accounts: accounts)
+        Button(action: presentMenu) {
+            chipFace(active, accounts: accounts)
+                .frame(maxWidth: .infinity)
+                .frame(height: Layout.accountChipHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
+                        .fill(hovered ? ThemeColors.hoverFill : ThemeColors.hoverFill.opacity(ThemeColors.activeLabelOpacity))
+                )
+                .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .frame(height: Layout.accountChipHeight)
-        .background(
-            RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                .fill(hovered ? ThemeColors.hoverFill : ThemeColors.hoverFill.opacity(ThemeColors.activeLabelOpacity))
-        )
+        .buttonStyle(.plain)
+        .background(MenuAnchorView(anchor: anchor))
         .onHover { hovered = $0 }
         .help(active.map { fullLabel($0, accounts: accounts) } ?? "Switch account")
-        .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             active.map {
                 Self.accessibilityDescription(
@@ -47,29 +51,30 @@ struct AccountChipView: View {
         .accessibilityHint("Opens the account menu to switch or add accounts")
     }
 
-    // MARK: Chip
+    // MARK: Chip face
 
-    private func chipLabel(_ active: AccountRecord?, accounts: [AccountRecord]) -> some View {
+    private func chipFace(_ active: AccountRecord?, accounts: [AccountRecord]) -> some View {
         HStack(spacing: Spacing.inner) {
             if let active {
-                Text(active.provider.glyph)
+                let identity = AccountStore.identityLabel(
+                    for: active,
+                    providerIndex: AccountStore.providerIndex(of: active, in: accounts),
+                    maskEmail: !showFullAccountIdentity
+                )
+                Image(systemName: active.provider.symbolName)
                     .font(Typography.bodyLabel)
                     .foregroundStyle(ThemeColors.secondaryLabel)
-                Text(active.provider.displayName)
-                    .font(Typography.caption)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-                    .fixedSize()
-                Text(
-                    AccountStore.identityLabel(
-                        for: active,
-                        providerIndex: AccountStore.providerIndex(of: active, in: accounts),
-                        maskEmail: !showFullAccountIdentity
-                    )
-                )
-                .font(Typography.buttonLabel)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+                if Self.showsProviderName(identity: identity, provider: active.provider) {
+                    Text(active.provider.displayName)
+                        .font(Typography.caption)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
+                        .fixedSize()
+                }
+                Text(identity)
+                    .font(Typography.buttonLabel)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             } else {
                 Text("Account")
                     .font(Typography.buttonLabel)
@@ -81,64 +86,93 @@ struct AccountChipView: View {
                 .foregroundStyle(ThemeColors.secondaryLabel)
         }
         .padding(.horizontal, Spacing.section)
-        .frame(maxWidth: .infinity, minHeight: Layout.accountChipHeight)
-        .contentShape(Rectangle())
     }
 
-    // MARK: Menu
+    /// False when the identity already *is* the provider name (an alias "Codex"
+    /// would otherwise read "Codex Codex").
+    nonisolated static func showsProviderName(identity: String, provider: AIProvider) -> Bool {
+        identity.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(provider.displayName) != .orderedSame
+    }
 
-    /// One section per provider: its accounts (checkmark on the active one), then
-    /// "Add <Provider> Account…" — disabled with the count once the cap is reached.
-    /// A provider with no accounts still gets its Add row, under the same header, so
-    /// the menu reads the same whether the user has one provider connected or both.
-    @ViewBuilder
-    private func providerSection(_ provider: AIProvider, accounts: [AccountRecord]) -> some View {
-        let rows = AccountStore.displayOrdered(accounts).filter { $0.provider == provider }
-        let activeId = accountStore.activeAccountId
-        let canAdd = accountStore.canAddAccount(provider: provider)
-        Section("\(provider.glyph) \(provider.displayName)") {
-            ForEach(Array(rows.enumerated()), id: \.element.id) { index, account in
-                Button {
-                    withAnimation(MotionConstants.standard) { onSwitchAccount(account.id) }
-                } label: {
-                    if account.id == activeId {
-                        Label(rowLabel(account, index: index), systemImage: "checkmark")
-                    } else {
-                        Text(rowLabel(account, index: index))
-                    }
-                }
-                .accessibilityLabel(
-                    Self.accessibilityDescription(for: account, providerIndex: index, isActive: account.id == activeId, maskEmail: !showFullAccountIdentity)
-                )
-            }
-            Button {
-                onAddAccount(provider)
-            } label: {
-                Label(
-                    canAdd
-                        ? "Add \(provider.displayName) Account…"
-                        : "Add \(provider.displayName) Account… (\(rows.count) of \(AccountStore.maxAccountsPerProvider))",
-                    systemImage: "plus"
-                )
-            }
-            .disabled(!canAdd)
+    // MARK: Menu model (pure, tested)
+
+    struct MenuRow: Equatable {
+        let id: String
+        let title: String
+        let isActive: Bool
+        let accessibilityLabel: String
+    }
+
+    struct MenuSection: Equatable {
+        let provider: AIProvider
+        let rows: [MenuRow]
+        let canAdd: Bool
+        var addTitle: String {
+            canAdd
+                ? "Add \(provider.displayName) Account…"
+                : "Add \(provider.displayName) Account… (\(rows.count) of \(AccountStore.maxAccountsPerProvider))"
         }
     }
 
-    /// Menu rows carry the full identity (no masking — this is where the user confirms
-    /// *which* account) and the plan; the provider is already the section header.
-    private func rowLabel(_ account: AccountRecord, index: Int) -> String {
-        AccountStore.displayLabel(for: account, providerIndex: index, showsProviderGlyph: false, includePlan: true, maskEmail: !showFullAccountIdentity)
+    /// One section per provider (always both, so the menu reads the same with one or
+    /// two providers connected): rows in `displayOrdered` order with the identity
+    /// (masked per the Display toggle) and plan, the active row checked, then an Add
+    /// row that is disabled with the count once the per-provider cap is reached.
+    nonisolated static func menuModel(accounts: [AccountRecord], activeId: String?, maskEmail: Bool) -> [MenuSection] {
+        let ordered = AccountStore.displayOrdered(accounts)
+        return AIProvider.allCases.map { provider in
+            let rows = ordered.filter { $0.provider == provider }
+            return MenuSection(
+                provider: provider,
+                rows: rows.enumerated().map { index, account in
+                    MenuRow(
+                        id: account.id,
+                        title: AccountStore.displayLabel(for: account, providerIndex: index, showsProviderGlyph: false, includePlan: true, maskEmail: maskEmail),
+                        isActive: account.id == activeId,
+                        accessibilityLabel: accessibilityDescription(for: account, providerIndex: index, isActive: account.id == activeId, maskEmail: maskEmail)
+                    )
+                },
+                canAdd: rows.count < AccountStore.maxAccountsPerProvider
+            )
+        }
     }
 
-    private func fullLabel(_ account: AccountRecord, accounts: [AccountRecord]) -> String {
-        AccountStore.displayLabel(
-            for: account,
-            providerIndex: AccountStore.providerIndex(of: account, in: accounts),
-            showsProviderGlyph: true,
-            includePlan: true,
-            maskEmail: !showFullAccountIdentity
-        )
+    // MARK: AppKit menu
+
+    private func presentMenu() {
+        guard let view = anchor.view else { return }
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        let sections = Self.menuModel(accounts: accountStore.accounts, activeId: accountStore.activeAccountId, maskEmail: !showFullAccountIdentity)
+        for (index, section) in sections.enumerated() {
+            if index > 0 {
+                menu.addItem(.separator())
+            }
+            menu.addItem(Self.header(section.provider.displayName))
+            for row in section.rows {
+                let item = ClosureMenuItem(title: row.title) {
+                    withAnimation(MotionConstants.standard) { onSwitchAccount(row.id) }
+                }
+                item.state = row.isActive ? .on : .off
+                item.setAccessibilityLabel(row.accessibilityLabel)
+                menu.addItem(item)
+            }
+            let add = ClosureMenuItem(title: section.addTitle) { onAddAccount(section.provider) }
+            add.image = NSImage(systemSymbolName: "plus", accessibilityDescription: nil)
+            add.isEnabled = section.canAdd
+            menu.addItem(add)
+        }
+        // Drop the menu just below the chip, left-aligned with it.
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + Spacing.tight), in: view)
+    }
+
+    private static func header(_ title: String) -> NSMenuItem {
+        if #available(macOS 14.0, *) {
+            return NSMenuItem.sectionHeader(title: title)
+        }
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
     }
 
     // MARK: Accessibility
@@ -156,5 +190,60 @@ struct AccountChipView: View {
             parts.append("selected")
         }
         return parts.joined(separator: ", ")
+    }
+
+    private func fullLabel(_ account: AccountRecord, accounts: [AccountRecord]) -> String {
+        AccountStore.displayLabel(
+            for: account,
+            providerIndex: AccountStore.providerIndex(of: account, in: accounts),
+            showsProviderGlyph: true,
+            includePlan: true,
+            maskEmail: !showFullAccountIdentity
+        )
+    }
+}
+
+// MARK: - AppKit plumbing
+
+/// `NSMenuItem` whose action is a Swift closure (target is the item itself).
+private final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(title: String, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(fire), keyEquivalent: "")
+        target = self
+    }
+
+    @available(*, unavailable)
+    required init(coder: NSCoder) {
+        fatalError("not used")
+    }
+
+    @objc private func fire() {
+        handler()
+    }
+}
+
+/// Holds the AppKit view the menu is positioned against. A class so the SwiftUI
+/// `@State` can hand the representable a stable box to write into.
+@MainActor
+private final class MenuAnchor {
+    weak var view: NSView?
+}
+
+/// Zero-cost invisible view that reports its `NSView` to `MenuAnchor` — the chip's
+/// `.background` so it shares the chip's frame.
+private struct MenuAnchorView: NSViewRepresentable {
+    let anchor: MenuAnchor
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        anchor.view = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        anchor.view = nsView
     }
 }
