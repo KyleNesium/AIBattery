@@ -17,5 +17,20 @@ struct OAuthManagerCodexRoutingTests {
         #expect(record.id == "acc-uuid-7")
         #expect(record.provider == .codex)
         #expect(!record.isPendingIdentity)
+        #expect(record.discoveredIdentity == nil)
+    }
+
+    /// Sign-in and auth.json import both pass the id_token so the email claim seeds
+    /// the discovered identity. A token without an email leaves it nil.
+    @Test func codexAccountRecordSeedsDiscoveredIdentityFromIdToken() {
+        func jwt(_ payload: [String: Any]) -> String {
+            let header = Data(#"{"alg":"none"}"#.utf8).base64URLEncoded()
+            let body = ((try? JSONSerialization.data(withJSONObject: payload)) ?? Data()).base64URLEncoded()
+            return "\(header).\(body).sig"
+        }
+        let withEmail = OAuthManager.makeCodexAccountRecord(accountId: "acc-1", idToken: jwt(["email": "kyle@example.com"]))
+        #expect(withEmail.discoveredIdentity == "kyle@example.com")
+        let withoutEmail = OAuthManager.makeCodexAccountRecord(accountId: "acc-2", idToken: jwt(["sub": "x"]))
+        #expect(withoutEmail.discoveredIdentity == nil)
     }
 }

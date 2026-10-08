@@ -58,16 +58,29 @@ struct AccountStoreProviderTests {
         var codex = record("x1", .codex)
         codex.billingType = "business"
         let claude = record("c1", .claude)
-        #expect(AccountStore.displayLabel(for: claude, index: 0, showsProviderGlyph: true, includePlan: true) == "✦ User 1")
-        #expect(AccountStore.displayLabel(for: codex, index: 1, showsProviderGlyph: true, includePlan: true) == "⬡ User 2 · Business")
-        #expect(AccountStore.displayLabel(for: codex, index: 1, showsProviderGlyph: true, includePlan: false) == "⬡ User 2")
-        #expect(AccountStore.displayLabel(for: codex, index: 0, showsProviderGlyph: false, includePlan: true) == "User 1 · Business")
+        #expect(AccountStore.displayLabel(for: claude, providerIndex: 0, showsProviderGlyph: true, includePlan: true, maskEmail: true) == "✦ Claude 1")
+        #expect(AccountStore.displayLabel(for: codex, providerIndex: 1, showsProviderGlyph: true, includePlan: true, maskEmail: true) == "⬡ Codex 2 · Business")
+        #expect(AccountStore.displayLabel(for: codex, providerIndex: 1, showsProviderGlyph: true, includePlan: false, maskEmail: true) == "⬡ Codex 2")
+        #expect(AccountStore.displayLabel(for: codex, providerIndex: 0, showsProviderGlyph: false, includePlan: true, maskEmail: true) == "Codex 1 · Business")
         var named = codex
         named.displayName = "Work"
-        #expect(AccountStore.displayLabel(for: named, index: 1, showsProviderGlyph: false, includePlan: true) == "Work · Business")
+        #expect(AccountStore.displayLabel(for: named, providerIndex: 1, showsProviderGlyph: false, includePlan: true, maskEmail: true) == "Work · Business")
         #expect(AccountStore.planLabel("chatgpt_team") == "ChatGPT Team")
         #expect(AccountStore.planLabel("enterprise") == "Enterprise")
         #expect(AccountStore.planLabel("api") == "API")
+    }
+
+    /// Resolving a pending Claude record onto an org that is already registered merges
+    /// the two; the discovered identity survives the merge like the alias and plan do.
+    @Test func update_mergePreservesDiscoveredIdentity() {
+        let store = makeCleanStore()
+        var existing = record("org-1", .claude)
+        existing.discoveredIdentity = "Ringier Engineering"
+        store.add(existing)
+        store.add(record("pending-x", .claude))
+        store.update(oldId: "pending-x", with: record("org-1", .claude))
+        #expect(store.accounts.count == 1)
+        #expect(store.accounts[0].discoveredIdentity == "Ringier Engineering")
     }
 
     @Test func lookupHelpers_defaultUnknownIdsToClaude() {

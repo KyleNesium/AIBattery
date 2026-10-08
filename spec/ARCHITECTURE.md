@@ -159,7 +159,8 @@ AIBattery/
     MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, multiPointStarPath) + NSBezierPath→CGPath
     MenuBarMultiAccountText.swift — Pure builder for multi-account menu bar text (`42% | 23%`); worst-account percent + throttle + reset selection. Unit-tested without AppKit.
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
-    PopoverHeaderView.swift       — Header row, account picker, update banner (ENABLE_VERSION_CHECKER)
+    PopoverHeaderView.swift       — Header row: account chip + gear, auto-update banner (ENABLE_VERSION_CHECKER)
+    AccountChipView.swift         — Full-width account chip (provider + identity) that is the switch/add Menu
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
     PopoverFooterView.swift       — Footer links (provider-aware Usage/Status targets), logout confirm, status indicator, timestamp
@@ -170,6 +171,7 @@ AIBattery/
       DisplaySettingsSection.swift — Display toggles + idle session cutoff slider
       AlertSettingsSection.swift  — Status alerts + rate limit alerts
       LaunchAtLoginSection.swift  — Launch at Login toggle
+      AboutSection.swift          — App name + version, Check for Updates / Install, release notes, Sparkle error
     AuthView.swift                 — OAuth login screen, parameterised by provider: Claude paste-code flow / Codex browser round-trip + "Import Codex CLI login"
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
     Components/
@@ -204,7 +206,7 @@ AIBattery/
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
     CodexPaths.swift              — `~/.codex/sessions`, `~/.codex/auth.json` (read-only)
-    JWTDecoder.swift              — Unverified-claims decode of the Codex ID/access token (account id, expiry)
+    JWTDecoder.swift              — Unverified-claims decode of the Codex ID/access token (account id, email, expiry)
     OAuthPKCE.swift               — Shared PKCE S256 verifier/challenge + state generation for both providers
     AppPaths.swift                — AIBattery's own Application Support directory (shared by SingleInstanceGuard + TokenLedger)
     SecureNetworking.swift        — Ephemeral URLSession + response size guard (2 MB limit) + resource timeout (30s)

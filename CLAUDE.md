@@ -40,7 +40,7 @@ swift build -c release
 swift test
 ```
 
-1310 tests across 102 files, using `import Testing` + `@testable import AIBatteryCore`.
+1330 tests across 103 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities
@@ -67,6 +67,7 @@ These aren't obvious from reading the code — know them before making changes:
 - Codex runs under three billing models and the popover follows `CodexDisplayKind`: subscriptions (windows + optional purchased-credit balance), spend-control plans (credit budget), API keys (per-minute `x-ratelimit-*` from a 16-token `/v1/responses` probe; costs are a real bill, `snapshot.costIsBilled`). API-key accounts store the key as their Keychain "refresh token" and never touch the token endpoint.
 - Codex **Business/Enterprise** plans have no 5h/weekly windows — `wham/usage` returns `rate_limit: null` and a `spend_control.individual_limit` credit budget. `CodexUsageParser` maps it to a `RateLimitUsage` with `creditBudget` set (both windows mirror the budget %), the popover shows one Credits bar with a Credits | Context toggle, and nothing Anthropic-specific (plan tiers, local estimates, "7-Day", "Anthropic API" copy) is reachable under a Codex account.
 - Codex local data comes from `~/.codex/sessions` rollouts via `CodexSessionLogParser` → the **same** `AssistantUsageEntry`, so `UsageAggregator` is shared (one instance per provider, `claude-`/`gpt-` model filter). Only `session_meta`, `turn_context` and `token_count.last_token_usage` are decoded — `response_item` (message content) is rejected on `type`. Codex has no stats cache: all-time figures are bounded by rollout retention and the UI says so.
+- **Account identity has three tiers** — user alias (`displayName`), provider-discovered identity (`AccountRecord.discoveredIdentity`: Codex id_token email, Claude workspace name), then `"<Provider> N"` numbered *within* the provider (`AccountStore.identityLabel` / `providerIndex`). The header chip (`AccountChipView`) shows identity only, never the plan; emails are masked by default (`maskedEmail`, toggle `aibattery_showFullAccountIdentity`); Settings placeholders are never masked. Keep these three separate — never copy an email into `displayName`.
 - Claude Code 5-hour / 7-day usage may come from Claude Code client metadata rather than public `/v1/messages` headers
 - Legacy unified `anthropic-ratelimit-unified-*` headers still exist in some paths, but public Anthropic API docs now describe standard `anthropic-ratelimit-*` headers instead
 - JSONL must be streamed via `FileHandle` (never load full file into memory); newline search goes through `Data.firstNewlineIndex(from:)` (memchr) resumed per chunk — `Data.firstIndex(of:)` was the cold-scan bottleneck for both readers
@@ -81,6 +82,7 @@ These aren't obvious from reading the code — know them before making changes:
 ## Security
 
 - OAuth refresh token lives in macOS Keychain under service `"AIBattery"` (`refreshToken_<id>` Claude, `refreshToken_codex_<id>` Codex) — access token is memory-only (re-derived from refresh on launch), expiry timestamp in UserDefaults. Only 1 Keychain item per account to minimize Sparkle update prompts.
+- `AccountRecord.discoveredIdentity` (Codex sign-in email / Claude workspace name) is persisted in the `aibattery_accounts` UserDefaults blob, not Keychain — deliberate: it is not a credential, is already readable in `~/.codex/auth.json`, and the popover masks it by default. Never log it unmasked.
 - Codex OAuth binds a one-shot listener on **127.0.0.1:1455 only** (never wildcard); `~/.codex` is read-only (`auth.json` is read once on the user's explicit import click)
 - Never log token values — mask or redact in error messages
 - JSONL reads are token-count-only — never parse, store, or display message content

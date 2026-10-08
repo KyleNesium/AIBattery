@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────────────────────────────┐
-│ ✦ AI Battery  Account ▾   v⚙   │  ← ❶ Header
+│ [⬡ Codex  k•••@acme.com   ▾] ⚙ │  ← ❶ Header (account chip + gear)
 ├──────────────────────────────────────┤
 │ [Settings panel — collapsible]       │  ← ❶b Settings
 │  Active: [________]                 │     (gear toggle)
@@ -17,6 +17,8 @@
 │  Refresh: [slider 30-300s]          │
 │  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
+│  About: ✦ AI Battery v2.6.1         │
+│    Check for Updates · Release notes│
 ├──────────────────────────────────────┤
 │ (A) [5 Hour|7 Day|Context]             │  ← Metric toggle + auto
 │                                        │
@@ -57,7 +59,7 @@
 ```
 UsagePopoverView (275px, VStack)
   @ObservedObject viewModel: UsageViewModel
-  @ObservedObject accountStore: AccountStore (drives account picker reactivity)
+  @ObservedObject accountStore: AccountStore (drives account chip reactivity)
   @AppStorage: metricModeRaw, autoMetricMode (only 2 — other toggles pushed to child views)
 ├── headerSection
 ├── Divider
@@ -103,28 +105,15 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 
 ### ❶ Header (`PopoverHeaderView`)
 
-- Header HStack alignment: `.center` (not `.firstTextBaseline`). The title (`Typography.sectionHeader`) and the account picker (`Typography.caption`) are different sizes; baseline-aligning them put the picker visibly below the title cap. `.center` aligns their visual centers.
-- Title: `"✦ AI Battery"` (`Typography.sectionHeader` = `.subheadline.bold()`); the leading SF symbol is `sparkle` for a Claude account and `hexagon` for a Codex account
-- **Account picker**: always-visible dropdown Menu next to title
-  - Label: display name if set, otherwise `"User N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel). The **collapsed label omits the plan suffix** (`includePlan: false` — it has ~100 pt and "User 2 · Business" was truncating); menu rows keep it.
-  - Menu items: display name or `"User N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
-  - Account rows are `AccountStore.displayOrdered` (Claude block first). Labels come from the shared `AccountStore.displayLabel(for:index:showsProviderGlyph:includePlan:)` so the picker and the Settings rows never disagree on numbering, glyphs or plan suffixes. Codex rows append the plan when known: "· Plus", "· Business", "· ChatGPT Team", "· API" (`AccountStore.planLabel`, from `AccountRecord.billingType`; `PopoverHeaderView.planLabel` forwards to it). When the account set spans **both providers** (`AccountStore.spansBothProviders`), every row is prefixed with the provider glyph (`✦` Claude / `⬡` Codex); single-provider setups render exactly as before.
-  - Below the divider: **"Add Claude Account…"** when `canAddAccount(provider: .claude)` and **"Add Codex Account…"** when `canAddAccount(provider: .codex)` (plus.circle icons) — each opens the AuthView overlay for that provider. Settings has matching inline "Add Claude account" / "Add Codex account" links (❶b).
-  - `.menuStyle(.borderlessButton)`, `.frame(maxWidth: Layout.accountPickerMaxWidth)` (100pt)
-- Gear button: `gearshape`, 11pt, toggles Settings panel
-- Loading spinner: ProgressView at 0.6 scale
-- **Update button** (`arrow.up.circle`, 11pt): three color states, no banner
-  - **Update available** (`viewModel.availableUpdate` exists): button turns `.yellow`, stays yellow. Clicking re-shows the update banner (if dismissed). `.help("vX.Y.Z available")`.
-  - **Up to date** (`updateCheckMessage` set, no update): button turns `.green` for 2.5s, fades back to `.secondary`.
-  - **Default**: `.secondary` color. Clicking triggers `forceCheckForUpdate()`.
-- **Update banner** (below header, when `availableUpdate` exists and not dismissed): bordered card, single-row HStack
-  - Background: `RoundedRectangle(cornerRadius: 6)` with `Color.yellow.opacity(0.08)` fill and `Color.yellow.opacity(0.25)` 1pt stroke, 8pt padding
-  - Yellow circle icon + **"vX.Y.Z ↗"** (.caption2, ThemeColors.secondaryLabel) — clickable, opens GitHub release page
-  - **"↓ Install Update"** (.caption2, .blue) — tries Sparkle in-app update; falls back to opening GitHub release if Sparkle not ready
-  - **"✕"** dismiss button (xmark.circle.fill, `Typography.bodyLabel`, ThemeColors.secondaryLabel) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
-  - Install Update and Download buttons inside the banner use `LinkActionButton(size: .compact)` so they share font and spacing with every other inline action in the popover (Add Account, Test).
-  - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
-- Padding: H 16, V 8 (`Spacing.section`)
+One row: the **account chip** (`AccountChipView`, full width) and the Settings gear. There is no "AI Battery" title, no version and no manual update button in the header any more — the account identity *is* the title; app name, version and the update actions live in Settings → About (❶b).
+
+- **Account chip** (`AccountChipView`): a `Menu` styled as a rounded, full-width chip (`Layout.accountChipHeight` = 32pt, `Layout.bannerCornerRadius`, `ThemeColors.hoverFill` at `activeLabelOpacity`, full `hoverFill` on hover; `.menuIndicator(.hidden)`, own chevron). Chip text, left to right: provider glyph (`Typography.bodyLabel`, secondary) · provider name (`Typography.caption`, secondary, `.fixedSize()`) · **identity** (`Typography.buttonLabel`, primary, `lineLimit(1)`, `.truncationMode(.middle)` so an email keeps its domain) · `chevron.down` (`Typography.chevronIcon`). **The plan never appears in the chip** — it would truncate the identity at 275pt; it lives in the menu rows. With no active account the chip reads "Account".
+  - **Identity** = `AccountStore.identityLabel(for:providerIndex:maskEmail:)` — precedence: the user's alias (`displayName`, trimmed, non-empty) → `AccountStore.connectingLabel` ("Connecting…") for a pending record → the provider-discovered identity (`AccountRecord.discoveredIdentity`: Codex sign-in email, Claude workspace name), **masked by default** for emails (`AccountStore.maskedEmail`: `kyle@example.com` → `k•••@example.com`; non-emails untouched) → `"<Provider> N"` where N = `AccountStore.providerIndex(of:in:)` + 1, numbered **within the provider** (`Claude 1`, `Codex 1` — adding a Claude account never renumbers Codex). Masking is lifted by the Display toggle "Full account email in popover" (`aibattery_showFullAccountIdentity`); an alias is always shown in full.
+  - **Menu**: one `Section` per provider (header `"✦ Claude"` / `"⬡ Codex"`, always both), rows = that provider's accounts in `displayOrdered` order, label `AccountStore.displayLabel(showsProviderGlyph: false, includePlan: true, maskEmail: !showFull)` — identity plus Codex plan suffix ("· Plus", "· Business", "· ChatGPT Team", "· API"; none for an unknown plan) — `checkmark` on the active row; clicking switches via `viewModel.switchAccount(to:)` inside `withAnimation(MotionConstants.standard)`. Pending rows stay selectable (they are the account the user just signed into). Each section ends with **"Add <Provider> Account…"** (`plus`), **disabled** at the cap with the count appended ("Add Codex Account… (3 of 3)").
+  - Tooltip: the full glyph + identity + plan label. VoiceOver: one sentence from `AccountChipView.accessibilityDescription(for:providerIndex:isActive:maskEmail:)` — "Codex account, k•••@example.com, Business, selected"; hint "Opens the account menu to switch or add accounts".
+- **Gear button**: `gearshape`, `Typography.bodyLabel`, hit target `accountChipHeight` square so it aligns with the chip; toggles Settings. When an update was found **and the banner was dismissed**, a small `arrow.up.circle.fill` badge in `ThemeColors.updateAvailable` sits top-trailing (a symbol, not a bare color dot) — help "Settings — update available", accessibility label "Settings, update available". The badge is only ever for an available update, never for check failures.
+- **Update banner** (below the chip row, `ENABLE_VERSION_CHECKER`, when `availableUpdate` exists and not dismissed): unchanged bordered card — `RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)` with `ThemeColors.updateAvailable` at `subtleElementOpacity` fill / `subtleStrokeOpacity` stroke, `Spacing.section` padding. Icon + **"vX.Y.Z ↗"** (opens the release page), **"Install Update"** (`LinkActionButton(size: .compact)` → `AboutSection.installUpdate` — Sparkle when ready, else the GitHub release page), **"✕"** dismiss (hides the banner; the gear badge takes over). State: `@State updateBannerDismissed`. This is the *automatic* check surfacing; the manual check moved to About.
+- HStack alignment `.center`, `Spacing.inner` gaps; padding H 16 (`Spacing.sectionHorizontal`), V 8 (`Spacing.section`).
 
 ### ❶b Settings (`SettingsRow` — private struct, decomposed into sub-views)
 
@@ -132,7 +121,7 @@ Below the account-name rows: one `LinkActionButton` per provider with room — "
 
 Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppStorage` toggle only redraws its own section.
 
-**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Account rows iterate `AccountStore.displayOrdered(accounts)` — the **same order and numbering as the header picker**. In a mixed-provider setup each row shows the provider glyph (`✦` / `⬡`, `.help("<Provider> account")`) before the text field; the field's placeholder mirrors the picker label for that row (`"User N"` + plan suffix, no glyph — via `AccountStore.displayLabel(showsProviderGlyph: false, includePlan: true)`) so a Codex row is identifiable before it has a name. The remove button's help / accessibility label is "Remove <label>" using the full glyph + plan identity. Subtle dividers (`Divider().opacity(0.5)`) separate account names, refresh, display, alerts, and startup sub-sections.
+**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Account rows iterate `AccountStore.displayOrdered(accounts)` with the **same per-provider numbering as the header chip menu** (`AccountStore.providerIndex(of:in:)`). In a mixed-provider setup each row shows the provider glyph (`✦` / `⬡`, `.help("<Provider> account")`) before the text field. The field's placeholder is the row's identity **without the alias and unmasked** (`displayLabel` of the record with `displayName = nil`, `showsProviderGlyph: false, includePlan: true, maskEmail: false` — e.g. `kyle@example.com · Business`, `Ringier Engineering`, or `Codex 2 · API`): Settings is where the user confirms *which* account they are naming, so nothing is hidden there. The remove button's help / accessibility label is "Remove <label>" using the full glyph + plan identity. Subtle dividers (`StyledDivider`) separate account names, refresh, display, alerts, startup and About sub-sections.
 
 **`RefreshSettingsSection`** (owns `refreshInterval`):
 - **Refresh**: Slider (30–300s, step 30) → `aibattery_refreshInterval`
@@ -148,6 +137,7 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 - **Display**: Checkboxes
   - "Colorblind" → `aibattery_colorblindMode`
   - "All accounts in menu bar" → `aibattery_showAllAccountsInMenuBar` (second Display row; `.help()`: shows every connected account's usage, e.g. `42% | 23%`, with star color + countdown from the worst account)
+  - "Full account email in popover" → `aibattery_showFullAccountIdentity` (third Display row, default off; `.help()` explains the `k•••@domain` masking and that aliases are always shown in full). Only affects the header chip and its menu — Settings placeholders are always unmasked.
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
 - **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)
@@ -157,6 +147,12 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 
 **`LaunchAtLoginSection`** (owns `launchAtLogin`):
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
+
+**`AboutSection`** (`Settings/AboutSection.swift`, takes `@ObservedObject viewModel` for `availableUpdate`): last Settings sub-section.
+- Row 1 — "About" label column, `sparkle` symbol (hidden from VoiceOver), **"AI Battery"** (`Typography.caption` semibold), `vX.Y.Z` (`Typography.monoCaption`, secondary, selectable; `VersionChecker.currentAppVersion`). Combined accessibility label "AI Battery version X.Y.Z".
+- Row 2 — `LinkActionButton`s: **"Check for Updates"** (`arrow.triangle.2.circlepath`; label "Checking…" and disabled while `VersionChecker.shared.forceCheckForUpdate()` runs; result written to `viewModel.availableUpdate`) **or**, when an update is already known, **"Install vX.Y.Z"** (`arrow.down.circle` → `AboutSection.installUpdate`); then **"Release notes"** (`arrow.up.right` → `AboutSection.releasesURL`).
+- "Up to date" confirmation (`checkmark.circle.fill`, `ThemeColors.success`, `Typography.tinyLabel`) below for `MotionConstants.updateCheckMessageNs`, then fades.
+- `ENABLE_SPARKLE` **"Update failed"** strip (`exclamationmark.triangle.fill` in `ThemeColors.danger`, "Download" → `AboutSection.latestReleaseURL`, ✕ → `SparkleUpdateService.shared.clearError()`, `.help(sparkleError)`) — operational state lives next to the update controls, not in the header.
   - Syncs with `SMAppService.mainApp.status` on appear
 
 **`sliderMarks()`**: internal file-level helper in `RefreshSettingsSection.swift` for generating slider tick marks (shared by sections).
@@ -493,7 +489,7 @@ The **popover's 5-Hour/7-Day bars** read from a single source of truth — the (
 **Multi-account display** (when `aibattery_showAllAccountsInMenuBar == true` and ≥2 authenticated accounts exist):
 - Text format: `"<a>%\u{00A0}|\u{00A0}<b>%[\u{00A0}|\u{00A0}<c>%]"` — non-breaking spaces around `|` so a single slot doesn't break across the separator. Pure formatting via `MenuBarMultiAccountText.build(order:limits:metricMode:)`.
 - **Mixed providers**: when the *displayed* accounts span both providers, slots are grouped by provider with a glyph prefix — `✦ 42% | 23%  ⬡ 57%` (two spaces between groups, non-breaking within a group). Single-provider sets keep the legacy unprefixed format. Throttled countdown prefixes the binding window's short code (`7D` / `WK`).
-- Order: `AccountStore.multiAccountDisplayIDs` — `displayOrdered` (Claude block first, mirrors the popover account picker), non-pending, authenticated, **excluding Codex API-key accounts** (no window data → they rendered a permanent "—").
+- Order: `AccountStore.multiAccountDisplayIDs` — `displayOrdered` (Claude block first, mirrors the popover account chip menu), non-pending, authenticated, **excluding Codex API-key accounts** (no window data → they rendered a permanent "—").
 - Star color: driven by the **worst** account's percent (max across `perAccountRateLimits.values`).
 - Broken star: triggered if any account has `isThrottled == true` OR any account has 100%+ utilization.
 - Countdown mode: triggered only when **at least one account is actually exhausted** (throttled or 100%+ on a window). `StatusBarManager` calls the existing `countdownResetDate(for:now:)` per account and picks `.min()`. Healthy accounts with normal future resets never pin the menu bar into countdown mode — the new `42% | 23%` text remains visible.

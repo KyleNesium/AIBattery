@@ -148,8 +148,8 @@ enum Layout {
     /// Tutorial card max width.
     static let tutorialCardMaxWidth: CGFloat = 280
 
-    /// Account picker max width in header.
-    static let accountPickerMaxWidth: CGFloat = 100
+    /// Header account chip height — also the gear button's hit target so the two align.
+    static let accountChipHeight: CGFloat = 32
 
     /// Clipboard icon trailing offset (negative for overlay positioning).
     static let clipboardIconOffset: CGFloat = 13

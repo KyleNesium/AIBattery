@@ -84,6 +84,12 @@ extension UsageViewModel {
             return
         }
 
+        // The workspace name is the only identity Anthropic exposes (no email): it
+        // becomes the account's discovered identity until the user sets an alias.
+        if let workspace = api.profile?.workspaceName, !api.isCached, account.discoveredIdentity != workspace {
+            oauthManager.updateAccountMetadata(accountId: id, discoveredIdentity: workspace)
+        }
+
         if account.isPendingIdentity {
             if let orgId = api.profile?.organizationId {
                 oauthManager.resolveAccountIdentity(tempId: id, realOrgId: orgId)

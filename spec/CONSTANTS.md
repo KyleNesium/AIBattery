@@ -62,6 +62,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | OpenAI API-key probe | `POST https://api.openai.com/v1/responses` — `{"model": <gpt-5-nano → gpt-5-mini → gpt-5>, "input": ".", "max_output_tokens": 16, "reasoning": {"effort": "minimal"}, "store": false}` (minimal effort so reasoning doesn't eat the cap; `store: false` keeps probes out of the user's dashboard logs; ≈ $0.000007 per probe); limits read from `x-ratelimit-limit/remaining/reset-requests|tokens` (Go-duration resets incl. `ms`/`µs`/`ns`). Next probe model on a header-less **400 / 403 / 404** (`probeShouldTryNextModel`); **401 only** is an auth failure |
 | Codex OAuth token-endpoint statuses | 400 / 401 / 403 → `AuthError.codexSignInRejected` (final, signs out on refresh); 5xx **and any other status** (429, 408, CDN 4xx) → `.serverError(code, provider: .codex)` (transient, retried) — `CodexTokenClient` |
 | GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
+| Release notes (Settings → About) | `https://github.com/KyleNesium/AIBattery/releases` (`AboutSection.releasesURL`); "Download" after a Sparkle failure → `…/releases/latest` (`AboutSection.latestReleaseURL`) |
 | Sparkle Appcast | `https://kylenesium.github.io/AIBattery/appcast.xml` |
 
 ## API Configuration
@@ -289,6 +290,7 @@ IDs absent from the pricing page fall through to their longest listed prefix (e.
 | Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
 | Signed-out provider | `aibattery_signedOutProvider` (String — `AIProvider` raw value, default `"claude"`) — which provider the signed-out sign-in screen offers first; written by `OAuthManager.signOut` (the removed account's provider) and by the sign-in screen's Claude \| Codex picker |
+| Full account email in popover | `aibattery_showFullAccountIdentity` (Bool, default false) — when false, a discovered email in the header chip / chip menu is masked (`k•••@domain`, `AccountStore.maskedEmail`); aliases and Settings placeholders are never masked. |
 | Show all accounts in menu bar | `aibattery_showAllAccountsInMenuBar` (Bool, default false) — when true and ≥2 authenticated accounts exist, the menu bar shows percentages for every account joined by `\u{00A0}|\u{00A0}` (e.g. `42% | 23%`). Star color, broken-star state, and countdown reset are driven by the worst account. `MetricMode.contextHealth` falls back to `.fiveHour` for per-account percents (context health is per-session, not per-account). |
 
 ## Dynamic Probe Model Storage
@@ -468,7 +470,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.activityModePickerWidth` | 120pt | Activity mode segmented picker width |
 | `Layout.indexColumn` | 14pt | Project list index column width |
 | `Layout.tutorialCardMaxWidth` | 280pt | Tutorial card max width |
-| `Layout.accountPickerMaxWidth` | 100pt | Account picker max width in header |
+| `Layout.accountChipHeight` | 32pt | Header account chip height; also the gear button hit target |
 | `Layout.clipboardIconOffset` | 13pt | Clipboard icon trailing offset (negative for overlay) |
 
 ### MotionConstants (`Utilities/Spacing.swift`, co-located)
@@ -488,7 +490,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `MotionConstants.marqueeScroll(travelPoints:)` | `.linear(duration: travelPoints / marqueeScrollSpeed)` | Builder for the marquee scroll animation |
 | `MotionConstants.clipboardFeedbackNs` | `1_500_000_000` (state timing, non-animation) | Clipboard "copied" feedback icon display duration |
 | `MotionConstants.logoutConfirmNs` | `3_000_000_000` (state timing, non-animation) | Logout confirmation auto-revert timeout |
-| `MotionConstants.updateCheckMessageNs` | `2_500_000_000` (state timing, non-animation) | Update check "Up to date" message display duration |
+| `MotionConstants.updateCheckMessageNs` | `2_500_000_000` (state timing, non-animation) | Settings → About "Up to date" message display duration |
 
 ## Security Guards
 

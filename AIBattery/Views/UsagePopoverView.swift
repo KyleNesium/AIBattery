@@ -119,15 +119,11 @@ public struct UsagePopoverView: View {
     private var mainContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             PopoverHeaderView(
-                snapshot: viewModel.snapshot,
                 accountStore: accountStore,
                 showSettings: $showSettings,
                 onAddAccount: { addingProvider = $0 },
                 onSwitchAccount: { accountId in
                     viewModel.switchAccount(to: accountId)
-                },
-                onUpdateFound: { update in
-                    viewModel.availableUpdate = update
                 },
                 availableUpdate: viewModel.availableUpdate
             )

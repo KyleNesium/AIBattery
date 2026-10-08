@@ -19,6 +19,8 @@ enum UserDefaultsKeys {
     static let autoMetricMode = "aibattery_autoMetricMode"
     static let colorblindMode = "aibattery_colorblindMode"
     static let showAllAccountsInMenuBar = "aibattery_showAllAccountsInMenuBar"
+    /// Unmask discovered account emails in the popover chip/menu (default masked: `k•••@domain`).
+    static let showFullAccountIdentity = "aibattery_showFullAccountIdentity"
     static let hasSeenTutorial = "aibattery_hasSeenTutorial"
     /// Provider the signed-out root offers first — the last one the user used/removed,
     /// so a Codex-only user isn't dropped onto the Claude sign-in after a sign-out.

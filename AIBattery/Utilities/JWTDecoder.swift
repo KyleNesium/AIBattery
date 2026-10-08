@@ -26,6 +26,17 @@ enum JWTDecoder {
         return auth?["chatgpt_account_id"] as? String
     }
 
+    /// Email address from an OpenAI id_token: the standard `email` claim, or the
+    /// address nested under the OpenAI profile claim. Nil when absent or blank.
+    static func email(idToken: String) -> String? {
+        guard let payload = payload(idToken) else { return nil }
+        let direct = payload["email"] as? String
+        let profile = (payload["https://api.openai.com/profile"] as? [String: Any])?["email"] as? String
+        guard let raw = direct ?? profile else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     /// `exp` claim as a Date (nil when absent/malformed).
     static func expiry(_ jwt: String) -> Date? {
         guard let exp = payload(jwt)?["exp"] as? TimeInterval else { return nil }

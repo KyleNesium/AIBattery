@@ -102,6 +102,9 @@ public final class AccountStore: ObservableObject {
             if merged.billingType == nil {
                 merged.billingType = existing.billingType
             }
+            if merged.discoveredIdentity == nil {
+                merged.discoveredIdentity = existing.discoveredIdentity
+            }
 
             AppLogger.oauth.info("Merging duplicate account \(oldId, privacy: .public) → \(newRecord.id, privacy: .public)")
 
@@ -165,21 +168,53 @@ public final class AccountStore: ObservableObject {
         Set(accounts.map(\.provider)).count > 1
     }
 
-    /// The one label an account gets everywhere it is listed (header picker, Settings
-    /// rows): display name if set, otherwise "User N" where N is the account's position
-    /// in `displayOrdered`, prefixed with the provider glyph in a mixed setup and, for
-    /// Codex, optionally suffixed with the plan ("· Business", "· API").
+    /// Placeholder identity for a record whose org id the API hasn't confirmed yet.
+    nonisolated static let connectingLabel = "Connecting…"
+
+    /// Zero-based position of `account` among the accounts of its own provider, in
+    /// `displayOrdered` order. Drives the "Claude 2" / "Codex 1" fallback numbering,
+    /// so adding a Claude account never renumbers the Codex ones. 0 for unknown ids.
+    nonisolated static func providerIndex(of account: AccountRecord, in accounts: [AccountRecord]) -> Int {
+        displayOrdered(accounts)
+            .filter { $0.provider == account.provider }
+            .firstIndex { $0.id == account.id } ?? 0
+    }
+
+    /// `kyle@example.com` → `k•••@example.com`. Anything that isn't `local@domain`
+    /// with a non-empty local part comes back unchanged (workspace names, blanks).
+    nonisolated static func maskedEmail(_ identity: String) -> String {
+        guard let at = identity.firstIndex(of: "@"), at != identity.startIndex,
+              identity.index(after: at) != identity.endIndex else { return identity }
+        return "\(identity[identity.startIndex])•••\(identity[at...])"
+    }
+
+    /// The bare identity (no glyph, no plan) by precedence: the user's alias, then the
+    /// provider-discovered identity (email masked when `maskEmail`), then
+    /// "<Provider> N". A pending record without an alias reads `connectingLabel`.
+    nonisolated static func identityLabel(for account: AccountRecord, providerIndex: Int, maskEmail: Bool) -> String {
+        if let alias = account.displayName?.trimmingCharacters(in: .whitespaces), !alias.isEmpty {
+            return alias
+        }
+        if account.isPendingIdentity {
+            return connectingLabel
+        }
+        if let discovered = account.discoveredIdentity?.trimmingCharacters(in: .whitespaces), !discovered.isEmpty {
+            return maskEmail ? maskedEmail(discovered) : discovered
+        }
+        return "\(account.provider.displayName) \(providerIndex + 1)"
+    }
+
+    /// The one label an account gets everywhere it is listed (chip menu rows, Settings
+    /// rows): `identityLabel`, prefixed with the provider glyph when `showsProviderGlyph`
+    /// and, for Codex, optionally suffixed with the plan ("· Business", "· API").
     nonisolated static func displayLabel(
         for account: AccountRecord,
-        index: Int,
+        providerIndex: Int,
         showsProviderGlyph: Bool,
-        includePlan: Bool
+        includePlan: Bool,
+        maskEmail: Bool
     ) -> String {
-        let base: String = if let name = account.displayName, !name.isEmpty {
-            name
-        } else {
-            "User \(index + 1)"
-        }
+        let base = identityLabel(for: account, providerIndex: providerIndex, maskEmail: maskEmail)
         let labelled = showsProviderGlyph ? "\(account.provider.glyph) \(base)" : base
         if includePlan, account.provider == .codex, let plan = planLabel(account.billingType) {
             return "\(labelled) · \(plan)"

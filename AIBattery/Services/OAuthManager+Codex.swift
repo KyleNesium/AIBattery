@@ -49,8 +49,14 @@ extension OAuthManager {
         provider == .codex ? "codex_\(accountId)" : accountId
     }
 
-    nonisolated static func makeCodexAccountRecord(accountId: String, addedAt: Date = Date()) -> AccountRecord {
-        AccountRecord(id: accountId, addedAt: addedAt, provider: .codex)
+    /// `idToken` seeds `discoveredIdentity` from the email claim when present.
+    nonisolated static func makeCodexAccountRecord(accountId: String, idToken: String? = nil, addedAt: Date = Date()) -> AccountRecord {
+        AccountRecord(
+            id: accountId,
+            addedAt: addedAt,
+            provider: .codex,
+            discoveredIdentity: idToken.flatMap { JWTDecoder.email(idToken: $0) }
+        )
     }
 
     /// Start the Codex browser sign-in. Returns the URL to open, or nil when
@@ -124,7 +130,14 @@ extension OAuthManager {
             refreshToken: tokenSet.refreshToken,
             expiresAt: JWTDecoder.expiry(tokenSet.accessToken) ?? Date().addingTimeInterval(3_600)
         )
-        activateCodexAccount(Self.makeCodexAccountRecord(accountId: accountId))
+        let record = Self.makeCodexAccountRecord(accountId: accountId, idToken: tokenSet.idToken)
+        activateCodexAccount(record)
+        // Re-signing into a known account (or importing it) backfills an identity the
+        // record didn't have yet — records created before the field existed.
+        if var existing = accountStore.account(id: accountId), existing.discoveredIdentity == nil, let identity = record.discoveredIdentity {
+            existing.discoveredIdentity = identity
+            accountStore.update(oldId: accountId, with: existing)
+        }
         return .success(())
     }
 }

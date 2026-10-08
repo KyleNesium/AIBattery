@@ -6,6 +6,16 @@ AI Battery becomes a two-provider battery: up to 3 Claude **and** 3 Codex
 accounts, switchable from the header picker (✦ / ⬡ glyphs when both exist).
 
 ### Added
+- **Account chip header.** The popover header is now the account: a full-width
+  chip with provider glyph + name and the account identity, which is also the
+  switch/add menu (grouped by provider, plan per row, Add… disabled at the cap).
+  "AI Battery", the version and the manual update check moved to a new
+  Settings → **About** section; a dismissed update banner badges the ⚙️ gear.
+- **Real account names.** Instead of "User 1", an account without an alias shows
+  the Codex sign-in email or the Claude workspace name, numbered per provider
+  ("Claude 1", "Codex 2") when neither is known. Emails are masked
+  (`k•••@domain`) unless Settings → Display → "Full account email in popover"
+  is on; Settings placeholders always show the full identity.
 - **Codex accounts** via ChatGPT sign-in (browser round-trip, no code to paste),
   one-click import of the Codex CLI login, or an OpenAI API key.
 - **Three Codex billing models**, each with its own layout: subscriptions

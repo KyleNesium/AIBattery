@@ -367,14 +367,17 @@ public final class OAuthManager: ObservableObject {
         AppLogger.oauth.info("Resolved account identity: \(tempId, privacy: .public) → \(realOrgId, privacy: .public)")
     }
 
-    /// Update an existing account's metadata (display name, billing type).
-    func updateAccountMetadata(accountId: String, displayName: String? = nil, billingType: String? = nil) {
+    /// Update an existing account's metadata (display name, billing type, discovered identity).
+    func updateAccountMetadata(accountId: String, displayName: String? = nil, billingType: String? = nil, discoveredIdentity: String? = nil) {
         guard var record = accountStore.accounts.first(where: { $0.id == accountId }) else { return }
         if let name = displayName {
             record.displayName = name
         }
         if let billing = billingType {
             record.billingType = billing
+        }
+        if let identity = discoveredIdentity {
+            record.discoveredIdentity = identity
         }
         accountStore.update(oldId: accountId, with: record)
     }

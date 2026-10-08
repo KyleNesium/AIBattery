@@ -14,9 +14,9 @@ struct SettingsRow: View {
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .accessibilityAddTraits(.isHeader)
 
-            // Per-account names — same order and numbering as the header picker.
-            ForEach(Array(AccountStore.displayOrdered(accountStore.accounts).enumerated()), id: \.element.id) { index, account in
-                accountNameRow(account, index: index)
+            // Per-account names — same order and per-provider numbering as the header chip menu.
+            ForEach(AccountStore.displayOrdered(accountStore.accounts), id: \.id) { account in
+                accountNameRow(account, index: AccountStore.providerIndex(of: account, in: accountStore.accounts))
             }
 
             // One add link per provider, each gated on its own cap (spec §5:
@@ -58,6 +58,8 @@ struct SettingsRow: View {
             AlertSettingsSection()
             StyledDivider()
             LaunchAtLoginSection()
+            StyledDivider()
+            AboutSection(viewModel: viewModel)
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
@@ -70,13 +72,13 @@ struct SettingsRow: View {
             ? (isActive ? "Active" : "Account")
             : "Name"
         let mixed = AccountStore.spansBothProviders(accountStore.accounts)
-        // Placeholder mirrors the header picker's label for this row (glyph + "User N" + plan)
-        // so a Codex row is identifiable before it has a name.
-        let placeholder = AccountStore.displayLabel(
-            for: AccountRecord(id: account.id, billingType: account.billingType, addedAt: account.addedAt, provider: account.provider, codexAccessMode: account.codexAccessMode),
-            index: index, showsProviderGlyph: false, includePlan: true
-        )
-        let identity = AccountStore.displayLabel(for: account, index: index, showsProviderGlyph: mixed, includePlan: true)
+        // Placeholder is the row's identity *without* the alias (full, unmasked email or
+        // workspace, else "Codex N" + plan) — this is where the user sees which account
+        // they are naming, so nothing is hidden here.
+        var unaliased = account
+        unaliased.displayName = nil
+        let placeholder = AccountStore.displayLabel(for: unaliased, providerIndex: index, showsProviderGlyph: false, includePlan: true, maskEmail: false)
+        let identity = AccountStore.displayLabel(for: account, providerIndex: index, showsProviderGlyph: mixed, includePlan: true, maskEmail: false)
         return HStack(spacing: Spacing.section) {
             Text(label)
                 .font(Typography.caption)
