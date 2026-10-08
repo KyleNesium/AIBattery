@@ -24,6 +24,43 @@ struct MenuBarIconTests {
         #expect(MenuBarIcon.quantizedPercent(150) == 100)
     }
 
+    // MARK: - Provider marks in the menu bar text
+
+    /// The multi-account text model keeps the ✦ / ⬡ glyphs (they are what the tests
+    /// and the render key compare); at draw time each glyph becomes an inline brand
+    /// mark image (NSTextAttachment), never a rendered text character.
+    @Test func menuBarAttributedText_replacesGlyphsWithMarkAttachments() {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        let text = "\(AIProvider.claude.glyph)\u{00A0}42%  \(AIProvider.codex.glyph)\u{00A0}7%"
+        let attributed = MenuBarIcon.menuBarAttributedText(text, font: font, color: .white)
+        let string = attributed.string
+        #expect(!string.contains(AIProvider.claude.glyph))
+        #expect(!string.contains(AIProvider.codex.glyph))
+        // Object-replacement characters stand where the glyphs were; the rest is untouched.
+        #expect(string == "\u{FFFC}\u{00A0}42%  \u{FFFC}\u{00A0}7%")
+        var attachments = 0
+        attributed.enumerateAttribute(.attachment, in: NSRange(location: 0, length: attributed.length)) { value, _, _ in
+            if value is NSTextAttachment {
+                attachments += 1
+            }
+        }
+        #expect(attachments == 2)
+    }
+
+    @Test func menuBarAttributedText_plainTextHasNoAttachments() {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        let attributed = MenuBarIcon.menuBarAttributedText("42%\u{00A0}|\u{00A0}23%", font: font, color: .white)
+        #expect(attributed.string == "42%\u{00A0}|\u{00A0}23%")
+        #expect(attributed.attribute(.attachment, at: 0, effectiveRange: nil) == nil)
+    }
+
+    /// VoiceOver reads provider names, not symbol names.
+    @Test func spokenMenuBarText_namesProviders() {
+        let text = "\(AIProvider.claude.glyph)\u{00A0}42%  \(AIProvider.codex.glyph)\u{00A0}7%"
+        #expect(MenuBarIcon.spokenMenuBarText(text) == "Claude\u{00A0}42%  Codex\u{00A0}7%")
+        #expect(MenuBarIcon.spokenMenuBarText("42%") == "42%")
+    }
+
     // MARK: - Cache key
 
     @Test func cacheKey_normalDistinctFromBroken() {

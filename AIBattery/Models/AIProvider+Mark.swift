@@ -26,6 +26,19 @@ public extension AIProvider {
     private static let markCache = MarkCache()
 }
 
+extension NSImage {
+    /// A flat copy of a template image filled with `color` at `size` — for places
+    /// that can't tint templates themselves (NSTextAttachment inside a drawn NSImage).
+    func tinted(_ color: NSColor, size: NSSize) -> NSImage {
+        NSImage(size: size, flipped: false) { rect in
+            self.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+            color.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+    }
+}
+
 /// One-time SVG decode per provider; `NSImage` is immutable once `isTemplate` is set.
 private final class MarkCache: @unchecked Sendable {
     private let lock = NSLock()

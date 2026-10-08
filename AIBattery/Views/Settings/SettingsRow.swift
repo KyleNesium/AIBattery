@@ -85,10 +85,9 @@ struct SettingsRow: View {
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Layout.settingsLabel, alignment: .trailing)
             if mixed {
-                Text(account.provider.glyph)
-                    .font(Typography.caption)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
+                ProviderBadge(provider: account.provider)
                     .help("\(account.provider.displayName) account")
+                    .accessibilityHidden(false)
                     .accessibilityLabel("\(account.provider.displayName) account")
             }
             TextField(placeholder, text: nameBinding(for: account.id))
