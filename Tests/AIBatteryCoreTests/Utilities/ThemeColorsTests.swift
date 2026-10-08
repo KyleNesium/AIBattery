@@ -9,6 +9,14 @@ struct ThemeColorsTests {
         ThemeColors.refreshColorblindFlag()
     }
 
+    // MARK: - Provider badges
+
+    /// Each provider gets its own badge tint in the header chip (names sit next to
+    /// the badge, so the colors are a recognition aid, never the only signal).
+    @Test func providerBadge_tintsDifferPerProvider() {
+        #expect(ThemeColors.providerBadge(.claude) != ThemeColors.providerBadge(.codex))
+    }
+
     // MARK: - Bar colors return distinct values per range
 
     @Test func barColor_allRanges_returnDistinctColors() {

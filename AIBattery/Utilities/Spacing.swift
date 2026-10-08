@@ -149,7 +149,10 @@ enum Layout {
     static let tutorialCardMaxWidth: CGFloat = 280
 
     /// Header account chip height — also the gear button's hit target so the two align.
-    static let accountChipHeight: CGFloat = 32
+    static let accountChipHeight: CGFloat = 28
+
+    /// Rounded-square provider badge in the header chip (Claude / Codex symbol on a tint).
+    static let providerBadgeSize: CGFloat = 18
 
     /// Clipboard icon trailing offset (negative for overlay positioning).
     static let clipboardIconOffset: CGFloat = 13

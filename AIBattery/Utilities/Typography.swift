@@ -65,6 +65,9 @@ enum Typography {
     /// Chevron icon inside CollapsibleSectionHeader — compact bold glyph.
     static let chevronIcon: Font = .system(size: 9, weight: .bold)
 
+    /// Provider symbol inside the 18pt header badge.
+    static let badgeSymbol: Font = .system(size: 10, weight: .bold)
+
     /// Badge/tag label text (e.g. "binding" pill in session views).
     static let badgeLabel: Font = .system(size: 10, weight: .medium, design: .monospaced)
 

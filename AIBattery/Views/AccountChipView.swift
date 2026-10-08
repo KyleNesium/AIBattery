@@ -1,17 +1,17 @@
 import AppKit
 import SwiftUI
 
-/// The popover's title: a full-width chip naming the active account's provider and
-/// identity. Clicking it pops an AppKit `NSMenu` (switch / add accounts) anchored
-/// to the chip.
+/// The popover's title: a compact chip — provider badge + account identity + chevron —
+/// that hugs its content (not the whole header row). Clicking it pops an AppKit
+/// `NSMenu` (switch / add accounts) anchored below the chip.
 ///
 /// Why AppKit: SwiftUI's `Menu` on macOS sizes its label to the control's intrinsic
 /// width and clips the rest, and an overlaid transparent-label `Menu` has no hit
-/// area. A plain full-width `Button` + `NSMenu.popUp` gives a chip we fully draw,
-/// a reliable hit target, native section headers and checkmarks.
+/// area. A plain `Button` + `NSMenu.popUp` gives a chip we fully draw, a reliable
+/// hit target, native section headers and checkmarks.
 ///
-/// Chip text is `symbol + provider + identity + chevron` — the plan never appears in
-/// the chip (it would truncate the identity at 275pt) and lives in the menu rows.
+/// The plan never appears in the chip (it would truncate the identity at 275pt);
+/// it lives in the menu rows.
 struct AccountChipView: View {
     @ObservedObject var accountStore: AccountStore
     let onAddAccount: (AIProvider) -> Void
@@ -26,11 +26,12 @@ struct AccountChipView: View {
         let active = accountStore.activeAccount
         Button(action: presentMenu) {
             chipFace(active, accounts: accounts)
-                .frame(maxWidth: .infinity)
                 .frame(height: Layout.accountChipHeight)
+                // Toolbar-style: the pill only appears on hover, so the header reads
+                // as a title, not a button, until you reach for it.
                 .background(
                     RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                        .fill(hovered ? ThemeColors.hoverFill : ThemeColors.hoverFill.opacity(ThemeColors.activeLabelOpacity))
+                        .fill(hovered ? ThemeColors.hoverFill : .clear)
                 )
                 .contentShape(Rectangle())
         }
@@ -54,42 +55,41 @@ struct AccountChipView: View {
     // MARK: Chip face
 
     private func chipFace(_ active: AccountRecord?, accounts: [AccountRecord]) -> some View {
-        HStack(spacing: Spacing.inner) {
+        HStack(spacing: Spacing.gap) {
             if let active {
                 let identity = AccountStore.identityLabel(
                     for: active,
                     providerIndex: AccountStore.providerIndex(of: active, in: accounts),
                     maskEmail: !showFullAccountIdentity
                 )
-                Image(systemName: active.provider.symbolName)
-                    .font(Typography.bodyLabel)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-                if Self.showsProviderName(identity: identity, provider: active.provider) {
-                    Text(active.provider.displayName)
-                        .font(Typography.caption)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
-                        .fixedSize()
+                ProviderBadge(provider: active.provider)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(identity)
+                        .font(Typography.sectionHeader)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if Self.showsProviderName(identity: identity, provider: active.provider) {
+                        Text(active.provider.displayName)
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.secondaryLabel)
+                            .fixedSize()
+                    }
                 }
-                Text(identity)
-                    .font(Typography.buttonLabel)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
             } else {
                 Text("Account")
-                    .font(Typography.buttonLabel)
+                    .font(Typography.sectionHeader)
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
-            Spacer(minLength: Spacing.inner)
             Image(systemName: "chevron.down")
                 .font(Typography.chevronIcon)
                 .foregroundStyle(ThemeColors.secondaryLabel)
         }
-        .padding(.horizontal, Spacing.section)
+        .padding(.horizontal, Spacing.gap)
     }
 
     /// False when the identity already *is* the provider name (an alias "Codex"
-    /// would otherwise read "Codex Codex").
+    /// would otherwise read "Codex" over "Codex").
     nonisolated static func showsProviderName(identity: String, provider: AIProvider) -> Bool {
         identity.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(provider.displayName) != .orderedSame
     }
@@ -200,6 +200,25 @@ struct AccountChipView: View {
             includePlan: true,
             maskEmail: !showFullAccountIdentity
         )
+    }
+}
+
+/// Rounded-square tinted badge with the provider's symbol in white — the kind of
+/// mark macOS uses for accounts in System Settings. The name sits next to it, so
+/// the tint is a recognition aid, never the only signal.
+struct ProviderBadge: View {
+    let provider: AIProvider
+
+    var body: some View {
+        Image(systemName: provider.symbolName)
+            .font(Typography.badgeSymbol)
+            .foregroundStyle(.white)
+            .frame(width: Layout.providerBadgeSize, height: Layout.providerBadgeSize)
+            .background(
+                RoundedRectangle(cornerRadius: Layout.tabCornerRadius, style: .continuous)
+                    .fill(ThemeColors.providerBadge(provider))
+            )
+            .accessibilityHidden(true)
     }
 }
 

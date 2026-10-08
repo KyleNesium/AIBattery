@@ -24,6 +24,7 @@ struct PopoverHeaderView: View {
                     onAddAccount: onAddAccount,
                     onSwitchAccount: onSwitchAccount
                 )
+                Spacer(minLength: Spacing.inner)
                 gearButton
             }
 
