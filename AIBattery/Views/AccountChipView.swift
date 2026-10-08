@@ -160,8 +160,10 @@ struct AccountChipView: View {
             add.isEnabled = section.canAdd
             menu.addItem(add)
         }
-        // Drop the menu just below the chip, left-aligned with it.
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + Spacing.tight), in: view)
+        // Drop the menu just below the chip, left-aligned with it. The anchor NSView is
+        // NOT flipped (origin bottom-left), so "below the bottom edge" is a negative y;
+        // `popUp` puts the menu's top-left corner at the given point.
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -Spacing.tight), in: view)
     }
 
     private static func header(_ title: String) -> NSMenuItem {
