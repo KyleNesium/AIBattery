@@ -4,6 +4,12 @@ import Foundation
 /// Brand marks for the header badge — the real Claude and OpenAI logos
 /// (Simple Icons, CC0; `AIBattery/Resources/*.svg`), rendered as template
 /// images so they take whatever tint the badge gives them.
+///
+/// Resource lookup is explicit and never traps. SwiftPM's generated
+/// `Bundle.module` only searches `Bundle.main.bundleURL/<bundle>` and an
+/// absolute path on the build machine, then calls `fatalError` — a shipped
+/// `.app` keeps the bundle in `Contents/Resources`, so relying on it would
+/// crash every install on the first badge while passing on the dev machine.
 public extension AIProvider {
     /// Bundled SVG basename (`Resources/<name>.svg`).
     var markResourceName: String {
@@ -13,8 +19,35 @@ public extension AIProvider {
         }
     }
 
-    nonisolated static func markURL(for provider: AIProvider) -> URL? {
-        Bundle.module.url(forResource: provider.markResourceName, withExtension: "svg", subdirectory: "Resources")
+    /// SwiftPM resource bundle name: `<package>_<target>.bundle`.
+    static let resourceBundleName = "AIBattery_AIBatteryCore.bundle"
+
+    /// Where the resource bundle can live, in priority order:
+    /// 1. `Contents/Resources` of the packaged app (what `scripts/build-app.sh` ships)
+    /// 2. the executable's directory (`swift run` / bare `.build/release/AIBattery`)
+    /// 3. next to the loaded module (`swift test`: the test bundle's parent is `.build/<config>/`)
+    nonisolated static var defaultMarkSearchRoots: [URL] {
+        var roots: [URL] = []
+        if let resources = Bundle.main.resourceURL {
+            roots.append(resources)
+        }
+        roots.append(Bundle.main.bundleURL)
+        roots.append(Bundle(for: MarkCache.self).bundleURL.deletingLastPathComponent())
+        return roots
+    }
+
+    /// First `<root>/<resourceBundleName>/Resources/<name>.svg` that exists, else nil.
+    nonisolated static func markURL(for provider: AIProvider, searchRoots: [URL] = defaultMarkSearchRoots) -> URL? {
+        for root in searchRoots {
+            let candidate = root
+                .appendingPathComponent(resourceBundleName)
+                .appendingPathComponent("Resources")
+                .appendingPathComponent("\(provider.markResourceName).svg")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        return nil
     }
 
     /// Template `NSImage` of the mark, loaded once per provider. Nil only if the

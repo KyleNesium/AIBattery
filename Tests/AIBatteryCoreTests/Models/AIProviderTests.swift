@@ -30,6 +30,29 @@ struct AIProviderTests {
         #expect(AIProvider.codex.markResourceName == "openai")
     }
 
+    /// `Bundle.module` is deliberately NOT used: SwiftPM's generated accessor only
+    /// looks in the app's root and at an absolute path on the build machine, then
+    /// traps — a shipped .app (resources in Contents/Resources) would crash on the
+    /// first badge. The resolver walks explicit roots and returns nil instead.
+    @Test func markURL_resolvesFromAnExplicitRoot_andNeverTraps() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("aib-marks-\(UUID().uuidString)")
+        let resources = root.appendingPathComponent(AIProvider.resourceBundleName).appendingPathComponent("Resources")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("<svg/>".utf8).write(to: resources.appendingPathComponent("claude.svg"))
+
+        // A root without the bundle is skipped; the one with it wins.
+        let empty = FileManager.default.temporaryDirectory.appendingPathComponent("aib-empty-\(UUID().uuidString)")
+        let found = AIProvider.markURL(for: .claude, searchRoots: [empty, root])
+        #expect(found?.lastPathComponent == "claude.svg")
+        #expect(found?.path.hasPrefix(root.path) == true)
+
+        // Missing file / no usable root → nil, never a trap (SF-symbol fallback).
+        #expect(AIProvider.markURL(for: .codex, searchRoots: [empty, root]) == nil)
+        #expect(AIProvider.markURL(for: .claude, searchRoots: []) == nil)
+        #expect(AIProvider.resourceBundleName == "AIBattery_AIBatteryCore.bundle")
+    }
+
     @Test func accountRecord_decodesLegacyJSONWithoutProvider() throws {
         // Exactly what v2.6.1 persisted — no `provider` key.
         let legacy = Data("""

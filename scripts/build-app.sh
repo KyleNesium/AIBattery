@@ -39,9 +39,10 @@ cp .build/AppIcon.icns "$APP_DIR/Contents/Resources/AppIcon.icns"
 
 cp AIBattery/Info.plist "$APP_DIR/Contents/Info.plist"
 cp AIBattery/PrivacyInfo.xcprivacy "$APP_DIR/Contents/Resources/PrivacyInfo.xcprivacy"
-# SPM resource bundle (provider brand marks, AIBattery/Resources/*.svg). Bundle.module
-# looks in Bundle.main.resourceURL and TRAPS if the bundle is missing, so this copy is
-# load-bearing: without it the popover header crashes the app on first render.
+# SPM resource bundle (provider brand marks, AIBattery/Resources/*.svg). The app resolves
+# it explicitly from Contents/Resources (AIProvider.markURL — NOT Bundle.module, whose
+# generated accessor only checks the .app root and an absolute build-machine path, then
+# traps). Without this copy the header badges silently fall back to SF symbols.
 cp -R .build/release/AIBattery_AIBatteryCore.bundle "$APP_DIR/Contents/Resources/"
 
 # Inject version from git tag if available (e.g. v1.2.4 → 1.2.4)

@@ -331,7 +331,7 @@ CHANGELOG.md                      — Release notes per version
 - **Compiler flag**: `ENABLE_VERSION_CHECKER` — defined in all 3 SPM targets. Guards VersionChecker + update UI. Remove to build App Store variant (guideline 3.1.1)
 - **Compiler flag**: `APP_SANDBOX` — NOT defined by default. Reserved for future App Store sandbox support. Only set for App Store builds
 - **Privacy manifest**: `PrivacyInfo.xcprivacy` bundled as SPM resource, also copied to `Contents/Resources/` by build script
-- **SPM resource bundle**: `scripts/build-app.sh` copies `.build/release/AIBattery_AIBatteryCore.bundle` into `Contents/Resources/`. This is load-bearing — `Bundle.module` (used by `AIProvider.markURL`) **traps** when the bundle is missing, so a bundle built without it crashes the popover header on first render.
+- **SPM resource bundle**: `scripts/build-app.sh` copies `.build/release/AIBattery_AIBatteryCore.bundle` into `Contents/Resources/`. **`Bundle.module` is never used** — SwiftPM's generated accessor only searches `Bundle.main.bundleURL/<bundle>` (the .app root, which codesign's bundle-format rules forbid anyway) and an absolute path on the build machine, then `fatalError`s; it passes on the dev machine and crashes every install. `AIProvider.markURL(for:searchRoots:)` instead walks `Bundle.main.resourceURL` (packaged app) → `Bundle.main.bundleURL` (bare `.build/release` binary) → the loaded module's parent directory (`swift test`) and returns nil when nothing matches, so a missing bundle degrades to the SF-symbol badge instead of a crash. Release smoke test: copy the .app elsewhere, hide `.build/release/AIBattery_AIBatteryCore.bundle`, launch, confirm the brand marks still render.
 
 ## Release Pipeline
 
