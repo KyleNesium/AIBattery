@@ -75,8 +75,8 @@ public struct AuthView: View {
                     }
                 )
                 Picker("Provider", selection: selection) {
-                    Text("\(AIProvider.claude.glyph) Claude").tag(AIProvider.claude)
-                    Text("\(AIProvider.codex.glyph) Codex").tag(AIProvider.codex)
+                    Text(AIProvider.claude.displayName).tag(AIProvider.claude)
+                    Text(AIProvider.codex.displayName).tag(AIProvider.codex)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
