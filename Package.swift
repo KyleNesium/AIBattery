@@ -18,7 +18,7 @@ let package = Package(
             dependencies: ["Sparkle"],
             path: "AIBattery",
             exclude: ["Info.plist", "AIBattery.entitlements", "AIBattery-AppStore.entitlements"],
-            resources: [.copy("PrivacyInfo.xcprivacy")],
+            resources: [.copy("PrivacyInfo.xcprivacy"), .copy("Resources")],
             swiftSettings: [
                 .define("ENABLE_SPARKLE"),
                 .define("ENABLE_VERSION_CHECKER"),

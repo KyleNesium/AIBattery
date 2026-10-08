@@ -6,9 +6,10 @@ AI Battery becomes a two-provider battery: up to 3 Claude **and** 3 Codex
 accounts, switchable from the header picker (✦ / ⬡ glyphs when both exist).
 
 ### Added
-- **Account chip header.** The popover header is now the account: a full-width
-  chip with provider glyph + name and the account identity, which is also the
-  switch/add menu (grouped by provider, plan per row, Add… disabled at the cap).
+- **Account chip header.** The popover header is now the account: a compact
+  chip with the provider's brand mark on a tinted badge, the provider name and
+  the account identity on one line, which opens the switch/add menu (grouped by
+  provider, plan per row, Add… disabled at the cap).
   "AI Battery", the version and the manual update check moved to a new
   Settings → **About** section; a dismissed update banner badges the ⚙️ gear.
 - **Real account names.** Instead of "User 1", an account without an alias shows

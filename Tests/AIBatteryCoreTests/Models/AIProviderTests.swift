@@ -18,6 +18,18 @@ struct AIProviderTests {
         #expect(AIProvider.codex.symbolName == "hexagon")
     }
 
+    /// The header badge draws the real brand marks (Simple Icons, CC0) bundled as
+    /// SVG resources; the SF symbol is only a fallback if a resource is missing.
+    @Test func brandMarks_areBundledAndLoadable() {
+        for provider in AIProvider.allCases {
+            let url = AIProvider.markURL(for: provider)
+            #expect(url != nil, "missing \(provider.markResourceName).svg")
+            #expect(provider.markImage != nil, "unloadable mark for \(provider)")
+        }
+        #expect(AIProvider.claude.markResourceName == "claude")
+        #expect(AIProvider.codex.markResourceName == "openai")
+    }
+
     @Test func accountRecord_decodesLegacyJSONWithoutProvider() throws {
         // Exactly what v2.6.1 persisted — no `provider` key.
         let legacy = Data("""

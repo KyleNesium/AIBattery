@@ -63,19 +63,17 @@ struct AccountChipView: View {
                     maskEmail: !showFullAccountIdentity
                 )
                 ProviderBadge(provider: active.provider)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(identity)
-                        .font(Typography.sectionHeader)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if Self.showsProviderName(identity: identity, provider: active.provider) {
-                        Text(active.provider.displayName)
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(ThemeColors.secondaryLabel)
-                            .fixedSize()
-                    }
+                if Self.showsProviderName(identity: identity, provider: active.provider) {
+                    Text(active.provider.displayName)
+                        .font(Typography.caption)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
+                        .fixedSize()
                 }
+                Text(identity)
+                    .font(Typography.sectionHeader)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             } else {
                 Text("Account")
                     .font(Typography.sectionHeader)
@@ -89,7 +87,7 @@ struct AccountChipView: View {
     }
 
     /// False when the identity already *is* the provider name (an alias "Codex"
-    /// would otherwise read "Codex" over "Codex").
+    /// would otherwise read "Codex Codex").
     nonisolated static func showsProviderName(identity: String, provider: AIProvider) -> Bool {
         identity.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(provider.displayName) != .orderedSame
     }
@@ -203,22 +201,33 @@ struct AccountChipView: View {
     }
 }
 
-/// Rounded-square tinted badge with the provider's symbol in white — the kind of
-/// mark macOS uses for accounts in System Settings. The name sits next to it, so
-/// the tint is a recognition aid, never the only signal.
+/// Rounded-square tinted badge with the provider's real brand mark in white
+/// (`AIProvider.markImage`, bundled SVG) — the kind of mark macOS uses for
+/// accounts in System Settings. The name sits next to it, so the tint is a
+/// recognition aid, never the only signal.
 struct ProviderBadge: View {
     let provider: AIProvider
 
     var body: some View {
-        Image(systemName: provider.symbolName)
-            .font(Typography.badgeSymbol)
-            .foregroundStyle(.white)
-            .frame(width: Layout.providerBadgeSize, height: Layout.providerBadgeSize)
-            .background(
-                RoundedRectangle(cornerRadius: Layout.tabCornerRadius, style: .continuous)
-                    .fill(ThemeColors.providerBadge(provider))
-            )
-            .accessibilityHidden(true)
+        Group {
+            if let mark = provider.markImage {
+                Image(nsImage: mark)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: Layout.providerMarkSize, height: Layout.providerMarkSize)
+            } else {
+                Image(systemName: provider.symbolName)
+                    .font(Typography.badgeSymbol)
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(width: Layout.providerBadgeSize, height: Layout.providerBadgeSize)
+        .background(
+            RoundedRectangle(cornerRadius: Layout.tabCornerRadius, style: .continuous)
+                .fill(ThemeColors.providerBadge(provider))
+        )
+        .accessibilityHidden(true)
     }
 }
 

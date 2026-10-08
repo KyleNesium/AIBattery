@@ -472,6 +472,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.tutorialCardMaxWidth` | 280pt | Tutorial card max width |
 | `Layout.accountChipHeight` | 28pt | Header account chip height; also the gear button hit target |
 | `Layout.providerBadgeSize` | 18pt | Rounded-square provider badge in the header chip |
+| `Layout.providerMarkSize` | 11pt | Brand mark (bundled SVG) inside the badge |
 | `Typography.badgeSymbol` | 10pt bold | Provider SF Symbol inside the header badge |
 | `ThemeColors.providerBadge(_:)` | Claude `(0.85, 0.47, 0.34)`, Codex `(0.06, 0.64, 0.50)` | Header badge tint per provider (plain literals, not dynamic NSColors) |
 | `Layout.clipboardIconOffset` | 13pt | Clipboard icon trailing offset (negative for overlay) |

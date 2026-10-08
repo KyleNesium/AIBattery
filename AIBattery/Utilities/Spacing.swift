@@ -154,6 +154,9 @@ enum Layout {
     /// Rounded-square provider badge in the header chip (Claude / Codex symbol on a tint).
     static let providerBadgeSize: CGFloat = 18
 
+    /// Brand mark inside the badge (leaves a 3.5pt inset on each side).
+    static let providerMarkSize: CGFloat = 11
+
     /// Clipboard icon trailing offset (negative for overlay positioning).
     static let clipboardIconOffset: CGFloat = 13
 

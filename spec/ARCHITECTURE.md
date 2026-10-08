@@ -81,8 +81,10 @@ AIBattery/
   AIBattery.entitlements          — Direct-download entitlements (sandbox disabled)
   AIBattery-AppStore.entitlements — App Store entitlements (sandbox + network.client + .claude/ read)
   PrivacyInfo.xcprivacy           — Privacy manifest (UserDefaults + FileTimestamp API declarations)
+  Resources/                      — SPM resources (`.copy("Resources")`): claude.svg, openai.svg brand marks (Simple Icons, CC0)
   Models/
-    AIProvider.swift              — `.claude` / `.codex` enum: display name, glyph (✦ / ⬡), secondary-window label ("7-Day" / "Weekly")
+    AIProvider.swift              — `.claude` / `.codex` enum: display name, glyph (✦ / ⬡, menu bar only), SF-symbol fallback, secondary-window label ("7-Day" / "Weekly")
+    AIProvider+Mark.swift         — Brand marks for the header badge: `markResourceName`, `markURL(for:)`, cached template `markImage` from Resources/*.svg
     AccountRecord.swift           — Per-account identity record (Codable, Identifiable); `provider` decodes as `.claude` for pre-Codex records
     APIFetchResult.swift          — Combined result from a single Messages API call
     APIProfile.swift              — Organization info from API response headers
@@ -329,6 +331,7 @@ CHANGELOG.md                      — Release notes per version
 - **Compiler flag**: `ENABLE_VERSION_CHECKER` — defined in all 3 SPM targets. Guards VersionChecker + update UI. Remove to build App Store variant (guideline 3.1.1)
 - **Compiler flag**: `APP_SANDBOX` — NOT defined by default. Reserved for future App Store sandbox support. Only set for App Store builds
 - **Privacy manifest**: `PrivacyInfo.xcprivacy` bundled as SPM resource, also copied to `Contents/Resources/` by build script
+- **SPM resource bundle**: `scripts/build-app.sh` copies `.build/release/AIBattery_AIBatteryCore.bundle` into `Contents/Resources/`. This is load-bearing — `Bundle.module` (used by `AIProvider.markURL`) **traps** when the bundle is missing, so a bundle built without it crashes the popover header on first render.
 
 ## Release Pipeline
 
