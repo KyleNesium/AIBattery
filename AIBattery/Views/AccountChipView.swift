@@ -57,15 +57,18 @@ struct AccountChipView: View {
         // Three quiet elements, like a document title with a logo: the brand mark in
         // its own colour says which provider (no "Claude" / "Codex" caption — it
         // doubled the mark and often the identity itself), the identity is the title,
-        // and the up/down switcher glyph — macOS's own pop-up signal — is the only
-        // hint that it's a control. Hovering (or the open menu) lifts the glyph from
-        // tertiary to secondary; nothing else moves.
-        // One tight cluster: mark · 8pt · name · 3pt · chevron. The chevron hugs the
-        // name (a wider gap left it floating, orphaned between name and gear) and is a
-        // plain `chevron.down` — the up/down pop-up pair read as a separate widget.
-        HStack(spacing: 0) {
+        // and a small chevron is the only hint that it's a control. Hovering (or the
+        // open menu) lifts the chevron from secondary to primary; nothing else moves.
+        // One tight cluster: mark · 6pt · name · 3pt · chevron, all centred on the
+        // text's cap height (`firstTextBaseline` alignment + each glyph's own baseline
+        // offset) rather than on the 28pt row, so the mark no longer sits a hair high.
+        // The chevron hugs the name (a wider gap left it floating, orphaned between name
+        // and gear) and is a plain `chevron.down` — the up/down pop-up pair read as a
+        // separate widget.
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
             if let active {
                 ProviderBadge(provider: active.provider)
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + Layout.capHeightBaselineOffset }
                 Text(AccountStore.identityLabel(
                     for: active,
                     providerIndex: AccountStore.providerIndex(of: active, in: accounts),
@@ -85,8 +88,7 @@ struct AccountChipView: View {
                 .font(Typography.switcherChevron)
                 .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
                 .padding(.leading, Spacing.xsmall)
-                // Optically centre the glyph on the x-height, not the full line box.
-                .offset(y: 0.5)
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + Layout.capHeightBaselineOffset }
         }
         // No inner inset: the mark sits flush with the section content edge below it,
         // and the dropped menu's left edge (the anchor's x = 0) lines up with it.

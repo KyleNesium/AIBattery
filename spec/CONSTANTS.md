@@ -472,7 +472,8 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.tutorialCardMaxWidth` | 280pt | Tutorial card max width |
 | `Layout.accountChipHeight` | 28pt | Header account chip height; also the gear button hit target |
 | `Layout.providerBadgeSize` | 18pt | Square slot the bare provider mark is centred in (header chip + Settings rows) |
-| `Layout.accountChipSpacing` | 8pt | Gap between the brand mark and the identity in the header chip |
+| `Layout.accountChipSpacing` | 6pt | Gap between the brand mark and the identity in the header chip (paired with the 3pt name→chevron gap) |
+| `Layout.capHeightBaselineOffset` | 4.3pt | Half the 12pt-semibold cap height: centres the header mark + chevron on the capitals via `firstTextBaseline` |
 | `Layout.providerMarkSize` | 12pt | Bare brand mark (bundled SVG) in the provider colour, no backing shape |
 | `Typography.badgeSymbol` | 10pt bold | Provider SF Symbol fallback in the mark slot (only if the SVG mark fails to load) |
 | `Typography.accountTitle` | 12pt semibold | Account identity in the header chip — 11pt read cramped, 13pt too big |
