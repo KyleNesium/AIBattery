@@ -73,8 +73,13 @@ enum Typography {
     /// air comes from the gaps (`Layout.accountChipSpacing`), not from size.
     static let accountTitle: Font = .system(size: 12, weight: .semibold)
 
-    /// The chip's switcher glyph (`chevron.up.chevron.down`) — small and quiet.
+    /// The chip's switcher glyph (`chevron.down`, hugging the name) — small and quiet.
     static let switcherChevron: Font = .system(size: 8, weight: .semibold)
+
+    /// Header Settings gear — 12pt regular. `bodyLabel` (11pt medium) rendered the
+    /// stroked gear visibly heavier than the chip's 8pt chevron; both header controls
+    /// now share one weight and one tone (secondary at rest, primary on hover).
+    static let headerGear: Font = .system(size: 12, weight: .regular)
 
     /// Badge/tag label text (e.g. "binding" pill in session views).
     static let badgeLabel: Font = .system(size: 10, weight: .medium, design: .monospaced)

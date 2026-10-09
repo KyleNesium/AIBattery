@@ -50,7 +50,7 @@ struct PopoverHeaderView: View {
     private var gearButton: some View {
         Button(action: { withAnimation(MotionConstants.standard) { showSettings.toggle() } }) {
             Image(systemName: "gearshape")
-                .font(Typography.bodyLabel)
+                .font(Typography.headerGear)
                 .frame(width: Layout.accountChipHeight, height: Layout.accountChipHeight)
                 .overlay(alignment: .topTrailing) {
                     if gearShowsUpdateBadge {

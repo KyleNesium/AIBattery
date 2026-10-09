@@ -60,7 +60,10 @@ struct AccountChipView: View {
         // and the up/down switcher glyph — macOS's own pop-up signal — is the only
         // hint that it's a control. Hovering (or the open menu) lifts the glyph from
         // tertiary to secondary; nothing else moves.
-        HStack(spacing: Layout.accountChipSpacing) {
+        // One tight cluster: mark · 8pt · name · 3pt · chevron. The chevron hugs the
+        // name (a wider gap left it floating, orphaned between name and gear) and is a
+        // plain `chevron.down` — the up/down pop-up pair read as a separate widget.
+        HStack(spacing: 0) {
             if let active {
                 ProviderBadge(provider: active.provider)
                 Text(AccountStore.identityLabel(
@@ -72,15 +75,18 @@ struct AccountChipView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .padding(.leading, Layout.accountChipSpacing)
             } else {
                 Text("Account")
                     .font(Typography.accountTitle)
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
-            Image(systemName: "chevron.up.chevron.down")
+            Image(systemName: "chevron.down")
                 .font(Typography.switcherChevron)
-                .foregroundStyle(hovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
-                .padding(.leading, Spacing.inner)
+                .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
+                .padding(.leading, Spacing.xsmall)
+                // Optically centre the glyph on the x-height, not the full line box.
+                .offset(y: 0.5)
         }
         // No inner inset: the mark sits flush with the section content edge below it,
         // and the dropped menu's left edge (the anchor's x = 0) lines up with it.

@@ -476,7 +476,8 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.providerMarkSize` | 12pt | Bare brand mark (bundled SVG) in the provider colour, no backing shape |
 | `Typography.badgeSymbol` | 10pt bold | Provider SF Symbol fallback in the mark slot (only if the SVG mark fails to load) |
 | `Typography.accountTitle` | 12pt semibold | Account identity in the header chip — 11pt read cramped, 13pt too big |
-| `Typography.switcherChevron` | 8pt semibold | `chevron.up.chevron.down` switcher glyph in the header chip |
+| `Typography.switcherChevron` | 8pt semibold | `chevron.down` switcher glyph hugging the name in the header chip |
+| `Typography.headerGear` | 12pt regular | Header Settings gear — same weight/tone as the chip chevron (was `bodyLabel`, visibly heavier) |
 | `ThemeColors.providerBadge(_:)` | Claude `(0.85, 0.47, 0.34)`, Codex `(0.06, 0.64, 0.50)` | Brand-mark colour per provider (plain literals, not dynamic NSColors) |
 | `Layout.clipboardIconOffset` | 13pt | Clipboard icon trailing offset (negative for overlay) |
 
