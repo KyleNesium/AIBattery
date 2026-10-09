@@ -27,12 +27,11 @@ struct AccountChipView: View {
         Button(action: presentMenu) {
             chipFace(active, accounts: accounts)
                 .frame(height: Layout.accountChipHeight)
-                // Toolbar-style: the pill only appears on hover, so the header reads
-                // as a title, not a button, until you reach for it.
-                .background(
-                    RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                        .fill(hovered ? ThemeColors.hoverFill : .clear)
-                )
+                // No pill: a filled box on the popover backdrop read as a foreign
+                // control (a flat lighter rectangle under the title). The chip uses
+                // the same language as the gear next to it — nothing at rest, the
+                // secondary parts (provider caption, chevron) brighten to primary on
+                // hover and while the menu is open — so the header stays a title.
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -66,7 +65,7 @@ struct AccountChipView: View {
                 if Self.showsProviderName(identity: identity, provider: active.provider) {
                     Text(active.provider.displayName)
                         .font(Typography.caption)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
+                        .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
                         .fixedSize()
                 }
                 Text(identity)
@@ -81,7 +80,7 @@ struct AccountChipView: View {
             }
             Image(systemName: "chevron.down")
                 .font(Typography.chevronIcon)
-                .foregroundStyle(ThemeColors.secondaryLabel)
+                .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
         }
         .padding(.horizontal, Spacing.gap)
     }
