@@ -470,11 +470,14 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.activityModePickerWidth` | 120pt | Activity mode segmented picker width |
 | `Layout.indexColumn` | 14pt | Project list index column width |
 | `Layout.tutorialCardMaxWidth` | 280pt | Tutorial card max width |
-| `Layout.accountChipHeight` | 28pt | Header account chip height; also the gear button hit target |
-| `Layout.providerBadgeSize` | 18pt | Rounded-square provider badge in the header chip |
-| `Layout.providerMarkSize` | 11pt | Brand mark (bundled SVG) inside the badge |
-| `Typography.badgeSymbol` | 10pt bold | Provider SF Symbol inside the header badge |
-| `ThemeColors.providerBadge(_:)` | Claude `(0.85, 0.47, 0.34)`, Codex `(0.06, 0.64, 0.50)` | Header badge tint per provider (plain literals, not dynamic NSColors) |
+| `Layout.accountChipHeight` | 32pt | Header account chip height; also the gear button hit target |
+| `Layout.providerBadgeSize` | 20pt | Square slot the bare provider mark is centred in (header chip + Settings rows) |
+| `Layout.accountChipSpacing` | 8pt | Gap between the brand mark and the identity in the header chip |
+| `Layout.providerMarkSize` | 14pt | Bare brand mark (bundled SVG) in the provider colour, no backing shape |
+| `Typography.badgeSymbol` | 10pt bold | Provider SF Symbol fallback in the mark slot (only if the SVG mark fails to load) |
+| `Typography.accountTitle` | `.body.weight(.semibold)` (13pt) | Account identity in the header chip — subheadline read cramped, bold read heavy |
+| `Typography.switcherChevron` | 9pt semibold | `chevron.up.chevron.down` switcher glyph in the header chip |
+| `ThemeColors.providerBadge(_:)` | Claude `(0.85, 0.47, 0.34)`, Codex `(0.06, 0.64, 0.50)` | Brand-mark colour per provider (plain literals, not dynamic NSColors) |
 | `Layout.clipboardIconOffset` | 13pt | Clipboard icon trailing offset (negative for overlay) |
 
 ### MotionConstants (`Utilities/Spacing.swift`, co-located)

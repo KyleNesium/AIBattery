@@ -149,14 +149,19 @@ enum Layout {
     static let tutorialCardMaxWidth: CGFloat = 280
 
     /// Header account chip height — also the gear button's hit target so the two align.
-    static let accountChipHeight: CGFloat = 28
+    /// 32pt: a 13pt title with a 14pt mark needs more air than the old 28.
+    static let accountChipHeight: CGFloat = 32
+
+    /// Gap between the brand mark and the identity in the header chip (8pt — the 6pt
+    /// `Spacing.gap` read squished next to a coloured mark).
+    static let accountChipSpacing: CGFloat = 8
 
     /// Square slot the provider mark is centred in (header chip + Settings rows) — keeps
     /// the text column aligned whatever the mark's own proportions are.
-    static let providerBadgeSize: CGFloat = 18
+    static let providerBadgeSize: CGFloat = 20
 
     /// Bare brand mark, drawn in the provider's colour with no backing shape.
-    static let providerMarkSize: CGFloat = 13
+    static let providerMarkSize: CGFloat = 14
 
     /// Clipboard icon trailing offset (negative for overlay positioning).
     static let clipboardIconOffset: CGFloat = 13

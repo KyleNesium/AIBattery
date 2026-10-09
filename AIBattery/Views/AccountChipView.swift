@@ -60,7 +60,7 @@ struct AccountChipView: View {
         // and the up/down switcher glyph — macOS's own pop-up signal — is the only
         // hint that it's a control. Hovering (or the open menu) lifts the glyph from
         // tertiary to secondary; nothing else moves.
-        HStack(spacing: Spacing.gap) {
+        HStack(spacing: Layout.accountChipSpacing) {
             if let active {
                 ProviderBadge(provider: active.provider)
                 Text(AccountStore.identityLabel(
@@ -80,7 +80,7 @@ struct AccountChipView: View {
             Image(systemName: "chevron.up.chevron.down")
                 .font(Typography.switcherChevron)
                 .foregroundStyle(hovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
-                .padding(.leading, Spacing.tight)
+                .padding(.leading, Spacing.inner)
         }
         // No inner inset: the mark sits flush with the section content edge below it,
         // and the dropped menu's left edge (the anchor's x = 0) lines up with it.

@@ -35,7 +35,8 @@ struct PopoverHeaderView: View {
             #endif
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.vertical, Spacing.section)
+        // A touch more air than the 8pt section padding: this is the title row.
+        .padding(.vertical, Spacing.medium)
     }
 
     /// Whether a found-but-dismissed update should badge the gear (Settings → About holds the install action).
