@@ -68,13 +68,13 @@ enum Typography {
     /// Provider symbol fallback in the header mark slot (only if the SVG mark fails to load).
     static let badgeSymbol: Font = .system(size: 10, weight: .bold)
 
-    /// Account identity in the header chip — the popover's title line. Body size
-    /// (13pt), semibold: subheadline (11pt) read cramped next to the mark, and bold
-    /// read heavy.
-    static let accountTitle: Font = .body.weight(.semibold)
+    /// Account identity in the header chip — the popover's title line. 12pt semibold:
+    /// 11pt subheadline read cramped, 13pt body made the whole header too big; the
+    /// air comes from the gaps (`Layout.accountChipSpacing`), not from size.
+    static let accountTitle: Font = .system(size: 12, weight: .semibold)
 
     /// The chip's switcher glyph (`chevron.up.chevron.down`) — small and quiet.
-    static let switcherChevron: Font = .system(size: 9, weight: .semibold)
+    static let switcherChevron: Font = .system(size: 8, weight: .semibold)
 
     /// Badge/tag label text (e.g. "binding" pill in session views).
     static let badgeLabel: Font = .system(size: 10, weight: .medium, design: .monospaced)
