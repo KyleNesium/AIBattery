@@ -98,15 +98,33 @@ struct AIProviderTests {
         #expect(!tinted.isTemplate)
 
         let cg = try #require(tinted.cgImage(forProposedRect: nil, context: nil, hints: nil))
-        let bitmap = NSBitmapImageRep(cgImage: cg)
-        let centre = try #require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2))
-        // The bitmap's colour space differs from the tint's, so compare in sRGB with a
+        // Raw bytes, not `colorAt` — creating NSColors here while other suites touch
+        // dynamic system colours off-main deadlocks the parallel run (AppKit colour-cache lock).
+        let (r, g, b, a) = try Self.rgba(cg, x: cg.width / 2, y: cg.height / 2)
+        // Colour spaces differ between the tint and the bitmap, so compare with a
         // tolerance: black source pixels must come out clearly red, fully opaque.
-        let rgb = try #require(centre.usingColorSpace(.sRGB))
-        #expect(rgb.redComponent > 0.85)
-        #expect(rgb.greenComponent < 0.4)
-        #expect(rgb.blueComponent < 0.4)
-        #expect(rgb.alphaComponent > 0.95)
+        #expect(r > 0.85)
+        #expect(g < 0.4)
+        #expect(b < 0.4)
+        #expect(a > 0.95)
+    }
+
+    /// Straight (un-premultiplied) RGBA of one pixel, read from the raw bitmap bytes.
+    private static func rgba(_ image: CGImage, x: Int, y: Int) throws -> (Double, Double, Double, Double) {
+        // Redraw into a context whose byte layout we choose (RGBA8, premultiplied,
+        // big-endian) instead of guessing the source image's native layout.
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try #require(CGContext(
+            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        ))
+        // Map the requested pixel (top-left origin) onto the 1×1 context: CG's origin is
+        // bottom-left, so flip y.
+        context.draw(image, in: CGRect(x: -x, y: -(image.height - 1 - y), width: image.width, height: image.height))
+        let a = Double(pixel[3]) / 255
+        guard a > 0 else { return (0, 0, 0, 0) }
+        return (Double(pixel[0]) / 255 / a, Double(pixel[1]) / 255 / a, Double(pixel[2]) / 255 / a, a)
     }
 
     /// Tinting a real brand mark keeps it inside the box and visible — the menu bar
@@ -115,14 +133,13 @@ struct AIProviderTests {
         let mark = try #require(AIProvider.claude.markImage)
         let tinted = mark.tinted(.white, size: NSSize(width: 9, height: 9))
         let cg = try #require(tinted.cgImage(forProposedRect: nil, context: nil, hints: nil))
-        let bitmap = NSBitmapImageRep(cgImage: cg)
         var opaque = 0
-        for x in 0..<bitmap.pixelsWide {
-            for y in 0..<bitmap.pixelsHigh where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.5 {
+        for x in 0..<cg.width {
+            for y in 0..<cg.height where try Self.rgba(cg, x: x, y: y).3 > 0.5 {
                 opaque += 1
             }
         }
         #expect(opaque > 0)
-        #expect(opaque < bitmap.pixelsWide * bitmap.pixelsHigh, "a mark should not be a solid block")
+        #expect(opaque < cg.width * cg.height, "a mark should not be a solid block")
     }
 }

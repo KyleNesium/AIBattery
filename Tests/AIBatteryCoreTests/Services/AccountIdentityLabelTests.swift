@@ -117,26 +117,6 @@ struct AccountIdentityLabelTests {
         #expect(AccountStore.displayLabel(for: unknown, providerIndex: 1, showsProviderGlyph: false, includePlan: true, maskEmail: true) == "Codex 2")
     }
 
-    // MARK: Chip provider caption
-
-    /// The chip prints the provider name before the identity — unless the identity
-    /// *is* the provider name (an alias "Codex"), which would read "Codex Codex".
-    @Test func chipShowsProviderName_unlessIdentityAlreadyIsIt() {
-        #expect(AccountChipView.showsProviderName(identity: "k•••@example.com", provider: .codex))
-        #expect(!AccountChipView.showsProviderName(identity: "Codex", provider: .codex))
-        #expect(!AccountChipView.showsProviderName(identity: " claude ", provider: .claude))
-        // A leading provider word is enough: "Claude  Claude Team" / "Claude  Claude 1" read twice.
-        #expect(!AccountChipView.showsProviderName(identity: "Claude 1", provider: .claude))
-        #expect(!AccountChipView.showsProviderName(identity: "Claude Team", provider: .claude))
-        #expect(!AccountChipView.showsProviderName(identity: "codex workspace", provider: .codex))
-        // Only a whole leading word — a name that merely begins with the letters still gets it.
-        #expect(AccountChipView.showsProviderName(identity: "Claudette", provider: .claude))
-        #expect(AccountChipView.showsProviderName(identity: "claude@example.com", provider: .claude))
-        #expect(AccountChipView.showsProviderName(identity: "Team Claude", provider: .claude))
-        // A Claude alias on a Codex account is not redundant with "Codex".
-        #expect(AccountChipView.showsProviderName(identity: "Claude", provider: .codex))
-    }
-
     // MARK: Chip menu model
 
     /// The AppKit menu is built from a pure model: one section per provider (always

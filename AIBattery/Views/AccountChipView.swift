@@ -54,47 +54,36 @@ struct AccountChipView: View {
     // MARK: Chip face
 
     private func chipFace(_ active: AccountRecord?, accounts: [AccountRecord]) -> some View {
+        // Three quiet elements, like a document title with a logo: the brand mark in
+        // its own colour says which provider (no "Claude" / "Codex" caption — it
+        // doubled the mark and often the identity itself), the identity is the title,
+        // and the up/down switcher glyph — macOS's own pop-up signal — is the only
+        // hint that it's a control. Hovering (or the open menu) lifts the glyph from
+        // tertiary to secondary; nothing else moves.
         HStack(spacing: Spacing.gap) {
             if let active {
-                let identity = AccountStore.identityLabel(
+                ProviderBadge(provider: active.provider)
+                Text(AccountStore.identityLabel(
                     for: active,
                     providerIndex: AccountStore.providerIndex(of: active, in: accounts),
                     maskEmail: !showFullAccountIdentity
-                )
-                ProviderBadge(provider: active.provider)
-                if Self.showsProviderName(identity: identity, provider: active.provider) {
-                    Text(active.provider.displayName)
-                        .font(Typography.caption)
-                        .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
-                        .fixedSize()
-                }
-                Text(identity)
-                    .font(Typography.sectionHeader)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                ))
+                .font(Typography.accountTitle)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
             } else {
                 Text("Account")
-                    .font(Typography.sectionHeader)
+                    .font(Typography.accountTitle)
                     .foregroundStyle(ThemeColors.secondaryLabel)
             }
-            Image(systemName: "chevron.down")
-                .font(Typography.chevronIcon)
-                .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(Typography.switcherChevron)
+                .foregroundStyle(hovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
+                .padding(.leading, Spacing.tight)
         }
-        // No inner inset: with no pill there is nothing to inset from, and the badge
-        // now sits flush with the section content edge below it (the dropped menu's
-        // left edge, at the anchor's x = 0, lines up with the badge too).
-    }
-
-    /// False when the identity already *starts with* the provider name as a word —
-    /// an alias "Codex", the fallback "Claude 1", a workspace named "Claude Team" —
-    /// which would otherwise read "Claude  Claude Team". Only a whole leading word
-    /// counts: "Claudette" or "claude@x.io" still get the caption.
-    nonisolated static func showsProviderName(identity: String, provider: AIProvider) -> Bool {
-        let firstWord = identity.trimmingCharacters(in: .whitespaces)
-            .split(maxSplits: 1, whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
-        return firstWord.caseInsensitiveCompare(provider.displayName) != .orderedSame
+        // No inner inset: the mark sits flush with the section content edge below it,
+        // and the dropped menu's left edge (the anchor's x = 0) lines up with it.
     }
 
     // MARK: Menu model (pure, tested)
@@ -231,12 +220,11 @@ struct ProviderBadge: View {
                     .font(Typography.badgeSymbol)
             }
         }
-        .foregroundStyle(.white)
+        // Bare mark in the provider's colour — no filled square. The tinted tile was
+        // the one saturated block in an otherwise monochrome header and made the chip
+        // read as a foreign control; a logo-style mark reads as part of the title.
+        .foregroundStyle(ThemeColors.providerBadge(provider))
         .frame(width: Layout.providerBadgeSize, height: Layout.providerBadgeSize)
-        .background(
-            RoundedRectangle(cornerRadius: Layout.tabCornerRadius, style: .continuous)
-                .fill(ThemeColors.providerBadge(provider))
-        )
         .accessibilityHidden(true)
     }
 }

@@ -151,11 +151,12 @@ enum Layout {
     /// Header account chip height — also the gear button's hit target so the two align.
     static let accountChipHeight: CGFloat = 28
 
-    /// Rounded-square provider badge in the header chip (Claude / Codex symbol on a tint).
+    /// Square slot the provider mark is centred in (header chip + Settings rows) — keeps
+    /// the text column aligned whatever the mark's own proportions are.
     static let providerBadgeSize: CGFloat = 18
 
-    /// Brand mark inside the badge (leaves a 3.5pt inset on each side).
-    static let providerMarkSize: CGFloat = 11
+    /// Bare brand mark, drawn in the provider's colour with no backing shape.
+    static let providerMarkSize: CGFloat = 13
 
     /// Clipboard icon trailing offset (negative for overlay positioning).
     static let clipboardIconOffset: CGFloat = 13

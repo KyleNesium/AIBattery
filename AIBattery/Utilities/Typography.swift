@@ -65,8 +65,15 @@ enum Typography {
     /// Chevron icon inside CollapsibleSectionHeader — compact bold glyph.
     static let chevronIcon: Font = .system(size: 9, weight: .bold)
 
-    /// Provider symbol inside the 18pt header badge.
+    /// Provider symbol fallback in the header mark slot (only if the SVG mark fails to load).
     static let badgeSymbol: Font = .system(size: 10, weight: .bold)
+
+    /// Account identity in the header chip — the popover's title line: subheadline,
+    /// semibold (bold read heavy next to the bare brand mark).
+    static let accountTitle: Font = .subheadline.weight(.semibold)
+
+    /// The chip's switcher glyph (`chevron.up.chevron.down`) — small and quiet.
+    static let switcherChevron: Font = .system(size: 8, weight: .semibold)
 
     /// Badge/tag label text (e.g. "binding" pill in session views).
     static let badgeLabel: Font = .system(size: 10, weight: .medium, design: .monospaced)

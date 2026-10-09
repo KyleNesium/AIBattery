@@ -4,13 +4,13 @@
 
 **Major release: Codex (OpenAI) accounts.** AI Battery becomes a two-provider
 battery: up to 3 Claude **and** 3 Codex accounts, switchable from the account
-chip in the header (each provider's brand mark on a tinted badge). Existing
+chip in the header (each provider's brand mark in its own colour). Existing
 Claude accounts, Keychain items and settings carry over unchanged.
 
 ### Added
 - **Account chip header.** The popover header is now the account: a compact
-  chip with the provider's brand mark on a tinted badge, the provider name and
-  the account identity on one line, which opens the switch/add menu (grouped by
+  chip with the provider's brand mark in its own colour and the account
+  identity on one line (a quiet up/down switcher glyph is the only control hint), which opens the switch/add menu (grouped by
   provider, plan per row, Add… disabled at the cap).
   "AI Battery", the version and the manual update check moved to a new
   Settings → **About** section; a dismissed update banner badges the ⚙️ gear.
