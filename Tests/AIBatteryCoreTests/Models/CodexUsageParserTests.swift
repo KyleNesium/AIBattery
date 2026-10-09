@@ -25,10 +25,28 @@ struct CodexUsageParserTests {
         #expect(CodexUsageParser.planType(whamBody) == "team")
     }
 
-    @Test func hundredPercentWindowIsThrottled() throws {
+    /// 100% without `rate_limit_reached_type` is "at capacity", never a synthesized
+    /// throttle — the same contract as the Claude parsers, so a wrong ~100% reading
+    /// goes through the near-full confirmation hold instead of alarming instantly.
+    @Test func hundredPercentWindowIsAtCapacityNotThrottled() throws {
         let body = Data("""
         {"rate_limit":{"primary_window":{"used_percent":100,"reset_at":1788267090,"limit_window_seconds":18000},
                        "secondary_window":{"used_percent":10,"reset_at":1788853890,"limit_window_seconds":604800}}}
+        """.utf8)
+        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        #expect(usage.fiveHourUtilization == 1.0)
+        #expect(usage.fiveHourStatus == "allowed")
+        #expect(usage.overallStatus == "allowed")
+        #expect(usage.sevenDayStatus == "allowed")
+        #expect(!usage.isThrottled)
+    }
+
+    /// The explicit signal still throttles, at any utilization.
+    @Test func reachedTypeThrottlesNamedWindow() throws {
+        let body = Data("""
+        {"rate_limit":{"primary_window":{"used_percent":100,"reset_at":1788267090,"limit_window_seconds":18000},
+                       "secondary_window":{"used_percent":10,"reset_at":1788853890,"limit_window_seconds":604800}},
+         "rate_limit_reached_type":"five_hour"}
         """.utf8)
         let usage = try #require(CodexUsageParser.parseUsageResponse(body))
         #expect(usage.fiveHourStatus == "throttled")

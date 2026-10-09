@@ -60,6 +60,50 @@ Claude accounts, Keychain items and settings carry over unchanged.
   permanent "—" slot in the multi-account menu bar.
 
 ### Fixed
+- **Codex 100% is "at capacity", not a throttle.** `CodexUsageParser` no longer
+  synthesizes `"throttled"` from `used_percent ≥ 100` — only an explicit
+  `rate_limit_reached_type` (or a real HTTP 429) does. The synthesized status
+  bypassed the near-full confirmation hold, so one wrong ~100% reading from
+  `wham/usage` painted the broken star and recorded a false throttle event; it
+  now goes through the same time-based guard as Claude readings. (Found by the
+  pre-release Codex review.)
+- **Credit budgets roll over in the popover, not just the menu bar.** Once a
+  Business/Enterprise budget period's reset passed, the mirrored windows were
+  cleared but the Credits bar kept reading the stale budget object ("Budget
+  reached", old used / remaining) until the next successful fetch.
+- **API-key per-minute limits no longer stick at 100% past their own reset.**
+  A cached `remaining: 0` served during probe backoff or offline is restored to
+  the full allowance once its one-minute reset passes (runtime cache, launch
+  restore and the snapshot fallback).
+- **Codex session logs: the content boundary is enforced before parsing.**
+  `response_item` lines (message content) are rejected from their head bytes
+  and never deserialized — previously a `response_item` whose head mentioned
+  `token_count` / `rate_limits` was fully parsed before its `type` was checked.
+  A token_count with a missing or malformed timestamp is now counted corrupt
+  instead of being stamped "now" (a cold scan of old rollouts could drop
+  historical turns into the current windows and today's chart).
+- **Installing the Codex CLI after launch is noticed.** With `~/.codex` present
+  but no `sessions` directory yet, AI Battery watches the parent and switches to
+  the sessions stream when the first rollout lands; a fallback-timer tick now
+  also invalidates the reader whose watcher is missing (it served its
+  fingerprint cache forever before).
+- **Cancelling an add-account overlay cancels the Codex browser sign-in** that is
+  still waiting on the callback port, so a late redirect can no longer register
+  an account after "Cancel".
+- **`~/.codex/auth.json` is read only on the explicit Import click.** Opening
+  the Codex sign-in screen used to read and parse the credential file just to
+  decide whether to offer the button; it now checks for the file's presence.
+- **Codex API-key "real bill" framing only when it can be attributed.** The
+  CLI's rollouts carry no auth mode; with a ChatGPT-backed Codex account also
+  signed in, the cost rows keep the "~" API-equivalent framing instead of
+  labelling subscription sessions as the key's bill.
+- **Claude-only local-estimate calibration.** Codex snapshots no longer update
+  the 429 auto-calibration token counters — Codex never uses the local estimate,
+  and stale Codex counts could have seeded a Claude limit on a header-less 429
+  right after switching accounts.
+- Insights "All Time" tooltip under Codex now says what the number is: a
+  high-water mark since AI Battery first scanned the session logs (survives log
+  rotation; nothing earlier is recoverable) — it used to claim the opposite.
 - A Business account at 96% credits used could show **0%** in the menu bar:
   the 5h/7d rollover-artifact filter zeroed the monthly budget. Credit budgets
   now skip that heuristic, and a reset further away than the window length is

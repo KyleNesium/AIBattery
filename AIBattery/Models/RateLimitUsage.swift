@@ -230,8 +230,12 @@ struct RateLimitUsage: Equatable, Codable {
         let sevenDayExpired = (sevenDayReset.map { $0 <= now } ?? false)
         let fiveHourUnboundedThrottle = (fiveHourReset == nil && fiveHourStatus == "throttled")
         let sevenDayUnboundedThrottle = (sevenDayReset == nil && sevenDayStatus == "throttled")
+        // A credit budget is projected onto both windows, but the Credits bar reads the
+        // nested object directly — roll it over with them, or the popover keeps the old
+        // period's "Budget reached" while the menu bar already shows 0%.
+        let budgetExpired = creditBudget?.resetsAt.map { $0 <= now } ?? false
 
-        guard fiveHourExpired || sevenDayExpired
+        guard fiveHourExpired || sevenDayExpired || budgetExpired
             || fiveHourUnboundedThrottle || sevenDayUnboundedThrottle else { return self }
 
         let bindingCleared = bindingValue(
@@ -251,7 +255,7 @@ struct RateLimitUsage: Equatable, Codable {
             provider: provider,
             fiveHourWindowMinutes: fiveHourWindowMinutes,
             sevenDayWindowMinutes: sevenDayWindowMinutes,
-            creditBudget: creditBudget
+            creditBudget: budgetExpired ? creditBudget?.rolledOver() : creditBudget
         )
     }
 

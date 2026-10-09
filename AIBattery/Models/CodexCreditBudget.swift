@@ -30,6 +30,31 @@ struct CodexCreditBudget: Codable, Equatable, Sendable {
 
     var isUncapped: Bool { uncapped == true }
 
+    /// The budget after its period has rolled over and no fresh reading has arrived
+    /// yet: nothing used, nothing reached, no reset to count down to. The cap, unit,
+    /// plan, purchased-credit balance and uncapped flag are properties of the plan,
+    /// not of the period, so they survive. Mirrors `withClearedExpiredWindows` on the
+    /// windows the budget is projected onto — without it the popover's Credits bar
+    /// kept reading the stale object ("Budget reached", old used / remaining) while
+    /// the menu bar had already rolled over to 0%.
+    func rolledOver() -> CodexCreditBudget {
+        var next = CodexCreditBudget(
+            usedPercent: 0,
+            used: 0,
+            limit: limit,
+            remaining: limit,
+            unit: unit,
+            resetsAt: nil,
+            reached: false,
+            hasCredits: hasCredits,
+            unlimited: unlimited,
+            planType: planType
+        )
+        next.balance = balance
+        next.uncapped = uncapped
+        return next
+    }
+
     /// Human-readable credit amounts: 7 006.3 → "7.0K", 32 768 → "32.8K", 950 → "950".
     static func formatCredits(_ value: Double) -> String {
         let magnitude = abs(value)

@@ -102,6 +102,37 @@ struct CodexCreditBudgetTests {
         #expect(filtered.creditBudget?.usedPercent == 96)
     }
 
+    /// Once the budget period has rolled over, the nested budget rolls over WITH the
+    /// mirrored windows: the Credits bar reads `creditBudget` directly, so without this
+    /// the popover kept "Budget reached" / old used-remaining while the menu bar
+    /// (which reads the window) already showed 0%.
+    @Test func expiredBudgetPeriod_rollsTheNestedBudgetOverWithTheWindows() throws {
+        let body = try Data(#require(String(data: businessBody, encoding: .utf8)?
+                .replacingOccurrences(of: "\"used_percent\":21", with: "\"used_percent\":100")
+                .replacingOccurrences(of: "\"reached\":false", with: "\"reached\":true").utf8))
+        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        #expect(usage.creditBudget?.reached == true)
+        #expect(usage.isThrottled)
+
+        let afterReset = Date(timeIntervalSince1970: 1_790_812_800 + 60)
+        let cleared = usage.withClearedExpiredWindows(now: afterReset)
+        let budget = try #require(cleared.creditBudget)
+        #expect(cleared.fiveHourUtilization == 0)
+        #expect(!cleared.isThrottled)
+        #expect(budget.usedPercent == 0)
+        #expect(budget.used == 0)
+        #expect(budget.remaining == budget.limit)
+        #expect(budget.limit == 32_768)
+        #expect(budget.reached == false)
+        #expect(budget.resetsAt == nil)
+        #expect(budget.unit == "credit")
+        #expect(budget.planType == "business")
+
+        // Before the reset nothing changes — the same object comes back.
+        let beforeReset = Date(timeIntervalSince1970: 1_790_812_800 - 60)
+        #expect(usage.withClearedExpiredWindows(now: beforeReset) == usage)
+    }
+
     /// Same guard, provider-agnostic: a reset further away than the window is long can
     /// never be "a window that just started".
     @Test func rolloverFilter_ignoresResetsBeyondWindowLength() {

@@ -235,11 +235,17 @@ nonisolated enum CodexUsageParser {
         // representativeClaim: seven_day only if strictly greater, else five_hour
         let representativeClaim = sevenDayUtil > fiveHourUtil ? RateLimitUsage.sevenDayWindow : RateLimitUsage.fiveHourWindow
 
-        // Determine throttle status:
-        // - Window at used_percent >= 100 → throttled
-        // - non-null rate_limit_reached_type → throttle named window (or binding if unrecognized)
-        var fiveHourThrottled = primaryData != nil && fiveHourUtil >= 1.0
-        var sevenDayThrottled = secondaryData != nil && sevenDayUtil >= 1.0
+        // Determine throttle status from the explicit signal only: a non-null
+        // `rate_limit_reached_type` throttles the named window (or the binding window
+        // when unrecognized). `used_percent >= 100` on its own is the "at capacity"
+        // state, NOT a throttle — same contract as the Claude parsers (DATA_LAYER
+        // "Throttle ≠ 100% utilization"). Synthesizing "throttled" from 100% bypassed
+        // the spike / freshness guards, so a single wrong ~100% reading from
+        // `wham/usage` painted the broken star and recorded a false throttle event;
+        // the time-based near-full confirmation now gates such readings instead, and
+        // a real HTTP 429 still forces `markedThrottled()` immediately.
+        var fiveHourThrottled = false
+        var sevenDayThrottled = false
 
         if let reachedType {
             if reachedType == "five_hour" || reachedType == "5h" {

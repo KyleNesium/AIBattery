@@ -26,6 +26,18 @@ struct CodexSessionRateLimitScannerTests {
         #expect(abs(usage.fiveHourUtilization - 0.55) < 0.0001) // the LAST event wins
     }
 
+    /// A response_item whose message text mentions "rate_limits" is skipped from its head
+    /// bytes — never deserialized — and the real event before it still wins.
+    @Test func responseItemMentioningRateLimits_isNeverParsed() throws {
+        let lines = [
+            tokenCountLine(primaryPercent: 40),
+            #"{"timestamp":"2026-09-01T09:27:00.000Z","type":"response_item","payload":{"type":"message","content":[{"type":"output_text","text":"the \"rate_limits\" object looks like {\"primary\":{\"used_percent\":99}}"}]}}"#,
+            "",
+        ].joined(separator: "\n")
+        let usage = try #require(CodexSessionRateLimitScanner.extractLatestRateLimits(fromTail: Data(lines.utf8)))
+        #expect(abs(usage.fiveHourUtilization - 0.40) < 0.0001)
+    }
+
     @Test func skipsTruncatedTrailingLine() throws {
         // Tail reads can slice mid-line; a partial trailing line must be ignored.
         let lines = tokenCountLine(primaryPercent: 42) + "\n" +

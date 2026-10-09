@@ -54,7 +54,11 @@ enum CodexSessionRateLimitScanner {
         // multi-byte character, and decoding the whole buffer at once would fail
         // outright. Per-line decode confines the damage to the partial first line.
         for lineData in data.split(separator: UInt8(ascii: "\n")).reversed() {
-            guard let line = String(data: lineData, encoding: .utf8),
+            // Same content boundary as the parser: a response_item (message content)
+            // is rejected from its head bytes and never deserialized, even if its text
+            // mentions "rate_limits".
+            guard !CodexSessionLogParser.isResponseItem(lineData),
+                  let line = String(data: lineData, encoding: .utf8),
                   line.contains("\"rate_limits\"") else { continue }
             guard let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                   let payload = obj["payload"] as? [String: Any],

@@ -82,6 +82,45 @@ struct CodexSessionLogParserTests {
         #expect(parser.corruptLineCount == 0)
     }
 
+    /// The content boundary is enforced from the head BYTES, before any JSON parsing:
+    /// a response_item is recognised without deserializing its payload at all — even
+    /// one that is not valid JSON past its head (which would otherwise count as corrupt).
+    @Test func responseItem_isRejectedFromTheHeadBytesWithoutParsing() {
+        #expect(CodexSessionLogParser.isResponseItem(line(responseItem)))
+        #expect(!CodexSessionLogParser.isResponseItem(line(tokenCount)))
+        #expect(!CodexSessionLogParser.isResponseItem(line(turnContext)))
+
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(turnContext), lineIndex: 0)
+        let truncatedResponseItem = #"{"timestamp":"2026-09-03T13:10:50.000Z","type":"response_item","payload":{"type":"message","content":[{"type":"token_count","text":"never parsed"#
+        #expect(parser.consume(line: line(truncatedResponseItem), lineIndex: 1) == nil)
+        #expect(parser.corruptLineCount == 0, "a response_item is dropped, not decoded, so it can't be 'corrupt'")
+    }
+
+    /// A token_count without a usable timestamp is corrupt, not "now": during a cold
+    /// scan of old rollouts, substituting `Date()` would drop a historical turn into the
+    /// current 5-hour / weekly windows and today's activity chart.
+    @Test func tokenCount_missingOrMalformedTimestamp_isCorruptNotNow() {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(turnContext), lineIndex: 0)
+        let noStamp = tokenCount.replacingOccurrences(of: #""timestamp":"2026-09-03T13:10:58.838Z","#, with: "")
+        let badStamp = tokenCount.replacingOccurrences(of: "2026-09-03T13:10:58.838Z", with: "yesterday-ish")
+        #expect(parser.consume(line: line(noStamp), lineIndex: 1) == nil)
+        #expect(parser.consume(line: line(badStamp), lineIndex: 2) == nil)
+        #expect(parser.corruptLineCount == 2)
+    }
+
+    /// Whole-second ISO 8601 (no fractional part) is a valid shape, not corrupt.
+    @Test func tokenCount_wholeSecondTimestamp_parses() throws {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(turnContext), lineIndex: 0)
+        let whole = tokenCount.replacingOccurrences(of: "2026-09-03T13:10:58.838Z", with: "2026-09-03T13:10:58Z")
+        let consumed = parser.consume(line: line(whole), lineIndex: 1)
+        let entry = try #require(consumed)
+        #expect(entry.timestamp == DateFormatters.parseISO8601("2026-09-03T13:10:58Z"))
+        #expect(parser.corruptLineCount == 0)
+    }
+
     @Test func mightBeRelevant_rejectsUnrelatedLines() {
         #expect(!CodexSessionLogParser.mightBeRelevant(line(#"{"type":"event_msg","payload":{"type":"task_started"}}"#)))
         #expect(CodexSessionLogParser.mightBeRelevant(line(sessionMeta)))

@@ -26,3 +26,25 @@
   nil.**~~ Fixed: a window with status `"throttled"` and no reset is now treated as
   an unbounded throttle and its flag is dropped (utilization kept) on the
   cache / stale-fallback path, so a reset-less throttle can no longer stick.
+
+## Codex (deferred from the v3.0.0 pre-release review, 2026-10-10)
+
+- [ ] **Per-account attribution of Codex local data.** Every Codex account shows
+  the same Insights / Projects / Context Health because `~/.codex/sessions` is
+  scanned provider-wide. Real rollouts carry `session_meta.payload.creator_account_id`
+  (observed live, Codex CLI 0.160.1) — the same ChatGPT account id used as the
+  app's Codex account id. Plan: parse it in `CodexSessionLogParser`, stamp it on
+  `AssistantUsageEntry` (new optional field, nil for Claude), and let
+  `UsageAggregator` filter by the active account when ≥ 2 Codex accounts exist.
+  Would also make `costIsBilled` exact (today: `AccountStore.billsLocalCodexCosts`
+  heuristic) and let the session-log rate-limit fallback work with 2+ ChatGPT
+  accounts. Needs an API-key rollout fixture to confirm what that mode writes.
+- [ ] **`CodexCallbackServer`: accumulate the request line across TCP segments.**
+  A single `receive` is parsed as the whole head; a fragmented localhost redirect
+  (not observed) would 404 and leave sign-in waiting until the 180 s timeout.
+  Accumulate until the first CRLF under the existing 16 KB cap.
+- [ ] **`startCodexAuthFlow` should await the listener's `.ready` / `.failed`**
+  before returning the authorize URL. `NWListener` reports `EADDRINUSE`
+  asynchronously, so today the browser opens and the "port 1455 busy" copy is
+  never shown — the flow fails fast through the one-shot failure path with the
+  generic "listener failed" message instead.

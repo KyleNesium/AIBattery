@@ -101,7 +101,13 @@ public struct UsagePopoverView: View {
                 oauthManager: OAuthManager.shared,
                 provider: addingProvider,
                 isAddingAccount: true,
-                onCancel: { self.addingProvider = nil }
+                onCancel: {
+                    // Dismissing the overlay must also stop a browser sign-in that is
+                    // still waiting on the callback port, or the pending exchange could
+                    // register an account (and write its Keychain item) after "Cancel".
+                    OAuthManager.shared.cancelCodexAuthFlow()
+                    self.addingProvider = nil
+                }
             )
             .onAppear { accountCountAtAddStart = accountStore.accounts.count }
             .onReceive(accountStore.$accounts) { newAccounts in

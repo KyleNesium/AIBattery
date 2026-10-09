@@ -36,6 +36,25 @@ struct StandardRateLimits: Equatable, Codable {
     /// Whether the account is at or near the token limit.
     var isTokensExhausted: Bool { tokensRemaining <= 0 }
 
+    /// A copy with every per-minute window whose reset has passed restored to its full
+    /// allowance (remaining = limit, reset nil). Per-minute limits expire in seconds;
+    /// a cached `remaining: 0` served while the next probe is offline or backing off
+    /// would otherwise keep an API-key account at 100% / "Limit reached" indefinitely.
+    /// Companion of `RateLimitUsage.withClearedExpiredWindows` for the API-key path.
+    func withClearedExpiredWindows(now: Date = .now) -> StandardRateLimits {
+        let requestsExpired = requestsReset.map { $0 <= now } ?? false
+        let tokensExpired = tokensReset.map { $0 <= now } ?? false
+        guard requestsExpired || tokensExpired else { return self }
+        return StandardRateLimits(
+            requestsLimit: requestsLimit,
+            requestsRemaining: requestsExpired ? requestsLimit : requestsRemaining,
+            requestsReset: requestsExpired ? nil : requestsReset,
+            tokensLimit: tokensLimit,
+            tokensRemaining: tokensExpired ? tokensLimit : tokensRemaining,
+            tokensReset: tokensExpired ? nil : tokensReset
+        )
+    }
+
     // MARK: - Parsing (OpenAI)
 
     /// Parse OpenAI `x-ratelimit-*` headers (per developers.openai.com rate-limit guide):

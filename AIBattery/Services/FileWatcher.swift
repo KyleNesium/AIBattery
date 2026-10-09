@@ -13,6 +13,10 @@ final class FileWatcher {
     /// Second FSEvents root: `~/.codex/sessions` (Codex CLI rollouts). Absent when the
     /// directory doesn't exist — that is not a failure and starts no fallback timer.
     nonisolated(unsafe) private var codexFsEventStream: FSEventStreamRef?
+    /// Stand-in while `~/.codex` exists but `~/.codex/sessions` does not yet (Codex CLI
+    /// installed, never run): watches the parent so the first rollout directory is
+    /// noticed without a relaunch. Released once the sessions stream is up.
+    nonisolated(unsafe) private var codexRootStream: FSEventStreamRef?
     /// True only when `~/.codex/sessions` exists but its stream could not be created.
     private var codexWatchFailed = false
     nonisolated(unsafe) private var debounceWorkItem: DispatchWorkItem?
@@ -76,6 +80,7 @@ final class FileWatcher {
             FSEventStreamRelease(stream)
             codexFsEventStream = nil
         }
+        releaseCodexRootStream()
         codexWatchFailed = false
 
         timer?.invalidate()
@@ -130,15 +135,46 @@ final class FileWatcher {
         }
     }
 
-    /// Watch `~/.codex/sessions` for Codex CLI rollout writes. Missing directory →
-    /// silently skipped (no Codex CLI on this machine); creation failure → fallback timer.
+    /// Watch `~/.codex/sessions` for Codex CLI rollout writes. No `~/.codex` at all →
+    /// silently skipped (no Codex CLI on this machine; a relaunch after installing it
+    /// picks it up). `~/.codex` present but no `sessions` yet → watch the parent until
+    /// the first rollout directory appears, then switch to it. Creation failure →
+    /// fallback timer.
     private func watchCodexSessionsDirectory() {
         let path = CodexPaths.sessionsPath
-        guard FileManager.default.fileExists(atPath: path) else { return }
+        guard FileManager.default.fileExists(atPath: path) else {
+            guard codexRootStream == nil, FileManager.default.fileExists(atPath: CodexPaths.root.path) else { return }
+            codexRootStream = makeDirectoryStream(path: CodexPaths.root.path) { watcher in
+                watcher.adoptCodexSessionsDirectoryIfPresent()
+            }
+            return
+        }
         codexFsEventStream = makeDirectoryStream(path: path) { watcher in
             watcher.debounceNotify(invalidateStatsCache: false, invalidateSessionLog: false, invalidateCodexSessionLog: true)
         }
         codexWatchFailed = codexFsEventStream == nil
+    }
+
+    /// Parent-directory event: if `~/.codex/sessions` now exists, hand over to the real
+    /// sessions stream and invalidate the Codex reader (it cached an empty scan of a
+    /// missing root). Any other activity under `~/.codex` is ignored.
+    private func adoptCodexSessionsDirectoryIfPresent() {
+        guard !isStopped, codexFsEventStream == nil,
+              FileManager.default.fileExists(atPath: CodexPaths.sessionsPath) else { return }
+        releaseCodexRootStream()
+        watchCodexSessionsDirectory()
+        if codexWatchFailed {
+            resumeFallbackTimer()
+        }
+        debounceNotify(invalidateStatsCache: false, invalidateSessionLog: false, invalidateCodexSessionLog: true)
+    }
+
+    private func releaseCodexRootStream() {
+        guard let stream = codexRootStream else { return }
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        FSEventStreamRelease(stream)
+        codexRootStream = nil
     }
 
     /// Create + start a file-level FSEventStream on `path` whose callback runs on main.
@@ -206,6 +242,16 @@ final class FileWatcher {
         timer = Timer.scheduledTimer(withTimeInterval: Self.fallbackPollingInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.isStopped else { return }
+                // A tick stands in for the FS events a failed watcher would have
+                // delivered, so it must also invalidate that watcher's reader —
+                // `onChange` alone re-aggregates from the reader's (fingerprint) cache
+                // and would never notice new rollouts / session lines.
+                if self.fsEventStream == nil {
+                    SessionLogReader.shared.invalidate()
+                }
+                if self.codexWatchFailed {
+                    CodexSessionLogReader.shared.invalidate()
+                }
                 self.onChange()
             }
         }

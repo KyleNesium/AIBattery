@@ -48,9 +48,23 @@ struct CodexSessionLogParser {
         return relevantMarkers.contains { head.range(of: $0) != nil }
     }
 
+    /// The one line type that carries message content. Rejected from the head bytes,
+    /// before any JSON parsing: `mightBeRelevant` can admit a `response_item` whose
+    /// head happens to mention `token_count`, and deserializing such a line would
+    /// materialize its content in memory — the token-count-only boundary is enforced
+    /// here, not just on the decoded `type`. Rollout lines put the top-level `type`
+    /// within the first ~100 bytes; a `payload.type` is never `response_item`.
+    private static let responseItemMarker = Data("\"type\":\"response_item\"".utf8)
+
+    static func isResponseItem(_ line: Data) -> Bool {
+        let head = line.count > relevanceHeadBytes ? line.prefix(relevanceHeadBytes) : line[...]
+        return head.range(of: responseItemMarker) != nil
+    }
+
     /// Feed one complete JSONL line (no trailing newline).
     /// - Returns: an entry for an attributable `token_count` line, else nil.
     mutating func consume(line: Data, lineIndex: Int) -> AssistantUsageEntry? {
+        guard !Self.isResponseItem(line) else { return nil }
         guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
               let type = object["type"] as? String else {
             corruptLineCount += 1
@@ -91,11 +105,20 @@ struct CodexSessionLogParser {
         }
     }
 
-    private func makeEntry(payload: [String: Any], object: [String: Any], lineIndex: Int) -> AssistantUsageEntry? {
+    private mutating func makeEntry(payload: [String: Any], object: [String: Any], lineIndex: Int) -> AssistantUsageEntry? {
         // `info` is null on rate-limit-only refreshes — nothing to count.
         guard let model = currentModel,
               let info = payload["info"] as? [String: Any],
               let last = info["last_token_usage"] as? [String: Any] else { return nil }
+
+        // Either ISO 8601 shape (rollouts write fractional seconds; accept whole seconds
+        // too). A missing / malformed timestamp is a corrupt line, never "now": during a
+        // cold scan of old rollouts, `Date()` would drop a historical turn into the
+        // current 5-hour / weekly windows and today's activity chart.
+        guard let stamp = object["timestamp"] as? String, let timestamp = DateFormatters.parseISO8601(stamp) else {
+            corruptLineCount += 1
+            return nil
+        }
 
         let input = Self.int(last["input_tokens"])
         let cached = Self.int(last["cached_input_tokens"])
@@ -104,7 +127,6 @@ struct CodexSessionLogParser {
 
         let resolvedSessionId = sessionId ?? fallbackSessionId
         let ordinal = (object["ordinal"] as? NSNumber)?.intValue ?? lineIndex
-        let timestamp = (object["timestamp"] as? String).flatMap { DateFormatters.iso8601.date(from: $0) } ?? Date()
 
         return AssistantUsageEntry(
             timestamp: timestamp,

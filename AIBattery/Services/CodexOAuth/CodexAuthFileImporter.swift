@@ -41,9 +41,14 @@ enum CodexAuthFileImporter {
     }
 
     /// Whether the CLI has a login (ChatGPT or API key) to import.
+    /// Whether the Import button should be offered. Deliberately a metadata check only:
+    /// the credential file is read and parsed exactly once, on the user's explicit
+    /// import click (`importCurrentLogin`) — never just because the sign-in screen
+    /// opened. A present-but-unparseable file surfaces as the import's own error.
     static var cliLoginAvailable: Bool {
-        guard let data = try? Data(contentsOf: CodexPaths.authJSON) else { return false }
-        return parseCredential(data) != nil
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: CodexPaths.authJSON.path, isDirectory: &isDirectory)
+            && !isDirectory.boolValue
     }
 
     @MainActor

@@ -111,4 +111,22 @@ struct AccountStoreProviderTests {
         #expect(store.provider(of: "nope") == .claude)
         #expect(store.provider(of: nil) == .claude)
     }
+
+    /// The CLI's rollouts carry no auth mode, so the Insights cost rows may only be
+    /// called a real bill when the active account is an API key AND no ChatGPT-backed
+    /// Codex account exists that could have produced them under a subscription.
+    @Test func billsLocalCodexCosts_onlyForAnUnambiguousAPIKeyAccount() {
+        let apiKey = AccountRecord(id: "openai-api-abc", billingType: "api", addedAt: Date(), provider: .codex, codexAccessMode: .apiKey)
+        let chatgpt = AccountRecord(id: "codex-chatgpt-1", billingType: "business", addedAt: Date(), provider: .codex)
+        let claude = AccountRecord(id: "org-1", billingType: "pro", addedAt: Date(), provider: .claude)
+
+        #expect(AccountStore.billsLocalCodexCosts(accounts: [apiKey], activeId: apiKey.id))
+        #expect(AccountStore.billsLocalCodexCosts(accounts: [apiKey, claude], activeId: apiKey.id))
+        // A ChatGPT-backed Codex account makes the rollouts ambiguous → API-equivalent framing.
+        #expect(!AccountStore.billsLocalCodexCosts(accounts: [apiKey, chatgpt], activeId: apiKey.id))
+        // Never for subscription / Claude / unknown accounts.
+        #expect(!AccountStore.billsLocalCodexCosts(accounts: [apiKey, chatgpt], activeId: chatgpt.id))
+        #expect(!AccountStore.billsLocalCodexCosts(accounts: [claude], activeId: claude.id))
+        #expect(!AccountStore.billsLocalCodexCosts(accounts: [apiKey], activeId: "missing"))
+    }
 }

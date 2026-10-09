@@ -192,6 +192,17 @@ public final class AccountStore: ObservableObject {
             .firstIndex { $0.id == account.id } ?? 0
     }
 
+    /// Whether the local Codex cost rows are a real bill for `activeId`. The rollouts
+    /// under `~/.codex/sessions` belong to the CLI, not to any one AI Battery account,
+    /// and carry no auth mode — so they can be called "billed at API rates" only when
+    /// the active account is an API key AND no ChatGPT-backed Codex account exists
+    /// that could have produced them under a subscription. Mirrors the session-log
+    /// fallback's attribution rule (skipped with more than one ChatGPT account).
+    nonisolated static func billsLocalCodexCosts(accounts: [AccountRecord], activeId: String) -> Bool {
+        guard let active = accounts.first(where: { $0.id == activeId }), active.isAPIKeyAccount else { return false }
+        return !accounts.contains { $0.provider == .codex && !$0.isAPIKeyAccount }
+    }
+
     /// `kyle@example.com` → `k•••@example.com`. Anything that isn't `local@domain`
     /// with a non-empty local part comes back unchanged (workspace names, blanks).
     nonisolated static func maskedEmail(_ identity: String) -> String {

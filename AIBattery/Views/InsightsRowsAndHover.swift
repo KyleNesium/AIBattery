@@ -39,12 +39,14 @@ extension InsightsView {
         .accessibilityLabel("All time: \(TokenFormatter.format(snapshot.totalTokens)) tokens, \(snapshot.totalSessions) sessions")
     }
 
-    /// Codex has no stats-cache / lifetime ledger source — its all-time figures are
-    /// rebuilt from whatever session logs still exist, so say so.
+    /// Codex has no stats cache: its all-time figures come from the session logs
+    /// AI Battery has scanned, kept as a high-water mark in the app's own token ledger
+    /// so they survive the CLI rotating or deleting rollouts — but nothing from before
+    /// the first scan is recoverable. Say exactly that.
     nonisolated static func allTimeTooltip(for provider: AIProvider) -> String {
         switch provider {
         case .claude: "Cumulative tokens across all sessions"
-        case .codex: "Cumulative tokens across retained Codex session logs — no lifetime cache, so bounded by log retention"
+        case .codex: "Cumulative tokens from Codex session logs since AI Battery first scanned them (kept across log rotation; Codex has no lifetime cache of its own)"
         }
     }
 

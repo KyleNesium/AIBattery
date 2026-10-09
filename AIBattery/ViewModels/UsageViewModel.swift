@@ -214,8 +214,12 @@ public final class UsageViewModel: ObservableObject {
         }
         inflightAggregation = task
         var (result, effects) = await task.value
-        // Pay-per-token accounts: the cost rows are a real bill, not subscription value.
-        result.costIsBilled = OAuthManager.shared.accountStore.account(id: accountId)?.isAPIKeyAccount ?? false
+        // Pay-per-token accounts: the cost rows are a real bill, not subscription value —
+        // but only when the CLI's rollouts can be attributed to the key (no ChatGPT-backed
+        // Codex account that could have produced them under a subscription).
+        result.costIsBilled = accountId.map {
+            AccountStore.billsLocalCodexCosts(accounts: OAuthManager.shared.accountStore.accounts, activeId: $0)
+        } ?? false
 
         // Apply side effects before clearing inflightAggregation so the next
         // caller sees consistent RateLimitFetcher state. The observed-model list feeds
@@ -430,29 +434,34 @@ public final class UsageViewModel: ObservableObject {
         let result = await aggregateOffMain(
             rateLimits: effectiveRateLimits,
             rateLimitSource: effectiveSource,
-            standardLimits: api.standardLimits ?? snapshot?.standardLimits,
+            // A stale per-minute reading must not outlive its own reset (API-key accounts).
+            standardLimits: api.standardLimits ?? snapshot?.standardLimits?.withClearedExpiredWindows(),
             accountId: accountId,
             provider: accountProvider,
             rateLimitsFresh: rateLimitsFresh
         )
         logCorruptionMetrics()
 
-        // Keep latest token counts available for 429 auto-calibration.
-        LocalUsageEstimate.latestFiveHourTokens = result.fiveHourTokens
-        LocalUsageEstimate.latestSevenDayTokens = result.sevenDayTokens
+        // Keep latest token counts available for 429 auto-calibration, and calibrate the
+        // local estimate from fresh utilization — Claude only. Codex snapshots never use
+        // the local estimate, and the `latest*Tokens` globals feed a header-less-429
+        // calibration on whichever account is active next: leaving Codex token counts
+        // there could seed a Claude limit from Codex math right after an account switch.
+        if accountProvider == .claude {
+            LocalUsageEstimate.latestFiveHourTokens = result.fiveHourTokens
+            LocalUsageEstimate.latestSevenDayTokens = result.sevenDayTokens
 
-        // Auto-calibrate local usage limits when API returns fresh utilization data.
-        // This lets us estimate percentages from local tokens when the API is unavailable.
-        // Provider-safe: `result` was aggregated from the active provider's own local
-        // data, so tokens ÷ utilization is same-provider math either way.
-        if let rl = api.rateLimits, !api.isCached {
-            LocalUsageEstimate.calibrate(
-                fiveHourUtilization: rl.fiveHourUtilization,
-                sevenDayUtilization: rl.sevenDayUtilization,
-                localFiveHourTokens: result.fiveHourTokens,
-                localSevenDayTokens: result.sevenDayTokens,
-                accountId: accountId
-            )
+            // Auto-calibrate local usage limits when API returns fresh utilization data.
+            // This lets us estimate percentages from local tokens when the API is unavailable.
+            if let rl = api.rateLimits, !api.isCached {
+                LocalUsageEstimate.calibrate(
+                    fiveHourUtilization: rl.fiveHourUtilization,
+                    sevenDayUtilization: rl.sevenDayUtilization,
+                    localFiveHourTokens: result.fiveHourTokens,
+                    localSevenDayTokens: result.sevenDayTokens,
+                    accountId: accountId
+                )
+            }
         }
 
         updateAdaptivePolling(result)

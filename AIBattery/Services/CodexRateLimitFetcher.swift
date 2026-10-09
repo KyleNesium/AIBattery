@@ -373,7 +373,7 @@ final class CodexRateLimitFetcher {
             return APIFetchResult(
                 rateLimits: cached.rateLimits?.withClearedExpiredWindows(),
                 rateLimitSource: cached.rateLimitSource,
-                standardLimits: cached.standardLimits,
+                standardLimits: cached.standardLimits?.withClearedExpiredWindows(),
                 profile: nil,
                 hasStandardRateLimitHeaders: cached.hasStandardRateLimitHeaders,
                 fetchedAt: cached.fetchedAt,
@@ -502,7 +502,7 @@ extension CodexRateLimitFetcher {
             cachedResults[accountId] = APIFetchResult(
                 rateLimits: normalizedRateLimits,
                 rateLimitSource: persisted.rateLimitSource,
-                standardLimits: persisted.standardLimits,
+                standardLimits: persisted.standardLimits?.withClearedExpiredWindows(),
                 profile: nil,
                 hasStandardRateLimitHeaders: persisted.standardLimits != nil,
                 fetchedAt: fetchedAt,
