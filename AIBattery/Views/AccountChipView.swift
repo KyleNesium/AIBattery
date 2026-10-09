@@ -82,13 +82,19 @@ struct AccountChipView: View {
                 .font(Typography.chevronIcon)
                 .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
         }
-        .padding(.horizontal, Spacing.gap)
+        // No inner inset: with no pill there is nothing to inset from, and the badge
+        // now sits flush with the section content edge below it (the dropped menu's
+        // left edge, at the anchor's x = 0, lines up with the badge too).
     }
 
-    /// False when the identity already *is* the provider name (an alias "Codex"
-    /// would otherwise read "Codex Codex").
+    /// False when the identity already *starts with* the provider name as a word —
+    /// an alias "Codex", the fallback "Claude 1", a workspace named "Claude Team" —
+    /// which would otherwise read "Claude  Claude Team". Only a whole leading word
+    /// counts: "Claudette" or "claude@x.io" still get the caption.
     nonisolated static func showsProviderName(identity: String, provider: AIProvider) -> Bool {
-        identity.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(provider.displayName) != .orderedSame
+        let firstWord = identity.trimmingCharacters(in: .whitespaces)
+            .split(maxSplits: 1, whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+        return firstWord.caseInsensitiveCompare(provider.displayName) != .orderedSame
     }
 
     // MARK: Menu model (pure, tested)
