@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import AIBatteryCore
@@ -68,5 +69,60 @@ struct AIProviderTests {
         let data = try JSONEncoder().encode(record)
         let back = try JSONDecoder().decode(AccountRecord.self, from: data)
         #expect(back.provider == .codex)
+    }
+
+    /// The mark is decoded once per provider and handed out as a template image, so
+    /// SwiftUI / AppKit tint it to the badge or text colour instead of drawing the
+    /// SVG's own black fill.
+    @MainActor @Test func markImage_isACachedTemplate() {
+        for provider in AIProvider.allCases {
+            let first = provider.markImage
+            let second = provider.markImage
+            #expect(first?.isTemplate == true, "\(provider) mark is not a template")
+            #expect(first === second, "\(provider) mark decoded twice")
+            #expect((first?.size.width ?? 0) > 0 && (first?.size.height ?? 0) > 0)
+        }
+    }
+
+    /// `NSImage.tinted` is what the drawn menu-bar image uses (an NSTextAttachment can't
+    /// tint a template itself): the copy has the requested size, is flat (not a
+    /// template), and every opaque source pixel takes the tint colour.
+    @MainActor @Test func tinted_fillsOpaquePixelsWithTheColorAtTheRequestedSize() throws {
+        let source = NSImage(size: NSSize(width: 4, height: 4), flipped: false) { rect in
+            NSColor.black.set()
+            rect.fill()
+            return true
+        }
+        let tinted = source.tinted(NSColor(red: 1, green: 0, blue: 0, alpha: 1), size: NSSize(width: 8, height: 6))
+        #expect(tinted.size == NSSize(width: 8, height: 6))
+        #expect(!tinted.isTemplate)
+
+        let cg = try #require(tinted.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let bitmap = NSBitmapImageRep(cgImage: cg)
+        let centre = try #require(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2))
+        // The bitmap's colour space differs from the tint's, so compare in sRGB with a
+        // tolerance: black source pixels must come out clearly red, fully opaque.
+        let rgb = try #require(centre.usingColorSpace(.sRGB))
+        #expect(rgb.redComponent > 0.85)
+        #expect(rgb.greenComponent < 0.4)
+        #expect(rgb.blueComponent < 0.4)
+        #expect(rgb.alphaComponent > 0.95)
+    }
+
+    /// Tinting a real brand mark keeps it inside the box and visible — the menu bar
+    /// would otherwise show an empty attachment slot.
+    @MainActor @Test func tinted_brandMarkHasVisiblePixels() throws {
+        let mark = try #require(AIProvider.claude.markImage)
+        let tinted = mark.tinted(.white, size: NSSize(width: 9, height: 9))
+        let cg = try #require(tinted.cgImage(forProposedRect: nil, context: nil, hints: nil))
+        let bitmap = NSBitmapImageRep(cgImage: cg)
+        var opaque = 0
+        for x in 0..<bitmap.pixelsWide {
+            for y in 0..<bitmap.pixelsHigh where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.5 {
+                opaque += 1
+            }
+        }
+        #expect(opaque > 0)
+        #expect(opaque < bitmap.pixelsWide * bitmap.pixelsHigh, "a mark should not be a solid block")
     }
 }

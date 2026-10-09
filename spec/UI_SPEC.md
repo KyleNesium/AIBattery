@@ -17,7 +17,7 @@
 │  Refresh: [slider 30-300s]          │
 │  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
-│  About: ✦ AI Battery v2.6.1         │
+│  About: ✦ AI Battery v3.0.0         │
 │    Check for Updates · Release notes│
 ├──────────────────────────────────────┤
 │ (A) [5 Hour|7 Day|Context]             │  ← Metric toggle + auto

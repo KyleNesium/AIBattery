@@ -85,6 +85,18 @@ struct AccountIdentityLabelTests {
         #expect(AccountStore.maskedEmail("") == "")
     }
 
+    /// Real sign-in emails: dotted/plus local parts, sub-domains, a non-ASCII first
+    /// character and a trailing "@" all keep exactly one leading character and the
+    /// full domain — the local part is never partially revealed.
+    @Test func maskedEmail_edgeCases() {
+        #expect(AccountStore.maskedEmail("kyle.s+codex@sub.example.co.za") == "k•••@sub.example.co.za")
+        #expect(AccountStore.maskedEmail("émile@x.io") == "é•••@x.io")
+        #expect(AccountStore.maskedEmail("👩‍💻dev@x.io") == "👩‍💻•••@x.io")
+        #expect(AccountStore.maskedEmail("k@") == "k@") // no domain → not an email
+        #expect(AccountStore.maskedEmail("@x.io") == "@x.io") // no local part → not an email
+        #expect(AccountStore.maskedEmail("a@b@c.io") == "a•••@b@c.io") // first "@" splits
+    }
+
     // MARK: Full label (menu rows + Settings rows)
 
     @Test func displayLabel_composesGlyphIdentityAndPlan() {

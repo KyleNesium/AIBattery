@@ -1,9 +1,11 @@
 # Changelog
 
-## [Unreleased] — Codex (OpenAI) accounts
+## [3.0.0] — 2026-10-08
 
-AI Battery becomes a two-provider battery: up to 3 Claude **and** 3 Codex
-accounts, switchable from the header picker (✦ / ⬡ glyphs when both exist).
+**Major release: Codex (OpenAI) accounts.** AI Battery becomes a two-provider
+battery: up to 3 Claude **and** 3 Codex accounts, switchable from the account
+chip in the header (each provider's brand mark on a tinted badge). Existing
+Claude accounts, Keychain items and settings carry over unchanged.
 
 ### Added
 - **Account chip header.** The popover header is now the account: a compact
@@ -26,7 +28,7 @@ accounts, switchable from the header picker (✦ / ⬡ glyphs when both exist).
 - **Codex Insights**: token usage, per-model API-equivalent cost, Projects and
   Context Health rebuilt from `~/.codex/sessions` rollouts (token counts only).
 - `gpt-5.x` / `gpt-6-astra` pricing, GPT display names, OpenAI status feed
-  filtered to Codex components, plan name in the account picker.
+  filtered to Codex components, plan name in the account menu rows.
 
 ### Changed
 - Cold JSONL scans are 3–10× faster for both providers (memchr newline search,
@@ -43,9 +45,9 @@ accounts, switchable from the header picker (✦ / ⬡ glyphs when both exist).
 - **API-key entry**: the key's shape is checked locally before any network,
   an unverifiable key (offline) is added with a note and checked on the first
   refresh, and a "Use ChatGPT sign-in instead" link leads back.
-- Settings account rows use the header picker's order, numbering and provider
-  glyphs; the collapsed picker drops the plan suffix so it no longer truncates;
-  plan labels handle `chatgpt_team` ("ChatGPT Team").
+- Settings account rows use the header chip's order, numbering and provider
+  badge; the chip shows identity only (plan per menu row) so it never
+  truncates; plan labels handle `chatgpt_team` ("ChatGPT Team").
 - Footer "Cached" tooltip explains the Codex session-log / endpoint-backoff
   case; the refresh-rate hint states the real per-poll cost per provider
   (Claude ~3 tokens, Codex ChatGPT none, Codex API key ~16 output tokens).

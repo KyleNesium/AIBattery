@@ -42,7 +42,20 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.throttleTimestamps,
             UserDefaultsKeys.contextCollapsed,
             UserDefaultsKeys.activityCollapsed,
+            UserDefaultsKeys.projectsCollapsed,
             UserDefaultsKeys.tokenExpiresAtPrefix,
+            UserDefaultsKeys.showAllAccountsInMenuBar,
+            UserDefaultsKeys.showFullAccountIdentity,
+            UserDefaultsKeys.signedOutProvider,
+            UserDefaultsKeys.planTier,
         ]
+    }
+
+    /// Persisted preference names are a contract with existing installs: renaming one
+    /// silently resets the user's choice on upgrade. Pin the v3.0 additions.
+    @Test func v3Keys_areStable() {
+        #expect(UserDefaultsKeys.showFullAccountIdentity == "aibattery_showFullAccountIdentity")
+        #expect(UserDefaultsKeys.signedOutProvider == "aibattery_signedOutProvider")
+        #expect(UserDefaultsKeys.showAllAccountsInMenuBar == "aibattery_showAllAccountsInMenuBar")
     }
 }

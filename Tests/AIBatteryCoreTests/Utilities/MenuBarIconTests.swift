@@ -54,6 +54,20 @@ struct MenuBarIconTests {
         #expect(attributed.attribute(.attachment, at: 0, effectiveRange: nil) == nil)
     }
 
+    /// The real status-item image: mixed-provider text with inline brand marks must
+    /// render (no empty / zero-size image) and be wider than a single-provider string
+    /// of the same digits — the marks occupy real width, they are not dropped.
+    @Test func combinedStatusBarImage_rendersMixedProviderTextWithMarks() {
+        let mixed = "\(AIProvider.claude.glyph)\u{00A0}42%  \(AIProvider.codex.glyph)\u{00A0}7%"
+        let plain = "42%\u{00A0}|\u{00A0}7%"
+        let mixedImage = MenuBarIcon.combinedStatusBarImage(text: mixed, percent: 42, color: testColor, menuBarAppearance: NSAppearance(named: .darkAqua))
+        let plainImage = MenuBarIcon.combinedStatusBarImage(text: plain, percent: 42, color: testColor, menuBarAppearance: NSAppearance(named: .aqua))
+        #expect(mixedImage.size.height > 0)
+        #expect(mixedImage.size.width > plainImage.size.width)
+        #expect(mixedImage.cgImage(forProposedRect: nil, context: nil, hints: nil) != nil)
+        #expect(plainImage.cgImage(forProposedRect: nil, context: nil, hints: nil) != nil)
+    }
+
     /// VoiceOver reads provider names, not symbol names.
     @Test func spokenMenuBarText_namesProviders() {
         let text = "\(AIProvider.claude.glyph)\u{00A0}42%  \(AIProvider.codex.glyph)\u{00A0}7%"
