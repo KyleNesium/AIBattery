@@ -77,17 +77,29 @@ extension OAuthManager {
     /// Await redirect → validate state → exchange code → derive identity → persist.
     func completeCodexAuthFlow() async -> Result<Void, AuthError> {
         guard let session = codexAuthSession else { return .failure(.unknownError("No auth flow in progress")) }
-        defer { codexAuthSession = nil }
+        // Clear only the session this call owns. An unconditional `codexAuthSession = nil`
+        // would wipe a *newer* session started while this one was still awaiting, and the
+        // two suspension points below each give Cancel a chance to replace it.
+        defer {
+            if codexAuthSession === session {
+                codexAuthSession = nil
+            }
+        }
 
         let callback = await session.awaitCallback()
+        // The redirect can land while the user is clicking Cancel: the callback is already
+        // delivered and cannot be retracted, so honour the cancellation here instead of
+        // registering an account the user just abandoned.
+        guard codexAuthSession === session else { return .failure(.cancelled) }
         switch callback {
         case .failure(let error):
             return .failure(AuthError.codexCallbackFailure(error))
         case .success(let payload):
-            guard payload.state == session.state else {
+            guard OAuthPKCE.constantTimeEquals(payload.state, session.state) else {
                 return .failure(.unknownError("State mismatch — possible CSRF, sign-in aborted"))
             }
             let exchanged = await CodexTokenClient.exchangeCode(payload.code, verifier: session.verifier)
+            guard codexAuthSession === session else { return .failure(.cancelled) }
             switch exchanged {
             case .failure(let error):
                 return .failure(error)

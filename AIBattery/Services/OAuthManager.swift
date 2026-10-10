@@ -237,10 +237,23 @@ public final class OAuthManager: ObservableObject {
             case .providerError("timeout"):
                 .unknownError("Sign-in timed out after 3 minutes. Please try again.")
             case .providerError(let reason):
-                .unknownError("OpenAI declined the sign-in (\(reason)). Please try again.")
+                .unknownError("OpenAI declined the sign-in (\(Self.sanitizedProviderReason(reason))). Please try again.")
             case .missingCode, .missingState, .notCallbackPath:
                 .unknownError("The browser redirect was malformed. Please try again.")
             }
+        }
+
+        /// The `error` query parameter arrives on an open loopback port, so any local
+        /// process can put arbitrary text in front of the user attributed to OpenAI.
+        /// Keep recognisable OAuth codes, replace anything else with a generic word.
+        nonisolated static func sanitizedProviderReason(_ reason: String) -> String {
+            let known: Set = [
+                "access_denied", "invalid_request", "invalid_scope", "invalid_client",
+                "unauthorized_client", "unsupported_response_type", "server_error",
+                "temporarily_unavailable", "interaction_required", "login_required",
+                "consent_required", "account_selection_required",
+            ]
+            return known.contains(reason) ? reason : "unrecognised error"
         }
     }
 

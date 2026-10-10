@@ -20,6 +20,11 @@ final class FileWatcher {
     /// True only when `~/.codex/sessions` exists but its stream could not be created.
     private var codexWatchFailed = false
     nonisolated(unsafe) private var debounceWorkItem: DispatchWorkItem?
+    /// Invalidations owed to readers, accumulated across every event coalesced into the
+    /// current debounce window. Cancelling the previous work item used to discard its
+    /// flags, so a Claude write landing within 2s of a Codex write left
+    /// `CodexSessionLogReader` clean and serving its old cache until the next Codex write.
+    private var pendingInvalidations: PendingInvalidations = .none
     nonisolated(unsafe) private var timer: Timer?
     nonisolated(unsafe) private var retryTimer: Timer?
     private let onChange: () -> Void
@@ -61,6 +66,7 @@ final class FileWatcher {
         isStopped = true
         debounceWorkItem?.cancel()
         debounceWorkItem = nil
+        pendingInvalidations = .none
 
         if let source = fileSource {
             source.cancel()
@@ -262,18 +268,30 @@ final class FileWatcher {
     /// rollout write touches neither Claude reader.
     private func debounceNotify(invalidateStatsCache: Bool = true, invalidateSessionLog: Bool = true, invalidateCodexSessionLog: Bool = false) {
         guard !isStopped else { return }
+        pendingInvalidations.formUnion(
+            PendingInvalidations(
+                statsCache: invalidateStatsCache,
+                sessionLog: invalidateSessionLog,
+                codexSessionLog: invalidateCodexSessionLog
+            )
+        )
         debounceWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, !self.isStopped else { return }
-                if invalidateSessionLog {
+                let owed = self.pendingInvalidations
+                self.pendingInvalidations = .none
+                if owed.sessionLog {
                     SessionLogReader.shared.invalidate()
                 }
-                if invalidateStatsCache {
+                if owed.statsCache {
                     StatsCacheReader.shared.invalidate()
                 }
-                if invalidateCodexSessionLog {
+                if owed.codexSessionLog {
                     CodexSessionLogReader.shared.invalidate()
+                    // A new rollout file may have appeared; the fallback scanner's
+                    // memoized "newest file" must not outlive it.
+                    CodexSessionRateLimitScanner.invalidateFileCache()
                 }
                 self.onChange()
             }
@@ -282,12 +300,30 @@ final class FileWatcher {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.debounceDelay, execute: work)
     }
 
+    /// Which readers a coalesced batch of filesystem events still owes an invalidation to.
+    struct PendingInvalidations: Equatable {
+        var statsCache = false
+        var sessionLog = false
+        var codexSessionLog = false
+
+        static let none = PendingInvalidations()
+
+        mutating func formUnion(_ other: PendingInvalidations) {
+            statsCache = statsCache || other.statsCache
+            sessionLog = sessionLog || other.sessionLog
+            codexSessionLog = codexSessionLog || other.codexSessionLog
+        }
+    }
+
     deinit {
         debounceWorkItem?.cancel()
         if let source = fileSource {
             source.cancel()
         }
-        for stream in [fsEventStream, codexFsEventStream].compactMap({ $0 }) {
+        // `codexRootStream` (the stand-in watcher on ~/.codex until sessions/ appears) is
+        // released in `stopWatching`, but a watcher dropped without one would leak the
+        // running stream and the WeakBox it holds via `Unmanaged.passRetained`.
+        for stream in [fsEventStream, codexFsEventStream, codexRootStream].compactMap({ $0 }) {
             FSEventStreamStop(stream)
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)

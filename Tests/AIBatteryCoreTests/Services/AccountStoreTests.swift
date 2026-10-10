@@ -372,4 +372,30 @@ struct AccountStoreTests {
         #expect(store2.accounts[0].id == "org-1")
         #expect(store2.accounts[1].id == "org-2")
     }
+
+    /// A persisted blob can carry two records with one id (legacy build, half-applied
+    /// merge, downgrade round-trip). `StatusBarManager` builds a provider dictionary from
+    /// `accounts` with a `Dictionary` initializer that traps on duplicate keys, so a bad
+    /// blob would crash every status-bar refresh — a launch loop with no in-app way out.
+    @Test func deduplicated_keepsTheFirstRecordPerId() {
+        let first = AccountRecord(id: "org-1", displayName: "First", billingType: nil, addedAt: Date(timeIntervalSince1970: 1_600_000_000))
+        let duplicate = AccountRecord(id: "org-1", displayName: "Shadow", billingType: nil, addedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let other = AccountRecord(id: "org-2", displayName: "Other", billingType: nil, addedAt: Date(timeIntervalSince1970: 1_700_000_001))
+
+        let result = AccountStore.deduplicated([first, duplicate, other])
+        #expect(result.count == 2)
+        #expect(result.map(\.id) == ["org-1", "org-2"])
+        #expect(result[0].displayName == "First")
+        // The de-duplicated list is safe to key a dictionary by — the property that matters.
+        #expect(Dictionary(uniqueKeysWithValues: result.map { ($0.id, $0.provider) }).count == 2)
+    }
+
+    @Test func deduplicated_leavesACleanListUnchanged() {
+        let records = [
+            AccountRecord(id: "a", displayName: nil, billingType: nil, addedAt: Date(timeIntervalSince1970: 1)),
+            AccountRecord(id: "b", displayName: nil, billingType: nil, addedAt: Date(timeIntervalSince1970: 2)),
+        ]
+        #expect(AccountStore.deduplicated(records).map(\.id) == ["a", "b"])
+        #expect(AccountStore.deduplicated([]).isEmpty)
+    }
 }

@@ -65,6 +65,55 @@ struct CodexSessionLogParserTests {
         #expect(entry.cacheWriteTokens == 30)
     }
 
+    /// Codex re-emits `token_count` with the previous turn's `info` verbatim when it
+    /// refreshes rate limits (measured at ~7% of real `token_count` events, ~10% of the
+    /// tokens, in a local rollout tree). The repeat carries a new `ordinal`, so the
+    /// reader's messageId dedup cannot catch it and the same turn was counted twice.
+    @Test func tokenCount_repeatedSnapshot_isCountedOnce() {
+        // Same `info` as `tokenCount`, new ordinal and timestamp — a rate-limit refresh.
+        let repeatedSnapshot = #"{"timestamp":"2026-09-03T13:11:30.000Z","ordinal":24,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":53405,"cached_input_tokens":32640,"cache_write_input_tokens":0,"output_tokens":446,"reasoning_output_tokens":20,"total_tokens":53851},"last_token_usage":{"input_tokens":31894,"cached_input_tokens":21376,"cache_write_input_tokens":0,"output_tokens":233,"reasoning_output_tokens":20,"total_tokens":32127},"model_context_window":258400},"rate_limits":{"limit_id":"codex","primary":{"used_percent":22.0,"window_minutes":300}}}}"#
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(turnContext), lineIndex: 0)
+        #expect(parser.consume(line: line(tokenCount), lineIndex: 1) != nil)
+        #expect(parser.consume(line: line(repeatedSnapshot), lineIndex: 2) == nil)
+        #expect(parser.corruptLineCount == 0, "a repeat is a duplicate, not a corrupt line")
+    }
+
+    /// The cumulative total is the discriminator: once it advances, a new turn really
+    /// happened and its `last_token_usage` must be counted even if a repeat preceded it.
+    @Test func tokenCount_advancedTotal_isCountedAgain() throws {
+        let advanced = #"{"timestamp":"2026-09-03T13:12:30.000Z","ordinal":26,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":60000,"cached_input_tokens":32640,"cache_write_input_tokens":0,"output_tokens":500,"reasoning_output_tokens":20,"total_tokens":60500},"last_token_usage":{"input_tokens":6595,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":54,"reasoning_output_tokens":0,"total_tokens":6649},"model_context_window":258400}}}"#
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(turnContext), lineIndex: 0)
+        #expect(parser.consume(line: line(tokenCount), lineIndex: 1) != nil)
+        let entryResult = parser.consume(line: line(advanced), lineIndex: 2)
+        let entry = try #require(entryResult)
+        #expect(entry.inputTokens == 6_595)
+        #expect(entry.outputTokens == 54)
+    }
+
+    /// A rollout without `total_token_usage` can't be deduped, so it must fail open —
+    /// under-counting real turns would be worse than the duplicates the guard removes.
+    @Test func tokenCount_withoutTotalUsage_isStillCounted() {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(turnContext), lineIndex: 0)
+        #expect(parser.consume(line: line(tokenCountCacheWrite), lineIndex: 1) != nil)
+        #expect(parser.consume(line: line(tokenCountCacheWrite), lineIndex: 2) != nil)
+    }
+
+    /// The content boundary must not depend on the CLI emitting compact JSON: a
+    /// space after the colon would otherwise hand a message-bearing line to
+    /// `JSONSerialization`, which is exactly what this boundary exists to prevent.
+    @Test func responseItem_isRejectedWithWhitespaceInTheHead() {
+        let spaced = #"{"timestamp": "2026-09-03T13:10:50.000Z", "type": "response_item", "payload": {"type": "message", "content": [{"type": "token_count", "text": "never parsed"}]}}"#
+        #expect(CodexSessionLogParser.isResponseItem(line(spaced)))
+
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(turnContext), lineIndex: 0)
+        #expect(parser.consume(line: line(spaced), lineIndex: 1) == nil)
+        #expect(parser.corruptLineCount == 0)
+    }
+
     @Test func tokenCount_nullInfo_isSkipped() {
         var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
         _ = parser.consume(line: line(turnContext), lineIndex: 0)

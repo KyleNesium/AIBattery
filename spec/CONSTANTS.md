@@ -19,6 +19,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex usage request timeout | 30 sec | CodexRateLimitFetcher |
 | Codex OAuth callback timeout | 180 sec — abandoned sign-in releases port 1455 | CodexAuthSession |
 | Codex session-log tail scan | 256 KB of the newest rollout | CodexSessionRateLimitScanner |
+| Codex newest-rollout walk TTL | 60 s (`newestFileCacheTTL`) — the fallback runs on every poll for the whole endpoint backoff, so the directory walk is memoized; invalidated by FileWatcher on a Codex write | CodexSessionRateLimitScanner |
 | Codex reader discovery TTL | 60 sec (+ root-dir mtime check) | CodexSessionLogReader |
 | Codex line pre-filter head | 512 bytes (`CodexSessionLogParser.relevanceHeadBytes`) | CodexSessionLogParser |
 | OpenAI API-key validation | `GET https://api.openai.com/v1/models`, 15 s timeout — **401** invalid, 2xx/429 valid, else (incl. 403) unknown → key added with an "it's checked on the first refresh" note | CodexRateLimitFetcher |

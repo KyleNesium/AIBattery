@@ -22,6 +22,32 @@ struct CodexSessionLogParser {
     private(set) var currentModel: String?
     /// Lines that looked relevant but failed to decode as JSON objects.
     private(set) var corruptLineCount = 0
+    /// Cumulative `info.total_token_usage` of the last entry emitted for this file.
+    /// Codex re-emits `token_count` with unchanged, non-null `info` when it refreshes
+    /// rate limits (measured: ~7% of real `token_count` events, ~10% of the tokens in
+    /// a local rollout tree). Each repeat carries a new `ordinal`, so the reader's
+    /// `messageId` dedup cannot catch it and the same turn is counted again. A turn
+    /// that produced tokens always advances the cumulative total, so an unchanged
+    /// total means "nothing new happened".
+    private var lastTotalUsage: TotalUsage?
+
+    /// The cumulative counters compared to decide whether a `token_count` repeats
+    /// the previous one. Value type so the comparison is exact and allocation-free.
+    private struct TotalUsage: Equatable {
+        let input: Int
+        let cached: Int
+        let cacheWrite: Int
+        let output: Int
+
+        init?(_ total: Any?) {
+            guard let total = total as? [String: Any] else { return nil }
+            input = CodexSessionLogParser.int(total["input_tokens"])
+            cached = CodexSessionLogParser.int(total["cached_input_tokens"])
+            cacheWrite = CodexSessionLogParser.int(total["cache_write_input_tokens"])
+            output = CodexSessionLogParser.int(total["output_tokens"])
+        }
+    }
+
     /// Used for `sessionId` when the file has no `session_meta` line (the file
     /// name stem — stable across re-parses so message IDs stay deterministic).
     let fallbackSessionId: String
@@ -54,11 +80,33 @@ struct CodexSessionLogParser {
     /// materialize its content in memory — the token-count-only boundary is enforced
     /// here, not just on the decoded `type`. Rollout lines put the top-level `type`
     /// within the first ~100 bytes; a `payload.type` is never `response_item`.
+    /// Matched against the head with ASCII whitespace removed, so a pretty-printed or
+    /// space-after-colon rollout (`"type": "response_item"`) is still rejected. The CLI
+    /// writes compact JSON today; this boundary is too important to depend on that.
     private static let responseItemMarker = Data("\"type\":\"response_item\"".utf8)
+    private static let responseItemNameMarker = Data("\"response_item\"".utf8)
 
     static func isResponseItem(_ line: Data) -> Bool {
         let head = line.count > relevanceHeadBytes ? line.prefix(relevanceHeadBytes) : line[...]
-        return head.range(of: responseItemMarker) != nil
+        if head.range(of: responseItemMarker) != nil {
+            return true
+        }
+        // Only pay for the copy when the cheap exact match missed but the name is present
+        // anyway — i.e. something is sitting between the key and the value.
+        guard head.range(of: responseItemNameMarker) != nil else { return false }
+        var compacted = Data()
+        compacted.reserveCapacity(head.count)
+        var sawWhitespace = false
+        for byte in head {
+            switch byte {
+            case 0x20, 0x09, 0x0A, 0x0D:
+                sawWhitespace = true
+            default:
+                compacted.append(byte)
+            }
+        }
+        guard sawWhitespace else { return false }
+        return compacted.range(of: responseItemMarker) != nil
     }
 
     /// Feed one complete JSONL line (no trailing newline).
@@ -111,6 +159,15 @@ struct CodexSessionLogParser {
               let info = payload["info"] as? [String: Any],
               let last = info["last_token_usage"] as? [String: Any] else { return nil }
 
+        // A rate-limit refresh re-emits the previous turn's `info` verbatim under a new
+        // `ordinal`, so the reader's messageId dedup lets it through and the same
+        // `last_token_usage` is counted twice. The cumulative total is the discriminator:
+        // it only moves when a turn actually spent tokens.
+        let total = TotalUsage(info["total_token_usage"])
+        if let total {
+            guard total != lastTotalUsage else { return nil }
+        }
+
         // Either ISO 8601 shape (rollouts write fractional seconds; accept whole seconds
         // too). A missing / malformed timestamp is a corrupt line, never "now": during a
         // cold scan of old rollouts, `Date()` would drop a historical turn into the
@@ -127,6 +184,10 @@ struct CodexSessionLogParser {
 
         let resolvedSessionId = sessionId ?? fallbackSessionId
         let ordinal = (object["ordinal"] as? NSNumber)?.intValue ?? lineIndex
+
+        // Recorded only for an entry we actually emit, so a corrupt-timestamp line
+        // between two real turns can't make the next one look like a repeat.
+        lastTotalUsage = total
 
         return AssistantUsageEntry(
             timestamp: timestamp,

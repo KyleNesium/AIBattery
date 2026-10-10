@@ -121,4 +121,25 @@ struct NotificationManagerTests {
         #expect(labels.fiveHour == "5-Hour")
         #expect(labels.secondary == "Weekly")
     }
+
+    // MARK: - Per-account alert scoping
+
+    /// The dedup latch belongs to one account's windows. A global key let a Claude
+    /// account at 85% latch `rateLimit5h`, a switch to a Codex account at 10% clear it,
+    /// and the switch back re-alert — while a second account crossing the threshold right
+    /// after the first got no alert at all.
+    @Test func rateLimitKeys_areScopedPerAccount() {
+        let claude = NotificationManager.rateLimitKey("rateLimit5h", accountId: "acct-claude")
+        let codex = NotificationManager.rateLimitKey("rateLimit5h", accountId: "acct-codex")
+        #expect(claude != codex)
+        #expect(claude.hasSuffix("_acct-claude"))
+        #expect(NotificationManager.rateLimitKey("rateLimitCredits", accountId: "a") != claude)
+    }
+
+    /// No account id (single-account paths, tests) keeps the historical unsuffixed key so
+    /// `migrateAlertKeys` and existing latches keep working.
+    @Test func rateLimitKeys_withoutAccountId_areUnchanged() {
+        #expect(NotificationManager.rateLimitKey("rateLimit7d", accountId: nil) == "rateLimit7d")
+        #expect(NotificationManager.rateLimitKey("rateLimit7d", accountId: "") == "rateLimit7d")
+    }
 }

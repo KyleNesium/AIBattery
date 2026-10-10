@@ -57,8 +57,14 @@ extension StatusBarManager {
         let anyThrottled = (activeRateLimits?.isThrottled ?? false)
             || perAccount.values.contains { $0.isThrottled }
         let confirmed = UsageViewModel.alarmConfirmed(rateLimitsFresh: viewModel.rateLimitsFresh, displayedIsThrottled: anyThrottled)
-        let providers: [String: AIProvider] = Dictionary(uniqueKeysWithValues:
-            OAuthManager.shared.accountStore.accounts.map { ($0.id, $0.provider) })
+        // `uniqueKeysWithValues` traps on a duplicate key, and the persisted accounts blob
+        // is only de-duplicated on add/update — a blob that ever acquires two records with
+        // one id would turn every status-bar refresh into a crash, i.e. a launch loop with
+        // no way out from inside the app. Same guard as `UsageAggregator`'s.
+        let providers: [String: AIProvider] = Dictionary(
+            OAuthManager.shared.accountStore.accounts.map { ($0.id, $0.provider) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let display = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: showAll,
             perAccount: perAccount,

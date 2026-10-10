@@ -45,7 +45,7 @@ public final class NotificationManager {
 
     /// Check rate limits and fire alert when usage crosses the configured threshold.
     /// Deduplicates per window: fires once when crossing, resets when dropping below.
-    func checkRateLimitAlerts(rateLimits: RateLimitUsage) {
+    func checkRateLimitAlerts(rateLimits: RateLimitUsage, accountId: String? = nil) {
         let enabled = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertRateLimit)
         guard enabled else { return }
 
@@ -56,7 +56,7 @@ public final class NotificationManager {
         // identical ones batched into "Multiple alerts".
         if rateLimits.isCreditBudget {
             checkRateLimitWindow(
-                key: "rateLimitCredits",
+                key: Self.rateLimitKey("rateLimitCredits", accountId: accountId),
                 label: "Credits",
                 percent: rateLimits.sevenDayPercent,
                 threshold: effectiveThreshold
@@ -66,17 +66,34 @@ public final class NotificationManager {
 
         let labels = Self.windowLabels(for: rateLimits)
         checkRateLimitWindow(
-            key: "rateLimit5h",
+            key: Self.rateLimitKey("rateLimit5h", accountId: accountId),
             label: labels.fiveHour,
             percent: rateLimits.fiveHourPercent,
             threshold: effectiveThreshold
         )
         checkRateLimitWindow(
-            key: "rateLimit7d",
+            key: Self.rateLimitKey("rateLimit7d", accountId: accountId),
             label: labels.secondary,
             percent: rateLimits.sevenDayPercent,
             threshold: effectiveThreshold
         )
+    }
+
+    /// Scope a rate-limit dedup key to its account. The windows belong to one account, so
+    /// a global key made the latch follow whichever account happened to poll last:
+    /// switching from a Claude account at 85% to a Codex account at 10% cleared the latch,
+    /// and switching back re-alerted — while a second account crossing the threshold right
+    /// after the first got no alert at all. Keys stay unsuffixed when no account is known
+    /// so existing behaviour (and `migrateAlertKeys`) is unchanged.
+    nonisolated static func rateLimitKey(_ base: String, accountId: String?) -> String {
+        guard let accountId, !accountId.isEmpty else { return base }
+        return "\(base)_\(accountId)"
+    }
+
+    /// Drop an account's latched rate-limit keys. Called when an account is removed so a
+    /// re-added account starts clean rather than inheriting a stale "already fired".
+    func clearRateLimitAlerts(accountId: String) {
+        hasFired = hasFired.filter { !$0.hasSuffix("_\(accountId)") }
     }
 
     /// Notification vocabulary per provider: Anthropic says "7-Day", OpenAI says "Weekly".

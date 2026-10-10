@@ -35,6 +35,17 @@ struct CodexTokenClientTests {
         }
     }
 
+    /// A 2xx body we can't parse (truncated response, captive portal, proxy HTML) is not
+    /// evidence that the refresh token was rejected. Treating it as non-transient signed
+    /// the account out and deleted its Keychain entry over a bad network hop.
+    @Test func unparseableSuccessBodyIsTransient() {
+        for body in [Data(), Data("<html>502</html>".utf8), Data(#"{"error":"nope"}"#.utf8)] {
+            let result = CodexTokenClient.interpretTokenResponse(statusCode: 200, data: body)
+            guard case .failure(let error) = result else { Issue.record("expected failure"); return }
+            #expect(error.isTransient, "an unparseable 2xx must be retried, never signed out")
+        }
+    }
+
     /// Codex sign-in errors speak for OpenAI, never Anthropic, and a user cancel is silent.
     @Test func codexErrorsUseOpenAIVoice() {
         guard case .failure(let rejected) = CodexTokenClient.interpretTokenResponse(statusCode: 400, data: Data()) else {
@@ -60,6 +71,20 @@ struct CodexTokenClientTests {
         let denied = OAuthManager.AuthError.codexCallbackFailure(.providerError("access_denied"))
         #expect(denied.userMessage.contains("access_denied"))
         #expect(OAuthManager.AuthError.codexCallbackFailure(.missingState).userMessage.contains("redirect"))
+    }
+
+    /// The `error` query parameter arrives on an open loopback port, so any local process
+    /// can put words in OpenAI's mouth for the 3-minute sign-in window. Known OAuth codes
+    /// pass through; anything else is replaced rather than shown verbatim.
+    @Test func providerErrorTextIsNotAttackerControlled() {
+        #expect(OAuthManager.AuthError.sanitizedProviderReason("access_denied") == "access_denied")
+        #expect(OAuthManager.AuthError.sanitizedProviderReason("server_error") == "server_error")
+
+        let spoofed = "your session expired, re-enter your password at evil.example"
+        let message = OAuthManager.AuthError.codexCallbackFailure(.providerError(spoofed)).userMessage
+        #expect(!message.contains("evil.example"))
+        #expect(!message.contains("password"))
+        #expect(message.contains("OpenAI"))
     }
 
     /// The refresh grant is not guaranteed to echo `id_token`; only the code exchange

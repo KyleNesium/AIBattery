@@ -28,6 +28,10 @@ public struct AuthView: View {
     /// Codex API-key entry (pay-per-token accounts).
     @State private var showAPIKeyField = false
     @State private var apiKeyInput = ""
+    /// The in-flight key-validation probe. Held so dismissing the overlay can cancel it —
+    /// otherwise a response arriving after Cancel still registers and activates the
+    /// account the user just walked away from.
+    @State private var apiKeyValidationTask: Task<Void, Never>?
 
     public init(
         oauthManager: OAuthManager,
@@ -120,12 +124,15 @@ public struct AuthView: View {
             // Footer
             HStack {
                 if isAddingAccount, let onCancel {
-                    Button("Cancel") { onCancel() }
-                        .buttonStyle(.plain)
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(ThemeColors.secondaryLabel)
-                        .accessibilityLabel("Cancel adding account")
-                        .accessibilityHint("Returns to the main popover")
+                    Button("Cancel") {
+                        cancelPendingWork()
+                        onCancel()
+                    }
+                    .buttonStyle(.plain)
+                    .font(Typography.tinyLabel)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
+                    .accessibilityLabel("Cancel adding account")
+                    .accessibilityHint("Returns to the main popover")
                 } else {
                     Button("Quit") { NSApplication.shared.terminate(nil) }
                         .buttonStyle(.plain)
@@ -360,7 +367,7 @@ public struct AuthView: View {
                 }
 
                 Button("Cancel") {
-                    oauthManager.cancelCodexAuthFlow()
+                    cancelPendingWork()
                     isAwaitingSignIn = false
                     errorMessage = nil
                 }
@@ -372,6 +379,16 @@ public struct AuthView: View {
                 .help("Cancel sign-in")
             }
         }
+    }
+
+    /// Abandon anything still in flight for this view: the Codex browser sign-in and the
+    /// API-key validation probe. Both can otherwise land after the user has backed out and
+    /// silently add an account.
+    private func cancelPendingWork() {
+        oauthManager.cancelCodexAuthFlow()
+        apiKeyValidationTask?.cancel()
+        apiKeyValidationTask = nil
+        isExchanging = false
     }
 
     private func startAuth() {
@@ -418,10 +435,14 @@ public struct AuthView: View {
             return
         }
         isExchanging = true
-        Task {
+        apiKeyValidationTask?.cancel()
+        apiKeyValidationTask = Task {
             // Free check first so a mistyped key fails here, not on the first paid probe.
             // A transient failure (.unknown) doesn't block — the account can still be added.
             let validation = await CodexRateLimitFetcher.shared.validateAPIKey(key)
+            // Cancel (overlay dismissed) between request and response: the key must not be
+            // persisted and the account must not be activated behind the user's back.
+            guard !Task.isCancelled else { return }
             isExchanging = false
             if validation == .invalid {
                 errorMessage = "OpenAI rejected this API key. Check it at platform.openai.com/api-keys."

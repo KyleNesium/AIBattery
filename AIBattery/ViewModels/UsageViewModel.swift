@@ -656,7 +656,12 @@ public final class UsageViewModel: ObservableObject {
         // Alert on the spike-confirmed limits, never the raw fetch — a held-but-
         // unconfirmed near-full spike must not fire a notification the bars won't show.
         if let limits = Self.alertableRateLimits(confirmed: confirmedRateLimits, rateLimitsFresh: rateLimitsFresh) {
-            NotificationManager.shared.checkRateLimitAlerts(rateLimits: limits)
+            // Scoped to the account the reading belongs to — a global latch let an account
+            // switch clear another account's "already fired" and re-alert on return.
+            NotificationManager.shared.checkRateLimitAlerts(
+                rateLimits: limits,
+                accountId: OAuthManager.shared.accountStore.activeAccountId
+            )
         }
 
         #if ENABLE_VERSION_CHECKER

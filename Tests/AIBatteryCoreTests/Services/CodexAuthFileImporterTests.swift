@@ -22,4 +22,20 @@ struct CodexAuthFileImporterTests {
         let missingRefresh = Data(#"{"tokens":{"id_token":"i","access_token":"a","account_id":"x"}}"#.utf8)
         #expect(CodexAuthFileImporter.parse(missingRefresh) == nil)
     }
+
+    /// `account_id` becomes a Keychain account suffix, a UserDefaults key suffix and the
+    /// `ChatGPT-Account-Id` header, out of a file any local process can write. Hold it to
+    /// the shape OpenAI issues instead of trusting whatever is on disk.
+    @Test func rejectsImplausibleAccountIds() {
+        #expect(CodexAuthFileImporter.isPlausibleAccountId("acc-77"))
+        #expect(CodexAuthFileImporter.isPlausibleAccountId("01a06764-9c28-78d1-9b78-00cf239db521"))
+        #expect(!CodexAuthFileImporter.isPlausibleAccountId(""))
+        #expect(!CodexAuthFileImporter.isPlausibleAccountId("acc 77"))
+        #expect(!CodexAuthFileImporter.isPlausibleAccountId("acc\r\nX-Injected: 1"))
+        #expect(!CodexAuthFileImporter.isPlausibleAccountId("../../etc/passwd"))
+        #expect(!CodexAuthFileImporter.isPlausibleAccountId(String(repeating: "a", count: 129)))
+
+        let injected = Data(#"{"tokens":{"id_token":"i","access_token":"a","refresh_token":"r","account_id":"a\r\nX: 1"}}"#.utf8)
+        #expect(CodexAuthFileImporter.parse(injected) == nil)
+    }
 }

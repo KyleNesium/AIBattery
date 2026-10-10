@@ -32,6 +32,11 @@ struct StandardRateLimitsTests {
         #expect(result?.requestsLimit == 0)
         #expect(result?.tokensLimit == 80_000)
         #expect(result?.tokensRemaining == 75_000)
+        // 0/0 means "this response reported no request limit", not "the request limit is
+        // exhausted". `requestsPercent` already guarded on `limit > 0`; the exhausted flag
+        // did not, so an API-key account showed "Limit reached" beside a 0% bar.
+        #expect(result?.isRequestsExhausted == false)
+        #expect(result?.requestsPercent == 0)
     }
 
     @Test func parse_caseInsensitive_works() {

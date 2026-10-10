@@ -37,6 +37,17 @@ struct CodexRateLimitFetcherBackoffTests {
         #expect(!CodexRateLimitFetcher.shouldSkipEndpoint(state, now: t0.addingTimeInterval(state.currentDelay + 1)))
     }
 
+    /// A backward clock jump (NTP correction, VM resume, manual change) made the elapsed
+    /// interval negative, which is `< currentDelay` for the whole skew — wedging the
+    /// endpoint in backoff for hours in a process that runs for weeks.
+    @Test func backwardClockJump_doesNotWedgeBackoff() {
+        let state = CodexRateLimitFetcher.recordingFailure(.init(), now: t0)
+        #expect(!CodexRateLimitFetcher.shouldSkipEndpoint(state, now: t0.addingTimeInterval(-3_600)))
+        #expect(!CodexRateLimitFetcher.shouldSkipEndpoint(state, now: t0.addingTimeInterval(-1)))
+        // Still honours a normal, forward backoff window.
+        #expect(CodexRateLimitFetcher.shouldSkipEndpoint(state, now: t0.addingTimeInterval(1)))
+    }
+
     @Test @MainActor func fetcher_tracksBackoffPerAccount() {
         let fetcher = CodexRateLimitFetcher()
         #expect(!fetcher.isInBackoffForTesting(accountId: "a"))

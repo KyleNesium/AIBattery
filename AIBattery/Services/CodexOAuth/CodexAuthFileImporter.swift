@@ -28,10 +28,20 @@ enum CodexAuthFileImporter {
         return .apiKey(key)
     }
 
+    /// `account_id` becomes a Keychain account suffix, a UserDefaults key suffix and the
+    /// `ChatGPT-Account-Id` request header, and it comes out of a file any local process
+    /// can write. Hold it to the shape OpenAI actually issues rather than trusting the
+    /// file, the same way the API-key branch is gated by `looksLikeOpenAIAPIKey`.
+    nonisolated static func isPlausibleAccountId(_ id: String) -> Bool {
+        guard (1...128).contains(id.count) else { return false }
+        return id.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
+    }
+
     nonisolated static func parse(_ data: Data) -> CodexImportedAuth? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tokens = root["tokens"] as? [String: Any],
               let accountId = tokens["account_id"] as? String,
+              isPlausibleAccountId(accountId),
               let idToken = tokens["id_token"] as? String,
               let accessToken = tokens["access_token"] as? String,
               let refreshToken = tokens["refresh_token"] as? String else {

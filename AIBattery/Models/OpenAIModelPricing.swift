@@ -42,8 +42,12 @@ enum OpenAIModelPricing {
         ("gpt-4o", rate(input: 2.50, output: 10.00, cached: 1.25)),
     ]
 
-    /// Longest-prefix match on the lowercased model ID; nil for unknown `gpt-*` IDs
-    /// so they show no cost rather than a wrong one.
+    /// Longest-prefix match on the lowercased model ID. An ID absent from the pricing
+    /// page falls through to its longest listed prefix, including across a minor version
+    /// (`gpt-5.3` → the `gpt-5` row), which is the documented trade-off in
+    /// spec/CONSTANTS.md: an approximate rate beats no cost at all for a model OpenAI
+    /// shipped since this table was read. An unknown *family* (`gpt-3.5-turbo`) still
+    /// returns nil and shows no cost. Add a row whenever a new minor version appears.
     static func pricing(for modelId: String) -> ModelPricing? {
         let id = modelId.lowercased()
         return table.first { id == $0.prefix || id.hasPrefix($0.prefix + "-") || id.hasPrefix($0.prefix + ".") }?.pricing

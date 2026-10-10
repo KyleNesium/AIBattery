@@ -43,7 +43,11 @@ enum CodexTokenClient {
         switch statusCode {
         case 200..<300:
             guard let response = try? JSONDecoder().decode(TokenResponse.self, from: data) else {
-                return .failure(.unknownError("Token endpoint returned \(statusCode)"))
+                // A 2xx we can't parse (truncated body, captive portal, proxy HTML) says
+                // nothing about the refresh token. `.unknownError` is non-transient and
+                // would sign the account out and delete its Keychain entry over what is
+                // most likely a bad hop — treat it like the other transient cases.
+                return .failure(.serverError(statusCode, provider: .codex))
             }
             return .success(CodexTokenSet(
                 idToken: response.idToken,

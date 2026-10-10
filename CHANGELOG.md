@@ -60,6 +60,48 @@ Claude accounts, Keychain items and settings carry over unchanged.
   permanent "—" slot in the multi-account menu bar.
 
 ### Fixed
+- **Codex token counts were inflated ~10%.** The CLI re-emits a `token_count`
+  event carrying the *previous* turn's usage verbatim whenever it refreshes rate
+  limits. Each repeat has its own `ordinal`, so the reader's message-id dedup let
+  it through and the same turn was counted again — measured at ~7% of events and
+  ~10% of the tokens in a real rollout tree, which flowed into Insights, costs
+  and the all-time high-water ledger. The parser now drops a `token_count` whose
+  cumulative total has not advanced.
+- **A duplicate account record could crash the app on every launch.** The
+  status-bar refresh built a provider lookup with a dictionary initializer that
+  traps on duplicate keys, while the persisted accounts blob was only
+  de-duplicated when adding or updating. One bad blob would have been an
+  unrecoverable launch loop. Duplicates are now dropped on load, and that call
+  site no longer traps.
+- **A bad network hop could sign a Codex account out.** A 2xx token response
+  whose body wouldn't parse (truncated reply, captive portal, proxy HTML) was
+  treated as a final answer and deleted the account's Keychain entry. It is now
+  retried like every other transient failure.
+- **Cancel now really cancels.** Clicking Cancel while a Codex sign-in was
+  exchanging its code, or while an API key was being validated, still registered
+  and activated the account when the response arrived. Both paths check for
+  cancellation before persisting anything, and starting a second sign-in no
+  longer has the first one clear its session.
+- **Rate-limit alerts are per account.** The "already fired" latch was global, so
+  switching accounts could clear another account's alert and re-fire it on
+  return — or swallow a second account's alert entirely.
+- **A Codex write followed closely by a Claude write stopped refreshing Codex
+  data.** Both filesystem events coalesce into one 2-second debounce, which kept
+  only the last event's cache invalidations; the Codex reader stayed on stale
+  entries until the next Codex write.
+- **Fixed, smaller:** an expired window in a session-log fallback reading is
+  cleared before display; a spike correction no longer persists a days-old CLI
+  snapshot as the account's restored-on-launch data; a backward clock jump no
+  longer wedges the Codex endpoint in backoff; a response without OpenAI's
+  request-rate headers no longer reads as "requests exhausted"; a held credit
+  budget stays consistent with the windows it mirrors; the `~/.codex` stand-in
+  watcher is released on deinit; the rollout content boundary also rejects a
+  `response_item` written with whitespace after the colon; OAuth secrets fail
+  loudly rather than silently falling back to predictable bytes; the sign-in
+  `state` is compared in constant time; an imported `~/.codex/auth.json` account
+  id must look like an account id; and an error message from the loopback
+  callback can no longer be arbitrary attacker-supplied text attributed to
+  OpenAI.
 - **Codex 100% is "at capacity", not a throttle.** `CodexUsageParser` no longer
   synthesizes `"throttled"` from `used_percent ≥ 100` — only an explicit
   `rate_limit_reached_type` (or a real HTTP 429) does. The synthesized status

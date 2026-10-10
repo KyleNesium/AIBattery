@@ -30,11 +30,13 @@ struct StandardRateLimits: Equatable, Codable {
     /// react to for an API-key account (a request cap can bind long before tokens do).
     var peakPercent: Double { max(requestsPercent, tokensPercent) }
 
-    /// Whether the account is at or near the request limit.
-    var isRequestsExhausted: Bool { requestsRemaining <= 0 }
+    /// Whether the account is at or near the request limit. A response that carried only
+    /// the token headers leaves `requestsLimit`/`requestsRemaining` at 0, which is "no
+    /// such limit reported", not "exhausted" — the limit must exist before it can bind.
+    var isRequestsExhausted: Bool { requestsLimit > 0 && requestsRemaining <= 0 }
 
-    /// Whether the account is at or near the token limit.
-    var isTokensExhausted: Bool { tokensRemaining <= 0 }
+    /// Whether the account is at or near the token limit. Same guard as requests.
+    var isTokensExhausted: Bool { tokensLimit > 0 && tokensRemaining <= 0 }
 
     /// A copy with every per-minute window whose reset has passed restored to its full
     /// allowance (remaining = limit, reset nil). Per-minute limits expire in seconds;

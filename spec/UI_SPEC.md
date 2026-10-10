@@ -8,12 +8,14 @@
 
 ```
 ┌──────────────────────────────────────┐
-│ ⬡ k•••@acme.com ⌃⌄            ⚙ │  ← ❶ Header (brand mark · identity · switcher, gear)
+│ ⬡ k•••@acme.com ⌄             ⚙ │  ← ❶ Header (brand mark · identity · switcher, gear)
 ├──────────────────────────────────────┤
 │ [Settings panel — collapsible]       │  ← ❶b Settings
 │  Accounts [✦] [________] (×)        │     (gear toggle)
 │           [⬡] [________] (×)        │
-│  + Add Account                      │
+│  + Add Claude account               │
+│  + Add Codex account                │
+│  Up to 3 accounts per provider.     │
 │  Refresh: [slider 30-300s]          │
 │  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
@@ -93,7 +95,7 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 All font sizes, spacing values, layout dimensions, and animation durations are defined as named constants in `Utilities/`:
 - **Typography** — 24 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`, `Typography.trendSymbol`, `Typography.autoModeLabel`)
 - **Spacing** — 11 spacing constants (`micro` 1pt, `tight` 2pt, `xsmall` 3pt, `inner` 4pt, `small` 4pt, `gap` 6pt, `section` 8pt, `medium` 10pt, `authGap` 12pt, `sectionHorizontal` 16pt, `overlay` 24pt)
-- **Layout** — 40 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `borderWidth` 1.5pt, `subtleBorderWidth` 1pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt, `appIconSize` 48pt, `activityModePickerWidth` 120pt, `indexColumn` 14pt, `tutorialCardMaxWidth` 280pt, `accountPickerMaxWidth` 100pt, `clipboardIconOffset` 13pt, `panelInitialHeight` 700pt, `panelMinHeight` 100pt, `menuBarInset` 40pt, `fallbackScreenHeight` 900pt, `chartTickWidth` 0.5pt)
+- **Layout** — 44 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `borderWidth` 1.5pt, `subtleBorderWidth` 1pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt, `appIconSize` 48pt, `activityModePickerWidth` 120pt, `indexColumn` 14pt, `tutorialCardMaxWidth` 280pt, `accountChipHeight` 28pt, `accountChipSpacing` 6pt, `capHeightBaselineOffset` 4.3pt, `providerBadgeSize` 18pt, `providerMarkSize` 12pt, `clipboardIconOffset` 13pt, `panelInitialHeight` 700pt, `panelMinHeight` 100pt, `menuBarInset` 40pt, `fallbackScreenHeight` 900pt, `chartTickWidth` 0.5pt)
 - **ThemeColors** — surface elevation (`surfaceLevel1`, `surfaceLevel2`), semantic strokes (`inactiveStroke` for unselected/idle outlines, `shadowColor` for elevated-control shadows), interactive states (`hoverFill`, `copyableHoverFill`), opacity tokens (`dividerOpacity` 0.3, `overlayBackdropOpacity` 0.4, `inactiveIndicatorOpacity` 0.45, `subtleBorderOpacity` 0.2, `hoverBorderOpacity` 0.4, `activeLabelOpacity` 0.5, `focusRingOpacity` 0.6, `shadowOpacity` 0.25, `disabledOpacity` 0.55, `disabledDeepOpacity` 0.25, `subtleElementOpacity` 0.12, `subtleStrokeOpacity` 0.35, `chartGradientStartOpacity` 0.3, `chartGradientEndOpacity` 0.1, `activeAccentOpacity` 0.6, `activeElementFillOpacity` 0.15, `enabledControlOpacity` 0.6)
 - **MotionConstants** — animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `fadeOut` 0.3s, `fadeIn` 0.3s, `dialog` 0.2s, `spin` 0.5s, `expandTransition` plain `.opacity` — `.move(edge:)` is forbidden inside the popover because the NSPanel resizes around the inserting view and the slide reads as a "jump"). Marquee timing tokens: `marqueePauseSeconds` 0.5, `marqueeHoldSeconds` 3.0, `marqueeRestartSeconds` 0.1, `marqueeFadeSettleSeconds` 0.6, `marqueeScrollSpeed` 30 pts/s, `marqueeScroll(travelPoints:)` builder.
 

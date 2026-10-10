@@ -47,7 +47,12 @@ final class CodexRateLimitFetcher {
 
     nonisolated static func shouldSkipEndpoint(_ state: EndpointBackoff, now: Date) -> Bool {
         guard let failedAt = state.lastFailedAt, state.failureCount > 0 else { return false }
-        return now.timeIntervalSince(failedAt) < state.currentDelay
+        let elapsed = now.timeIntervalSince(failedAt)
+        // A backward clock jump (NTP correction, VM resume, manual change) makes `elapsed`
+        // negative, which is `< currentDelay` for the whole skew. A menu-bar app runs for
+        // weeks, so that would wedge the endpoint in backoff until the next relaunch.
+        guard elapsed >= 0 else { return false }
+        return elapsed < state.currentDelay
     }
 
     nonisolated static func recordingFailure(_ state: EndpointBackoff, now: Date, policy: RetryPolicy = .statusCheck) -> EndpointBackoff {
@@ -349,13 +354,22 @@ final class CodexRateLimitFetcher {
     /// must not overwrite real endpoint data on disk.
     private func sessionLogFallback(accountId: String) -> APIFetchResult {
         let codexAccountCount = OAuthManager.shared.accountStore.accounts.filter { $0.provider == .codex && !$0.isAPIKeyAccount }.count
+        // Check the cheap disqualifier first. With 2+ ChatGPT-backed accounts the scan
+        // result is discarded unconditionally, and this path runs on every poll for every
+        // account for as long as the endpoint is down — a whole-tree walk per account per
+        // poll, thrown away.
+        guard codexAccountCount <= 1 else { return cachedOrEmpty(accountId: accountId) }
         guard let (rateLimits, asOf) = CodexSessionRateLimitScanner.latestRateLimits(),
               Self.shouldUseSessionLogFallback(cached: cachedResults[accountId], fallbackAsOf: asOf, codexAccountCount: codexAccountCount) else {
             return cachedOrEmpty(accountId: accountId)
         }
         AppLogger.network.info("codex usage endpoint unavailable — using session log fallback")
         let result = APIFetchResult(
-            rateLimits: rateLimits,
+            // A rollout's snapshot can already be past its own reset. `cachedOrEmpty`
+            // normalizes on the cache path; do the same here or an expired window
+            // reappears at its old utilization (and its old throttle) until some later
+            // cache read happens to clear it.
+            rateLimits: rateLimits.withClearedExpiredWindows(),
             rateLimitSource: .codexSessionLog,
             profile: nil,
             fetchedAt: asOf,
@@ -481,6 +495,10 @@ extension CodexRateLimitFetcher {
             planType: cached.planType
         )
         cachedResults[accountId] = corrected
+        // `sessionLogFallback` caches but never persists its reading, for a reason: a CLI
+        // rollout snapshot can be days old and must not become the "last known good" blob
+        // restored on the next launch. Correcting a spike must not smuggle it onto disk.
+        guard cached.rateLimitSource != .codexSessionLog else { return }
         persistRateLimits(corrected, accountId: accountId, defaults: defaults)
     }
 

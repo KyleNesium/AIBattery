@@ -142,10 +142,24 @@ public final class AccountStore: ObservableObject {
         UserDefaults.standard.set(activeAccountId, forKey: UserDefaultsKeys.activeAccountId)
     }
 
+    /// First record wins per id. Only `add`/`update` guard uniqueness, so the persisted
+    /// blob can carry two records with one id (a legacy build, a half-applied merge, a
+    /// downgrade/upgrade round-trip). Downstream code keys dictionaries by account id —
+    /// `Dictionary(uniqueKeysWithValues:)` traps on a duplicate, and one of those sits in
+    /// the status-bar refresh path, so a bad blob would be an unrecoverable launch loop.
+    nonisolated static func deduplicated(_ records: [AccountRecord]) -> [AccountRecord] {
+        var seen = Set<String>()
+        return records.filter { seen.insert($0.id).inserted }
+    }
+
     private func load() {
         if let data = UserDefaults.standard.data(forKey: UserDefaultsKeys.accounts),
            let decoded = try? Self.jsonDecoder.decode([AccountRecord].self, from: data) {
-            accounts = decoded
+            accounts = Self.deduplicated(decoded)
+            let dropped = decoded.count - accounts.count
+            if dropped > 0 {
+                AppLogger.general.warning("AccountStore: dropped \(dropped) duplicate account record(s) on load")
+            }
         }
         activeAccountId = UserDefaults.standard.string(forKey: UserDefaultsKeys.activeAccountId)
         // Fix active ID pointing at a removed account

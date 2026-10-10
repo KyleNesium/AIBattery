@@ -188,6 +188,45 @@ struct CodexCreditBudgetTests {
         #expect(result.display.creditBudget == fresh.creditBudget)
     }
 
+    /// The budget is mirrored onto both windows, and the Credits bar reads the nested
+    /// object directly. Letting the raw budget through while the windows are held showed
+    /// "Budget reached" in the popover beside a held 20% in the menu bar — the same
+    /// inconsistency `withClearedExpiredWindows` rolls the budget over to prevent.
+    @Test func spikeFilter_holdsTheCreditBudgetWithItsWindows() throws {
+        let spike = try #require(CodexUsageParser.parseUsageResponse(businessBody))
+        let previous = RateLimitUsage(
+            representativeClaim: spike.representativeClaim,
+            fiveHourUtilization: 20,
+            fiveHourReset: spike.fiveHourReset,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 20,
+            sevenDayReset: spike.sevenDayReset,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed",
+            provider: .codex,
+            fiveHourWindowMinutes: spike.fiveHourWindowMinutes,
+            sevenDayWindowMinutes: spike.sevenDayWindowMinutes,
+            creditBudget: spike.creditBudget?.rolledOver()
+        )
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: spike,
+            previousDisplayed: previous,
+            previouslyNearFull: [:]
+        )
+        guard !result.heldWindows.isEmpty else { return } // nothing held: nothing to assert
+        #expect(
+            result.display.creditBudget == previous.creditBudget,
+            "a held window must not be displayed next to the unheld budget it mirrors"
+        )
+    }
+
+    /// Cold start: no previous budget to hold at, so the fresh reading stands — the same
+    /// rule the windows follow rather than fabricating a 0%.
+    @Test func spikeFilter_withoutPreviousBudget_keepsTheFreshOne() throws {
+        let fresh = try #require(CodexUsageParser.parseUsageResponse(businessBody))
+        #expect(UsageViewModel.heldBudget(fresh: fresh, previousDisplayed: nil) == fresh.creditBudget)
+    }
+
     @Test func compactCredits_formatting() {
         #expect(CodexCreditBudget.formatCredits(7_006.3) == "7.0K")
         #expect(CodexCreditBudget.formatCredits(32_768) == "32.8K")
