@@ -41,8 +41,9 @@ struct ModelNameMapperTests {
     }
 
     @Test func displayName_noPrefix() {
-        // Model without claude- prefix: "gpt-4" → family "Gpt", version "4" → "Gpt 4"
-        #expect(ModelNameMapper.displayName(for: "gpt-4") == "Gpt 4")
+        // Model without claude- prefix takes the generic family-first path:
+        // "llama-3" → family "Llama", version "3" → "Llama 3". (gpt-* has its own branch.)
+        #expect(ModelNameMapper.displayName(for: "llama-3") == "Llama 3")
     }
 
     @Test func displayName_onlyDateSuffix() {
@@ -118,5 +119,27 @@ struct ModelNameMapperTests {
         let a = ModelNameMapper.displayName(for: modelId)
         let b = ModelNameMapper.displayName(for: modelId)
         #expect(a == b)
+    }
+
+    // MARK: - OpenAI (Codex) models
+
+    @Test func displayName_gpt54() {
+        #expect(ModelNameMapper.displayName(for: "gpt-5.4") == "GPT-5.4")
+    }
+
+    @Test func displayName_gpt56Sol() {
+        #expect(ModelNameMapper.displayName(for: "gpt-5.6-sol") == "GPT-5.6 Sol")
+    }
+
+    @Test func displayName_gpt5Mini() {
+        #expect(ModelNameMapper.displayName(for: "gpt-5-mini") == "GPT-5 Mini")
+    }
+
+    @Test func displayName_gpt53Codex() {
+        #expect(ModelNameMapper.displayName(for: "gpt-5.3-codex") == "GPT-5.3 Codex")
+    }
+
+    @Test func displayName_gptBare() {
+        #expect(ModelNameMapper.displayName(for: "gpt-5") == "GPT-5")
     }
 }

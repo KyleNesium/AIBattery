@@ -84,6 +84,31 @@ struct UsageViewModelTests {
         #expect(msg == "Unable to reach Anthropic API. Check your internet connection and try again.")
     }
 
+    /// A Codex result never carries a profile, so a first-run user whose endpoint call
+    /// failed used to be told to "start a Codex session". The fetcher now flags the
+    /// failure and the copy says what actually happened.
+    @Test func refreshErrorMessage_codexEndpointUnavailable_saysUnreachable() {
+        let failed = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 0,
+            provider: .codex, endpointUnavailable: true
+        )
+        #expect(failed == "Unable to reach OpenAI. Check your internet connection and try again.")
+        let fresh = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 0,
+            provider: .codex, endpointUnavailable: false
+        )
+        #expect(fresh == "No usage data yet. Start a Codex session to see your stats.")
+        // Auth errors still win.
+        let auth = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 0,
+            authError: true, provider: .codex, endpointUnavailable: true
+        )
+        #expect(auth?.contains("Authentication failed") == true)
+    }
+
     @Test func refreshErrorMessage_hasRateLimits_returnsNil() {
         let msg = UsageViewModel.refreshErrorMessage(
             hasRateLimits: true,
@@ -951,5 +976,60 @@ struct UsageViewModelTests {
         #expect(result.display.fiveHourUtilization == 0.30)
         #expect(result.heldWindows.isEmpty)
         #expect(result.nearFullWindows.isEmpty)
+    }
+
+    @Test func spikeConfirmed_heldCodexSpike_keepsProviderAndWindowMinutes() {
+        // A held (unconfirmed) Codex spike must not revert to Claude vocabulary mid-hold:
+        // `display` is rebuilt from scratch by this filter, so provider/window-minutes
+        // must be threaded from the fresh reading exactly like markedThrottled() does —
+        // otherwise a held Codex reading would decode as .claude (Weekly→7-Day, WK→7D).
+        let fresh = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: Self.fiveHourResetRef, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: Self.sevenDayResetRef, sevenDayStatus: "allowed",
+            overallStatus: "allowed",
+            provider: .codex, fiveHourWindowMinutes: 300, sevenDayWindowMinutes: 10_080
+        )
+        let previous = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.02, fiveHourReset: Self.fiveHourResetRef, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.10, sevenDayReset: Self.sevenDayResetRef, sevenDayStatus: "allowed",
+            overallStatus: "allowed",
+            provider: .codex, fiveHourWindowMinutes: 300, sevenDayWindowMinutes: 10_080
+        )
+        let result = UsageViewModel.spikeConfirmedRateLimits(
+            fresh: fresh, previousDisplayed: previous, previouslyNearFull: [:], now: Self.spikeNow
+        )
+        #expect(result.heldWindows == [RateLimitUsage.fiveHourWindow])
+        #expect(result.display.fiveHourUtilization == 0.02) // held at previous value
+        #expect(result.display.provider == .codex)
+        #expect(result.display.fiveHourWindowMinutes == 300)
+        #expect(result.display.sevenDayWindowMinutes == 10_080)
+    }
+
+    // MARK: - Provider-aware error copy
+
+    @Test func refreshErrorMessage_codex_networkErrorNamesOpenAI() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 10, provider: .codex
+        )
+        #expect(msg == "Unable to reach OpenAI. Check your internet connection and try again.")
+    }
+
+    @Test func refreshErrorMessage_codex_firstUseNamesCodex() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 0, provider: .codex
+        )
+        #expect(msg == "No usage data yet. Start a Codex session to see your stats.")
+    }
+
+    @Test func refreshErrorMessage_claudeDefault_unchanged() {
+        let msg = UsageViewModel.refreshErrorMessage(
+            hasRateLimits: false, hasStandardLimits: false, hasProfile: false,
+            hasStandardRateLimitHeaders: false, totalMessages: 10
+        )
+        #expect(msg == "Unable to reach Anthropic API. Check your internet connection and try again.")
     }
 }

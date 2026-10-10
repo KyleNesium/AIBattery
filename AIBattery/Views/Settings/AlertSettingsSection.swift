@@ -15,7 +15,7 @@ struct AlertSettingsSection: View {
             Toggle("Status", isOn: $alertStatus)
                 .toggleStyle(.checkbox)
                 .font(Typography.caption)
-                .help("Notify on Claude.ai outages and incidents")
+                .help("Notify on provider status-page outages and incidents")
                 .onChange(of: alertStatus) { on in
                     if on {
                         NotificationManager.shared.requestPermission()
@@ -36,7 +36,12 @@ struct AlertSettingsSection: View {
                     size: .compact,
                     help: "Send a test notification",
                     accessibilityLabel: "Test alerts",
-                    action: { NotificationManager.shared.testAlerts() }
+                    action: {
+                        let provider = OAuthManager.shared.accountStore.activeAccount?.provider ?? .claude
+                        NotificationManager.shared.testAlerts(
+                            components: StatusChecker.shared(for: provider).config.knownComponents
+                        )
+                    }
                 )
             }
         }

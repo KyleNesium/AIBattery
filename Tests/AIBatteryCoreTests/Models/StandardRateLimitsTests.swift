@@ -32,6 +32,11 @@ struct StandardRateLimitsTests {
         #expect(result?.requestsLimit == 0)
         #expect(result?.tokensLimit == 80_000)
         #expect(result?.tokensRemaining == 75_000)
+        // 0/0 means "this response reported no request limit", not "the request limit is
+        // exhausted". `requestsPercent` already guarded on `limit > 0`; the exhausted flag
+        // did not, so an API-key account showed "Limit reached" beside a 0% bar.
+        #expect(result?.isRequestsExhausted == false)
+        #expect(result?.requestsPercent == 0)
     }
 
     @Test func parse_caseInsensitive_works() {
@@ -56,6 +61,16 @@ struct StandardRateLimitsTests {
         )
         #expect(limits.requestsPercent == 40.0) // 20/50 = 40%
         #expect(limits.tokensPercent == 25.0) // 20000/80000 = 25%
+    }
+
+    /// The menu bar for an API-key account follows the tighter of the two per-minute
+    /// limits — a 16-token probe barely moves the token bar while requests can bind.
+    @Test func peakPercent_isTheTighterLimit() {
+        let limits = StandardRateLimits(
+            requestsLimit: 10, requestsRemaining: 2, requestsReset: nil,
+            tokensLimit: 100_000, tokensRemaining: 99_000, tokensReset: nil
+        )
+        #expect(limits.peakPercent == 80.0)
     }
 
     @Test func requestsPercent_zeroLimit_returnsZero() {
@@ -138,5 +153,33 @@ struct StandardRateLimitsTests {
         #expect(result != nil)
         #expect(result?.tokensLimit == 0)
         #expect(result?.tokensRemaining == 0)
+    }
+
+    /// Per-minute limits expire in seconds. A cached `remaining: 0` served while the next
+    /// probe is offline / backing off must not keep an API-key account at 100% past its
+    /// own reset — each exhausted window restores to its full allowance independently.
+    @Test func withClearedExpiredWindows_restoresOnlyTheWindowsWhoseResetPassed() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let limits = StandardRateLimits(
+            requestsLimit: 500, requestsRemaining: 0, requestsReset: now.addingTimeInterval(-1),
+            tokensLimit: 30_000, tokensRemaining: 0, tokensReset: now.addingTimeInterval(20)
+        )
+        #expect(limits.peakPercent == 100)
+
+        let cleared = limits.withClearedExpiredWindows(now: now)
+        #expect(cleared.requestsRemaining == 500)
+        #expect(cleared.requestsReset == nil)
+        #expect(cleared.requestsPercent == 0)
+        #expect(cleared.tokensRemaining == 0) // not yet reset
+        #expect(cleared.tokensReset == now.addingTimeInterval(20))
+        #expect(cleared.peakPercent == 100)
+
+        let later = cleared.withClearedExpiredWindows(now: now.addingTimeInterval(21))
+        #expect(later.tokensRemaining == 30_000)
+        #expect(later.peakPercent == 0)
+
+        // No resets known → nothing to age out, same value back.
+        let resetless = StandardRateLimits(requestsLimit: 5, requestsRemaining: 0, requestsReset: nil, tokensLimit: 5, tokensRemaining: 0, tokensReset: nil)
+        #expect(resetless.withClearedExpiredWindows(now: now) == resetless)
     }
 }

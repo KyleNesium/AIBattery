@@ -34,7 +34,9 @@ extension UsageViewModel {
         hasProfile: Bool,
         hasStandardRateLimitHeaders: Bool,
         totalMessages: Int,
-        authError: Bool = false
+        authError: Bool = false,
+        provider: AIProvider = .claude,
+        endpointUnavailable: Bool = false
     ) -> String? {
         if authError {
             return "Authentication failed — please log out and reconnect this account."
@@ -48,13 +50,22 @@ extension UsageViewModel {
         if hasStandardRateLimitHeaders {
             return nil
         }
+        // Codex results never carry a profile, so a first-run user whose endpoint call
+        // failed would otherwise be told to "start a session" instead of the truth.
+        if endpointUnavailable, provider == .codex {
+            return "Unable to reach OpenAI. Check your internet connection and try again."
+        }
         if !hasProfile && totalMessages == 0 {
-            return "No usage data yet. Start a Claude Code session to see your stats."
+            return provider == .codex
+                ? "No usage data yet. Start a Codex session to see your stats."
+                : "No usage data yet. Start a Claude Code session to see your stats."
         }
         if hasProfile {
             return nil
         }
-        return "Unable to reach Anthropic API. Check your internet connection and try again."
+        return provider == .codex
+            ? "Unable to reach OpenAI. Check your internet connection and try again."
+            : "Unable to reach Anthropic API. Check your internet connection and try again."
     }
 
     /// Whether snapshot data has changed compared to previous values. Used by adaptive polling.
@@ -316,9 +327,32 @@ extension UsageViewModel {
             sevenDayUtilization: holdSevenDay ? (previousDisplayed?.sevenDayUtilization ?? 0) : fresh.sevenDayUtilization,
             sevenDayReset: fresh.sevenDayReset,
             sevenDayStatus: displaySevenDayStatus,
-            overallStatus: displayOverallStatus
+            overallStatus: displayOverallStatus,
+            provider: fresh.provider,
+            fiveHourWindowMinutes: fresh.fiveHourWindowMinutes,
+            sevenDayWindowMinutes: fresh.sevenDayWindowMinutes,
+            // A credit budget is mirrored onto BOTH windows, and the Credits bar reads
+            // this nested object directly. Letting the raw budget through while the
+            // windows are held would show "Budget reached" in the popover next to a
+            // held 20% in the menu bar — the same inconsistency `withClearedExpiredWindows`
+            // exists to prevent. Hold it with them.
+            creditBudget: heldBudget(fresh: fresh, previousDisplayed: previousDisplayed)
         )
         return SpikeConfirmedRateLimits(display: display, nearFullWindows: nearFull, heldWindows: held)
+    }
+
+    /// The credit budget to display while a near-full spike is being held. The previous
+    /// displayed budget is the counterpart of the previous displayed utilization the
+    /// windows fall back to; without one (cold start) the fresh reading stands, exactly
+    /// as it does for the windows.
+    nonisolated static func heldBudget(
+        fresh: RateLimitUsage,
+        previousDisplayed: RateLimitUsage?
+    ) -> CodexCreditBudget? {
+        guard fresh.creditBudget != nil, let previous = previousDisplayed?.creditBudget else {
+            return fresh.creditBudget
+        }
+        return previous
     }
 
     /// Generic TTL guard for optional values that ride alongside rate limits.

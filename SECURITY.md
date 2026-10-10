@@ -18,7 +18,7 @@ If you discover a security vulnerability, please report it responsibly:
 
 ## Scope
 
-AI Battery stores OAuth tokens in the macOS Keychain and reads local Claude Code session logs. Security concerns related to token handling, credential storage, or unintended data exposure are in scope.
+AI Battery stores OAuth refresh tokens (Claude and ChatGPT/Codex) and OpenAI API keys in the macOS Keychain, reads local Claude Code (`~/.claude/projects`) and Codex CLI (`~/.codex/sessions`) session logs for token counts only, reads `~/.codex/auth.json` once on an explicit import, and runs a loopback-only (127.0.0.1:1455) listener during Codex sign-in. Security concerns related to token or API-key handling, credential storage, the OAuth callback, or unintended data exposure (including account identities such as sign-in emails) are in scope.
 
 ## Response
 

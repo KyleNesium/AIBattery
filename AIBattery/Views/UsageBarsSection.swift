@@ -39,7 +39,7 @@ struct SevenDayBarSection: View {
 
     var body: some View {
         UsageBar(
-            label: "7-Day",
+            label: limits.sevenDayDisplayLabel,
             percent: limits.sevenDayPercent,
             resetsAt: limits.sevenDayReset,
             source: source,
@@ -51,6 +51,34 @@ struct SevenDayBarSection: View {
         )
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
+    }
+}
+
+/// Purchased-credit balance on a Codex subscription plan — spent only after the
+/// 5-hour / weekly windows run out. Shown beneath the Weekly bar.
+struct CreditBalanceRow: View {
+    let balance: Double
+    var unlimited: Bool = false
+
+    var body: some View {
+        let text = unlimited ? "Credits: unlimited" : "Credits balance: \(CodexCreditBudget.formatCredits(balance))"
+        HStack(spacing: Spacing.inner) {
+            Image(systemName: "creditcard")
+                .font(Typography.tinyLabel)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Typography.tinyLabel)
+                .foregroundStyle(ThemeColors.secondaryLabel)
+                .copyable(text)
+            Spacer()
+            Text("used once limits are reached")
+                .font(Typography.tinyLabel)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+        }
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.bottom, Spacing.section)
+        .help("Purchased Codex credits kick in when your plan's rate-limit windows are exhausted")
     }
 }
 

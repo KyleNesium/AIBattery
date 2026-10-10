@@ -7,8 +7,8 @@ import os
 /// published so SwiftUI views react to account changes.
 @MainActor
 public final class AccountStore: ObservableObject {
-    /// Maximum number of accounts supported.
-    nonisolated static let maxAccounts = 3
+    /// Maximum number of accounts per provider (3 Claude + 3 Codex).
+    nonisolated static let maxAccountsPerProvider = 3
 
     /// The persisted active account ID, readable off-MainActor (UserDefaults is
     /// thread-safe). Used by nonisolated read paths (e.g. `LocalUsageEstimate`)
@@ -27,8 +27,24 @@ public final class AccountStore: ObservableObject {
         accounts.first { $0.id == activeAccountId }
     }
 
-    public var canAddAccount: Bool {
-        accounts.count < Self.maxAccounts
+    public func accounts(for provider: AIProvider) -> [AccountRecord] {
+        accounts.filter { $0.provider == provider }
+    }
+
+    public func canAddAccount(provider: AIProvider) -> Bool {
+        accounts(for: provider).count < Self.maxAccountsPerProvider
+    }
+
+    /// The record for an id, if known.
+    public func account(id: String?) -> AccountRecord? {
+        guard let id else { return nil }
+        return accounts.first { $0.id == id }
+    }
+
+    /// Provider of an account; `.claude` for unknown ids (pre-provider records and
+    /// the signed-out state) — the single home for a lookup that used to be repeated.
+    public func provider(of id: String?) -> AIProvider {
+        account(id: id)?.provider ?? .claude
     }
 
     public init() {
@@ -38,8 +54,8 @@ public final class AccountStore: ObservableObject {
     // MARK: - Mutations
 
     public func add(_ record: AccountRecord) {
-        guard accounts.count < Self.maxAccounts else {
-            AppLogger.oauth.warning("Cannot add account — max \(Self.maxAccounts) reached")
+        guard accounts(for: record.provider).count < Self.maxAccountsPerProvider else {
+            AppLogger.oauth.warning("Cannot add account — max \(Self.maxAccountsPerProvider) \(record.provider.rawValue, privacy: .public) accounts reached")
             return
         }
         guard !accounts.contains(where: { $0.id == record.id }) else {
@@ -86,6 +102,9 @@ public final class AccountStore: ObservableObject {
             if merged.billingType == nil {
                 merged.billingType = existing.billingType
             }
+            if merged.discoveredIdentity == nil {
+                merged.discoveredIdentity = existing.discoveredIdentity
+            }
 
             AppLogger.oauth.info("Merging duplicate account \(oldId, privacy: .public) → \(newRecord.id, privacy: .public)")
 
@@ -123,15 +142,133 @@ public final class AccountStore: ObservableObject {
         UserDefaults.standard.set(activeAccountId, forKey: UserDefaultsKeys.activeAccountId)
     }
 
+    /// First record wins per id. Only `add`/`update` guard uniqueness, so the persisted
+    /// blob can carry two records with one id (a legacy build, a half-applied merge, a
+    /// downgrade/upgrade round-trip). Downstream code keys dictionaries by account id —
+    /// `Dictionary(uniqueKeysWithValues:)` traps on a duplicate, and one of those sits in
+    /// the status-bar refresh path, so a bad blob would be an unrecoverable launch loop.
+    nonisolated static func deduplicated(_ records: [AccountRecord]) -> [AccountRecord] {
+        var seen = Set<String>()
+        return records.filter { seen.insert($0.id).inserted }
+    }
+
     private func load() {
         if let data = UserDefaults.standard.data(forKey: UserDefaultsKeys.accounts),
            let decoded = try? Self.jsonDecoder.decode([AccountRecord].self, from: data) {
-            accounts = decoded
+            accounts = Self.deduplicated(decoded)
+            let dropped = decoded.count - accounts.count
+            if dropped > 0 {
+                AppLogger.general.warning("AccountStore: dropped \(dropped) duplicate account record(s) on load")
+            }
         }
         activeAccountId = UserDefaults.standard.string(forKey: UserDefaultsKeys.activeAccountId)
         // Fix active ID pointing at a removed account
         if let active = activeAccountId, !accounts.contains(where: { $0.id == active }) {
             activeAccountId = accounts.first?.id
         }
+    }
+
+    /// Fill an account's `discoveredIdentity` when it has none. Never overwrites a
+    /// known identity (a changed email claim is not a reason to rename a row under the
+    /// user) and ignores blanks / unknown ids. Returns whether anything changed.
+    @discardableResult
+    public func backfillDiscoveredIdentity(accountId: String, identity: String?) -> Bool {
+        guard let identity = identity?.trimmingCharacters(in: .whitespacesAndNewlines), !identity.isEmpty,
+              var record = account(id: accountId), record.discoveredIdentity == nil else { return false }
+        record.discoveredIdentity = identity
+        update(oldId: accountId, with: record)
+        return true
+    }
+
+    // MARK: - Display & Ordering
+
+    /// Claude block first, insertion order preserved within each provider.
+    /// Single source of display order for picker, fan-out, and menu bar.
+    nonisolated static func displayOrdered(_ accounts: [AccountRecord]) -> [AccountRecord] {
+        accounts.filter { $0.provider == .claude } + accounts.filter { $0.provider == .codex }
+    }
+
+    /// Whether a set of accounts spans both providers — the only case where labels
+    /// carry the provider glyph (a single-provider setup stays exactly as before).
+    nonisolated static func spansBothProviders(_ accounts: [AccountRecord]) -> Bool {
+        Set(accounts.map(\.provider)).count > 1
+    }
+
+    /// Placeholder identity for a record whose org id the API hasn't confirmed yet.
+    nonisolated static let connectingLabel = "Connecting…"
+
+    /// Zero-based position of `account` among the accounts of its own provider, in
+    /// `displayOrdered` order. Drives the "Claude 2" / "Codex 1" fallback numbering,
+    /// so adding a Claude account never renumbers the Codex ones. 0 for unknown ids.
+    nonisolated static func providerIndex(of account: AccountRecord, in accounts: [AccountRecord]) -> Int {
+        displayOrdered(accounts)
+            .filter { $0.provider == account.provider }
+            .firstIndex { $0.id == account.id } ?? 0
+    }
+
+    /// Whether the local Codex cost rows are a real bill for `activeId`. The rollouts
+    /// under `~/.codex/sessions` belong to the CLI, not to any one AI Battery account,
+    /// and carry no auth mode — so they can be called "billed at API rates" only when
+    /// the active account is an API key AND no ChatGPT-backed Codex account exists
+    /// that could have produced them under a subscription. Mirrors the session-log
+    /// fallback's attribution rule (skipped with more than one ChatGPT account).
+    nonisolated static func billsLocalCodexCosts(accounts: [AccountRecord], activeId: String) -> Bool {
+        guard let active = accounts.first(where: { $0.id == activeId }), active.isAPIKeyAccount else { return false }
+        return !accounts.contains { $0.provider == .codex && !$0.isAPIKeyAccount }
+    }
+
+    /// `kyle@example.com` → `k•••@example.com`. Anything that isn't `local@domain`
+    /// with a non-empty local part comes back unchanged (workspace names, blanks).
+    nonisolated static func maskedEmail(_ identity: String) -> String {
+        guard let at = identity.firstIndex(of: "@"), at != identity.startIndex,
+              identity.index(after: at) != identity.endIndex else { return identity }
+        return "\(identity[identity.startIndex])•••\(identity[at...])"
+    }
+
+    /// The bare identity (no glyph, no plan) by precedence: the user's alias, then the
+    /// provider-discovered identity (email masked when `maskEmail`), then
+    /// "<Provider> N". A pending record without an alias reads `connectingLabel`.
+    nonisolated static func identityLabel(for account: AccountRecord, providerIndex: Int, maskEmail: Bool) -> String {
+        if let alias = account.displayName?.trimmingCharacters(in: .whitespaces), !alias.isEmpty {
+            return alias
+        }
+        if account.isPendingIdentity {
+            return connectingLabel
+        }
+        if let discovered = account.discoveredIdentity?.trimmingCharacters(in: .whitespaces), !discovered.isEmpty {
+            return maskEmail ? maskedEmail(discovered) : discovered
+        }
+        return "\(account.provider.displayName) \(providerIndex + 1)"
+    }
+
+    /// The one label an account gets everywhere it is listed (chip menu rows, Settings
+    /// rows): `identityLabel`, prefixed with the provider glyph when `showsProviderGlyph`
+    /// and, for Codex, optionally suffixed with the plan ("· Business", "· API").
+    nonisolated static func displayLabel(
+        for account: AccountRecord,
+        providerIndex: Int,
+        showsProviderGlyph: Bool,
+        includePlan: Bool,
+        maskEmail: Bool
+    ) -> String {
+        let base = identityLabel(for: account, providerIndex: providerIndex, maskEmail: maskEmail)
+        let labelled = showsProviderGlyph ? "\(account.provider.glyph) \(base)" : base
+        if includePlan, account.provider == .codex, let plan = planLabel(account.billingType) {
+            return "\(labelled) · \(plan)"
+        }
+        return labelled
+    }
+
+    /// "plus" → "Plus", "api" → "API", "chatgpt_team" → "ChatGPT Team"; nil for empty/unknown.
+    nonisolated static func planLabel(_ billingType: String?) -> String? {
+        guard let raw = billingType?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        let words = raw.split(whereSeparator: { $0 == "_" || $0 == "-" || $0 == " " })
+        return words.map { word -> String in
+            switch word.lowercased() {
+            case "api": "API"
+            case "chatgpt": "ChatGPT"
+            default: word.prefix(1).uppercased() + word.dropFirst().lowercased()
+            }
+        }.joined(separator: " ")
     }
 }

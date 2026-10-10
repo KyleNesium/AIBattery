@@ -16,6 +16,14 @@ struct APIFetchResult {
     /// True when the Messages API persistently rejects the access token (≥3 consecutive
     /// 401/403 responses). Surface to the user so they can reconnect the account.
     let authError: Bool
+    /// Codex plan (`plan_type` from wham/usage: free / plus / pro / team / business / …),
+    /// or "api" for API-key accounts. Synced onto `AccountRecord.billingType`.
+    let planType: String?
+
+    /// True when this cycle's provider request failed (transport error, 5xx, backoff)
+    /// and there was nothing cached to serve — distinguishes "provider unreachable" from
+    /// "account has no data yet" in the popover's error copy.
+    let endpointUnavailable: Bool
 
     init(
         rateLimits: RateLimitUsage?,
@@ -25,8 +33,11 @@ struct APIFetchResult {
         hasStandardRateLimitHeaders: Bool = false,
         fetchedAt: Date = Date(),
         isCached: Bool = false,
-        authError: Bool = false
+        authError: Bool = false,
+        planType: String? = nil,
+        endpointUnavailable: Bool = false
     ) {
+        self.endpointUnavailable = endpointUnavailable
         self.rateLimits = rateLimits
         self.rateLimitSource = rateLimits == nil ? nil : (rateLimitSource ?? .anthropicAPIHeaders)
         self.standardLimits = standardLimits
@@ -35,5 +46,6 @@ struct APIFetchResult {
         self.fetchedAt = fetchedAt
         self.isCached = isCached
         self.authError = authError
+        self.planType = planType
     }
 }

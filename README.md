@@ -4,11 +4,11 @@
 
 # AI Battery
 
-**Get the most out of your Claude subscription.**
+**Get the most out of your Claude and Codex subscriptions.**
 
 [aibattery.dev](https://aibattery.dev)
 
-Monitor rate limits, context health, and token usage — always visible in your macOS menu bar.
+Monitor rate limits, context health, and token usage for Claude Code **and** OpenAI Codex accounts — always visible in your macOS menu bar.
 
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift&logoColor=white)](https://swift.org)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-blue?logo=apple&logoColor=white)](https://www.apple.com/macos/)
@@ -73,13 +73,13 @@ open .build/AIBattery.app
 
 </details>
 
-Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/claude-code). See [aibattery.dev](https://aibattery.dev) for more info.
+Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and/or the [Codex CLI](https://github.com/openai/codex). See [aibattery.dev](https://aibattery.dev) for more info.
 
 ---
 
 ## 🔄 Update
 
-AI Battery checks for updates once per day. When available, the header arrow turns **yellow** and a banner appears.
+AI Battery checks for updates once per day. When one is available a banner appears under the header; dismiss it and the ⚙️ gear carries an update badge until you install. **Check for Updates**, **Install**, and **Release notes** live in Settings → About, with the app version.
 
 | Method | How |
 |---|---|
@@ -93,16 +93,18 @@ Settings and OAuth sessions carry over automatically. Updates are user-initiated
 
 ## 🔐 Authentication
 
-OAuth 2.0 with PKCE — same protocol as Claude Code. Supports up to **3 accounts** (separate Claude orgs).
+OAuth 2.0 with PKCE for both providers — the same protocols Claude Code and the Codex CLI use. Supports up to **3 Claude accounts** (separate orgs) **and 3 Codex accounts** (ChatGPT logins) side by side.
 
-| Step | Action |
-|:---:|---|
-| **1** | Launch AI Battery — the auth screen appears on first run |
-| **2** | Click **Sign In** → browser opens to Anthropic's sign-in |
-| **3** | Sign in → copy the authorization code |
-| **4** | Paste into AI Battery → done |
+| Step | Claude | Codex |
+|:---:|---|---|
+| **1** | Launch AI Battery — the auth screen appears on first run; pick **Claude** or **Codex** at the top | same |
+| **2** | Click **Sign In** → browser opens to Anthropic's sign-in | Click **Sign In with ChatGPT** → browser opens to OpenAI's sign-in |
+| **3** | Sign in → copy the authorization code | Sign in → the browser redirects back to AI Battery on `localhost:1455` |
+| **4** | Paste into AI Battery → done | Done — nothing to paste. Or skip the browser entirely with **Import Codex CLI login** (reads `~/.codex/auth.json` once) |
 
-**Multiple accounts:** Use the header dropdown to switch accounts or add new ones (up to 3). Each account has its own rate limits, tokens, and identity.
+**Codex plans:** ChatGPT subscriptions (Free/Plus/Pro/Team) show 5-hour and weekly windows plus any purchased-credit balance; Business/Enterprise spend-control plans show one **Credits** budget bar; API-key mode (`codex login --api-key`, or paste a key in the app) shows OpenAI's per-minute request/token limits and your real spend at API rates.
+
+**Which account am I looking at?** The header is an account chip: the provider's brand mark in its own colour, then the account identity — the name you gave it in Settings, otherwise your sign-in email (Codex) or workspace name (Claude), otherwise "Claude 1" / "Codex 2". Emails are masked in the popover by default (`k•••@domain`; Settings → Display → **Full account email in popover** shows them in full). Click the chip to switch accounts — grouped by provider, plan shown per row — or add one (**Add Claude Account…** / **Add Codex Account…**, up to 3 per provider). Each account has its own rate limits, tokens and identity; the menu bar prefixes each provider's group with its brand mark when both providers are connected.
 
 <details>
 <summary>🔑 <strong>Session details</strong></summary>
@@ -130,7 +132,7 @@ The Gatekeeper prompt is one-time. The Keychain prompt appears once on first lau
 
 ## 📐 Metrics
 
-A minimal API fetch reads Claude Code account metadata for 5-hour and 7-day usage, with legacy header fallback when available. Local JSONL session logs provide token counts and context health — **never your message content**. Click the ✦ icon to open the dashboard.
+A minimal API fetch reads Claude Code account metadata for 5-hour and 7-day usage (legacy header fallback when available); Codex accounts read the ChatGPT usage endpoint, falling back to the newest Codex CLI session log. Local JSONL session logs (`~/.claude/projects`, `~/.codex/sessions`) provide token counts and context health — **never your message content**. Everything below — bars, Insights, cost, Projects, status dot — follows the **active account's provider** (Codex labels its long window **Weekly**). The footer **Usage** link opens your provider's usage dashboard.
 
 The tab picker selects which metric drives the ✦ icon color:
 
@@ -201,11 +203,13 @@ Click ⚙️ in the header to configure:
 
 | Setting | What it does |
 |---|---|
-| ➕ **Add Account** | Connect another Claude account (up to 3) |
-| ✏️ **Account names** | Custom label per account (shown in picker + menu bar) |
+| ➕ **Add Claude / Codex account** | Inline links to connect another account of either provider (up to 3 per provider; also available from the header chip menu) |
+| ✏️ **Account names** | Custom alias per account (shown in the header chip and its menu); the placeholder shows the account's sign-in email / workspace so you know which is which |
 | 🔁 **Auto mode** | Always show the highest metric (pulsing blue button on metric toggle) |
-| 🔄 **Refresh** | Poll interval: 10–60s · ~3 tokens per refresh |
+| 🔄 **Refresh** | Poll interval: 30 s–5 min · Claude ~3 tokens per refresh; Codex ChatGPT accounts spend no tokens (usage endpoint); Codex API keys ~16 output tokens per refresh at API rates |
 | ⏳ **Idle** | Hide sessions idle longer than cutoff from context health: 30m–8h or Never |
+| 👁 **Full account email in popover** | Show sign-in emails unmasked in the header chip (default masked as `k•••@domain`, safer when screen-sharing) |
+| ℹ️ **About** | App version, **Check for Updates** / **Install**, **Release notes** |
 | 🎨 **Colorblind** | Blue/cyan/amber/purple palette |
 | 🪟 **All accounts in menu bar** | Show every connected account's percent in the menu bar (e.g. `42% \| 23%`). Star color and countdown reflect the worst account. |
 | 💲 **Cost** | Always visible — API-equivalent cost in Insights and Projects |
@@ -242,7 +246,9 @@ Below the chart: API-equivalent cost per model, throttle count, and cumulative s
 
 ## 💰 API Cost Equivalent
 
-Dollar amounts show what your usage **would have cost on Anthropic's pay-per-token API** — not your actual bill. Pro, Max, and Teams subscribers pay a flat monthly fee. When the API-equivalent exceeds your monthly fee, your subscription is saving you money. The bigger the gap, the better the deal. Pricing uses Anthropic's published per-million-token rates.
+Dollar amounts show what your usage **would have cost on your provider's pay-per-token API** — not your actual bill. Pro, Max, and Teams subscribers (and ChatGPT Plus/Pro/Team/Business Codex users) pay a flat monthly fee. When the API-equivalent exceeds your monthly fee, your subscription is saving you money. The bigger the gap, the better the deal. Pricing uses Anthropic's published per-million-token rates for Claude models and OpenAI's published rates for `gpt-*` models.
+
+The one exception is a **Codex API-key account**: there the costs *are* a real bill at OpenAI's API rates, so they are shown without the `~` prefix.
 
 <div align="center">
 <img src="screenshots/projects.png" width="360" alt="Per-project token usage breakdown with costs" />
@@ -251,18 +257,18 @@ Dollar amounts show what your usage **would have cost on Anthropic's pay-per-tok
 <details>
 <summary><strong>How token tracking works</strong></summary>
 
-AI Battery reads Claude Code's session logs (`~/.claude/projects/`) and stats cache (`~/.claude/stats-cache.json`) — it never writes to Claude Code's files or reads message content, only token counts.
+AI Battery reads Claude Code's session logs (`~/.claude/projects/`) and stats cache (`~/.claude/stats-cache.json`), and the Codex CLI's rollouts (`~/.codex/sessions/`) — it never writes to either tool's files or reads message content, only token counts.
 
-To prevent totals from dropping when Claude Code rebuilds its cache, AI Battery maintains a **persistent ledger** (`~/Library/Application Support/AIBattery/token-ledger.json`) that keeps the high-water mark for each model. Token totals never decrease, even across cache rebuilds.
+To prevent totals from dropping when Claude Code rebuilds its cache, AI Battery maintains a **persistent ledger** (`~/Library/Application Support/AIBattery/token-ledger.json`) that keeps the high-water mark for each model. Token totals never decrease, even across cache rebuilds. Codex has no stats cache, so its all-time figures are bounded by how long the CLI retains rollouts.
 
 </details>
 
 <details>
 <summary><strong>How project tracking works</strong></summary>
 
-The **Projects** section groups token usage by the directory you ran Claude Code in. AI Battery scans all `.jsonl` session logs under `~/.claude/projects/`, deduplicates by message ID, groups by working directory, and computes API-equivalent cost per project.
+The **Projects** section groups token usage by the directory you ran Claude Code or the Codex CLI in. AI Battery scans all `.jsonl` session logs under `~/.claude/projects/` (or `~/.codex/sessions/` for a Codex account), deduplicates by message ID, groups by working directory, and computes API-equivalent cost per project.
 
-Project data appears after you've run at least one Claude Code session.
+Project data appears after you've run at least one Claude Code or Codex session.
 
 </details>
 
@@ -314,13 +320,13 @@ Click **Always Allow** when prompted. AI Battery stores its OAuth refresh token 
 <details>
 <summary><strong>Only rate limits show — tokens, models, and activity are all empty?</strong></summary>
 
-Token usage, context health, and activity stats come from Claude Code's local session logs (`~/.claude/`). These populate after you've used Claude Code for a bit. To kickstart it:
+Token usage, context health, and activity stats come from the local session logs (`~/.claude/` for Claude Code, `~/.codex/sessions/` for the Codex CLI). These populate after you've used the tool for a bit. To kickstart it:
 
-1. Run a few Claude Code sessions from the terminal
-2. Run `/stats` inside Claude Code — this generates the stats cache
+1. Run a few Claude Code / Codex sessions from the terminal
+2. Claude only: run `/stats` inside Claude Code — this generates the stats cache
 3. AI Battery refreshes automatically every polling cycle
 
-Claude Code usage windows (5-hour / 7-day) are fetched from Anthropic account metadata. If Anthropic changes that response shape, AI Battery falls back to cached values and may show a warning until fresh usage data is available again.
+Claude Code usage windows (5-hour / 7-day) are fetched from Anthropic account metadata; Codex windows from the ChatGPT usage endpoint. If your provider changes that response shape or the endpoint is unreachable, AI Battery falls back to cached values (the footer says **Cached** — hover it for the reason) and may show a warning until fresh usage data is available again.
 
 </details>
 
@@ -341,7 +347,7 @@ Whichever rate limit window is currently the active constraint. The binding wind
 <details>
 <summary><strong>What's ⚠️ "throttled"?</strong></summary>
 
-Anthropic is actively limiting your requests. Wait for the reset timer.
+Your provider is actively limiting your requests. Wait for the reset timer.
 
 </details>
 
@@ -358,9 +364,9 @@ AI Battery primarily shows Claude Code 5-hour and 7-day usage from Claude Code a
 
 | | |
 |---|---|
-| 📂 **Local only** | Reads JSONL for token counts — **never your message content** |
+| 📂 **Local only** | Reads Claude Code and Codex CLI JSONL for token counts — **never your message content** (Codex `response_item` lines are never decoded); `~/.codex` is read-only |
 | 🔑 **Keychain** | OAuth refresh token stored in macOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) — access token is memory-only, never written to disk |
-| 🌐 **Network** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast) |
+| 🌐 **Network** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · with a Codex account: `chatgpt.com` (rate limits) · `auth.openai.com` (OAuth) · `status.openai.com` (status) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast) |
 | 🚫 **No tracking** | No analytics. No telemetry. No data collection. Period. |
 | 🔍 **Open source** | Every line is auditable — [review the code](https://github.com/KyleNesium/AIBattery) |
 | ✅ **Release checks** | Each release runs [`verify-release.sh`](scripts/verify-release.sh) — validates codesign, Sparkle signatures, version consistency, and bundle integrity before publish |
@@ -371,9 +377,9 @@ AI Battery primarily shows Claude Code 5-hour and 7-day usage from Claude Code a
 
 ```
 AIBattery/
-  Models/       — Data structs (UsageSnapshot, RateLimitUsage, TokenHealthStatus, ...)
-  Services/     — OAuthManager, RateLimitFetcher, SessionLogReader, TokenHealthMonitor, ...
-  ViewModels/   — Single UsageViewModel (@MainActor, ObservableObject)
+  Models/       — Data structs (AIProvider, UsageSnapshot, RateLimitUsage, TokenHealthStatus, ...)
+  Services/     — OAuthManager (+Codex), RateLimitFetcher / CodexRateLimitFetcher, SessionLogReader / CodexSessionLogReader, StatusChecker, ...
+  ViewModels/   — Single UsageViewModel (@MainActor, ObservableObject) routing by the active account's provider
   Views/        — SwiftUI views (popover sections, menu bar label, auth screen)
   Utilities/    — TokenFormatter, ModelNameMapper, ThemeColors, AppLogger
 ```
@@ -424,7 +430,7 @@ security delete-generic-password -s "AIBattery" 2>/dev/null   # OAuth tokens (al
 defaults delete com.KyleNesium.AIBattery 2>/dev/null           # Preferences
 ```
 
-AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) is untouched.
+AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) and Codex CLI data (`~/.codex/`) are untouched.
 
 </details>
 
@@ -442,18 +448,20 @@ AI Battery is **free and open source** — always will be. If it helps you get m
 
 ## 🧪 Test Coverage
 
-**1116 tests** across 72 test files.
+**1373 tests** across 104 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 282 | Token summaries, rate limit parsing (unified + standard + client data edge cases, timestamp rejection, 100%-without-status is not throttled), health status, metric modes, API profiles, usage snapshots (incl. escalation ladder, hysteresis, stored-property tripwire pinning the hand-written ==), model pricing, Claude system status indicators, standard rate limits, local usage estimate calibration policy (uncalibrated-only seeding, 20–80% calibration band, per-account isolation + legacy global-key migration + non-active-account 429 guard, billingType→tier mapping for mixed-tier accounts), expired-window + unbounded-throttle clearing on cache restore, rollover-artifact suppression (near-full reading on a just-started window), `percent(for:)` shows the real API utilization even when not fresh (never a local-token estimate substitution — the local estimate is used only when there is no API data at all; a fresh-but-wrong spike is corrected upstream), per-window `rateLimitPercentConfirmed(for:)` gating only the alarm so a throttle on one window can't confirm a stale near-full reading on the other |
-| Services | 369 | Token ledger (incl. high-water merge, pending→resolved account migration, orphan pruning with empty-set guard), version checker, Sparkle updates, notifications, health monitor (incl. zero-window safety, idle-cutoff binary-search boundaries: strict-> at-cutoff exclusion, empty/all-before/all-after), status checker (incl. concurrency: detached-task callability + MainActor-non-blocking), session log reader (incl. NSLock/pendingInvalidation concurrency, incremental scanning, entry eviction), account store, stats cache, usage aggregator (incl. side-effects, integration tests, 7d rolling-window boundary), rate limit fetcher (incl. quota-vs-upstream 429 disambiguation, consecutive auth-failure counter, actor-isolation guarantees on nonisolated helpers, expired-window clearing on cachedOrEmpty, contract tests pinning both OAuth interpreters' status-code / payload / 429-throttle behavior incl. the typed authFailed/unavailable outcome split, per-account consecutive auth-failure bookkeeping shared by both fetch paths, launch-restore recovery: corrupt-blob self-heal + future-timestamp clock-skew clamp, pending→resolved rate-limit cache migration + launch orphan pruning so a dead pending account's stale blob can't surface a false limit, launch-restore rollover-artifact clearing so a just-rolled near-full reading isn't seeded as the stale fallback, spike-hold write-back via overrideCachedRateLimits so a held glitch value replaces the raw persisted reading and can't resurface on a later instant-paint), OAuth (incl. Sendable conformance on TokenResult/AuthError, transient-vs-auth-error classifier, concurrent-refresh deadlock-freedom, postToken retry contract via injectable transport: exactly-3-attempts on 5xx/timeout, no-retry on 401/invalid_grant, recovery on transient failure), Keychain + token storage (real-Keychain roundtrips with UUID accounts: set/get/delete, update-existing, per-account isolation, access-token-never-persisted), adaptive polling |
-| Views | 167 | Activity chart data transforms (5H/7D/12M token-based), chart display state (loading vs empty vs data — no cold-start "No activity" flash), trend computation (token-based, incl. meaningful-previous threshold + display cap to prevent noise spikes like "+47999% vs yesterday"), session info formatting (incl. injectable-now for deterministic Today/Yesterday across midnight rollover), GaugeBar clamping, deferred rendering, status bar toggle/countdown, menu-bar render-skip key (percent bucketing, per-field re-render triggers), insights view formatting, metric toggle ordering, multi-account menu bar text rendering (formatting, ordering, missing slots, worst-percent, genuine-throttle-only exhaustion — 100% without status is at-capacity, not throttled — binding-window code prefix on throttled countdown, metric mode fallback), multi-account display resolver (end-to-end: gate + builder + countdown composition + single-account fallback, all v2.2.0-regression scenarios pinned), stale-throttle suppression in both the menu bar AND the popover bars (UsageBar.AlarmState: unconfirmed/cached data shows the last-known percent with no "Throttled"/"Limit reached" alarm and no 100% clamp; confirmed data still alarms) |
-| ViewModels | 85 | Refresh interval clamping, error messages (incl. standard limits fallback), adaptive polling, throttle tracking, idle threshold constants, TTL-based stale rate limit expiry (incl. expired-window clearing on stale fallback), effective value generic guard, auth-error reconnect prompt, cross-account refresh-race guard (results discarded when the active account changes mid-fetch), stale-data notification gate (spike-confirmed rate limits only — a held/unconfirmed reading never fires alerts), rate-limit freshness gate (`rateLimitsAreFresh` — a successful but header-less fetch reusing held stale limits is NOT confirmed; `alarmConfirmed` arms the "Limit reached"/throttle alarm only on fresh data OR an authoritative throttle, fixing the false limit-reached on wake without flickering a genuine throttle), **confirm-before-alarming spike filter** (`spikeConfirmedRateLimits` — a fresh non-throttled near-full spike, e.g. a server eventual-consistency ~100% after wake, is held at the previous displayed value until the same window instance has stayed near-full for the 10-min minimum age of consecutive fresh polls — time-based, not poll-count-based, pinning the 2026-08-11 multi-poll false 7-day 100%; `firstSeen` preserved across held polls so a persistent real limit ages into confirmation; genuine throttles bypass but ARE recorded as confirmed memory so a throttle→clear transition isn't held; a held window never inherits a previous "throttled" status; sustained limits and per-window independence preserved; memory keyed by each window's reset instant so a previous window instance — even a confirmed one — can't vouch for a post-rollover glitch, reset-less readings match via sentinel; a low reading ends the tracked sequence; an overall-only throttle on the binding window bypasses the hold, and a hold never masks a genuine throttle on the other window; cold-start with no previous value shows the fresh reading — never a fabricated 0%), multi-account fan-out orchestration (end-to-end through the concurrent TaskGroup: toggle-off clearing, seed dedup so the active account isn't re-fetched, missing-token skip, nil-rate-limits exclusion, seed-only path) + shared eligible-account filter (non-pending AND authenticated, store order) |
-| Utilities | 213 | Token/duration formatting (incl. billion-scale), model name mapping, theme colors (incl. isDarkMenuBar gold override), secure networking, menu bar icon rendering + quantized cache, throttle tracker (genuine-throttle-only event recording + on/off transition), typography, spacing, idle suspension policy, retry policy (exponential backoff + jitter + Retry-After parsing, parity tests pinning historical OAuth/StatusCheck/FileWatch formulas) |
+| Models | 350 | Token summaries, rate limit parsing (unified + standard + client data edge cases, timestamp rejection, 100%-without-status is not throttled), health status, metric modes, API profiles, usage snapshots (incl. escalation ladder, hysteresis, stored-property tripwire pinning the hand-written ==), model pricing, Claude system status indicators, standard rate limits, local usage estimate calibration policy (uncalibrated-only seeding, 20–80% calibration band, per-account isolation + legacy global-key migration + non-active-account 429 guard, billingType→tier mapping for mixed-tier accounts), expired-window + unbounded-throttle clearing on cache restore, rollover-artifact suppression (near-full reading on a just-started window), `percent(for:)` shows the real API utilization even when not fresh (never a local-token estimate substitution — the local estimate is used only when there is no API data at all; a fresh-but-wrong spike is corrected upstream), per-window `rateLimitPercentConfirmed(for:)` gating only the alarm so a throttle on one window can't confirm a stale near-full reading on the other, `AIProvider` (glyph/label/SF-symbol mapping, bundled brand-mark SVGs resolve and load, explicit resource-bundle resolver finds the first root containing the bundle and returns nil — never traps — otherwise, legacy JSON decode defaulting to Claude, Codex provider round-trip through `AccountRecord`, marks are cached template images, `NSImage.tinted` fills opaque pixels at the requested size and keeps a real mark visible), `AccountRecord.discoveredIdentity` round-trip + legacy-JSON nil default, Codex `RateLimitSource` cases (labels), provider-aware `RateLimitUsage` (legacy-persisted-JSON backward compatibility, Codex-driven labels, default call-site compatibility), `CodexUsageParser` (5h/weekly window parsing, 100%-without-status is at capacity — never a synthesized throttle — while `rate_limit_reached_type` throttles the named window, session-snapshot parsing, missing-windows returns nil), `UsageSnapshot.provider` (equality + stored-property tripwire), `OpenAIModelPricing` (gpt-5.x + gpt-6-astra rates, longest-prefix match so `gpt-5-mini`/`gpt-5.6-sol` never fall through to `gpt-5`, unknown gpt IDs nil, table-order shadowing guard), `TokenHealthConfig` gpt-family 258 400 context window, `CodexCreditBudget` (spend-control plans: live Business payload parses into a single-window usage with the budget attached, reached / credits-depleted → throttled, windowed plans carry no budget, credits body is a fetcher `.success`, budget survives every copy + persistence + the spike filter, "Credits"/`CR` vocabulary, credit formatting; **uncapped** workspaces — `rate_limit: null` with no `individual_limit` → `uncapped` credit reading, depleted credits still throttled, unparseable/empty bodies still nil; the rollover-artifact filter never zeroes a credit budget and ignores resets beyond the window length; an expired budget period rolls the nested budget over with its mirrored windows; a **held** near-full reading holds the budget with the windows it mirrors, and a cold start with no previous budget keeps the fresh one), `MetricMode` provider labels (Weekly / Credits / API Limits, collapsed picker, `CodexDisplayKind` derivation), Codex snapshots never use Claude local estimates and use the tighter per-minute limit (`StandardRateLimits.peakPercent` — request cap when it binds first) for API-key accounts, `costIsBilled` equality, subscription credits balance (balance-only record, `creditBalance`), `planType` on fetch results, OpenAI `x-ratelimit-*` header parsing incl. Go-duration resets, per-minute windows restore to full allowance once their own reset passes (`StandardRateLimits.withClearedExpiredWindows`), a tokens-only response is **not** "requests exhausted" (the limit must exist before it can bind), payload `windowMinutes` driving rollover-guard and burn-rate math (defaults 300/10080) |
+| Services | 513 | Token ledger (incl. high-water merge, pending→resolved account migration, orphan pruning with empty-set guard), version checker (incl. the 3.0.0 upgrade seen as newer from every 2.x version shape), Sparkle updates, notifications, health monitor (incl. zero-window safety, idle-cutoff binary-search boundaries: strict-> at-cutoff exclusion, empty/all-before/all-after), status checker (incl. concurrency: detached-task callability + MainActor-non-blocking), session log reader (incl. NSLock/pendingInvalidation concurrency, incremental scanning, entry eviction), account store (incl. per-provider caps, `billsLocalCodexCosts` only for an API-key account with no ChatGPT-backed Codex account present, Claude-first stable display ordering, multi-account display IDs excluding API-key accounts, shared `displayLabel` / `planLabel` incl. "chatgpt_team" → "ChatGPT Team", duplicate-merge preserving `discoveredIdentity`, `backfillDiscoveredIdentity` fills only an empty identity and ignores blanks/unknown ids), account identity labels (per-provider `providerIndex` numbering in display order, alias → Connecting… → discovered identity → "<Provider> N" precedence, blank alias falls through, email masking `k•••@domain` with non-emails untouched (dotted/plus local parts, sub-domains, non-ASCII first character, missing local part or domain left alone), `displayLabel` glyph/plan composition incl. API-key suffix and no dangling separator, `AccountChipView.accessibilityDescription` one-sentence VoiceOver label, `menuModel` sections per provider with active row checked and Add disabled at the cap, empty provider still offers Add), stats cache, usage aggregator (incl. side-effects, integration tests, 7d rolling-window boundary), rate limit fetcher (incl. quota-vs-upstream 429 disambiguation, consecutive auth-failure counter, actor-isolation guarantees on nonisolated helpers, expired-window clearing on cachedOrEmpty, contract tests pinning both OAuth interpreters' status-code / payload / 429-throttle behavior incl. the typed authFailed/unavailable outcome split, per-account consecutive auth-failure bookkeeping shared by both fetch paths, launch-restore recovery: corrupt-blob self-heal + future-timestamp clock-skew clamp, pending→resolved rate-limit cache migration + launch orphan pruning so a dead pending account's stale blob can't surface a false limit, launch-restore rollover-artifact clearing so a just-rolled near-full reading isn't seeded as the stale fallback, spike-hold write-back via overrideCachedRateLimits so a held glitch value replaces the raw persisted reading and can't resurface on a later instant-paint), OAuth (incl. Sendable conformance on TokenResult/AuthError, transient-vs-auth-error classifier, concurrent-refresh deadlock-freedom, postToken retry contract via injectable transport: exactly-3-attempts on 5xx/timeout, no-retry on 401/invalid_grant, recovery on transient failure, Codex provider routing: provider-scoped Keychain storage keys, account record built from the ID token, `discoveredIdentity` seeded from the id_token email claim / nil without one), Keychain + token storage (real-Keychain roundtrips with UUID accounts: set/get/delete, update-existing, per-account isolation, access-token-never-persisted), adaptive polling, Codex OAuth pieces — `CodexAuthFileImporter` (ChatGPT-mode `auth.json` parsing, rejects API-key-mode/malformed files, rejects an implausible `account_id` — whitespace, CRLF, path traversal, over-length — since it becomes a Keychain suffix and a request header), `CodexCallbackParser` (code+state extraction, percent-decoding, provider-error surfacing, invalid path/param rejection), `CodexOAuthConstants` (authorize URL carries all required params), `CodexTokenClient` (token-set parsing, tolerant of a missing refresh token and of a refresh response without `id_token`, 400/401/403 → non-transient `codexSignInRejected`, 429 / unexpected 4xx / 5xx → transient `serverError` in OpenAI's voice, an **unparseable 2xx body is transient too** (a bad hop must never delete the Keychain entry), a provider error reason outside the known OAuth codes is replaced rather than shown verbatim, form-encoded exchange body with `+`-escaping, JSON refresh body), `CodexSessionRateLimitScanner` (latest rate-limits event wins, a response_item mentioning "rate_limits" is never parsed, truncated trailing-line skip, no-rate-limits returns nil, newest session file wins, symlinks escaping the root ignored, multi-byte-character tail-boundary survival), `CodexRateLimitFetcher` (200 fresh-result interpretation, 429 throttle marking, auth/server failure interpretation, spike write-back, orphan pruning with empty-set guard that also drops backoff + auth-failure state, `clearCache` resetting backoff + auth-failure counters, a **backward clock jump** does not wedge the endpoint in backoff, API-key limits persist/restore without rate limits, probe 403 is not an auth failure, session-log fallback only when newer than the cached endpoint reading and only with ≤ 1 ChatGPT-backed Codex account, per-account endpoint backoff: 60s ±20% → doubling → 300s cap, skip-inside-window, reset on success), `UsageAggregator` provider parameterisation (`isTrackedModel` claude-/gpt- filter, Codex aggregate with no stats cache → JSONL-only totals + earliest-entry `firstSessionDate` + provider stamp on snapshot and side effects, per-provider convenience init), `CodexSessionLogParser` (real-fixture lines: session_meta identity incl. git branch, token_count before turn_context skipped, full field mapping incl. cached/cache-write subtraction clamped at 0 and ordinal-based messageId, null-info skipped, `response_item` rejected on type even when its payload contains the marker — and from the head bytes before any JSON parsing, so a truncated one is dropped rather than counted corrupt — pre-filter, corrupt-line count, missing / malformed timestamp is corrupt (never "now") while whole-second ISO 8601 parses, file-stem fallback session id, mid-file model switch, **a repeated `token_count` snapshot whose cumulative total has not advanced is counted once** while an advanced total counts again and a rollout without `total_token_usage` fails open, `response_item` still rejected when written with whitespace after the colon), `CodexSessionLogReader` (nested date-dir discovery sorted ascending, fingerprint cache hit + changed-file reparse, deleted-file purge, eviction of non-today raw arrays, trailing partial line skipped, symlink outside root ignored, missing root empty, corrupt-line count), `StatusFeedConfig` + component filter (unrelated OpenAI outage ignored, filtered component flags, no-filter legacy behaviour, incident filtering by affected components, page URL from config, Claude config matches legacy statics, per-provider checker routing), OpenAI status feed (URLs, five Codex components, filter = known IDs, alert keys disjoint from Claude; component-less incidents ignored on a filtered feed, counted without one), account-store lookup helpers, duplicate-record de-duplication on load (a duplicated persisted id would otherwise trap the status-bar refresh into a launch loop), `FileWatcher` invalidation accumulation across one debounce window (a Claude write must not drop a Codex write's pending invalidation), `NotificationManager.windowLabels` (7-Day vs Weekly) and per-account rate-limit dedup keys (an account switch can no longer clear or swallow another account's alert; no id keeps the legacy unsuffixed key), `OneShotMailbox` (early delivery buffered, late delivery resumes, second delivery ignored), Codex API-key accounts (probe interpretation: 200/429-with-headers → limits, 401 auth, 5xx/no-headers unavailable; probe request shape; SHA-256 account id never embeds the key; `codexAccessMode` decode default + round-trip; importer parses both `auth_mode`s, free `/v1/models` key validation request + outcome mapping), `CodexSessionLogParser` head-only pre-filter, opt-in real-tree scans for both readers (`AIBATTERY_REAL_CODEX_LOGS=1` / `AIBATTERY_REAL_CLAUDE_LOGS=1`: timing, uniqueness, ordering, cache-hit invariants) |
+| Views | 182 | Activity chart data transforms (5H/7D/12M token-based), chart display state (loading vs empty vs data — no cold-start "No activity" flash), trend computation (token-based, incl. meaningful-previous threshold + display cap to prevent noise spikes like "+47999% vs yesterday"), session info formatting (incl. injectable-now for deterministic Today/Yesterday across midnight rollover), GaugeBar clamping, deferred rendering, status bar toggle/countdown, menu-bar render-skip key (percent bucketing, per-field re-render triggers), insights view formatting, metric toggle ordering, multi-account menu bar text rendering (formatting, ordering, missing slots, worst-percent, genuine-throttle-only exhaustion — 100% without status is at-capacity, not throttled — binding-window code prefix on throttled countdown, metric mode fallback, provider-glyph grouping: mixed-provider account sets get glyph-grouped segments, single-provider sets keep the legacy unprefixed format), multi-account display resolver (end-to-end: gate + builder + countdown composition + single-account fallback, all v2.2.0-regression scenarios pinned), stale-throttle suppression in both the menu bar AND the popover bars (UsageBar.AlarmState: unconfirmed/cached data shows the last-known percent with no "Throttled"/"Limit reached" alarm and no 100% clamp; confirmed data still alarms), provider-aware footer links (`usageDashboardURL`, `statusPageURL` preferring the live status's page), provider-aware "Cached" tooltip (`staleTooltip` per rate-limit source), tutorial step 1 per `CodexDisplayKind`, per-provider poll-cost hint, `LocalEstimateSection.windowLabel` (7-Day vs Weekly), Insights All-Time caveat per provider, API-key usage link, plan label formatting |
+| ViewModels | 92 | Refresh interval clamping, error messages (incl. standard limits fallback), adaptive polling, throttle tracking, idle threshold constants, TTL-based stale rate limit expiry (incl. expired-window clearing on stale fallback), effective value generic guard, auth-error reconnect prompt, cross-account refresh-race guard (results discarded when the active account changes mid-fetch), provider-aware error copy (OpenAI / Codex session wording; Codex `endpointUnavailable` → "Unable to reach OpenAI", never the first-run prompt), stale-data notification gate (spike-confirmed rate limits only — a held/unconfirmed reading never fires alerts), rate-limit freshness gate (`rateLimitsAreFresh` — a successful but header-less fetch reusing held stale limits is NOT confirmed; `alarmConfirmed` arms the "Limit reached"/throttle alarm only on fresh data OR an authoritative throttle, fixing the false limit-reached on wake without flickering a genuine throttle), **confirm-before-alarming spike filter** (`spikeConfirmedRateLimits` — a fresh non-throttled near-full spike, e.g. a server eventual-consistency ~100% after wake, is held at the previous displayed value until the same window instance has stayed near-full for the 10-min minimum age of consecutive fresh polls — time-based, not poll-count-based, pinning the 2026-08-11 multi-poll false 7-day 100%; `firstSeen` preserved across held polls so a persistent real limit ages into confirmation; genuine throttles bypass but ARE recorded as confirmed memory so a throttle→clear transition isn't held; a held window never inherits a previous "throttled" status; sustained limits and per-window independence preserved; memory keyed by each window's reset instant so a previous window instance — even a confirmed one — can't vouch for a post-rollover glitch, reset-less readings match via sentinel; a low reading ends the tracked sequence; an overall-only throttle on the binding window bypasses the hold, and a hold never masks a genuine throttle on the other window; cold-start with no previous value shows the fresh reading — never a fabricated 0%), multi-account fan-out orchestration (end-to-end through the concurrent TaskGroup: toggle-off clearing, seed dedup so the active account isn't re-fetched, missing-token skip, nil-rate-limits exclusion, seed-only path) + shared eligible-account filter (non-pending AND authenticated, store order), `ProviderDispatchingFetcher` (routes a rate-limit fetch to the Claude or Codex fetcher by account provider; API-key accounts go to the OpenAI probe, never the ChatGPT endpoint) |
+| Utilities | 236 | Token/duration formatting (incl. billion-scale), model name mapping, theme colors (incl. isDarkMenuBar gold override, per-provider brand-mark tints), secure networking, menu bar icon rendering + quantized cache (incl. provider glyphs → inline brand-mark attachments at draw time, the combined status-item image rendering mixed-provider text wider than plain digits, spoken provider names for VoiceOver), UserDefaults key uniqueness + pinned v3.0 preference names, throttle tracker (genuine-throttle-only event recording + on/off transition), typography, spacing, idle suspension policy, retry policy (exponential backoff + jitter + Retry-After parsing, parity tests pinning historical OAuth/StatusCheck/FileWatch formulas), `OAuthPKCE` (challenge is SHA-256 of verifier, state is unique and URL-safe, neither secret is ever the all-zero CSPRNG-failure fallback, `constantTimeEquals` matches value equality including the differs-only-in-the-last-byte case), `JWTDecoder` (extracts ChatGPT account id, email from the standard or OpenAI profile claim — nil when absent/blank/non-string — malformed tokens return nil), `Data.firstNewlineIndex` (memchr search incl. non-zero-start slices), `ModelNameMapper` gpt branch ("GPT-5.4", "GPT-5.6 Sol", "GPT-5 Mini", "GPT-5.3 Codex") |
 
 ---
 
 ## 📄 License
 
 [MIT](LICENSE)
+
+The Claude and OpenAI marks in the account badge (`AIBattery/Resources/*.svg`) come from [Simple Icons](https://simpleicons.org) (CC0 1.0). The logos remain trademarks of Anthropic and OpenAI respectively; AI Battery is not affiliated with either.

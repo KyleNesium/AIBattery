@@ -34,9 +34,20 @@ extension InsightsView {
         insightRow(
             label: "All Time",
             value: "\(TokenFormatter.format(snapshot.totalTokens)) tokens \u{00B7} \(snapshot.totalSessions) sessions",
-            tooltip: "Cumulative tokens across all sessions"
+            tooltip: Self.allTimeTooltip(for: snapshot.provider)
         )
         .accessibilityLabel("All time: \(TokenFormatter.format(snapshot.totalTokens)) tokens, \(snapshot.totalSessions) sessions")
+    }
+
+    /// Codex has no stats cache: its all-time figures come from the session logs
+    /// AI Battery has scanned, kept as a high-water mark in the app's own token ledger
+    /// so they survive the CLI rotating or deleting rollouts — but nothing from before
+    /// the first scan is recoverable. Say exactly that.
+    nonisolated static func allTimeTooltip(for provider: AIProvider) -> String {
+        switch provider {
+        case .claude: "Cumulative tokens across all sessions"
+        case .codex: "Cumulative tokens from Codex session logs since AI Battery first scanned them (kept across log rotation; Codex has no lifetime cache of its own)"
+        }
     }
 
     func insightRow(

@@ -8,15 +8,19 @@
 
 ```
 ┌──────────────────────────────────────┐
-│ ✦ AI Battery  Account ▾   v⚙   │  ← ❶ Header
+│ ⬡ k•••@acme.com ⌄             ⚙ │  ← ❶ Header (brand mark · identity · switcher, gear)
 ├──────────────────────────────────────┤
 │ [Settings panel — collapsible]       │  ← ❶b Settings
-│  Active: [________]                 │     (gear toggle)
-│  Account: [________] (×)            │
-│  + Add Account                      │
+│  Accounts [✦] [________] (×)        │     (gear toggle)
+│           [⬡] [________] (×)        │
+│  + Add Claude account               │
+│  + Add Codex account                │
+│  Up to 3 accounts per provider.     │
 │  Refresh: [slider 30-300s]          │
 │  Idle: [slider 30m-8h-∞]           │
 │  Alerts: ☐ Claude.ai ☐ Claude Code │
+│  About: ✦ AI Battery v3.0.0         │
+│    Check for Updates · Release notes│
 ├──────────────────────────────────────┤
 │ (A) [5 Hour|7 Day|Context]             │  ← Metric toggle + auto
 │                                        │
@@ -57,7 +61,7 @@
 ```
 UsagePopoverView (275px, VStack)
   @ObservedObject viewModel: UsageViewModel
-  @ObservedObject accountStore: AccountStore (drives account picker reactivity)
+  @ObservedObject accountStore: AccountStore (drives account chip reactivity)
   @AppStorage: metricModeRaw, autoMetricMode (only 2 — other toggles pushed to child views)
 ├── headerSection
 ├── Divider
@@ -81,7 +85,7 @@ UsagePopoverView (275px, VStack)
 ├── InsightsGate (data check, InsightsView owns collapsed @AppStorage)
 ├── Divider
 ├── footerSection
-└── .overlay { TutorialOverlay(hasData:) } — self-managing visibility via own @AppStorage
+└── .overlay { TutorialOverlay(hasData:kind:) } — self-managing visibility via own @AppStorage
 ```
 
 Conditional states (mutually exclusive with content): Loading | Error | Empty
@@ -91,7 +95,7 @@ Conditional states (mutually exclusive with content): Loading | Error | Empty
 All font sizes, spacing values, layout dimensions, and animation durations are defined as named constants in `Utilities/`:
 - **Typography** — 24 named font styles (e.g., `Typography.sectionHeader`, `Typography.monoValue`, `Typography.tinyLabel`, `Typography.trendSymbol`, `Typography.autoModeLabel`)
 - **Spacing** — 11 spacing constants (`micro` 1pt, `tight` 2pt, `xsmall` 3pt, `inner` 4pt, `small` 4pt, `gap` 6pt, `section` 8pt, `medium` 10pt, `authGap` 12pt, `sectionHorizontal` 16pt, `overlay` 24pt)
-- **Layout** — 40 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `borderWidth` 1.5pt, `subtleBorderWidth` 1pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt, `appIconSize` 48pt, `activityModePickerWidth` 120pt, `indexColumn` 14pt, `tutorialCardMaxWidth` 280pt, `accountPickerMaxWidth` 100pt, `clipboardIconOffset` 13pt, `panelInitialHeight` 700pt, `panelMinHeight` 100pt, `menuBarInset` 40pt, `fallbackScreenHeight` 900pt, `chartTickWidth` 0.5pt)
+- **Layout** — 44 dimension constants (`popoverWidth` 275pt, `chartHeight` 50pt, `barHeight` 8pt, `barCornerRadius` 3pt, `chevronFrame` 22pt, `dotSize` 8pt, `dotSizeSmall` 6pt, `tabCornerRadius` 4pt, `smallCornerRadius` 4pt, `bannerCornerRadius` 6pt, `iconClipRadius` 10pt, `cardCornerRadius` 12pt, `autoModeSize` 20pt, `chartSymbolSize` 12pt, `shadowSmall` 1pt, `glowRadius` 4pt, `borderWidth` 1.5pt, `subtleBorderWidth` 1pt, `costColumn` 46pt, `tokenColumn` 42pt, `insightLabel` 55pt, `marqueeHeight` 14pt, `spinnerSize` 10pt, `stateHeightLoading` 40pt, `stateHeightEmpty` 80pt, `stateHeightError` 100pt, `iconSize` 22pt, `settingsLabel` 50pt, `sliderValueLabel` 28pt, `appIconSize` 48pt, `activityModePickerWidth` 120pt, `indexColumn` 14pt, `tutorialCardMaxWidth` 280pt, `accountChipHeight` 28pt, `accountChipSpacing` 6pt, `capHeightBaselineOffset` 4.3pt, `providerBadgeSize` 18pt, `providerMarkSize` 12pt, `clipboardIconOffset` 13pt, `panelInitialHeight` 700pt, `panelMinHeight` 100pt, `menuBarInset` 40pt, `fallbackScreenHeight` 900pt, `chartTickWidth` 0.5pt)
 - **ThemeColors** — surface elevation (`surfaceLevel1`, `surfaceLevel2`), semantic strokes (`inactiveStroke` for unselected/idle outlines, `shadowColor` for elevated-control shadows), interactive states (`hoverFill`, `copyableHoverFill`), opacity tokens (`dividerOpacity` 0.3, `overlayBackdropOpacity` 0.4, `inactiveIndicatorOpacity` 0.45, `subtleBorderOpacity` 0.2, `hoverBorderOpacity` 0.4, `activeLabelOpacity` 0.5, `focusRingOpacity` 0.6, `shadowOpacity` 0.25, `disabledOpacity` 0.55, `disabledDeepOpacity` 0.25, `subtleElementOpacity` 0.12, `subtleStrokeOpacity` 0.35, `chartGradientStartOpacity` 0.3, `chartGradientEndOpacity` 0.1, `activeAccentOpacity` 0.6, `activeElementFillOpacity` 0.15, `enabledControlOpacity` 0.6)
 - **MotionConstants** — animation/transition tokens (`standard` 0.15s easeOut, `snappy` 0.1s easeOut, `smooth` 0.4s easeInOut, `fadeOut` 0.3s, `fadeIn` 0.3s, `dialog` 0.2s, `spin` 0.5s, `expandTransition` plain `.opacity` — `.move(edge:)` is forbidden inside the popover because the NSPanel resizes around the inserting view and the slide reads as a "jump"). Marquee timing tokens: `marqueePauseSeconds` 0.5, `marqueeHoldSeconds` 3.0, `marqueeRestartSeconds` 0.1, `marqueeFadeSettleSeconds` 0.6, `marqueeScrollSpeed` 30 pts/s, `marqueeScroll(travelPoints:)` builder.
 
@@ -103,39 +107,29 @@ All visual section dividers use `StyledDivider` — a shared component rendering
 
 ### ❶ Header (`PopoverHeaderView`)
 
-- Header HStack alignment: `.center` (not `.firstTextBaseline`). The title (`Typography.sectionHeader`) and the account picker (`Typography.caption`) are different sizes; baseline-aligning them put the picker visibly below the title cap. `.center` aligns their visual centers.
-- Title: `"✦ AI Battery"` (`Typography.sectionHeader` = `.subheadline.bold()`)
-- **Account picker**: always-visible dropdown Menu next to title
-  - Label: display name if set, otherwise `"User N"` for multi-account / `"Account"` for single (.caption, ThemeColors.secondaryLabel)
-  - Menu items: display name or `"User N"` with checkmark on active, clicking switches via `viewModel.switchAccount(to:)`
-  - "Add Account" item (plus.circle icon) below divider when `canAddAccount` (< max) — triggers AuthView overlay
-  - `.menuStyle(.borderlessButton)`, `.frame(maxWidth: Layout.accountPickerMaxWidth)` (100pt)
-- Gear button: `gearshape`, 11pt, toggles Settings panel
-- Loading spinner: ProgressView at 0.6 scale
-- **Update button** (`arrow.up.circle`, 11pt): three color states, no banner
-  - **Update available** (`viewModel.availableUpdate` exists): button turns `.yellow`, stays yellow. Clicking re-shows the update banner (if dismissed). `.help("vX.Y.Z available")`.
-  - **Up to date** (`updateCheckMessage` set, no update): button turns `.green` for 2.5s, fades back to `.secondary`.
-  - **Default**: `.secondary` color. Clicking triggers `forceCheckForUpdate()`.
-- **Update banner** (below header, when `availableUpdate` exists and not dismissed): bordered card, single-row HStack
-  - Background: `RoundedRectangle(cornerRadius: 6)` with `Color.yellow.opacity(0.08)` fill and `Color.yellow.opacity(0.25)` 1pt stroke, 8pt padding
-  - Yellow circle icon + **"vX.Y.Z ↗"** (.caption2, ThemeColors.secondaryLabel) — clickable, opens GitHub release page
-  - **"↓ Install Update"** (.caption2, .blue) — tries Sparkle in-app update; falls back to opening GitHub release if Sparkle not ready
-  - **"✕"** dismiss button (xmark.circle.fill, `Typography.bodyLabel`, ThemeColors.secondaryLabel) — hides banner, yellow icon stays yellow; clicking icon re-shows banner
-  - Install Update and Download buttons inside the banner use `LinkActionButton(size: .compact)` so they share font and spacing with every other inline action in the popover (Add Account, Test).
-  - State: `@State updateBannerDismissed` (resets when yellow icon clicked)
-- Padding: H 16, V 8 (`Spacing.section`)
+One row, `Spacing.sectionHorizontal` × `Spacing.section` padding: the **account chip** (`AccountChipView`, compact, hugs its content on the left) and the Settings gear on the right. There is no "AI Battery" title, no version and no manual update button in the header any more — the account identity *is* the title; app name, version and the update actions live in Settings → About (❶b).
+
+- **Account chip** (`AccountChipView`): a **compact** `Button` (`.buttonStyle(.plain)`, height `Layout.accountChipHeight` = 28pt) that hugs its content on the left of the row — **not** a full-width bar (a first cut filled the row and read as one giant button). It has **no pill / fill at all** (a hover-only `hoverFill` rounded rectangle was tried and read as a flat foreign box on the popover backdrop); the affordance is the gear’s: nothing at rest, and on hover — kept while the `NSMenu` is up — the provider caption and the `chevron.down` brighten from `ThemeColors.secondaryLabel` to `.primary`, so the header reads as a title until you reach for it. Clicking pops an **AppKit `NSMenu`** (`menu.popUp(positioning:at:in:)` anchored on an invisible `NSViewRepresentable` in the chip's `.background`; the anchor view is non-flipped, so the menu's top-left goes at `(0, -Spacing.tight)` — just *below* the chip's bottom edge; a positive y overlapped the chip). SwiftUI's `Menu` is deliberately not used: on macOS it sizes its label to the control's intrinsic width and clips the rest, and an overlaid transparent-label `Menu` has no hit area — both were tried. Face, left to right — three quiet elements, like a document title with a logo: **`ProviderBadge`** — the provider's **bare brand mark** drawn in its own colour (`ThemeColors.providerBadge(provider)`: Claude terracotta `(0.85, 0.47, 0.34)`, Codex green `(0.06, 0.64, 0.50)`) at `Layout.providerMarkSize` = 12pt, centred in an 18pt (`Layout.providerBadgeSize`) slot so the text column stays aligned; **no filled tile behind it** (a tinted rounded square was the one saturated block in a monochrome header and made the chip read as a foreign control). The marks are the Claude starburst / OpenAI blossom bundled as SVG (`AIBattery/Resources/claude.svg`, `openai.svg`; Simple Icons, CC0), loaded once as a template `NSImage` via `AIProvider.markImage`; never the text glyph (renders badly in SwiftUI text), and `AIProvider.symbolName` survives only as the fallback if a resource fails to load. The mark is `accessibilityHidden` because the accessibility label carries the provider · **identity** (`Typography.accountTitle` = 12pt semibold — 11pt subheadline read cramped, 13pt body made the header too big; the air comes from the gaps, not size — primary, `lineLimit(1)`, `.truncationMode(.middle)` so an email keeps its domain) — **no provider caption**: it doubled the mark and often the identity itself ("Claude  Claude Team") · **switcher glyph** `chevron.down` (`Typography.switcherChevron`, 8pt semibold, `Spacing.xsmall` = 3pt leading gap so it hugs the name — a wider gap left it floating between name and gear, and the up/down pop-up pair read as a separate widget) — the only hint that the title is a control: `ThemeColors.secondaryLabel` at rest, `.primary` on hover and while the menu is up, the same tone and weight as the gear; nothing else moves. `Layout.accountChipSpacing` (6pt) between mark and identity — paired with the 3pt name→chevron gap (8/3 read lopsided; 6/3 holds as one word-like cluster) — the `HStack` aligned on `.firstTextBaseline` with the mark and chevron offset by `Layout.capHeightBaselineOffset` (4.3pt) so all three centre on the capitals' optical centre rather than the 28pt row (the mark sat a hair high before); **no** inner horizontal padding (the mark sits flush with the section content edge below, and the dropped menu's left edge lines up with it). **The plan never appears in the chip** — it would truncate the identity at 275pt; it lives in the menu rows. With no active account the chip reads "Account". A `Spacer` separates the chip from the gear.
+  - **Identity** = `AccountStore.identityLabel(for:providerIndex:maskEmail:)` — precedence: the user's alias (`displayName`, trimmed, non-empty) → `AccountStore.connectingLabel` ("Connecting…") for a pending record → the provider-discovered identity (`AccountRecord.discoveredIdentity`: Codex sign-in email, Claude workspace name), **masked by default** for emails (`AccountStore.maskedEmail`: `kyle@example.com` → `k•••@example.com`; non-emails untouched) → `"<Provider> N"` where N = `AccountStore.providerIndex(of:in:)` + 1, numbered **within the provider** (`Claude 1`, `Codex 1` — adding a Claude account never renumbers Codex). Masking is lifted by the Display toggle "Full account email in popover" (`aibattery_showFullAccountIdentity`); an alias is always shown in full.
+  - **Menu** (built from the pure, tested `AccountChipView.menuModel(accounts:activeId:maskEmail:) -> [MenuSection]`): one section per provider (always both) — native section header (`NSMenuItem.sectionHeader` on macOS 14+, a disabled item on 13) titled plain `"Claude"` / `"Codex"` (no glyph), rows = that provider's accounts in `displayOrdered` order, title `AccountStore.displayLabel(showsProviderGlyph: false, includePlan: true, maskEmail: !showFull)` — identity plus Codex plan suffix ("· Plus", "· Business", "· ChatGPT Team", "· API"; none for an unknown plan) — `state = .on` (checkmark) on the active row; clicking switches via `viewModel.switchAccount(to:)` inside `withAnimation(MotionConstants.standard)`. Pending rows stay selectable (they are the account the user just signed into). Each section ends with **"Add <Provider> Account…"** (`plus` symbol), **disabled** at the cap with the count appended ("Add Codex Account… (3 of 3)"). Sections are separated by a separator item; `autoenablesItems = false`.
+  - Tooltip: the full glyph + identity + plan label. VoiceOver: one sentence from `AccountChipView.accessibilityDescription(for:providerIndex:isActive:maskEmail:)` — "Codex account, k•••@example.com, Business, selected"; hint "Opens the account menu to switch or add accounts".
+- **Gear button**: `gearshape`, `Typography.headerGear` (12pt regular — `bodyLabel` rendered it visibly heavier than the chip chevron; both controls share one weight and one tone), hit target `accountChipHeight` square so it aligns with the chip; toggles Settings. When an update was found **and the banner was dismissed**, a small `arrow.up.circle.fill` badge in `ThemeColors.updateAvailable` sits top-trailing (a symbol, not a bare color dot) — help "Settings — update available", accessibility label "Settings, update available". The badge is only ever for an available update, never for check failures.
+- **Update banner** (below the chip row, `ENABLE_VERSION_CHECKER`, when `availableUpdate` exists and not dismissed): unchanged bordered card — `RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)` with `ThemeColors.updateAvailable` at `subtleElementOpacity` fill / `subtleStrokeOpacity` stroke, `Spacing.section` padding. Icon + **"vX.Y.Z ↗"** (opens the release page), **"Install Update"** (`LinkActionButton(size: .compact)` → `AboutSection.installUpdate` — Sparkle when ready, else the GitHub release page), **"✕"** dismiss (hides the banner; the gear badge takes over). State: `@State updateBannerDismissed`. This is the *automatic* check surfacing; the manual check moved to About.
+- HStack alignment `.center`, `Spacing.inner` gaps; padding H 16 (`Spacing.sectionHorizontal`), V 8 (`Spacing.section`).
 
 ### ❶b Settings (`SettingsRow` — private struct, decomposed into sub-views)
 
+Below the account-name rows: one `LinkActionButton` per provider with room — "Add Claude account" / "Add Codex account" (each gated on `canAddAccount(provider:)`) — and the caption "Up to 3 accounts per provider." `onAddAccount: (AIProvider) -> Void`.
+
 Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppStorage` toggle only redraws its own section.
 
-**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Uses `ForEach(accounts)` with index derived inside loop body. Subtle dividers (`Divider().opacity(0.5)`) separate account names, refresh, display, alerts, and startup sub-sections.
+**Parent `SettingsRow`**: holds `viewModel`, `accountStore`, `onAddAccount` closure. Contains account name rows (depend on `accountStore`) and delegates sections to child views. Account rows iterate `AccountStore.displayOrdered(accounts)` with the **same per-provider numbering as the header chip menu** (`AccountStore.providerIndex(of:in:)`). The label column reads **"Accounts"** on the first row only and is blank below — there is no "Active" / "Account" / "Name" per-row label any more (with the badge present those read as field names; the badge says which provider a row is and the header chip says which is active). In a mixed-provider setup each row shows the same `ProviderBadge` as the header (bare brand mark in the provider colour, `.help("<Provider> account")`, accessibility label "<Provider> account") before the text field — never the text glyph. The field's placeholder is the row's identity **without the alias and unmasked** (`displayLabel` of the record with `displayName = nil`, `showsProviderGlyph: false, includePlan: true, maskEmail: false` — e.g. `kyle@example.com · Business`, `Ringier Engineering`, or `Codex 2 · API`): Settings is where the user confirms *which* account they are naming, so nothing is hidden there. The remove button's help / accessibility label is "Remove <label>" using the full glyph + plan identity. Subtle dividers (`StyledDivider`) separate account names, refresh, display, alerts, startup and About sub-sections.
 
 **`RefreshSettingsSection`** (owns `refreshInterval`):
 - **Refresh**: Slider (30–300s, step 30) → `aibattery_refreshInterval`
   - Calls `viewModel.updatePollingInterval()` on change
   - Marks: 30s, 1m, 2m, 3m, 4m, 5m
-  - Hint: `"~3 tokens/poll · API data kept until next update"` (.tinyLabel, .tertiaryLabel)
+  - Hint (.tinyLabel, .tertiaryLabel) — `RefreshSettingsSection.pollCostHint(provider:apiKeyAccount:)`, the real per-poll cost for the active account: Claude `"~3 tokens/poll · API data kept until next update"`; Codex ChatGPT `"Reads OpenAI's usage endpoint · no tokens spent · data kept until next update"`; Codex API key `"~16 output tokens/poll, billed at API rates · data kept until next update"`
 
 **`DisplaySettingsSection`** (owns `idleSessionMinutes`, `colorblindMode`, `showAllAccountsInMenuBar`):
 - **Hide idle**: Slider (1–6, step 1) → `aibattery_idleSessionMinutes` (30/60/120/240/480 minutes, 0 = Never). Row label is "Hide idle".
@@ -145,14 +139,22 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 - **Display**: Checkboxes
   - "Colorblind" → `aibattery_colorblindMode`
   - "All accounts in menu bar" → `aibattery_showAllAccountsInMenuBar` (second Display row; `.help()`: shows every connected account's usage, e.g. `42% | 23%`, with star color + countdown from the worst account)
+  - "Full account email in popover" → `aibattery_showFullAccountIdentity` (third Display row, default off; `.help()` explains the `k•••@domain` masking and that aliases are always shown in full). Only affects the header chip and its menu — Settings placeholders are always unmasked.
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
 - **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)
-  - Status: notifies on any of the 5 tracked status page components
+  - Status: notifies on any of the 5 tracked status page components of the active provider's feed
+  - Test: `NotificationManager.testAlerts(components:)` with the **active provider's** components (`StatusChecker.shared(for:).config.knownComponents`) — a Codex user sees "Codex API is down", not "claude.ai is down"
   - Rate Limit: threshold slider (50–95%, step 5, default 80%) appears below when enabled
 
 **`LaunchAtLoginSection`** (owns `launchAtLogin`):
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
+
+**`AboutSection`** (`Settings/AboutSection.swift`, takes `@ObservedObject viewModel` for `availableUpdate`): last Settings sub-section.
+- Row 1 — "About" label column, `sparkle` symbol (hidden from VoiceOver), **"AI Battery"** (`Typography.caption` semibold), `vX.Y.Z` (`Typography.monoCaption`, secondary, selectable; `VersionChecker.currentAppVersion`). Combined accessibility label "AI Battery version X.Y.Z".
+- Row 2 — `LinkActionButton`s: **"Check for Updates"** (`arrow.triangle.2.circlepath`; label "Checking…" and disabled while `VersionChecker.shared.forceCheckForUpdate()` runs; result written to `viewModel.availableUpdate`) **or**, when an update is already known, **"Install vX.Y.Z"** (`arrow.down.circle` → `AboutSection.installUpdate`); then **"Release notes"** (`arrow.up.right` → `AboutSection.releasesURL`).
+- "Up to date" confirmation (`checkmark.circle.fill`, `ThemeColors.success`, `Typography.tinyLabel`) below for `MotionConstants.updateCheckMessageNs`, then fades.
+- `ENABLE_SPARKLE` **"Update failed"** strip (`exclamationmark.triangle.fill` in `ThemeColors.danger`, "Download" → `AboutSection.latestReleaseURL`, ✕ → `SparkleUpdateService.shared.clearError()`, `.help(sparkleError)`) — operational state lives next to the update controls, not in the header.
   - Syncs with `SMAppService.mainApp.status` on appear
 
 **`sliderMarks()`**: internal file-level helper in `RefreshSettingsSection.swift` for generating slider tick marks (shared by sections).
@@ -195,6 +197,7 @@ Single HStack (no container fill, no divider): auto mode button (left) + custom 
 - **Hover** (inactive): `.secondary` text, `ThemeColors.hoverFill` background, `.secondary.opacity(0.4)` stroke.
 - **Inactive**: `.secondary.opacity(0.5)` text, no fill, `.secondary.opacity(0.2)` stroke, no shadow.
 - Tab buttons dim to `ThemeColors.disabledOpacity` (0.55) and are disabled when auto mode is active.
+- **Keyboard**: keys `1` / `2` / `3` select 5-Hour / 7-Day / Context (`UsagePopoverView`). On the collapsed Codex kinds (Credits, API Limits — `CodexDisplayKind != .windows`) there is no second window tab, so `2` selects the single budget tab (`.fiveHour`) instead of a hidden mode; the tab bar's help text reads "Select primary metric (keys: 1, 3)" when collapsed, "(keys: 1, 2, 3)" otherwise.
 - **Auto highlight**: when auto mode is active, the tab selection syncs to the auto-resolved mode via the single pickerBinding, visually highlighting which tab was chosen.
 - **Behavior**: auto mode uses a **four-tier deterministic escalation ladder** via `snapshot.autoResolvedMode` (no urgency score, no interpolation): **Tier 1** throttled → the throttled rate-limit window (5h/7d by `representativeClaim`); **Tier 2** `max(5h, 7d) >= 80%` (`rateLimitEscalationThreshold`) → the higher-consumed rate-limit window; **Tier 3** active session AND context health `>= 60%` (`contextEscalationThreshold`) → context health; **Tier 4** default → binding (highest-consumed) rate-limit window. A 10pp hysteresis de-escalation band (`UsageViewModel`) holds the prior mode until the metric drops that far below its threshold; upward escalation and throttle bypass hysteresis. Applied in both popover and menu bar label.
 
@@ -261,11 +264,30 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 
 Padding: H 16, V 8
 
+### ❷a Codex Credits Bar (`Views/CreditBudgetSection.swift`)
+
+Codex-native replacement for **both** rate-limit bars when `snapshot.rateLimits?.creditBudget != nil` (Business / Enterprise spend-control plans). Rendered in the `.fiveHour` slot; the `.sevenDay` slot renders nothing.
+
+- **Label row**: `"Credits"` (.buttonLabel; tooltip: % used, `used of limit credits`, plan, reset time, source) + optional `unlimited` badge + danger triangle when throttled; trailing `"{percent}%"` (.monoValue) + `"{used} / {limit}"` (`CodexCreditBudget.formatCredits`, .monoValue, secondaryLabel, copyable)
+- **Gauge bar**: shared `GaugeRow`, colored via `ThemeColors.barColor`
+- **Footer**: `"{remaining} remaining"` (or "Budget reached" / "Credits depleted" in danger) + `"Resets in …"` countdown
+- **Uncapped plan** (`budget.isUncapped` — no windows, no individual spend cap): the badge reads `no cap`, the trailing value is a single `"—"` (help "No individual spend cap on this plan") instead of `0% · 0 / 0`, the footer says "No spend cap on this plan", the accessibility value is "No spend cap", and the header tooltip opens with "Codex credits: this plan has no individual spend cap, so there is nothing to meter". A depleted `credits` flag still wins ("Credits depleted").
+- Alarm gating identical to `UsageBar.AlarmState` (confirmed data only)
+- The metric toggle shows **Credits | Context** (`MetricMode.pickerModes`); a stored `.sevenDay` selection highlights the Credits tab. Menu bar shows the credit % in either rate-limit mode; a throttled countdown is prefixed `CR`.
+
+### ❷a′ Codex API-key accounts (`Views/StandardLimitsSection.swift`, `provider: .codex`)
+
+`CodexDisplayKind.apiLimits`: the `.fiveHour` slot renders `StandardLimitsSection` with the banner "OpenAI API limits (per minute, pay-per-token)" — Requests and Tokens bars from `x-ratelimit-*`; the `.sevenDay` slot renders nothing; the toggle reads **API Limits | Context**; the menu bar % is the **tighter** of the per-minute request / token utilisations (`StandardRateLimits.peakPercent`). API-key accounts are **excluded from the multi-account menu bar** (`AccountStore.multiAccountDisplayIDs`) — they have no `RateLimitUsage` and rendered a permanent "—" slot. Cost rows in Projects and Insights drop the "~" (`snapshot.costIsBilled`) because they are a real bill at API rates. Footer Usage link → `platform.openai.com/usage`.
+
+### ❷a″ Subscription credits balance (`CreditBalanceRow` in `Views/UsageBarsSection.swift`)
+
+Windowed Codex plans that report `credits.balance` show a one-line row under the Weekly bar: `creditcard` icon + "Credits balance: 3.9K" (or "Credits: unlimited") + "used once limits are reached" (tertiary).
+
 ### ❷b Local Estimate Fallback (`Views/LocalEstimateSection.swift`)
 
-Shown when Anthropic's unified 5h/7d rate limit headers are unavailable (e.g., API header removal — see issue #141). Renders one window (5h or 7d) based on the active metric mode, so the mode selector and auto-mode work identically to the API data path.
+Shown when Anthropic's 5h/7d rate limit data is unavailable (e.g., API header removal — see issue #141). **Claude only** — `isUsingLocalEstimate` is false for Codex snapshots, so a Codex account never shows plan-tier estimates. Renders one window (5h or 7d) based on the active metric mode, so the mode selector and auto-mode work identically to the API data path.
 
-- **Label row**: `"{Window} Usage"` (.buttonLabel) + percentage (.monoValue, copyable) + token count with limit (`"X / Y"`, .monoValue, ThemeColors.secondaryLabel, copyable)
+- **Label row**: `"{Window} Usage"` (.buttonLabel) — window label via `windowLabel(_:provider:)`: "5-Hour" for both providers; "7-Day" (Claude) / "Weekly" (Codex) from `snapshot.provider` + percentage (.monoValue, copyable) + token count with limit (`"X / Y"`, .monoValue, ThemeColors.secondaryLabel, copyable)
 - **Gauge bar**: same style as rate limit bars (GaugeBar, 8pt height, 3pt radius), colored by percent via `ThemeColors.barColor`
 - **Remaining row**: `"~X remaining"` (.tinyLabel, ThemeColors.secondaryLabel) — `~` prefix when limit is estimated from plan tier
 - **Limit sources**: calibrated from prior API headers (exact) or inferred from `PlanTier` (estimated). `limitSource` property distinguishes the two.
@@ -371,7 +393,9 @@ Insight rows display cumulative stats using `insightRow(label:value:tooltip:)` h
 |-----|-------|-------|-----------|
 | Period | `"Period"` | `"Nov 6 – Mar 16, 2026"` (date range) | `firstSessionDate` exists |
 | Longest | `"Longest"` | `"{duration} · {messages} turns"` | `longestSessionDuration` exists & messages > 0 |
-| All Time | `"All Time"` | `"{totalTokens} tokens · {totalSessions} sessions"` | Always (at bottom) |
+| All Time | `"All Time"` | `"{totalTokens} tokens · {totalSessions} sessions"` | Always (at bottom). Tooltip via `allTimeTooltip(for: snapshot.provider)` — Claude: "Cumulative tokens across all sessions"; Codex: states the figure is rebuilt from retained session logs (no lifetime cache, bounded by log retention) |
+
+Codex accounts have no stats-cache: `Period` starts at the earliest retained rollout, `Longest` hides (nil), tool-call counts are 0, and the cost breakdown uses `OpenAIModelPricing` with `GPT-…` display names.
 
 Date range uses `DateFormatters.formatDateRange(from:to:)` — same year omits start year, cross-year includes both.
 
@@ -380,8 +404,10 @@ Padding: H 16, V 8
 ### ❻ Footer (`PopoverFooterView`)
 
 Links row in HStack (spacing 10):
-1. **Usage**: chart.bar icon (`Typography.monoTiny`, 10pt) + "Usage" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `claude.ai/settings/usage`
-2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `status.claude.com`
+1. **Usage**: chart.bar icon (`Typography.monoTiny`, 10pt) + "Usage" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `usageDashboardURL(for: provider)`: `claude.ai/settings/usage` (Claude) / `chatgpt.com/codex/settings/usage` (Codex)
+2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `statusPageURL(systemStatus:provider:)` — the live status's own page URL, else the provider's default (`status.claude.com` / `status.openai.com`)
+
+`PopoverFooterView` takes `provider: AIProvider` (the active account's; `.claude` default). The logout hint reads "Sign out of active {Provider} account".
 3. _(Spacer)_
 4. **Logout**: rectangle.portrait.and.arrow.right icon (`Typography.monoTiny`, 10pt) + "Logout" → two-tap confirmation (first tap shows "Confirm?" in red, auto-reverts after 3s, second tap clears OAuth tokens)
 5. **Quit**: xmark.circle icon (`Typography.monoTiny`, 10pt) + "Quit" → terminates app (also via Cmd+Q keyboard shortcut)
@@ -390,17 +416,30 @@ All five entries are `FooterLink`s. External links (Usage, Status) pass `showsEx
 
 **Incident banner / timestamp** (mutually exclusive):
 - **Active incidents** (if `incidentNames` non-empty): triangle icon + `MarqueeText(texts:, color: statusColor)` cycling through all active incidents with cross-fade transitions (color matches incident severity). Replaces timestamp.
-- **No incidents**: `"Updated {relative time}"` right-aligned (`Typography.monoTiny` = .system 10pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time.
+- **No incidents**: `"Updated {relative time}"` right-aligned (`Typography.monoTiny` = .system 10pt monospaced, ThemeColors.tertiaryLabel). Wrapped in `TimelineView(.periodic(from: .now, by: 10))` for live updates. Tooltip shows absolute time. When `isShowingCachedData` the text is prefixed "Cached" and the tooltip explains why in the active source's terms — `PopoverFooterView.staleTooltip(source:lastFresh:)`: `.codexSessionLog` → "Showing the last reading from your Codex CLI session log — OpenAI's usage endpoint is unreachable. Last fresh: …"; `.codexUsageEndpoint` → "Showing cached values — OpenAI's usage endpoint is unreachable or backing off after an error. Last fresh: …"; any Claude source → "Rate limits may be stale — API is rate-limiting probes. Last fresh: …".
 
 All text: .caption2, ThemeColors.secondaryLabel. Padding: H 16, V 8 (section).
 
 Status colors: operational=green, degraded=yellow, partial=orange, major=red, maintenance=blue, unknown=gray. Non-operational dots overlay a small white SF Symbol inside the circle so severity is distinguishable without color (`exclamationmark` for degraded, `xmark` for partial/major outage, `wrench.adjustable` for maintenance). Operational and unknown stay plain dots. Symbol size scales off `Layout.dotSizeSmall * 0.72`.
 
+### Sign-in (`Views/AuthView.swift`)
+
+Parameterised by `provider: AIProvider` (title subtitle, copy, flow). On the **signed-out root** (`onToggleProvider != nil`, hidden while a browser sign-in is pending) a segmented `Picker` — **"Claude | Codex"** (`AIProvider.displayName`, no glyphs — the text glyphs rendered badly inside a segmented control; `.segmented`, labels hidden, accessibility label "Provider to sign in with") — sits below the header divider and gives both providers equal billing; there is no footer "Sign in with X instead" link any more. The offered provider is persisted in `@AppStorage(UserDefaultsKeys.signedOutProvider)` (`PopoverContentView`) and follows the last account the user signed out of (or was signed out of), so a Codex-only user is never dropped onto the Claude sign-in. The add-account overlay already knows its provider and shows no picker.
+- **Sign-out reason** (root only, not the add-account overlay): when `oauthManager.lastSignOutReason` is set — the app signed the account out because its refresh token was rejected — a caution line (`info.circle` + text, `Typography.tinyLabel`, `ThemeColors.caution`) explains it: "Your Claude session expired or was revoked — sign in again to continue." / "Your Codex (ChatGPT) session expired or was revoked — sign in again to continue." Cleared once any account authenticates.
+- **Claude**: Sign In → browser → paste authorization code → Connect (unchanged).
+- **Codex**: copy "Connect your ChatGPT or OpenAI account to see Codex usage, credits and rate limits." (add-account variant: "Connect another ChatGPT or OpenAI account to watch a second Codex quota."). "Sign In with ChatGPT" → browser round-trip to a local callback (127.0.0.1:1455) → the account lands in `AccountStore` and the overlay auto-dismisses; no code to paste. While waiting: spinner + "Complete the sign-in in your browser…" + Cancel (releases the port, clears any error). Port busy → inline error "Couldn't start sign-in (port 1455 busy — is a Codex CLI login running?)". Errors speak for OpenAI (see `AuthError` in DATA_LAYER.md): a user-cancelled browser flow shows **nothing**; timeout / declined / malformed-redirect / token-endpoint failures each get their own copy, none of it mentioning Anthropic or an "authorization code".
+- **Import Codex CLI login** (`LinkActionButton`, `square.and.arrow.down`): shown only when `~/.codex/auth.json` holds a login — ChatGPT mode or API-key mode. The availability check runs once in `.task` (off the render path), never inside `body`.
+- **Use an OpenAI API key instead** (`LinkActionButton`, `key`): reveals a `SecureField("sk-…")` + "Connect" (+ a one-line pay-per-token explainer) and a **"Use ChatGPT sign-in instead"** back link (`arrow.uturn.backward`; hides the field, clears input and error). Connect runs the local shape check (`OAuthManager.looksLikeOpenAIAPIKey`) **before any network** — a malformed key fails instantly and offline with "That doesn't look like an OpenAI API key (expected sk-…)." — then the free `/v1/models` validation: `.invalid` (401) → "OpenAI rejected this API key. Check it at platform.openai.com/api-keys."; `.unknown` (offline, 403, 5xx) → the key is **added anyway** with the note "Couldn't verify the key right now (offline?). Added anyway — it's checked on the first refresh."; `.valid` → registered via `OAuthManager.registerCodexAPIKey` and the overlay auto-dismisses.
+
 ### Loading / Error / Empty States
 
 - **Loading**: centered spinner (0.8 scale) + "Loading...", 80pt height
 - **Error**: orange triangle + message + blue "Retry" button, 100pt height
-- **Empty**: "No Claude Code data found" + "Start a Claude Code session to populate usage data.\nData appears automatically once Claude Code is running.", 80pt height
+- **Empty**: "No {Claude Code|Codex} data found" + "Start a {tool} session to populate usage data.\nData appears automatically once {tool} is running.", 80pt height — tool name follows the active provider
+- **Error copy** (footer message): "Unable to reach Anthropic API…" / "Unable to reach OpenAI…" and "Start a Claude Code session…" / "Start a Codex session…" per provider. A Codex account whose endpoint call failed with nothing cached (`APIFetchResult.endpointUnavailable`) gets "Unable to reach OpenAI. Check your internet connection and try again." — never the first-run "Start a Codex session" prompt.
+
+### Tutorial copy
+Step 1 follows the active account's quota shape (`TutorialOverlay(hasData:kind:)`, `rateLimitStep(kind:)`): `.windows` → **Rate Limits** "The 5-hour and 7-day (Weekly for Codex) bars show your current usage against your provider's sliding window limits. The "binding" badge marks whichever window is constraining you." (`chart.bar.fill`); `.credits` → **Credits** "The Credits bar shows how much of this period's spend budget your workspace has used, with the remaining credits and when the budget resets." (`creditcard.fill`); `.apiLimits` → **API Limits** "The Requests and Tokens bars show OpenAI's per-minute limits for your API key. Costs below are your real bill at API rates." (`key.fill`). Steps 2–3 are provider-neutral: "Monitors your active Claude Code or Codex sessions…"; the Settings step.
 
 ## Menu Bar
 
@@ -409,7 +448,7 @@ Status colors: operational=green, degraded=yellow, partial=orange, major=red, ma
 Native AppKit `NSStatusItem` with a single combined `button.image` — percentage/countdown text and the star icon are baked into one `NSImage` via `MenuBarIcon.combinedStatusBarImage(...)`. This bypasses the per-side bezel padding AppKit applies around a separate `title + image` layout, so the menu bar pill hugs the content like Battery / WiFi / Control Center.
 
 **Button rendering** (native AppKit, no NSHostingView):
-- `button.image` = `MenuBarIcon.combinedStatusBarImage(text:percent:color:...:menuBarAppearance:)` — text + star rendered into one tightly-packed image (text in `.white`/`.black` based on `menuBarAppearance` — the status bar button's `effectiveAppearance`, which reflects the actual menu bar backdrop including wallpaper tint and translucency, rather than `NSApp.effectiveAppearance` which only tracks the system-wide Light/Dark setting; then 2pt gap, then the colored star with its 4pt canvas padding trimmed from both sides)
+- `button.image` = `MenuBarIcon.combinedStatusBarImage(text:percent:color:...:menuBarAppearance:)` — text + star rendered into one tightly-packed image. The text goes through `MenuBarIcon.menuBarAttributedText(_:font:color:)` first: every provider glyph (`✦` / `⬡`) in the multi-account string is replaced by an inline **brand mark** (`NSTextAttachment` holding `AIProvider.markImage` tinted to the text color via `NSImage.tinted(_:size:)`, sized to the font's cap height and centred on it); the string model keeps the glyphs so `MenuBarMultiAccountText` stays string-based and testable, and a provider whose mark fails to load keeps its glyph. `button.accessibilityValue` is `MenuBarIcon.spokenMenuBarText` — provider names in place of glyphs. (Text in `.white`/`.black` based on `menuBarAppearance` — the status bar button's `effectiveAppearance`, which reflects the actual menu bar backdrop including wallpaper tint and translucency, rather than `NSApp.effectiveAppearance` which only tracks the system-wide Light/Dark setting; then 2pt gap, then the colored star with its 4pt canvas padding trimmed from both sides)
 - `button.title = ""` — leaving it set would add AppKit's bezel padding back around the text
 - `statusItem.length = image.size.width` — sizing the button exactly to the image makes `NSButtonCell.imageRect(forBounds:)` return `origin.x = 0`, so the image is flush against both button edges with no centering gap
 - `button.font` = `.monospacedDigitSystemFont(ofSize: 11, weight: .medium)` — used for text measurement inside `combinedStatusBarImage`, matches macOS menu bar status items
@@ -451,7 +490,8 @@ The **popover's 5-Hour/7-Day bars** read from a single source of truth — the (
 
 **Multi-account display** (when `aibattery_showAllAccountsInMenuBar == true` and ≥2 authenticated accounts exist):
 - Text format: `"<a>%\u{00A0}|\u{00A0}<b>%[\u{00A0}|\u{00A0}<c>%]"` — non-breaking spaces around `|` so a single slot doesn't break across the separator. Pure formatting via `MenuBarMultiAccountText.build(order:limits:metricMode:)`.
-- Order: `AccountStore.accounts` order (user-controlled, mirrors the popover account picker).
+- **Mixed providers**: when the *displayed* accounts span both providers, slots are grouped by provider with a glyph prefix — `✦ 42% | 23%  ⬡ 57%` (two spaces between groups, non-breaking within a group). Single-provider sets keep the legacy unprefixed format. Throttled countdown prefixes the binding window's short code (`7D` / `WK`).
+- Order: `AccountStore.multiAccountDisplayIDs` — `displayOrdered` (Claude block first, mirrors the popover account chip menu), non-pending, authenticated, **excluding Codex API-key accounts** (no window data → they rendered a permanent "—").
 - Star color: driven by the **worst** account's percent (max across `perAccountRateLimits.values`).
 - Broken star: triggered if any account has `isThrottled == true` OR any account has 100%+ utilization.
 - Countdown mode: triggered only when **at least one account is actually exhausted** (throttled or 100%+ on a window). `StatusBarManager` calls the existing `countdownResetDate(for:now:)` per account and picks `.min()`. Healthy accounts with normal future resets never pin the menu bar into countdown mode — the new `42% | 23%` text remains visible.
@@ -517,9 +557,9 @@ The **popover's 5-Hour/7-Day bars** read from a single source of truth — the (
 
 ### Tutorial Overlay (`Views/TutorialOverlay.swift`)
 
-Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` — parent passes only `hasData: Bool`. Renders when `!hasSeenTutorial && hasData`.
+Self-managing 3-step walkthrough. Owns its own `@AppStorage(hasSeenTutorial)` — parent passes `hasData: Bool` and the active snapshot's `kind: CodexDisplayKind` (default `.windows`). Renders when `!hasSeenTutorial && hasData`.
 
-1. **Rate Limits** — explains 5h/7d bars and binding constraint
+1. **Rate Limits** / **Credits** / **API Limits** — explains the bar the user is actually looking at (windows + binding constraint, the Credits budget, or per-minute API limits; copy under "Tutorial copy" above)
 2. **Context Health** — explains session monitoring and bands
 3. **Settings** — points to gear icon for customization
 

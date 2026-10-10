@@ -186,6 +186,16 @@ enum ThemeColors {
     // MARK: - Interactive state colors
 
     /// Hover highlight for interactive elements (buttons, chevrons, headers).
+    /// Tint of the provider badge behind the header chip's symbol — Anthropic's
+    /// terracotta for Claude, OpenAI's green for Codex. Plain literals (not dynamic
+    /// NSColors) so they are safe to compare off-main in tests.
+    static func providerBadge(_ provider: AIProvider) -> Color {
+        switch provider {
+        case .claude: Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .codex: Color(red: 0.06, green: 0.64, blue: 0.50)
+        }
+    }
+
     static let hoverFill: Color = adaptive(
         light: NSColor(white: 0.0, alpha: 0.06),
         dark: NSColor(white: 1.0, alpha: 0.06)

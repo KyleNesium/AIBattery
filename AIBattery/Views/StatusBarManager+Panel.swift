@@ -154,13 +154,27 @@ final class PopoverPanel: NSPanel {
 struct PopoverContentView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject var oauthManager: OAuthManager
+    /// Which provider the signed-out root offers to sign in with. Persisted: it follows
+    /// the last account the user signed out of (or was signed out of), so a Codex-only
+    /// user doesn't land on the Claude sign-in. Changed by AuthView's provider picker.
+    @AppStorage(UserDefaultsKeys.signedOutProvider) private var signedOutProviderRaw: String = AIProvider.claude.rawValue
+
+    private var signedOutProvider: AIProvider {
+        AIProvider(rawValue: signedOutProviderRaw) ?? .claude
+    }
 
     var body: some View {
         Group {
             if oauthManager.isAuthenticated {
                 UsagePopoverView(viewModel: viewModel)
             } else {
-                AuthView(oauthManager: oauthManager)
+                AuthView(
+                    oauthManager: oauthManager,
+                    provider: signedOutProvider,
+                    onToggleProvider: {
+                        signedOutProviderRaw = (signedOutProvider == .claude ? AIProvider.codex : .claude).rawValue
+                    }
+                )
             }
         }
         .frame(width: Layout.popoverWidth)

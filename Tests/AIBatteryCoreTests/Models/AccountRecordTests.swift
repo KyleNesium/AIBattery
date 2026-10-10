@@ -48,6 +48,26 @@ struct AccountRecordTests {
         #expect(decoded[1].id == "org-2")
     }
 
+    @Test func discoveredIdentity_roundTripsAndDefaultsToNilForLegacyJSON() throws {
+        let original = AccountRecord(
+            id: "acc-1",
+            addedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            provider: .codex,
+            discoveredIdentity: "kyle@example.com"
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(AccountRecord.self, from: data)
+        #expect(decoded == original)
+        #expect(decoded.discoveredIdentity == "kyle@example.com")
+
+        // Records persisted before the identity field existed decode with nil, no migration.
+        let legacy = Data("""
+        [{"id":"org-1","addedAt":0,"provider":"claude"}]
+        """.utf8)
+        let legacyDecoded = try JSONDecoder().decode([AccountRecord].self, from: legacy)
+        #expect(legacyDecoded[0].discoveredIdentity == nil)
+    }
+
     @Test func codable_nilFields() throws {
         let original = AccountRecord(
             id: "pending-xyz",

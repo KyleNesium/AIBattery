@@ -57,9 +57,18 @@ extension StatusBarManager {
         let anyThrottled = (activeRateLimits?.isThrottled ?? false)
             || perAccount.values.contains { $0.isThrottled }
         let confirmed = UsageViewModel.alarmConfirmed(rateLimitsFresh: viewModel.rateLimitsFresh, displayedIsThrottled: anyThrottled)
+        // `uniqueKeysWithValues` traps on a duplicate key, and the persisted accounts blob
+        // is only de-duplicated on add/update — a blob that ever acquires two records with
+        // one id would turn every status-bar refresh into a crash, i.e. a launch loop with
+        // no way out from inside the app. Same guard as `UsageAggregator`'s.
+        let providers: [String: AIProvider] = Dictionary(
+            OAuthManager.shared.accountStore.accounts.map { ($0.id, $0.provider) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let display = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: showAll,
             perAccount: perAccount,
+            providers: providers,
             order: order,
             activeRateLimits: activeRateLimits,
             activePercent: activePercent,
@@ -109,7 +118,7 @@ extension StatusBarManager {
             // Title is baked into the image — leaving it set would add AppKit's bezel padding
             // back around the text, which is exactly what we're avoiding here.
             button.title = ""
-            button.setAccessibilityValue(displayText)
+            button.setAccessibilityValue(MenuBarIcon.spokenMenuBarText(displayText))
             updateStatusItemWidth(button: button)
             // Never grey out — the icon always shows the last known state.
             // Other menu bar apps (Battery, WiFi) don't dim on stale data.
