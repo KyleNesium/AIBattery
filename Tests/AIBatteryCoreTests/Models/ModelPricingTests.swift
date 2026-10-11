@@ -5,11 +5,13 @@ import Testing
 struct ModelPricingTests {
     // MARK: - Lookup
 
+    /// Opus 4.6 is $5/$25. This previously asserted $15/$75 — the retired Opus 4/4.1 rate,
+    /// which the old single "opus 4" row applied to the whole 4.x generation.
     @Test func pricing_opus4() {
         let pricing = ModelPricing.pricing(for: "claude-opus-4-6-20250929")
         #expect(pricing != nil)
-        #expect(pricing?.inputPerMillion == 15)
-        #expect(pricing?.outputPerMillion == 75)
+        #expect(pricing?.inputPerMillion == 5)
+        #expect(pricing?.outputPerMillion == 25)
     }
 
     @Test func pricing_sonnet4() {
@@ -18,10 +20,12 @@ struct ModelPricingTests {
         #expect(pricing?.inputPerMillion == 3)
     }
 
+    /// Haiku 4.5 is $1/MTok. This previously asserted $0.80 — the Haiku 3.5 rate.
     @Test func pricing_haiku4() {
         let pricing = ModelPricing.pricing(for: "claude-haiku-4-5-20251001")
         #expect(pricing != nil)
-        #expect(pricing?.inputPerMillion == 0.80)
+        #expect(pricing?.inputPerMillion == 1)
+        #expect(pricing?.outputPerMillion == 5)
     }
 
     @Test func pricing_sonnet35() {
@@ -175,5 +179,136 @@ struct ModelPricingTests {
         // Second call should hit the cache (not recompute) — still nil
         let second = ModelPricing.pricing(for: "totally-fake-model-xyz-12345")
         #expect(second == nil)
+    }
+
+    // MARK: - OpenAI (Codex) models
+
+    @Test func pricing_gpt54() {
+        let pricing = ModelPricing.pricing(for: "gpt-5.4")
+        #expect(pricing?.inputPerMillion == 2.50)
+        #expect(pricing?.outputPerMillion == 15.00)
+        #expect(pricing?.cacheReadPerMillion == 0.25)
+        #expect(pricing?.cacheWritePerMillion == 2.50) // no separate cache-write price → input rate
+    }
+
+    @Test func pricing_gpt56Sol_longestPrefixWins() {
+        let pricing = ModelPricing.pricing(for: "gpt-5.6-sol")
+        #expect(pricing?.inputPerMillion == 4.00)
+        #expect(pricing?.outputPerMillion == 20.00)
+    }
+
+    @Test func pricing_gpt5Mini_notMatchedAsGpt5() {
+        let pricing = ModelPricing.pricing(for: "gpt-5-mini")
+        #expect(pricing?.inputPerMillion == 0.25)
+        #expect(pricing?.outputPerMillion == 2.00)
+    }
+
+    @Test func pricing_gpt5Base() {
+        let pricing = ModelPricing.pricing(for: "gpt-5")
+        #expect(pricing?.inputPerMillion == 1.25)
+        #expect(pricing?.outputPerMillion == 10.00)
+    }
+
+    @Test func pricing_gpt6Astra() {
+        // Seen in real ~/.codex/sessions logs (1.5k turns); rates from the OpenAI pricing page 2026-09-21.
+        let pricing = ModelPricing.pricing(for: "gpt-6-astra")
+        #expect(pricing?.inputPerMillion == 10.00)
+        #expect(pricing?.outputPerMillion == 50.00)
+        #expect(pricing?.cacheReadPerMillion == 1.00)
+    }
+
+    @Test func pricing_unknownGPT_isNil() {
+        #expect(ModelPricing.pricing(for: "gpt-3.5-turbo") == nil)
+    }
+
+    /// Verified against developers.openai.com/api/docs/pricing on 2026-09-29: the
+    /// mini/nano variants of 5.4 must not fall through to the full 5.4 row, and the
+    /// families an API key can reach (gpt-6 sol/luna, 4.1, 4o) are priced.
+    @Test func openAITable_variantsAndOlderFamilies() throws {
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-5.4-mini")).inputPerMillion == 0.75)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-5.4-nano-2026-08-01")).outputPerMillion == 1.25)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-5.4")).inputPerMillion == 2.50)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-6-sol")).inputPerMillion == 2.00)
+        // gpt-6.1-sol has its own row: cached input is $0.10, not the gpt-6 family's $0.20.
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-6.1-sol")).cacheReadPerMillion == 0.10)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-6-luna")).cacheReadPerMillion == 0.01)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4.1-mini")).inputPerMillion == 0.40)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4.1")).outputPerMillion == 8.00)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4o-mini")).inputPerMillion == 0.15)
+        #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4o-2024-11-20")).inputPerMillion == 2.50)
+        #expect(OpenAIModelPricing.pricing(for: "gpt-3.5-turbo") == nil)
+    }
+
+    @Test func openAITable_isOrderedLongestPrefixFirst() {
+        let prefixes = OpenAIModelPricing.table.map(\.prefix)
+        for (i, prefix) in prefixes.enumerated() {
+            for later in prefixes[(i + 1)...] {
+                // An earlier, shorter prefix must never be a prefix of a later entry —
+                // it would shadow the more specific row.
+                #expect(!later.hasPrefix(prefix), "\(prefix) would shadow \(later)")
+            }
+        }
+    }
+
+    // MARK: - Claude 5 family
+
+    /// Regression: the table stopped at the 4.x generation, so every Claude 5 model
+    /// matched no row, `pricing(for:)` returned nil and its entire cost was reported as
+    /// $0.00 — silently dropping the bulk of real usage out of Insights, per-project cost
+    /// and the all-time total.
+    @Test func claudeFive_familyIsPriced() throws {
+        #expect(try #require(ModelPricing.pricing(for: "claude-opus-5")).inputPerMillion == 5)
+        #expect(try #require(ModelPricing.pricing(for: "claude-opus-5")).outputPerMillion == 25)
+        #expect(try #require(ModelPricing.pricing(for: "claude-sonnet-5")).inputPerMillion == 2)
+        #expect(try #require(ModelPricing.pricing(for: "claude-sonnet-5")).outputPerMillion == 10)
+        #expect(try #require(ModelPricing.pricing(for: "claude-fable-5-1")).inputPerMillion == 10)
+        #expect(try #require(ModelPricing.pricing(for: "claude-fable-5-1")).outputPerMillion == 50)
+        #expect(try #require(ModelPricing.pricing(for: "claude-haiku-4-5")).inputPerMillion == 1)
+        #expect(try #require(ModelPricing.pricing(for: "claude-haiku-4-5")).outputPerMillion == 5)
+    }
+
+    /// `contains` matching means a shorter key would swallow a more specific one, and the
+    /// two differ in price: Opus 5.5 is $4/$20 against Opus 5's $5/$25, and Fable 5.1 reads
+    /// cache at $0.25 against Fable 5's $1.00.
+    @Test func claudeTable_minorVersionsAreNotShadowed() throws {
+        #expect(try #require(ModelPricing.pricing(for: "claude-opus-5-5")).inputPerMillion == 4)
+        #expect(try #require(ModelPricing.pricing(for: "claude-opus-5-5")).outputPerMillion == 20)
+        #expect(try #require(ModelPricing.pricing(for: "claude-fable-5")).cacheReadPerMillion == 1.00)
+        #expect(try #require(ModelPricing.pricing(for: "claude-fable-5-1")).cacheReadPerMillion == 0.25)
+        #expect(try #require(ModelPricing.pricing(for: "claude-sonnet-5")).cacheReadPerMillion == 0.20)
+        #expect(try #require(ModelPricing.pricing(for: "claude-sonnet-5-5")).cacheReadPerMillion == 0.10)
+    }
+
+    /// Opus 4.5-4.8 are $5/$25, not the retired Opus 4/4.1 rate of $15/$75. The old single
+    /// "opus 4" row billed Opus 4.7 usage at 3x its real cost.
+    @Test func opusFourPointX_usesCurrentRateNotRetiredRate() throws {
+        for id in ["claude-opus-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8"] {
+            let pricing = try #require(ModelPricing.pricing(for: id))
+            #expect(pricing.inputPerMillion == 5, "\(id) input")
+            #expect(pricing.outputPerMillion == 25, "\(id) output")
+        }
+        // The retired generation keeps its own (higher) published rate.
+        #expect(try #require(ModelPricing.pricing(for: "claude-3-opus-20240229")).inputPerMillion == 15)
+    }
+
+    /// A Claude model released after this table was last updated must still cost something —
+    /// returning nil here is what produced the $0.00 bug in the first place.
+    @Test func unknownMinorVersion_fallsBackToFamilyRate() throws {
+        #expect(try #require(ModelPricing.pricing(for: "claude-opus-7-3")).inputPerMillion == 5)
+        #expect(try #require(ModelPricing.pricing(for: "claude-sonnet-9")).inputPerMillion == 2)
+        #expect(try #require(ModelPricing.pricing(for: "claude-haiku-9")).inputPerMillion == 1)
+        // A genuinely unrecognisable id still has no price rather than a made-up one.
+        #expect(ModelPricing.pricing(for: "some-other-vendor-model") == nil)
+    }
+
+    /// The ordering invariant the `contains` scan depends on, asserted structurally so a
+    /// future row inserted in the wrong place fails here rather than silently mispricing.
+    @Test func claudeTable_specificKeysPrecedeTheKeysThatWouldSwallowThem() {
+        let keys = ModelPricing.tableKeys
+        for (i, key) in keys.enumerated() {
+            for later in keys[(i + 1)...] {
+                #expect(!later.contains(key), "\(key) would shadow \(later)")
+            }
+        }
     }
 }

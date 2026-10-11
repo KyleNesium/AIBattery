@@ -122,6 +122,26 @@ extension RateLimitFetcher {
         defaults.removeObject(forKey: oldKey)
     }
 
+    /// Remove one account's cached + persisted rate limits and its per-account probe
+    /// bookkeeping. Mirrors `CodexRateLimitFetcher.clearCache(accountId:)`.
+    ///
+    /// `pruneAccounts` only runs at launch, so without this a sign-out followed by a
+    /// re-add in the SAME session inherits the removed account's last reading — and
+    /// Claude ids are the deterministic org id, so the re-added account really does
+    /// hit the surviving entry. A stale `throttled` window then reads as the
+    /// false "Limit reached" this project already tracks.
+    func clearCache(accountId: String, defaults: UserDefaults = .standard) {
+        cachedResults.removeValue(forKey: accountId)
+        defaults.removeObject(forKey: Self.persistKeyPrefix + accountId)
+        defaults.removeObject(forKey: Self.observedModelsKeyPrefix + accountId)
+        defaults.removeObject(forKey: Self.workingModelKeyPrefix + accountId)
+        // The in-memory half matters just as much: a persistent 401 is the usual reason
+        // someone signs out and back in, and Claude ids are the deterministic org id, so
+        // without this the re-added account inherits the old auth-failure count and shows
+        // "reconnect" until a success resets it.
+        resetProbeState(accountId: accountId)
+    }
+
     /// Drop cached + persisted rate limits for accounts the user no longer has —
     /// orphaned `pending-<uuid>` ids left by pre-migration identity resolutions and
     /// removed accounts. Called once on launch with the live account ids (mirrors

@@ -1050,6 +1050,35 @@ struct UsageAggregatorTests {
         #expect(effects.accountId == nil)
     }
 
+    /// Pins the contract `UsageViewModel` relies on for a Codex active account (F1a):
+    /// Codex has no local (JSONL) data layer yet, so the ViewModel routes
+    /// `accountId: nil` into aggregation for Codex accounts specifically to skip this
+    /// merge — a Codex account must never gain a persistent TokenLedger entry seeded
+    /// from Claude-JSONL token counts (irreversible cross-provider pollution).
+    @Test func aggregate_noAccountId_skipsLedgerMerge() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let cacheURL = dir.appendingPathComponent("nonexistent.json")
+        let projectsDir = dir.appendingPathComponent("projects")
+        let lines = [
+            makeAssistantLine(model: "claude-sonnet-4-5-20250929", input: 100, output: 50, messageId: "no-ledger-1"),
+        ]
+        try writeJSONL(lines, to: projectsDir)
+
+        let reader = StatsCacheReader(fileURL: cacheURL)
+        let logReader = SessionLogReader(projectsURL: projectsDir)
+        let ledgerURL = dir.appendingPathComponent("token-ledger.json")
+        let ledger = TokenLedger(fileURL: ledgerURL)
+        let aggregator = UsageAggregator(statsCacheReader: reader, sessionLogReader: logReader, ledger: ledger)
+
+        _ = aggregator.aggregate(rateLimits: nil, accountId: nil)
+        ledger.flushForTesting()
+
+        // No merge ever ran against the ledger, so it never became dirty and never wrote.
+        #expect(!FileManager.default.fileExists(atPath: ledgerURL.path))
+    }
+
     // MARK: - Tool call count merge
 
     @Test func aggregate_jsonlMoreToolCalls_jsonlWins() throws {
@@ -1272,5 +1301,96 @@ struct UsageAggregatorTests {
 
         // Only the 6d22h-old entry counts (500 output tokens), not the 7d2h-old one.
         #expect(snapshot.sevenDayTokens == 500)
+    }
+
+    // MARK: - Provider parameterisation (Plan 2)
+
+    /// Test-local reader — lets aggregator tests inject entries without writing JSONL.
+    private final class StubEntrySource: UsageEntrySource, @unchecked Sendable {
+        let entries: [AssistantUsageEntry]
+        var lastCorruptLineCount = 0
+        init(_ entries: [AssistantUsageEntry]) {
+            self.entries = entries
+        }
+
+        func readAllUsageEntries() -> [AssistantUsageEntry] {
+            entries
+        }
+
+        func invalidate() {}
+    }
+
+    private func makeEntry(model: String, sessionId: String = "s", timestamp: Date, input: Int = 100, output: Int = 50) -> AssistantUsageEntry {
+        AssistantUsageEntry(
+            timestamp: timestamp, model: model, messageId: UUID().uuidString,
+            inputTokens: input, outputTokens: output, cacheReadTokens: 0, cacheWriteTokens: 0,
+            sessionId: sessionId, cwd: "/proj", gitBranch: nil, toolCallCount: 0
+        )
+    }
+
+    @Test func isTrackedModel_claudeProvider_acceptsClaudeOnly() {
+        #expect(UsageAggregator.isTrackedModel("claude-opus-4-6", provider: .claude))
+        #expect(!UsageAggregator.isTrackedModel("gpt-5.4", provider: .claude))
+        #expect(!UsageAggregator.isTrackedModel("synthetic", provider: .claude))
+    }
+
+    @Test func isTrackedModel_codexProvider_acceptsGPTOnly() {
+        #expect(UsageAggregator.isTrackedModel("gpt-5.4", provider: .codex))
+        #expect(UsageAggregator.isTrackedModel("gpt-5.6-sol", provider: .codex))
+        #expect(!UsageAggregator.isTrackedModel("claude-opus-4-6", provider: .codex))
+    }
+
+    @Test func aggregate_codexProvider_noStatsCache_usesJSONLOnly() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-09-21T12:00:00Z"))
+        let earliest = now.addingTimeInterval(-3 * 86_400)
+        let stub = StubEntrySource([
+            makeEntry(model: "gpt-5.4", timestamp: earliest, input: 1_000, output: 10),
+            makeEntry(model: "gpt-5.4", timestamp: now.addingTimeInterval(-60), input: 500, output: 20),
+            makeEntry(model: "claude-sonnet-4-6-20250929", timestamp: now.addingTimeInterval(-30)),
+        ])
+        let aggregator = UsageAggregator(
+            statsCacheReader: nil,
+            sessionLogReader: stub,
+            ledger: TokenLedger(fileURL: dir.appendingPathComponent("token-ledger.json")),
+            provider: .codex
+        )
+
+        let (snapshot, effects) = aggregator.aggregate(rateLimits: nil, accountId: "codex-acct", now: now)
+
+        #expect(snapshot.provider == .codex)
+        #expect(effects.provider == .codex)
+        #expect(snapshot.modelTokens.map(\.id) == ["gpt-5.4"])
+        #expect(snapshot.modelTokens.first?.inputTokens == 1_500)
+        #expect(snapshot.totalMessages == 3)
+        #expect(snapshot.firstSessionDate == earliest)
+        #expect(snapshot.longestSessionDuration == nil)
+        #expect(snapshot.projectTokens.count == 1)
+    }
+
+    @Test func aggregate_claudeProvider_firstSessionDate_fallsBackToEarliestEntryWhenNoStatsCache() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-09-21T12:00:00Z"))
+        let earliest = now.addingTimeInterval(-10 * 86_400)
+        let stub = StubEntrySource([
+            makeEntry(model: "claude-sonnet-4-6-20250929", timestamp: earliest),
+            makeEntry(model: "claude-sonnet-4-6-20250929", timestamp: now.addingTimeInterval(-60)),
+        ])
+        let aggregator = UsageAggregator(
+            statsCacheReader: StatsCacheReader(fileURL: dir.appendingPathComponent("missing.json")),
+            sessionLogReader: stub,
+            ledger: TokenLedger(fileURL: dir.appendingPathComponent("token-ledger.json")),
+            provider: .claude
+        )
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil, now: now)
+        #expect(snapshot.provider == .claude)
+        #expect(snapshot.firstSessionDate == earliest)
+    }
+
+    @Test func convenienceInit_perProvider_stampsProvider() {
+        #expect(UsageAggregator(provider: .claude).provider == .claude)
+        #expect(UsageAggregator(provider: .codex).provider == .codex)
     }
 }

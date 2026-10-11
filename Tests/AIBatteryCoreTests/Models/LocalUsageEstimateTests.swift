@@ -272,6 +272,29 @@ struct LocalUsageEstimateTests {
         #expect(PlanTier.effective(forAccountId: "org-zzz", defaults: defaults) == PlanTier.current)
     }
 
+    @Test func planTier_effective_decodesAccountsOncePerBlob() throws {
+        // `effective` is read several times per popover render in local-estimate mode
+        // (perf backlog #9); the persisted accounts blob must be decoded once per
+        // distinct value, not once per read.
+        let suiteName = "planTierDecode-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let first = try JSONEncoder().encode([AccountRecord(id: "org-a", billingType: "pro", addedAt: Date())])
+        defaults.set(first, forKey: UserDefaultsKeys.accounts)
+
+        #expect(PlanTier.effective(forAccountId: "org-a", defaults: defaults) == .pro)
+        #expect(PlanTier.effective(forAccountId: "org-a", defaults: defaults) == .pro)
+        #expect(PlanTier.effective(forAccountId: "org-other", defaults: defaults) == PlanTier.current)
+        #expect(PlanTier.accountsDecodeCountForTesting(for: first) == 1)
+
+        // A changed blob (e.g. the account's billing type updated) is decoded again.
+        let second = try JSONEncoder().encode([AccountRecord(id: "org-a", billingType: "max_5x", addedAt: Date())])
+        defaults.set(second, forKey: UserDefaultsKeys.accounts)
+        #expect(PlanTier.effective(forAccountId: "org-a", defaults: defaults) == .max5x)
+        #expect(PlanTier.accountsDecodeCountForTesting(for: second) == 1)
+        #expect(PlanTier.accountsDecodeCountForTesting(for: first) == 1)
+    }
+
     // MARK: - Helpers
 
     /// Unique per-test account ID — scoped keys make UserDefaults.standard safe

@@ -25,6 +25,19 @@ enum DateFormatters {
         return f
     }()
 
+    /// ISO 8601 without fractional seconds — the other shape API headers use.
+    nonisolated(unsafe) static let iso8601NoFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    /// Parse either ISO 8601 shape (fractional first, then plain). Replaces the
+    /// per-call `ISO8601DateFormatter()` allocations in the header/JSON parsers.
+    nonisolated static func parseISO8601(_ text: String) -> Date? {
+        iso8601.date(from: text) ?? iso8601NoFraction.date(from: text)
+    }
+
     /// "EEE" — short day names (Mon, Tue, ...).
     static let shortDay: DateFormatter = {
         let f = DateFormatter()

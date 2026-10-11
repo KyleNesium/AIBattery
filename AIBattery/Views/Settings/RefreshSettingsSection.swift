@@ -30,10 +30,21 @@ struct RefreshSettingsSection: View {
             }
             .help("How often to poll the API for updated usage data (\(refreshLabel))")
             sliderMarks(labels: ["30s", "1m", "2m", "3m", "4m", "5m"], leadingPad: Layout.settingsLabel)
-            Text("~3 tokens/poll · API data kept until next update")
+            Text(Self.pollCostHint(provider: viewModel.snapshot?.provider ?? .claude, apiKeyAccount: OAuthManager.shared.accountStore.activeAccount?.isAPIKeyAccount ?? false))
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, Layout.settingsLabel + Spacing.section)
+        }
+    }
+
+    /// What one poll costs the user, per provider: Claude's probe is a few tokens on a
+    /// subscription; Codex OAuth reads a free usage endpoint; an API key pays for a
+    /// 16-output-token probe at API rates.
+    nonisolated static func pollCostHint(provider: AIProvider, apiKeyAccount: Bool) -> String {
+        switch (provider, apiKeyAccount) {
+        case (.codex, true): "~16 output tokens/poll, billed at API rates · data kept until next update"
+        case (.codex, false): "Reads OpenAI's usage endpoint · no tokens spent · data kept until next update"
+        default: "~3 tokens/poll · API data kept until next update"
         }
     }
 

@@ -27,6 +27,16 @@ struct VersionCheckerTests {
         #expect(!VersionChecker.isNewer("1.0.0", than: "1.1.0"))
     }
 
+    /// The 3.0.0 upgrade path: every installed 2.x build (the `v2.6` tag had no patch
+    /// component) must see 3.0.0 as newer, and a 3.0.0 install must not be offered 2.x.
+    @Test func isNewer_v3UpgradeFromEvery2xShape() {
+        for installed in ["2.6.1", "2.6", "2.5.0", "2.4.3", "v2.6.1"] {
+            #expect(VersionChecker.isNewer("3.0.0", than: VersionChecker.stripTag(installed)), "\(installed)")
+            #expect(!VersionChecker.isNewer(VersionChecker.stripTag(installed), than: "3.0.0"), "\(installed)")
+        }
+        #expect(!VersionChecker.isNewer("3.0.0", than: "3.0.0"))
+    }
+
     @Test func isNewer_differentLengths_latest_shorter() {
         #expect(!VersionChecker.isNewer("1.0", than: "1.0.1"))
     }

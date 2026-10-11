@@ -972,4 +972,24 @@ struct RateLimitFetcherTests {
         )
         #expect(result == nil)
     }
+
+    @Test func setObservedModels_skipsTheWriteWhenUnchanged() throws {
+        let (defaults, suiteName) = try Self.makeSuiteDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let fetcher = RateLimitFetcher()
+        let accountId = "obs-\(UUID().uuidString)"
+        let key = RateLimitFetcher.observedModelsKeyPrefix + accountId
+
+        fetcher.setObservedModels(["claude-opus-4-6"], accountId: accountId, defaults: defaults)
+        #expect(defaults.stringArray(forKey: key) == ["claude-opus-4-6"])
+
+        // Same list again: the aggregator runs every poll, so an unconditional write
+        // would hit UserDefaults every cycle for no change.
+        defaults.removeObject(forKey: key)
+        fetcher.setObservedModels(["claude-opus-4-6"], accountId: accountId, defaults: defaults)
+        #expect(defaults.stringArray(forKey: key) == nil)
+
+        fetcher.setObservedModels(["claude-sonnet-4-6"], accountId: accountId, defaults: defaults)
+        #expect(defaults.stringArray(forKey: key) == ["claude-sonnet-4-6"])
+    }
 }

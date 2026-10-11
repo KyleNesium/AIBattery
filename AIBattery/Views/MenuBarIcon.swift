@@ -66,6 +66,33 @@ enum MenuBarIcon {
     /// `NSImage`. Assigning this to `NSStatusBarButton.image` (with `title = ""`) avoids
     /// the bezel padding that AppKit applies around a title + image button layout, giving
     /// the menu bar pill a width matching other system items like Battery and WiFi.
+    /// Menu-bar text with each provider glyph (✦ / ⬡ — the text model keeps them so
+    /// `MenuBarMultiAccountText` stays string-based and testable) replaced at draw
+    /// time by an inline brand mark (`AIProvider.markImage`, tinted `color`, sized to
+    /// the font's cap height and vertically centred on it). A provider whose mark
+    /// fails to load keeps its glyph.
+    static func menuBarAttributedText(_ text: String, font: NSFont, color: NSColor) -> NSAttributedString {
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+        let result = NSMutableAttributedString(string: text, attributes: attributes)
+        let markSize = ceil(font.capHeight)
+        for provider in AIProvider.allCases {
+            guard let mark = provider.markImage?.tinted(color, size: NSSize(width: markSize, height: markSize)) else { continue }
+            while let range = result.string.range(of: provider.glyph) {
+                let attachment = NSTextAttachment()
+                attachment.image = mark
+                // Centre on the cap height: baseline-relative y = (capHeight - markSize) / 2.
+                attachment.bounds = CGRect(x: 0, y: (font.capHeight - markSize) / 2, width: markSize, height: markSize)
+                result.replaceCharacters(in: NSRange(range, in: result.string), with: NSAttributedString(attachment: attachment))
+            }
+        }
+        return result
+    }
+
+    /// Accessibility value for the status item: provider names in place of glyphs.
+    static func spokenMenuBarText(_ text: String) -> String {
+        AIProvider.allCases.reduce(text) { $0.replacingOccurrences(of: $1.glyph, with: $1.displayName) }
+    }
+
     static func combinedStatusBarImage(
         text: String,
         percent: Double,
@@ -81,11 +108,7 @@ enum MenuBarIcon {
         let appearance = menuBarAppearance ?? NSApp?.effectiveAppearance
         let isDarkMenuBar = appearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let textColor: NSColor = isDarkMenuBar ? .white : .black
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: textColor,
-        ]
-        let attributed = NSAttributedString(string: text, attributes: attributes)
+        let attributed = menuBarAttributedText(text, font: font, color: textColor)
         let textSize = attributed.size()
         let textWidth = ceil(textSize.width)
 

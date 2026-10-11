@@ -104,4 +104,16 @@ struct TokenHealthConfigTests {
         let config = TokenHealthConfig.default
         #expect(config.turnCountMild < config.turnCountStrong)
     }
+
+    // MARK: - OpenAI (Codex) models
+
+    @Test func contextWindow_gptFamily_usesCodexReportedWindow() {
+        #expect(TokenHealthConfig.contextWindow(for: "gpt-5.4") == 258_400)
+        #expect(TokenHealthConfig.contextWindow(for: "gpt-5.6-sol") == 258_400)
+        #expect(TokenHealthConfig.openAIDefaultContextWindow == 258_400)
+    }
+
+    @Test func contextWindow_unknownNonGPT_stillDefaultsToOneMillion() {
+        #expect(TokenHealthConfig.contextWindow(for: "something-else") == TokenHealthConfig.defaultContextWindow)
+    }
 }

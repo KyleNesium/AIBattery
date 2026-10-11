@@ -4,18 +4,41 @@ import SwiftUI
 /// Owns its own `hasSeenTutorial` @AppStorage — parent just passes `hasData`.
 struct TutorialOverlay: View {
     let hasData: Bool
+    /// Shape of the active account's quota — step 1 describes the bar the user is
+    /// actually looking at (windows, a Credits budget, or per-minute API limits).
+    var kind: CodexDisplayKind = .windows
     @AppStorage(UserDefaultsKeys.hasSeenTutorial) private var hasSeenTutorial = false
     @State private var step = 0
 
-    private let steps: [(title: String, description: String, icon: String)] = [
-        (
-            "Rate Limits",
-            "The 5-hour and 7-day bars show your current usage against Anthropic's sliding window limits. The \"binding\" badge marks whichever window is constraining you.",
-            "chart.bar.fill"
-        ),
+    /// Step-1 copy per quota shape. Exposed for tests.
+    nonisolated static func rateLimitStep(kind: CodexDisplayKind) -> (title: String, description: String, icon: String) {
+        switch kind {
+        case .windows:
+            (
+                "Rate Limits",
+                "The 5-hour and 7-day (Weekly for Codex) bars show your current usage against your provider's sliding window limits. The \"binding\" badge marks whichever window is constraining you.",
+                "chart.bar.fill"
+            )
+        case .credits:
+            (
+                "Credits",
+                "The Credits bar shows how much of this period's spend budget your workspace has used, with the remaining credits and when the budget resets.",
+                "creditcard.fill"
+            )
+        case .apiLimits:
+            (
+                "API Limits",
+                "The Requests and Tokens bars show OpenAI's per-minute limits for your API key. Costs below are your real bill at API rates.",
+                "key.fill"
+            )
+        }
+    }
+
+    private var steps: [(title: String, description: String, icon: String)] { [
+        Self.rateLimitStep(kind: kind),
         (
             "Context Health",
-            "Monitors your active Claude Code sessions. The gauge shows how much of the usable context window is consumed. Orange and red bands warn when quality may degrade.",
+            "Monitors your active Claude Code or Codex sessions. The gauge shows how much of the usable context window is consumed. Orange and red bands warn when quality may degrade.",
             "brain.head.profile"
         ),
         (
@@ -23,7 +46,7 @@ struct TutorialOverlay: View {
             "Click the gear icon to customize refresh interval, toggle sections, enable alerts for outages and rate limits, and more.",
             "gearshape.fill"
         ),
-    ]
+    ] }
 
     var body: some View {
         if !hasSeenTutorial && hasData {

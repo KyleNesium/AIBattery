@@ -6,6 +6,11 @@ struct MetricToggleView: View {
     let pickerBinding: Binding<String>
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
     let snapshot: UsageSnapshot?
+    /// Active provider + the shape of its quota — drives tab labels
+    /// ("7 Day" / "Weekly" / "Credits" / "API Limits") and which tabs exist.
+    var provider: AIProvider = .claude
+    var kind: CodexDisplayKind = .windows
+    private var collapsed: Bool { kind != .windows }
 
     /// Cached ordered modes — avoids allocating a new array on every body evaluation.
     @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
@@ -18,15 +23,19 @@ struct MetricToggleView: View {
                 .padding(.trailing, Spacing.section)
 
             HStack(spacing: Spacing.small) {
-                ForEach(MetricMode.allCases, id: \.rawValue) { mode in
+                ForEach(MetricMode.pickerModes(kind: kind), id: \.rawValue) { mode in
                     tabButton(for: mode)
                 }
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.gap)
+        // Without making this a container, SwiftUI drops the label and hint entirely —
+        // the buttons stay separate elements and a VoiceOver user hears four bare tab
+        // titles with no grouping and none of the guidance below.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Metric mode")
-        .accessibilityHint("Switch between 5-hour, 7-day, and context health views")
+        .accessibilityHint(collapsed ? "Switch between \(MetricMode.fiveHour.shortLabel(provider: provider, kind: kind).lowercased()) and context health views" : "Switch between 5-hour, \(provider.secondaryWindowLabel.lowercased()), and context health views")
         .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric (keys: 1, 2, 3)")
         .onAppear { recomputeOrderedModes() }
         .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
@@ -40,7 +49,11 @@ struct MetricToggleView: View {
     private static let selectedFill: Color = ThemeColors.surfaceLevel2
 
     private func tabButton(for mode: MetricMode) -> some View {
-        let isSelected = pickerBinding.wrappedValue == mode.rawValue
+        // In a collapsed layout the .sevenDay mode is hidden but may still be the stored
+        // selection — treat it as the single-budget tab so the highlight doesn't vanish.
+        let selectedRaw = pickerBinding.wrappedValue
+        let isSelected = selectedRaw == mode.rawValue
+            || (collapsed && mode == .fiveHour && selectedRaw == MetricMode.sevenDay.rawValue)
         let isHovered = hoveredMode == mode && !isSelected
 
         return Button {
@@ -52,7 +65,7 @@ struct MetricToggleView: View {
                 UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.metricMode)
             }
         } label: {
-            Text(mode.shortLabel)
+            Text(mode.shortLabel(provider: provider, kind: kind))
                 .font(Typography.caption)
                 .foregroundStyle(isSelected && !autoMetricMode ? .primary : ThemeColors.secondaryLabel)
                 .frame(maxWidth: .infinity)

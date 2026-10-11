@@ -48,4 +48,37 @@ struct MetricModeTests {
         #expect(MetricMode.allCases.contains(.sevenDay))
         #expect(MetricMode.allCases.contains(.contextHealth))
     }
+
+    // MARK: - Provider-aware labels (Codex-native popover)
+
+    @Test func shortLabel_codexWindowedPlan_saysWeekly() {
+        #expect(MetricMode.sevenDay.shortLabel(provider: .codex, kind: .windows) == "Weekly")
+        #expect(MetricMode.fiveHour.shortLabel(provider: .codex, kind: .windows) == "5 Hour")
+        #expect(MetricMode.sevenDay.shortLabel(provider: .claude, kind: .windows) == "7 Day")
+    }
+
+    @Test func shortLabel_codexCreditBudget_collapsesToCredits() {
+        #expect(MetricMode.fiveHour.shortLabel(provider: .codex, kind: .credits) == "Credits")
+        #expect(MetricMode.sevenDay.shortLabel(provider: .codex, kind: .credits) == "Credits")
+        #expect(MetricMode.contextHealth.shortLabel(provider: .codex, kind: .credits) == "Context")
+    }
+
+    @Test func shortLabel_codexAPIKey_collapsesToAPILimits() {
+        #expect(MetricMode.fiveHour.shortLabel(provider: .codex, kind: .apiLimits) == "API Limits")
+        #expect(MetricMode.sevenDay.shortLabel(provider: .codex, kind: .apiLimits) == "API Limits")
+    }
+
+    @Test func pickerModes_singleBudgetKinds_hideRedundantWindowTab() {
+        #expect(MetricMode.pickerModes(kind: .credits) == [.fiveHour, .contextHealth])
+        #expect(MetricMode.pickerModes(kind: .apiLimits) == [.fiveHour, .contextHealth])
+        #expect(MetricMode.pickerModes(kind: .windows) == MetricMode.allCases)
+        #expect(MetricMode.pickerModes(kind: .windows) == MetricMode.allCases)
+    }
+
+    @Test func displayKind_derivation() {
+        #expect(CodexDisplayKind.of(rateLimits: nil, standardLimits: nil, apiKeyAccount: false) == .windows)
+        #expect(CodexDisplayKind.of(rateLimits: nil, standardLimits: nil, apiKeyAccount: true) == .apiLimits)
+        let std = StandardRateLimits(requestsLimit: 1, requestsRemaining: 1, requestsReset: nil, tokensLimit: 1, tokensRemaining: 1, tokensReset: nil)
+        #expect(CodexDisplayKind.of(rateLimits: nil, standardLimits: std, apiKeyAccount: false) == .apiLimits)
+    }
 }

@@ -16,11 +16,17 @@ struct MarqueeText: View {
     @State private var textOpacity: Double = 1.0
     @State private var pendingWork: DispatchWorkItem?
 
+    /// Continuous horizontal scrolling is exactly the pattern Reduce Motion exists to
+    /// suppress, and this ticker sits in the always-visible footer with no way to dismiss
+    /// it. When the setting is on the text is truncated instead — the full string is still
+    /// reachable through the `.help()` tooltip and the accessibility label below.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var currentText: String {
         texts.isEmpty ? "" : texts[currentIndex % texts.count]
     }
 
-    private var needsScroll: Bool { textWidth > containerWidth && containerWidth > 0 }
+    private var needsScroll: Bool { !reduceMotion && textWidth > containerWidth && containerWidth > 0 }
     private var hasMultiple: Bool { texts.count > 1 }
 
     /// Convenience init for a single text string.
@@ -45,7 +51,11 @@ struct MarqueeText: View {
                 .font(font)
                 .foregroundStyle(color)
                 .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                .truncationMode(.tail)
+                // Intrinsic width is what makes scrolling possible, but with Reduce Motion
+                // on it would just overflow into `.clipped()` and cut mid-word — let the
+                // text take the container width and truncate with an ellipsis instead.
+                .fixedSize(horizontal: !reduceMotion, vertical: false)
                 .background(
                     Text(currentText)
                         .font(font)

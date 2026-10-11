@@ -39,9 +39,16 @@ enum ThemeColors {
     /// Amber color constant used across both colorblind palettes.
     static let amber = Color(red: 1.0, green: 0.75, blue: 0.0)
 
-    /// Gold color for the 50–80% bar range. Uses system yellow in both modes —
-    /// the opaque light-mode background provides enough contrast for yellow to read clearly.
-    private static let gold = Color(nsColor: .systemYellow)
+    /// Gold for the 50–80% bar range, deepened in light mode.
+    ///
+    /// `systemYellow` is almost exactly as light as the bar's own track once that track
+    /// composites over the light panel background, so the fill and the empty remainder
+    /// came out at roughly the same luminance and the bar read as empty — in the most
+    /// common non-trivial state a user is ever in. The menu-bar path already solved this
+    /// with `menuBarGold` for the same reason (see `barNSColor(percent:isDarkMenuBar:)`);
+    /// the popover simply never got the same treatment. Dark mode keeps `systemYellow`,
+    /// which has ample contrast against the dark panel.
+    private static let gold = adaptive(light: menuBarGold, dark: .systemYellow)
 
     /// Creates a SwiftUI Color that adapts between light and dark appearance.
     static func adaptive(light: NSColor, dark: NSColor) -> Color {
@@ -171,7 +178,9 @@ enum ThemeColors {
     /// Replaces `.tertiary` / `.quaternary` foregroundStyle for readability on light backgrounds.
     static let tertiaryLabel: Color = adaptive(
         light: NSColor(white: 0.0, alpha: 0.55),
-        dark: NSColor(white: 1.0, alpha: 0.35)
+        // 0.35 composites to ~3.2:1 against the dark panel — under the 4.5:1 AA needs for
+        // the 10pt `tinyLabel` this is always paired with (resets, countdowns, captions).
+        dark: NSColor(white: 1.0, alpha: 0.50)
     )
 
     /// Inactive stroke — the project's canonical "subtle secondary outline" used
@@ -186,6 +195,16 @@ enum ThemeColors {
     // MARK: - Interactive state colors
 
     /// Hover highlight for interactive elements (buttons, chevrons, headers).
+    /// Tint of the provider badge behind the header chip's symbol — Anthropic's
+    /// terracotta for Claude, OpenAI's green for Codex. Plain literals (not dynamic
+    /// NSColors) so they are safe to compare off-main in tests.
+    static func providerBadge(_ provider: AIProvider) -> Color {
+        switch provider {
+        case .claude: Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .codex: Color(red: 0.06, green: 0.64, blue: 0.50)
+        }
+    }
+
     static let hoverFill: Color = adaptive(
         light: NSColor(white: 0.0, alpha: 0.06),
         dark: NSColor(white: 1.0, alpha: 0.06)

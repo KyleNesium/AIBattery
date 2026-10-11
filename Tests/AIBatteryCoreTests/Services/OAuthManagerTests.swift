@@ -33,7 +33,8 @@ struct OAuthManagerAuthErrorTests {
     @Test func userMessage_maxAccountsReached() {
         let error = OAuthManager.AuthError.maxAccountsReached
         #expect(error.userMessage.contains("Maximum"))
-        #expect(error.userMessage.contains("\(AccountStore.maxAccounts)"))
+        #expect(error.userMessage.contains("\(AccountStore.maxAccountsPerProvider)"))
+        #expect(error.userMessage.contains("per provider"))
     }
 
     @Test func userMessage_unknownError_returnsMessage() {

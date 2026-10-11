@@ -1,0 +1,102 @@
+import Foundation
+
+/// Fallback rate-limit source: the Codex CLI writes a `rate_limits` snapshot
+/// into every `token_count` event in its session logs. When the wham/usage
+/// endpoint is unreachable, the newest session file's last snapshot is the
+/// best local truth. Always surfaced as CACHED data (alarm-suppressed) —
+/// it's as old as the user's last Codex turn.
+enum CodexSessionRateLimitScanner {
+    /// How much of the file tail to scan. token_count events recur every few
+    /// turns; 256 KB of tail reliably contains several.
+    private static let tailBytes = 256 * 1_024
+
+    /// How long a `newestSessionFile` result is reused. This path runs on every poll for
+    /// as long as the usage endpoint is in backoff (60s–5min), and a poll can be as
+    /// frequent as every 10s, so without a TTL an outage means walking the whole
+    /// `~/.codex/sessions` tree every few seconds. The newest *file* changes only when the
+    /// CLI starts a session; its contents are re-read on every call regardless.
+    private static let newestFileCacheTTL: TimeInterval = 60
+
+    private static let newestFileCacheLock = NSLock()
+    nonisolated(unsafe) private static var newestFileCache: (root: URL, url: URL?, at: Date)?
+
+    nonisolated static func latestRateLimits(sessionsRoot: URL = CodexPaths.sessions) -> (rateLimits: RateLimitUsage, asOf: Date)? {
+        guard let file = cachedNewestSessionFile(in: sessionsRoot),
+              let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        let start = size > UInt64(tailBytes) ? size - UInt64(tailBytes) : 0
+        try? handle.seek(toOffset: start)
+        guard let data = try? handle.readToEnd(),
+              let usage = extractLatestRateLimits(fromTail: data) else { return nil }
+        let attrs = try? FileManager.default.attributesOfItem(atPath: file.path)
+        let modDate = attrs?[.modificationDate] as? Date ?? Date()
+        return (usage, modDate)
+    }
+
+    /// `newestSessionFile` behind the TTL. Call sites that want a guaranteed-fresh walk
+    /// (tests) use `newestSessionFile` directly.
+    nonisolated static func cachedNewestSessionFile(in root: URL, now: Date = .now) -> URL? {
+        newestFileCacheLock.lock()
+        defer { newestFileCacheLock.unlock() }
+        if let cache = newestFileCache, cache.root == root, now.timeIntervalSince(cache.at) < newestFileCacheTTL {
+            return cache.url
+        }
+        let url = newestSessionFile(in: root)
+        newestFileCache = (root, url, now)
+        return url
+    }
+
+    /// Drop the memoized directory walk. Called when the Codex session tree changes
+    /// underneath us (watcher invalidation) and from tests.
+    nonisolated static func invalidateFileCache() {
+        newestFileCacheLock.lock()
+        newestFileCache = nil
+        newestFileCacheLock.unlock()
+    }
+
+    nonisolated static func newestSessionFile(in root: URL, fileManager: FileManager = .default) -> URL? {
+        guard let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+        // Same symlink boundary as CodexSessionLogReader: a link inside ~/.codex/sessions
+        // must not make us read (and JSON-parse the tail of) an arbitrary file.
+        let resolvedBase = root.resolvingSymlinksInPath().path
+        let resolvedBaseSlash = resolvedBase.hasSuffix("/") ? resolvedBase : resolvedBase + "/"
+        var newest: (url: URL, date: Date)?
+        for case let url as URL in enumerator where url.pathExtension == "jsonl" {
+            let resolved = url.resolvingSymlinksInPath().path
+            guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            if newest == nil || date > newest!.date {
+                newest = (url.standardizedFileURL, date)
+            }
+        }
+        return newest?.url
+    }
+
+    nonisolated static func extractLatestRateLimits(fromTail data: Data) -> RateLimitUsage? {
+        // Split on 0x0A bytes BEFORE UTF-8 decoding: the tail seek can land mid
+        // multi-byte character, and decoding the whole buffer at once would fail
+        // outright. Per-line decode confines the damage to the partial first line.
+        for lineData in data.split(separator: UInt8(ascii: "\n")).reversed() {
+            // Same content boundary as the parser: a response_item (message content)
+            // is rejected from its head bytes and never deserialized, even if its text
+            // mentions "rate_limits".
+            guard !CodexSessionLogParser.isResponseItem(lineData),
+                  let line = String(data: lineData, encoding: .utf8),
+                  line.contains("\"rate_limits\"") else { continue }
+            guard let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                  let payload = obj["payload"] as? [String: Any],
+                  payload["type"] as? String == "token_count",
+                  let rateLimits = payload["rate_limits"] as? [String: Any] else { continue }
+            return CodexUsageParser.parseSessionRateLimits(rateLimits)
+        }
+        return nil
+    }
+}

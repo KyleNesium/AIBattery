@@ -33,6 +33,10 @@ struct TokenHealthConfig {
     /// Default context window if model not found (assumes newer model with 1M window).
     static let defaultContextWindow = 1_000_000
 
+    /// Codex (`gpt-*`) models: `model_context_window` as reported in Codex CLI
+    /// `token_count` events (258 400 for the gpt-5.x family on Codex CLI 0.152).
+    static let openAIDefaultContextWindow = 258_400
+
     // MARK: - Usable context
 
     /// Percentages are calculated against the full context window.
@@ -85,6 +89,9 @@ struct TokenHealthConfig {
         let modelPrefix = model.split(separator: "-").prefix(3).joined(separator: "-")
         if let window = prefixLookup[modelPrefix] {
             return window
+        }
+        if model.hasPrefix("gpt-") {
+            return openAIDefaultContextWindow
         }
         return defaultContextWindow
     }

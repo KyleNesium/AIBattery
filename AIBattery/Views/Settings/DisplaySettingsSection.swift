@@ -5,6 +5,7 @@ struct DisplaySettingsSection: View {
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
     @AppStorage(UserDefaultsKeys.showAllAccountsInMenuBar) private var showAllAccountsInMenuBar: Bool = false
+    @AppStorage(UserDefaultsKeys.showFullAccountIdentity) private var showFullAccountIdentity: Bool = false
     @State private var idleSliderPosition: Double = 6
     /// Slider positions (1-6) mapped to minutes: 30, 60, 120, 240, 480, 0 (never).
     private static let idleSteps: [Double] = [30, 60, 120, 240, 480, 0]
@@ -36,7 +37,7 @@ struct DisplaySettingsSection: View {
                     }
                 }
                 .accessibilityLabel("Hide idle sessions")
-                .accessibilityValue(idleLabelForPosition)
+                .accessibilityValue(idleAccessibilityValue)
                 Text(idleLabelForPosition)
                     .font(Typography.monoCaption)
                     .frame(width: Layout.sliderValueLabel, alignment: .trailing)
@@ -66,7 +67,25 @@ struct DisplaySettingsSection: View {
                     .font(Typography.caption)
                     .help("Show every connected account's usage in the menu bar (e.g. 42% | 23%). Star color and countdown reflect the worst account.")
             }
+            HStack(spacing: Spacing.section) {
+                Text("")
+                    .font(Typography.caption)
+                    .frame(width: Layout.settingsLabel, alignment: .trailing)
+                Toggle("Full account email in popover", isOn: $showFullAccountIdentity)
+                    .toggleStyle(.checkbox)
+                    .font(Typography.caption)
+                    .help("Show the full sign-in email in the header chip and account menu. Off: masked as k•••@domain (safer when screen-sharing). Account names you set in Settings are always shown in full.")
+            }
         }
+    }
+
+    /// Spoken value for the current slider position. The visible label uses "∞", which
+    /// VoiceOver reads literally as "infinity" — meaningless for a setting whose last
+    /// stop means "never hide anything". The glyph works as a visual legend; the spoken
+    /// form needs the word.
+    private var idleAccessibilityValue: String {
+        let label = idleLabelForPosition
+        return label == "\u{221E}" ? "Never" : label
     }
 
     /// Display label for the current slider position (live during drag).

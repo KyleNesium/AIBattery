@@ -4,6 +4,21 @@ import SwiftUI
 /// Shows per-minute request and token limits from standard Anthropic API headers.
 struct StandardLimitsSection: View {
     let limits: StandardRateLimits
+    var provider: AIProvider = .claude
+
+    /// Provider-switched like every other string here — a Claude account can reach this
+    /// view (nil 5h/7d windows, no local estimate), and must never be told about "this key".
+    private var noHeadersMessage: String {
+        provider == .codex
+            ? "OpenAI returned no rate-limit headers for this key."
+            : "Anthropic returned no per-minute rate-limit headers for this account."
+    }
+
+    private var banner: String {
+        provider == .codex
+            ? "OpenAI API limits (per minute, pay-per-token)"
+            : "Showing API rate limits (5h/7d usage unavailable)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.gap) {
@@ -12,9 +27,19 @@ struct StandardLimitsSection: View {
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .accessibilityHidden(true)
-                Text("Showing API rate limits (5h/7d usage unavailable)")
+                Text(banner)
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.secondaryLabel)
+            }
+
+            // A probe can succeed and still carry no `x-ratelimit-*` headers, zeroing both
+            // limits. Both bars are guarded below, so without this the whole section was
+            // just the banner — an "API Limits" tab that renders nothing.
+            if limits.requestsLimit <= 0, limits.tokensLimit <= 0 {
+                Text(noHeadersMessage)
+                    .font(Typography.caption)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if limits.requestsLimit > 0 {

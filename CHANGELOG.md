@@ -1,5 +1,246 @@
 # Changelog
 
+## [3.0.0] — 2026-10-11
+
+**Major release: Codex (OpenAI) accounts.** AI Battery becomes a two-provider
+battery: up to 3 Claude **and** 3 Codex accounts, switchable from the account
+chip in the header (each provider's brand mark in its own colour). Existing
+Claude accounts, Keychain items and settings carry over unchanged.
+
+### Added
+- **Account chip header.** The popover header is now the account: a compact
+  chip with the provider's brand mark in its own colour and the account
+  identity on one line (a quiet up/down switcher glyph is the only control hint), which opens the switch/add menu (grouped by
+  provider, plan per row, Add… disabled at the cap).
+  "AI Battery", the version and the manual update check moved to a new
+  Settings → **About** section; a dismissed update banner badges the ⚙️ gear.
+- **Real account names.** Instead of "User 1", an account without an alias shows
+  the Codex sign-in email or the Claude workspace name, numbered per provider
+  ("Claude 1", "Codex 2") when neither is known. Emails are masked
+  (`k•••@domain`) unless Settings → Display → "Full account email in popover"
+  is on; Settings placeholders always show the full identity.
+- **Codex accounts** via ChatGPT sign-in (browser round-trip, no code to paste),
+  one-click import of the Codex CLI login, or an OpenAI API key.
+- **Three Codex billing models**, each with its own layout: subscriptions
+  (5-hour + Weekly windows, purchased-credit balance), Business/Enterprise
+  spend controls (one Credits budget bar), and API keys (per-minute OpenAI
+  request/token limits, costs shown as a real bill at API rates).
+- **Codex Insights**: token usage, per-model API-equivalent cost, Projects and
+  Context Health rebuilt from `~/.codex/sessions` rollouts (token counts only).
+- `gpt-5.x` / `gpt-6-astra` pricing, GPT display names, OpenAI status feed
+  filtered to Codex components, plan name in the account menu rows.
+
+### Changed
+- Cold JSONL scans are 3–10× faster for both providers (memchr newline search,
+  head-only Codex line pre-filter): Claude 8.6 s → 2.3 s and Codex 15.3 s → 1.5 s
+  on the reference machine.
+- Every popover label, link and error follows the active account's provider
+  ("Weekly" instead of "7-Day" for Codex; OpenAI status and usage links).
+- Rate-limit window lengths reported by the provider now drive the rollover
+  guard and burn-rate estimate (Claude defaults unchanged).
+- **Sign-in screen** offers a Claude | Codex segmented picker instead of a
+  footnote link; the offered provider persists and follows the account you
+  last signed out of, and an app-initiated sign-out (rejected refresh token)
+  explains itself in a caution line.
+- **API-key entry**: the key's shape is checked locally before any network,
+  an unverifiable key (offline) is added with a note and checked on the first
+  refresh, and a "Use ChatGPT sign-in instead" link leads back.
+- Settings account rows use the header chip's order, numbering and provider
+  badge; the chip shows identity only (plan per menu row) so it never
+  truncates; plan labels handle `chatgpt_team` ("ChatGPT Team").
+- Footer "Cached" tooltip explains the Codex session-log / endpoint-backoff
+  case; the refresh-rate hint states the real per-poll cost per provider
+  (Claude ~3 tokens, Codex ChatGPT none, Codex API key ~16 output tokens).
+- Tutorial step 1 matches the account's quota shape (windows / Credits /
+  API Limits); key `2` selects the single budget tab on Credits / API-key
+  accounts; Test alerts fire the active provider's component names.
+- Uncapped Business/Enterprise credit plans render "no cap" instead of
+  "0 remaining"; the API-key menu-bar percent follows the tighter of the
+  per-minute request / token limits, and API-key accounts no longer occupy a
+  permanent "—" slot in the multi-account menu bar.
+
+> **Your cost figures will change when you upgrade.** API-equivalent cost is
+> recomputed from token counts on every launch — nothing stale is stored — so the
+> corrections below apply retroactively to all history. Expect totals to rise
+> (Claude 5 models and `gpt-6.1-*` were previously costed at $0) while individual
+> Opus 4.5–4.8 figures fall by about two thirds (they were billed at the retired
+> Opus 4 rate). Token counts themselves are unchanged.
+
+### Fixed
+- **Claude 5 usage was costed at $0.00.** The Anthropic pricing table stopped at
+  the 4.x generation, and lookup is a substring match on the display name — so
+  `Opus 5`, `Sonnet 5`, `Fable 5.1` and every other 5-family model matched no row,
+  returned no pricing, and contributed nothing to Insights cost, per-project cost
+  or the all-time total. On a real history that was the overwhelming majority of
+  usage reading as free. The table now carries the full published rate card, and
+  an unlisted minor version falls back to its family's rate instead of nil, so a
+  model released after a given build can never silently cost zero again.
+- **`gpt-6.1-*` and any future OpenAI minor version costed $0.** The OpenAI table
+  matched a row only when the id began with that exact prefix, so a new minor
+  version of a known family (`gpt-6.1-sol` against a `gpt-6-sol` row) matched
+  nothing and its whole usage was free — the same bug class as the Claude 5 one
+  above. Both tables now fall back to the family rate, and `gpt-6.1-sol` has its
+  own row (cached input $0.10, half the gpt-6 family rate).
+- **Opus 4.5–4.8 were billed at 3x their real rate**, and Haiku 4.5 at the
+  Haiku 3.5 rate. The single "opus 4" row applied the retired Opus 4/4.1 price
+  ($15/$75) to the whole 4.x generation, which bills at $5/$25. Cache-write and
+  cache-read rates are now taken from the published figures per model rather than
+  derived as a fixed multiple of input — they stopped being one with the 5 family.
+- **Adding or removing an account showed the previous account's bars under the new
+  account's name.** Only the account *picker* reset the view model; the add paths
+  and account removal change the active account directly, so the old snapshot
+  survived and the new account's first header-less poll resolved the previous
+  account's limits through the 24-hour stale-data window. Across providers that
+  meant Anthropic 5h/7d percentages rendered under a Codex chip.
+- **The Codex session-log fallback never worked for Business/Enterprise plans** —
+  the one plan shape it exists to cover. Those rollouts write both rate-limit
+  windows as null and carry the budget flat on the same object, where the parser
+  only looked for the nested `wham/usage` layout, so every parse failed and the
+  bars stayed empty for the whole endpoint outage.
+- **A finite, 85%-consumed credit budget could be labelled "unlimited."** The badge
+  was reading the purchased-credit balance flag rather than the spend cap it sits
+  next to, so the header contradicted every number beside it. It also no longer
+  shows "no cap" and "Credits exhausted" at the same time.
+- **A Claude workspace name containing "@" was rendered as a fake masked email** —
+  `Acme @ Scale` became `A•••@ Scale` in the header chip and every account menu row.
+  Only Codex identities are emails; masking now requires an actual domain.
+- **A new API-key account showed a selected but empty "API Limits" tab** until its
+  first probe landed, with nothing to explain the blank space. It now says what it
+  is waiting for, and says so explicitly when OpenAI returns no rate-limit headers.
+- **The menu bar could show a red star, or start a countdown, for an account with no
+  visible percentage** — the icon scanned every known account while the text showed
+  only the displayed ones.
+- **Concurrent refresh cycles could publish an older reading over a newer one.**
+  Waking a locked Mac starts two on its own; the slower one finished last and
+  overwrote the fresher snapshot, re-ran the spike filter against already-updated
+  state, and could write its stale value back to the cache. Cycles now coalesce,
+  per account: switching accounts always gets its own fetch instead of joining the
+  previous account's still-running cycle and leaving the new one on an empty spinner.
+- **A Codex sign-in error stayed on screen after switching the sign-in picker to
+  Claude** (and a half-typed API key survived a round trip). Toggling the provider
+  now clears the sign-in screen's transient state.
+- **Signing out left the account's cached limits and fired-alert latch behind.**
+  Claude's cache was only swept at the next launch, and the alert latch was never
+  cleared at all, so re-adding the same account in one session could inherit a stale
+  throttled reading and stay silent at a threshold it had already crossed.
+- **Codex token counts were inflated ~10%.** The CLI re-emits a `token_count`
+  event carrying the *previous* turn's usage verbatim whenever it refreshes rate
+  limits. Each repeat has its own `ordinal`, so the reader's message-id dedup let
+  it through and the same turn was counted again — measured at ~7% of events and
+  ~10% of the tokens in a real rollout tree, which flowed into Insights, costs
+  and the all-time high-water ledger. The parser now drops a `token_count` whose
+  cumulative total has not advanced.
+- **A duplicate account record could crash the app on every launch.** The
+  status-bar refresh built a provider lookup with a dictionary initializer that
+  traps on duplicate keys, while the persisted accounts blob was only
+  de-duplicated when adding or updating. One bad blob would have been an
+  unrecoverable launch loop. Duplicates are now dropped on load, and that call
+  site no longer traps.
+- **A bad network hop could sign a Codex account out.** A 2xx token response
+  whose body wouldn't parse (truncated reply, captive portal, proxy HTML) was
+  treated as a final answer and deleted the account's Keychain entry. It is now
+  retried like every other transient failure.
+- **Cancel now really cancels.** Clicking Cancel while a Codex sign-in was
+  exchanging its code, or while an API key was being validated, still registered
+  and activated the account when the response arrived. Both paths check for
+  cancellation before persisting anything, and starting a second sign-in no
+  longer has the first one clear its session.
+- **Rate-limit alerts are per account.** The "already fired" latch was global, so
+  switching accounts could clear another account's alert and re-fire it on
+  return — or swallow a second account's alert entirely.
+- **A Codex write followed closely by a Claude write stopped refreshing Codex
+  data.** Both filesystem events coalesce into one 2-second debounce, which kept
+  only the last event's cache invalidations; the Codex reader stayed on stale
+  entries until the next Codex write.
+- **Fixed, smaller:** an expired window in a session-log fallback reading is
+  cleared before display; a spike correction no longer persists a days-old CLI
+  snapshot as the account's restored-on-launch data; a backward clock jump no
+  longer wedges the Codex endpoint in backoff; a response without OpenAI's
+  request-rate headers no longer reads as "requests exhausted"; a held credit
+  budget stays consistent with the windows it mirrors; the `~/.codex` stand-in
+  watcher is released on deinit; the rollout content boundary also rejects a
+  `response_item` written with whitespace after the colon; OAuth secrets fail
+  loudly rather than silently falling back to predictable bytes; the sign-in
+  `state` is compared in constant time; an imported `~/.codex/auth.json` account
+  id must look like an account id; and an error message from the loopback
+  callback can no longer be arbitrary attacker-supplied text attributed to
+  OpenAI.
+- **Codex 100% is "at capacity", not a throttle.** `CodexUsageParser` no longer
+  synthesizes `"throttled"` from `used_percent ≥ 100` — only an explicit
+  `rate_limit_reached_type` (or a real HTTP 429) does. The synthesized status
+  bypassed the near-full confirmation hold, so one wrong ~100% reading from
+  `wham/usage` painted the broken star and recorded a false throttle event; it
+  now goes through the same time-based guard as Claude readings. (Found by the
+  pre-release Codex review.)
+- **Credit budgets roll over in the popover, not just the menu bar.** Once a
+  Business/Enterprise budget period's reset passed, the mirrored windows were
+  cleared but the Credits bar kept reading the stale budget object ("Budget
+  reached", old used / remaining) until the next successful fetch.
+- **API-key per-minute limits no longer stick at 100% past their own reset.**
+  A cached `remaining: 0` served during probe backoff or offline is restored to
+  the full allowance once its one-minute reset passes (runtime cache, launch
+  restore and the snapshot fallback).
+- **Codex session logs: the content boundary is enforced before parsing.**
+  `response_item` lines (message content) are rejected from their head bytes
+  and never deserialized — previously a `response_item` whose head mentioned
+  `token_count` / `rate_limits` was fully parsed before its `type` was checked.
+  A token_count with a missing or malformed timestamp is now counted corrupt
+  instead of being stamped "now" (a cold scan of old rollouts could drop
+  historical turns into the current windows and today's chart).
+- **Installing the Codex CLI after launch is noticed.** With `~/.codex` present
+  but no `sessions` directory yet, AI Battery watches the parent and switches to
+  the sessions stream when the first rollout lands; a fallback-timer tick now
+  also invalidates the reader whose watcher is missing (it served its
+  fingerprint cache forever before).
+- **Cancelling an add-account overlay cancels the Codex browser sign-in** that is
+  still waiting on the callback port, so a late redirect can no longer register
+  an account after "Cancel".
+- **`~/.codex/auth.json` is read only on the explicit Import click.** Opening
+  the Codex sign-in screen used to read and parse the credential file just to
+  decide whether to offer the button; it now checks for the file's presence.
+- **Codex API-key "real bill" framing only when it can be attributed.** The
+  CLI's rollouts carry no auth mode; with a ChatGPT-backed Codex account also
+  signed in, the cost rows keep the "~" API-equivalent framing instead of
+  labelling subscription sessions as the key's bill.
+- **Claude-only local-estimate calibration.** Codex snapshots no longer update
+  the 429 auto-calibration token counters — Codex never uses the local estimate,
+  and stale Codex counts could have seeded a Claude limit on a header-less 429
+  right after switching accounts.
+- Insights "All Time" tooltip under Codex now says what the number is: a
+  high-water mark since AI Battery first scanned the session logs (survives log
+  rotation; nothing earlier is recoverable) — it used to claim the opposite.
+- A Business account at 96% credits used could show **0%** in the menu bar:
+  the 5h/7d rollover-artifact filter zeroed the monthly budget. Credit budgets
+  now skip that heuristic, and a reset further away than the window length is
+  never treated as "a window that just started".
+- A Business/Enterprise workspace **without** an individual spend cap
+  (`rate_limit: null`, no `individual_limit`) parsed as an outage and triggered
+  backoff + "Unable to reach OpenAI"; it is now a healthy uncapped reading.
+- OpenAI token-endpoint 429s and unexpected 4xx no longer sign the account out
+  and delete its Keychain entry — they are transient and retried. Refresh
+  responses without `id_token` are accepted (only the code exchange needs it).
+- The Codex CLI session-log fallback can no longer overwrite a newer endpoint
+  reading (bars dropping mid-outage) and is skipped when more than one
+  ChatGPT-backed Codex account exists (the CLI's rollout can't be attributed).
+- API-key probe: only 401 is an auth failure; a 403 (model / region /
+  verification restriction) moves on to the next probe model, and a 403 from
+  `/v1/models` no longer rejects a valid key.
+- Signing out and back into the same Codex account no longer inherits the
+  previous session's endpoint backoff window or auth-failure count.
+- Codex sign-in errors speak for OpenAI: a cancelled browser flow is silent,
+  timeouts / declined sign-ins / malformed redirects have their own copy, and
+  token failures no longer mention "Anthropic's server" or an "authorization
+  code".
+- A credit budget fires one threshold alert instead of two identical ones
+  batched as "Multiple alerts"; a first-run Codex user whose endpoint call
+  failed is told OpenAI is unreachable instead of "start a Codex session".
+- The session rate-limit scanner applies the reader's symlink and
+  regular-file guards to `~/.codex/sessions`.
+
+### Security
+- Codex OAuth callback binds to 127.0.0.1 only; API keys live in the Keychain
+  under a hashed account id and are never sent to chatgpt.com.
+
 ## [2.6.1] — 2026-09-01
 
 Fixes another false "Limit reached" variant and ships a security fix in the

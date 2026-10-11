@@ -77,6 +77,9 @@ jobs:
           attempt=1
           max_attempts=3
           per_attempt_timeout=360
+          # Lower bound on ✔ markers that still counts as "the whole suite ran".
+          # Bump this whenever the suite grows (current: 1384).
+          MIN_PASSES=1300
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
             set +e
@@ -88,7 +91,10 @@ jobs:
             set -e
             echo "::endgroup::"
 
-            if grep -q '✘ Test' test-output.txt; then
+            # Swift Testing prints opt-in tests disabled via `.enabled(if:)` as
+            # "✘ Test … skipped." on newer toolchains — only a failed test or a
+            # recorded issue is a failure.
+            if grep -E '✘ (Test|Suite) ' test-output.txt | grep -qv ' skipped'; then
               echo "Test failures detected — aborting"
               exit 1
             fi
@@ -108,15 +114,18 @@ jobs:
             # line. The runner's exit code is non-zero (signal-killed) but no
             # ✘ markers appear in the output. Detect this "ran-clean-then-
             # shutdown-crashed" state by counting actual ✔ test markers: if
-            # we have ≥800 passes (current suite is 980), the suite ran.
+            # we have ≥MIN_PASSES, the suite ran. Keep this close behind the real
+            # suite size (1378) — it was left at 800 while the suite grew past it,
+            # which would have let a crash after 800 tests report as a clean pass
+            # with 573 tests never run.
             passed_count=$(grep -c '^✔ Test ' test-output.txt || true)
-            if [ "$passed_count" -ge 800 ]; then
+            if [ "$passed_count" -ge "$MIN_PASSES" ]; then
               echo "Tests passed on attempt $attempt — $passed_count ✔ markers, no failures, runner exited $exit_code (likely shutdown-time SIGSEGV; tests themselves are clean)"
               break
             fi
 
             if [ "$attempt" -eq "$max_attempts" ]; then
-              echo "Test runner produced neither a summary nor ≥800 ✔ markers after $max_attempts attempts (last exit $exit_code, $passed_count passes) — likely true runner-environment hang"
+              echo "Test runner produced neither a summary nor ≥$MIN_PASSES ✔ markers after $max_attempts attempts (last exit $exit_code, $passed_count passes) — likely true runner-environment hang"
               exit 1
             fi
             echo "No test summary detected (exit $exit_code, $passed_count passes) — retrying"

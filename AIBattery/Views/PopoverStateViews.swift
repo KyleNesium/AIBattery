@@ -44,16 +44,20 @@ struct PopoverErrorView: View {
 // MARK: - Empty
 
 struct PopoverEmptyView: View {
+    var provider: AIProvider = .claude
+
+    private var toolName: String { provider == .codex ? "Codex" : "Claude Code" }
+
     var body: some View {
         VStack(spacing: Spacing.inner) {
             Image(systemName: "tray")
                 .font(Typography.stateIcon)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .accessibilityHidden(true)
-            Text("No Claude Code data found")
+            Text("No \(toolName) data found")
                 .font(Typography.caption)
                 .foregroundStyle(ThemeColors.secondaryLabel)
-            Text("Start a Claude Code session to populate usage data.\nData appears automatically once Claude Code is running.")
+            Text("Start a \(toolName) session to populate usage data.\nData appears automatically once \(toolName) is running.")
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .multilineTextAlignment(.center)
