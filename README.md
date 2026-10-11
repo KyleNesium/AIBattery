@@ -19,7 +19,7 @@ Monitor rate limits, context health, and token usage for Claude Code **and** Ope
 
 <br/>
 
-<img src="screenshots/full-popover-v2.0.8.png" width="520" alt="AI Battery open in the menu bar showing 5-hour and 7-day rate limits, throttling status, context health, projects, and insights" />
+<img src="screenshots/full-popover-v3.0.0.png" width="480" alt="AI Battery open in the menu bar: account chip header, 5-hour and 7-day rate limits with reset countdowns, context health for the current session, projects and insights" />
 
 <p><strong>Live rate limits, context health, and usage trends without leaving the menu bar.</strong></p>
 
@@ -218,7 +218,7 @@ Click ⚙️ in the header to configure:
 | 🚀 **Launch at Login** | Start automatically when you log in |
 
 <div align="center">
-<img src="screenshots/settings.png" width="360" alt="Settings panel with refresh interval, idle session cutoff, colorblind mode, alerts, and launch at login" />
+<img src="screenshots/settings.png" width="360" alt="Settings panel with Claude and Codex account names, refresh interval, idle session cutoff, display options, alerts, and launch at login" />
 </div>
 
 > [!TIP]
@@ -232,14 +232,14 @@ Interactive charts across three time windows:
 
 | Mode | Window | Shows |
 |---|---|---|
-| **24H** | Trailing 24 hours | Hourly activity, vs-yesterday trend, peak hour |
+| **5H** | Trailing 5 hours | 15-minute token buckets, vs-yesterday trend, throttle count, peak hour |
 | **7D** | Rolling 7 days | Daily activity, weekly trend, busiest day |
 | **12M** | Rolling 12 months | Monthly activity, month-over-month trend, busiest month |
 
 Below the chart: API-equivalent cost per model, throttle count, and cumulative stats (All Time messages/sessions, Longest session, Period date range).
 
 <div align="center">
-<img src="screenshots/activity.png" width="360" alt="24-hour activity chart with trend arrows, throttle count, and cost breakdown by model" />
+<img src="screenshots/activity.png" width="360" alt="5-hour activity chart with trend arrows, throttle count, and API-equivalent cost breakdown by model" />
 </div>
 
 ---
