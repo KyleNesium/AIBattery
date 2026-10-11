@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.0.0] — 2026-10-08
+## [3.0.0] — 2026-10-11
 
 **Major release: Codex (OpenAI) accounts.** AI Battery becomes a two-provider
 battery: up to 3 Claude **and** 3 Codex accounts, switchable from the account
