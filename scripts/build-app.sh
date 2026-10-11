@@ -202,7 +202,24 @@ APPLESCRIPT
   # Let Finder write .DS_Store
   sync
   sleep 1
-  hdiutil detach "$MOUNT_DIR" -quiet
+  # Finder can still hold the volume for a few seconds after the AppleScript
+  # returns; a single detach then fails with "Resource busy" (hdiutil exit 16)
+  # and `set -e` kills the whole build. Seen on the macos-15 runner (main CI run
+  # 38137172281) while the release run on the same commit sailed through.
+  # Retry, then force — the layout is already written, so a forced eject is safe.
+  detached=0
+  for attempt in 1 2 3 4 5; do
+    if hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null; then
+      detached=1
+      break
+    fi
+    echo "  detach attempt $attempt failed (volume busy) — retrying"
+    sleep 2
+  done
+  if [ "$detached" -eq 0 ]; then
+    echo "  forcing detach of $MOUNT_DIR"
+    hdiutil detach "$MOUNT_DIR" -force
+  fi
 fi
 
 hdiutil convert "$DMG_RW" -format UDZO -ov -o .build/AIBattery.dmg
