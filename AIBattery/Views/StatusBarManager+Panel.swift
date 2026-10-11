@@ -186,8 +186,24 @@ struct PopoverContentView: View {
 
 /// NSHostingView subclass that suppresses the default opaque background fill,
 /// allowing the SwiftUI-level background to control the panel's appearance.
+///
+/// It also reports every intrinsic-size invalidation. SwiftUI calls
+/// `invalidateIntrinsicContentSize()` whenever the hosted tree's ideal size changes;
+/// that is the panel's resize trigger. Watching `frameDidChangeNotification` alone is
+/// not enough: the hosting view's frame only changes once AppKit's window auto-layout
+/// has resized the panel as a side effect, and that side effect does not always run
+/// (the Settings toggle intermittently left the panel at its old height with the
+/// settings content centred and clipped).
 final class TransparentHostingView<Content: View>: NSHostingView<Content> {
+    /// Called on the main thread after each intrinsic-size invalidation.
+    var onIntrinsicSizeInvalidated: (() -> Void)?
+
     override var isOpaque: Bool { false }
+
+    override func invalidateIntrinsicContentSize() {
+        super.invalidateIntrinsicContentSize()
+        onIntrinsicSizeInvalidated?()
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         // Skip super — the default implementation fills with the window background color.

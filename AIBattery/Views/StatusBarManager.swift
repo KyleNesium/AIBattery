@@ -181,51 +181,27 @@ public final class StatusBarManager: NSObject {
         panel.setContentSize(NSSize(width: Layout.popoverWidth, height: Layout.panelInitialHeight))
 
         // Resize panel when SwiftUI content changes height.
-        // Max height is screen-relative so all sections fit on most displays.
-        // Debounced: coalesces rapid layout changes into a single frame update.
+        // Two triggers feed one debounced refit (`scheduleRefit`):
+        //  1. `onIntrinsicSizeInvalidated` — SwiftUI reports that the hosted tree's
+        //     ideal size changed. This is the cause, and the only trigger guaranteed
+        //     to fire: the Settings toggle intermittently produced no frame change at
+        //     all, leaving the panel at its old height with the content clipped.
+        //  2. `frameDidChangeNotification` — AppKit's window auto-layout resized the
+        //     hosting view as a side effect; kept so the top edge is re-anchored
+        //     whenever the frame moves for any other reason.
         hosting.setContentHuggingPriority(.defaultHigh, for: .vertical)
         hosting.postsFrameChangedNotifications = true
+        hosting.onIntrinsicSizeInvalidated = { [weak self] in
+            self?.scheduleRefit()
+        }
         frameObserver = NotificationCenter.default.addObserver(
             forName: NSView.frameDidChangeNotification,
             object: hosting,
             queue: .main
-        ) { [weak panel, weak hosting, weak self] _ in
+        ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.resizeWorkItem?.cancel()
+                self?.scheduleRefit()
             }
-            let work = DispatchWorkItem {
-                MainActor.assumeIsolated {
-                    guard let panel, let hosting, let self else { return }
-                    guard self.toggleState.isShowing else { return }
-                    let screenMaxHeight = panel.screen?.visibleFrame.height ?? Layout.fallbackScreenHeight
-                    let maxPanelHeight = screenMaxHeight - Layout.menuBarInset
-                    let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
-                    let newHeight = max(fittingHeight, Layout.panelMinHeight)
-                    // Skip no-op frame updates to avoid layout feedback loops
-                    guard abs(newHeight - panel.frame.height) > 0.5 else { return }
-                    // Re-derive the top anchor from the status button's current screen
-                    // position. `panelTopY` can go stale across display/geometry changes,
-                    // which caused the panel to float detached from the menu bar after
-                    // a settings expand/collapse cycle.
-                    let topAnchor = self.currentTopAnchor() ?? self.panelTopY
-                    self.panelTopY = topAnchor
-                    // Grow downward from top anchor
-                    let newOrigin = NSPoint(
-                        x: panel.frame.origin.x,
-                        y: topAnchor - newHeight
-                    )
-                    let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
-                    panel.setFrame(
-                        NSRect(origin: newOrigin, size: NSSize(width: fittingWidth, height: newHeight)),
-                        display: true,
-                        animate: false
-                    )
-                }
-            }
-            MainActor.assumeIsolated {
-                self?.resizeWorkItem = work
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.016, execute: work)
         }
 
         // React to snapshot, staleness, or per-account map changes — debounced to avoid rapid-fire redraws.
@@ -362,6 +338,49 @@ public final class StatusBarManager: NSObject {
         DispatchQueue.main.async {
             panel.orderOut(nil)
         }
+    }
+
+    /// Debounced refit of the panel to the hosting view's fitting size, top edge pinned
+    /// to the status item. Safe to call on every layout tick; only the last call in a
+    /// 16 ms window does work. Max height is screen-relative so all sections fit on
+    /// most displays.
+    func scheduleRefit() {
+        resizeWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.refitPanelToContent()
+            }
+        }
+        resizeWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.016, execute: work)
+    }
+
+    private func refitPanelToContent() {
+        guard let panel, let hosting = hostingView else { return }
+        guard toggleState.isShowing else { return }
+        let screenMaxHeight = panel.screen?.visibleFrame.height ?? Layout.fallbackScreenHeight
+        let maxPanelHeight = screenMaxHeight - Layout.menuBarInset
+        let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
+        let newHeight = max(fittingHeight, Layout.panelMinHeight)
+        // Skip no-op frame updates to avoid layout feedback loops
+        guard abs(newHeight - panel.frame.height) > 0.5 else { return }
+        // Re-derive the top anchor from the status button's current screen
+        // position. `panelTopY` can go stale across display/geometry changes,
+        // which caused the panel to float detached from the menu bar after
+        // a settings expand/collapse cycle.
+        let topAnchor = currentTopAnchor() ?? panelTopY
+        panelTopY = topAnchor
+        // Grow downward from top anchor
+        let newOrigin = NSPoint(
+            x: panel.frame.origin.x,
+            y: topAnchor - newHeight
+        )
+        let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
+        panel.setFrame(
+            NSRect(origin: newOrigin, size: NSSize(width: fittingWidth, height: newHeight)),
+            display: true,
+            animate: false
+        )
     }
 
     deinit {
