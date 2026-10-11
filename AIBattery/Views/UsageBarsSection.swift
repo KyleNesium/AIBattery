@@ -70,11 +70,20 @@ struct CreditBalanceRow: View {
             Text(text)
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.secondaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
                 .copyable(text)
-            Spacer()
+            Spacer(minLength: Spacing.inner)
+            // The balance is the number that matters and must never truncate; the
+            // explainer is the first thing to give way. Both at 10pt in a 243pt row
+            // overflowed at the DEFAULT text size, so SwiftUI was silently truncating
+            // whichever it felt like. The same sentence is in the row's .help() below.
             Text("used once limits are reached")
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(-1)
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.bottom, Spacing.section)

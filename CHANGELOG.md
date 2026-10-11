@@ -59,7 +59,70 @@ Claude accounts, Keychain items and settings carry over unchanged.
   per-minute request / token limits, and API-key accounts no longer occupy a
   permanent "—" slot in the multi-account menu bar.
 
+> **Your cost figures will change when you upgrade.** API-equivalent cost is
+> recomputed from token counts on every launch — nothing stale is stored — so the
+> corrections below apply retroactively to all history. Expect totals to rise
+> (Claude 5 models and `gpt-6.1-*` were previously costed at $0) while individual
+> Opus 4.5–4.8 figures fall by about two thirds (they were billed at the retired
+> Opus 4 rate). Token counts themselves are unchanged.
+
 ### Fixed
+- **Claude 5 usage was costed at $0.00.** The Anthropic pricing table stopped at
+  the 4.x generation, and lookup is a substring match on the display name — so
+  `Opus 5`, `Sonnet 5`, `Fable 5.1` and every other 5-family model matched no row,
+  returned no pricing, and contributed nothing to Insights cost, per-project cost
+  or the all-time total. On a real history that was the overwhelming majority of
+  usage reading as free. The table now carries the full published rate card, and
+  an unlisted minor version falls back to its family's rate instead of nil, so a
+  model released after a given build can never silently cost zero again.
+- **`gpt-6.1-*` and any future OpenAI minor version costed $0.** The OpenAI table
+  matched a row only when the id began with that exact prefix, so a new minor
+  version of a known family (`gpt-6.1-sol` against a `gpt-6-sol` row) matched
+  nothing and its whole usage was free — the same bug class as the Claude 5 one
+  above. Both tables now fall back to the family rate, and `gpt-6.1-sol` has its
+  own row (cached input $0.10, half the gpt-6 family rate).
+- **Opus 4.5–4.8 were billed at 3x their real rate**, and Haiku 4.5 at the
+  Haiku 3.5 rate. The single "opus 4" row applied the retired Opus 4/4.1 price
+  ($15/$75) to the whole 4.x generation, which bills at $5/$25. Cache-write and
+  cache-read rates are now taken from the published figures per model rather than
+  derived as a fixed multiple of input — they stopped being one with the 5 family.
+- **Adding or removing an account showed the previous account's bars under the new
+  account's name.** Only the account *picker* reset the view model; the add paths
+  and account removal change the active account directly, so the old snapshot
+  survived and the new account's first header-less poll resolved the previous
+  account's limits through the 24-hour stale-data window. Across providers that
+  meant Anthropic 5h/7d percentages rendered under a Codex chip.
+- **The Codex session-log fallback never worked for Business/Enterprise plans** —
+  the one plan shape it exists to cover. Those rollouts write both rate-limit
+  windows as null and carry the budget flat on the same object, where the parser
+  only looked for the nested `wham/usage` layout, so every parse failed and the
+  bars stayed empty for the whole endpoint outage.
+- **A finite, 85%-consumed credit budget could be labelled "unlimited."** The badge
+  was reading the purchased-credit balance flag rather than the spend cap it sits
+  next to, so the header contradicted every number beside it. It also no longer
+  shows "no cap" and "Credits exhausted" at the same time.
+- **A Claude workspace name containing "@" was rendered as a fake masked email** —
+  `Acme @ Scale` became `A•••@ Scale` in the header chip and every account menu row.
+  Only Codex identities are emails; masking now requires an actual domain.
+- **A new API-key account showed a selected but empty "API Limits" tab** until its
+  first probe landed, with nothing to explain the blank space. It now says what it
+  is waiting for, and says so explicitly when OpenAI returns no rate-limit headers.
+- **The menu bar could show a red star, or start a countdown, for an account with no
+  visible percentage** — the icon scanned every known account while the text showed
+  only the displayed ones.
+- **Concurrent refresh cycles could publish an older reading over a newer one.**
+  Waking a locked Mac starts two on its own; the slower one finished last and
+  overwrote the fresher snapshot, re-ran the spike filter against already-updated
+  state, and could write its stale value back to the cache. Cycles now coalesce,
+  per account: switching accounts always gets its own fetch instead of joining the
+  previous account's still-running cycle and leaving the new one on an empty spinner.
+- **A Codex sign-in error stayed on screen after switching the sign-in picker to
+  Claude** (and a half-typed API key survived a round trip). Toggling the provider
+  now clears the sign-in screen's transient state.
+- **Signing out left the account's cached limits and fired-alert latch behind.**
+  Claude's cache was only swept at the next launch, and the alert latch was never
+  cleared at all, so re-adding the same account in one session could inherit a stale
+  throttled reading and stay silent at a threshold it had already crossed.
 - **Codex token counts were inflated ~10%.** The CLI re-emits a `token_count`
   event carrying the *previous* turn's usage verbatim whenever it refreshes rate
   limits. Each repeat has its own `ordinal`, so the reader's message-id dedup let

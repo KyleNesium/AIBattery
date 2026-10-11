@@ -417,7 +417,15 @@ public final class OAuthManager: ObservableObject {
             // API-key account includes per-minute limits) — nothing else prunes it until
             // the next launch sweep.
             CodexRateLimitFetcher.shared.clearCache(accountId: id)
+        } else {
+            // Same reasoning on the Claude side: `pruneAccounts` only runs at launch, so a
+            // sign-out + re-add in one session would otherwise inherit the old reading under
+            // the same (deterministic) org id.
+            RateLimitFetcher.shared.clearCache(accountId: id)
         }
+        // Drop the account's fired-alert latch too, or a re-added account stays silent at a
+        // threshold it already crossed until a sub-threshold reading resets it.
+        NotificationManager.shared.clearRateLimitAlerts(accountId: id)
         accountStore.remove(id: id)
 
         // Clear PKCE state if in the middle of a flow

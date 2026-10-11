@@ -47,8 +47,12 @@ struct CreditBudgetSection: View {
                         .font(Typography.buttonLabel)
                         .accessibilityAddTraits(.isHeader)
                         .help(headerTooltip)
-                    if budget.unlimited || budget.isUncapped {
-                        Text(budget.isUncapped ? "no cap" : "unlimited")
+                    // Only the SPEND CAP belongs on this bar. `budget.unlimited` is
+                    // `credits.unlimited` — the purchased-credit BALANCE being unlimited —
+                    // which is an independent quantity shown by `CreditBalanceRow`. Pairing
+                    // it with this bar labelled an 85%-consumed finite budget "unlimited".
+                    if budget.isUncapped, !alarm.throttled {
+                        Text("no cap")
                             .font(Typography.badgeLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
                             .padding(.horizontal, Spacing.small)

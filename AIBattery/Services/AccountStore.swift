@@ -217,11 +217,23 @@ public final class AccountStore: ObservableObject {
         return !accounts.contains { $0.provider == .codex && !$0.isAPIKeyAccount }
     }
 
-    /// `kyle@example.com` → `k•••@example.com`. Anything that isn't `local@domain`
-    /// with a non-empty local part comes back unchanged (workspace names, blanks).
+    /// `kyle@example.com` → `k•••@example.com`. Anything that isn't email-shaped comes
+    /// back unchanged.
+    ///
+    /// The shape test matters because only Codex's `discoveredIdentity` is an email (the
+    /// id_token claim) — Claude's is the free-form **workspace name**. Testing for "has an
+    /// `@` that is neither first nor last" alone turned a workspace called `Acme @ Scale`
+    /// into `A•••@ Scale`, a fabricated masked address that hid the real name in the header
+    /// chip and every account-menu row. A domain must therefore look like a domain: no
+    /// whitespace on either side, and at least one dot after the `@`.
     nonisolated static func maskedEmail(_ identity: String) -> String {
         guard let at = identity.firstIndex(of: "@"), at != identity.startIndex,
               identity.index(after: at) != identity.endIndex else { return identity }
+        let local = identity[identity.startIndex..<at]
+        let domain = identity[identity.index(after: at)...]
+        guard !local.contains(where: \.isWhitespace),
+              !domain.contains(where: \.isWhitespace),
+              domain.contains(".") else { return identity }
         return "\(identity[identity.startIndex])•••\(identity[at...])"
     }
 

@@ -73,9 +73,19 @@ public struct AuthView: View {
                 let selection = Binding<AIProvider>(
                     get: { provider },
                     set: { newValue in
-                        if newValue != provider {
-                            onToggleProvider()
-                        }
+                        guard newValue != provider else { return }
+                        // The toggle only flips the stored provider; this view keeps its
+                        // identity, so every @State below would survive the switch. A Codex
+                        // "rejected this API key" / "port 1455 busy" error, or a half-typed
+                        // key, must not carry over and describe the other provider.
+                        apiKeyValidationTask?.cancel()
+                        apiKeyValidationTask = nil
+                        errorMessage = nil
+                        authCode = ""
+                        isExchanging = false
+                        showAPIKeyField = false
+                        apiKeyInput = ""
+                        onToggleProvider()
                     }
                 )
                 Picker("Provider", selection: selection) {

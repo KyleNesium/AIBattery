@@ -114,7 +114,10 @@ public struct UsagePopoverView: View {
                 // Auth completed for new account — detect actual addition, not initial publish
                 if newAccounts.count > accountCountAtAddStart && self.addingProvider != nil {
                     self.addingProvider = nil
-                    Task { await viewModel.refresh() }
+                    // The add path already made the new account active via `setActive`, which
+                    // bypasses `switchAccount` — a bare `refresh()` would leave the previous
+                    // account's snapshot in place and serve its limits as the stale fallback.
+                    viewModel.syncToActiveAccount()
                 }
             }
         } else {
@@ -198,6 +201,14 @@ public struct UsagePopoverView: View {
                             StyledDivider()
                         } else if let stdLimits = snapshot.standardLimits {
                             StandardLimitsSection(limits: stdLimits, provider: snapshot.provider)
+                            StyledDivider()
+                        } else if displayKind(snapshot) == .apiLimits {
+                            // An API-key account selects the "API Limits" tab from the
+                            // account type alone, but `standardLimits` is nil until the
+                            // first `/v1/responses` probe lands. `.sevenDay` is EmptyView
+                            // for this kind, so with no terminal branch here the user got
+                            // a highlighted tab over blank space and no explanation.
+                            AwaitingAPILimitsSection()
                             StyledDivider()
                         }
                     case .sevenDay:
@@ -283,6 +294,9 @@ public struct UsagePopoverView: View {
                 onLogout: {
                     logoutRevertTask?.cancel()
                     OAuthManager.shared.signOut()
+                    // `remove` reassigns the active account to `accounts.first`; re-point the
+                    // view model so a remaining account never shows the removed one's bars.
+                    viewModel.syncToActiveAccount()
                     showLogoutConfirm = false
                 },
                 onRequestLogout: {

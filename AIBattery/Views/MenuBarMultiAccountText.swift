@@ -61,10 +61,15 @@ enum MenuBarMultiAccountText {
             parts.joined(separator: separator)
         }
 
-        let worstPercent = limits.values
+        // Scan only what is on screen. `limits` can hold entries `order` filters out
+        // (pending, API-key and signed-out accounts are dropped in `multiAccountDisplayIDs`),
+        // and driving the icon off those turned the star red — or started a countdown — for
+        // an account with no visible percentage beside it.
+        let shown = order.compactMap { limits[$0] }
+        let worstPercent = shown
             .map { percent(for: $0, mode: resolvedMode) }
             .max() ?? 0
-        let anyThrottled = limits.values.contains { isExhausted($0) }
+        let anyThrottled = shown.contains { isExhausted($0) }
         return Output(text: text, worstPercent: worstPercent, anyThrottled: anyThrottled)
     }
 
@@ -184,7 +189,10 @@ enum MenuBarMultiAccountText {
             let isExhausted = confirmed && (multi.anyThrottled || (activeRateLimits?.isThrottled ?? false))
             let reset: Date? = confirmed
                 ? [
-                    perAccount.values.compactMap { countdownResetDate($0, now) }.min(),
+                    // Only displayed accounts — same reason as `build`'s worst/throttled
+                    // scan: a filtered-out entry must not start a countdown the user
+                    // cannot trace to any visible percentage.
+                    order.compactMap { perAccount[$0] }.compactMap { countdownResetDate($0, now) }.min(),
                     activeRateLimits.flatMap { countdownResetDate($0, now) },
                 ].compactMap { $0 }.min()
                 : nil

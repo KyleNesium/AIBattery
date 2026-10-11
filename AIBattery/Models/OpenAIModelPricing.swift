@@ -3,7 +3,7 @@ import Foundation
 /// OpenAI per-model pricing for Codex API-equivalent cost (USD per 1M tokens).
 /// Source: developers.openai.com/api/docs/pricing, read 2026-09-21, re-checked
 /// 2026-09-29 (gpt-5.4 mini/nano, gpt-6 sol/luna, gpt-4.1 + gpt-4o families added
-/// for API-key accounts, which can run any model). Shows what the
+/// for API-key accounts, which can run any model) and 2026-10-11 (gpt-6.1-sol). Shows what the
 /// same tokens would cost on the pay-per-token API — ChatGPT-plan Codex users aren't
 /// billed per token, so this is subscription value, never a bill.
 ///
@@ -14,6 +14,9 @@ enum OpenAIModelPricing {
     /// `gpt-5-mini` never falls through to the `gpt-5` row.
     static let table: [(prefix: String, pricing: ModelPricing)] = [
         ("gpt-6-astra", rate(input: 10.00, output: 50.00, cached: 1.00)),
+        // gpt-6.1-sol: same input/output as gpt-6-sol but cached input halved to $0.10
+        // (pricing page, 2026-10-11) — the family fallback would bill it at $0.20.
+        ("gpt-6.1-sol", rate(input: 2.00, output: 10.00, cached: 0.10)),
         ("gpt-6-sol", rate(input: 2.00, output: 10.00, cached: 0.20)),
         ("gpt-6-luna", rate(input: 0.10, output: 0.50, cached: 0.01)),
         ("gpt-5.6-terra", rate(input: 2.00, output: 12.00, cached: 0.20)),
@@ -50,8 +53,26 @@ enum OpenAIModelPricing {
     /// returns nil and shows no cost. Add a row whenever a new minor version appears.
     static func pricing(for modelId: String) -> ModelPricing? {
         let id = modelId.lowercased()
-        return table.first { id == $0.prefix || id.hasPrefix($0.prefix + "-") || id.hasPrefix($0.prefix + ".") }?.pricing
+        if let exact = table.first(where: { id == $0.prefix || id.hasPrefix($0.prefix + "-") || id.hasPrefix($0.prefix + ".") })?.pricing {
+            return exact
+        }
+        // Longest-prefix matching only reaches a row whose prefix the id actually starts
+        // with, so a NEW MINOR VERSION of a known family matches nothing: `gpt-6.1-sol`
+        // starts with neither `gpt-6-sol-` nor `gpt-6-sol.`, and there is no bare `gpt-6`
+        // row. That silently costed it at $0 — the same bug the Anthropic table had with
+        // the Claude 5 family, and it is live: `gpt-6.1-sol` is already in the ledger.
+        // Fall back on the major family so an unlisted minor version bills approximately
+        // rather than free. An unknown family (`gpt-3.5-turbo`) still returns nil.
+        return familyFallback.first { id.hasPrefix($0.prefix) }?.pricing
     }
+
+    /// Mid-tier rate per major family, for a minor version released after `table` was read.
+    /// Ordered longest-first so `gpt-6` is tried before `gpt-5`-style shorter prefixes.
+    static let familyFallback: [(prefix: String, pricing: ModelPricing)] = [
+        ("gpt-6", rate(input: 2.00, output: 10.00, cached: 0.20)),
+        ("gpt-5", rate(input: 1.25, output: 10.00, cached: 0.125)),
+        ("gpt-4", rate(input: 2.00, output: 8.00, cached: 0.50)),
+    ]
 
     private static func rate(input: Double, output: Double, cached: Double) -> ModelPricing {
         ModelPricing(inputPerMillion: input, outputPerMillion: output, cacheWritePerMillion: input, cacheReadPerMillion: cached)

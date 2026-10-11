@@ -30,6 +30,37 @@ final class RateLimitFetcher {
     /// Used by the persistence extension.
     static let persistKeyPrefix = "aibattery_rateLimits_"
 
+    /// Drop an account's in-memory probe bookkeeping. Lives here because
+    /// `lastWorkingModel` and `consecutiveAuthFailures` are private to this type;
+    /// `clearCache` (in the persistence extension) calls it.
+    func resetProbeState(accountId: String) {
+        lastWorkingModel.removeValue(forKey: accountId)
+        consecutiveAuthFailures.removeValue(forKey: accountId)
+    }
+
+    /// Carry a previous result's rate-limit windows onto a new result that has none.
+    ///
+    /// Everything else — standard limits, profile, plan, freshness, auth state — comes from
+    /// the new result; only the windows (and their source) are inherited, and only when the
+    /// new result genuinely has none. `isCached` stays `false` because the fetch itself was
+    /// live; staleness of the inherited windows is tracked separately by the view model's
+    /// `lastFreshRateLimitsAt` TTL.
+    nonisolated static func preservingRateLimits(new: APIFetchResult, previous: APIFetchResult?) -> APIFetchResult {
+        guard new.rateLimits == nil, let carried = previous?.rateLimits else { return new }
+        return APIFetchResult(
+            rateLimits: carried,
+            rateLimitSource: previous?.rateLimitSource,
+            standardLimits: new.standardLimits,
+            profile: new.profile,
+            hasStandardRateLimitHeaders: new.hasStandardRateLimitHeaders,
+            fetchedAt: new.fetchedAt,
+            isCached: new.isCached,
+            authError: new.authError,
+            planType: new.planType,
+            endpointUnavailable: new.endpointUnavailable
+        )
+    }
+
     /// Single hardcoded model used as ultimate fallback for fresh installs with no JSONL data.
     /// Kept to the single newest model so fresh installs work without any prior usage history.
     static let ultimateFallback = "claude-sonnet-4-6-20250929"
@@ -43,7 +74,8 @@ final class RateLimitFetcher {
     /// Per-account last working model ID — persisted to UserDefaults so the app
     /// starts with a known-good model after restart instead of retrying from the top.
     private var lastWorkingModel: [String: String] = [:]
-    private static let workingModelKeyPrefix = "aibattery_probeModel_"
+    /// Internal (not private) so the persistence extension in another file can sweep it.
+    static let workingModelKeyPrefix = "aibattery_probeModel_"
 
     /// Per-account count of consecutive 401/403 responses from either fetch path
     /// (usage endpoint or Messages API probe).
@@ -166,9 +198,17 @@ final class RateLimitFetcher {
             case .success(let fetchResult):
                 saveWorkingModel(model, accountId: accountId)
                 consecutiveAuthFailures[accountId] = 0
-                cachedResults[accountId] = fetchResult
-                persistRateLimits(fetchResult, accountId: accountId)
-                return fetchResult
+                // The Messages probe only returns unified 5h/7d headers on roughly a tenth
+                // of polls, so most successes carry `rateLimits == nil` with standard
+                // per-minute headers attached. Storing that verbatim DELETED the account's
+                // last known windows — in memory and, because the persist guard passes on
+                // `standardLimits` alone, on disk too. The next launch then restored nil
+                // and the popover dropped to a local estimate with the real percentages
+                // gone for good. Keep the last good windows and let the rest refresh.
+                let merged = Self.preservingRateLimits(new: fetchResult, previous: cachedResults[accountId])
+                cachedResults[accountId] = merged
+                persistRateLimits(merged, accountId: accountId)
+                return merged
             case .modelUnavailable:
                 continue
             case .authFailed:

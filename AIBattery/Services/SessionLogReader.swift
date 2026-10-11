@@ -107,8 +107,14 @@ final class SessionLogReader: @unchecked Sendable {
             discoveredFiles = nil
             // Keep discoveryDirModDates and discoveredFilesByDir for incremental comparison —
             // next discovery will only enumerate directories whose mod-date changed.
-            // Clear lastFullEnumerationDate so next call does per-dir check (not TTL shortcut).
-            lastFullEnumerationDate = nil
+            //
+            // `lastFullEnumerationDate` is deliberately NOT cleared. Clearing it made
+            // `discoverJSONLFiles` compute `forceFullEnum == true`, which gates OFF the
+            // per-directory mod-date skip — the exact opposite of what the old comment
+            // here claimed. Nilling `discoveredFiles` above is already enough to force a
+            // re-discovery that takes the cheap per-dir path. Measured on a 1722-file
+            // tree: full enumeration 19.4 ms vs 1.0 ms for the incremental path, paid on
+            // every invalidation rather than once per TTL.
             lock.unlock()
         } else {
             // Scan in progress — mark for invalidation when it finishes.
@@ -175,11 +181,19 @@ final class SessionLogReader: @unchecked Sendable {
 
         for fileURL in jsonlFiles {
             let path = fileURL.path
-            let fm = FileManager.default
 
-            let attrs = try? fm.attributesOfItem(atPath: path)
-            let modDate = attrs?[.modificationDate] as? Date
-            let fileSize = attrs?[.size] as? UInt64
+            // `FileManager.attributesOfItem` bridges a full ~15-key NSDictionary per file
+            // just for these two values — measured at 71.7 ms across 1722 files versus
+            // 7.8 ms for `resourceValues`, paid on every invalidation cycle while a
+            // session is actively writing.
+            // NSURL caches resource values on the URL instance, so a reused one keeps
+            // reporting the pre-write modDate/size — the fingerprint would match, the
+            // file would never be re-parsed, and edits would silently never appear.
+            var fileURL = fileURL
+            fileURL.removeAllCachedResourceValues()
+            let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            let modDate = values?.contentModificationDate
+            let fileSize = values?.fileSize.map(UInt64.init)
 
             if let cached = cache[path],
                cached.modDate == modDate,

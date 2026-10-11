@@ -81,4 +81,106 @@ struct CodexUsageParserTests {
         let empty = CodexUsageParser.parseUsage(Data("{}".utf8))
         #expect(empty.rateLimits == nil && empty.planType == nil)
     }
+
+    // MARK: - Session-log fallback, spend-control plans
+
+    /// The real shape written by Codex CLI 0.160.1 for a Business workspace: both windows
+    /// null, and the budget carried FLAT (`individual_limit`, `spend_control_reached`)
+    /// rather than nested under `spend_control` as `wham/usage` writes it. Before this was
+    /// handled, `assemble` failed on both null windows and the whole fallback returned nil —
+    /// so a Business account showed empty bars for the entire duration of an endpoint
+    /// outage, which is the one situation the fallback exists for.
+    @Test func sessionRateLimits_spendControlPlan_producesCreditBudget() throws {
+        let json = """
+        {"limit_id":"codex","limit_name":null,"primary":null,"secondary":null,
+         "credits":{"has_credits":true,"unlimited":false,"balance":"31629.767277359962"},
+         "individual_limit":{"limit":"32768","used":"27852.8","unit":"credit"},
+         "spend_control_reached":false,
+         "plan_type":"business","rate_limit_reached_type":null}
+        """
+        let dict = try #require(
+            try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+        )
+        let usage = try #require(CodexUsageParser.parseSessionRateLimits(dict))
+        let budget = try #require(usage.creditBudget)
+
+        #expect(budget.limit == 32_768)
+        #expect(budget.planType == "business")
+        #expect(budget.balance == 31_629.767277359962)
+        #expect(!budget.isUncapped)
+        // 27852.8 / 32768 = 85%, mirrored onto both windows.
+        #expect(abs(budget.usedPercent - 85.0) < 0.01)
+        #expect(abs(usage.fiveHourUtilization - 0.85) < 0.001)
+        #expect(abs(usage.sevenDayUtilization - 0.85) < 0.001)
+        #expect(!usage.isThrottled)
+    }
+
+    /// A workspace with no individual cap is healthy and unmetered, not an outage.
+    @Test func sessionRateLimits_spendControlWithoutCap_readsUncapped() throws {
+        let json = """
+        {"primary":null,"secondary":null,
+         "credits":{"has_credits":true,"unlimited":true,"balance":null},
+         "individual_limit":null,"spend_control_reached":null,
+         "plan_type":"enterprise","rate_limit_reached_type":null}
+        """
+        let dict = try #require(
+            try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+        )
+        let usage = try #require(CodexUsageParser.parseSessionRateLimits(dict))
+        let budget = try #require(usage.creditBudget)
+        #expect(budget.isUncapped)
+        #expect(budget.planType == "enterprise")
+        #expect(!usage.isThrottled)
+    }
+
+    /// Windowed plans must keep taking the window path untouched, and a genuinely empty
+    /// object must still read as "no data" rather than a fabricated uncapped budget.
+    @Test func sessionRateLimits_windowedPlanAndEmptyObjectAreUnchanged() throws {
+        let windowed = """
+        {"primary":{"used_percent":42,"reset_at":4102444800},
+         "secondary":{"used_percent":10,"reset_at":4102444800},
+         "rate_limit_reached_type":null}
+        """
+        let dict = try #require(
+            try JSONSerialization.jsonObject(with: Data(windowed.utf8)) as? [String: Any]
+        )
+        let usage = try #require(CodexUsageParser.parseSessionRateLimits(dict))
+        #expect(usage.creditBudget == nil)
+        #expect(abs(usage.fiveHourUtilization - 0.42) < 0.001)
+
+        #expect(CodexUsageParser.parseSessionRateLimits([:]) == nil)
+        #expect(CodexUsageParser.parseSessionRateLimits(["primary": NSNull(), "secondary": NSNull()]) == nil)
+    }
+
+    /// A subscription plan's rollout carries `plan_type` with both windows null — routine
+    /// early in a session, before the server attaches window info. Treating `plan_type`
+    /// alone as spend-control evidence fabricated an "uncapped, 0% used" credit budget for
+    /// Plus/Pro accounts, which flips the popover to a single "no cap" Credits bar and
+    /// hides the real 5h/weekly windows — asserting a false healthy 0% during exactly the
+    /// outage this fallback exists to cover. Must be "no data" instead.
+    @Test func sessionRateLimits_windowedPlanWithNullWindows_isNoDataNotABudget() throws {
+        for plan in ["free", "plus", "pro", "team"] {
+            let json = """
+            {"limit_id":"codex","limit_name":null,"primary":null,"secondary":null,
+             "plan_type":"\(plan)","rate_limit_reached_type":null}
+            """
+            let dict = try #require(
+                try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+            )
+            #expect(CodexUsageParser.parseSessionRateLimits(dict) == nil, "\(plan) must not fabricate a budget")
+        }
+    }
+
+    /// A windowed shape whose windows are present but unparseable is also "no data" —
+    /// never a budget. Mirrors the guard `parseUsageDict` applies to `rate_limit`.
+    @Test func sessionRateLimits_unparseableWindows_areNotABudget() throws {
+        let json = """
+        {"primary":{"nonsense":true},"secondary":{"nonsense":true},
+         "plan_type":"pro","credits":{"has_credits":true,"balance":"100"}}
+        """
+        let dict = try #require(
+            try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+        )
+        #expect(CodexUsageParser.parseSessionRateLimits(dict) == nil)
+    }
 }

@@ -25,7 +25,7 @@ struct SettingsRow: View {
                 Spacer().frame(width: Layout.settingsLabel)
                 if accountStore.canAddAccount(provider: .claude) {
                     LinkActionButton(
-                        label: "Add Claude account",
+                        label: "Add Claude Account…",
                         icon: "plus.circle",
                         help: "Sign in with another Claude account",
                         accessibilityLabel: "Add another Claude account",
@@ -34,7 +34,7 @@ struct SettingsRow: View {
                 }
                 if accountStore.canAddAccount(provider: .codex) {
                     LinkActionButton(
-                        label: "Add Codex account",
+                        label: "Add Codex Account…",
                         icon: "plus.circle",
                         help: "Sign in with a Codex (ChatGPT or OpenAI API key) account",
                         accessibilityLabel: "Add a Codex account",
@@ -96,7 +96,14 @@ struct SettingsRow: View {
                 .accessibilityLabel("Display name for \(identity)")
             if accountStore.accounts.count > 1 {
                 Button(action: {
+                    let wasActive = accountStore.activeAccountId == account.id
                     OAuthManager.shared.signOut(accountId: account.id)
+                    // Removing the ACTIVE account silently repoints `activeAccountId` at
+                    // `accounts.first`; without this the view model keeps serving the
+                    // removed account's snapshot under the new account's identity.
+                    if wasActive {
+                        viewModel.syncToActiveAccount()
+                    }
                 }) {
                     Image(systemName: "xmark.circle")
                         .font(Typography.tinyLabel)

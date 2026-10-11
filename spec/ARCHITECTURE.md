@@ -183,6 +183,7 @@ AIBattery/
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars; UsageBar.AlarmState gates throttle/limit alarm on confirmed (fresh) data
     LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable (window label follows provider vocabulary)
     StandardLimitsSection.swift   — Standard per-model API rate limit display (fallback)
+    AwaitingAPILimitsSection.swift — Spinner + "Waiting for the first API-limit probe…" placeholder for a Codex API-key account before its first `/v1/responses` probe lands
     TokenHealthSection.swift      — Context health gauge + warnings + multi-session chevron toggle
     TokenHealthSessionInfo.swift  — Session detail computation: label parts, tooltip, idle detection, time formatting, clipboard export
     ProjectUsageSection.swift     — Per-project token breakdown with cost (top 5 default, expand to 10)

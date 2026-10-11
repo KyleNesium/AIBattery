@@ -237,7 +237,61 @@ public final class UsageViewModel: ObservableObject {
     /// - Parameter skipNetworkCheck: When true, bypasses the offline guard. Used on wake
     ///   when NWPathMonitor may briefly report disconnected while WiFi reconnects.
 
+    /// The refresh cycle currently running, so concurrent callers join it instead of
+    /// starting a second one.
+    private var inflightRefresh: (task: Task<Void, Never>, skipNetworkCheck: Bool, accountId: String?)?
+
+    /// Run a refresh cycle, coalescing with one already in flight.
+    ///
+    /// Waking a locked Mac starts two on its own — `didWakeNotification` schedules one at
+    /// wake + 3 s and `sessionDidBecomeActiveNotification` another at unlock + 1 s — and
+    /// post-wake networking is exactly when a request is slow. The slower cycle then
+    /// finishes LAST and unconditionally overwrites `apiResult`, `rateLimitsFresh` and the
+    /// snapshot with its older reading, re-runs the spike filter against the newer cycle's
+    /// already-updated `previouslyNearFullWindows`, and can write the stale value back to
+    /// the persisted cache. Joining also halves the multi-account fan-out.
     public func refresh(skipNetworkCheck: Bool = false) async {
+        // Only join a cycle at least as strong as this one. A wake/unlock refresh passes
+        // `skipNetworkCheck: true` precisely to bypass a NWPathMonitor that still reports
+        // disconnected; joining a plain timer cycle already in its offline branch would
+        // discard that intent and leave the next real attempt a whole poll interval away.
+        //
+        // Loop rather than check once: several callers can be parked on the same weaker
+        // cycle, and whichever resumes first registers its own task — the others must
+        // re-evaluate against THAT cycle, not start a third one.
+        //
+        // A cycle is only joinable if it is fetching the account that is active NOW.
+        // `switchAccount` clears the display and schedules `refresh()`; if that call
+        // joined the previous account's still-running cycle, that cycle's result would be
+        // (correctly) discarded by `shouldApplyFetchResult` and the new account would sit
+        // on an empty, spinning popover until the next timer tick — up to 5 min under
+        // adaptive backoff. A cycle for another account is waited out (so it cannot land
+        // on top of ours) and then a fresh one runs.
+        let activeAccountId = OAuthManager.shared.accountStore.activeAccountId
+        while let inflight = inflightRefresh {
+            if inflight.accountId == activeAccountId, inflight.skipNetworkCheck || !skipNetworkCheck {
+                await inflight.task.value
+                return
+            }
+            // A weaker cycle, or one for a different account, is in flight — let it
+            // finish, then re-check.
+            await inflight.task.value
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performRefresh(skipNetworkCheck: skipNetworkCheck)
+        }
+        inflightRefresh = (task, skipNetworkCheck, activeAccountId)
+        await task.value
+        // Only release the slot if it is still ours. A waiter that resumed before us may
+        // already have registered its own cycle; clearing that would let the next caller
+        // start a concurrent refresh — the exact double-cycle this method exists to stop.
+        if inflightRefresh?.task == task {
+            inflightRefresh = nil
+        }
+    }
+
+    private func performRefresh(skipNetworkCheck: Bool) async {
         // Skip polling cycle when suspended due to idle or screen lock.
         // Allow explicit resume refreshes through by checking skipNetworkCheck (wake path).
         guard !isSuspended || skipNetworkCheck else { return }
@@ -676,6 +730,43 @@ public final class UsageViewModel: ObservableObject {
         lastResolvedMode = nil
     }
 
+    /// Re-point the view model at whichever account is active NOW.
+    ///
+    /// Adding and removing accounts change `AccountStore.activeAccountId` without going
+    /// through `switchAccount` — `OAuthManager.activateCodexAccount` / the Claude add path
+    /// both call `setActive` directly, and `AccountStore.remove` reassigns it to
+    /// `accounts.first`. Without this, the previous account's state survives the change and
+    /// `refresh()` takes the stale-fallback branch (`snapshot != nil`, so no instant-paint
+    /// from the new account's cache), rendering the OLD account's rate limits under the NEW
+    /// account's identity for up to the 24 h stale TTL. Cross-provider that means Anthropic
+    /// 5h/7d percentages displayed under a Codex chip.
+    func syncToActiveAccount() {
+        guard let activeId = OAuthManager.shared.accountStore.activeAccountId else {
+            // Signing out the LAST account sets `activeAccountId` to nil. Returning here
+            // would leave the removed account's snapshot in place — and the menu bar reads
+            // `snapshot?.rateLimits` with no auth gate, so its percentage and star stayed
+            // on screen for an account that no longer exists.
+            clearAccountDisplayState()
+            return
+        }
+        switchAccount(to: activeId)
+    }
+
+    /// Drop everything that describes a specific account. Shared by `switchAccount` and
+    /// the signed-out path so the two can never diverge.
+    private func clearAccountDisplayState() {
+        lastResolvedMode = nil
+        snapshot = nil
+        apiResult = nil
+        systemStatus = nil
+        isShowingCachedData = false
+        rateLimitsFresh = false
+        previouslyNearFullWindows = [:]
+        lastFreshFetch = nil
+        lastFreshRateLimitsAt = nil
+        errorMessage = nil
+    }
+
     /// Switch to a different account and refresh data.
     func switchAccount(to accountId: String) {
         OAuthManager.shared.accountStore.setActive(id: accountId)
@@ -693,6 +784,9 @@ public final class UsageViewModel: ObservableObject {
         // near-full reading must re-confirm before alarming.
         previouslyNearFullWindows = [:]
         lastFreshFetch = nil
+        // Without this the new account's first header-less poll can still resolve the OLD
+        // account's limits through `effectiveRateLimits`' stale window.
+        lastFreshRateLimitsAt = nil
         errorMessage = nil
         isLoading = true
         OAuthManager.shared.objectWillChange.send()

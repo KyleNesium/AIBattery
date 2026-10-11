@@ -30,9 +30,13 @@ struct MetricToggleView: View {
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.gap)
+        // Without making this a container, SwiftUI drops the label and hint entirely —
+        // the buttons stay separate elements and a VoiceOver user hears four bare tab
+        // titles with no grouping and none of the guidance below.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Metric mode")
         .accessibilityHint(collapsed ? "Switch between \(MetricMode.fiveHour.shortLabel(provider: provider, kind: kind).lowercased()) and context health views" : "Switch between 5-hour, \(provider.secondaryWindowLabel.lowercased()), and context health views")
-        .help(autoMetricMode ? "Disabled while auto mode is active" : (collapsed ? "Select primary metric (keys: 1, 3)" : "Select primary metric (keys: 1, 2, 3)"))
+        .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric (keys: 1, 2, 3)")
         .onAppear { recomputeOrderedModes() }
         .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
     }

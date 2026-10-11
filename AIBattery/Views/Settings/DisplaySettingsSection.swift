@@ -37,7 +37,7 @@ struct DisplaySettingsSection: View {
                     }
                 }
                 .accessibilityLabel("Hide idle sessions")
-                .accessibilityValue(idleLabelForPosition)
+                .accessibilityValue(idleAccessibilityValue)
                 Text(idleLabelForPosition)
                     .font(Typography.monoCaption)
                     .frame(width: Layout.sliderValueLabel, alignment: .trailing)
@@ -77,6 +77,15 @@ struct DisplaySettingsSection: View {
                     .help("Show the full sign-in email in the header chip and account menu. Off: masked as k•••@domain (safer when screen-sharing). Account names you set in Settings are always shown in full.")
             }
         }
+    }
+
+    /// Spoken value for the current slider position. The visible label uses "∞", which
+    /// VoiceOver reads literally as "infinity" — meaningless for a setting whose last
+    /// stop means "never hide anything". The glyph works as a visual legend; the spoken
+    /// form needs the word.
+    private var idleAccessibilityValue: String {
+        let label = idleLabelForPosition
+        return label == "\u{221E}" ? "Never" : label
     }
 
     /// Display label for the current slider position (live during drag).

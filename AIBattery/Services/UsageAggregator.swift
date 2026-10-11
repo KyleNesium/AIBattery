@@ -222,7 +222,12 @@ final class UsageAggregator: @unchecked Sendable {
             } else {
                 let entryDay = calendar.startOfDay(for: ts)
                 lastDayStart = entryDay
-                lastDayEnd = entryDay.addingTimeInterval(86_400)
+                // Calendar arithmetic, not a fixed 86 400 s: on a DST spring-forward the
+                // local day is 23 h, so a flat +86 400 lands an hour INTO the next day and
+                // every entry in that hour reuses the previous day's key — landing on the
+                // wrong 7D bar, the wrong daily total and the wrong side of
+                // `changeVsYesterday`, twice a year for every user in a DST timezone.
+                lastDayEnd = calendar.date(byAdding: .day, value: 1, to: entryDay) ?? entryDay.addingTimeInterval(86_400)
                 dateKey = Self.dateFormatter.string(from: ts)
                 lastDateKey = dateKey
             }

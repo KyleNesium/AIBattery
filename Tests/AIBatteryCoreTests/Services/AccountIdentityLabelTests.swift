@@ -97,6 +97,19 @@ struct AccountIdentityLabelTests {
         #expect(AccountStore.maskedEmail("a@b@c.io") == "a•••@b@c.io") // first "@" splits
     }
 
+    /// Only Codex's discovered identity is an email; Claude's is the free-form workspace
+    /// name. A workspace containing an "@" must survive masking untouched — testing only
+    /// for "an @ that is neither first nor last" rendered `Acme @ Scale` as `A•••@ Scale`,
+    /// a fabricated address that hid the real name everywhere the identity is shown.
+    @Test func maskedEmail_leavesWorkspaceNamesAlone() {
+        #expect(AccountStore.maskedEmail("Acme @ Scale") == "Acme @ Scale")
+        #expect(AccountStore.maskedEmail("Research @Anthropic") == "Research @Anthropic")
+        #expect(AccountStore.maskedEmail("Acme@Scale") == "Acme@Scale") // no dot → not a domain
+        #expect(AccountStore.maskedEmail("Team @ acme.com") == "Team @ acme.com") // whitespace
+        // A real address alongside them still masks.
+        #expect(AccountStore.maskedEmail("kyle@acme.com") == "k•••@acme.com")
+    }
+
     // MARK: Full label (menu rows + Settings rows)
 
     @Test func displayLabel_composesGlyphIdentityAndPlan() {

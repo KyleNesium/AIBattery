@@ -109,13 +109,18 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         var resultEntries = base ?? []
         var seenIds = Set(resultEntries.map(\.messageId))
         var changed = false
-        let fm = FileManager.default
 
         for fileURL in files {
             let path = fileURL.path
-            let attrs = try? fm.attributesOfItem(atPath: path)
-            let modDate = attrs?[.modificationDate] as? Date
-            let fileSize = attrs?[.size] as? UInt64
+            // See SessionLogReader: `resourceValues` avoids bridging a full attribute
+            // dictionary per file (~9x faster over a tree this size).
+            // NSURL caches resource values on the URL, so a reused instance would keep
+            // reporting the pre-write modDate/size and the file would never be re-parsed.
+            var fileURL = fileURL
+            fileURL.removeAllCachedResourceValues()
+            let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            let modDate = values?.contentModificationDate
+            let fileSize = values?.fileSize.map(UInt64.init)
 
             if let cached = cache[path], cached.modDate == modDate, cached.fileSize == fileSize {
                 // Unchanged. Live entries (today's file) may not be in a nil base yet.

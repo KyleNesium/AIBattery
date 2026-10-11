@@ -130,7 +130,58 @@ nonisolated enum CodexUsageParser {
         let secondary = rateLimits["secondary"]
         let reachedType = rateLimits["rate_limit_reached_type"] as? String
 
-        return assemble(primaryAny: primary, secondaryAny: secondary, reachedType: reachedType)
+        if let windowed = assemble(primaryAny: primary, secondaryAny: secondary, reachedType: reachedType) {
+            return windowed
+        }
+
+        // A windowed shape whose windows merely failed to parse is "no data", not a
+        // budget — the same guard `parseUsageDict` applies to `rate_limit`. Without it a
+        // Plus/Pro rollout flips the whole popover to credit-budget mode.
+        if rateLimits["primary"] is [String: Any] || rateLimits["secondary"] is [String: Any] {
+            return nil
+        }
+
+        // Spend-control plans (Business / Enterprise) write `"primary": null,
+        // "secondary": null` and carry the budget FLAT on this same object —
+        // `individual_limit` and `spend_control_reached` — where `wham/usage` nests them
+        // under `spend_control`. Without translating that shape the fallback was dead for
+        // exactly the plan it exists to cover: every window parse failed, `assemble`
+        // returned nil, and the bars stayed empty for the whole endpoint outage.
+        //
+        // Require real spend-control evidence before building one. `plan_type` alone is
+        // NOT evidence: it is present on every plan's rollout, including Plus/Pro, whose
+        // windows are routinely null early in a session. Keying off it fabricated an
+        // "uncapped, 0% used" credit budget for subscription accounts — replacing their
+        // real 5h/weekly bars with a single "no cap" Credits bar asserting a false
+        // healthy 0%, during the very outage this fallback exists to cover.
+        guard rateLimits["individual_limit"] is [String: Any]
+            || rateLimits["spend_control_reached"] is Bool
+            || rateLimits["credits"] is [String: Any] else { return nil }
+
+        return parseUsageDict(normalizedSpendControl(rateLimits))
+    }
+
+    /// Re-shape a session-log `rate_limits` object into the `wham/usage` layout that
+    /// `parseUsageDict` understands. JSON nulls arrive as `NSNull` and are dropped so the
+    /// "is this key present?" checks downstream behave the same as on a real usage body.
+    private nonisolated static func normalizedSpendControl(_ rateLimits: [String: Any]) -> [String: Any] {
+        func present(_ key: String) -> Any? {
+            guard let value = rateLimits[key], !(value is NSNull) else { return nil }
+            return value
+        }
+
+        var normalized: [String: Any] = [:]
+        normalized["plan_type"] = present("plan_type")
+        normalized["credits"] = present("credits")
+        normalized["rate_limit_reached_type"] = present("rate_limit_reached_type")
+
+        var spend: [String: Any] = [:]
+        spend["individual_limit"] = present("individual_limit")
+        spend["reached"] = present("spend_control_reached")
+        if !spend.isEmpty {
+            normalized["spend_control"] = spend
+        }
+        return normalized
     }
 
     /// Extract plan_type from wham/usage JSON.

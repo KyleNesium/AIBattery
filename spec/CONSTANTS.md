@@ -252,11 +252,12 @@ Pricing per million tokens:
 | Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
 | Opus 3 | $15 | $75 | $18.75 | $1.50 |
 
-OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29; cache write billed at the input rate, longest prefix wins):
+OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29 and 2026-10-11; cache write billed at the input rate, longest prefix wins):
 
 | Model prefix | Input | Output | Cache Read |
 |-------|-------|--------|------------|
 | gpt-6-astra | $10.00 | $50.00 | $1.00 |
+| gpt-6.1-sol | $2.00 | $10.00 | $0.10 |
 | gpt-6-sol | $2.00 | $10.00 | $0.20 |
 | gpt-6-luna | $0.10 | $0.50 | $0.01 |
 | gpt-5.6-sol | $4.00 | $20.00 | $0.40 |
@@ -291,7 +292,7 @@ IDs absent from the pricing page fall through to their longest listed prefix (e.
 | Auto metric mode | `aibattery_autoMetricMode` (Bool, default false) |
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
 | Signed-out provider | `aibattery_signedOutProvider` (String — `AIProvider` raw value, default `"claude"`) — which provider the signed-out sign-in screen offers first; written by `OAuthManager.signOut` (the removed account's provider) and by the sign-in screen's Claude \| Codex picker |
-| Full account email in popover | `aibattery_showFullAccountIdentity` (Bool, default false) — when false, a discovered email in the header chip / chip menu is masked (`k•••@domain`, `AccountStore.maskedEmail`); aliases and Settings placeholders are never masked. |
+| Full account email in popover | `aibattery_showFullAccountIdentity` (Bool, default false) — when false, a discovered email in the header chip / chip menu is masked (`k•••@domain`, `AccountStore.maskedEmail` — only an email-shaped string: non-empty local part, dotted domain, no whitespace); aliases, workspace names and Settings placeholders are never masked. |
 | Show all accounts in menu bar | `aibattery_showAllAccountsInMenuBar` (Bool, default false) — when true and ≥2 authenticated accounts exist, the menu bar shows percentages for every account joined by `\u{00A0}|\u{00A0}` (e.g. `42% | 23%`). Star color, broken-star state, and countdown reset are driven by the worst account. `MetricMode.contextHealth` falls back to `.fiveHour` for per-account percents (context health is per-session, not per-account). |
 
 ## Dynamic Probe Model Storage
