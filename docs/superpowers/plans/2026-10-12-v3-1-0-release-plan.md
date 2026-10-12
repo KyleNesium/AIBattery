@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. This document sequences two task plans on ONE branch and owns everything release-level (branch, changelog heading, version, counts, PR). Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** Ship v3.1.0 as one PR: the Settings-height fix already on main (#196), the multi-account overview, and the provider-relevant display items.
+**Goal:** Ship v3.1.0 as one PR: the Settings-height fix already on main (#196), the multi-account overview, the provider-relevant display items, and the Sparkle 2.10.0 bump + README/spec alignment (absorbed from #199).
 
 **Architecture:** Two phases on the single branch `worktree-v3-1-0` (worktree `.claude/worktrees/v3-1-0`). Phase 1 is the multi-account overview plan (it also delivers provider-relevance item 6). Phase 2 is the provider-relevance plan minus its superseded/duplicated tasks. One wrap-up task finishes counts, changelog and the PR description. Nothing is tagged until Kyle says ship.
 
@@ -22,7 +22,7 @@
 - Version is already `3.1.0` in `project.yml` and `AIBattery/Info.plist`; `CHANGELOG.md` has `## [3.1.0] — Unreleased`. Tasks append their own `### Added` line; the wrap-up sets the date.
 - All constraints of both task plans apply (Swift 6 strict concurrency, lint clean, headless-CI rules, no `.move(edge:)`, no synthetic keystrokes, identity never copied into `displayName`, cost framing, privacy).
 - Commit per task, `<type>: <description>`, **no Co-Authored-By trailers**. README "Test Coverage" updated with every test change; `CLAUDE.md` counts at wrap-up.
-- Superseded PRs #197, #198, #200 are closed with a pointer to this PR; their branches and worktrees are removed.
+- Superseded PRs #197, #198, #199, #200 are closed with a pointer to this PR; their remote branches are deleted (the `sparkle-2-10` worktree belongs to another session and is left in place).
 
 ---
 
