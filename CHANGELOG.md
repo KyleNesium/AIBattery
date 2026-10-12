@@ -1,6 +1,12 @@
 # Changelog
 
-## [3.0.1] — 2026-10-12
+## [3.1.0] — Unreleased
+
+Integration branch for the next release (one PR). Entries below the "Added" heading
+are appended by the task that lands them (see `docs/superpowers/plans/2026-10-12-v3-1-0-release-plan.md`).
+
+### Added
+- _(filled in per task: multi-account overview; provider-relevant display items)_
 
 ### Fixed
 - **Settings no longer clips.** Opening Settings, or changing content inside it,

@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-12
 **Status:** Approved for planning (user asked for a plan covering all nine items)
-**Ships as:** one integration branch / one PR, after v3.0.0 + PR #196
+**Ships as:** part of the v3.1.0 integration branch (one PR with the multi-account overview and the #196 fix) — see `docs/superpowers/plans/2026-10-12-v3-1-0-release-plan.md`. Item 6 is implemented by the overview plan's Task 1; item 9 is superseded by the overview.
 
 ## Goal
 
@@ -103,6 +103,8 @@ App state (code anchors, verified):
 
 ## 6. Codex API-key accounts in the menu bar (item 6)
 
+> **Implemented by the multi-account overview** (`2026-10-12-multi-account-overview-design.md` §2.2 / §7, plan Task 1): the fan-out returns `AccountReading` (windows | apiLimits), API-key accounts become eligible, and the menu bar renders per-minute slots. The text below is kept as the original requirement; the overview's data model supersedes `FanOutResult`.
+
 - `MultiAccountFanOut.resolve` returns `FanOutResult { windows: [String: RateLimitUsage]; apiLimits: [String: StandardRateLimits] }?`. For an account whose `APIFetchResult.standardLimits` is non-nil and `rateLimits` is nil, the entry goes to `apiLimits`.
 - `AccountStore.multiAccountDisplayIDs` stops filtering `isAPIKeyAccount`.
 - `UsageViewModel` gains `@Published var perAccountAPILimits: [String: StandardRateLimits]`, filled next to `perAccountRateLimits`.
@@ -123,7 +125,9 @@ App state (code anchors, verified):
 - `UsageSnapshot` gains `let ledgerSince: Date?` (Codex only; nil for Claude), set by the aggregator from the ledger after merge.
 - `InsightsView.allTimeTooltip(for:since:)` appends `" (since \(dateString))"` for Codex when present; the 12M chart gets a caption `"since \(dateString)"` (`Typography.monoTiny`, tertiary) under the chart in `.monthly` mode for Codex snapshots with `ledgerSince` later than 12 months ago.
 
-## 9. Other-accounts strip (item 9)
+## 9. Other-accounts strip (item 9) — SUPERSEDED
+
+> Replaced by the multi-account overview (`2026-10-12-multi-account-overview-design.md`): with 2+ accounts the popover opens on one card per account, which is the real version of this strip. Nothing from this section is built. Kept for the record.
 
 - New view `OtherAccountsStrip` inserted in `UsagePopoverView.mainContent` between the header and `MetricToggleView` (not shown with Settings open, not shown for the add-account overlay).
 - Pure model `OtherAccountsStrip.rows(accounts:activeId:windows:apiLimits:maskEmail:) -> [Row]` (`struct Row: Identifiable, Equatable { let id: String; let provider: AIProvider; let identity: String; let percent: Double?; let exhausted: Bool }`): every eligible account except the active one, in `displayOrdered` order; percent = `max(fiveHourPercent, sevenDayPercent)` for windows, `budget.usedPercent` for credits, `peakPercent` for API limits, nil when no reading.

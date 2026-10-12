@@ -20,7 +20,7 @@
 - Cost framing unchanged; the overview shows no cost.
 - One integration branch, one PR, tested locally per task; CI once when marked ready (`workflow_dispatch` for re-runs). Commit per task, `<type>: <description>`, **no Co-Authored-By trailers**.
 - README "Test Coverage" table updated in the same commit as any test change; `CLAUDE.md` counts at wrap-up.
-- Ships as v3.1.0 together with #196; the held release PR #198 is retargeted at the end (Task 9).
+- **Executed as Phase 1 of `2026-10-12-v3-1-0-release-plan.md`** on branch `worktree-v3-1-0`, one draft PR for the whole release (stays draft until Kyle says done). Each task that adds user-visible behaviour appends one line under `### Added` in `CHANGELOG.md` (`## [3.1.0] — Unreleased`).
 
 ---
 
@@ -1221,62 +1221,24 @@ git commit -m "feat: settings copy for the overview and per-account poll cost"
 
 ---
 
-### Task 8: Provider-relevance plan bookkeeping
+### Task 8: Provider-relevance plan bookkeeping — DONE
 
-**Files:**
-- Modify: `docs/superpowers/specs/2026-10-12-provider-relevance-design.md` (§6 → "implemented by the multi-account overview, Task 1"; §9 → "superseded by the overview"), `docs/superpowers/plans/2026-10-12-provider-relevance-plan.md` (Task 7 → note "done in multi-account overview PR"; Task 10 → deleted; self-review list updated)
-
-- [ ] **Step 1: Edit both documents as described** (these live on the `worktree-provider-insights-plan` branch / PR #197 — apply the same edits there via a follow-up commit on that branch, or rebase that branch after this PR merges; record which in the PR description).
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add docs/superpowers
-git commit -m "docs: fold item 6 into the overview, retire the other-accounts strip"
-```
+Already applied on the release branch (the provider-relevance spec marks §6 as implemented here and §9 as superseded; its plan's Task 7 and Task 10 are pointers). Nothing to do.
 
 ---
 
-### Task 9: Spec sync, counts, changelog, release retarget
+### Task 9: Spec sync for this phase
 
-**Files:**
-- Modify: `spec/ARCHITECTURE.md` (data-flow paragraph: mode; project tree: new files), `spec/DATA_LAYER.md`, `spec/UI_SPEC.md`, `spec/CONSTANTS.md` (re-read all four against the code), `README.md` (feature bullet + screenshot `screenshots/overview.png` + Test Coverage), `CLAUDE.md` (counts; Key Design Decisions bullet: *the fan-out is the overview's data source and runs for ≥ 2 accounts regardless of the menu-bar toggle; cards never show per-provider local analytics*), `CHANGELOG.md` (`## [3.1.0]` entry absorbing the held 3.0.1 notes), `AIBattery/Info.plist` + `project.yml` → `3.1.0`.
+**Files:** `spec/ARCHITECTURE.md` (data-flow paragraph: mode; project tree: `AccountReading.swift`, `PopoverMode.swift`, `AccountCard.swift`, `AccountCardView.swift`, `OverviewContentView.swift`, `SettingsGearButton.swift`), `spec/DATA_LAYER.md`, `spec/UI_SPEC.md` (❶ Overview mode section + mockup, keyboard), `spec/CONSTANTS.md` (card widths, status dot), `README.md` (feature bullet "Multi-account overview" + `screenshots/overview.png`), `CLAUDE.md` Key Design Decisions bullet (*the fan-out is the overview's data source and runs for ≥ 2 accounts regardless of the menu-bar toggle; cards never show per-provider local analytics*).
 
-- [ ] **Step 1: Counts**
-
-```bash
-grep -rho "@Test" Tests | wc -l
-find Tests -name "*.swift" | wc -l
-for d in Models Services Views ViewModels Utilities; do echo "$d $(grep -rho '@Test' Tests/AIBatteryCoreTests/$d | wc -l)"; done
-```
-
-Update `README.md` Test Coverage and `CLAUDE.md:43`.
-
-- [ ] **Step 2: Full verification**
-
-```bash
-swiftformat AIBattery/ AIBatteryApp/ Tests/ && swiftlint
-swift test 2>&1 | tail -3
-./scripts/build-app.sh && open .build/AIBattery.app
-```
-
-Walk: open → overview → each card → detail → back → Settings from both modes → sign out one account → overview updates (sign-in card) → sign back in. Capture `screenshots/overview.png` (2× via `screencapture -R`, rounded corners as in `project_screenshot_automation`).
-
-- [ ] **Step 3: Commit, push, PR**
-
-```bash
-git add -A
-git commit -m "docs: sync specs, README, CLAUDE.md and changelog for the multi-account overview (v3.1.0)"
-git push -u origin HEAD
-gh pr create --draft --title "feat: multi-account overview (v3.1.0)" --body-file docs/superpowers/plans/2026-10-12-multi-account-overview-plan.md
-```
-
-Mark ready once so CI runs; re-run with `gh workflow run ci.yml --ref <branch>` after later pushes. After merge: close the held PR #198 (its bump is absorbed here) and tag `v3.1.0` from main per the release flow — **only on Kyle's go**.
+- [ ] **Step 1:** Re-read the four spec files against the code; fix drift.
+- [ ] **Step 2:** Full verification: `swiftformat AIBattery/ AIBatteryApp/ Tests/ && swiftlint`; `swift test`; `./scripts/build-app.sh && open .build/AIBattery.app`; walk open → overview → each card → detail → back → Settings from both modes → sign out one account → sign-in card → sign back in. Capture `screenshots/overview.png` (2× `screencapture -R`, rounded corners per the screenshot recipe). Accessibility clicks only.
+- [ ] **Step 3:** Commit with message `docs: sync specs and README for the multi-account overview`. Version, changelog heading, test counts and the PR are owned by the release plan's wrap-up.
 
 ---
 
 ## Self-review against the spec
 
-- §1 modes → Task 3 (+ Task 5 select/back, Task 6 escape). §2.1 gate → Task 1. §2.2 readings → Task 1. §2.3 statuses → Task 2. §2.4 signed-out cards → Task 4 (`eligibleCount`, `.signedOut`) + Task 5 (`select` opens the add overlay). §3 layout → Tasks 4–5 (widths in `Layout`, header, cards, add link, footer reuse). §4 detail changes → Task 6. §5 flow → Tasks 3, 5, 6. §6 a11y → Task 4 (`accessibilityLabel`) + Task 5 (element config). §7 folded item 6 → Task 1 (+ Task 8 bookkeeping). §8 settings → Task 7. §9 errors → Task 1 (`carriedForward`), Task 4 (`.fetching`, nil-tolerant rows). §10 testing → each task. §11: R1 resolved (per-instance backoff, Task 2 comment); R2 → Task 6 (`escapeHandler` closure; fallback stated in spec); R3 → checked in Task 5's walkthrough with six accounts if available, else computed from `Layout` values and noted in the PR.
+- §1 modes → Task 3 (+ Task 5 select/back, Task 6 escape). §2.1 gate → Task 1. §2.2 readings → Task 1. §2.3 statuses → Task 2. §2.4 signed-out cards → Task 4 (`eligibleCount`, `.signedOut`) + Task 5 (`select` opens the add overlay). §3 layout → Tasks 4–5 (widths in `Layout`, header, cards, add link, footer reuse). §4 detail changes → Task 6. §5 flow → Tasks 3, 5, 6. §6 a11y → Task 4 (`accessibilityLabel`) + Task 5 (element config). §7 folded item 6 → Task 1 (bookkeeping already applied, Task 8 is a pointer). §8 settings → Task 7. §9 errors → Task 1 (`carriedForward`), Task 4 (`.fetching`, nil-tolerant rows). §10 testing → each task. §11: R1 resolved (per-instance backoff, Task 2 comment); R2 → Task 6 (`escapeHandler` closure; fallback stated in spec); R3 → checked in Task 5's walkthrough with six accounts if available, else computed from `Layout` values and noted in the PR.
 - Names consistent across tasks: `AccountReading`, `FanOutGate.enabled(menuBarToggle:eligibleAccountCount:)`, `perAccountReadings` / `perAccountRateLimits` / `perAccountAPILimits`, `providerStatuses`, `PopoverMode.initial/next`, `AccountCard.rows/eligibleCount/stateText`, `AccountCardView`, `AccountCardBarRow`, `OverviewContentView`, `SettingsGearButton`, `PopoverHeaderView.showsBack(eligibleAccountCount:)`, `PopoverEscapeRouting.consume`, `pollCostHint(provider:apiKeyAccount:fanOutAccounts:)`.
 - Implementer must confirm on the spot (named in steps): `APIFetchResult` initializer order, `ClaudeSystemStatus` init labels, `RateLimitUsage.fiveHourWindow/sevenDayWindow` names, `LinkActionButton` init labels, status-dot size constant, `PopoverFooterView.relativeTime` isolation, mock types in `MultiAccountFanOutTests`.

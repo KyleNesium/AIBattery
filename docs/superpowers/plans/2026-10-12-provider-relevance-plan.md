@@ -8,7 +8,7 @@
 
 **Tech Stack:** Swift 6 / SwiftUI, SPM, Swift Testing (`import Testing`, `@testable import AIBatteryCore`).
 
-**Spec:** `docs/superpowers/specs/2026-10-12-provider-relevance-design.md` (sections §1–§9 map to Tasks 1–10; §10 error handling, §11 testing, research items R1–R3).
+**Spec:** `docs/superpowers/specs/2026-10-12-provider-relevance-design.md` (§1–§5, §7, §8 map to Tasks 1–6, 8, 9; §6 is done by the overview plan's Task 1; §9 is superseded; §10 error handling, §11 testing, research items R1–R3). **Executed as Phase 2 of `2026-10-12-v3-1-0-release-plan.md`** — the umbrella plan owns the branch, the changelog heading, the counts and the PR; this plan's tasks commit on that branch.
 
 ## Global Constraints
 
@@ -17,7 +17,7 @@
 - Cost framing: "API-equivalent cost" for subscriptions; real bill only when `snapshot.costIsBilled`. Reasoning tokens never change cost.
 - Headless-CI rules: suites touching AppKit colours are `@MainActor`; never construct `UsageViewModel()` in tests; never touch `SparkleUpdateService.shared`; no dynamic `NSColor` equality off-main.
 - Every new persisted field is `decodeIfPresent` with a default (ledger, `PersistedCodexRateLimits`, `aibattery_rateLimits_*`).
-- One integration branch, one PR, tested locally per task; CI once when marked ready. Commit per task, `<type>: <description>`, **no Co-Authored-By trailers**.
+- Branch `worktree-v3-1-0`, one draft PR for the whole v3.1.0 release (stays draft until Kyle says done). Commit per task, `<type>: <description>`, **no Co-Authored-By trailers**. Each task that adds user-visible behaviour appends one line under `### Added` in `CHANGELOG.md` (`## [3.1.0] — Unreleased`).
 - README "Test Coverage" table updated in the same commit as any test change; `CLAUDE.md` counts at wrap-up (Task 11).
 - Model-ID prefixes: Claude `claude-`, Codex `gpt-`.
 - Vocabulary: Claude "Thinking" / "7-Day"; Codex "Reasoning" / "Weekly".
@@ -996,109 +996,9 @@ git commit -m "feat: show Claude per-model weekly windows under the 7-Day bar"
 
 ---
 
-### Task 7: Codex API-key accounts in the fan-out and the menu bar
+### Task 7: Codex API-key accounts in the fan-out and the menu bar — DONE ELSEWHERE
 
-**Files:**
-- Modify: `AIBattery/ViewModels/MultiAccountFanOut.swift:63-74, 97-154`
-- Modify: `AIBattery/ViewModels/UsageViewModel.swift:25`, `AIBattery/ViewModels/UsageViewModel+FanOut.swift:34-48`
-- Modify: `AIBattery/Views/MenuBarMultiAccountText.swift:36-74, 236-257`, `AIBattery/Views/StatusBarManager+ButtonUpdate.swift:46-79`
-- Test: `Tests/AIBatteryCoreTests/ViewModels/MultiAccountFanOutTests.swift`, `Tests/AIBatteryCoreTests/Views/MenuBarMultiAccountTextTests.swift`, `Tests/AIBatteryCoreTests/Services/AccountStoreProviderTests.swift:51`
-
-**Interfaces:**
-- Produces: `struct FanOutResult: Equatable { var windows: [String: RateLimitUsage]; var apiLimits: [String: StandardRateLimits] }`; `MultiAccountFanOut.resolve(...) async -> FanOutResult?`; `UsageViewModel.perAccountAPILimits: [String: StandardRateLimits]`; `MenuBarMultiAccountText.build(order:providers:limits:apiLimits:metricMode:)` (`apiLimits` defaulted `[:]`).
-- Consumes: `StandardRateLimits.peakPercent`, `isRequestsExhausted`, `isTokensExhausted` (existing).
-
-- [ ] **Step 1: Failing tests**
-
-`AccountStoreProviderTests` — rename/replace `multiAccountDisplayIDs_excludesAPIKeyAccounts` with:
-
-```swift
-    @Test func multiAccountDisplayIDs_includesAPIKeyAccounts() {
-        // build two Codex records with the suite's existing fixture helper: one ChatGPT, one API key
-        let ids = AccountStore.multiAccountDisplayIDs(accounts: accounts, isAuthenticated: { _ in true })
-        #expect(ids.contains(apiKeyAccount.id))
-    }
-```
-
-`MultiAccountFanOutTests` — using the suite's mock `fetcher` that returns an `APIFetchResult` per id, add:
-
-```swift
-    @Test func resolve_routesStandardLimitsToApiLimits() async {
-        let std = StandardRateLimits.parse(openAIHeaders: [
-            "x-ratelimit-limit-requests": "100", "x-ratelimit-remaining-requests": "20",
-            "x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900",
-        ], now: .now)
-        let fetcher = MockFetcher(results: ["api-1": APIFetchResult.standardOnly(std)]) // use the suite's existing APIFetchResult factory; add `standardOnly` if missing
-        let result = await MultiAccountFanOut.resolve(enabled: true, seed: nil, provider: MockProvider(ids: ["api-1"]), fetcher: fetcher)
-        #expect(result?.windows.isEmpty == true)
-        #expect(result?.apiLimits["api-1"]?.peakPercent == 80)
-    }
-```
-
-`MenuBarMultiAccountTextTests`:
-
-```swift
-    @Test func build_apiKeySlot_usesPeakPercent() {
-        let std = StandardRateLimits.parse(openAIHeaders: [
-            "x-ratelimit-limit-requests": "100", "x-ratelimit-remaining-requests": "20",
-            "x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900",
-        ], now: .now)
-        let out = MenuBarMultiAccountText.build(order: ["c1", "api-1"], providers: ["c1": .claude, "api-1": .codex],
-                                                limits: ["c1": makeLimits(fiveHour: 0.3, sevenDay: 0.1)],
-                                                apiLimits: ["api-1": std], metricMode: .fiveHour)
-        #expect(out.text == "✦\u{00A0}30%  ⬡\u{00A0}80%")
-        #expect(out.worstPercent == 80)
-        #expect(out.anyThrottled == false)
-    }
-```
-
-(Use the suite's existing `makeLimits` helper name; adjust the expected glyph string to the suite's mixed-provider convention.)
-
-- [ ] **Step 2: Run to verify failure** — `swift test --filter "MultiAccountFanOut|MenuBarMultiAccountText|AccountStoreProvider"` → compile errors.
-
-- [ ] **Step 3: Implement**
-
-`MultiAccountFanOut.swift`:
-- Delete the `.filter { !$0.isAPIKeyAccount }` line and its comment in `multiAccountDisplayIDs`.
-- Add:
-
-```swift
-/// Per-account results of the fan-out: windowed readings (Claude, Codex ChatGPT) and
-/// per-minute API limits (Codex API keys) kept apart — nothing is coerced into the other shape.
-struct FanOutResult: Equatable {
-    var windows: [String: RateLimitUsage] = [:]
-    var apiLimits: [String: StandardRateLimits] = [:]
-}
-```
-
-- Change `resolve` to return `FanOutResult?`; the task group yields `(String, RateLimitUsage?, StandardRateLimits?)` with `return (id, api.rateLimits, api.rateLimits == nil ? api.standardLimits : nil)`; the "skipped" log fires only when both are nil; collect into `result.windows` / `result.apiLimits`; the final normalisation applies to `result.windows` only (`withClearedExpiredWindows` for `StandardRateLimits` already exists — apply `$0.withClearedExpiredWindows(now: now)` to `apiLimits` values too).
-
-`UsageViewModel.swift:25` — add `@Published var perAccountAPILimits: [String: StandardRateLimits] = [:]`. `UsageViewModel+FanOut.fetchAllAccounts`:
-
-```swift
-        if let resolved {
-            perAccountRateLimits = resolved.windows
-            perAccountAPILimits = resolved.apiLimits
-        } else if !perAccountRateLimits.isEmpty || !perAccountAPILimits.isEmpty {
-            perAccountRateLimits = [:]
-            perAccountAPILimits = [:]
-        }
-```
-
-`MenuBarMultiAccountText.build` — new signature `build(order:providers: = [:], limits:, apiLimits: [String: StandardRateLimits] = [:], metricMode:)`. Per id: `if let std = apiLimits[id] { return "\(Int(std.peakPercent.rounded()))%" }` before the `limits[id]` lookup. `worstPercent` = max over shown windows **and** `order.compactMap { apiLimits[$0]?.peakPercent }`; `anyThrottled` also `|| order.contains { apiLimits[$0].map { $0.isRequestsExhausted || $0.isTokensExhausted } ?? false }`.
-
-`StatusBarManager+ButtonUpdate.updateButton` — pass `apiLimits: viewModel.perAccountAPILimits` and include ids present in `apiLimits` wherever `perAccount` presence currently gates rendering (`shouldRender(toggleOn:fetchedAccountCount:)` counts `perAccount.count + apiLimits.count`).
-
-- [ ] **Step 4: Run tests, smoke test, commit**
-
-`swift test --filter "MultiAccountFanOut|MenuBarMultiAccountText|AccountStoreProvider|StatusBar"` → PASS. Build, enable "All accounts in menu bar": the Codex API-key account now shows `⬡ NN%` instead of being absent.
-Docs: `spec/UI_SPEC.md` menu bar section (remove the exclusion, add the per-minute slot), `spec/DATA_LAYER.md` `MultiAccountFanOut`/`UsageViewModel` (`perAccountAPILimits`), `spec/ARCHITECTURE.md` dispatch table "Rate limits" row. README ViewModels + Views rows.
-
-```bash
-swiftformat AIBattery/ Tests/ && swiftlint --quiet
-git add -A
-git commit -m "feat: show Codex API-key accounts in the multi-account menu bar"
-```
+Implemented by `2026-10-12-multi-account-overview-plan.md` **Task 1** (`AccountReading`, `FanOutGate`, API-key eligibility, per-minute menu-bar slots), which runs in Phase 1 of the release plan. Nothing to do here; later tasks may rely on `UsageViewModel.perAccountAPILimits` existing.
 
 ---
 
@@ -1377,220 +1277,24 @@ git commit -m "feat: date the Codex All-Time figure from the ledger's first scan
 
 ---
 
-### Task 10: Other-accounts strip
+### Task 10: Other-accounts strip — SUPERSEDED
 
-**Files:**
-- Create: `AIBattery/Views/OtherAccountsStrip.swift`
-- Modify: `AIBattery/Views/UsagePopoverView.swift:138-151` (insert between header and `MetricToggleView`)
-- Modify: `docs/superpowers/specs/2026-09-02-codex-support-design.md` ("Out of scope", line 215)
-- Test: `Tests/AIBatteryCoreTests/Views/OtherAccountsStripTests.swift` (new)
-
-**Interfaces:**
-- Produces: `struct OtherAccountsStrip.Row: Identifiable, Equatable { let id: String; let provider: AIProvider; let identity: String; let percent: Double?; let exhausted: Bool }`; `nonisolated static func rows(accounts:activeId:windows:apiLimits:maskEmail:) -> [Row]`.
-- Consumes: `UsageViewModel.perAccountRateLimits`, `perAccountAPILimits` (Task 7), `AccountStore.displayOrdered`, `AccountStore.identityLabel(for:providerIndex:maskEmail:)`, `AccountStore.providerIndex(of:in:)`, `RateLimitUsage.fiveHourPercent/sevenDayPercent/isThrottled`, `CodexCreditBudget.usedPercent`, `StandardRateLimits.peakPercent`, `viewModel.switchAccount(to:)`.
-
-- [ ] **Step 1: Failing row-model test**
-
-```swift
-import Testing
-@testable import AIBatteryCore
-
-@Suite("OtherAccountsStrip rows")
-struct OtherAccountsStripTests {
-    // Build records with the AccountRecord initializer the AccountStore tests use.
-    @Test func rows_excludeActive_keepDisplayOrder_andPickWorstPercent() {
-        let claude = AccountRecord.fixture(id: "c1", provider: .claude)
-        let codex = AccountRecord.fixture(id: "x1", provider: .codex)
-        let apiKey = AccountRecord.fixture(id: "k1", provider: .codex, apiKey: true)
-        let rows = OtherAccountsStrip.rows(
-            accounts: [codex, claude, apiKey], activeId: "c1",
-            windows: ["x1": RateLimitUsageTests.make(fiveHour: 0.2, sevenDay: 0.7)],
-            apiLimits: ["k1": StandardRateLimits.parse(openAIHeaders: [
-                "x-ratelimit-limit-requests": "10", "x-ratelimit-remaining-requests": "0",
-                "x-ratelimit-limit-tokens": "10", "x-ratelimit-remaining-tokens": "10",
-            ], now: .now)],
-            maskEmail: true
-        )
-        #expect(rows.map(\.id) == ["x1", "k1"]) // Claude block first, active removed
-        #expect(rows[0].percent == 70)
-        #expect(rows[0].exhausted == false)
-        #expect(rows[1].percent == 100)
-        #expect(rows[1].exhausted == true)
-    }
-
-    @Test func rows_withoutReading_haveNilPercent() {
-        let a = AccountRecord.fixture(id: "a", provider: .claude)
-        let b = AccountRecord.fixture(id: "b", provider: .claude)
-        let rows = OtherAccountsStrip.rows(accounts: [a, b], activeId: "a", windows: [:], apiLimits: [:], maskEmail: true)
-        #expect(rows.count == 1)
-        #expect(rows[0].percent == nil)
-    }
-}
-```
-
-If `AccountRecord.fixture(...)` does not exist in the test target, add it to the test target as a small `extension AccountRecord` using the record's memberwise initializer (look at `AccountStoreTests` for how records are built there and reuse that helper's name instead).
-
-- [ ] **Step 2: Run to verify failure** — `swift test --filter "OtherAccountsStrip"` → compile error.
-
-- [ ] **Step 3: Implement**
-
-Create `AIBattery/Views/OtherAccountsStrip.swift`:
-
-```swift
-import SwiftUI
-
-/// One row under the header: the OTHER accounts' headroom at a glance, one chip each
-/// (provider mark · identity · worst percent). Click switches the popover to that
-/// account. Data comes from the existing multi-account fan-out — no extra network —
-/// so the strip shows only while "All accounts in menu bar" is on.
-struct OtherAccountsStrip: View {
-    struct Row: Identifiable, Equatable {
-        let id: String
-        let provider: AIProvider
-        let identity: String
-        /// Worst window / credits / per-minute percent (0…100); nil when no reading yet.
-        let percent: Double?
-        let exhausted: Bool
-    }
-
-    let rows: [Row]
-    let onSelect: (String) -> Void
-
-    nonisolated static func rows(
-        accounts: [AccountRecord],
-        activeId: String?,
-        windows: [String: RateLimitUsage],
-        apiLimits: [String: StandardRateLimits],
-        maskEmail: Bool
-    ) -> [Row] {
-        AccountStore.displayOrdered(accounts)
-            .filter { $0.id != activeId && !$0.isPendingIdentity }
-            .map { account in
-                let index = AccountStore.providerIndex(of: account, in: accounts)
-                let identity = AccountStore.identityLabel(for: account, providerIndex: index, maskEmail: maskEmail)
-                if let usage = windows[account.id] {
-                    let percent = usage.creditBudget.map(\.usedPercent)
-                        ?? max(usage.fiveHourPercent, usage.sevenDayPercent)
-                    return Row(id: account.id, provider: account.provider, identity: identity,
-                               percent: percent, exhausted: usage.isThrottled || percent >= 100)
-                }
-                if let std = apiLimits[account.id] {
-                    return Row(id: account.id, provider: account.provider, identity: identity,
-                               percent: std.peakPercent, exhausted: std.isRequestsExhausted || std.isTokensExhausted)
-                }
-                return Row(id: account.id, provider: account.provider, identity: identity, percent: nil, exhausted: false)
-            }
-    }
-
-    var body: some View {
-        if !rows.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.gap) {
-                    ForEach(rows) { row in
-                        Button(action: { onSelect(row.id) }) {
-                            HStack(spacing: Spacing.xsmall) {
-                                ProviderBadge(provider: row.provider)
-                                Text(row.identity)
-                                    .font(Typography.tinyLabel)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .frame(maxWidth: Layout.otherAccountIdentityMaxWidth, alignment: .leading)
-                                Text(row.percent.map { "\(Int($0.rounded()))%" } ?? "—")
-                                    .font(Typography.monoTiny)
-                                    .foregroundStyle(row.percent.map { ThemeColors.barColor(percent: $0) } ?? ThemeColors.tertiaryLabel)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .help("\(row.identity) — \(row.percent.map { "worst window \(Int($0.rounded()))%" } ?? "no reading yet"). Click to switch.")
-                        .accessibilityLabel("\(row.provider.displayName) account \(row.identity), \(row.percent.map { "\(Int($0.rounded())) percent used" } ?? "no reading")\(row.exhausted ? ", limit reached" : "")")
-                        .accessibilityHint("Switches to this account")
-                    }
-                }
-                .padding(.horizontal, Spacing.sectionHorizontal)
-            }
-            .padding(.bottom, Spacing.small)
-        }
-    }
-}
-```
-
-Add `static let otherAccountIdentityMaxWidth: CGFloat = 110` to `Layout` (`AIBattery/Utilities/Spacing.swift`) and document it in `spec/CONSTANTS.md`.
-
-In `UsagePopoverView.mainContent`, directly after the `PopoverHeaderView(...)` call and before `if showSettings {`:
-
-```swift
-            if !showSettings, UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar) {
-                OtherAccountsStrip(
-                    rows: OtherAccountsStrip.rows(
-                        accounts: accountStore.accounts,
-                        activeId: accountStore.activeAccountId,
-                        windows: viewModel.perAccountRateLimits,
-                        apiLimits: viewModel.perAccountAPILimits,
-                        maskEmail: !UserDefaults.standard.bool(forKey: UserDefaultsKeys.showFullAccountIdentity)
-                    ),
-                    onSelect: { id in withAnimation(MotionConstants.standard) { viewModel.switchAccount(to: id) } }
-                )
-            }
-```
-
-(If `UserDefaultsKeys.showFullAccountIdentity` has a different name, use the key the header chip reads for `aibattery_showFullAccountIdentity`; prefer an `@AppStorage` property on the view for both keys so the strip re-renders when the toggles flip — look at how `PopoverHeaderView`/`AccountChipView` read the mask toggle and copy that.)
-
-- [ ] **Step 4: Run tests, smoke test, commit**
-
-`swift test --filter "OtherAccountsStrip"` → PASS. Build, enable "All accounts in menu bar", open the popover: the strip shows the inactive accounts with their percent; clicking one switches and the strip updates. Verify the panel height follows (PR #196's refit path).
-Docs: `spec/UI_SPEC.md` popover hierarchy, ASCII mockup (a line under the header), new subsection "❶c Other-accounts strip"; `docs/superpowers/specs/2026-09-02-codex-support-design.md` "Out of scope" line → "Cross-provider **aggregate numbers** (sums across providers). The other-accounts strip (2026-10-12 spec §9) is a navigation aid, not an aggregate."; `spec/CONSTANTS.md` layout constant. README Views row.
-
-```bash
-swiftformat AIBattery/ Tests/ && swiftlint --quiet
-git add -A
-git commit -m "feat: other-accounts strip under the popover header"
-```
+Replaced by the multi-account overview (Phase 1 of the release plan). Not built.
 
 ---
 
-### Task 11: Spec sync, counts, PR
+### Task 11: Spec sync for this phase
 
-**Files:**
-- Modify: `spec/ARCHITECTURE.md` (dispatch table; project tree gets `ReasoningVocabulary.swift`, `OtherAccountsStrip.swift`, `ModelWindowRows.swift` if built), `spec/DATA_LAYER.md`, `spec/UI_SPEC.md`, `spec/CONSTANTS.md` (re-read all four against the code once), `README.md` (feature bullets + Test Coverage), `CLAUDE.md` (counts + a "Key Design Decisions" bullet: *reasoning tokens are a subset of output; per-record context window beats the table; fan-out carries two maps*).
+**Files:** `spec/ARCHITECTURE.md` (project tree: `ReasoningVocabulary.swift`, `ModelWindowRows.swift` if built), `spec/DATA_LAYER.md`, `spec/UI_SPEC.md`, `spec/CONSTANTS.md`, `README.md` feature bullets, `CLAUDE.md` Key Design Decisions bullet (*reasoning tokens are a subset of output; per-record context window beats the table*).
 
-- [ ] **Step 1: Count tests and files**
-
-```bash
-grep -rho "@Test" Tests | wc -l
-find Tests -name "*.swift" | wc -l
-```
-
-Update `README.md:451` and `CLAUDE.md:43` with the numbers, and re-total the per-area rows (Models / Services / Views / ViewModels / Utilities) by counting `@Test` per directory:
-
-```bash
-for d in Models Services Views ViewModels Utilities; do echo "$d $(grep -rho '@Test' Tests/AIBatteryCoreTests/$d | wc -l)"; done
-```
-
-- [ ] **Step 2: Full local verification**
-
-```bash
-swiftformat AIBattery/ AIBatteryApp/ Tests/ && swiftlint
-swift test 2>&1 | tail -3
-./scripts/build-app.sh && open .build/AIBattery.app
-```
-
-Expected: formatter reports 0 files, lint 0 serious, all tests pass, app launches; walk the popover once per account (Claude, Codex ChatGPT, Codex API key): Context row, Insights tooltip, credits footer, menu bar slots, strip.
-
-- [ ] **Step 3: Commit, push, PR**
-
-```bash
-git add -A
-git commit -m "docs: sync specs, README and CLAUDE.md for provider-relevant display"
-git push -u origin HEAD
-gh pr create --draft --title "feat: provider-relevant display (context window, reasoning, effort, API-key slots, credit runway, dated All-Time, other-accounts strip)" --body-file docs/superpowers/plans/2026-10-12-provider-relevance-plan.md
-```
-
-Then mark ready once (`gh pr ready`) so CI runs one time; if a later push is needed, re-run with `gh workflow run ci.yml --ref <branch>`.
+- [ ] **Step 1:** Re-read the four spec files against the code for every item landed in this phase; fix drift.
+- [ ] **Step 2:** `swiftformat AIBattery/ AIBatteryApp/ Tests/ && swiftlint` clean; `swift test` passes; `./scripts/build-app.sh && open .build/AIBattery.app` walkthrough per account (Context row, Insights tooltip, credits footer).
+- [ ] **Step 3:** Commit with message `docs: sync specs for provider-relevant display`. Test counts, the changelog heading and the PR are handled by the release plan's wrap-up, not here.
 
 ---
 
 ## Self-review against the spec
 
-- §1 context window → Task 1 (parse) + Task 3 (monitor). §2 reasoning → Tasks 1, 2, 3, 4. §3 effort → Tasks 1, 3, 4. §4 limit name → Task 5. §5 per-model windows → Task 0 gate + Task 6. §6 API-key menu bar → Task 7. §7 runway → Task 8. §8 dated All-Time → Task 9. §9 strip → Task 10. §10 error handling → every new field is defaulted/optional with a legacy-decode test (Tasks 2, 5, 6, 9). §11 testing → each task has failing-test-first steps; counts in Task 11. R1 → Task 0; R2 → noted as not needed by the §7 method (observed pace), still cheap to glance at during Task 8; R3 → clamp in Task 1 plus the overflow test.
+- §1 context window → Task 1 (parse) + Task 3 (monitor). §2 reasoning → Tasks 1, 2, 3, 4. §3 effort → Tasks 1, 3, 4. §4 limit name → Task 5. §5 per-model windows → Task 0 gate + Task 6. §6 API-key menu bar → overview plan Task 1 (Task 7 here is a pointer). §7 runway → Task 8. §8 dated All-Time → Task 9. §9 strip → superseded (Task 10 is a pointer). §10 error handling → every new field is defaulted/optional with a legacy-decode test (Tasks 2, 5, 6, 9). §11 testing → each task has failing-test-first steps; counts in Task 11. R1 → Task 0; R2 → noted as not needed by the §7 method (observed pace), still cheap to glance at during Task 8; R3 → clamp in Task 1 plus the overflow test.
 - Names used across tasks: `reasoningTokens` (entry, summary, status, ledger record as `reasoning`), `effortLabel`, `contextWindow`, `ReasoningVocabulary.label(forModel:)`, `FanOutResult.windows/apiLimits`, `perAccountAPILimits`, `CodexCreditBudget.periodAnchor/anchored(from:now:)/estimatedTimeToExhaustion(now:)`, `TokenLedger.firstScanDate(accountId:)`, `UsageSnapshot.ledgerSince`, `InsightsView.allTimeTooltip(for:since:)`, `ActivityChartView.sinceCaption(provider:since:now:)`, `OtherAccountsStrip.rows(accounts:activeId:windows:apiLimits:maskEmail:)` — consistent.
 - Known soft spots an implementer must resolve on the spot (named in the steps): the exact helper names in `MultiAccountFanOutTests` / `MenuBarMultiAccountTextTests` / `AccountStoreTests` fixtures, where the predictive-limit constants live, and the mask-toggle key read by the chip.

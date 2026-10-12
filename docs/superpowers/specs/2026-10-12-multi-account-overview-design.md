@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-12
 **Status:** Approved in chat (shape: overview grid in the popover; entry: default when 2+ accounts). Refined here.
-**Ships as:** v3.1.0, together with the Settings-height fix (#196, held release PR #198) and whichever provider-relevance items (PR #197 plan) land in time.
+**Ships as:** v3.1.0 on the single integration branch `worktree-v3-1-0` (one draft PR until done), together with the Settings-height fix (#196) and the provider-relevance items — see `docs/superpowers/plans/2026-10-12-v3-1-0-release-plan.md`.
 
 ## Goal
 
