@@ -365,6 +365,7 @@ CHANGELOG.md                      — Release notes per version
 11. `GET https://auth.openai.com/oauth/authorize` — Codex OAuth login (opens in browser, one-time; redirects to `http://localhost:1455/auth/callback`)
 12. `POST https://auth.openai.com/oauth/token` — Codex token exchange + auto-refresh
 13. `POST https://api.openai.com/v1/responses` — **API-key Codex accounts only**: a 16-token nano probe whose response headers carry the per-minute `x-ratelimit-*` limits (the Codex mirror of the Claude Messages probe; no ChatGPT windows exist for API keys)
+14. `GET https://api.openai.com/v1/models` — **API-key Codex accounts only**: one request when the key is added, to validate it before the account is registered (an unreachable endpoint adds the account with a note and re-checks on the first refresh)
 
 ## Local File Access (exhaustive)
 

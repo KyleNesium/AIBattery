@@ -104,7 +104,7 @@ OAuth 2.0 with PKCE for both providers — the same protocols Claude Code and th
 
 **Codex plans:** ChatGPT subscriptions (Free/Plus/Pro/Team) show 5-hour and weekly windows plus any purchased-credit balance; Business/Enterprise spend-control plans show one **Credits** budget bar; API-key mode (`codex login --api-key`, or paste a key in the app) shows OpenAI's per-minute request/token limits and your real spend at API rates.
 
-**Which account am I looking at?** The header is an account chip: the provider's brand mark in its own colour, then the account identity — the name you gave it in Settings, otherwise your sign-in email (Codex) or workspace name (Claude), otherwise "Claude 1" / "Codex 2". Emails are masked in the popover by default (`k•••@domain`; Settings → Display → **Full account email in popover** shows them in full). Click the chip to switch accounts — grouped by provider, plan shown per row — or add one (**Add Claude Account…** / **Add Codex Account…**, up to 3 per provider). Each account has its own rate limits, tokens and identity; the menu bar prefixes each provider's group with its brand mark when both providers are connected.
+**Which account am I looking at?** The header is an account chip: the provider's brand mark in its own colour, then the account identity — the name you gave it in Settings, otherwise your sign-in email (Codex) or workspace name (Claude), otherwise "Claude 1" / "Codex 2". Emails are masked in the popover by default (`k•••@domain`; Settings → Display → **Full account email in popover** shows them in full). Click the chip to switch accounts — grouped by provider, plan shown per row — or add one (**Add Claude Account…** / **Add Codex Account…**, up to 3 per provider). Each account has its own rate limits and identity; local token data (Insights, Projects, Context Health) is per provider — every Codex account shows the same `~/.codex/sessions` analytics, just as every Claude account shares `~/.claude`. The menu bar prefixes each provider's group with its brand mark when both providers are connected.
 
 <details>
 <summary>🔑 <strong>Session details</strong></summary>
@@ -162,7 +162,7 @@ Shows your **5 most recent sessions** with context health. Browse with `< 1/5 >`
 
 Each session displays: **project name** · **git branch** · **duration** · **last active time**.
 
-Percentages are relative to the **usable window** — 80% of the model's raw context window. At 100%, Claude Code auto-compacts and quality drops. Keep at least 20-40% free for best results.
+Percentages are relative to the model's **full context window** — 1M tokens for current Claude models, ~258K for GPT-5-family models via Codex (`TokenHealthConfig`). Keep at least 20–40% free for best results; Anthropic documents auto-compaction once context exceeds 95%.
 
 | Color | Range | Meaning |
 |---|---|---|
@@ -366,10 +366,10 @@ AI Battery primarily shows Claude Code 5-hour and 7-day usage from Claude Code a
 |---|---|
 | 📂 **Local only** | Reads Claude Code and Codex CLI JSONL for token counts — **never your message content** (Codex `response_item` lines are never decoded); `~/.codex` is read-only |
 | 🔑 **Keychain** | OAuth refresh token stored in macOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) — access token is memory-only, never written to disk |
-| 🌐 **Network** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · with a Codex account: `chatgpt.com` (rate limits) · `auth.openai.com` (OAuth) · `status.openai.com` (status) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast) |
+| 🌐 **Network** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · with a Codex account: `chatgpt.com` (rate limits) · `auth.openai.com` (OAuth) · `status.openai.com` (status) · with an OpenAI API-key account: `api.openai.com` (key validation on add, 16-token probe per poll) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast) |
 | 🚫 **No tracking** | No analytics. No telemetry. No data collection. Period. |
 | 🔍 **Open source** | Every line is auditable — [review the code](https://github.com/KyleNesium/AIBattery) |
-| ✅ **Release checks** | Each release runs [`verify-release.sh`](scripts/verify-release.sh) — validates codesign, Sparkle signatures, version consistency, and bundle integrity before publish |
+| ✅ **Release checks** | [`verify-release.sh`](scripts/verify-release.sh) validates codesign, Sparkle signatures, version consistency, and bundle integrity — run it manually against a built bundle before tagging (it is not wired into `release.yml`) |
 
 ---
 
@@ -428,9 +428,10 @@ To also remove stored settings:
 ```bash
 security delete-generic-password -s "AIBattery" 2>/dev/null   # OAuth tokens (all accounts)
 defaults delete com.KyleNesium.AIBattery 2>/dev/null           # Preferences
+rm -rf ~/Library/Application\ Support/AIBattery                 # Token ledger + single-instance lock
 ```
 
-AI Battery doesn't write any other files. Your Claude Code data (`~/.claude/`) and Codex CLI data (`~/.codex/`) are untouched.
+That folder holds the persistent token ledger (`token-ledger.json`) and the instance lock — AI Battery writes nothing else. Your Claude Code data (`~/.claude/`) and Codex CLI data (`~/.codex/`) are untouched.
 
 </details>
 
