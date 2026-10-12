@@ -249,9 +249,9 @@ references. Most user-facing first:
   API-key registration (`/v1/models`) and every poll for an API-key account
   (`/v1/responses`). `spec/ARCHITECTURE.md` has the same gap in a list it calls
   "exhaustive".
-- [x] **README claims each release runs `verify-release.sh`.** The script exists and does
-  everything claimed, but no workflow invokes it — it is manual-only. Either wire it into
-  `release.yml` or reword the claim.
+- [x] ~~**README claims each release runs `verify-release.sh`.**~~ Not a defect: `release.yml`
+  runs it before the GitHub Release step (gated on the Sparkle signing key) since 62e73cd;
+  the README now says so explicitly (2026-10-12).
 - [x] **README's uninstall instructions leave files behind** — they say "AI Battery
   doesn't write any other files", contradicted 171 lines earlier by its own description
   of `~/Library/Application Support/AIBattery/token-ledger.json`. CONSTANTS.md's File

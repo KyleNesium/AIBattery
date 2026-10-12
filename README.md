@@ -369,7 +369,7 @@ AI Battery primarily shows Claude Code 5-hour and 7-day usage from Claude Code a
 | 🌐 **Network** | `api.anthropic.com` (rate limits) · `console.anthropic.com` (OAuth) · `status.claude.com` (status) · with a Codex account: `chatgpt.com` (rate limits) · `auth.openai.com` (OAuth) · `status.openai.com` (status) · with an OpenAI API-key account: `api.openai.com` (key validation on add, 16-token probe per poll) · `api.github.com` (update check, once/24h) · `kylenesium.github.io` (Sparkle appcast) |
 | 🚫 **No tracking** | No analytics. No telemetry. No data collection. Period. |
 | 🔍 **Open source** | Every line is auditable — [review the code](https://github.com/KyleNesium/AIBattery) |
-| ✅ **Release checks** | [`verify-release.sh`](scripts/verify-release.sh) validates codesign, Sparkle signatures, version consistency, and bundle integrity — run it manually against a built bundle before tagging (it is not wired into `release.yml`) |
+| ✅ **Release checks** | Each tagged release runs [`verify-release.sh`](scripts/verify-release.sh) in `release.yml` (when the Sparkle signing key is configured) — validates codesign, Sparkle signatures, version consistency, and bundle integrity before the GitHub Release is published |
 
 ---
 

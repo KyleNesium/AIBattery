@@ -2,8 +2,8 @@
 
 ## [Unreleased]
 
-### Security
-- **Sparkle 2.9.6 → 2.10.0** — patch-level update within the existing `2.6.0..<3.0.0` range. Sparkle now requires macOS 12 (AI Battery already requires 13) and drops CocoaPods (AI Battery uses SPM); no app-facing change.
+### Changed
+- **Sparkle 2.9.6 → 2.10.0** — minor update within the existing `2.6.0..<3.0.0` range. Sparkle now requires macOS 12 (AI Battery already requires 13) and drops CocoaPods (AI Battery uses SPM); no app-facing change.
 
 ## [3.0.0] — 2026-10-11
 
