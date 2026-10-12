@@ -19,6 +19,7 @@ are appended by the task that lands them (see `docs/superpowers/plans/2026-10-12
 ### Changed
 - README and website screenshots refreshed for the v3.0.0 UI. (#195)
 - CI: the release job retries the DMG detach before forcing it. (#194)
+- **Sparkle 2.9.6 → 2.10.0** — minor update within the existing `2.6.0..<3.0.0` range. Sparkle now requires macOS 12 (AI Battery already requires 13) and drops CocoaPods (AI Battery uses SPM); no app-facing change. (#199)
 
 ## [3.0.0] — 2026-10-11
 
