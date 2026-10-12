@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.0.1] — 2026-10-12
+
+### Fixed
+- **Settings no longer clips.** Opening Settings, or changing content inside it,
+  sometimes left the popover at its previous height with the content centred
+  and cut off at the top and bottom (header off-screen, About/footer hidden).
+  The panel refit was only triggered by AppKit's window auto-resize side effect,
+  which did not always fire; it now keys off SwiftUI's own intrinsic-size
+  invalidation as well. (#196)
+
+### Changed
+- README and website screenshots refreshed for the v3.0.0 UI. (#195)
+- CI: the release job retries the DMG detach before forcing it. (#194)
+
 ## [3.0.0] — 2026-10-11
 
 **Major release: Codex (OpenAI) accounts.** AI Battery becomes a two-provider
