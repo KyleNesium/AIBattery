@@ -18,15 +18,18 @@ struct MultiAccountFanOutTests {
     @MainActor
     final class MockRateLimitFetcher: RateLimitFetching {
         var resultsByID: [String: RateLimitUsage]
+        /// Per-minute limits for API-key accounts (no windows).
+        var standardByID: [String: StandardRateLimits] = [:]
         private(set) var fetchedIDs: [String] = []
 
-        init(resultsByID: [String: RateLimitUsage]) {
+        init(resultsByID: [String: RateLimitUsage], standardByID: [String: StandardRateLimits] = [:]) {
             self.resultsByID = resultsByID
+            self.standardByID = standardByID
         }
 
         func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
             fetchedIDs.append(accountId)
-            return APIFetchResult(rateLimits: resultsByID[accountId], profile: nil)
+            return APIFetchResult(rateLimits: resultsByID[accountId], standardLimits: standardByID[accountId], profile: nil)
         }
     }
 
@@ -94,8 +97,8 @@ struct MultiAccountFanOutTests {
 
         #expect(Set(result?.keys ?? [:].keys) == ["a", "b"])
         #expect(Set(fetcher.fetchedIDs) == ["a", "b"])
-        #expect((result?["a"]?.fiveHourPercent ?? -1) == 42)
-        #expect((result?["b"]?.fiveHourPercent ?? -1) == 23)
+        #expect((result?["a"]?.windows?.fiveHourPercent ?? -1) == 42)
+        #expect((result?["b"]?.windows?.fiveHourPercent ?? -1) == 23)
     }
 
     @Test("Seed dedup: the seeded active account is NOT re-fetched")
@@ -114,7 +117,7 @@ struct MultiAccountFanOutTests {
         #expect(Set(fetcher.fetchedIDs) == ["b", "c"])
         #expect(fetcher.fetchedIDs.contains("a") == false)
         #expect(Set(result?.keys ?? [:].keys) == ["a", "b", "c"])
-        #expect((result?["a"]?.fiveHourPercent ?? -1) == 42)
+        #expect((result?["a"]?.windows?.fiveHourPercent ?? -1) == 42)
     }
 
     @Test("Seed only (no other eligible accounts): seeds without any fetch")
@@ -203,5 +206,37 @@ struct MultiAccountFanOutTests {
         let reordered = [Self.record("org-c"), Self.record("org-a"), Self.record("org-b")]
         let ids2 = AccountStore.multiAccountDisplayIDs(accounts: reordered, isAuthenticated: { _ in true })
         #expect(ids2 == ["org-c", "org-a", "org-b"])
+    }
+
+    // MARK: - AccountReading routing (overview)
+
+    @Test("API-key account lands in apiLimits; a failed fetch keeps the previous reading as cached")
+    func routesStandardLimits_andCarriesPrevious() async throws {
+        let std = try #require(StandardRateLimits.parse(openAIHeaders: [
+            "x-ratelimit-limit-requests": "100", "x-ratelimit-remaining-requests": "20",
+            "x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900",
+        ], now: .now))
+        let fetcher = MockRateLimitFetcher(resultsByID: [:], standardByID: ["api-1": std])
+        let provider = MockAccountProvider(displayIDs: ["api-1", "dead"], tokensByID: Self.tokens(["api-1", "dead"]))
+        let previous: [String: AccountReading] = [
+            "dead": AccountReading(windows: Self.usage(0.5), apiLimits: nil, fetchedAt: .now, isCached: false, source: nil),
+        ]
+
+        let result = await MultiAccountFanOut.resolve(
+            enabled: true, seed: nil, previous: previous, provider: provider, fetcher: fetcher
+        )
+
+        #expect(result?["api-1"]?.apiLimits?.peakPercent == 80)
+        #expect(result?["api-1"]?.windows == nil)
+        #expect(result?["dead"]?.isCached == true)
+        #expect(result?["dead"]?.windows?.fiveHourPercent == 50)
+    }
+
+    @Test("Without a previous reading, a failed fetch drops the slot")
+    func failedFetchWithoutPrevious_dropsSlot() async {
+        let fetcher = MockRateLimitFetcher(resultsByID: ["a": Self.usage(0.1)])
+        let provider = MockAccountProvider(displayIDs: ["a", "dead"], tokensByID: Self.tokens(["a", "dead"]))
+        let result = await MultiAccountFanOut.resolve(enabled: true, seed: nil, provider: provider, fetcher: fetcher)
+        #expect(Set(result?.keys ?? [:].keys) == ["a"])
     }
 }

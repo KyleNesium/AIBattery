@@ -37,10 +37,15 @@ enum MenuBarMultiAccountText {
         order: [String],
         providers: [String: AIProvider] = [:],
         limits: [String: RateLimitUsage],
+        apiLimits: [String: StandardRateLimits] = [:],
         metricMode: MetricMode
     ) -> Output {
         let resolvedMode: MetricMode = (metricMode == .contextHealth) ? .fiveHour : metricMode
         let parts: [String] = order.map { id in
+            // API-key accounts have no windows: their slot is the busier per-minute limit.
+            if let std = apiLimits[id] {
+                return "\(Int(std.peakPercent.rounded()))%"
+            }
             guard let usage = limits[id] else { return "—" }
             let pct = percent(for: usage, mode: resolvedMode)
             return "\(Int(pct.rounded()))%"
@@ -66,10 +71,11 @@ enum MenuBarMultiAccountText {
         // and driving the icon off those turned the star red — or started a countdown — for
         // an account with no visible percentage beside it.
         let shown = order.compactMap { limits[$0] }
-        let worstPercent = shown
-            .map { percent(for: $0, mode: resolvedMode) }
+        let shownAPI = order.compactMap { apiLimits[$0] }
+        let worstPercent = (shown.map { percent(for: $0, mode: resolvedMode) } + shownAPI.map(\.peakPercent))
             .max() ?? 0
         let anyThrottled = shown.contains { isExhausted($0) }
+            || shownAPI.contains { $0.isRequestsExhausted || $0.isTokensExhausted }
         return Output(text: text, worstPercent: worstPercent, anyThrottled: anyThrottled)
     }
 
@@ -120,7 +126,7 @@ enum MenuBarMultiAccountText {
     /// Whether the toggle would render a multi-account display given current state.
     ///
     /// - Parameter fetchedAccountCount: count of accounts with **fetched rate-limit
-    ///   data** (i.e. `UsageViewModel.perAccountRateLimits.count`), NOT the count of
+    ///   data** (windowed + API-key readings, i.e. `perAccountReadings.count`), NOT the count of
     ///   authenticated accounts. v2.2.0 shipped a regression where the call site
     ///   passed `accountStore.accounts.count`, which fired the multi-account branch
     ///   before the fan-out had populated any data, rendering "— | —" indefinitely
@@ -143,6 +149,8 @@ enum MenuBarMultiAccountText {
     /// - Parameters:
     ///   - toggleOn: `aibattery_showAllAccountsInMenuBar` UserDefaults value.
     ///   - perAccount: `UsageViewModel.perAccountRateLimits` (keyed by accountId).
+    ///   - apiLimits: `UsageViewModel.perAccountAPILimits` — Codex API-key accounts' per-minute
+    ///     limits; their slot shows `peakPercent` regardless of `metricMode`.
     ///   - providers: per-account provider, keyed by account ID. Defaults to empty (single provider mode).
     ///   - order: account IDs in display order (typically authenticated, non-pending
     ///     accounts from `AccountStore.accounts`).
@@ -165,6 +173,7 @@ enum MenuBarMultiAccountText {
     static func resolveDisplay(
         toggleOn: Bool,
         perAccount: [String: RateLimitUsage],
+        apiLimits: [String: StandardRateLimits] = [:],
         providers: [String: AIProvider] = [:],
         order: [String],
         activeRateLimits: RateLimitUsage?,
@@ -181,10 +190,10 @@ enum MenuBarMultiAccountText {
         // broken star or a countdown — only the last-known percentage.
         let activeIsExhausted = confirmed && (activeRateLimits?.isThrottled ?? false)
 
-        let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: perAccount.count)
+        let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: perAccount.count + apiLimits.count)
 
         if useMulti {
-            let multi = build(order: order, providers: providers, limits: perAccount, metricMode: metricMode)
+            let multi = build(order: order, providers: providers, limits: perAccount, apiLimits: apiLimits, metricMode: metricMode)
             let percent = max(multi.worstPercent, activePercent)
             let isExhausted = confirmed && (multi.anyThrottled || (activeRateLimits?.isThrottled ?? false))
             let reset: Date? = confirmed

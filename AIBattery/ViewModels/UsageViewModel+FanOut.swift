@@ -20,7 +20,9 @@ extension UsageViewModel {
     }
 
     /// Fan-out: fetch rate limits for every authenticated, identity-resolved account.
-    /// Runs only when the "show all accounts" toggle is on. Idempotent: clears state if off.
+    /// Runs when the "show all accounts" toggle is on OR there are ≥ 2 eligible accounts
+    /// (`FanOutGate`) — the overview needs every account's reading. Idempotent: clears
+    /// state when disabled.
     ///
     /// Thin wrapper over `MultiAccountFanOut.resolve` — the orchestration lives there
     /// (not here) so it can be unit-tested end-to-end with mock dependencies without
@@ -32,18 +34,20 @@ extension UsageViewModel {
     ///   on cache, so without seeding we'd issue an extra network call for the active
     ///   account every refresh cycle (N+1 total instead of N).
     func fetchAllAccounts(seed: (accountId: String, rateLimits: RateLimitUsage)? = nil) async {
-        let enabled = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
+        let toggle = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
+        let eligible = OAuthManager.shared.multiAccountDisplayIDs().count
         let resolved = await MultiAccountFanOut.resolve(
-            enabled: enabled,
+            enabled: FanOutGate.enabled(menuBarToggle: toggle, eligibleAccountCount: eligible),
             seed: seed,
+            previous: perAccountReadings,
             provider: OAuthManager.shared,
             fetcher: ProviderDispatchingFetcher.live(accountStore: OAuthManager.shared.accountStore)
         )
         if let resolved {
-            perAccountRateLimits = resolved
-        } else if !perAccountRateLimits.isEmpty {
-            // Toggle off, or nothing to fetch and no seed — clear stale data.
-            perAccountRateLimits = [:]
+            perAccountReadings = resolved
+        } else if !perAccountReadings.isEmpty {
+            // Disabled, or nothing to fetch and no seed — clear stale data.
+            perAccountReadings = [:]
         }
     }
 }

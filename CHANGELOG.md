@@ -7,6 +7,7 @@ are appended by the task that lands them (see `docs/superpowers/plans/2026-10-12
 
 ### Added
 - _(filled in per task: multi-account overview; provider-relevant display items)_
+- **Codex API-key accounts in the multi-account menu bar.** Their slot shows the busier per-minute limit (requests or tokens) instead of being left out; a transient fetch failure keeps the previous reading for every account rather than blanking its slot.
 
 ### Fixed
 - **Settings no longer clips.** Opening Settings, or changing content inside it,

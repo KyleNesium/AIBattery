@@ -664,4 +664,53 @@ struct MenuBarMultiAccountTextTests {
         )
         #expect(output.text == "42%\u{00A0}|\u{00A0}23%") // legacy format — no glyphs
     }
+
+    // MARK: - API-key slots
+
+    @Test func build_apiKeySlot_usesPeakPercent_andCountsTowardWorst() throws {
+        let std = try #require(StandardRateLimits.parse(openAIHeaders: [
+            "x-ratelimit-limit-requests": "100", "x-ratelimit-remaining-requests": "20",
+            "x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900",
+        ], now: .now))
+        let out = MenuBarMultiAccountText.build(
+            order: ["a", "k"],
+            limits: ["a": Self.usage(fiveHourUtilization: 0.3)],
+            apiLimits: ["k": std],
+            metricMode: .fiveHour
+        )
+        #expect(out.text.contains("30%"))
+        #expect(out.text.contains("80%"))
+        #expect(out.worstPercent == 80)
+        #expect(out.anyThrottled == false)
+    }
+
+    @Test func build_apiKeySlot_exhaustedRequests_isThrottled() throws {
+        let std = try #require(StandardRateLimits.parse(openAIHeaders: [
+            "x-ratelimit-limit-requests": "100", "x-ratelimit-remaining-requests": "0",
+            "x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900",
+        ], now: .now))
+        let out = MenuBarMultiAccountText.build(order: ["k"], limits: [:], apiLimits: ["k": std], metricMode: .sevenDay)
+        #expect(out.text == "100%")
+        #expect(out.anyThrottled)
+    }
+
+    @Test func resolveDisplay_countsApiKeySlotsTowardTheMultiGate() throws {
+        let std = try #require(StandardRateLimits.parse(openAIHeaders: [
+            "x-ratelimit-limit-requests": "100", "x-ratelimit-remaining-requests": "20",
+            "x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900",
+        ], now: .now))
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": Self.usage(fiveHourUtilization: 0.3)],
+            apiLimits: ["k": std],
+            order: ["a", "k"],
+            activeRateLimits: nil,
+            activePercent: 30,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: { _, _ in nil }
+        )
+        #expect(result.usedMultiAccount)
+        #expect(result.percent == 80)
+    }
 }

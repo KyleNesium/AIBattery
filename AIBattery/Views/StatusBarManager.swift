@@ -205,10 +205,10 @@ public final class StatusBarManager: NSObject {
         }
 
         // React to snapshot, staleness, or per-account map changes — debounced to avoid rapid-fire redraws.
-        // The third publisher (perAccountRateLimits) ensures the menu bar redraws when the
+        // The third publisher (perAccountReadings) ensures the menu bar redraws when the
         // multi-account fan-out completes, even when the active-account snapshot is unchanged.
         viewModel.$snapshot
-            .combineLatest(viewModel.$lastFreshFetch, viewModel.$perAccountRateLimits)
+            .combineLatest(viewModel.$lastFreshFetch, viewModel.$perAccountReadings)
             .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
             .sink { [weak self, weak item, weak viewModel] _ in
                 guard let self, let button = item?.button, let viewModel else { return }

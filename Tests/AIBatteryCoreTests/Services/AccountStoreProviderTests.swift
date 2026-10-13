@@ -46,12 +46,12 @@ struct AccountStoreProviderTests {
         #expect(ids == ["c1", "x1"])
     }
 
-    /// An API-key account has no windowed `RateLimitUsage`, so the multi-account menu
-    /// bar would show a permanent "—" for it. It is excluded from the display set.
-    @Test func multiAccountDisplayIDs_excludesAPIKeyAccounts() {
+    /// An API-key account is eligible: the fan-out carries its per-minute limits as
+    /// `AccountReading.apiLimits`, rendered as a menu-bar slot and an overview card.
+    @Test func multiAccountDisplayIDs_includesAPIKeyAccounts() {
         let apiKey = AccountRecord(id: "openai-api-abc", billingType: "api", addedAt: Date(), provider: .codex, codexAccessMode: .apiKey)
         let ids = AccountStore.multiAccountDisplayIDs(accounts: [record("c1", .claude), apiKey, record("x1", .codex)], isAuthenticated: { _ in true })
-        #expect(ids == ["c1", "x1"])
+        #expect(ids == ["c1", "openai-api-abc", "x1"])
     }
 
     @Test func displayLabel_sharedByPickerAndSettings() {

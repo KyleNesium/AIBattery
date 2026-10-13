@@ -44,6 +44,7 @@ extension StatusBarManager {
         // wiring fix (P2 from codex review) was never covered by a test.
         let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
         let perAccount = viewModel.perAccountRateLimits
+        let apiLimits = viewModel.perAccountAPILimits
         // Same eligible-account filter the fan-out uses (non-pending AND authenticated)
         // via the shared `multiAccountDisplayIDs()`, so the menu-bar `order` can't drift
         // from the fan-out candidate set — e.g. rendering a "—" slot for an account that
@@ -68,6 +69,7 @@ extension StatusBarManager {
         let display = MenuBarMultiAccountText.resolveDisplay(
             toggleOn: showAll,
             perAccount: perAccount,
+            apiLimits: apiLimits,
             providers: providers,
             order: order,
             activeRateLimits: activeRateLimits,

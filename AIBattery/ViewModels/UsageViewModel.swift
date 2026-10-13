@@ -20,9 +20,14 @@ public final class UsageViewModel: ObservableObject {
     @Published var rateLimitsFresh = false
     /// The hysteresis-filtered metric mode for auto mode consumers.
     @Published private(set) var resolvedMetricMode: MetricMode = .fiveHour
-    /// Per-account rate limits for the multi-account menu bar display.
-    /// Keyed by account ID; only populated when `showAllAccountsInMenuBar` is on.
-    @Published var perAccountRateLimits: [String: RateLimitUsage] = [:]
+    /// Per-account readings from the multi-account fan-out (menu bar + overview).
+    /// Keyed by account ID; populated when the menu-bar toggle is on OR ≥ 2 eligible
+    /// accounts exist (`FanOutGate`).
+    @Published var perAccountReadings: [String: AccountReading] = [:]
+    /// Windowed readings only — the menu-bar text path consumes this shape.
+    var perAccountRateLimits: [String: RateLimitUsage] { perAccountReadings.compactMapValues(\.windows) }
+    /// Per-minute API-key readings only.
+    var perAccountAPILimits: [String: StandardRateLimits] { perAccountReadings.compactMapValues(\.apiLimits) }
 
     #if ENABLE_VERSION_CHECKER
     /// Available update from GitHub Releases (nil if up-to-date or not checked).
@@ -188,6 +193,19 @@ public final class UsageViewModel: ObservableObject {
                 guard current != self.lastObservedShowAllAccounts else { return }
                 self.lastObservedShowAllAccounts = current
                 self.scheduleFanOut()
+            }
+            .store(in: &cancellables)
+
+        // Account-set observer: the fan-out also feeds the multi-account overview, which
+        // is gated on the eligible-account COUNT (`FanOutGate`), not the toggle. Adding,
+        // removing or signing out an account must re-run it (or clear it) promptly.
+        OAuthManager.shared.accountStore.$accounts
+            .map(\.count)
+            .removeDuplicates()
+            .dropFirst()
+            .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.scheduleFanOut()
             }
             .store(in: &cancellables)
     }
