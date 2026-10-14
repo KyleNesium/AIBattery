@@ -4,7 +4,6 @@ import SwiftUI
 /// the single-account detail view whenever there are two or more accounts.
 struct OverviewContentView: View {
     let cards: [AccountCard]
-    let summary: OverviewSummary
     let canAddClaude: Bool
     let canAddCodex: Bool
     var showsUpdateBadge: Bool = false
@@ -16,39 +15,35 @@ struct OverviewContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             ForEach(cards) { card in
-                StyledDivider()
+                insetDivider
                 AccountCardView(card: card, onSelect: { onSelect(card) })
             }
             if canAddClaude || canAddCodex {
-                StyledDivider()
+                insetDivider
                 addRow
             }
         }
     }
 
-    /// Title plus a line that says something the cards don't: what needs attention, or
-    /// today's volume across every account and the next window to free up.
+    /// Title and gear, nothing else. A summary line here competed with the cards for
+    /// the same facts; the cards are the content.
     private var header: some View {
-        TimelineView(.periodic(from: .now, by: 10)) { context in
-            VStack(alignment: .leading, spacing: Spacing.tight) {
-                HStack(spacing: Spacing.gap) {
-                    Text("Accounts")
-                        .font(Typography.accountTitle)
-                        .accessibilityAddTraits(.isHeader)
-                    Spacer()
-                    SettingsGearButton(showSettings: $showSettings, showsUpdateBadge: showsUpdateBadge)
-                }
-                if let text = summary.text(now: context.date) {
-                    Text(text)
-                        .font(Typography.tinyLabel)
-                        .foregroundStyle(summary.isAlarm ? ThemeColors.danger : ThemeColors.secondaryLabel)
-                        .lineLimit(1)
-                        .copyable(text)
-                }
-            }
-            .padding(.horizontal, Spacing.sectionHorizontal)
-            .padding(.vertical, Spacing.section)
+        HStack(spacing: Spacing.gap) {
+            Text("Accounts")
+                .font(Typography.accountTitle)
+                .accessibilityAddTraits(.isHeader)
+            Spacer()
+            SettingsGearButton(showSettings: $showSettings, showsUpdateBadge: showsUpdateBadge)
         }
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
+    }
+
+    /// Indented to the content gutter so the rows read as one list rather than a stack
+    /// of separate panels.
+    private var insetDivider: some View {
+        StyledDivider()
+            .padding(.leading, Spacing.sectionHorizontal)
     }
 
     private var addRow: some View {

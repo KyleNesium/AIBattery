@@ -69,7 +69,8 @@ struct AccountCardTests {
             statuses: [.claude: status(.operational), .codex: status(.partialOutage)],
             isAuthenticated: { _ in true }, maskEmail: true, now: now
         )
-        #expect(cards[0].status == .operational)
+        // Operational is not worth a dot — only trouble is.
+        #expect(cards[0].status == nil)
         #expect(cards[1].status == .partialOutage)
     }
 
@@ -209,7 +210,7 @@ struct AccountCardTests {
         #expect(label.contains("active"))
         #expect(label.contains("5-Hour 34 percent"))
         #expect(label.contains("Weekly 26 percent"))
-        #expect(label.contains("status operational"))
+        #expect(!label.contains("reporting")) // healthy providers are not announced
     }
 
     // MARK: - Tokens and the state line
@@ -326,5 +327,33 @@ struct AccountCardTests {
         let line = AccountCard.stateLine(cards[0], now: now)
         #expect(line?.hasPrefix("Throttled") == true)
         #expect(line?.contains("resets in") == true)
+    }
+
+    @Test func alertingStatus_onlyDegradedOrWorse() {
+        #expect(AccountCard.alertingStatus(nil) == nil)
+        #expect(AccountCard.alertingStatus(.operational) == nil)
+        #expect(AccountCard.alertingStatus(.unknown) == nil)
+        #expect(AccountCard.alertingStatus(.maintenance) == nil)
+        #expect(AccountCard.alertingStatus(.degradedPerformance) == .degradedPerformance)
+        #expect(AccountCard.alertingStatus(.partialOutage) == .partialOutage)
+        #expect(AccountCard.alertingStatus(.majorOutage) == .majorOutage)
+    }
+
+    @Test func accessibilityLabel_namesTheProviderOnlyWhenItIsDown() {
+        let healthy = AccountCard.rows(
+            accounts: [rec("c1", .claude, name: "A")], activeId: "c1",
+            readings: ["c1": windowReading(0.1, 0.1)],
+            statuses: [.claude: status(.operational)],
+            isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )[0]
+        #expect(!healthy.accessibilityLabel.contains("operational"))
+
+        let down = AccountCard.rows(
+            accounts: [rec("c1", .claude, name: "A")], activeId: "c1",
+            readings: ["c1": windowReading(0.1, 0.1)],
+            statuses: [.claude: status(.majorOutage)],
+            isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )[0]
+        #expect(down.accessibilityLabel.contains("Claude is reporting major outage"))
     }
 }

@@ -225,10 +225,8 @@ public struct UsagePopoverView: View {
                 )
                 .transition(.opacity)
             } else {
-                let cards = overviewCards
                 OverviewContentView(
-                    cards: cards,
-                    summary: OverviewSummary.make(cards: cards, snapshots: viewModel.providerSnapshots),
+                    cards: overviewCards,
                     canAddClaude: accountStore.canAddAccount(provider: .claude),
                     canAddCodex: accountStore.canAddAccount(provider: .codex),
                     showSettings: $showSettings,

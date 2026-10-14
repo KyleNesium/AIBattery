@@ -36,6 +36,8 @@ struct AccountCard: Identifiable, Equatable {
     let identity: String
     let plan: String?
     let isActive: Bool
+    /// Only set when the provider is actually having trouble. A green dot on every
+    /// healthy card is noise — the dot is an exception marker, not a status readout.
     let status: StatusIndicator?
     /// The number the card leads with: the fuller window, the budget, or the busier
     /// per-minute limit. nil when there is no reading or no cap.
@@ -74,7 +76,7 @@ struct AccountCard: Identifiable, Equatable {
                 let index = AccountStore.providerIndex(of: account, in: accounts)
                 let identity = AccountStore.identityLabel(for: account, providerIndex: index, maskEmail: maskEmail)
                 let plan = account.provider == .codex ? AccountStore.planLabel(account.billingType) : nil
-                let status = statuses[account.provider]?.indicator
+                let status = alertingStatus(statuses[account.provider]?.indicator)
                 let active = account.id == activeId
 
                 guard isAuthenticated(account.id) else {
@@ -141,6 +143,13 @@ struct AccountCard: Identifiable, Equatable {
                 uncapped: false, tokens: snapshot?.sevenDayWindowTokens(resetsAt: windows.sevenDayReset)
             ),
         ]
+    }
+
+    /// Degraded or worse only. Operational, maintenance and unknown produce no dot:
+    /// the overview should look calm until something is wrong.
+    nonisolated static func alertingStatus(_ indicator: StatusIndicator?) -> StatusIndicator? {
+        guard let indicator else { return nil }
+        return indicator.severity >= StatusIndicator.degradedPerformance.severity ? indicator : nil
     }
 
     /// Today's provider tokens, but only for the shapes whose rows show none — a
@@ -262,7 +271,8 @@ struct AccountCard: Identifiable, Equatable {
             }
         }
         if let status {
-            parts.append("\(provider.displayName) status \(status.rawValue)")
+            // Only mentioned when it is worth mentioning — `status` is nil while healthy.
+            parts.append("\(provider.displayName) is reporting \(status.displayName)")
         }
         return parts.joined(separator: ", ")
     }

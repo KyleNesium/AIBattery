@@ -29,12 +29,18 @@ struct AccountCardView: View {
                     // Drill-down affordance: this row opens the account.
                     Image(systemName: "chevron.forward")
                         .font(Typography.switcherChevron)
-                        .foregroundStyle(hovered ? .primary : ThemeColors.tertiaryLabel)
+                        .foregroundStyle(hovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
                         .accessibilityHidden(true)
                 }
-                .padding(.horizontal, Spacing.sectionHorizontal)
+                .padding(.horizontal, Spacing.gap)
                 .padding(.vertical, Spacing.section)
-                .background(hovered ? ThemeColors.hoverFill : .clear)
+                .background(
+                    RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
+                        .fill(hovered ? ThemeColors.hoverFill : .clear)
+                )
+                // The highlight is inset from the panel edge; the content still lines up
+                // with the header and footer gutters.
+                .padding(.horizontal, Spacing.medium)
                 .contentShape(Rectangle())
             }
         }
@@ -50,7 +56,7 @@ struct AccountCardView: View {
         HStack(spacing: Spacing.xsmall) {
             ProviderBadge(provider: card.provider)
             Text(card.identity)
-                .font(Typography.caption)
+                .font(Typography.accountTitle)
                 .foregroundStyle(hovered || card.isActive ? .primary : ThemeColors.secondaryLabel)
                 .lineLimit(1)
                 .truncationMode(.middle)
