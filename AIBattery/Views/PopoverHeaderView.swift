@@ -10,6 +10,11 @@ struct PopoverHeaderView: View {
     let onAddAccount: (AIProvider) -> Void
     let onSwitchAccount: (String) -> Void
     let availableUpdate: VersionChecker.UpdateInfo?
+    /// Shown when there is an overview to go back to (two or more accounts).
+    var showsBack: Bool = false
+    var onBack: () -> Void = {}
+
+    @State private var backHovered = false
 
     #if ENABLE_VERSION_CHECKER
     @State private var updateBannerDismissed = false
@@ -18,6 +23,9 @@ struct PopoverHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
             HStack(alignment: .center, spacing: Spacing.inner) {
+                if showsBack {
+                    backButton
+                }
                 AccountChipView(
                     accountStore: accountStore,
                     onAddAccount: onAddAccount,
@@ -35,6 +43,26 @@ struct PopoverHeaderView: View {
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
+    }
+
+    /// Whether the detail view has an overview to return to. The overview only exists
+    /// with two or more accounts, so a single-account popover never shows the chevron.
+    nonisolated static func showsBack(eligibleAccountCount: Int) -> Bool {
+        eligibleAccountCount >= 2
+    }
+
+    private var backButton: some View {
+        Button(action: onBack) {
+            Image(systemName: "chevron.left")
+                .font(Typography.headerGear)
+                .frame(width: Layout.accountChipHeight, height: Layout.accountChipHeight)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(backHovered ? .primary : .secondary)
+        .onHover { backHovered = $0 }
+        .help("All accounts")
+        .accessibilityLabel("Back to all accounts")
+        .accessibilityHint("Shows every account at once")
     }
 
     /// Whether a found-but-dismissed update should badge the gear (Settings → About holds the install action).

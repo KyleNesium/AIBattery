@@ -106,6 +106,8 @@ extension StatusBarManager {
 /// ensuring toggleState never desyncs.
 final class PopoverPanel: NSPanel {
     var onDismiss: (() -> Void)?
+    /// Asked before Escape closes the panel; true means the popover handled it.
+    var escapeHandler: (() -> Bool)?
 
     override var canBecomeKey: Bool { true }
     override var hidesOnDeactivate: Bool {
@@ -120,13 +122,16 @@ final class PopoverPanel: NSPanel {
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // Escape
+            if escapeHandler?() == true {
+                return // consumed by the popover (back to the overview)
+            }
             orderOut(nil)
         } else if event.keyCode == 12 && event.modifierFlags.contains(.command) { // Cmd+Q
             NSApplication.shared.terminate(nil)
         } else if !event.modifierFlags.contains(.command) {
             // Forward unmodified keys to SwiftUI via notification
             switch event.charactersIgnoringModifiers {
-            case "1", "2", "3", "r":
+            case "1", "2", "3", "4", "5", "6", "r":
                 NotificationCenter.default.post(
                     name: .panelKeyPress,
                     object: event.charactersIgnoringModifiers
@@ -154,6 +159,8 @@ final class PopoverPanel: NSPanel {
 struct PopoverContentView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject var oauthManager: OAuthManager
+    /// Hands the popover's Escape decision up to the panel, which asks it before closing.
+    var registerEscapeHandler: ((@escaping () -> Bool) -> Void)?
     /// Which provider the signed-out root offers to sign in with. Persisted: it follows
     /// the last account the user signed out of (or was signed out of), so a Codex-only
     /// user doesn't land on the Claude sign-in. Changed by AuthView's provider picker.
@@ -166,7 +173,7 @@ struct PopoverContentView: View {
     var body: some View {
         Group {
             if oauthManager.isAuthenticated {
-                UsagePopoverView(viewModel: viewModel)
+                UsagePopoverView(viewModel: viewModel, registerEscapeHandler: registerEscapeHandler)
             } else {
                 AuthView(
                     oauthManager: oauthManager,

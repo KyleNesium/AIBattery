@@ -56,9 +56,13 @@ public struct UsagePopoverView: View {
         )
     }
 
-    public init(viewModel: UsageViewModel) {
+    /// Set by the panel so Escape can step back to the overview instead of closing.
+    private let registerEscapeHandler: ((@escaping () -> Bool) -> Void)?
+
+    public init(viewModel: UsageViewModel, registerEscapeHandler: ((@escaping () -> Bool) -> Void)? = nil) {
         self.viewModel = viewModel
         self.accountStore = OAuthManager.shared.accountStore
+        self.registerEscapeHandler = registerEscapeHandler
     }
 
     private var localEstimateHeaderText: String {
@@ -225,7 +229,9 @@ public struct UsagePopoverView: View {
                 onSwitchAccount: { accountId in
                     viewModel.switchAccount(to: accountId)
                 },
-                availableUpdate: viewModel.availableUpdate
+                availableUpdate: viewModel.availableUpdate,
+                showsBack: PopoverHeaderView.showsBack(eligibleAccountCount: eligibleAccountCount),
+                onBack: { withAnimation(MotionConstants.standard) { mode = .overview } }
             )
 
             if showSettings {
@@ -380,6 +386,7 @@ public struct UsagePopoverView: View {
             TutorialOverlay(hasData: viewModel.snapshot != nil, kind: viewModel.snapshot.map(displayKind) ?? .windows)
         }
         .onAppear {
+            registerEscape()
             // No deferredRender.appeared() here: onAppear fires when the hosting view
             // is attached at setup (launch), NOT on panel show — arming here would race
             // the launch pre-warm's orderOut and could leave the heavy sections armed
@@ -452,6 +459,26 @@ public struct UsagePopoverView: View {
                 }
             }
         )
+    }
+
+    /// Escape steps back to the overview from a detail view that has one; everywhere
+    /// else the panel closes. Registered once; it reads the current state each press.
+    private func registerEscape() {
+        guard let registerEscapeHandler else { return }
+        registerEscapeHandler {
+            let action = PopoverEscapeRouting.consume(
+                mode: mode,
+                showSettings: showSettings,
+                showsBack: PopoverHeaderView.showsBack(eligibleAccountCount: eligibleAccountCount)
+            )
+            switch action {
+            case .backToOverview:
+                withAnimation(MotionConstants.standard) { mode = .overview }
+                return true
+            case .close:
+                return false
+            }
+        }
     }
 
     private func resetTransientPopoverState() {
