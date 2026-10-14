@@ -50,6 +50,30 @@ extension UsageViewModel {
             perAccountReadings = [:]
         }
         await fetchOtherProviderStatuses()
+        await aggregateOtherProviders()
+    }
+
+    /// Aggregate the local session logs of every provider that has an eligible account
+    /// but isn't the active one, so the overview's cards all show their window token
+    /// totals — not just the active provider's. Each provider has its own aggregator
+    /// with a reader cache and a redundant-aggregation fingerprint, so a cycle where
+    /// nothing changed costs almost nothing.
+    private func aggregateOtherProviders() async {
+        let store = OAuthManager.shared.accountStore
+        let eligible = OAuthManager.shared.multiAccountDisplayIDs().compactMap { store.account(id: $0) }
+        let active = store.activeAccount?.provider ?? .claude
+        for provider in MultiAccountFanOut.otherProviders(eligible: eligible, active: active) {
+            // Attribute to that provider's first eligible account: it decides whether
+            // the cost rows read as a bill (API-key) or as subscription value.
+            let accountId = eligible.first { $0.provider == provider }?.id
+            let snapshot = await aggregateOffMain(
+                rateLimits: nil,
+                accountId: accountId,
+                provider: provider,
+                rateLimitsFresh: false
+            )
+            providerSnapshots[provider] = snapshot
+        }
     }
 
     /// Poll the status feed of every provider that has an eligible account but isn't the

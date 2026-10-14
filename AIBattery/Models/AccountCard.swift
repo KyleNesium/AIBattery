@@ -45,6 +45,11 @@ struct AccountCard: Identifiable, Equatable {
     /// Reset of the window the card leads with — shown on the state line, so the rows
     /// stay narrow enough for a token column.
     let reset: Date?
+    /// Tokens spent today on this account's provider. Shown on the state line for the
+    /// quota shapes whose rows carry no token figure of their own (a credit budget is
+    /// spend, not tokens; API-key rows are per-minute), so every card says how much has
+    /// actually been used. Per provider, like every other local figure.
+    let tokensToday: Int?
 
     /// Accounts the overview lists, and the count the popover's mode is decided from:
     /// identity resolved. Signed-out accounts stay in — they become sign-in cards,
@@ -76,7 +81,7 @@ struct AccountCard: Identifiable, Equatable {
                     return AccountCard(
                         id: account.id, provider: account.provider, identity: identity, plan: plan,
                         isActive: active, status: status, worstPercent: nil, bars: [],
-                        state: .signedOut, reset: nil
+                        state: .signedOut, reset: nil, tokensToday: nil
                     )
                 }
                 let reading = readings[account.id]
@@ -84,7 +89,8 @@ struct AccountCard: Identifiable, Equatable {
                 return AccountCard(
                     id: account.id, provider: account.provider, identity: identity, plan: plan,
                     isActive: active, status: status, worstPercent: reading?.worstPercent,
-                    bars: bars, state: state(for: reading), reset: bindingReset(bars: bars, reading: reading)
+                    bars: bars, state: state(for: reading), reset: bindingReset(bars: bars, reading: reading),
+                    tokensToday: tokensToday(bars: bars, snapshot: snapshots[account.provider])
                 )
             }
     }
@@ -137,6 +143,14 @@ struct AccountCard: Identifiable, Equatable {
         ]
     }
 
+    /// Today's provider tokens, but only for the shapes whose rows show none — a
+    /// windowed card already says 15M / 329M per window and doesn't need a third number.
+    private nonisolated static func tokensToday(bars: [BarRow], snapshot: UsageSnapshot?) -> Int? {
+        guard let snapshot, !bars.contains(where: { $0.tokens != nil }) else { return nil }
+        let total = snapshot.todayModelTokens.reduce(0) { $0 + $1.totalTokens }
+        return total > 0 ? total : nil
+    }
+
     /// The reset the card's headline percent belongs to — the fuller window, the budget
     /// period, or the sooner per-minute reset.
     private nonisolated static func bindingReset(bars: [BarRow], reading: AccountReading?) -> Date? {
@@ -183,14 +197,25 @@ struct AccountCard: Identifiable, Equatable {
         return .none
     }
 
-    /// The card's one line under the bars: what's wrong (or how long the headline
-    /// window has left), then when it resets.
+    /// The card's one line under the bars: what's wrong (or how long the headline window
+    /// has left), today's usage where the rows don't already show it, and the reset.
     nonisolated static func stateLine(_ card: AccountCard, now: Date) -> String? {
-        let state = stateText(card.state, now: now)
-        guard let reset = card.reset, reset > now, card.state != .signedOut else { return state }
-        let resets = "Resets in \(DurationFormatter.compact(reset.timeIntervalSince(now)))"
-        guard let state else { return resets }
-        return "\(state) \u{00B7} \(resets.lowercased())"
+        var parts: [String] = []
+        if let state = stateText(card.state, now: now) {
+            parts.append(state)
+        }
+        guard card.state != .signedOut else { return parts.first }
+        if let tokens = card.tokensToday {
+            parts.append("\(TokenFormatter.format(tokens)) today")
+        }
+        if let reset = card.reset, reset > now {
+            parts.append("resets in \(DurationFormatter.compact(reset.timeIntervalSince(now)))")
+        }
+        guard !parts.isEmpty else { return nil }
+        // The leading fragment opens the line; the rest read as clauses after it.
+        let head = parts[0]
+        let capitalised = head.prefix(1).uppercased() + head.dropFirst()
+        return ([capitalised] + parts.dropFirst()).joined(separator: " \u{00B7} ")
     }
 
     nonisolated static func stateText(_ state: State, now: Date) -> String? {

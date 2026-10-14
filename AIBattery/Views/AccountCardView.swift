@@ -1,8 +1,11 @@
 import SwiftUI
 
 /// One account on the overview: an identity line, one gauge row per quota window, and a
-/// state line only when there is something to say. The whole card is one hit target —
-/// clicking it makes that account active and opens its detail view.
+/// state line only when there is something to say.
+///
+/// The whole card is one hit target that opens that account. Three things say so: the
+/// row lifts on hover, a chevron sits at the trailing edge, and the identity brightens —
+/// the same vocabulary as a list row that drills down.
 struct AccountCardView: View {
     let card: AccountCard
     let onSelect: () -> Void
@@ -11,19 +14,27 @@ struct AccountCardView: View {
     var body: some View {
         Button(action: onSelect) {
             TimelineView(.periodic(from: .now, by: 10)) { context in
-                VStack(alignment: .leading, spacing: Spacing.inner) {
-                    header
-                    ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
-                        AccountCardBarRow(bar: bar, now: context.date)
+                HStack(alignment: .center, spacing: Spacing.gap) {
+                    VStack(alignment: .leading, spacing: Spacing.inner) {
+                        header
+                        ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
+                            AccountCardBarRow(bar: bar)
+                        }
+                        if let text = AccountCard.stateLine(card, now: context.date) {
+                            Text(text)
+                                .font(Typography.tinyLabel)
+                                .foregroundStyle(stateColor)
+                        }
                     }
-                    if let text = AccountCard.stateLine(card, now: context.date) {
-                        Text(text)
-                            .font(Typography.tinyLabel)
-                            .foregroundStyle(stateColor)
-                    }
+                    // Drill-down affordance: this row opens the account.
+                    Image(systemName: "chevron.forward")
+                        .font(Typography.switcherChevron)
+                        .foregroundStyle(hovered ? .primary : ThemeColors.tertiaryLabel)
+                        .accessibilityHidden(true)
                 }
                 .padding(.horizontal, Spacing.sectionHorizontal)
                 .padding(.vertical, Spacing.section)
+                .background(hovered ? ThemeColors.hoverFill : .clear)
                 .contentShape(Rectangle())
             }
         }
@@ -43,13 +54,24 @@ struct AccountCardView: View {
                 .foregroundStyle(hovered || card.isActive ? .primary : ThemeColors.secondaryLabel)
                 .lineLimit(1)
                 .truncationMode(.middle)
+            if card.isActive {
+                // A word in the app's existing badge vocabulary, not a glyph crammed
+                // against the percentage — and readable without colour vision.
+                Text("active")
+                    .font(Typography.badgeLabel)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
+                    .padding(.horizontal, Spacing.small)
+                    .padding(.vertical, Spacing.micro)
+                    .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: Layout.barCornerRadius))
+                    .accessibilityHidden(true)
+            }
             if let plan = card.plan {
                 Text("\u{00B7} \(plan)")
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .lineLimit(1)
             }
-            Spacer(minLength: Spacing.gap)
+            Spacer(minLength: Spacing.inner)
             if let status = card.status {
                 Circle()
                     .fill(ThemeColors.statusColor(status))
@@ -59,14 +81,6 @@ struct AccountCardView: View {
             Text(card.worstPercent.map { "\(Int($0.rounded()))%" } ?? "\u{2014}")
                 .font(Typography.monoValueMedium)
                 .foregroundStyle(card.worstPercent.map { ThemeColors.barColor(percent: $0) } ?? ThemeColors.tertiaryLabel)
-            if card.isActive {
-                // A glyph, not just the brighter identity: the active card must be
-                // distinguishable without relying on colour or weight alone.
-                Text("\u{25B6}")
-                    .font(Typography.decorativeIcon)
-                    .foregroundStyle(ThemeColors.success)
-                    .accessibilityHidden(true)
-            }
         }
     }
 
@@ -75,7 +89,7 @@ struct AccountCardView: View {
             return "\(card.identity) — signed out. Click to sign in."
         }
         let number = card.worstPercent.map { "worst window \(Int($0.rounded()))%" } ?? "no reading yet"
-        return "\(card.identity) — \(number). Click to open."
+        return "\(card.identity) — \(number). Click to open this account."
     }
 
     private var stateColor: Color {
@@ -90,7 +104,6 @@ struct AccountCardView: View {
 /// label · gauge · tokens · percent, in fixed columns so every card's gauges line up.
 struct AccountCardBarRow: View {
     let bar: AccountCard.BarRow
-    let now: Date
 
     var body: some View {
         HStack(spacing: Spacing.gap) {
@@ -99,7 +112,7 @@ struct AccountCardBarRow: View {
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Layout.cardBarLabelWidth, alignment: .trailing)
             GaugeBar(percent: bar.percent ?? 0, barColor: ThemeColors.barColor(percent: bar.percent ?? 0))
-            // Tokens spent in the window, same figure the detail bars lead with. The
+            // Tokens spent in the window, the same figure the detail bars lead with. The
             // reset moved to the card's state line so this column fits at 275pt.
             Text(bar.tokens.map(TokenFormatter.format) ?? "")
                 .font(Typography.monoTiny)

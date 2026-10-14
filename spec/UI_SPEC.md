@@ -476,6 +476,34 @@ The **popover's 5-Hour/7-Day bars** read from a single source of truth — the (
 
 **Confirm-before-alarming** (fresh-but-wrong spike): the gates above defend against *stale/held* data, but the endpoint can also return a **transport-fresh yet wrong** ~100% for a window right after wake (server-side eventual consistency), on a window that is actually low. That reading is genuinely fresh (`rateLimitsFresh == true`), so all the gates above trust it — and for a poll or two the bar flips to a red "5-Hour 100% Limit reached" before the next fetch corrects it to the real value (e.g. 2%). `refresh()` now runs a fresh reading through `spikeConfirmedRateLimits` (see DATA_LAYER.md): a bare near-full spike (≥95%, non-throttled) that wasn't near-full on the previous fresh poll is **held at the previous displayed value** until a second consecutive fresh poll confirms it — so the bar shows the last-known-good percentage, not the false maxed reading ("rather show stale than a false used value"). A genuine throttle is authoritative and shown immediately; a genuinely sustained limit is confirmed one poll later. Because the *value* itself is corrected before it reaches the snapshot, every downstream surface agrees — the popover bars, the menu-bar star/percent, notifications, and the multi-account seed all see the held value, so none of them flash a false limit. The near-full memory resets on wake / unlock / idle-resume / account switch so a pre-absence near-full reading can't auto-confirm a post-absence glitch.
 
+### ❶ Overview mode (`Views/OverviewContentView.swift`, `AccountCardView.swift`)
+
+With **two or more accounts** the popover opens on the overview instead of the single-account detail view (`PopoverMode.initial`, re-decided on every `.panelDidShow`, never remembered). One account is unchanged.
+
+```
+┌───────────────────────────────────────────┐
+│ Accounts                               ⚙  │  title + gear
+│ 110M today · next reset in 3d 10h         │  summary (danger colour when an account needs attention)
+│───────────────────────────────────────────│
+│ ✦ Claude Team [active]           ● 84%    │  mark · identity · badge · plan · status dot · headline %
+│   5-Hour  ▓▓░░░░░░░   22M   35%        ›  │  label · gauge · tokens · % (chevron = drill down)
+│   7-Day   ▓▓▓▓▓▓▓░░  337M   84%           │
+│   ~16h 17m to limit · resets in 3d 10h    │  state line
+│───────────────────────────────────────────│
+│ ⬡ Codex API Rates · Business     ● 19%    │
+│   Credits ▓▓░░░░░░░         19%        ›  │
+│   36M today · resets in 17d 11h           │  credits/API shapes show today's tokens here
+│───────────────────────────────────────────│
+│ ⊕ Add account…                             │
+│ ↻ Updated just now              ⊗ Quit    │  overview footer
+└───────────────────────────────────────────┘
+```
+
+- **Header**: "Accounts" (`Typography.accountTitle`) + the shared `SettingsGearButton`. Under it, `OverviewSummary.text(now:)` — trouble first ("Claude Team needs attention", danger), else today's tokens across providers and the soonest reset. Tokens are summed **per provider**, never per card: accounts of one provider share its session logs.
+- **Card** (`AccountCardView`): the whole row is one `Button(.plain)` that opens that account. Three affordances say so — `ThemeColors.hoverFill` background on hover, a trailing `chevron.forward`, and the identity brightening to `.primary`. The active account carries an **`active` badge** (`Typography.badgeLabel` on `badgeFill`), not a colour-only cue. Bar rows are fixed columns (`cardBarLabelWidth` 52 · gauge · `cardTokensWidth` 40 · `cardPercentWidth` 34); the reset moved to the state line so the token column fits at 275pt. A signed-out account renders as a **sign-in card** (no bars, "Signed out · click to sign in") and clicking it opens that provider's sign-in.
+- **Footer** (`OverviewFooterView`): the detail footer's links are all about one account (that provider's dashboard, that provider's status page, signing that account out), so the overview gets its own with the two actions that apply to every account — refresh-all and Quit, plus the "Updated" timestamp.
+- **Detail mode** gains a back chevron left of the account chip (`PopoverHeaderView.showsBack(eligibleAccountCount:)`, ≥ 2 accounts), tight against the title at `Typography.switcherChevron`. Escape routes through `PopoverEscapeRouting`: from a detail view with somewhere to return to it steps back to the overview, everywhere else it closes the panel. Keys `1`–`6` select a card in the overview; `r` refreshes every account.
+
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):
 - Standalone `PopoverPanel` subclass (borderless, `canBecomeKey = true`, handles Cmd+Q) with `NSHostingView` content (10pt corner radius via layer)
 - **Dynamic height**: panel resizes to fit SwiftUI content through one debounced refit (`StatusBarManager.scheduleRefit`, 16 ms) fed by two triggers: (1) `TransparentHostingView.onIntrinsicSizeInvalidated` — SwiftUI's `invalidateIntrinsicContentSize()` on the hosting view, i.e. the hosted tree's ideal size changed (the cause, always fires); (2) `NSView.frameDidChangeNotification` on the hosting view — AppKit's window auto-layout resized it as a side effect (kept for re-anchoring). Relying on (2) alone was the v3.0.0 Settings bug: toggling Settings intermittently produced no frame change, so nothing re-read the fitting size and the panel stayed at its old height with the settings content centred and clipped. Max height is screen-relative (`screen.visibleFrame.height - 40pt`) so all sections fit on most displays, grows downward from fixed top anchor (`panelTopY` set by `positionPanel`)

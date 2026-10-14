@@ -4,6 +4,7 @@ import SwiftUI
 /// the single-account detail view whenever there are two or more accounts.
 struct OverviewContentView: View {
     let cards: [AccountCard]
+    let summary: OverviewSummary
     let canAddClaude: Bool
     let canAddCodex: Bool
     var showsUpdateBadge: Bool = false
@@ -25,22 +26,29 @@ struct OverviewContentView: View {
         }
     }
 
+    /// Title plus a line that says something the cards don't: what needs attention, or
+    /// today's volume across every account and the next window to free up.
     private var header: some View {
-        HStack(spacing: Spacing.gap) {
-            Text("Accounts")
-                .font(Typography.accountTitle)
-                .accessibilityAddTraits(.isHeader)
-            Text("\(cards.count)")
-                .font(Typography.monoCaption)
-                .foregroundStyle(ThemeColors.secondaryLabel)
-                .accessibilityHidden(true)
-            Spacer()
-            SettingsGearButton(showSettings: $showSettings, showsUpdateBadge: showsUpdateBadge)
+        TimelineView(.periodic(from: .now, by: 10)) { context in
+            VStack(alignment: .leading, spacing: Spacing.tight) {
+                HStack(spacing: Spacing.gap) {
+                    Text("Accounts")
+                        .font(Typography.accountTitle)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    SettingsGearButton(showSettings: $showSettings, showsUpdateBadge: showsUpdateBadge)
+                }
+                if let text = summary.text(now: context.date) {
+                    Text(text)
+                        .font(Typography.tinyLabel)
+                        .foregroundStyle(summary.isAlarm ? ThemeColors.danger : ThemeColors.secondaryLabel)
+                        .lineLimit(1)
+                        .copyable(text)
+                }
+            }
+            .padding(.horizontal, Spacing.sectionHorizontal)
+            .padding(.vertical, Spacing.section)
         }
-        .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.vertical, Spacing.section)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(cards.count) accounts")
     }
 
     private var addRow: some View {
@@ -59,6 +67,47 @@ struct OverviewContentView: View {
                 onAdd(canAddClaude ? .claude : .codex)
             }
             Spacer()
+        }
+        .padding(.horizontal, Spacing.sectionHorizontal)
+        .padding(.vertical, Spacing.section)
+    }
+}
+
+/// The overview's footer. The detail footer's links are all about **one** account —
+/// that provider's usage dashboard, that provider's status page, signing that account
+/// out — so none of them mean anything on a face that shows every account at once.
+/// What is left is the two things that apply to all of them: refresh and quit.
+struct OverviewFooterView: View {
+    let lastFreshFetch: Date?
+    let isLoading: Bool
+    let onRefresh: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.medium) {
+            RefreshButton(action: onRefresh)
+                .help("Refresh every account (R)")
+            if isLoading {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)
+            } else if let lastFreshFetch {
+                TimelineView(.periodic(from: .now, by: 10)) { _ in
+                    Text("Updated \(PopoverFooterView.relativeTime(lastFreshFetch))")
+                        .font(Typography.monoTiny)
+                        .foregroundStyle(ThemeColors.tertiaryLabel)
+                }
+            }
+            Spacer()
+            FooterLink(
+                icon: "xmark.circle",
+                label: "Quit",
+                tooltip: "Quit (\u{2318}Q)",
+                accessibilityLabel: "Quit AI Battery",
+                accessibilityHint: "Quit application",
+                showsExternalArrow: false
+            ) {
+                NSApplication.shared.terminate(nil)
+            }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)

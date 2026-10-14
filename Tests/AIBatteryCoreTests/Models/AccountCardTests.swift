@@ -214,55 +214,8 @@ struct AccountCardTests {
 
     // MARK: - Tokens and the state line
 
-    /// Minimal snapshot carrying just the window token totals a card reads.
-    private func makeSnapshot(
-        fiveHourTokens: Int = 0,
-        sevenDayTokens: Int = 0,
-        provider: AIProvider = .claude
-    ) -> UsageSnapshot {
-        UsageSnapshot(
-            lastUpdated: Date(),
-            rateLimits: nil,
-            rateLimitSource: nil,
-            standardLimits: nil,
-            rateLimitsFresh: true,
-            firstSessionDate: nil,
-            totalSessions: 0,
-            totalMessages: 0,
-            longestSessionDuration: nil,
-            longestSessionMessages: 0,
-            peakHour: nil,
-            peakHourCount: 0,
-            todayMessages: 0,
-            todaySessions: 0,
-            todayToolCalls: 0,
-            modelTokens: [],
-            projectTokens: [],
-            totalTokens: 0,
-            totalUsageTokens: 0,
-            totalProjectTokens: 0,
-            totalProjectUsageTokens: 0,
-            totalProjectCost: 0,
-            fiveHourTokens: fiveHourTokens,
-            sevenDayTokens: sevenDayTokens,
-            fiveHourTokenBuckets: [:],
-            dailyTokenTotals: [:],
-            todayModelTokens: [],
-            weekModelTokens: [],
-            monthModelTokens: [],
-            dailyActivity: [],
-            dailyAverage: 0,
-            trendDirection: .flat,
-            busiestDayOfWeek: nil,
-            hourCounts: [:],
-            todayHourCounts: [:],
-            tokenHealth: nil,
-            topSessionHealths: []
-        )
-    }
-
     @Test func rows_fillWindowTokensFromTheProviderSnapshot() {
-        let snap = makeSnapshot(fiveHourTokens: 22_000_000, sevenDayTokens: 288_000_000)
+        let snap = UsageSnapshotFactory.make(fiveHourTokens: 22_000_000, sevenDayTokens: 288_000_000)
         let cards = AccountCard.rows(
             accounts: [rec("c1", .claude)], activeId: "c1",
             readings: ["c1": windowReading(0.13, 0.80)],
@@ -284,7 +237,7 @@ struct AccountCardTests {
 
     @Test func rows_tokensComeFromTheCardsOwnProvider() {
         // A Claude snapshot must not leak onto a Codex card.
-        let snap = makeSnapshot(fiveHourTokens: 1_000, sevenDayTokens: 2_000)
+        let snap = UsageSnapshotFactory.make(fiveHourTokens: 1_000, sevenDayTokens: 2_000)
         let cards = AccountCard.rows(
             accounts: [rec("c1", .claude), rec("x1", .codex)], activeId: "c1",
             readings: ["c1": windowReading(0.1, 0.2), "x1": windowReading(0.1, 0.2, provider: .codex)],
@@ -329,5 +282,49 @@ struct AccountCardTests {
             readings: [:], statuses: [:], isAuthenticated: { $0 != "c2" }, maskEmail: true, now: now
         )
         #expect(AccountCard.stateLine(cards[1], now: now) == "Signed out \u{00B7} click to sign in")
+    }
+
+    @Test func rows_todayTokensOnlyWhereTheRowsShowNone() {
+        // A credit budget is spend, not tokens, so its card carries today's usage on the
+        // state line; a windowed card already shows per-window tokens and must not.
+        let budget = CodexCreditBudget(
+            usedPercent: 19, used: 19, limit: 100, remaining: 81, unit: "credit",
+            resetsAt: now.addingTimeInterval(17 * 86_400), reached: false,
+            hasCredits: true, unlimited: false, planType: "business"
+        )
+        let credits = RateLimitUsage(
+            representativeClaim: "credits",
+            fiveHourUtilization: 0.19, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.19, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed", provider: .codex, creditBudget: budget
+        )
+        let cards = AccountCard.rows(
+            accounts: [rec("c1", .claude), rec("x1", .codex, billing: "business")], activeId: "c1",
+            readings: [
+                "c1": windowReading(0.3, 0.8),
+                "x1": AccountReading(windows: credits, apiLimits: nil, fetchedAt: now, isCached: false, source: nil),
+            ],
+            statuses: [:],
+            snapshots: [
+                .claude: UsageSnapshotFactory.make(fiveHourTokens: 15_000_000, sevenDayTokens: 329_000_000, todayTokens: 90_000_000),
+                .codex: UsageSnapshotFactory.make(todayTokens: 13_000_000, provider: .codex),
+            ],
+            isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )
+        #expect(cards[0].tokensToday == nil)
+        #expect(cards[1].tokensToday == 13_000_000)
+        #expect(AccountCard.stateLine(cards[1], now: now)?.contains("13M today") == true)
+    }
+
+    @Test func stateLine_capitalisesOnlyItsFirstFragment() {
+        let cards = AccountCard.rows(
+            accounts: [rec("x1", .codex, apiKey: true)], activeId: "x1",
+            readings: ["x1": windowReading(0.9, 0.1, throttled: true, resetIn: 600, provider: .codex)],
+            statuses: [:], snapshots: [.codex: UsageSnapshotFactory.make(todayTokens: 5_000, provider: .codex)],
+            isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )
+        let line = AccountCard.stateLine(cards[0], now: now)
+        #expect(line?.hasPrefix("Throttled") == true)
+        #expect(line?.contains("resets in") == true)
     }
 }

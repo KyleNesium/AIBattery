@@ -225,8 +225,10 @@ public struct UsagePopoverView: View {
                 )
                 .transition(.opacity)
             } else {
+                let cards = overviewCards
                 OverviewContentView(
-                    cards: overviewCards,
+                    cards: cards,
+                    summary: OverviewSummary.make(cards: cards, snapshots: viewModel.providerSnapshots),
                     canAddClaude: accountStore.canAddAccount(provider: .claude),
                     canAddCodex: accountStore.canAddAccount(provider: .codex),
                     showSettings: $showSettings,
@@ -236,7 +238,16 @@ public struct UsagePopoverView: View {
                 .transition(.opacity)
             }
             StyledDivider()
-            footerView
+            // The detail footer's links are all about ONE account; the overview gets its
+            // own with the two actions that apply to every account.
+            OverviewFooterView(
+                lastFreshFetch: viewModel.lastFreshFetch,
+                isLoading: viewModel.isLoading,
+                onRefresh: {
+                    viewModel.scheduleFanOut()
+                    Task { await viewModel.refresh() }
+                }
+            )
         }
         .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
         .contentShape(Rectangle())
