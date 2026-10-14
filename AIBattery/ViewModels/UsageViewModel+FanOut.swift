@@ -49,5 +49,19 @@ extension UsageViewModel {
             // Disabled, or nothing to fetch and no seed — clear stale data.
             perAccountReadings = [:]
         }
+        await fetchOtherProviderStatuses()
+    }
+
+    /// Poll the status feed of every provider that has an eligible account but isn't the
+    /// active one, so the overview's cards all carry a status dot. `refresh()` already
+    /// stores the active provider's status. Each `StatusChecker` instance keeps its own
+    /// cache and exponential backoff, so this adds no pressure on a failing feed.
+    private func fetchOtherProviderStatuses() async {
+        let store = OAuthManager.shared.accountStore
+        let eligible = OAuthManager.shared.multiAccountDisplayIDs().compactMap { store.account(id: $0) }
+        let active = store.activeAccount?.provider ?? .claude
+        for provider in MultiAccountFanOut.otherProviders(eligible: eligible, active: active) {
+            providerStatuses[provider] = await StatusChecker.shared(for: provider).fetchStatus()
+        }
     }
 }

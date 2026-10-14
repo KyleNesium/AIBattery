@@ -28,6 +28,12 @@ public final class UsageViewModel: ObservableObject {
     var perAccountRateLimits: [String: RateLimitUsage] { perAccountReadings.compactMapValues(\.windows) }
     /// Per-minute API-key readings only.
     var perAccountAPILimits: [String: StandardRateLimits] { perAccountReadings.compactMapValues(\.apiLimits) }
+    /// Status per provider, so the overview can show a dot on every card — not just the
+    /// active account's. The active provider's entry is written by `refresh()`; any other
+    /// provider with an eligible account is polled by the fan-out (each `StatusChecker`
+    /// instance has its own cache + backoff). Keyed by provider, never cleared on account
+    /// switch: a provider's status is a property of the provider, not of the account.
+    @Published var providerStatuses: [AIProvider: ClaudeSystemStatus] = [:]
 
     #if ENABLE_VERSION_CHECKER
     /// Available update from GitHub Releases (nil if up-to-date or not checked).
@@ -407,6 +413,8 @@ public final class UsageViewModel: ObservableObject {
 
         apiResult = api
         systemStatus = status
+        // Mirror into the per-provider map the overview's cards read from.
+        providerStatuses[accountProvider] = status
         isShowingCachedData = api.isCached
         // Fresh ONLY when this fetch returned unified rate-limit headers and wasn't
         // cache-served. A header-less-but-successful fetch reuses held stale limits

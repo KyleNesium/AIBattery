@@ -239,4 +239,21 @@ struct MultiAccountFanOutTests {
         let result = await MultiAccountFanOut.resolve(enabled: true, seed: nil, provider: provider, fetcher: fetcher)
         #expect(Set(result?.keys ?? [:].keys) == ["a"])
     }
+
+    // MARK: - Status feeds for every provider on screen
+
+    @Test("otherProviders lists providers with an eligible account other than the active one")
+    func otherProviders_excludesActive_andDeduplicates() {
+        let claude1 = AccountRecord(id: "c1", addedAt: Date(), provider: .claude)
+        let claude2 = AccountRecord(id: "c2", addedAt: Date(), provider: .claude)
+        let codex = AccountRecord(id: "x1", addedAt: Date(), provider: .codex)
+
+        #expect(MultiAccountFanOut.otherProviders(eligible: [claude1, codex], active: .claude) == [.codex])
+        #expect(MultiAccountFanOut.otherProviders(eligible: [claude1, codex], active: .codex) == [.claude])
+        // Several accounts of the same provider yield one entry.
+        #expect(MultiAccountFanOut.otherProviders(eligible: [claude1, claude2, codex], active: .codex) == [.claude])
+        // Single-provider account sets have nothing extra to poll.
+        #expect(MultiAccountFanOut.otherProviders(eligible: [claude1, claude2], active: .claude).isEmpty)
+        #expect(MultiAccountFanOut.otherProviders(eligible: [], active: .claude).isEmpty)
+    }
 }

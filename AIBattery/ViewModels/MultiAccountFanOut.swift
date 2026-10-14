@@ -76,6 +76,14 @@ extension AccountStore {
 /// Stateless orchestration for the multi-account fan-out. See file header.
 @MainActor
 enum MultiAccountFanOut {
+    /// Providers (other than the active one) that have an eligible account, so the
+    /// overview can show a status dot on every card. Each `StatusChecker` instance
+    /// keeps its own cache + exponential backoff, so polling both per cycle is safe.
+    nonisolated static func otherProviders(eligible: [AccountRecord], active: AIProvider) -> [AIProvider] {
+        let providers = Set(eligible.map(\.provider)).subtracting([active])
+        return AIProvider.allCases.filter { providers.contains($0) }
+    }
+
     /// Resolve the per-account readings for the multi-account menu bar and the overview.
     ///
     /// Net cost is **N requests for N accounts, not N+1**: `RateLimitFetcher.fetch`
