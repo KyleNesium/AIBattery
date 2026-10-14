@@ -6,7 +6,10 @@ Integration branch for the next release (one PR). Entries below the "Added" head
 are appended by the task that lands them (see `docs/superpowers/plans/2026-10-12-v3-1-0-release-plan.md`).
 
 ### Added
-- _(filled in per task: multi-account overview; provider-relevant display items)_
+- **Multi-account overview.** With two or more accounts the popover opens on all of
+  them at once: one card per account with its quota bars, tokens used in each
+  window, reset countdown and state. Clicking a card opens that account; a back
+  chevron or Escape returns. A signed-out account shows a sign-in card.
 - **Codex API-key accounts in the multi-account menu bar.** Their slot shows the busier per-minute limit (requests or tokens) instead of being left out; a transient fetch failure keeps the previous reading for every account rather than blanking its slot.
 
 ### Fixed

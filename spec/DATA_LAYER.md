@@ -190,6 +190,21 @@ Computed: `requestsPercent` (utilization × 100), `tokensPercent`, `peakPercent`
 
 One account's latest quota reading from the multi-account fan-out (`MultiAccountFanOut.resolve`): `windows: RateLimitUsage?` (Claude, Codex ChatGPT, Codex credit budgets) **or** `apiLimits: StandardRateLimits?` (Codex API keys), plus `fetchedAt`, `isCached` (served from cache or carried over after a failed fetch) and `source: RateLimitSource?`. Nothing is coerced into the other shape. `init?(api: APIFetchResult)` routes: windows win when both are present; nil when neither. Derived: `worstPercent` (windows → `max(5h, 7d)`; credit budget → `usedPercent`, nil when uncapped; API → `peakPercent`; nil when no reading), `isExhausted` (`isThrottled` or ≥ 100 % for windows; requests or tokens exhausted for API), `normalized(now:)`, `carriedForward()` (same reading, `isCached = true`). `FanOutGate.enabled(menuBarToggle:eligibleAccountCount:)` = toggle **or** ≥ 2 eligible accounts — the overview's data source runs regardless of the menu-bar toggle.
 
+### AccountCard (`Models/AccountCard.swift`)
+
+One overview card, computed purely from the account store, the fan-out readings
+(`AccountReading`), the per-provider statuses and the per-provider snapshots. `rows(accounts:activeId:readings:statuses:snapshots:isAuthenticated:maskEmail:now:)` returns them in `displayOrdered` order, skipping pending identities; an unauthenticated account becomes a **sign-in card** (`state == .signedOut`, no bars). Each card carries `identity` (masked unless the Settings toggle), `plan` (Codex only), `status`, `worstPercent` (the number it leads with), `bars` and one `state`.
+
+`BarRow` is `label` · `percent` · `reset` · `uncapped` · `tokens`. Rows follow the quota shape: 5-Hour + 7-Day/Weekly, a single Credits row (percent nil when `isUncapped`), or Requests + Tokens for API keys; without a reading the rows are still laid out with nil percents so a card doesn't change shape on first fetch. `tokens` is the window's token total from `UsageViewModel.providerSnapshots[provider]` — **per provider, not per account** (every account of a provider shares its session logs, exactly as the detail view shows), and nil until that provider has been aggregated this launch.
+
+`State` precedence, first match wins: `.throttled` → `.limitReached` → `.timeToLimit` (burn-rate, confirmed data only) → `.cached` → `.none`, with `.signedOut` and `.fetching` for the two no-reading cases. The alarm states go through `UsageBar.AlarmState`, so a card cannot alarm on data the bars would refuse to alarm on. `stateLine(_:now:)` renders that state and appends the headline window's reset; `eligibleCount(accounts:)` is the number `PopoverMode` decides from.
+
+### PopoverMode (`Models/PopoverMode.swift`)
+
+`initial(eligibleAccountCount:)` — ≥ 2 accounts open on `.overview`, otherwise `.detail`; applied on every `.panelDidShow`, never remembered across opens. `next(current:eligibleAccountCount:)` — dropping to one account leaves the overview, gaining one never pulls the user out of a detail view. `PopoverEscapeRouting.consume(mode:showSettings:showsBack:)` → `.backToOverview` only from a detail view with an overview to return to; `.close` everywhere else. The panel asks through `StatusBarManager.escapeHandler` before closing.
+
+**Lifecycle placement (v3.1.0 bug):** the popover's `.onAppear` / `.panelDidShow` / `.panelDidDismiss` / `.onDisappear` modifiers live **above** the face switch. Hanging them on one face meant switching faces unmounted that face and fired its `onDisappear`, which resets transient state — including the face — so the overview flipped straight back to detail and the back control appeared dead.
+
 ### RateLimitUsage (`Models/RateLimitUsage.swift`)
 
 Parsed from Claude Code usage metadata or Anthropic's legacy unified rate limit headers (`anthropic-ratelimit-unified-*`). The app's 5-hour and 7-day bars are specifically Claude Code usage windows, not generic public API request/token limits. Conforms to `Equatable` (used by `UsageAggregator` for redundant aggregation skip).
