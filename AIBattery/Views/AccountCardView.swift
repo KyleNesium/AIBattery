@@ -16,7 +16,7 @@ struct AccountCardView: View {
                     ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
                         AccountCardBarRow(bar: bar, now: context.date)
                     }
-                    if let text = AccountCard.stateText(card.state, now: context.date) {
+                    if let text = AccountCard.stateLine(card, now: context.date) {
                         Text(text)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(stateColor)
@@ -87,7 +87,7 @@ struct AccountCardView: View {
     }
 }
 
-/// label · gauge · percent · reset, in fixed columns so every card's gauges line up.
+/// label · gauge · tokens · percent, in fixed columns so every card's gauges line up.
 struct AccountCardBarRow: View {
     let bar: AccountCard.BarRow
     let now: Date
@@ -99,18 +99,15 @@ struct AccountCardBarRow: View {
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .frame(width: Layout.cardBarLabelWidth, alignment: .trailing)
             GaugeBar(percent: bar.percent ?? 0, barColor: ThemeColors.barColor(percent: bar.percent ?? 0))
+            // Tokens spent in the window, same figure the detail bars lead with. The
+            // reset moved to the card's state line so this column fits at 275pt.
+            Text(bar.tokens.map(TokenFormatter.format) ?? "")
+                .font(Typography.monoTiny)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+                .frame(width: Layout.cardTokensWidth, alignment: .trailing)
             Text(bar.percent.map { "\(Int($0.rounded()))%" } ?? "\u{2014}")
                 .font(Typography.monoTiny)
                 .frame(width: Layout.cardPercentWidth, alignment: .trailing)
-            Text(resetText)
-                .font(Typography.monoTiny)
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-                .frame(width: Layout.cardResetWidth, alignment: .trailing)
         }
-    }
-
-    private var resetText: String {
-        guard let reset = bar.reset, reset > now else { return "\u{2014}" }
-        return DurationFormatter.compact(reset.timeIntervalSince(now))
     }
 }

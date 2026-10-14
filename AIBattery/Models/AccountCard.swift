@@ -25,6 +25,10 @@ struct AccountCard: Identifiable, Equatable {
         let reset: Date?
         /// Credit budget with no spend cap: nothing to meter.
         let uncapped: Bool
+        /// Tokens spent in this window, when the provider's local data has been
+        /// aggregated this launch. Per provider, not per account — every account of a
+        /// provider shares its session logs, same as the detail view.
+        var tokens: Int?
     }
 
     let id: String
@@ -38,6 +42,9 @@ struct AccountCard: Identifiable, Equatable {
     let worstPercent: Double?
     let bars: [BarRow]
     let state: State
+    /// Reset of the window the card leads with — shown on the state line, so the rows
+    /// stay narrow enough for a token column.
+    let reset: Date?
 
     /// Accounts the overview lists, and the count the popover's mode is decided from:
     /// identity resolved. Signed-out accounts stay in — they become sign-in cards,
@@ -51,6 +58,7 @@ struct AccountCard: Identifiable, Equatable {
         activeId: String?,
         readings: [String: AccountReading],
         statuses: [AIProvider: ClaudeSystemStatus],
+        snapshots: [AIProvider: UsageSnapshot] = [:],
         isAuthenticated: (String) -> Bool,
         maskEmail: Bool,
         now: Date
@@ -67,14 +75,16 @@ struct AccountCard: Identifiable, Equatable {
                 guard isAuthenticated(account.id) else {
                     return AccountCard(
                         id: account.id, provider: account.provider, identity: identity, plan: plan,
-                        isActive: active, status: status, worstPercent: nil, bars: [], state: .signedOut
+                        isActive: active, status: status, worstPercent: nil, bars: [],
+                        state: .signedOut, reset: nil
                     )
                 }
                 let reading = readings[account.id]
+                let bars = barRows(for: account, reading: reading, snapshot: snapshots[account.provider])
                 return AccountCard(
                     id: account.id, provider: account.provider, identity: identity, plan: plan,
                     isActive: active, status: status, worstPercent: reading?.worstPercent,
-                    bars: barRows(for: account, reading: reading), state: state(for: reading)
+                    bars: bars, state: state(for: reading), reset: bindingReset(bars: bars, reading: reading)
                 )
             }
     }
@@ -82,7 +92,11 @@ struct AccountCard: Identifiable, Equatable {
     /// One row per window the account actually has: 5-hour + weekly, a single credit
     /// budget, or the two per-minute API-key limits. Without a reading the rows are
     /// still laid out (empty tracks) so a card doesn't change shape on first fetch.
-    private nonisolated static func barRows(for account: AccountRecord, reading: AccountReading?) -> [BarRow] {
+    private nonisolated static func barRows(
+        for account: AccountRecord,
+        reading: AccountReading?,
+        snapshot: UsageSnapshot?
+    ) -> [BarRow] {
         let secondary = account.provider.secondaryWindowLabel
         guard let reading else {
             if account.isAPIKeyAccount {
@@ -112,9 +126,26 @@ struct AccountCard: Identifiable, Equatable {
             )]
         }
         return [
-            BarRow(label: "5-Hour", percent: windows.fiveHourPercent, reset: windows.fiveHourReset, uncapped: false),
-            BarRow(label: secondary, percent: windows.sevenDayPercent, reset: windows.sevenDayReset, uncapped: false),
+            BarRow(
+                label: "5-Hour", percent: windows.fiveHourPercent, reset: windows.fiveHourReset,
+                uncapped: false, tokens: snapshot?.fiveHourWindowTokens(resetsAt: windows.fiveHourReset)
+            ),
+            BarRow(
+                label: secondary, percent: windows.sevenDayPercent, reset: windows.sevenDayReset,
+                uncapped: false, tokens: snapshot?.sevenDayWindowTokens(resetsAt: windows.sevenDayReset)
+            ),
         ]
+    }
+
+    /// The reset the card's headline percent belongs to — the fuller window, the budget
+    /// period, or the sooner per-minute reset.
+    private nonisolated static func bindingReset(bars: [BarRow], reading: AccountReading?) -> Date? {
+        guard let reading else { return nil }
+        if reading.apiLimits != nil {
+            return bars.compactMap(\.reset).min()
+        }
+        guard let worst = reading.worstPercent else { return bars.first?.reset }
+        return bars.first(where: { $0.percent == worst })?.reset ?? bars.first?.reset
     }
 
     /// First match wins: throttled → limit reached → burn-rate estimate → cached → none.
@@ -150,6 +181,16 @@ struct AccountCard: Identifiable, Equatable {
             return .cached(reading.fetchedAt)
         }
         return .none
+    }
+
+    /// The card's one line under the bars: what's wrong (or how long the headline
+    /// window has left), then when it resets.
+    nonisolated static func stateLine(_ card: AccountCard, now: Date) -> String? {
+        let state = stateText(card.state, now: now)
+        guard let reset = card.reset, reset > now, card.state != .signedOut else { return state }
+        let resets = "Resets in \(DurationFormatter.compact(reset.timeIntervalSince(now)))"
+        guard let state else { return resets }
+        return "\(state) \u{00B7} \(resets.lowercased())"
     }
 
     nonisolated static func stateText(_ state: State, now: Date) -> String? {

@@ -22,7 +22,7 @@ struct PopoverHeaderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
-            HStack(alignment: .center, spacing: Spacing.inner) {
+            HStack(alignment: .center, spacing: showsBack ? Spacing.xsmall : Spacing.inner) {
                 if showsBack {
                     backButton
                 }
@@ -51,14 +51,18 @@ struct PopoverHeaderView: View {
         eligibleAccountCount >= 2
     }
 
+    /// Tight against the title, not a floating square: the chevron reads as part of the
+    /// `‹ ✦ Claude Team ⌄` cluster (same weight and tone as the chip's own chevron), so
+    /// the header still reads as a title rather than a toolbar.
     private var backButton: some View {
         Button(action: onBack) {
-            Image(systemName: "chevron.left")
-                .font(Typography.headerGear)
-                .frame(width: Layout.accountChipHeight, height: Layout.accountChipHeight)
+            Image(systemName: "chevron.backward")
+                .font(Typography.switcherChevron)
+                .frame(width: Layout.backChevronWidth, height: Layout.accountChipHeight)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(backHovered ? .primary : .secondary)
+        .foregroundStyle(backHovered ? .primary : ThemeColors.secondaryLabel)
         .onHover { backHovered = $0 }
         .help("All accounts")
         .accessibilityLabel("Back to all accounts")

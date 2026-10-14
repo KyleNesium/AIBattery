@@ -211,4 +211,123 @@ struct AccountCardTests {
         #expect(label.contains("Weekly 26 percent"))
         #expect(label.contains("status operational"))
     }
+
+    // MARK: - Tokens and the state line
+
+    /// Minimal snapshot carrying just the window token totals a card reads.
+    private func makeSnapshot(
+        fiveHourTokens: Int = 0,
+        sevenDayTokens: Int = 0,
+        provider: AIProvider = .claude
+    ) -> UsageSnapshot {
+        UsageSnapshot(
+            lastUpdated: Date(),
+            rateLimits: nil,
+            rateLimitSource: nil,
+            standardLimits: nil,
+            rateLimitsFresh: true,
+            firstSessionDate: nil,
+            totalSessions: 0,
+            totalMessages: 0,
+            longestSessionDuration: nil,
+            longestSessionMessages: 0,
+            peakHour: nil,
+            peakHourCount: 0,
+            todayMessages: 0,
+            todaySessions: 0,
+            todayToolCalls: 0,
+            modelTokens: [],
+            projectTokens: [],
+            totalTokens: 0,
+            totalUsageTokens: 0,
+            totalProjectTokens: 0,
+            totalProjectUsageTokens: 0,
+            totalProjectCost: 0,
+            fiveHourTokens: fiveHourTokens,
+            sevenDayTokens: sevenDayTokens,
+            fiveHourTokenBuckets: [:],
+            dailyTokenTotals: [:],
+            todayModelTokens: [],
+            weekModelTokens: [],
+            monthModelTokens: [],
+            dailyActivity: [],
+            dailyAverage: 0,
+            trendDirection: .flat,
+            busiestDayOfWeek: nil,
+            hourCounts: [:],
+            todayHourCounts: [:],
+            tokenHealth: nil,
+            topSessionHealths: []
+        )
+    }
+
+    @Test func rows_fillWindowTokensFromTheProviderSnapshot() {
+        let snap = makeSnapshot(fiveHourTokens: 22_000_000, sevenDayTokens: 288_000_000)
+        let cards = AccountCard.rows(
+            accounts: [rec("c1", .claude)], activeId: "c1",
+            readings: ["c1": windowReading(0.13, 0.80)],
+            statuses: [:], snapshots: [.claude: snap],
+            isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )
+        #expect(cards[0].bars[0].tokens != nil)
+        #expect(cards[0].bars[1].tokens != nil)
+    }
+
+    @Test func rows_withoutAProviderSnapshot_omitTokens() {
+        let cards = AccountCard.rows(
+            accounts: [rec("c1", .claude)], activeId: "c1",
+            readings: ["c1": windowReading(0.13, 0.80)],
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )
+        #expect(cards[0].bars.allSatisfy { $0.tokens == nil })
+    }
+
+    @Test func rows_tokensComeFromTheCardsOwnProvider() {
+        // A Claude snapshot must not leak onto a Codex card.
+        let snap = makeSnapshot(fiveHourTokens: 1_000, sevenDayTokens: 2_000)
+        let cards = AccountCard.rows(
+            accounts: [rec("c1", .claude), rec("x1", .codex)], activeId: "c1",
+            readings: ["c1": windowReading(0.1, 0.2), "x1": windowReading(0.1, 0.2, provider: .codex)],
+            statuses: [:], snapshots: [.claude: snap],
+            isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )
+        #expect(cards[0].bars[0].tokens != nil)
+        #expect(cards[1].bars.allSatisfy { $0.tokens == nil })
+    }
+
+    @Test func card_resetIsTheHeadlineWindows() {
+        // 7-Day is the fuller window here, so the card counts down to the 7-day reset.
+        let cards = AccountCard.rows(
+            accounts: [rec("c1", .claude)], activeId: "c1",
+            readings: ["c1": windowReading(0.13, 0.80, resetIn: 3_600)],
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )
+        #expect(cards[0].reset == now.addingTimeInterval(3_600 * 24))
+    }
+
+    @Test func stateLine_standsAloneWhenNothingIsWrong_andAppendsToAnAlarm() {
+        let quiet = AccountCard.rows(
+            accounts: [rec("c1", .claude)], activeId: "c1",
+            readings: ["c1": windowReading(0.13, 0.20, resetIn: 3_600)],
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )[0]
+        #expect(AccountCard.stateLine(quiet, now: now)?.hasPrefix("Resets in") == true)
+
+        let throttled = AccountCard.rows(
+            accounts: [rec("c1", .claude)], activeId: "c1",
+            readings: ["c1": windowReading(1.0, 0.2, throttled: true, resetIn: 3_600)],
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )[0]
+        let line = AccountCard.stateLine(throttled, now: now)
+        #expect(line?.hasPrefix("Throttled") == true)
+        #expect(line?.contains("resets in") == true)
+    }
+
+    @Test func stateLine_signedOutCardHasNoReset() {
+        let cards = AccountCard.rows(
+            accounts: [rec("c1", .claude), rec("c2", .claude)], activeId: "c1",
+            readings: [:], statuses: [:], isAuthenticated: { $0 != "c2" }, maskEmail: true, now: now
+        )
+        #expect(AccountCard.stateLine(cards[1], now: now) == "Signed out \u{00B7} click to sign in")
+    }
 }

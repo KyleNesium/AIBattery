@@ -104,6 +104,60 @@ public struct UsagePopoverView: View {
     }
 
     public var body: some View {
+        // The lifecycle modifiers live out here, ABOVE the face switch. Hanging them on
+        // one face meant switching faces unmounted that face and fired its `onDisappear`
+        // — which resets transient state, including the face itself, so the overview
+        // flipped straight back to detail and the back control appeared to do nothing.
+        faces
+            .onAppear {
+                registerEscape()
+                // No deferredRender.appeared() here: onAppear fires when the hosting view
+                // is attached at setup (launch), NOT on panel show — arming here would race
+                // the launch pre-warm's orderOut and could leave the heavy sections armed
+                // on a never-opened panel. Every real open posts .panelDidShow instead.
+                recomputeOrderedModes()
+            }
+            .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
+            .onChange(of: autoMetricMode) { _ in
+                recomputeOrderedModes()
+                if !autoMetricMode {
+                    viewModel.resetHysteresis()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
+                guard let key = notification.object as? String else { return }
+                if mode == .overview {
+                    handleOverviewKeyPress(key)
+                } else {
+                    handleKeyPress(key)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .panelDidShow)) { _ in
+                // Every open re-decides the face: two or more accounts land on the overview.
+                mode = PopoverMode.initial(eligibleAccountCount: eligibleAccountCount)
+                // Deferred one run-loop (mirrors onAppear): the re-opened panel paints
+                // the core bars first, then the heavy sections fill in. The overview has
+                // no heavy sections, so only the detail face arms them.
+                guard mode == .detail else { return }
+                DispatchQueue.main.async {
+                    deferredRender.appeared()
+                }
+            }
+            .onReceive(accountStore.$accounts) { accounts in
+                // Signing out of the second-to-last account leaves the overview with nothing
+                // to compare; gaining one never yanks the user out of a detail view.
+                mode = PopoverMode.next(current: mode, eligibleAccountCount: AccountCard.eligibleCount(accounts: accounts))
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in
+                resetTransientPopoverState()
+            }
+            .onDisappear {
+                resetTransientPopoverState()
+            }
+    }
+
+    @ViewBuilder
+    private var faces: some View {
         if let addingProvider {
             AuthView(
                 oauthManager: OAuthManager.shared,
@@ -147,6 +201,7 @@ public struct UsagePopoverView: View {
             activeId: accountStore.activeAccountId,
             readings: viewModel.perAccountReadings,
             statuses: viewModel.providerStatuses,
+            snapshots: viewModel.providerSnapshots,
             isAuthenticated: { OAuthManager.shared.isAuthenticated(accountId: $0) },
             maskEmail: !showFullAccountIdentity,
             now: Date()
@@ -185,10 +240,6 @@ public struct UsagePopoverView: View {
         }
         .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
         .contentShape(Rectangle())
-        .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
-            guard let key = notification.object as? String else { return }
-            handleOverviewKeyPress(key)
-        }
     }
 
     /// Open one account's detail view. A signed-out card starts its sign-in instead.
@@ -385,47 +436,6 @@ public struct UsagePopoverView: View {
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil, kind: viewModel.snapshot.map(displayKind) ?? .windows)
         }
-        .onAppear {
-            registerEscape()
-            // No deferredRender.appeared() here: onAppear fires when the hosting view
-            // is attached at setup (launch), NOT on panel show — arming here would race
-            // the launch pre-warm's orderOut and could leave the heavy sections armed
-            // on a never-opened panel. Every real open posts .panelDidShow instead.
-            recomputeOrderedModes()
-        }
-        .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
-        .onChange(of: autoMetricMode) { _ in
-            recomputeOrderedModes()
-            if !autoMetricMode {
-                viewModel.resetHysteresis()
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
-            guard let key = notification.object as? String else { return }
-            handleKeyPress(key)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .panelDidShow)) { _ in
-            // Every open re-decides the face: two or more accounts land on the overview.
-            mode = PopoverMode.initial(eligibleAccountCount: eligibleAccountCount)
-            // Deferred one run-loop (mirrors onAppear): the re-opened panel paints
-            // the core bars first, then the heavy sections fill in. The overview has
-            // no heavy sections, so only the detail face arms them.
-            guard mode == .detail else { return }
-            DispatchQueue.main.async {
-                deferredRender.appeared()
-            }
-        }
-        .onReceive(accountStore.$accounts) { accounts in
-            // Signing out of the second-to-last account leaves the overview with nothing
-            // to compare; gaining one never yanks the user out of a detail view.
-            mode = PopoverMode.next(current: mode, eligibleAccountCount: AccountCard.eligibleCount(accounts: accounts))
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in
-            resetTransientPopoverState()
-        }
-        .onDisappear {
-            resetTransientPopoverState()
-        }
     }
 
     /// The popover's footer — identical on both faces (links and timestamp follow the
@@ -486,7 +496,8 @@ public struct UsagePopoverView: View {
         // would leave stale frames that show as blank space on next open.
         showSettings = false
         showLogoutConfirm = false
-        // Next open recomputes the face from the account count.
+        // Dismiss only (the panel is hidden): the next open recomputes the face from
+        // the account count in the `.panelDidShow` handler.
         mode = .detail
         logoutRevertTask?.cancel()
         // Collapse the heavy sections while hidden — orderOut doesn't fire

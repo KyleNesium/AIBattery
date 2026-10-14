@@ -4,7 +4,18 @@ import Combine
 
 @MainActor
 public final class UsageViewModel: ObservableObject {
-    @Published var snapshot: UsageSnapshot?
+    @Published var snapshot: UsageSnapshot? {
+        didSet {
+            // Mirror into the per-provider map the overview's cards read their token
+            // totals from. A `nil` (account switch) must not erase a provider's last
+            // known aggregate — the cards keep showing it until that provider
+            // re-aggregates.
+            if let snapshot {
+                providerSnapshots[snapshot.provider] = snapshot
+            }
+        }
+    }
+
     @Published var systemStatus: ClaudeSystemStatus?
     @Published var isLoading = true
     @Published var errorMessage: String?
@@ -34,6 +45,13 @@ public final class UsageViewModel: ObservableObject {
     /// instance has its own cache + backoff). Keyed by provider, never cleared on account
     /// switch: a provider's status is a property of the provider, not of the account.
     @Published var providerStatuses: [AIProvider: ClaudeSystemStatus] = [:]
+    /// Last aggregated snapshot per provider, so the overview can show each card's
+    /// window token totals. Local logs are machine-wide **per provider** (every Claude
+    /// account shares `~/.claude`), so this is a per-provider figure shown on that
+    /// provider's cards — exactly what the detail view shows for the active account.
+    /// A provider that has never been active this launch has no entry and its cards
+    /// simply omit the token column.
+    @Published var providerSnapshots: [AIProvider: UsageSnapshot] = [:]
 
     #if ENABLE_VERSION_CHECKER
     /// Available update from GitHub Releases (nil if up-to-date or not checked).
