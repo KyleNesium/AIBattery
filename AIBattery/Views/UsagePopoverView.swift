@@ -24,6 +24,10 @@ public struct UsagePopoverView: View {
     /// Popover width scales with system text size, capped to avoid overflow.
     @ScaledMetric(relativeTo: .body) private var scaledWidth: CGFloat = Layout.popoverWidth
     @State private var showSettings = false
+    /// Overview (all accounts) vs detail (the active account). Decided on every
+    /// panel open from the eligible account count; never remembered across opens.
+    @State private var mode: PopoverMode = .detail
+    @AppStorage(UserDefaultsKeys.showFullAccountIdentity) private var showFullAccountIdentity: Bool = false
     @State private var addingProvider: AIProvider?
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
     @AppStorage(UserDefaultsKeys.autoMetricMode) private var autoMetricMode: Bool = false
@@ -120,9 +124,96 @@ public struct UsagePopoverView: View {
                     viewModel.syncToActiveAccount()
                 }
             }
+        } else if mode == .overview {
+            overviewContent
         } else {
             mainContent
         }
+    }
+
+    /// Accounts the overview lists (identity resolved; signed-out ones become sign-in
+    /// cards) — also the count the mode is decided from.
+    private var eligibleAccountCount: Int {
+        AccountCard.eligibleCount(accounts: accountStore.accounts)
+    }
+
+    private var overviewCards: [AccountCard] {
+        AccountCard.rows(
+            accounts: accountStore.accounts,
+            activeId: accountStore.activeAccountId,
+            readings: viewModel.perAccountReadings,
+            statuses: viewModel.providerStatuses,
+            isAuthenticated: { OAuthManager.shared.isAuthenticated(accountId: $0) },
+            maskEmail: !showFullAccountIdentity,
+            now: Date()
+        )
+    }
+
+    private var overviewContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if showSettings {
+                // Settings replaces the cards, exactly as it replaces the detail sections.
+                HStack {
+                    Spacer()
+                    SettingsGearButton(showSettings: $showSettings)
+                }
+                .padding(.horizontal, Spacing.sectionHorizontal)
+                .padding(.vertical, Spacing.section)
+                SettingsRow(
+                    viewModel: viewModel,
+                    accountStore: accountStore,
+                    onAddAccount: { addingProvider = $0 }
+                )
+                .transition(.opacity)
+            } else {
+                OverviewContentView(
+                    cards: overviewCards,
+                    canAddClaude: accountStore.canAddAccount(provider: .claude),
+                    canAddCodex: accountStore.canAddAccount(provider: .codex),
+                    showSettings: $showSettings,
+                    onSelect: { select($0) },
+                    onAdd: { addingProvider = $0 }
+                )
+                .transition(.opacity)
+            }
+            StyledDivider()
+            footerView
+        }
+        .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
+        .contentShape(Rectangle())
+        .onReceive(NotificationCenter.default.publisher(for: .panelKeyPress)) { notification in
+            guard let key = notification.object as? String else { return }
+            handleOverviewKeyPress(key)
+        }
+    }
+
+    /// Open one account's detail view. A signed-out card starts its sign-in instead.
+    private func select(_ card: AccountCard) {
+        if card.state == .signedOut {
+            addingProvider = card.provider
+            return
+        }
+        withAnimation(MotionConstants.standard) {
+            if card.id != accountStore.activeAccountId {
+                viewModel.switchAccount(to: card.id)
+            }
+            mode = .detail
+        }
+        // Mirror the panel-show path: let the core bars paint before the heavy sections.
+        DispatchQueue.main.async { deferredRender.appeared() }
+    }
+
+    /// In the overview, digits pick a card and `r` refreshes every account.
+    private func handleOverviewKeyPress(_ key: String) {
+        if key == "r" {
+            viewModel.scheduleFanOut()
+            Task { await viewModel.refresh() }
+            return
+        }
+        guard let index = Int(key), index >= 1 else { return }
+        let cards = overviewCards
+        guard index <= cards.count else { return }
+        select(cards[index - 1])
     }
 
     private var mainContent: some View {
@@ -281,34 +372,7 @@ public struct UsagePopoverView: View {
             }
 
             StyledDivider()
-            PopoverFooterView(
-                systemStatus: viewModel.systemStatus,
-                provider: accountStore.activeAccount?.provider ?? .claude,
-                apiKeyAccount: accountStore.activeAccount?.isAPIKeyAccount ?? false,
-                isLoading: viewModel.isLoading,
-                lastFreshFetch: viewModel.lastFreshFetch,
-                isShowingCachedData: viewModel.isShowingCachedData,
-                rateLimitSource: viewModel.snapshot?.rateLimits != nil ? viewModel.snapshot?.rateLimitSource : nil,
-                footerMessage: viewModel.errorMessage,
-                showLogoutConfirm: $showLogoutConfirm,
-                onLogout: {
-                    logoutRevertTask?.cancel()
-                    OAuthManager.shared.signOut()
-                    // `remove` reassigns the active account to `accounts.first`; re-point the
-                    // view model so a remaining account never shows the removed one's bars.
-                    viewModel.syncToActiveAccount()
-                    showLogoutConfirm = false
-                },
-                onRequestLogout: {
-                    showLogoutConfirm = true
-                    logoutRevertTask?.cancel()
-                    logoutRevertTask = Task {
-                        try? await Task.sleep(nanoseconds: MotionConstants.logoutConfirmNs)
-                        guard !Task.isCancelled else { return }
-                        showLogoutConfirm = false
-                    }
-                }
-            )
+            footerView
         }
         .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
         .contentShape(Rectangle())
@@ -334,11 +398,20 @@ public struct UsagePopoverView: View {
             handleKeyPress(key)
         }
         .onReceive(NotificationCenter.default.publisher(for: .panelDidShow)) { _ in
+            // Every open re-decides the face: two or more accounts land on the overview.
+            mode = PopoverMode.initial(eligibleAccountCount: eligibleAccountCount)
             // Deferred one run-loop (mirrors onAppear): the re-opened panel paints
-            // the core bars first, then the heavy sections fill in.
+            // the core bars first, then the heavy sections fill in. The overview has
+            // no heavy sections, so only the detail face arms them.
+            guard mode == .detail else { return }
             DispatchQueue.main.async {
                 deferredRender.appeared()
             }
+        }
+        .onReceive(accountStore.$accounts) { accounts in
+            // Signing out of the second-to-last account leaves the overview with nothing
+            // to compare; gaining one never yanks the user out of a detail view.
+            mode = PopoverMode.next(current: mode, eligibleAccountCount: AccountCard.eligibleCount(accounts: accounts))
         }
         .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in
             resetTransientPopoverState()
@@ -348,11 +421,46 @@ public struct UsagePopoverView: View {
         }
     }
 
+    /// The popover's footer — identical on both faces (links and timestamp follow the
+    /// active account).
+    private var footerView: some View {
+        PopoverFooterView(
+            systemStatus: viewModel.systemStatus,
+            provider: accountStore.activeAccount?.provider ?? .claude,
+            apiKeyAccount: accountStore.activeAccount?.isAPIKeyAccount ?? false,
+            isLoading: viewModel.isLoading,
+            lastFreshFetch: viewModel.lastFreshFetch,
+            isShowingCachedData: viewModel.isShowingCachedData,
+            rateLimitSource: viewModel.snapshot?.rateLimits != nil ? viewModel.snapshot?.rateLimitSource : nil,
+            footerMessage: viewModel.errorMessage,
+            showLogoutConfirm: $showLogoutConfirm,
+            onLogout: {
+                logoutRevertTask?.cancel()
+                OAuthManager.shared.signOut()
+                // `remove` reassigns the active account to `accounts.first`; re-point the
+                // view model so a remaining account never shows the removed one's bars.
+                viewModel.syncToActiveAccount()
+                showLogoutConfirm = false
+            },
+            onRequestLogout: {
+                showLogoutConfirm = true
+                logoutRevertTask?.cancel()
+                logoutRevertTask = Task {
+                    try? await Task.sleep(nanoseconds: MotionConstants.logoutConfirmNs)
+                    guard !Task.isCancelled else { return }
+                    showLogoutConfirm = false
+                }
+            }
+        )
+    }
+
     private func resetTransientPopoverState() {
         // No animation — panel is already hidden, animated state changes
         // would leave stale frames that show as blank space on next open.
         showSettings = false
         showLogoutConfirm = false
+        // Next open recomputes the face from the account count.
+        mode = .detail
         logoutRevertTask?.cancel()
         // Collapse the heavy sections while hidden — orderOut doesn't fire
         // onDisappear, so without this the hidden panel kept re-rendering

@@ -11,7 +11,6 @@ struct PopoverHeaderView: View {
     let onSwitchAccount: (String) -> Void
     let availableUpdate: VersionChecker.UpdateInfo?
 
-    @State private var gearHovered = false
     #if ENABLE_VERSION_CHECKER
     @State private var updateBannerDismissed = false
     #endif
@@ -47,27 +46,9 @@ struct PopoverHeaderView: View {
         #endif
     }
 
+    /// Shared with the overview header so both rows carry the identical control.
     private var gearButton: some View {
-        Button(action: { withAnimation(MotionConstants.standard) { showSettings.toggle() } }) {
-            Image(systemName: "gearshape")
-                .font(Typography.headerGear)
-                .frame(width: Layout.accountChipHeight, height: Layout.accountChipHeight)
-                .overlay(alignment: .topTrailing) {
-                    if gearShowsUpdateBadge {
-                        // A symbol, not a bare colored dot: readable without color vision.
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(Typography.decorativeIcon)
-                            .foregroundStyle(ThemeColors.updateAvailable)
-                            .padding(Spacing.tight)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(showSettings || gearHovered ? .primary : .secondary)
-        .onHover { gearHovered = $0 }
-        .help(gearShowsUpdateBadge ? "Settings — update available" : "Settings")
-        .accessibilityLabel(gearShowsUpdateBadge ? "Settings, update available" : "Settings")
-        .accessibilityHint(showSettings ? "Close settings" : "Open settings")
+        SettingsGearButton(showSettings: $showSettings, showsUpdateBadge: gearShowsUpdateBadge)
     }
 
     #if ENABLE_VERSION_CHECKER
