@@ -151,6 +151,11 @@ enum Layout {
     /// Header account chip height — also the gear button's hit target so the two align.
     static let accountChipHeight: CGFloat = 28
 
+    /// Overview card bar row: fixed columns so every card's gauges line up.
+    static let cardBarLabelWidth: CGFloat = 52
+    static let cardPercentWidth: CGFloat = 34
+    static let cardResetWidth: CGFloat = 46
+
     /// Gap between the brand mark and the identity in the header chip. 6pt, paired with
     /// the 3pt name→chevron gap: 8/3 read lopsided, 6/3 holds as one word-like cluster.
     static let accountChipSpacing: CGFloat = 6
