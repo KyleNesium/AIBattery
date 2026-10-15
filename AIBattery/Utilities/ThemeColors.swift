@@ -264,7 +264,7 @@ enum ThemeColors {
     static let betaBadgeOpacity: Double = 0.75
 
     /// Low point of the live dot's breath. High enough that it never looks switched off.
-    static let liveDotDimOpacity: Double = 0.35
+    static let liveDotDimOpacity: Double = 0.55
 
     static let subtleElementOpacity: Double = 0.12
 
