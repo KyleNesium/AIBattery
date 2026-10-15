@@ -260,9 +260,9 @@ enum ThemeColors {
     /// the hairline stroke, not the fill, is what gives the row its shape.
     static let rowHoverTintOpacity: Double = 0.07
     static let rowHoverStrokeOpacity: Double = 0.18
-    /// Leading accent bar on the active account's row: a quiet, permanent "you are here"
-    /// that doesn't compete with the transient hover highlight.
-    static let activeRowAccentOpacity: Double = 0.65
+    /// Unfilled part of an overview row's usage rail — fainter than a gauge track,
+    /// because the rail is a peripheral cue rather than something you read directly.
+    static let railTrackOpacity: Double = 0.16
 
     static let subtleElementOpacity: Double = 0.12
 

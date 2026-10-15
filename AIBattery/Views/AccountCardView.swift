@@ -57,16 +57,13 @@ struct AccountCardView: View {
         .accessibilityHint(card.state == .signedOut ? "Signs in to this account" : "Opens this account")
     }
 
-    /// Two separate signals, deliberately kept apart: a transient tint for the row the
-    /// pointer is on, and a permanent accent bar for the account that is actually active.
-    /// Both take their colour from the provider, so a highlight belongs to its account
-    /// rather than reading as a generic selection block.
+    /// Two layers: a transient provider-tinted wash for the row under the pointer, and a
+    /// permanent usage rail down the leading edge. The wash says "you are pointing here";
+    /// the rail says how much of that account is spent.
     private var rowHighlight: some View {
         ZStack(alignment: .leading) {
             hoverShape
-            if card.isActive {
-                activeAccent
-            }
+            usageRail
         }
         .animation(MotionConstants.standard, value: hovered)
     }
@@ -85,11 +82,30 @@ struct AccountCardView: View {
             }
     }
 
-    private var activeAccent: some View {
-        Capsule()
-            .fill(tint.opacity(ThemeColors.activeRowAccentOpacity))
-            .frame(width: Layout.activeAccentWidth)
+    /// A vertical restatement of the row's headline percent, filled from the bottom.
+    ///
+    /// It replaced an accent bar that marked the active account, which only ever meant
+    /// "the one you clicked last" — arbitrary, and invisible until you had clicked. Every
+    /// row carries this one, and its colour is the same scale the gauges use, so running
+    /// an eye down the left edge tells you which account is hot without reading a number.
+    /// Rows with no reading yet show nothing at all rather than an empty track.
+    @ViewBuilder
+    private var usageRail: some View {
+        if let percent = card.worstPercent {
+            let fraction = min(max(percent / 100, 0), 1)
+            GeometryReader { geo in
+                ZStack(alignment: .bottom) {
+                    Capsule()
+                        .fill(ThemeColors.barColor(percent: percent).opacity(ThemeColors.railTrackOpacity))
+                    Capsule()
+                        .fill(ThemeColors.barColor(percent: percent))
+                        .frame(height: geo.size.height * fraction)
+                }
+            }
+            .frame(width: Layout.usageRailWidth)
             .padding(.vertical, Spacing.gap)
+            .accessibilityHidden(true)
+        }
     }
 
     private var header: some View {
