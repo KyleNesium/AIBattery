@@ -37,12 +37,11 @@ enum MenuBarMultiAccountText {
         order: [String],
         providers: [String: AIProvider] = [:],
         limits: [String: RateLimitUsage],
+        apiLimits: [String: StandardRateLimits] = [:],
         metricMode: MetricMode
     ) -> Output {
-        let resolvedMode: MetricMode = (metricMode == .contextHealth) ? .fiveHour : metricMode
         let parts: [String] = order.map { id in
-            guard let usage = limits[id] else { return "—" }
-            let pct = percent(for: usage, mode: resolvedMode)
+            guard let pct = headlinePercent(id: id, limits: limits, apiLimits: apiLimits) else { return "—" }
             return "\(Int(pct.rounded()))%"
         }
 
@@ -66,10 +65,12 @@ enum MenuBarMultiAccountText {
         // and driving the icon off those turned the star red — or started a countdown — for
         // an account with no visible percentage beside it.
         let shown = order.compactMap { limits[$0] }
-        let worstPercent = shown
-            .map { percent(for: $0, mode: resolvedMode) }
+        let shownAPI = order.compactMap { apiLimits[$0] }
+        let worstPercent = order
+            .compactMap { headlinePercent(id: $0, limits: limits, apiLimits: apiLimits) }
             .max() ?? 0
         let anyThrottled = shown.contains { isExhausted($0) }
+            || shownAPI.contains { $0.isRequestsExhausted || $0.isTokensExhausted }
         return Output(text: text, worstPercent: worstPercent, anyThrottled: anyThrottled)
     }
 
@@ -120,7 +121,7 @@ enum MenuBarMultiAccountText {
     /// Whether the toggle would render a multi-account display given current state.
     ///
     /// - Parameter fetchedAccountCount: count of accounts with **fetched rate-limit
-    ///   data** (i.e. `UsageViewModel.perAccountRateLimits.count`), NOT the count of
+    ///   data** (windowed + API-key readings, i.e. `perAccountReadings.count`), NOT the count of
     ///   authenticated accounts. v2.2.0 shipped a regression where the call site
     ///   passed `accountStore.accounts.count`, which fired the multi-account branch
     ///   before the fan-out had populated any data, rendering "— | —" indefinitely
@@ -143,6 +144,8 @@ enum MenuBarMultiAccountText {
     /// - Parameters:
     ///   - toggleOn: `aibattery_showAllAccountsInMenuBar` UserDefaults value.
     ///   - perAccount: `UsageViewModel.perAccountRateLimits` (keyed by accountId).
+    ///   - apiLimits: `UsageViewModel.perAccountAPILimits` — Codex API-key accounts' per-minute
+    ///     limits; their slot shows `peakPercent` regardless of `metricMode`.
     ///   - providers: per-account provider, keyed by account ID. Defaults to empty (single provider mode).
     ///   - order: account IDs in display order (typically authenticated, non-pending
     ///     accounts from `AccountStore.accounts`).
@@ -165,6 +168,7 @@ enum MenuBarMultiAccountText {
     static func resolveDisplay(
         toggleOn: Bool,
         perAccount: [String: RateLimitUsage],
+        apiLimits: [String: StandardRateLimits] = [:],
         providers: [String: AIProvider] = [:],
         order: [String],
         activeRateLimits: RateLimitUsage?,
@@ -181,10 +185,15 @@ enum MenuBarMultiAccountText {
         // broken star or a countdown — only the last-known percentage.
         let activeIsExhausted = confirmed && (activeRateLimits?.isThrottled ?? false)
 
-        let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: perAccount.count)
+        let fetchedCount = perAccount.count + apiLimits.count
+        let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: fetchedCount)
+        // With several accounts but the list turned off, the bar still has to agree with
+        // the overview the popover opens on: one number, the worst account's headline.
+        // Only a genuinely single-account bar follows the metric tabs.
+        let useWorstOnly = !useMulti && fetchedCount >= 2 && order.count >= 2
 
         if useMulti {
-            let multi = build(order: order, providers: providers, limits: perAccount, metricMode: metricMode)
+            let multi = build(order: order, providers: providers, limits: perAccount, apiLimits: apiLimits, metricMode: metricMode)
             let percent = max(multi.worstPercent, activePercent)
             let isExhausted = confirmed && (multi.anyThrottled || (activeRateLimits?.isThrottled ?? false))
             let reset: Date? = confirmed
@@ -207,6 +216,31 @@ enum MenuBarMultiAccountText {
                 isExhausted: isExhausted,
                 countdownReset: reset,
                 usedMultiAccount: true
+            )
+        } else if useWorstOnly {
+            let worst = order
+                .compactMap { headlinePercent(id: $0, limits: perAccount, apiLimits: apiLimits) }
+                .max() ?? activePercent
+            let shown = order.compactMap { perAccount[$0] }
+            let shownAPI = order.compactMap { apiLimits[$0] }
+            let isExhausted = confirmed && (
+                shown.contains { $0.isThrottled }
+                    || shownAPI.contains { $0.isRequestsExhausted || $0.isTokensExhausted }
+            )
+            let reset: Date? = confirmed
+                ? shown.compactMap { countdownResetDate($0, now) }.min()
+                : nil
+            let text: String = if let reset {
+                RateLimitUsage.countdownText(to: reset)
+            } else {
+                "\(Int(worst.rounded()))%"
+            }
+            return Display(
+                text: text,
+                percent: worst,
+                isExhausted: isExhausted,
+                countdownReset: reset,
+                usedMultiAccount: false
             )
         } else {
             let activeReset: Date? = confirmed ? activeRateLimits.flatMap { countdownResetDate($0, now) } : nil
@@ -242,6 +276,29 @@ enum MenuBarMultiAccountText {
     }
 
     // MARK: - Private
+
+    /// What one account contributes to the menu bar when several are on screen: the
+    /// SAME number its overview card leads with — the fuller window, the credit budget,
+    /// or the busier per-minute limit.
+    ///
+    /// The metric tabs (5H / 7D / Context) choose what the *detail* view is about, so a
+    /// single-account menu bar follows them. With several accounts there is no single
+    /// metric being looked at, and following the tab meant the bar could read "6%" for an
+    /// account whose card said 94% — the 5-hour window was quiet while the weekly one was
+    /// nearly spent. The headline is the number that actually tells you to stop.
+    static func headlinePercent(
+        id: String,
+        limits: [String: RateLimitUsage],
+        apiLimits: [String: StandardRateLimits]
+    ) -> Double? {
+        // Delegate to the one definition of "headline" so the bar and the cards cannot
+        // drift. `fetchedAt`/`isCached` play no part in the number.
+        guard limits[id] != nil || apiLimits[id] != nil else { return nil }
+        return AccountReading(
+            windows: limits[id], apiLimits: apiLimits[id],
+            fetchedAt: .distantPast, isCached: false, source: nil
+        ).worstPercent
+    }
 
     private static func percent(for usage: RateLimitUsage, mode: MetricMode) -> Double {
         switch mode {

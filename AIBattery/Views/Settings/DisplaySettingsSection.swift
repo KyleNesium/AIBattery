@@ -65,7 +65,7 @@ struct DisplaySettingsSection: View {
                 Toggle("All accounts in menu bar", isOn: $showAllAccountsInMenuBar)
                     .toggleStyle(.checkbox)
                     .font(Typography.caption)
-                    .help("Show every connected account's usage in the menu bar (e.g. 42% | 23%). Star color and countdown reflect the worst account.")
+                    .help("List every account's usage in the menu bar (e.g. 42% | 23%). The popover already shows all accounts whenever you have more than one; this adds them to the menu bar too. Star color and countdown reflect the worst account.")
             }
             HStack(spacing: Spacing.section) {
                 Text("")

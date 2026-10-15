@@ -245,18 +245,18 @@ A full spec/code audit found **no wrong constant values and no version drift** �
 `project.yml`, `Info.plist` and the CHANGELOG. The defects are omissions and stale
 references. Most user-facing first:
 
-- [ ] **README's privacy table omits `api.openai.com`**, which is contacted on every
+- [x] **README's privacy table omits `api.openai.com`**, which is contacted on every
   API-key registration (`/v1/models`) and every poll for an API-key account
   (`/v1/responses`). `spec/ARCHITECTURE.md` has the same gap in a list it calls
   "exhaustive".
-- [ ] **README claims each release runs `verify-release.sh`.** The script exists and does
-  everything claimed, but no workflow invokes it — it is manual-only. Either wire it into
-  `release.yml` or reword the claim.
-- [ ] **README's uninstall instructions leave files behind** — they say "AI Battery
+- [x] ~~**README claims each release runs `verify-release.sh`.**~~ Not a defect: `release.yml`
+  runs it before the GitHub Release step (gated on the Sparkle signing key) since 62e73cd;
+  the README now says so explicitly (2026-10-12).
+- [x] **README's uninstall instructions leave files behind** — they say "AI Battery
   doesn't write any other files", contradicted 171 lines earlier by its own description
   of `~/Library/Application Support/AIBattery/token-ledger.json`. CONSTANTS.md's File
   Paths table omits the ledger too.
-- [ ] **README says each account has its own tokens.** Rate limits and identity are
+- [x] **README says each account has its own tokens.** Rate limits and identity are
   per-account; tokens are not — `~/.codex/sessions` is scanned provider-wide, as this
   file's own first Codex item records.
 - [ ] **CHANGELOG describes the up/down switcher glyph that was tried and rejected**;

@@ -1,5 +1,50 @@
 # Changelog
 
+## [3.1.0] — 2026-10-15
+
+### ✨ Added: multi-account overview
+
+With more than one account the popover now opens on **all of them at once** — a card
+per account with its bars, tokens and resets — instead of whichever one you last used.
+One account sees no change.
+
+### Added
+- **Multi-account overview.** With two or more accounts the popover opens on a card
+  per account: its headline percent (the worst window), quota bars with the tokens
+  spent in each window, time to limit and the reset countdown. Clicking a card — or
+  pressing `1`–`6` — opens that account; the back chevron beside its name, or Escape,
+  returns; `R` refreshes every account. A signed-out account appears as a sign-in card
+  rather than disappearing, and a provider's status dot shows only when that provider
+  is actually degraded or down. A small dot breathes beside an account's name while
+  its provider's CLI is actually in use, so the list also says which account you are
+  hitting right now. The popover remembers where you were: drill into an account,
+  click away, reopen, and you are still in that account. Going in and coming back
+  slide a few points in the direction of travel, and the navigation chevrons light
+  up in the account's own colour on hover. One account sees no change at all.
+- **The menu bar agrees with it.** With two or more accounts the bar leads with the
+  account closest to a limit — the same number its card shows — rather than whichever
+  metric tab happens to be selected, so the two can no longer disagree. A
+  single-account menu bar still follows the tabs.
+- **Codex API-key accounts in the multi-account menu bar.** Their slot shows the busier per-minute limit (requests or tokens) instead of being left out; a transient fetch failure keeps the previous reading for every account rather than blanking its slot.
+
+### Fixed
+- **Settings no longer clips.** Opening Settings, or changing content inside it,
+  sometimes left the popover at its previous height with the content centred
+  and cut off at the top and bottom (header off-screen, About/footer hidden).
+  The panel refit was only triggered by AppKit's window auto-resize side effect,
+  which did not always fire; it now keys off SwiftUI's own intrinsic-size
+  invalidation as well. (#196)
+
+### Changed
+- Settings → Refresh shows the real per-account poll cost ("×N accounts") once the
+  fan-out is running, and the menu-bar toggle's hint explains that the popover already
+  shows every account.
+- **Projects is marked beta.** Per-project attribution is derived from session working
+  directories and doesn't yet cover every case, so its header now says so.
+- README and website screenshots refreshed for the v3.0.0 UI. (#195)
+- CI: the release job retries the DMG detach before forcing it. (#194)
+- **Sparkle 2.9.6 → 2.10.0** — minor update within the existing `2.6.0..<3.0.0` range. Sparkle now requires macOS 12 (AI Battery already requires 13) and drops CocoaPods (AI Battery uses SPM); no app-facing change. (#199)
+
 ## [3.0.0] — 2026-10-11
 
 **Major release: Codex (OpenAI) accounts.** AI Battery becomes a two-provider

@@ -542,6 +542,7 @@ Codex rollouts (`CodexSessionLogReader` / `CodexSessionLogParser`) reuse the 64 
 |------|---------|
 | macOS Keychain, service `"AIBattery"` | OAuth refresh token only (`refreshToken_{accountId}` Claude / `refreshToken_codex_{accountId}` Codex); access token in memory, expiry in UserDefaults (`aibattery_expiresAt_{storageKey}`) |
 | `~/Library/Application Support/AIBattery/aibattery.lock` | Single-instance POSIX file lock |
+| `~/Library/Application Support/AIBattery/token-ledger.json` | Persistent per-model token high-water ledger (`TokenLedger`); keeps totals from dropping on a stats-cache rebuild |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |
 | `~/.claude/projects/*/[session-id].jsonl` | Session token data |
 | `~/.claude/projects/*/subagents/*.jsonl` | Subagent session data |

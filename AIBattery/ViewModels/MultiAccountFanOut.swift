@@ -28,8 +28,8 @@ protocol RateLimitFetching: Sendable {
 /// Account surface the fan-out needs: which accounts to display, and their tokens.
 @MainActor
 protocol MultiAccountTokenProviding: Sendable {
-    /// Account IDs eligible for the multi-account menu bar, in display order:
-    /// non-pending (identity resolved) AND currently authenticated.
+    /// Account IDs eligible for the multi-account fan-out (menu bar + overview), in
+    /// display order: non-pending (identity resolved) AND currently authenticated.
     func multiAccountDisplayIDs() -> [String]
     /// Current access token for an account, refreshing if needed. `nil` if unavailable.
     func accessToken(for accountId: String) async -> String?
@@ -66,9 +66,8 @@ extension AccountStore {
     ) -> [String] {
         displayOrdered(accounts)
             .filter { !$0.isPendingIdentity }
-            // API-key accounts have per-minute limits, not windows — the fan-out has no
-            // `RateLimitUsage` for them, so listing them would render a permanent "—" slot.
-            .filter { !$0.isAPIKeyAccount }
+            // API-key accounts are eligible: the fan-out carries their per-minute limits
+            // as `AccountReading.apiLimits` (menu-bar slot + overview card).
             .filter { isAuthenticated($0.id) }
             .map(\.id)
     }
@@ -77,7 +76,15 @@ extension AccountStore {
 /// Stateless orchestration for the multi-account fan-out. See file header.
 @MainActor
 enum MultiAccountFanOut {
-    /// Resolve the per-account rate-limit map for the multi-account menu bar.
+    /// Providers (other than the active one) that have an eligible account, so the
+    /// overview can show a status dot on every card. Each `StatusChecker` instance
+    /// keeps its own cache + exponential backoff, so polling both per cycle is safe.
+    nonisolated static func otherProviders(eligible: [AccountRecord], active: AIProvider) -> [AIProvider] {
+        let providers = Set(eligible.map(\.provider)).subtracting([active])
+        return AIProvider.allCases.filter { providers.contains($0) }
+    }
+
+    /// Resolve the per-account readings for the multi-account menu bar and the overview.
     ///
     /// Net cost is **N requests for N accounts, not N+1**: `RateLimitFetcher.fetch`
     /// does not short-circuit on cache, so the active account that `refresh()` just
@@ -85,22 +92,25 @@ enum MultiAccountFanOut {
     /// re-fetched.
     ///
     /// - Parameters:
-    ///   - enabled: the `aibattery_showAllAccountsInMenuBar` toggle.
+    ///   - enabled: `FanOutGate.enabled(...)` — the menu-bar toggle OR ≥ 2 eligible accounts.
     ///   - seed: the active account's just-fetched `(id, rateLimits)`, or `nil` when
     ///     the active fetch was cached/absent. Injected into the result without a
     ///     network call; that account is dropped from the fan-out.
+    ///   - previous: the caller's current map. An account whose fetch fails keeps its
+    ///     previous reading, marked cached, so a card never blanks out between polls.
     ///   - provider: account list + per-account tokens.
     ///   - fetcher: per-account rate-limit network fetch.
     ///   - now: injected clock for rollover-artifact normalization (testability).
-    /// - Returns: `nil` when the toggle is off OR there is nothing to fetch and no
-    ///   seed (caller clears its map); otherwise the normalized per-account map.
+    /// - Returns: `nil` when disabled OR there is nothing to fetch and no seed (caller
+    ///   clears its map); otherwise the normalized per-account map.
     static func resolve(
         enabled: Bool,
         seed: (accountId: String, rateLimits: RateLimitUsage)?,
+        previous: [String: AccountReading] = [:],
         provider: MultiAccountTokenProviding,
         fetcher: RateLimitFetching,
         now: Date = .now
-    ) async -> [String: RateLimitUsage]? {
+    ) async -> [String: AccountReading]? {
         guard enabled else { return nil }
 
         let idsToFetch = provider.multiAccountDisplayIDs().filter { $0 != seed?.accountId }
@@ -108,13 +118,15 @@ enum MultiAccountFanOut {
             return nil
         }
 
-        var collected: [String: RateLimitUsage] = [:]
+        var collected: [String: AccountReading] = [:]
         if let seed {
-            collected[seed.accountId] = seed.rateLimits
+            collected[seed.accountId] = AccountReading(
+                windows: seed.rateLimits, apiLimits: nil, fetchedAt: now, isCached: false, source: nil
+            )
         }
 
         if !idsToFetch.isEmpty {
-            let fetched = await withTaskGroup(of: (String, RateLimitUsage?).self) { group -> [String: RateLimitUsage] in
+            let fetched = await withTaskGroup(of: (String, AccountReading?).self) { group -> [String: AccountReading] in
                 for id in idsToFetch {
                     group.addTask {
                         // A skipped account renders as "—" in the menu bar; without
@@ -124,22 +136,29 @@ enum MultiAccountFanOut {
                             return (id, nil)
                         }
                         let api = await fetcher.fetch(accessToken: token, accountId: id)
-                        if api.rateLimits == nil {
-                            AppLogger.network.info("Fan-out skipped \(id, privacy: .public): fetch returned no rate limits")
+                        let reading = AccountReading(api: api)
+                        if reading == nil {
+                            AppLogger.network.info("Fan-out skipped \(id, privacy: .public): fetch returned no limits")
                         }
-                        return (id, api.rateLimits)
+                        return (id, reading)
                     }
                 }
-                var inner: [String: RateLimitUsage] = [:]
-                for await (id, limits) in group {
-                    if let limits {
-                        inner[id] = limits
+                var inner: [String: AccountReading] = [:]
+                for await (id, reading) in group {
+                    if let reading {
+                        inner[id] = reading
                     }
                 }
                 return inner
             }
-            for (id, limits) in fetched {
-                collected[id] = limits
+            for id in idsToFetch {
+                if let reading = fetched[id] {
+                    collected[id] = reading
+                } else if let old = previous[id] {
+                    // Keep the last reading rather than dropping the slot: a transient
+                    // failure must not blank a card or a menu-bar slot between polls.
+                    collected[id] = old.carriedForward()
+                }
             }
         }
 
@@ -148,8 +167,6 @@ enum MultiAccountFanOut {
         // throttle whose reset passed during an absence must not keep counting as a live
         // throttle in the menu bar — then suppress rollover artifacts so a just-reset
         // window doesn't show a stale near-full reading.
-        return collected.mapValues {
-            $0.withClearedExpiredWindows(now: now).withClearedRolloverArtifacts(now: now)
-        }
+        return collected.mapValues { $0.normalized(now: now) }
     }
 }

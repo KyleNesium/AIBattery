@@ -34,6 +34,8 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 
 Local logs are machine-wide per provider: every Codex account shows the same `~/.codex/sessions` analytics (exactly as multiple Claude accounts share `~/.claude`).
 
+**Per-account readings.** The multi-account fan-out (`MultiAccountFanOut.resolve`) returns one `AccountReading` per eligible account — windowed limits (Claude, Codex ChatGPT, credit budgets) *or* per-minute API-key limits — and runs whenever the menu-bar toggle is on **or** ≥ 2 eligible accounts exist (`FanOutGate`), because it is also the data source of the multi-account overview.
+
 ## Data Flow
 
 ```
@@ -149,7 +151,7 @@ AIBattery/
     UsageViewModel+Statics.swift  — `nonisolated static` pure helpers: refresh-interval clamping, error-message string, change detection, TTL-guarded effective rate-limits / values
     UsageViewModel+Lifecycle.swift — File watcher setup, sleep/wake/screen-lock observers, idle-suspend + activity-monitor resume, polling timer (start/restart/updateInterval)
     UsageViewModel+FanOut.swift   — Thin wrapper: `scheduleFanOut` + `fetchAllAccounts(seed:)` delegate to `MultiAccountFanOut.resolve` and assign the result to `perAccountRateLimits`
-    MultiAccountFanOut.swift      — Multi-account fan-out orchestration
+    MultiAccountFanOut.swift      — Multi-account fan-out orchestration → `[String: AccountReading]` (windows | per-minute apiLimits; previous reading carried forward on failure)
     ProviderDispatchingFetcher.swift — Routes each fan-out fetch: Claude → RateLimitFetcher, Codex ChatGPT → CodexRateLimitFetcher.fetch, Codex API key → fetchAPIKeyLimits (never the ChatGPT endpoint)
     UsageViewModel+ProviderRouting.swift — Aggregator / fetcher-cache / fetch / status routing by the active account's provider + Codex plan-name sync (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
   Views/
@@ -287,7 +289,7 @@ Tests/AIBatteryCoreTests/
   ViewModels/
     UsageViewModelTests.swift     — Refresh interval clamping, error messages, effective value guard
     UsageViewModelIdleTests.swift — Idle threshold constants, suspend policy
-    MultiAccountFanOutTests.swift — Fan-out orchestration (seed dedup, toggle-off clear, missing-token skip) + eligible-account filter
+    MultiAccountFanOutTests.swift — Fan-out orchestration (seed dedup, toggle-off clear, missing-token skip, API-key routing, carry-forward) + eligible-account filter
   Views/
     ActivityChartDataTests.swift  — 5H/7D/12M chart data transforms
     ActivityChartIsEmptyTests.swift — Empty state detection for chart modes
@@ -365,6 +367,7 @@ CHANGELOG.md                      — Release notes per version
 11. `GET https://auth.openai.com/oauth/authorize` — Codex OAuth login (opens in browser, one-time; redirects to `http://localhost:1455/auth/callback`)
 12. `POST https://auth.openai.com/oauth/token` — Codex token exchange + auto-refresh
 13. `POST https://api.openai.com/v1/responses` — **API-key Codex accounts only**: a 16-token nano probe whose response headers carry the per-minute `x-ratelimit-*` limits (the Codex mirror of the Claude Messages probe; no ChatGPT windows exist for API keys)
+14. `GET https://api.openai.com/v1/models` — **API-key Codex accounts only**: one request when the key is added, to validate it before the account is registered (if the endpoint is unreachable the account is added with a note, and the first regular `/v1/responses` probe — item 13 — serves as the check)
 
 ## Local File Access (exhaustive)
 

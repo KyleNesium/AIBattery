@@ -100,6 +100,9 @@ struct ProjectUsageSection: View {
                 collapsed: $collapsed,
                 tooltip: "Token usage grouped by project directory (recent sessions)"
             )
+            // Per-project attribution is derived from session working directories and
+            // doesn't yet account for every case, so the numbers are indicative.
+            BetaBadge(tooltip: "Per-project attribution is still being refined — treat these totals as indicative.")
             Spacer()
             Text(costText)
                 .font(Typography.monoCaption)

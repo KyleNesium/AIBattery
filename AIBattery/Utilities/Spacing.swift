@@ -151,6 +151,22 @@ enum Layout {
     /// Header account chip height — also the gear button's hit target so the two align.
     static let accountChipHeight: CGFloat = 28
 
+    /// Detail header's back control: a square big enough to hit comfortably and to
+    /// carry a hover fill, still narrow enough to hug the title cluster.
+    static let backChevronWidth: CGFloat = 20
+
+    /// How far a navigation chevron slides toward its destination on hover.
+    static let chevronHoverShift: CGFloat = 3
+
+    /// Square hit area behind a card's drill-in chevron — matches the back control.
+    static let chevronHitSize: CGFloat = 20
+
+    /// Overview card bar row: fixed columns so every card's gauges line up.
+    static let cardBarLabelWidth: CGFloat = 52
+    static let cardPercentWidth: CGFloat = 34
+    static let cardTokensWidth: CGFloat = 40
+    static let cardResetWidth: CGFloat = 46
+
     /// Gap between the brand mark and the identity in the header chip. 6pt, paired with
     /// the 3pt name→chevron gap: 8/3 read lopsided, 6/3 holds as one word-like cluster.
     static let accountChipSpacing: CGFloat = 6
@@ -191,6 +207,9 @@ enum Layout {
 /// Centralizes the two dominant animation durations found across the codebase.
 /// Pattern matches ThemeColors/Typography/Spacing: caseless enum as namespace.
 enum MotionConstants {
+    /// The live dot's breath: slow, symmetric, forever. Slow enough to be peripheral.
+    static let breathe: Animation = .easeInOut(duration: 1.6).repeatForever(autoreverses: true)
+
     /// Standard section expand/collapse and metric value animation: 0.15s easeOut.
     static let standard: Animation = .easeOut(duration: 0.15)
 
@@ -245,6 +264,27 @@ enum MotionConstants {
     /// inserting/removing view while the panel is simultaneously resizing,
     /// which reads as a "jump" rather than a smooth expand. Cross-fade
     /// hides the resize boundary cleanly.
+    /// How far a face slides when the popover drills in or backs out. A few points of
+    /// horizontal travel under the fade is enough to say "deeper" / "back"; a full-width
+    /// slide (`.move(edge:)`) is banned because it fights the panel's vertical re-anchor.
+    static let faceShift: CGFloat = 12
+
+    /// Going in: the overview leaves to the left, the detail arrives from the right.
+    static var overviewFaceTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .offset(x: -faceShift)),
+            removal: .opacity.combined(with: .offset(x: -faceShift))
+        )
+    }
+
+    /// Coming back: the detail leaves to the right, the overview returns from the left.
+    static var detailFaceTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .offset(x: faceShift)),
+            removal: .opacity.combined(with: .offset(x: faceShift))
+        )
+    }
+
     static var expandTransition: AnyTransition {
         .opacity
     }

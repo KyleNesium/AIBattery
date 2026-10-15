@@ -10,15 +10,25 @@ struct PopoverHeaderView: View {
     let onAddAccount: (AIProvider) -> Void
     let onSwitchAccount: (String) -> Void
     let availableUpdate: VersionChecker.UpdateInfo?
+    /// Shown when there is an overview to go back to (two or more accounts).
+    var showsBack: Bool = false
+    var onBack: () -> Void = {}
 
-    @State private var gearHovered = false
+    @State private var backHovered = false
+
     #if ENABLE_VERSION_CHECKER
     @State private var updateBannerDismissed = false
     #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.inner) {
-            HStack(alignment: .center, spacing: Spacing.inner) {
+            HStack(alignment: .center, spacing: showsBack ? Spacing.xsmall : Spacing.inner) {
+                if showsBack {
+                    backButton
+                        // Arrives from the direction it leads: a short slide in from the
+                        // left, so landing on a detail view shows you the way back.
+                        .transition(.opacity.combined(with: .offset(x: -MotionConstants.faceShift)))
+                }
                 AccountChipView(
                     accountStore: accountStore,
                     onAddAccount: onAddAccount,
@@ -38,6 +48,41 @@ struct PopoverHeaderView: View {
         .padding(.vertical, Spacing.section)
     }
 
+    /// Whether the detail view has an overview to return to. The overview only exists
+    /// with two or more accounts, so a single-account popover never shows the chevron.
+    nonisolated static func showsBack(eligibleAccountCount: Int) -> Bool {
+        eligibleAccountCount >= 2
+    }
+
+    /// Mirrors the overview card's drill-in chevron — same glyph family, same size,
+    /// sliding the same couple of points but the other way, so going in and coming back
+    /// read as one gesture reversed. The rounded hover fill is what says "control";
+    /// at rest it is just a quiet chevron beside the title.
+    /// The colour the back chevron lights up in: the account you are backing out of.
+    private var backTint: Color {
+        ThemeColors.providerBadge(accountStore.activeAccount?.provider ?? .claude)
+    }
+
+    private var backButton: some View {
+        Button(action: onBack) {
+            Image(systemName: "chevron.backward")
+                .font(Typography.navChevron)
+                .foregroundStyle(backHovered ? backTint : ThemeColors.secondaryLabel)
+                // Same treatment as the card's drill-in chevron, reversed: it takes the
+                // account's colour and glows in it rather than sitting in a box.
+                .shadow(color: backTint.opacity(backHovered ? ThemeColors.chevronGlowOpacity : 0), radius: Layout.glowRadius)
+                .offset(x: backHovered ? -Layout.chevronHoverShift : 0)
+                .frame(width: Layout.backChevronWidth, height: Layout.accountChipHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { backHovered = $0 }
+        .animation(MotionConstants.standard, value: backHovered)
+        .help("All accounts")
+        .accessibilityLabel("Back to all accounts")
+        .accessibilityHint("Shows every account at once")
+    }
+
     /// Whether a found-but-dismissed update should badge the gear (Settings → About holds the install action).
     private var gearShowsUpdateBadge: Bool {
         #if ENABLE_VERSION_CHECKER
@@ -47,27 +92,9 @@ struct PopoverHeaderView: View {
         #endif
     }
 
+    /// Shared with the overview header so both rows carry the identical control.
     private var gearButton: some View {
-        Button(action: { withAnimation(MotionConstants.standard) { showSettings.toggle() } }) {
-            Image(systemName: "gearshape")
-                .font(Typography.headerGear)
-                .frame(width: Layout.accountChipHeight, height: Layout.accountChipHeight)
-                .overlay(alignment: .topTrailing) {
-                    if gearShowsUpdateBadge {
-                        // A symbol, not a bare colored dot: readable without color vision.
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(Typography.decorativeIcon)
-                            .foregroundStyle(ThemeColors.updateAvailable)
-                            .padding(Spacing.tight)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(showSettings || gearHovered ? .primary : .secondary)
-        .onHover { gearHovered = $0 }
-        .help(gearShowsUpdateBadge ? "Settings — update available" : "Settings")
-        .accessibilityLabel(gearShowsUpdateBadge ? "Settings, update available" : "Settings")
-        .accessibilityHint(showSettings ? "Close settings" : "Open settings")
+        SettingsGearButton(showSettings: $showSettings, showsUpdateBadge: gearShowsUpdateBadge)
     }
 
     #if ENABLE_VERSION_CHECKER

@@ -76,6 +76,12 @@ enum Typography {
     /// The chip's switcher glyph (`chevron.down`, hugging the name) — small and quiet.
     static let switcherChevron: Font = .system(size: 8, weight: .semibold)
 
+    /// Navigation chevrons: the card's drill-in arrow and the detail header's back
+    /// arrow. Deliberately larger and lighter than `switcherChevron` — that one is a
+    /// hint attached to a title, these are controls you aim at. The two share a size
+    /// so going in and coming back feel like one gesture reversed.
+    static let navChevron: Font = .system(size: 11, weight: .medium)
+
     /// Header Settings gear — 12pt regular. `bodyLabel` (11pt medium) rendered the
     /// stroked gear visibly heavier than the chip's 8pt chevron; both header controls
     /// now share one weight and one tone (secondary at rest, primary on hover).
@@ -83,6 +89,10 @@ enum Typography {
 
     /// Badge/tag label text (e.g. "binding" pill in session views).
     static let badgeLabel: Font = .system(size: 10, weight: .medium, design: .monospaced)
+
+    /// "beta" beside a section title — a notch smaller than `badgeLabel` and unweighted,
+    /// so it qualifies the heading rather than competing with it.
+    static let betaBadge: Font = .system(size: 9, weight: .regular, design: .monospaced)
 
     /// Auth flow icon — 13pt for large SF Symbol in sign-in button.
     static let authIcon: Font = .system(size: 13)

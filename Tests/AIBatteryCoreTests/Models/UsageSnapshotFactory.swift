@@ -1,0 +1,78 @@
+import Foundation
+@testable import AIBatteryCore
+
+/// A snapshot with everything zeroed except the handful of fields a test cares about.
+/// `UsageSnapshot`'s initializer takes ~40 arguments; spelling it out per suite buried
+/// the one line that mattered.
+enum UsageSnapshotFactory {
+    static func make(
+        fiveHourTokens: Int = 0,
+        sevenDayTokens: Int = 0,
+        todayTokens: Int = 0,
+        provider: AIProvider = .claude,
+        fiveHourTokenBuckets: [Int: Int] = [:],
+        lastActivities: [Date] = []
+    ) -> UsageSnapshot {
+        let sessions: [TokenHealthStatus] = lastActivities.enumerated().map { index, date in
+            TokenHealthStatus(
+                id: "s\(index)", band: .green, usagePercentage: 0,
+                totalUsed: 0, contextWindow: 200_000, usableWindow: 200_000, remainingTokens: 200_000,
+                inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+                model: provider == .codex ? "gpt-6-astra" : "claude-opus-5", turnCount: 1, warnings: [],
+                tokensPerMinute: nil, projectName: nil, gitBranch: nil,
+                sessionStart: nil, sessionDuration: nil, lastActivity: date
+            )
+        }
+        let today: [ModelTokenSummary] = todayTokens == 0 ? [] : [
+            ModelTokenSummary(
+                id: provider == .codex ? "gpt-6-astra" : "claude-opus-5",
+                displayName: "Test",
+                inputTokens: todayTokens,
+                outputTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                estimatedCost: 0
+            ),
+        ]
+        return UsageSnapshot(
+            lastUpdated: Date(),
+            rateLimits: nil,
+            rateLimitSource: nil,
+            standardLimits: nil,
+            rateLimitsFresh: true,
+            firstSessionDate: nil,
+            totalSessions: 0,
+            totalMessages: 0,
+            longestSessionDuration: nil,
+            longestSessionMessages: 0,
+            peakHour: nil,
+            peakHourCount: 0,
+            todayMessages: 0,
+            todaySessions: 0,
+            todayToolCalls: 0,
+            modelTokens: [],
+            projectTokens: [],
+            totalTokens: 0,
+            totalUsageTokens: 0,
+            totalProjectTokens: 0,
+            totalProjectUsageTokens: 0,
+            totalProjectCost: 0,
+            fiveHourTokens: fiveHourTokens,
+            sevenDayTokens: sevenDayTokens,
+            fiveHourTokenBuckets: fiveHourTokenBuckets,
+            dailyTokenTotals: [:],
+            todayModelTokens: today,
+            weekModelTokens: [],
+            monthModelTokens: [],
+            dailyActivity: [],
+            dailyAverage: 0,
+            trendDirection: .flat,
+            busiestDayOfWeek: nil,
+            hourCounts: [:],
+            todayHourCounts: [:],
+            tokenHealth: nil,
+            topSessionHealths: sessions,
+            provider: provider
+        )
+    }
+}

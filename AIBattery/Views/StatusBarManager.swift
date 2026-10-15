@@ -65,6 +65,10 @@ public final class StatusBarManager: NSObject {
     var statusItem: NSStatusItem?
     var panel: PopoverPanel?
     var hostingView: TransparentHostingView<PopoverContentView>?
+    /// Asked before Escape closes the panel: the SwiftUI root returns true when it
+    /// consumed the key itself (e.g. the detail view stepped back to the overview).
+    /// Set by `PopoverContentView` on appear.
+    var escapeHandler: (() -> Bool)?
     weak var viewModel: UsageViewModel?
     private var cancellables = Set<AnyCancellable>()
     /// Last observed value of the multi-account toggle — used to filter the
@@ -170,7 +174,11 @@ public final class StatusBarManager: NSObject {
         }
 
         let hosting = TransparentHostingView(
-            rootView: PopoverContentView(viewModel: viewModel, oauthManager: oauthManager)
+            rootView: PopoverContentView(
+                viewModel: viewModel,
+                oauthManager: oauthManager,
+                registerEscapeHandler: { [weak self] handler in self?.escapeHandler = handler }
+            )
         )
         hosting.translatesAutoresizingMaskIntoConstraints = false
         hosting.wantsLayer = true
@@ -205,10 +213,10 @@ public final class StatusBarManager: NSObject {
         }
 
         // React to snapshot, staleness, or per-account map changes — debounced to avoid rapid-fire redraws.
-        // The third publisher (perAccountRateLimits) ensures the menu bar redraws when the
+        // The third publisher (perAccountReadings) ensures the menu bar redraws when the
         // multi-account fan-out completes, even when the active-account snapshot is unchanged.
         viewModel.$snapshot
-            .combineLatest(viewModel.$lastFreshFetch, viewModel.$perAccountRateLimits)
+            .combineLatest(viewModel.$lastFreshFetch, viewModel.$perAccountReadings)
             .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
             .sink { [weak self, weak item, weak viewModel] _ in
                 guard let self, let button = item?.button, let viewModel else { return }
@@ -263,6 +271,9 @@ public final class StatusBarManager: NSObject {
         // onDismiss fires from PopoverPanel.orderOut — no redundant dismiss() call needed.
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53, let self, self.toggleState.isShowing {
+                if self.escapeHandler?() == true {
+                    return nil // consumed by the popover (back to the overview)
+                }
                 self.panel?.orderOut(nil)
                 return nil
             }

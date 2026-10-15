@@ -4,7 +4,18 @@ import Combine
 
 @MainActor
 public final class UsageViewModel: ObservableObject {
-    @Published var snapshot: UsageSnapshot?
+    @Published var snapshot: UsageSnapshot? {
+        didSet {
+            // Mirror into the per-provider map the overview's cards read their token
+            // totals from. A `nil` (account switch) must not erase a provider's last
+            // known aggregate — the cards keep showing it until that provider
+            // re-aggregates.
+            if let snapshot {
+                providerSnapshots[snapshot.provider] = snapshot
+            }
+        }
+    }
+
     @Published var systemStatus: ClaudeSystemStatus?
     @Published var isLoading = true
     @Published var errorMessage: String?
@@ -20,9 +31,27 @@ public final class UsageViewModel: ObservableObject {
     @Published var rateLimitsFresh = false
     /// The hysteresis-filtered metric mode for auto mode consumers.
     @Published private(set) var resolvedMetricMode: MetricMode = .fiveHour
-    /// Per-account rate limits for the multi-account menu bar display.
-    /// Keyed by account ID; only populated when `showAllAccountsInMenuBar` is on.
-    @Published var perAccountRateLimits: [String: RateLimitUsage] = [:]
+    /// Per-account readings from the multi-account fan-out (menu bar + overview).
+    /// Keyed by account ID; populated when the menu-bar toggle is on OR ≥ 2 eligible
+    /// accounts exist (`FanOutGate`).
+    @Published var perAccountReadings: [String: AccountReading] = [:]
+    /// Windowed readings only — the menu-bar text path consumes this shape.
+    var perAccountRateLimits: [String: RateLimitUsage] { perAccountReadings.compactMapValues(\.windows) }
+    /// Per-minute API-key readings only.
+    var perAccountAPILimits: [String: StandardRateLimits] { perAccountReadings.compactMapValues(\.apiLimits) }
+    /// Status per provider, so the overview can show a dot on every card — not just the
+    /// active account's. The active provider's entry is written by `refresh()`; any other
+    /// provider with an eligible account is polled by the fan-out (each `StatusChecker`
+    /// instance has its own cache + backoff). Keyed by provider, never cleared on account
+    /// switch: a provider's status is a property of the provider, not of the account.
+    @Published var providerStatuses: [AIProvider: ClaudeSystemStatus] = [:]
+    /// Last aggregated snapshot per provider, so the overview can show each card's
+    /// window token totals. Local logs are machine-wide **per provider** (every Claude
+    /// account shares `~/.claude`), so this is a per-provider figure shown on that
+    /// provider's cards — exactly what the detail view shows for the active account.
+    /// A provider that has never been active this launch has no entry and its cards
+    /// simply omit the token column.
+    @Published var providerSnapshots: [AIProvider: UsageSnapshot] = [:]
 
     #if ENABLE_VERSION_CHECKER
     /// Available update from GitHub Releases (nil if up-to-date or not checked).
@@ -62,6 +91,11 @@ public final class UsageViewModel: ObservableObject {
     /// Coalesces UserDefaults change notifications into a single fan-out.
     /// Read/written by `UsageViewModel+FanOut.swift`.
     var pendingFanOut: Task<Void, Never>?
+    /// Monotonic stamp of the newest `fetchAllAccounts` call. Two can be in flight at
+    /// once (the refresh tail awaits one directly; the observers schedule another) and
+    /// the slower one must not overwrite `perAccountReadings` with an older map —
+    /// only the newest call's result is applied. Read/written by `+FanOut.swift`.
+    var fanOutGeneration: UInt64 = 0
     /// Last observed value of the multi-account toggle — used to filter the
     /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
     private var lastObservedShowAllAccounts: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
@@ -190,6 +224,19 @@ public final class UsageViewModel: ObservableObject {
                 self.scheduleFanOut()
             }
             .store(in: &cancellables)
+
+        // Account-set observer: the fan-out also feeds the multi-account overview, which
+        // is gated on the eligible-account COUNT (`FanOutGate`), not the toggle. Adding,
+        // removing or signing out an account must re-run it (or clear it) promptly.
+        OAuthManager.shared.accountStore.$accounts
+            .map(\.count)
+            .removeDuplicates()
+            .dropFirst()
+            .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.scheduleFanOut()
+            }
+            .store(in: &cancellables)
     }
 
     /// Run aggregate off the main thread, then apply @MainActor side effects.
@@ -202,7 +249,8 @@ public final class UsageViewModel: ObservableObject {
         standardLimits: StandardRateLimits? = nil,
         accountId: String? = nil,
         provider: AIProvider = .claude,
-        rateLimitsFresh: Bool = true
+        rateLimitsFresh: Bool = true,
+        applySideEffects: Bool = true
     ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
             _ = await inflight.value
@@ -224,7 +272,11 @@ public final class UsageViewModel: ObservableObject {
         // Apply side effects before clearing inflightAggregation so the next
         // caller sees consistent RateLimitFetcher state. The observed-model list feeds
         // the Claude Messages-probe fallback only — gpt-* IDs must never land there.
-        if effects.provider == .claude {
+        // `applySideEffects` is false for the overview's background aggregation of a
+        // NON-active provider: `activeUserModel` / observed models are global probe state
+        // for the account being polled, and a background pass for another account must
+        // not overwrite them every cycle.
+        if applySideEffects, effects.provider == .claude {
             RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
             if let id = effects.accountId {
                 RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)
@@ -389,6 +441,8 @@ public final class UsageViewModel: ObservableObject {
 
         apiResult = api
         systemStatus = status
+        // Mirror into the per-provider map the overview's cards read from.
+        providerStatuses[accountProvider] = status
         isShowingCachedData = api.isCached
         // Fresh ONLY when this fetch returned unified rate-limit headers and wasn't
         // cache-served. A header-less-but-successful fetch reuses held stale limits
