@@ -264,6 +264,9 @@ enum ThemeColors {
     /// because the rail is a peripheral cue rather than something you read directly.
     static let railTrackOpacity: Double = 0.16
 
+    /// How far the "beta" label sits behind the tertiary label it is drawn in.
+    static let betaBadgeOpacity: Double = 0.75
+
     static let subtleElementOpacity: Double = 0.12
 
     /// Subtle border/stroke opacity (banner outlines).

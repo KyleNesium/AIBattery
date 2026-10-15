@@ -158,31 +158,94 @@ struct MenuBarMultiAccountTextTests {
 
     // MARK: - MetricMode
 
-    @Test("MetricMode .fiveHour reads fiveHourPercent")
-    func fiveHourMode() {
+    // MARK: - Headline percent (what a slot leads with)
+
+    @Test("A slot leads with the fuller window, not the selected metric tab")
+    func slotLeadsWithTheFullerWindow() {
+        // The 5-hour window is quiet while the weekly one is nearly spent: the bar has to
+        // say 99%, because that is the number that tells you to stop. Following the tab
+        // here meant the bar read 6% beside an overview card that said 94%.
         let limits: [String: RateLimitUsage] = [
             "a": Self.usage(fiveHourUtilization: 0.42, sevenDayUtilization: 0.99),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a"], limits: limits, metricMode: .fiveHour)
-        #expect(out.text == "42%")
+        for mode in [MetricMode.fiveHour, .sevenDay, .contextHealth] {
+            let out = MenuBarMultiAccountText.build(order: ["a"], limits: limits, metricMode: mode)
+            #expect(out.text == "99%", "mode \(mode)")
+            #expect(out.worstPercent == 99)
+        }
     }
 
-    @Test("MetricMode .sevenDay reads sevenDayPercent")
-    func sevenDayMode() {
-        let limits: [String: RateLimitUsage] = [
-            "a": Self.usage(fiveHourUtilization: 0.42, sevenDayUtilization: 0.99),
-        ]
-        let out = MenuBarMultiAccountText.build(order: ["a"], limits: limits, metricMode: .sevenDay)
-        #expect(out.text == "99%")
+    @Test("headlinePercent follows the account's quota shape")
+    func headlinePercentPerShape() throws {
+        let windows = Self.usage(fiveHourUtilization: 0.42, sevenDayUtilization: 0.99)
+        #expect(MenuBarMultiAccountText.headlinePercent(id: "a", limits: ["a": windows], apiLimits: [:]) == 99)
+
+        let std = try #require(StandardRateLimits.parse(openAIHeaders: [
+            "x-ratelimit-limit-requests": "100", "x-ratelimit-remaining-requests": "20",
+            "x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900",
+        ], now: .now))
+        #expect(MenuBarMultiAccountText.headlinePercent(id: "k", limits: [:], apiLimits: ["k": std]) == 80)
+
+        #expect(MenuBarMultiAccountText.headlinePercent(id: "missing", limits: [:], apiLimits: [:]) == nil)
     }
 
-    @Test("MetricMode .contextHealth falls back to fiveHourPercent")
-    func contextHealthFallsBackToFiveHour() {
+    @Test("An uncapped credit budget contributes no number")
+    func uncappedBudgetHasNoHeadline() {
+        let budget = CodexCreditBudget(
+            usedPercent: 0, used: 0, limit: 0, remaining: 0, unit: "credit", resetsAt: nil,
+            reached: false, hasCredits: true, unlimited: false, planType: "business", uncapped: true
+        )
+        let uncapped = RateLimitUsage(
+            representativeClaim: "credits",
+            fiveHourUtilization: 0, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed", provider: .codex, creditBudget: budget
+        )
+        #expect(MenuBarMultiAccountText.headlinePercent(id: "x", limits: ["x": uncapped], apiLimits: [:]) == nil)
+        #expect(MenuBarMultiAccountText.build(order: ["x"], limits: ["x": uncapped], metricMode: .fiveHour).text == "\u{2014}")
+    }
+
+    // MARK: - Several accounts with the list turned off
+
+    @Test("Two accounts, list off: one number, the worst account's headline")
+    func worstOnlyWhenListIsOff() {
         let limits: [String: RateLimitUsage] = [
-            "a": Self.usage(fiveHourUtilization: 0.42, sevenDayUtilization: 0.99),
+            "a": Self.usage(fiveHourUtilization: 0.06, sevenDayUtilization: 0.94),
+            "b": Self.usage(fiveHourUtilization: 0.25, sevenDayUtilization: 0.25),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a"], limits: limits, metricMode: .contextHealth)
-        #expect(out.text == "42%")
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: limits,
+            order: ["a", "b"],
+            activeRateLimits: limits["a"],
+            activePercent: 6, // what the 5-hour tab would have shown
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: { _, _ in nil }
+        )
+        #expect(result.text == "94%")
+        #expect(result.percent == 94)
+        #expect(result.usedMultiAccount == false)
+    }
+
+    @Test("One account, list off: still follows the metric tab")
+    func singleAccountStillFollowsTheTab() {
+        let limits: [String: RateLimitUsage] = [
+            "a": Self.usage(fiveHourUtilization: 0.06, sevenDayUtilization: 0.94),
+        ]
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: limits,
+            order: ["a"],
+            activeRateLimits: limits["a"],
+            activePercent: 6,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: { _, _ in nil }
+        )
+        #expect(result.text == "6%")
+        #expect(result.percent == 6)
+        #expect(result.usedMultiAccount == false)
     }
 
     // MARK: - Rounding

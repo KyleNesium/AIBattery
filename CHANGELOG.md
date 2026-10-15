@@ -12,7 +12,9 @@ are appended by the task that lands them (see `docs/superpowers/plans/2026-10-12
   chevron or Escape returns. A signed-out account shows a sign-in card. The header
   sums today's usage across providers and counts down to the next reset, and the
   footer carries refresh-all and Quit instead of the detail view's single-account
-  links.
+  links. With two or more accounts the menu bar leads with the account closest to a
+  limit — the same number its card shows — instead of whichever metric tab is
+  selected, so the bar and the overview can't disagree.
 - **Codex API-key accounts in the multi-account menu bar.** Their slot shows the busier per-minute limit (requests or tokens) instead of being left out; a transient fetch failure keeps the previous reading for every account rather than blanking its slot.
 
 ### Fixed
@@ -24,6 +26,8 @@ are appended by the task that lands them (see `docs/superpowers/plans/2026-10-12
   invalidation as well. (#196)
 
 ### Changed
+- **Projects is marked beta.** Per-project attribution is derived from session working
+  directories and doesn't yet cover every case, so its header now says so.
 - README and website screenshots refreshed for the v3.0.0 UI. (#195)
 - CI: the release job retries the DMG detach before forcing it. (#194)
 - **Sparkle 2.9.6 → 2.10.0** — minor update within the existing `2.6.0..<3.0.0` range. Sparkle now requires macOS 12 (AI Battery already requires 13) and drops CocoaPods (AI Battery uses SPM); no app-facing change. (#199)
