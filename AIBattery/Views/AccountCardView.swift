@@ -20,6 +20,9 @@ struct AccountCardView: View {
                         ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
                             AccountCardBarRow(bar: bar)
                         }
+                        if card.hasBurn {
+                            burnRow
+                        }
                         if let text = AccountCard.stateLine(card, now: context.date) {
                             Text(text)
                                 .font(Typography.tinyLabel)
@@ -119,6 +122,23 @@ struct AccountCardView: View {
             Text(card.worstPercent.map { "\(Int($0.rounded()))%" } ?? "\u{2014}")
                 .font(Typography.monoValueMedium)
                 .foregroundStyle(card.worstPercent.map { ThemeColors.barColor(percent: $0) } ?? ThemeColors.tertiaryLabel)
+        }
+    }
+
+    /// The shape of the last five hours of spend, in the gauge column so it lines up with
+    /// the bars above it. Labelled "burn" in the label column: the rows above say how
+    /// much, this one says how fast.
+    private var burnRow: some View {
+        HStack(spacing: Spacing.gap) {
+            Text("burn")
+                .font(Typography.tinyLabel)
+                .foregroundStyle(ThemeColors.tertiaryLabel)
+                .frame(width: Layout.cardBarLabelWidth, alignment: .trailing)
+            BurnSparkline(
+                counts: card.burn,
+                color: card.worstPercent.map { ThemeColors.barColor(percent: $0) } ?? ThemeColors.secondaryLabel
+            )
+            .help("Tokens spent over the last five hours, oldest on the left")
         }
     }
 

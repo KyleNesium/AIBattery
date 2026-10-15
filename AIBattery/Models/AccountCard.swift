@@ -52,6 +52,12 @@ struct AccountCard: Identifiable, Equatable {
     /// spend, not tokens; API-key rows are per-minute), so every card says how much has
     /// actually been used. Per provider, like every other local figure.
     let tokensToday: Int?
+    /// Token spend across the current 5-hour window, twenty 15-minute buckets oldest
+    /// first, zero-filled. Empty when the provider has no aggregate yet. Per provider.
+    let burn: [Int]
+
+    /// Number of 15-minute buckets in the 5-hour window the sparkline draws.
+    static let burnBucketCount = 20
 
     /// Accounts the overview lists, and the count the popover's mode is decided from:
     /// identity resolved. Signed-out accounts stay in — they become sign-in cards,
@@ -82,7 +88,7 @@ struct AccountCard: Identifiable, Equatable {
                     return AccountCard(
                         id: account.id, provider: account.provider, identity: identity, plan: plan,
                         isActive: active, status: status, worstPercent: nil, bars: [],
-                        state: .signedOut, reset: nil, tokensToday: nil
+                        state: .signedOut, reset: nil, tokensToday: nil, burn: []
                     )
                 }
                 let reading = readings[account.id]
@@ -91,7 +97,8 @@ struct AccountCard: Identifiable, Equatable {
                     id: account.id, provider: account.provider, identity: identity, plan: plan,
                     isActive: active, status: status, worstPercent: reading?.worstPercent,
                     bars: bars, state: state(for: reading), reset: bindingReset(bars: bars, reading: reading),
-                    tokensToday: tokensToday(bars: bars, snapshot: snapshots[account.provider])
+                    tokensToday: tokensToday(bars: bars, snapshot: snapshots[account.provider]),
+                    burn: burnSeries(snapshots[account.provider])
                 )
             }
     }
@@ -143,6 +150,17 @@ struct AccountCard: Identifiable, Equatable {
             ),
         ]
     }
+
+    /// The 5-hour window as an ordered series, oldest bucket first, gaps as zero — the
+    /// same shape the Insights 5H chart draws, reduced to a sparkline.
+    nonisolated static func burnSeries(_ snapshot: UsageSnapshot?) -> [Int] {
+        guard let snapshot else { return [] }
+        return (0..<burnBucketCount).map { snapshot.fiveHourTokenBuckets[$0] ?? 0 }
+    }
+
+    /// Whether there is anything to draw: a card with no spend this window shows no line
+    /// rather than a flat one pretending to be data.
+    var hasBurn: Bool { burn.contains { $0 > 0 } }
 
     /// Degraded or worse only. Operational, maintenance and unknown produce no dot:
     /// the overview should look calm until something is wrong.

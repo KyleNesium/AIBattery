@@ -9,7 +9,8 @@ enum UsageSnapshotFactory {
         fiveHourTokens: Int = 0,
         sevenDayTokens: Int = 0,
         todayTokens: Int = 0,
-        provider: AIProvider = .claude
+        provider: AIProvider = .claude,
+        fiveHourTokenBuckets: [Int: Int] = [:]
     ) -> UsageSnapshot {
         let today: [ModelTokenSummary] = todayTokens == 0 ? [] : [
             ModelTokenSummary(
@@ -47,7 +48,7 @@ enum UsageSnapshotFactory {
             totalProjectCost: 0,
             fiveHourTokens: fiveHourTokens,
             sevenDayTokens: sevenDayTokens,
-            fiveHourTokenBuckets: [:],
+            fiveHourTokenBuckets: fiveHourTokenBuckets,
             dailyTokenTotals: [:],
             todayModelTokens: today,
             weekModelTokens: [],

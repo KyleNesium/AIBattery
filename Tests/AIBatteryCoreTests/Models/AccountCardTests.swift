@@ -356,4 +356,42 @@ struct AccountCardTests {
         )[0]
         #expect(down.accessibilityLabel.contains("Claude is reporting major outage"))
     }
+
+    // MARK: - Burn sparkline
+
+    @Test func burnSeries_isOrderedOldestFirst_zeroFilled_andFixedLength() {
+        let snap = UsageSnapshotFactory.make(fiveHourTokenBuckets: [0: 5, 19: 90, 7: 12])
+        let series = AccountCard.burnSeries(snap)
+        #expect(series.count == AccountCard.burnBucketCount)
+        #expect(series[0] == 5)
+        #expect(series[7] == 12)
+        #expect(series[19] == 90)
+        #expect(series[1] == 0)
+        #expect(AccountCard.burnSeries(nil).isEmpty)
+    }
+
+    @Test func rows_carryBurn_fromTheCardsOwnProvider_andHideItWhenEmpty() {
+        let cards = AccountCard.rows(
+            accounts: [rec("c1", .claude), rec("x1", .codex)], activeId: "c1",
+            readings: ["c1": windowReading(0.3, 0.2), "x1": windowReading(0.1, 0.1, provider: .codex)],
+            statuses: [:],
+            snapshots: [.claude: UsageSnapshotFactory.make(fiveHourTokenBuckets: [19: 1_000])],
+            isAuthenticated: { _ in true }, maskEmail: true
+        )
+        #expect(cards[0].hasBurn)
+        #expect(cards[0].burn[19] == 1_000)
+        #expect(!cards[1].hasBurn) // no Codex aggregate yet
+        #expect(cards[1].burn.isEmpty)
+    }
+
+    @Test func rows_zeroSpendThisWindow_hasNoBurnToDraw() {
+        let cards = AccountCard.rows(
+            accounts: [rec("c1", .claude)], activeId: "c1",
+            readings: ["c1": windowReading(0.3, 0.2)],
+            statuses: [:], snapshots: [.claude: UsageSnapshotFactory.make()],
+            isAuthenticated: { _ in true }, maskEmail: true
+        )
+        #expect(cards[0].burn.count == AccountCard.burnBucketCount)
+        #expect(!cards[0].hasBurn)
+    }
 }

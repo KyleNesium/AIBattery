@@ -155,6 +155,10 @@ enum Layout {
     /// carry a hover fill, still narrow enough to hug the title cluster.
     static let backChevronWidth: CGFloat = 20
 
+    /// Overview card burn sparkline: short enough to read as a detail, not a chart.
+    static let sparklineHeight: CGFloat = 14
+    static let sparklineLineWidth: CGFloat = 1.5
+
     /// How far a navigation chevron slides toward its destination on hover.
     static let chevronHoverShift: CGFloat = 2
 
