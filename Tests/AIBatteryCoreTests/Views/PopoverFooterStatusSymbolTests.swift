@@ -110,4 +110,11 @@ struct PopoverFooterStatusSymbolTests {
         #expect(RefreshSettingsSection.pollCostHint(provider: .codex, apiKeyAccount: false).contains("no tokens spent"))
         #expect(RefreshSettingsSection.pollCostHint(provider: .codex, apiKeyAccount: true).contains("billed at API rates"))
     }
+
+    @Test func pollCostHint_appendsTheFanOutMultiplier_onlyWithSeveralAccounts() {
+        let single = RefreshSettingsSection.pollCostHint(provider: .claude, apiKeyAccount: false)
+        #expect(RefreshSettingsSection.pollCostHint(provider: .claude, apiKeyAccount: false, fanOutAccounts: 1) == single)
+        #expect(RefreshSettingsSection.pollCostHint(provider: .claude, apiKeyAccount: false, fanOutAccounts: 3) == "\(single) \u{00B7} \u{00D7}3 accounts")
+        #expect(RefreshSettingsSection.pollCostHint(provider: .codex, apiKeyAccount: true, fanOutAccounts: 2).hasSuffix("\u{00D7}2 accounts"))
+    }
 }

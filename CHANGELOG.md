@@ -28,6 +28,9 @@ them at once instead of whichever one you last used.
   invalidation as well. (#196)
 
 ### Changed
+- Settings → Refresh shows the real per-account poll cost ("×N accounts") once the
+  fan-out is running, and the menu-bar toggle's hint explains that the popover already
+  shows every account.
 - **Projects is marked beta.** Per-project attribution is derived from session working
   directories and doesn't yet cover every case, so its header now says so.
 - README and website screenshots refreshed for the v3.0.0 UI. (#195)

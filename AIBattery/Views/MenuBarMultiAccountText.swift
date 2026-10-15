@@ -291,14 +291,13 @@ enum MenuBarMultiAccountText {
         limits: [String: RateLimitUsage],
         apiLimits: [String: StandardRateLimits]
     ) -> Double? {
-        if let usage = limits[id] {
-            if let budget = usage.creditBudget {
-                return budget.isUncapped ? nil : budget.usedPercent
-            }
-            return max(usage.fiveHourPercent, usage.sevenDayPercent)
-        }
-        // API-key accounts have no windows: their slot is the busier per-minute limit.
-        return apiLimits[id]?.peakPercent
+        // Delegate to the one definition of "headline" so the bar and the cards cannot
+        // drift. `fetchedAt`/`isCached` play no part in the number.
+        guard limits[id] != nil || apiLimits[id] != nil else { return nil }
+        return AccountReading(
+            windows: limits[id], apiLimits: apiLimits[id],
+            fetchedAt: .distantPast, isCached: false, source: nil
+        ).worstPercent
     }
 
     private static func percent(for usage: RateLimitUsage, mode: MetricMode) -> Double {

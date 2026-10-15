@@ -30,7 +30,7 @@ struct RefreshSettingsSection: View {
             }
             .help("How often to poll the API for updated usage data (\(refreshLabel))")
             sliderMarks(labels: ["30s", "1m", "2m", "3m", "4m", "5m"], leadingPad: Layout.settingsLabel)
-            Text(Self.pollCostHint(provider: viewModel.snapshot?.provider ?? .claude, apiKeyAccount: OAuthManager.shared.accountStore.activeAccount?.isAPIKeyAccount ?? false))
+            Text(Self.pollCostHint(provider: viewModel.snapshot?.provider ?? .claude, apiKeyAccount: OAuthManager.shared.accountStore.activeAccount?.isAPIKeyAccount ?? false, fanOutAccounts: viewModel.perAccountReadings.count))
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .padding(.leading, Layout.settingsLabel + Spacing.section)
@@ -40,12 +40,15 @@ struct RefreshSettingsSection: View {
     /// What one poll costs the user, per provider: Claude's probe is a few tokens on a
     /// subscription; Codex OAuth reads a free usage endpoint; an API key pays for a
     /// 16-output-token probe at API rates.
-    nonisolated static func pollCostHint(provider: AIProvider, apiKeyAccount: Bool) -> String {
-        switch (provider, apiKeyAccount) {
+    nonisolated static func pollCostHint(provider: AIProvider, apiKeyAccount: Bool, fanOutAccounts: Int = 1) -> String {
+        let base = switch (provider, apiKeyAccount) {
         case (.codex, true): "~16 output tokens/poll, billed at API rates · data kept until next update"
         case (.codex, false): "Reads OpenAI's usage endpoint · no tokens spent · data kept until next update"
         default: "~3 tokens/poll · API data kept until next update"
         }
+        // The fan-out polls every account each cycle once there are two or more (it is
+        // the overview's data source), so the cost shown here is per account.
+        return fanOutAccounts >= 2 ? "\(base) · ×\(fanOutAccounts) accounts" : base
     }
 
     private var refreshLabel: String {

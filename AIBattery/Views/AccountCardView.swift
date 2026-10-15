@@ -54,6 +54,10 @@ struct AccountCardView: View {
         // VoiceOver or to automation. Put the trait back explicitly.
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(card.accessibilityLabel)
+        // The state line ("Throttled", "~2h to limit · resets in 3d", "Cached 3m ago") is
+        // the card's value. `children: .ignore` hides the on-screen Text from VoiceOver,
+        // so without this a screen-reader user got no state at all.
+        .accessibilityValue(AccountCard.stateLine(card, now: Date()) ?? "")
         .accessibilityHint(card.state == .signedOut ? "Signs in to this account" : "Opens this account")
     }
 

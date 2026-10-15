@@ -106,8 +106,6 @@ extension StatusBarManager {
 /// ensuring toggleState never desyncs.
 final class PopoverPanel: NSPanel {
     var onDismiss: (() -> Void)?
-    /// Asked before Escape closes the panel; true means the popover handled it.
-    var escapeHandler: (() -> Bool)?
 
     override var canBecomeKey: Bool { true }
     override var hidesOnDeactivate: Bool {
@@ -122,9 +120,8 @@ final class PopoverPanel: NSPanel {
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53 { // Escape
-            if escapeHandler?() == true {
-                return // consumed by the popover (back to the overview)
-            }
+            // Normally unreachable: StatusBarManager's local key monitor sees Escape
+            // first (and asks the popover whether it wants it). This is the fallback.
             orderOut(nil)
         } else if event.keyCode == 12 && event.modifierFlags.contains(.command) { // Cmd+Q
             NSApplication.shared.terminate(nil)
