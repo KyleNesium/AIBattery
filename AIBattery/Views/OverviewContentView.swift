@@ -2,20 +2,22 @@ import SwiftUI
 
 /// The popover's overview face: every account at once, one card each. Shown instead of
 /// the single-account detail view whenever there are two or more accounts.
+///
+/// There is no header. A title row would spend ~44pt restating what the cards already
+/// are, so the list starts at the top edge and Settings lives in the footer.
 struct OverviewContentView: View {
     let cards: [AccountCard]
     let canAddClaude: Bool
     let canAddCodex: Bool
-    var showsUpdateBadge: Bool = false
-    @Binding var showSettings: Bool
     let onSelect: (AccountCard) -> Void
     let onAdd: (AIProvider) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-            ForEach(cards) { card in
-                insetDivider
+            ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                if index > 0 {
+                    insetDivider
+                }
                 AccountCardView(card: card, onSelect: { onSelect(card) })
             }
             if canAddClaude || canAddCodex {
@@ -23,20 +25,7 @@ struct OverviewContentView: View {
                 addRow
             }
         }
-    }
-
-    /// Title and gear, nothing else. A summary line here competed with the cards for
-    /// the same facts; the cards are the content.
-    private var header: some View {
-        HStack(spacing: Spacing.gap) {
-            Text("Accounts")
-                .font(Typography.accountTitle)
-                .accessibilityAddTraits(.isHeader)
-            Spacer()
-            SettingsGearButton(showSettings: $showSettings, showsUpdateBadge: showsUpdateBadge)
-        }
-        .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.vertical, Spacing.section)
+        .padding(.top, Spacing.gap)
     }
 
     /// Indented to the content gutter so the rows read as one list rather than a stack
@@ -71,10 +60,13 @@ struct OverviewContentView: View {
 /// The overview's footer. The detail footer's links are all about **one** account —
 /// that provider's usage dashboard, that provider's status page, signing that account
 /// out — so none of them mean anything on a face that shows every account at once.
-/// What is left is the two things that apply to all of them: refresh and quit.
+/// What is left is what applies to all of them: refresh, Settings and quit. The gear
+/// lives here because the overview has no header to hold it.
 struct OverviewFooterView: View {
     let lastFreshFetch: Date?
     let isLoading: Bool
+    var showsUpdateBadge: Bool = false
+    @Binding var showSettings: Bool
     let onRefresh: () -> Void
 
     var body: some View {
@@ -93,6 +85,7 @@ struct OverviewFooterView: View {
                 }
             }
             Spacer()
+            SettingsGearButton(showSettings: $showSettings, showsUpdateBadge: showsUpdateBadge)
             FooterLink(
                 icon: "xmark.circle",
                 label: "Quit",
@@ -105,6 +98,6 @@ struct OverviewFooterView: View {
             }
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
-        .padding(.vertical, Spacing.section)
+        .padding(.vertical, Spacing.small)
     }
 }

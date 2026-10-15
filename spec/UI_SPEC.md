@@ -482,8 +482,6 @@ With **two or more accounts** the popover opens on the overview instead of the s
 
 ```
 ┌───────────────────────────────────────────┐
-│ Accounts                               ⚙  │  title + gear, nothing else
-│───────────────────────────────────────────│
 │ ✦ Claude Team [active]             84%    │  mark · identity · badge · plan · headline % (status dot only when down)
 │   5-Hour  ▓▓░░░░░░░   22M   35%        ›  │  label · gauge · tokens · % (chevron = drill down)
 │   7-Day   ▓▓▓▓▓▓▓░░  337M   84%           │
@@ -494,14 +492,14 @@ With **two or more accounts** the popover opens on the overview instead of the s
 │   36M today · resets in 17d 11h           │  credits/API shapes show today's tokens here
 │───────────────────────────────────────────│
 │ ⊕ Add account…                             │
-│ ↻ Updated just now              ⊗ Quit    │  overview footer
+│ ↻ Updated just now          ⚙   ⊗ Quit    │  overview footer (refresh · timestamp · gear · quit)
 └───────────────────────────────────────────┘
 ```
 
-- **Header**: "Accounts" (`Typography.accountTitle`) + the shared `SettingsGearButton`, nothing else. A summary line here competed with the cards for the same facts.
+- **No header.** A title row would spend ~44pt restating what the cards already are, so the list starts at the panel's top edge and the gear moved to the footer. The first card has no divider above it.
 - **Status dot**: an **exception marker, not a readout**. `AccountCard.alertingStatus` keeps only `degradedPerformance` and worse, so a healthy overview shows no dots at all and a provider outage is the one coloured thing on the card. Maintenance, operational and unknown produce nothing; the accessibility label mentions the provider's status only when it is down ("Claude is reporting major outage").
 - **Card** (`AccountCardView`): the whole row is one `Button(.plain)` that opens that account. Three affordances say so — an **inset rounded** `ThemeColors.hoverFill` highlight on hover (`Spacing.medium` from the panel edge, `bannerCornerRadius`), a trailing `chevron.forward`, and the identity brightening to `.primary`. The identity is `Typography.accountTitle`, the same weight as the detail header's chip, so each card reads as its own titled row; dividers are inset to the content gutter so the cards read as one list rather than stacked panels. The active account carries an **`active` badge** (`Typography.badgeLabel` on `badgeFill`), not a colour-only cue. Bar rows are fixed columns (`cardBarLabelWidth` 52 · gauge · `cardTokensWidth` 40 · `cardPercentWidth` 34); the reset moved to the state line so the token column fits at 275pt. A signed-out account renders as a **sign-in card** (no bars, "Signed out · click to sign in") and clicking it opens that provider's sign-in.
-- **Footer** (`OverviewFooterView`): the detail footer's links are all about one account (that provider's dashboard, that provider's status page, signing that account out), so the overview gets its own with the two actions that apply to every account — refresh-all and Quit, plus the "Updated" timestamp.
+- **Footer** (`OverviewFooterView`): the detail footer's links are all about one account (that provider's dashboard, that provider's status page, signing that account out), so the overview gets its own with what applies to every account — refresh-all, the "Updated" timestamp, the shared `SettingsGearButton` (update badge included) and Quit. Settings opens in place of the cards; the same gear closes it.
 - **Detail mode** gains a back chevron left of the account chip (`PopoverHeaderView.showsBack(eligibleAccountCount:)`, ≥ 2 accounts), tight against the title at `Typography.switcherChevron`. Escape routes through `PopoverEscapeRouting`: from a detail view with somewhere to return to it steps back to the overview, everywhere else it closes the panel. Keys `1`–`6` select a card in the overview; `r` refreshes every account.
 
 **Panel behavior** (floating `NSPanel`, not `NSPopover`):

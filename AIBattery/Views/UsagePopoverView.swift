@@ -208,16 +208,21 @@ public struct UsagePopoverView: View {
         )
     }
 
+    /// An update that was found and whose banner was dismissed badges the gear, wherever
+    /// the gear happens to live. `VersionChecker` is compiled out in some configurations.
+    private var gearShowsUpdateBadge: Bool {
+        #if ENABLE_VERSION_CHECKER
+        return viewModel.availableUpdate != nil
+        #else
+        return false
+        #endif
+    }
+
     private var overviewContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showSettings {
                 // Settings replaces the cards, exactly as it replaces the detail sections.
-                HStack {
-                    Spacer()
-                    SettingsGearButton(showSettings: $showSettings)
-                }
-                .padding(.horizontal, Spacing.sectionHorizontal)
-                .padding(.vertical, Spacing.section)
+                // The footer's gear stays put, so the same control closes it again.
                 SettingsRow(
                     viewModel: viewModel,
                     accountStore: accountStore,
@@ -229,7 +234,6 @@ public struct UsagePopoverView: View {
                     cards: overviewCards,
                     canAddClaude: accountStore.canAddAccount(provider: .claude),
                     canAddCodex: accountStore.canAddAccount(provider: .codex),
-                    showSettings: $showSettings,
                     onSelect: { select($0) },
                     onAdd: { addingProvider = $0 }
                 )
@@ -237,10 +241,13 @@ public struct UsagePopoverView: View {
             }
             StyledDivider()
             // The detail footer's links are all about ONE account; the overview gets its
-            // own with the two actions that apply to every account.
+            // own with what applies to every account — and the gear, because the overview
+            // has no header to hold it.
             OverviewFooterView(
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isLoading: viewModel.isLoading,
+                showsUpdateBadge: gearShowsUpdateBadge,
+                showSettings: $showSettings,
                 onRefresh: {
                     viewModel.scheduleFanOut()
                     Task { await viewModel.refresh() }
