@@ -263,6 +263,10 @@ enum ThemeColors {
     /// How far the "beta" label sits behind the tertiary label it is drawn in.
     static let betaBadgeOpacity: Double = 0.75
 
+    /// Glow behind a navigation chevron on hover, in the account's own colour — the
+    /// chevron lights up rather than sitting in a box.
+    static let chevronGlowOpacity: Double = 0.85
+
     /// Low point of the live dot's breath. High enough that it never looks switched off.
     static let liveDotDimOpacity: Double = 0.55
 

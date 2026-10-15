@@ -58,31 +58,24 @@ struct PopoverHeaderView: View {
     /// sliding the same couple of points but the other way, so going in and coming back
     /// read as one gesture reversed. The rounded hover fill is what says "control";
     /// at rest it is just a quiet chevron beside the title.
+    /// The colour the back chevron lights up in: the account you are backing out of.
+    private var backTint: Color {
+        ThemeColors.providerBadge(accountStore.activeAccount?.provider ?? .claude)
+    }
+
     private var backButton: some View {
         Button(action: onBack) {
             Image(systemName: "chevron.backward")
                 .font(Typography.navChevron)
+                .foregroundStyle(backHovered ? backTint : ThemeColors.secondaryLabel)
+                // Same treatment as the card's drill-in chevron, reversed: it takes the
+                // account's colour and glows in it rather than sitting in a box.
+                .shadow(color: backTint.opacity(backHovered ? ThemeColors.chevronGlowOpacity : 0), radius: Layout.glowRadius)
                 .offset(x: backHovered ? -Layout.chevronHoverShift : 0)
-                .frame(width: Layout.backChevronWidth, height: Layout.backChevronWidth)
-                .background {
-                    // Chrome, not content: a neutral fill with the same hairline edge the
-                    // account rows get, so every highlight in the popover is built the
-                    // same way — only the tint says whether it belongs to an account.
-                    RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
-                        .fill(backHovered ? ThemeColors.hoverFill : .clear)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
-                                .strokeBorder(
-                                    backHovered ? ThemeColors.hoverStroke : .clear,
-                                    lineWidth: Layout.subtleBorderWidth
-                                )
-                        }
-                }
-                .frame(height: Layout.accountChipHeight)
+                .frame(width: Layout.backChevronWidth, height: Layout.accountChipHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(backHovered ? .primary : ThemeColors.secondaryLabel)
         .onHover { backHovered = $0 }
         .animation(MotionConstants.standard, value: backHovered)
         .help("All accounts")

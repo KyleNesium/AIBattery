@@ -27,21 +27,15 @@ struct AccountCardView: View {
                         }
                     }
                     // Drill-in affordance, the mirror of the detail header's back control:
-                    // on hover it gains the same rounded fill and slides toward where it
-                    // leads. Motion says "this goes somewhere" far better than a glyph.
+                    // on hover it takes the account's colour, glows in it, and slides toward
+                    // where it leads. A lit chevron says "this goes somewhere"; a box around
+                    // it only said "button".
                     Image(systemName: "chevron.forward")
                         .font(Typography.navChevron)
-                        .foregroundStyle(hovered ? .primary : ThemeColors.tertiaryLabel)
+                        .foregroundStyle(hovered ? tint : ThemeColors.tertiaryLabel)
+                        .shadow(color: tint.opacity(hovered ? ThemeColors.chevronGlowOpacity : 0), radius: Layout.glowRadius)
                         .offset(x: hovered ? Layout.chevronHoverShift : 0)
                         .frame(width: Layout.chevronHitSize, height: Layout.chevronHitSize)
-                        .background {
-                            RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
-                                .fill(hovered ? ThemeColors.hoverFill : .clear)
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
-                                        .strokeBorder(hovered ? ThemeColors.hoverStroke : .clear, lineWidth: Layout.subtleBorderWidth)
-                                }
-                        }
                         .animation(MotionConstants.standard, value: hovered)
                         .accessibilityHidden(true)
                 }
