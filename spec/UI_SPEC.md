@@ -495,8 +495,7 @@ Face changes are **directional**: going in, the overview fades out sliding `Layo
 │   Credits ▓▓░░░░░░░         19%        ›  │
 │   36M today · resets in 17d 11h           │  credits/API shapes show today's tokens here
 │───────────────────────────────────────────│
-│ ⊕ Add account…                             │
-│ ↻ Updated just now          ⚙   ⊗ Quit    │  overview footer (refresh · timestamp · gear · quit)
+│ ⚙ Settings        ↻ 8s          ⊗ Quit    │  overview footer (settings · refresh + elapsed · quit)
 └───────────────────────────────────────────┘
 ```
 
