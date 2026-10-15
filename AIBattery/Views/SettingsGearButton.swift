@@ -8,22 +8,35 @@ struct SettingsGearButton: View {
     @Binding var showSettings: Bool
     /// Badge the gear because an update was found and its banner dismissed.
     var showsUpdateBadge: Bool = false
+    /// Spelled-out label beside the gear. The detail header has a title row to give the
+    /// icon context; the overview's footer does not, so there it says "Settings".
+    var label: String?
     @State private var hovered = false
 
     var body: some View {
         Button(action: { withAnimation(MotionConstants.standard) { showSettings.toggle() } }) {
-            Image(systemName: "gearshape")
-                .font(Typography.headerGear)
-                .frame(width: Layout.accountChipHeight, height: Layout.accountChipHeight)
-                .overlay(alignment: .topTrailing) {
-                    if showsUpdateBadge {
-                        // A symbol, not a bare colored dot: readable without color vision.
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(Typography.decorativeIcon)
-                            .foregroundStyle(ThemeColors.updateAvailable)
-                            .padding(Spacing.tight)
+            HStack(spacing: Spacing.inner) {
+                Image(systemName: "gearshape")
+                    .font(Typography.headerGear)
+                    .frame(
+                        width: label == nil ? Layout.accountChipHeight : nil,
+                        height: Layout.accountChipHeight
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        if showsUpdateBadge {
+                            // A symbol, not a bare colored dot: readable without color vision.
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(Typography.decorativeIcon)
+                                .foregroundStyle(ThemeColors.updateAvailable)
+                                .padding(Spacing.tight)
+                        }
                     }
+                if let label {
+                    Text(label)
+                        .font(Typography.caption)
                 }
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(showSettings || hovered ? .primary : .secondary)

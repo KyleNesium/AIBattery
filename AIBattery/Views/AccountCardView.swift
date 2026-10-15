@@ -26,10 +26,14 @@ struct AccountCardView: View {
                                 .foregroundStyle(stateColor)
                         }
                     }
-                    // Drill-down affordance: this row opens the account.
+                    // Drill-in affordance. It brightens and slides a couple of points
+                    // toward its destination on hover — motion reads as "this goes
+                    // somewhere" far more clearly than a static glyph.
                     Image(systemName: "chevron.forward")
-                        .font(Typography.switcherChevron)
+                        .font(Typography.navChevron)
                         .foregroundStyle(hovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
+                        .offset(x: hovered ? Layout.chevronHoverShift : 0)
+                        .animation(MotionConstants.standard, value: hovered)
                         .accessibilityHidden(true)
                 }
                 .padding(.horizontal, Spacing.gap)
@@ -48,6 +52,10 @@ struct AccountCardView: View {
         .onHover { hovered = $0 }
         .help(helpText)
         .accessibilityElement(children: .ignore)
+        // `children: .ignore` replaces the Button's own representation, which drops the
+        // button trait with it — the card then exposed no actionable element at all to
+        // VoiceOver or to automation. Put the trait back explicitly.
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel(card.accessibilityLabel)
         .accessibilityHint(card.state == .signedOut ? "Signs in to this account" : "Opens this account")
     }

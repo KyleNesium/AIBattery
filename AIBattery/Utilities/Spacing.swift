@@ -151,9 +151,12 @@ enum Layout {
     /// Header account chip height — also the gear button's hit target so the two align.
     static let accountChipHeight: CGFloat = 28
 
-    /// Detail header's back chevron: narrow enough to hug the title cluster, tall
-    /// enough to stay a comfortable hit target.
-    static let backChevronWidth: CGFloat = 14
+    /// Detail header's back control: a square big enough to hit comfortably and to
+    /// carry a hover fill, still narrow enough to hug the title cluster.
+    static let backChevronWidth: CGFloat = 20
+
+    /// How far a navigation chevron slides toward its destination on hover.
+    static let chevronHoverShift: CGFloat = 2
 
     /// Overview card bar row: fixed columns so every card's gauges line up.
     static let cardBarLabelWidth: CGFloat = 52

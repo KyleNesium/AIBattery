@@ -51,19 +51,27 @@ struct PopoverHeaderView: View {
         eligibleAccountCount >= 2
     }
 
-    /// Tight against the title, not a floating square: the chevron reads as part of the
-    /// `‹ ✦ Claude Team ⌄` cluster (same weight and tone as the chip's own chevron), so
-    /// the header still reads as a title rather than a toolbar.
+    /// Mirrors the overview card's drill-in chevron — same glyph family, same size,
+    /// sliding the same couple of points but the other way, so going in and coming back
+    /// read as one gesture reversed. The rounded hover fill is what says "control";
+    /// at rest it is just a quiet chevron beside the title.
     private var backButton: some View {
         Button(action: onBack) {
             Image(systemName: "chevron.backward")
-                .font(Typography.switcherChevron)
-                .frame(width: Layout.backChevronWidth, height: Layout.accountChipHeight)
+                .font(Typography.navChevron)
+                .offset(x: backHovered ? -Layout.chevronHoverShift : 0)
+                .frame(width: Layout.backChevronWidth, height: Layout.backChevronWidth)
+                .background(
+                    RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
+                        .fill(backHovered ? ThemeColors.hoverFill : .clear)
+                )
+                .frame(height: Layout.accountChipHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(backHovered ? .primary : ThemeColors.secondaryLabel)
         .onHover { backHovered = $0 }
+        .animation(MotionConstants.standard, value: backHovered)
         .help("All accounts")
         .accessibilityLabel("Back to all accounts")
         .accessibilityHint("Shows every account at once")

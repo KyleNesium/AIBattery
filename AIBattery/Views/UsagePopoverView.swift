@@ -230,14 +230,8 @@ public struct UsagePopoverView: View {
                 )
                 .transition(.opacity)
             } else {
-                OverviewContentView(
-                    cards: overviewCards,
-                    canAddClaude: accountStore.canAddAccount(provider: .claude),
-                    canAddCodex: accountStore.canAddAccount(provider: .codex),
-                    onSelect: { select($0) },
-                    onAdd: { addingProvider = $0 }
-                )
-                .transition(.opacity)
+                OverviewContentView(cards: overviewCards, onSelect: { select($0) })
+                    .transition(.opacity)
             }
             StyledDivider()
             // The detail footer's links are all about ONE account; the overview gets its
