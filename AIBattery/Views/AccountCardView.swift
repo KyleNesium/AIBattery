@@ -38,10 +38,7 @@ struct AccountCardView: View {
                 }
                 .padding(.horizontal, Spacing.gap)
                 .padding(.vertical, Spacing.section)
-                .background(
-                    RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
-                        .fill(hovered ? ThemeColors.hoverFill : .clear)
-                )
+                .background(rowHighlight)
                 // The highlight is inset from the panel edge; the content still lines up
                 // with the header and footer gutters.
                 .padding(.horizontal, Spacing.medium)
@@ -58,6 +55,41 @@ struct AccountCardView: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(card.accessibilityLabel)
         .accessibilityHint(card.state == .signedOut ? "Signs in to this account" : "Opens this account")
+    }
+
+    /// Two separate signals, deliberately kept apart: a transient tint for the row the
+    /// pointer is on, and a permanent accent bar for the account that is actually active.
+    /// Both take their colour from the provider, so a highlight belongs to its account
+    /// rather than reading as a generic selection block.
+    private var rowHighlight: some View {
+        ZStack(alignment: .leading) {
+            hoverShape
+            if card.isActive {
+                activeAccent
+            }
+        }
+        .animation(MotionConstants.standard, value: hovered)
+    }
+
+    private var tint: Color { ThemeColors.providerBadge(card.provider) }
+
+    private var hoverShape: some View {
+        let fill: Color = tint.opacity(hovered ? ThemeColors.rowHoverTintOpacity : 0)
+        let stroke: Color = tint.opacity(hovered ? ThemeColors.rowHoverStrokeOpacity : 0)
+        return RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
+            .fill(fill)
+            // The fill alone is a blob; the hairline is what gives it an edge.
+            .overlay {
+                RoundedRectangle(cornerRadius: Layout.bannerCornerRadius)
+                    .strokeBorder(stroke, lineWidth: Layout.subtleBorderWidth)
+            }
+    }
+
+    private var activeAccent: some View {
+        Capsule()
+            .fill(tint.opacity(ThemeColors.activeRowAccentOpacity))
+            .frame(width: Layout.activeAccentWidth)
+            .padding(.vertical, Spacing.gap)
     }
 
     private var header: some View {

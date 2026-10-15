@@ -61,10 +61,20 @@ struct PopoverHeaderView: View {
                 .font(Typography.navChevron)
                 .offset(x: backHovered ? -Layout.chevronHoverShift : 0)
                 .frame(width: Layout.backChevronWidth, height: Layout.backChevronWidth)
-                .background(
+                .background {
+                    // Chrome, not content: a neutral fill with the same hairline edge the
+                    // account rows get, so every highlight in the popover is built the
+                    // same way — only the tint says whether it belongs to an account.
                     RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
                         .fill(backHovered ? ThemeColors.hoverFill : .clear)
-                )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
+                                .strokeBorder(
+                                    backHovered ? ThemeColors.hoverStroke : .clear,
+                                    lineWidth: Layout.subtleBorderWidth
+                                )
+                        }
+                }
                 .frame(height: Layout.accountChipHeight)
                 .contentShape(Rectangle())
         }

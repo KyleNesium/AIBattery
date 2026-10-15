@@ -210,6 +210,13 @@ enum ThemeColors {
         dark: NSColor(white: 1.0, alpha: 0.06)
     )
 
+    /// Hairline edge for a neutral hover highlight. Every highlight in the popover is a
+    /// fill plus this edge; a fill on its own reads as a smudge rather than a shape.
+    static let hoverStroke: Color = adaptive(
+        light: NSColor(white: 0.0, alpha: 0.12),
+        dark: NSColor(white: 1.0, alpha: 0.12)
+    )
+
     /// Stronger hover highlight for copyable elements (signals "click to copy").
     static let copyableHoverFill: Color = adaptive(
         light: NSColor(white: 0.0, alpha: 0.15),
@@ -247,6 +254,16 @@ enum ThemeColors {
     static let disabledDeepOpacity: Double = 0.25
 
     /// Subtle element fill opacity (banner backgrounds, auto mode fills).
+    /// Overview row highlight. Tinted with the account's provider colour rather than a
+    /// flat grey: the brand mark is already on the row, so the highlight belongs to that
+    /// account instead of looking like a generic selection block. Kept to a whisper —
+    /// the hairline stroke, not the fill, is what gives the row its shape.
+    static let rowHoverTintOpacity: Double = 0.07
+    static let rowHoverStrokeOpacity: Double = 0.18
+    /// Leading accent bar on the active account's row: a quiet, permanent "you are here"
+    /// that doesn't compete with the transient hover highlight.
+    static let activeRowAccentOpacity: Double = 0.65
+
     static let subtleElementOpacity: Double = 0.12
 
     /// Subtle border/stroke opacity (banner outlines).
