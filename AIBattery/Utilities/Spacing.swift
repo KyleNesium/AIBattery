@@ -155,10 +155,6 @@ enum Layout {
     /// carry a hover fill, still narrow enough to hug the title cluster.
     static let backChevronWidth: CGFloat = 20
 
-    /// Overview card burn sparkline: short enough to read as a detail, not a chart.
-    static let sparklineHeight: CGFloat = 14
-    static let sparklineLineWidth: CGFloat = 1.5
-
     /// How far a navigation chevron slides toward its destination on hover.
     static let chevronHoverShift: CGFloat = 2
 
@@ -208,6 +204,9 @@ enum Layout {
 /// Centralizes the two dominant animation durations found across the codebase.
 /// Pattern matches ThemeColors/Typography/Spacing: caseless enum as namespace.
 enum MotionConstants {
+    /// The live dot's breath: slow, symmetric, forever. Slow enough to be peripheral.
+    static let breathe: Animation = .easeInOut(duration: 1.6).repeatForever(autoreverses: true)
+
     /// Standard section expand/collapse and metric value animation: 0.15s easeOut.
     static let standard: Animation = .easeOut(duration: 0.15)
 

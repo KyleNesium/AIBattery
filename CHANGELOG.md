@@ -15,9 +15,9 @@ One account sees no change.
   is hot. Clicking a card opens that account; a back chevron or Escape returns. A
   signed-out account appears as a sign-in card rather than disappearing, and a
   provider's status dot shows only when that provider is actually degraded or down.
-  One account sees no change at all. Under each card's bars a small burn sparkline
-  traces the last five hours of spend, so the shape of the usage — climbing or flat —
-  is visible without reading a number.
+  One account sees no change at all. A small dot breathes beside an account's name
+  while its provider is actually being used, so the list also says which account
+  your CLI is hitting right now.
 - **The menu bar agrees with it.** With two or more accounts the bar leads with the
   account closest to a limit — the same number its card shows — rather than whichever
   metric tab happens to be selected, so the two can no longer disagree. A

@@ -16,12 +16,9 @@ struct AccountCardView: View {
             TimelineView(.periodic(from: .now, by: 10)) { context in
                 HStack(alignment: .center, spacing: Spacing.gap) {
                     VStack(alignment: .leading, spacing: Spacing.inner) {
-                        header
+                        header(now: context.date)
                         ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
                             AccountCardBarRow(bar: bar)
-                        }
-                        if card.hasBurn {
-                            burnRow
                         }
                         if let text = AccountCard.stateLine(card, now: context.date) {
                             Text(text)
@@ -84,7 +81,7 @@ struct AccountCardView: View {
             }
     }
 
-    private var header: some View {
+    private func header(now: Date) -> some View {
         HStack(spacing: Spacing.xsmall) {
             ProviderBadge(provider: card.provider)
             Text(card.identity)
@@ -94,6 +91,11 @@ struct AccountCardView: View {
                 .truncationMode(.middle)
                 // The name is the row; the badge and the plan yield before it does.
                 .layoutPriority(1)
+            if AccountCard.isLive(lastActivity: card.lastActivity, now: now) {
+                // Breathes only while the provider is actually being used.
+                LiveDot(color: tint)
+                    .padding(.leading, Spacing.tight)
+            }
             if card.isActive {
                 // A word in the app's existing badge vocabulary, not a glyph crammed
                 // against the percentage — and readable without colour vision.
@@ -122,23 +124,6 @@ struct AccountCardView: View {
             Text(card.worstPercent.map { "\(Int($0.rounded()))%" } ?? "\u{2014}")
                 .font(Typography.monoValueMedium)
                 .foregroundStyle(card.worstPercent.map { ThemeColors.barColor(percent: $0) } ?? ThemeColors.tertiaryLabel)
-        }
-    }
-
-    /// The shape of the last five hours of spend, in the gauge column so it lines up with
-    /// the bars above it. Labelled "burn" in the label column: the rows above say how
-    /// much, this one says how fast.
-    private var burnRow: some View {
-        HStack(spacing: Spacing.gap) {
-            Text("burn")
-                .font(Typography.tinyLabel)
-                .foregroundStyle(ThemeColors.tertiaryLabel)
-                .frame(width: Layout.cardBarLabelWidth, alignment: .trailing)
-            BurnSparkline(
-                counts: card.burn,
-                color: card.worstPercent.map { ThemeColors.barColor(percent: $0) } ?? ThemeColors.secondaryLabel
-            )
-            .help("Tokens spent over the last five hours, oldest on the left")
         }
     }
 

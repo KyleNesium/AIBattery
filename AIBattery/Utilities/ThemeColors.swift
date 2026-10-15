@@ -263,8 +263,8 @@ enum ThemeColors {
     /// How far the "beta" label sits behind the tertiary label it is drawn in.
     static let betaBadgeOpacity: Double = 0.75
 
-    /// Area under a burn sparkline — enough to give the shape weight, never a second hue.
-    static let sparklineFillOpacity: Double = 0.14
+    /// Low point of the live dot's breath. High enough that it never looks switched off.
+    static let liveDotDimOpacity: Double = 0.35
 
     static let subtleElementOpacity: Double = 0.12
 

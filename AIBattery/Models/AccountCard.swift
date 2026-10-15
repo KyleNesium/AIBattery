@@ -52,12 +52,14 @@ struct AccountCard: Identifiable, Equatable {
     /// spend, not tokens; API-key rows are per-minute), so every card says how much has
     /// actually been used. Per provider, like every other local figure.
     let tokensToday: Int?
-    /// Token spend across the current 5-hour window, twenty 15-minute buckets oldest
-    /// first, zero-filled. Empty when the provider has no aggregate yet. Per provider.
-    let burn: [Int]
+    /// Most recent session activity on this account's provider — the moment the local
+    /// logs last saw a turn. The overview breathes a dot beside the name while this is
+    /// within `liveActivityWindow`: the one thing a list of accounts can't otherwise say
+    /// is which one your CLI is using right now. Per provider.
+    let lastActivity: Date?
 
-    /// Number of 15-minute buckets in the 5-hour window the sparkline draws.
-    static let burnBucketCount = 20
+    /// How recent activity has to be to count as "now".
+    static let liveActivityWindow: TimeInterval = 5 * 60
 
     /// Accounts the overview lists, and the count the popover's mode is decided from:
     /// identity resolved. Signed-out accounts stay in — they become sign-in cards,
@@ -88,7 +90,7 @@ struct AccountCard: Identifiable, Equatable {
                     return AccountCard(
                         id: account.id, provider: account.provider, identity: identity, plan: plan,
                         isActive: active, status: status, worstPercent: nil, bars: [],
-                        state: .signedOut, reset: nil, tokensToday: nil, burn: []
+                        state: .signedOut, reset: nil, tokensToday: nil, lastActivity: nil
                     )
                 }
                 let reading = readings[account.id]
@@ -98,7 +100,7 @@ struct AccountCard: Identifiable, Equatable {
                     isActive: active, status: status, worstPercent: reading?.worstPercent,
                     bars: bars, state: state(for: reading), reset: bindingReset(bars: bars, reading: reading),
                     tokensToday: tokensToday(bars: bars, snapshot: snapshots[account.provider]),
-                    burn: burnSeries(snapshots[account.provider])
+                    lastActivity: lastActivity(snapshots[account.provider])
                 )
             }
     }
@@ -151,16 +153,19 @@ struct AccountCard: Identifiable, Equatable {
         ]
     }
 
-    /// The 5-hour window as an ordered series, oldest bucket first, gaps as zero — the
-    /// same shape the Insights 5H chart draws, reduced to a sparkline.
-    nonisolated static func burnSeries(_ snapshot: UsageSnapshot?) -> [Int] {
-        guard let snapshot else { return [] }
-        return (0..<burnBucketCount).map { snapshot.fiveHourTokenBuckets[$0] ?? 0 }
+    /// The newest `lastActivity` across the provider's tracked sessions.
+    nonisolated static func lastActivity(_ snapshot: UsageSnapshot?) -> Date? {
+        guard let snapshot else { return nil }
+        let candidates = snapshot.topSessionHealths.compactMap(\.lastActivity)
+            + [snapshot.tokenHealth?.lastActivity].compactMap { $0 }
+        return candidates.max()
     }
 
-    /// Whether there is anything to draw: a card with no spend this window shows no line
-    /// rather than a flat one pretending to be data.
-    var hasBurn: Bool { burn.contains { $0 > 0 } }
+    /// Whether the provider counts as in use right now.
+    nonisolated static func isLive(lastActivity: Date?, now: Date) -> Bool {
+        guard let lastActivity else { return false }
+        return now.timeIntervalSince(lastActivity) < liveActivityWindow
+    }
 
     /// Degraded or worse only. Operational, maintenance and unknown produce no dot:
     /// the overview should look calm until something is wrong.

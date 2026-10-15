@@ -357,41 +357,32 @@ struct AccountCardTests {
         #expect(down.accessibilityLabel.contains("Claude is reporting major outage"))
     }
 
-    // MARK: - Burn sparkline
+    // MARK: - Live activity
 
-    @Test func burnSeries_isOrderedOldestFirst_zeroFilled_andFixedLength() {
-        let snap = UsageSnapshotFactory.make(fiveHourTokenBuckets: [0: 5, 19: 90, 7: 12])
-        let series = AccountCard.burnSeries(snap)
-        #expect(series.count == AccountCard.burnBucketCount)
-        #expect(series[0] == 5)
-        #expect(series[7] == 12)
-        #expect(series[19] == 90)
-        #expect(series[1] == 0)
-        #expect(AccountCard.burnSeries(nil).isEmpty)
+    @Test func lastActivity_isTheNewestAcrossTrackedSessions() {
+        let snap = UsageSnapshotFactory.make(lastActivities: [now.addingTimeInterval(-600), now.addingTimeInterval(-30)])
+        #expect(AccountCard.lastActivity(snap) == now.addingTimeInterval(-30))
+        #expect(AccountCard.lastActivity(nil) == nil)
+        #expect(AccountCard.lastActivity(UsageSnapshotFactory.make()) == nil)
     }
 
-    @Test func rows_carryBurn_fromTheCardsOwnProvider_andHideItWhenEmpty() {
+    @Test func isLive_withinFiveMinutesOnly() {
+        #expect(AccountCard.isLive(lastActivity: now.addingTimeInterval(-10), now: now))
+        #expect(AccountCard.isLive(lastActivity: now.addingTimeInterval(-299), now: now))
+        #expect(!AccountCard.isLive(lastActivity: now.addingTimeInterval(-300), now: now))
+        #expect(!AccountCard.isLive(lastActivity: now.addingTimeInterval(-3_600), now: now))
+        #expect(!AccountCard.isLive(lastActivity: nil, now: now))
+    }
+
+    @Test func rows_carryLastActivity_fromTheCardsOwnProvider() {
         let cards = AccountCard.rows(
             accounts: [rec("c1", .claude), rec("x1", .codex)], activeId: "c1",
             readings: ["c1": windowReading(0.3, 0.2), "x1": windowReading(0.1, 0.1, provider: .codex)],
             statuses: [:],
-            snapshots: [.claude: UsageSnapshotFactory.make(fiveHourTokenBuckets: [19: 1_000])],
+            snapshots: [.claude: UsageSnapshotFactory.make(lastActivities: [now])],
             isAuthenticated: { _ in true }, maskEmail: true
         )
-        #expect(cards[0].hasBurn)
-        #expect(cards[0].burn[19] == 1_000)
-        #expect(!cards[1].hasBurn) // no Codex aggregate yet
-        #expect(cards[1].burn.isEmpty)
-    }
-
-    @Test func rows_zeroSpendThisWindow_hasNoBurnToDraw() {
-        let cards = AccountCard.rows(
-            accounts: [rec("c1", .claude)], activeId: "c1",
-            readings: ["c1": windowReading(0.3, 0.2)],
-            statuses: [:], snapshots: [.claude: UsageSnapshotFactory.make()],
-            isAuthenticated: { _ in true }, maskEmail: true
-        )
-        #expect(cards[0].burn.count == AccountCard.burnBucketCount)
-        #expect(!cards[0].hasBurn)
+        #expect(cards[0].lastActivity == now)
+        #expect(cards[1].lastActivity == nil)
     }
 }

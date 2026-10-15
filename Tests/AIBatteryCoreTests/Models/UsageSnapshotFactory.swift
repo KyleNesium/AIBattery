@@ -10,8 +10,19 @@ enum UsageSnapshotFactory {
         sevenDayTokens: Int = 0,
         todayTokens: Int = 0,
         provider: AIProvider = .claude,
-        fiveHourTokenBuckets: [Int: Int] = [:]
+        fiveHourTokenBuckets: [Int: Int] = [:],
+        lastActivities: [Date] = []
     ) -> UsageSnapshot {
+        let sessions: [TokenHealthStatus] = lastActivities.enumerated().map { index, date in
+            TokenHealthStatus(
+                id: "s\(index)", band: .green, usagePercentage: 0,
+                totalUsed: 0, contextWindow: 200_000, usableWindow: 200_000, remainingTokens: 200_000,
+                inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+                model: provider == .codex ? "gpt-6-astra" : "claude-opus-5", turnCount: 1, warnings: [],
+                tokensPerMinute: nil, projectName: nil, gitBranch: nil,
+                sessionStart: nil, sessionDuration: nil, lastActivity: date
+            )
+        }
         let today: [ModelTokenSummary] = todayTokens == 0 ? [] : [
             ModelTokenSummary(
                 id: provider == .codex ? "gpt-6-astra" : "claude-opus-5",
@@ -60,7 +71,7 @@ enum UsageSnapshotFactory {
             hourCounts: [:],
             todayHourCounts: [:],
             tokenHealth: nil,
-            topSessionHealths: [],
+            topSessionHealths: sessions,
             provider: provider
         )
     }
