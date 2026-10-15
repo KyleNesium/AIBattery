@@ -2,8 +2,11 @@
 
 ## [3.1.0] — 2026-10-15
 
-**Multi-account overview.** With more than one account the popover opens on all of
-them at once instead of whichever one you last used.
+### ✨ Added: multi-account overview
+
+With more than one account the popover now opens on **all of them at once** — a card
+per account with its bars, tokens and resets — instead of whichever one you last used.
+One account sees no change.
 
 ### Added
 - **Multi-account overview.** With two or more accounts the popover opens on a card
