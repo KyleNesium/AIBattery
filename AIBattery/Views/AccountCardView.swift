@@ -61,15 +61,10 @@ struct AccountCardView: View {
         .accessibilityHint(card.state == .signedOut ? "Signs in to this account" : "Opens this account")
     }
 
-    /// Two layers: a transient provider-tinted wash for the row under the pointer, and a
-    /// permanent usage rail down the leading edge. The wash says "you are pointing here";
-    /// the rail says how much of that account is spent.
+    /// A transient provider-tinted wash for the row under the pointer.
     private var rowHighlight: some View {
-        ZStack(alignment: .leading) {
-            hoverShape
-            usageRail
-        }
-        .animation(MotionConstants.standard, value: hovered)
+        hoverShape
+            .animation(MotionConstants.standard, value: hovered)
     }
 
     private var tint: Color { ThemeColors.providerBadge(card.provider) }
@@ -86,32 +81,6 @@ struct AccountCardView: View {
             }
     }
 
-    /// A vertical restatement of the row's headline percent, filled from the bottom.
-    ///
-    /// It replaced an accent bar that marked the active account, which only ever meant
-    /// "the one you clicked last" — arbitrary, and invisible until you had clicked. Every
-    /// row carries this one, and its colour is the same scale the gauges use, so running
-    /// an eye down the left edge tells you which account is hot without reading a number.
-    /// Rows with no reading yet show nothing at all rather than an empty track.
-    @ViewBuilder
-    private var usageRail: some View {
-        if let percent = card.worstPercent {
-            let fraction = min(max(percent / 100, 0), 1)
-            GeometryReader { geo in
-                ZStack(alignment: .bottom) {
-                    Capsule()
-                        .fill(ThemeColors.barColor(percent: percent).opacity(ThemeColors.railTrackOpacity))
-                    Capsule()
-                        .fill(ThemeColors.barColor(percent: percent))
-                        .frame(height: geo.size.height * fraction)
-                }
-            }
-            .frame(width: Layout.usageRailWidth)
-            .padding(.vertical, Spacing.gap)
-            .accessibilityHidden(true)
-        }
-    }
-
     private var header: some View {
         HStack(spacing: Spacing.xsmall) {
             ProviderBadge(provider: card.provider)
@@ -120,6 +89,8 @@ struct AccountCardView: View {
                 .foregroundStyle(hovered || card.isActive ? .primary : ThemeColors.secondaryLabel)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                // The name is the row; the badge and the plan yield before it does.
+                .layoutPriority(1)
             if card.isActive {
                 // A word in the app's existing badge vocabulary, not a glyph crammed
                 // against the percentage — and readable without colour vision.
@@ -136,6 +107,7 @@ struct AccountCardView: View {
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .lineLimit(1)
+                    .layoutPriority(-1)
             }
             Spacer(minLength: Spacing.inner)
             if let status = card.status {

@@ -155,10 +155,6 @@ enum Layout {
     /// carry a hover fill, still narrow enough to hug the title cluster.
     static let backChevronWidth: CGFloat = 20
 
-    /// Leading usage rail on an overview row — a vertical restatement of the account's
-    /// headline percent, readable peripherally while scanning the list.
-    static let usageRailWidth: CGFloat = 3
-
     /// How far a navigation chevron slides toward its destination on hover.
     static let chevronHoverShift: CGFloat = 2
 

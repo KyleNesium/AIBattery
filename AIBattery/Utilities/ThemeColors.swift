@@ -260,10 +260,6 @@ enum ThemeColors {
     /// the hairline stroke, not the fill, is what gives the row its shape.
     static let rowHoverTintOpacity: Double = 0.07
     static let rowHoverStrokeOpacity: Double = 0.18
-    /// Unfilled part of an overview row's usage rail — fainter than a gauge track,
-    /// because the rail is a peripheral cue rather than something you read directly.
-    static let railTrackOpacity: Double = 0.16
-
     /// How far the "beta" label sits behind the tertiary label it is drawn in.
     static let betaBadgeOpacity: Double = 0.75
 
