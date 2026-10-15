@@ -1,20 +1,22 @@
 # Changelog
 
-## [3.1.0] — Unreleased
+## [3.1.0] — 2026-10-15
 
-Integration branch for the next release (one PR). Entries below the "Added" heading
-are appended by the task that lands them (see `docs/superpowers/plans/2026-10-12-v3-1-0-release-plan.md`).
+**Multi-account overview.** With more than one account the popover opens on all of
+them at once instead of whichever one you last used.
 
 ### Added
-- **Multi-account overview.** With two or more accounts the popover opens on all of
-  them at once: one card per account with its quota bars, tokens used in each
-  window, reset countdown and state. Clicking a card opens that account; a back
-  chevron or Escape returns. A signed-out account shows a sign-in card. The header
-  sums today's usage across providers and counts down to the next reset, and the
-  footer carries refresh-all and Quit instead of the detail view's single-account
-  links. With two or more accounts the menu bar leads with the account closest to a
-  limit — the same number its card shows — instead of whichever metric tab is
-  selected, so the bar and the overview can't disagree.
+- **Multi-account overview.** With two or more accounts the popover opens on a card
+  per account: its quota bars, the tokens spent in each window, the reset countdown,
+  and a usage rail down the leading edge so a glance down the list says which account
+  is hot. Clicking a card opens that account; a back chevron or Escape returns. A
+  signed-out account appears as a sign-in card rather than disappearing, and a
+  provider's status dot shows only when that provider is actually degraded or down.
+  One account sees no change at all.
+- **The menu bar agrees with it.** With two or more accounts the bar leads with the
+  account closest to a limit — the same number its card shows — rather than whichever
+  metric tab happens to be selected, so the two can no longer disagree. A
+  single-account menu bar still follows the tabs.
 - **Codex API-key accounts in the multi-account menu bar.** Their slot shows the busier per-minute limit (requests or tokens) instead of being left out; a transient fetch failure keeps the previous reading for every account rather than blanking its slot.
 
 ### Fixed
