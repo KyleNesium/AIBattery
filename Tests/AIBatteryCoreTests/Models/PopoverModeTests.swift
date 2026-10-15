@@ -10,6 +10,17 @@ struct PopoverModeTests {
         #expect(PopoverMode.initial(eligibleAccountCount: 6) == .overview)
     }
 
+    @Test func onShow_firstOpenDecides_laterOpensRemember() {
+        // First open after launch: the account count decides.
+        #expect(PopoverMode.onShow(remembered: nil, eligibleAccountCount: 2) == .overview)
+        #expect(PopoverMode.onShow(remembered: nil, eligibleAccountCount: 1) == .detail)
+        // Later opens: drill in, click away, come back → still in the account.
+        #expect(PopoverMode.onShow(remembered: .detail, eligibleAccountCount: 2) == .detail)
+        #expect(PopoverMode.onShow(remembered: .overview, eligibleAccountCount: 2) == .overview)
+        // …unless the remembered face is no longer valid.
+        #expect(PopoverMode.onShow(remembered: .overview, eligibleAccountCount: 1) == .detail)
+    }
+
     @Test func next_dropsToDetailWhenOneAccountRemains_keepsDetailOtherwise() {
         #expect(PopoverMode.next(current: .overview, eligibleAccountCount: 1) == .detail)
         #expect(PopoverMode.next(current: .overview, eligibleAccountCount: 0) == .detail)

@@ -17,7 +17,10 @@ One account sees no change.
   provider's status dot shows only when that provider is actually degraded or down.
   One account sees no change at all. A small dot breathes beside an account's name
   while its provider is actually being used, so the list also says which account
-  your CLI is hitting right now.
+  your CLI is hitting right now. The popover remembers where you were: drill into an
+  account, click away, reopen, and you are still in that account — the back chevron
+  is the way to the overview. Going in and coming back slide a few points in the
+  direction of travel.
 - **The menu bar agrees with it.** With two or more accounts the bar leads with the
   account closest to a limit — the same number its card shows — rather than whichever
   metric tab happens to be selected, so the two can no longer disagree. A

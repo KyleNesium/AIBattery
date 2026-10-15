@@ -25,6 +25,9 @@ struct PopoverHeaderView: View {
             HStack(alignment: .center, spacing: showsBack ? Spacing.xsmall : Spacing.inner) {
                 if showsBack {
                     backButton
+                        // Arrives from the direction it leads: a short slide in from the
+                        // left, so landing on a detail view shows you the way back.
+                        .transition(.opacity.combined(with: .offset(x: -MotionConstants.faceShift)))
                 }
                 AccountChipView(
                     accountStore: accountStore,

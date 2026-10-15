@@ -27,6 +27,9 @@ public struct UsagePopoverView: View {
     /// Overview (all accounts) vs detail (the active account). Decided on every
     /// panel open from the eligible account count; never remembered across opens.
     @State private var mode: PopoverMode = .detail
+    /// Set after the first `.panelDidShow`; from then on the face is remembered across
+    /// opens (drill in, click away, come back → still there).
+    @State private var hasDecidedInitialFace = false
     @AppStorage(UserDefaultsKeys.showFullAccountIdentity) private var showFullAccountIdentity: Bool = false
     @State private var addingProvider: AIProvider?
     @AppStorage(UserDefaultsKeys.metricMode) private var metricModeRaw: String = "5h"
@@ -133,8 +136,13 @@ public struct UsagePopoverView: View {
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .panelDidShow)) { _ in
-                // Every open re-decides the face: two or more accounts land on the overview.
-                mode = PopoverMode.initial(eligibleAccountCount: eligibleAccountCount)
+                // First open lands on the overview (with 2+ accounts); every later open
+                // returns to wherever the user left off, kept valid for the account count.
+                mode = PopoverMode.onShow(
+                    remembered: hasDecidedInitialFace ? mode : nil,
+                    eligibleAccountCount: eligibleAccountCount
+                )
+                hasDecidedInitialFace = true
                 // Deferred one run-loop (mirrors onAppear): the re-opened panel paints
                 // the core bars first, then the heavy sections fill in. The overview has
                 // no heavy sections, so only the detail face arms them.
@@ -184,8 +192,10 @@ public struct UsagePopoverView: View {
             }
         } else if mode == .overview {
             overviewContent
+                .transition(MotionConstants.overviewFaceTransition)
         } else {
             mainContent
+                .transition(MotionConstants.detailFaceTransition)
         }
     }
 
@@ -503,9 +513,7 @@ public struct UsagePopoverView: View {
         // would leave stale frames that show as blank space on next open.
         showSettings = false
         showLogoutConfirm = false
-        // Dismiss only (the panel is hidden): the next open recomputes the face from
-        // the account count in the `.panelDidShow` handler.
-        mode = .detail
+        // The face is deliberately NOT reset here: where you were is where you return.
         logoutRevertTask?.cancel()
         // Collapse the heavy sections while hidden — orderOut doesn't fire
         // onDisappear, so without this the hidden panel kept re-rendering

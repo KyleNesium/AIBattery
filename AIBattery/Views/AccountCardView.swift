@@ -26,13 +26,22 @@ struct AccountCardView: View {
                                 .foregroundStyle(stateColor)
                         }
                     }
-                    // Drill-in affordance. It brightens and slides a couple of points
-                    // toward its destination on hover — motion reads as "this goes
-                    // somewhere" far more clearly than a static glyph.
+                    // Drill-in affordance, the mirror of the detail header's back control:
+                    // on hover it gains the same rounded fill and slides toward where it
+                    // leads. Motion says "this goes somewhere" far better than a glyph.
                     Image(systemName: "chevron.forward")
                         .font(Typography.navChevron)
-                        .foregroundStyle(hovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
+                        .foregroundStyle(hovered ? .primary : ThemeColors.tertiaryLabel)
                         .offset(x: hovered ? Layout.chevronHoverShift : 0)
+                        .frame(width: Layout.chevronHitSize, height: Layout.chevronHitSize)
+                        .background {
+                            RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
+                                .fill(hovered ? ThemeColors.hoverFill : .clear)
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: Layout.smallCornerRadius)
+                                        .strokeBorder(hovered ? ThemeColors.hoverStroke : .clear, lineWidth: Layout.subtleBorderWidth)
+                                }
+                        }
                         .animation(MotionConstants.standard, value: hovered)
                         .accessibilityHidden(true)
                 }

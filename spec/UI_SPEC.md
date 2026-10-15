@@ -480,7 +480,9 @@ The **popover's 5-Hour/7-Day bars** read from a single source of truth — the (
 
 ### ❶ Overview mode (`Views/OverviewContentView.swift`, `AccountCardView.swift`)
 
-With **two or more accounts** the popover opens on the overview instead of the single-account detail view (`PopoverMode.initial`, re-decided on every `.panelDidShow`, never remembered). One account is unchanged.
+With **two or more accounts** the popover's **first open after launch** lands on the overview instead of the single-account detail view (`PopoverMode.initial`). From then on the face is **remembered across opens** (`PopoverMode.onShow(remembered:eligibleAccountCount:)` on every `.panelDidShow`): drill into an account, click away, reopen — you are still in that account, and the back chevron is the only way to the overview. `next` keeps a remembered face valid as accounts come and go (dropping to one account leaves the overview). Not persisted across relaunch. One account is unchanged.
+
+Face changes are **directional**: going in, the overview fades out sliding `Layout.faceShift` (12pt) to the left while the detail fades in from the right; coming back, the reverse (`MotionConstants.overviewFaceTransition` / `detailFaceTransition`). A few points of horizontal travel under the fade says "deeper" / "back"; a full-width `.move(edge:)` stays banned because it fights the panel's vertical re-anchor. The back chevron itself arrives with a short slide in from the left on landing in a detail view.
 
 ```
 ┌───────────────────────────────────────────┐

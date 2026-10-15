@@ -2,16 +2,23 @@ import Foundation
 
 /// Which face the popover shows: all accounts at once, or the active account's detail.
 ///
-/// Decided on every panel open (`.panelDidShow`), never remembered across opens — with
-/// two or more accounts the overview is always the landing page, and a single account
-/// never sees it.
+/// Decided once, on the first open after launch (`initial`), then **remembered** across
+/// opens: drill into an account, click away, come back — you are still in that account,
+/// and the back chevron is the only way to the overview. `next` keeps a remembered face
+/// valid as accounts come and go. A single account never sees the overview.
 enum PopoverMode: Equatable, Sendable {
     case overview
     case detail
 
-    /// On every panel open: two or more eligible accounts land on the overview.
+    /// First open after launch: two or more eligible accounts land on the overview.
     static func initial(eligibleAccountCount: Int) -> PopoverMode {
         eligibleAccountCount >= 2 ? .overview : .detail
+    }
+
+    /// Every later open: keep where the user was, unless that face is no longer valid.
+    static func onShow(remembered: PopoverMode?, eligibleAccountCount: Int) -> PopoverMode {
+        guard let remembered else { return initial(eligibleAccountCount: eligibleAccountCount) }
+        return next(current: remembered, eligibleAccountCount: eligibleAccountCount)
     }
 
     /// While the panel is open: losing accounts down to one leaves the overview (it has
