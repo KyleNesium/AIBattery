@@ -47,7 +47,7 @@ struct AccountCardTests {
         let cards = AccountCard.rows(
             accounts: accounts, activeId: "x1",
             readings: ["c1": windowReading(0.34, 0.26), "x1": windowReading(0.12, 0.08, provider: .codex)],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards.map(\.id) == ["c1", "x1"])
         #expect(cards[0].isActive == false)
@@ -67,7 +67,7 @@ struct AccountCardTests {
             accounts: accounts, activeId: "c1",
             readings: ["c1": windowReading(0.1, 0.1), "x1": windowReading(0.1, 0.1, provider: .codex)],
             statuses: [.claude: status(.operational), .codex: status(.partialOutage)],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )
         // Operational is not worth a dot — only trouble is.
         #expect(cards[0].status == nil)
@@ -80,7 +80,7 @@ struct AccountCardTests {
         let accounts = [rec("c1", .claude), rec("c2", .claude), rec("pending-9", .codex)]
         let cards = AccountCard.rows(
             accounts: accounts, activeId: "c1", readings: ["c1": windowReading(0.1, 0.1)],
-            statuses: [:], isAuthenticated: { $0 != "c2" }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { $0 != "c2" }, maskEmail: true
         )
         #expect(cards.map(\.id) == ["c1", "c2"])
         #expect(cards[1].state == .signedOut)
@@ -98,7 +98,7 @@ struct AccountCardTests {
         let cached = windowReading(0.5, 0.2, cached: true)
         let cards = AccountCard.rows(
             accounts: accounts, activeId: "c1", readings: ["c1": throttled, "c2": cached],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].state == .throttled)
         #expect(cards[1].state == .cached(now))
@@ -110,7 +110,7 @@ struct AccountCardTests {
         let cards = AccountCard.rows(
             accounts: accounts, activeId: "c1",
             readings: ["c1": windowReading(1.0, 0.2, cached: true)],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].state == .cached(now))
     }
@@ -119,7 +119,7 @@ struct AccountCardTests {
         let accounts = [rec("c1", .claude), rec("k1", .codex, apiKey: true)]
         let cards = AccountCard.rows(
             accounts: accounts, activeId: "c1", readings: [:],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].state == .fetching)
         #expect(cards[0].worstPercent == nil)
@@ -155,7 +155,7 @@ struct AccountCardTests {
                 "k1": AccountReading(windows: nil, apiLimits: std, fetchedAt: now, isCached: false, source: nil),
             ],
             statuses: [.codex: status(.operational)],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].bars.map(\.label) == ["Credits"])
         #expect(cards[0].bars[0].percent == 61)
@@ -178,7 +178,7 @@ struct AccountCardTests {
         let cards = AccountCard.rows(
             accounts: [rec("x1", .codex)], activeId: "x1",
             readings: ["x1": AccountReading(windows: credits, apiLimits: nil, fetchedAt: now, isCached: false, source: nil)],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].bars[0].uncapped)
         #expect(cards[0].bars[0].percent == nil)
@@ -202,7 +202,7 @@ struct AccountCardTests {
             accounts: [rec("x1", .codex, name: "Work", billing: "business")], activeId: "x1",
             readings: ["x1": windowReading(0.34, 0.26, provider: .codex)],
             statuses: [.codex: status(.operational)],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )
         let label = cards[0].accessibilityLabel
         #expect(label.contains("Codex account Work"))
@@ -221,7 +221,7 @@ struct AccountCardTests {
             accounts: [rec("c1", .claude)], activeId: "c1",
             readings: ["c1": windowReading(0.13, 0.80)],
             statuses: [:], snapshots: [.claude: snap],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].bars[0].tokens != nil)
         #expect(cards[0].bars[1].tokens != nil)
@@ -231,7 +231,7 @@ struct AccountCardTests {
         let cards = AccountCard.rows(
             accounts: [rec("c1", .claude)], activeId: "c1",
             readings: ["c1": windowReading(0.13, 0.80)],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].bars.allSatisfy { $0.tokens == nil })
     }
@@ -243,7 +243,7 @@ struct AccountCardTests {
             accounts: [rec("c1", .claude), rec("x1", .codex)], activeId: "c1",
             readings: ["c1": windowReading(0.1, 0.2), "x1": windowReading(0.1, 0.2, provider: .codex)],
             statuses: [:], snapshots: [.claude: snap],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].bars[0].tokens != nil)
         #expect(cards[1].bars.allSatisfy { $0.tokens == nil })
@@ -254,7 +254,7 @@ struct AccountCardTests {
         let cards = AccountCard.rows(
             accounts: [rec("c1", .claude)], activeId: "c1",
             readings: ["c1": windowReading(0.13, 0.80, resetIn: 3_600)],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].reset == now.addingTimeInterval(3_600 * 24))
     }
@@ -263,14 +263,14 @@ struct AccountCardTests {
         let quiet = AccountCard.rows(
             accounts: [rec("c1", .claude)], activeId: "c1",
             readings: ["c1": windowReading(0.13, 0.20, resetIn: 3_600)],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )[0]
         #expect(AccountCard.stateLine(quiet, now: now)?.hasPrefix("Resets in") == true)
 
         let throttled = AccountCard.rows(
             accounts: [rec("c1", .claude)], activeId: "c1",
             readings: ["c1": windowReading(1.0, 0.2, throttled: true, resetIn: 3_600)],
-            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true
         )[0]
         let line = AccountCard.stateLine(throttled, now: now)
         #expect(line?.hasPrefix("Throttled") == true)
@@ -280,7 +280,7 @@ struct AccountCardTests {
     @Test func stateLine_signedOutCardHasNoReset() {
         let cards = AccountCard.rows(
             accounts: [rec("c1", .claude), rec("c2", .claude)], activeId: "c1",
-            readings: [:], statuses: [:], isAuthenticated: { $0 != "c2" }, maskEmail: true, now: now
+            readings: [:], statuses: [:], isAuthenticated: { $0 != "c2" }, maskEmail: true
         )
         #expect(AccountCard.stateLine(cards[1], now: now) == "Signed out \u{00B7} click to sign in")
     }
@@ -310,7 +310,7 @@ struct AccountCardTests {
                 .claude: UsageSnapshotFactory.make(fiveHourTokens: 15_000_000, sevenDayTokens: 329_000_000, todayTokens: 90_000_000),
                 .codex: UsageSnapshotFactory.make(todayTokens: 13_000_000, provider: .codex),
             ],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )
         #expect(cards[0].tokensToday == nil)
         #expect(cards[1].tokensToday == 13_000_000)
@@ -322,7 +322,7 @@ struct AccountCardTests {
             accounts: [rec("x1", .codex, apiKey: true)], activeId: "x1",
             readings: ["x1": windowReading(0.9, 0.1, throttled: true, resetIn: 600, provider: .codex)],
             statuses: [:], snapshots: [.codex: UsageSnapshotFactory.make(todayTokens: 5_000, provider: .codex)],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )
         let line = AccountCard.stateLine(cards[0], now: now)
         #expect(line?.hasPrefix("Throttled") == true)
@@ -344,7 +344,7 @@ struct AccountCardTests {
             accounts: [rec("c1", .claude, name: "A")], activeId: "c1",
             readings: ["c1": windowReading(0.1, 0.1)],
             statuses: [.claude: status(.operational)],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )[0]
         #expect(!healthy.accessibilityLabel.contains("operational"))
 
@@ -352,7 +352,7 @@ struct AccountCardTests {
             accounts: [rec("c1", .claude, name: "A")], activeId: "c1",
             readings: ["c1": windowReading(0.1, 0.1)],
             statuses: [.claude: status(.majorOutage)],
-            isAuthenticated: { _ in true }, maskEmail: true, now: now
+            isAuthenticated: { _ in true }, maskEmail: true
         )[0]
         #expect(down.accessibilityLabel.contains("Claude is reporting major outage"))
     }

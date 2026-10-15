@@ -67,8 +67,7 @@ struct AccountCard: Identifiable, Equatable {
         statuses: [AIProvider: ClaudeSystemStatus],
         snapshots: [AIProvider: UsageSnapshot] = [:],
         isAuthenticated: (String) -> Bool,
-        maskEmail: Bool,
-        now: Date
+        maskEmail: Bool
     ) -> [AccountCard] {
         AccountStore.displayOrdered(accounts)
             .filter { !$0.isPendingIdentity }

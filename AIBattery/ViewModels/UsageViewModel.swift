@@ -91,6 +91,11 @@ public final class UsageViewModel: ObservableObject {
     /// Coalesces UserDefaults change notifications into a single fan-out.
     /// Read/written by `UsageViewModel+FanOut.swift`.
     var pendingFanOut: Task<Void, Never>?
+    /// Monotonic stamp of the newest `fetchAllAccounts` call. Two can be in flight at
+    /// once (the refresh tail awaits one directly; the observers schedule another) and
+    /// the slower one must not overwrite `perAccountReadings` with an older map —
+    /// only the newest call's result is applied. Read/written by `+FanOut.swift`.
+    var fanOutGeneration: UInt64 = 0
     /// Last observed value of the multi-account toggle — used to filter the
     /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
     private var lastObservedShowAllAccounts: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
@@ -244,7 +249,8 @@ public final class UsageViewModel: ObservableObject {
         standardLimits: StandardRateLimits? = nil,
         accountId: String? = nil,
         provider: AIProvider = .claude,
-        rateLimitsFresh: Bool = true
+        rateLimitsFresh: Bool = true,
+        applySideEffects: Bool = true
     ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
             _ = await inflight.value
@@ -266,7 +272,11 @@ public final class UsageViewModel: ObservableObject {
         // Apply side effects before clearing inflightAggregation so the next
         // caller sees consistent RateLimitFetcher state. The observed-model list feeds
         // the Claude Messages-probe fallback only — gpt-* IDs must never land there.
-        if effects.provider == .claude {
+        // `applySideEffects` is false for the overview's background aggregation of a
+        // NON-active provider: `activeUserModel` / observed models are global probe state
+        // for the account being polled, and a background pass for another account must
+        // not overwrite them every cycle.
+        if applySideEffects, effects.provider == .claude {
             RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
             if let id = effects.accountId {
                 RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)

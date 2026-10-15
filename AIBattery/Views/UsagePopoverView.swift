@@ -203,8 +203,7 @@ public struct UsagePopoverView: View {
             statuses: viewModel.providerStatuses,
             snapshots: viewModel.providerSnapshots,
             isAuthenticated: { OAuthManager.shared.isAuthenticated(accountId: $0) },
-            maskEmail: !showFullAccountIdentity,
-            now: Date()
+            maskEmail: !showFullAccountIdentity
         )
     }
 
@@ -242,10 +241,9 @@ public struct UsagePopoverView: View {
                 isLoading: viewModel.isLoading,
                 showsUpdateBadge: gearShowsUpdateBadge,
                 showSettings: $showSettings,
-                onRefresh: {
-                    viewModel.scheduleFanOut()
-                    Task { await viewModel.refresh() }
-                }
+                // `refresh()` fans out at its tail; scheduling another here fetched
+                // every account twice per click.
+                onRefresh: { Task { await viewModel.refresh() } }
             )
         }
         .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
@@ -271,8 +269,7 @@ public struct UsagePopoverView: View {
     /// In the overview, digits pick a card and `r` refreshes every account.
     private func handleOverviewKeyPress(_ key: String) {
         if key == "r" {
-            viewModel.scheduleFanOut()
-            Task { await viewModel.refresh() }
+            Task { await viewModel.refresh() } // fans out at its tail
             return
         }
         guard let index = Int(key), index >= 1 else { return }

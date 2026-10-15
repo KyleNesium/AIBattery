@@ -34,6 +34,11 @@ extension UsageViewModel {
     ///   on cache, so without seeding we'd issue an extra network call for the active
     ///   account every refresh cycle (N+1 total instead of N).
     func fetchAllAccounts(seed: (accountId: String, rateLimits: RateLimitUsage)? = nil) async {
+        // Single-writer rule: whoever started last owns `perAccountReadings`. Anything
+        // that finishes after a newer call began is dropped — mirrors
+        // `shouldApplyFetchResult` on the refresh path.
+        fanOutGeneration &+= 1
+        let generation = fanOutGeneration
         let toggle = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
         let eligible = OAuthManager.shared.multiAccountDisplayIDs().count
         let resolved = await MultiAccountFanOut.resolve(
@@ -43,6 +48,7 @@ extension UsageViewModel {
             provider: OAuthManager.shared,
             fetcher: ProviderDispatchingFetcher.live(accountStore: OAuthManager.shared.accountStore)
         )
+        guard generation == fanOutGeneration else { return } // a newer call owns the map
         if let resolved {
             perAccountReadings = resolved
         } else if !perAccountReadings.isEmpty {
@@ -70,7 +76,8 @@ extension UsageViewModel {
                 rateLimits: nil,
                 accountId: accountId,
                 provider: provider,
-                rateLimitsFresh: false
+                rateLimitsFresh: false,
+                applySideEffects: false // never touch the active account's probe state
             )
             providerSnapshots[provider] = snapshot
         }
