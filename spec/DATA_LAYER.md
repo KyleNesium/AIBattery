@@ -313,7 +313,7 @@ JSONL line schema (Codable):
 - `ContentBlock` (nested struct, minimal decoding): `type: String?` — only the type field is decoded (sufficient for counting `tool_use` blocks without parsing id/name/input)
 - `TokenUsage` includes `service_tier: String?` alongside the four token count fields
 
-`AssistantUsageEntry` (processed form): `timestamp: Date`, `model: String`, `messageId: String`, `inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens: Int`, `sessionId: String`, `cwd: String?`, `gitBranch: String?`, `toolCallCount: Int` (computed as `content?.filter { $0.type == "tool_use" }.count ?? 0`)
+`AssistantUsageEntry` (processed form): `timestamp: Date`, `model: String`, `messageId: String`, `inputTokens/outputTokens/cacheReadTokens/cacheWriteTokens: Int`, `sessionId: String`, `cwd: String?`, `gitBranch: String?`, `toolCallCount: Int` (per line: `content?.filter { $0.type == "tool_use" }.count ?? 0`; per message: summed across every JSONL line sharing the same `message.id` within a file — see "Tool-call coalescing" under SessionLogReader)
 
 ### ModelPricing (`Models/ModelPricing.swift`)
 
@@ -549,6 +549,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - **Symlink boundary check**: after discovery, resolves symlinks on each file URL and filters out any that resolve outside `~/.claude/projects/`. Prevents a symlink inside the projects directory from reading arbitrary files on disk.
 - **Discovery caching**: per-directory file lists (`discoveredFilesByDir`) with parent directory modification dates AND a TTL (`discoveryTTL = 60s`). Unchanged directories skip enumeration entirely. `lastFullEnumerationDate` tracks when the last full scan occurred. `expireDiscoveryTTLForTesting()` test hook forces TTL expiry.
 - **Memory eviction**: after successful merge into `cachedAllEntries`, `evictOldFileEntries()` nils out entry arrays for files with modDate before today. Eliminates double-storage between per-file cache and merged result. On dirty rebuild, evicted files with unchanged fingerprint are skipped (entries already in `cachedAllEntries`).
+- **Tool-call coalescing within a file**: Claude Code writes one JSONL line per content block, every line sharing the same `message.id` and carrying identical `usage`; the first line is usually text/thinking with zero `tool_use` blocks. `readSessionFile` keeps a `[messageId: index]` map and, on a repeated id, **adds** that line's `tool_use` count to the entry built from the first line (token fields stay first-line only, so usage is never summed). Without this the cross-file first-wins dedup below dropped ~96% of tool calls (187 → 7 on a real file).
 - Deduplication by messageId across all files (set-based). Fallback messageId uses a stable composite key (`sessionId:timestamp:inputTokens:outputTokens`) from entry fields — survives cache eviction without inflating counts
 - Sorted by timestamp ascending
 - **Entry construction**: `makeUsageEntry(from:)` static helper extracts `AssistantUsageEntry` from decoded `SessionEntry` — shared between main line loop and trailing-data handler (DRY)

@@ -412,7 +412,24 @@ final class SessionLogReader: @unchecked Sendable {
         defer { try? handle.close() }
 
         var entries: [AssistantUsageEntry] = []
+        // Claude Code writes one JSONL line per content block, all sharing `message.id`
+        // and carrying identical `usage`. The first line is usually text/thinking with
+        // zero `tool_use` blocks; the cross-file dedup in `rebuild` keeps first-wins, so
+        // without coalescing here the tool-call count was ~25x too low (187 → 7 on a
+        // real file). Token fields are taken from the first line only.
+        var indexById: [String: Int] = [:]
         let decoder = Self.jsonDecoder
+
+        func collect(_ entry: AssistantUsageEntry) {
+            if let index = indexById[entry.messageId] {
+                if entry.toolCallCount > 0 {
+                    entries[index] = Self.addingToolCalls(entry.toolCallCount, to: entries[index])
+                }
+            } else {
+                indexById[entry.messageId] = entries.count
+                entries.append(entry)
+            }
+        }
 
         let bufferSize = 64 * 1_024 // 64KB chunks
         let maxLineSize = 1_048_576 // 1MB — skip lines longer than this (malformed/corrupt)
@@ -456,7 +473,7 @@ final class SessionLogReader: @unchecked Sendable {
                     continue
                 }
                 if let usageEntry = Self.makeUsageEntry(from: decoded) {
-                    entries.append(usageEntry)
+                    collect(usageEntry)
                 }
             }
 
@@ -481,12 +498,30 @@ final class SessionLogReader: @unchecked Sendable {
                     decoded = nil
                 }
                 if let entry = decoded, let usageEntry = Self.makeUsageEntry(from: entry) {
-                    entries.append(usageEntry)
+                    collect(usageEntry)
                 }
             }
         }
 
         return entries
+    }
+
+    /// Copy of `entry` with `count` more tool calls — used to fold a later content-block
+    /// line of the same message into the entry built from its first line.
+    private static func addingToolCalls(_ count: Int, to entry: AssistantUsageEntry) -> AssistantUsageEntry {
+        AssistantUsageEntry(
+            timestamp: entry.timestamp,
+            model: entry.model,
+            messageId: entry.messageId,
+            inputTokens: entry.inputTokens,
+            outputTokens: entry.outputTokens,
+            cacheReadTokens: entry.cacheReadTokens,
+            cacheWriteTokens: entry.cacheWriteTokens,
+            sessionId: entry.sessionId,
+            cwd: entry.cwd,
+            gitBranch: entry.gitBranch,
+            toolCallCount: entry.toolCallCount + count
+        )
     }
 
     /// Build an `AssistantUsageEntry` from a decoded session entry, or nil if it's not an assistant message with usage.
