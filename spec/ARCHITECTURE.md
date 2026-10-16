@@ -90,7 +90,8 @@ AIBattery/
     AccountRecord.swift           — Per-account identity record (Codable, Identifiable); `provider` decodes as `.claude` for pre-Codex records
     APIFetchResult.swift          — Combined result from a single Messages API call
     APIProfile.swift              — Organization info from API response headers
-    RateLimitUsage.swift          — Unified rate limit header parsing (5h/7d windows); provider tag + optional window minutes (Codex payloads)
+    RateLimitUsage.swift          — The 5h/7d window model and its normalisation helpers (expired-window clearing, rollover-artifact suppression, spike confirmation); provider tag + optional window minutes (Codex payloads)
+    RateLimitUsage+Parsing.swift  — Parsing it out of the wire formats: unified response headers and the Claude Code `client_data` JSON with its path tables. Pure functions, no state
     CodexUsageParser.swift        — Parses `wham/usage` JSON (windows, credit budget, plan — one pass) and session-log `rate_limits` snapshots into RateLimitUsage
     CodexDisplayKind.swift        — windows / credits / apiLimits layout selector
     CodexAccessMode.swift         — chatgpt / apiKey account access mode
