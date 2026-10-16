@@ -89,7 +89,7 @@ enum SessionInfoFormatter {
         if let branch = health.gitBranch, branch != "HEAD", !branch.isEmpty {
             lines.append("Branch:   \(branch)")
         }
-        lines.append("Context:  \(health.totalUsed)/\(health.usableWindow) (\(Int(health.usagePercentage))%)")
+        lines.append("Context:  \(health.totalUsed)/\(health.usableWindow) (\(PercentFormat.display(health.usagePercentage)))")
         lines.append("Input:    \(health.inputTokens)")
         lines.append("Output:   \(health.outputTokens)")
         if health.cacheReadTokens > 0 {

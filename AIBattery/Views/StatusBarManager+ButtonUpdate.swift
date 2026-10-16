@@ -21,7 +21,9 @@ struct MenuBarRenderKey: Equatable {
 
     init(text: String, percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, appearanceName: NSAppearance.Name) {
         self.text = text
-        percentBucket = Int(percent.rounded())
+        // Same truncation as the displayed number (`PercentFormat`), so the bucket
+        // flips exactly when the text would.
+        percentBucket = PercentFormat.whole(percent)
         self.color = color
         self.isBroken = isBroken
         self.isSparkle = isSparkle

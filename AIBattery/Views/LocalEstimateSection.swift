@@ -59,10 +59,10 @@ struct LocalEstimateSection: View {
                     .font(Typography.buttonLabel)
                 Spacer()
                 if let pct = percent {
-                    Text("\(Int(pct))%")
+                    Text(PercentFormat.display(pct))
                         .font(Typography.monoValue)
-                        .copyable("\(Int(pct))%")
-                        .accessibilityLabel("\(label) usage \(Int(pct)) percent")
+                        .copyable(PercentFormat.display(pct))
+                        .accessibilityLabel("\(label) usage \(PercentFormat.spoken(pct))")
                 }
                 tokenLabel(tokens: tokens, limit: limit)
             }

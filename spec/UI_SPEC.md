@@ -104,6 +104,8 @@ Full token values are listed in `CONSTANTS.md > Design Tokens`.
 
 All visual section dividers use `StyledDivider` — a shared component rendering `Divider()` at `ThemeColors.dividerOpacity` (0.3) with `Spacing.tight` (2pt) vertical padding.
 
+**Percent text** (`Utilities/PercentFormat.swift`): every percentage the app prints — detail bars, Credits / API-limit bars, local estimate, context health, overview cards, the menu bar (multi-account slots, worst-only and single-account text), tooltips and accessibility strings — goes through `PercentFormat.display(_:)` (`"42%"`), `.spoken(_:)` (`"42 percent"`) or `.remaining(_:)`. The rule is **truncation**: `"100%"` is shown only when the value is really ≥ 100, so a window at 99.6% reads `99%` on every surface and never as a full bar without its "Limit reached" state. (Before v3.1.1 the cards and menu bar rounded while the detail bar truncated, so one reading showed `100%` and `99%` at once.) Inputs are snapped to a millionth before truncating so `0.57 × 100 = 56.999…` still reads `57%`; negative and non-finite inputs read `0%`. `MenuBarRenderKey.percentBucket` uses the same `whole(_:)` so the menu-bar redraw skip flips exactly when the text would.
+
 ## Section Specs
 
 ### ❶ Header (`PopoverHeaderView`)

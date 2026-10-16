@@ -124,7 +124,7 @@ struct AccountCardView: View {
                     .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
                     .accessibilityHidden(true)
             }
-            Text(card.worstPercent.map { "\(Int($0.rounded()))%" } ?? "\u{2014}")
+            Text(card.worstPercent.map(PercentFormat.display) ?? "\u{2014}")
                 .font(Typography.monoValueMedium)
                 .foregroundStyle(card.worstPercent.map { ThemeColors.barColor(percent: $0) } ?? ThemeColors.tertiaryLabel)
         }
@@ -134,7 +134,7 @@ struct AccountCardView: View {
         if card.state == .signedOut {
             return "\(card.identity) — signed out. Click to sign in."
         }
-        let number = card.worstPercent.map { "worst window \(Int($0.rounded()))%" } ?? "no reading yet"
+        let number = card.worstPercent.map { "worst window \(PercentFormat.display($0))" } ?? "no reading yet"
         return "\(card.identity) — \(number). Click to open this account."
     }
 
@@ -164,7 +164,7 @@ struct AccountCardBarRow: View {
                 .font(Typography.monoTiny)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .frame(width: Layout.cardTokensWidth, alignment: .trailing)
-            Text(bar.percent.map { "\(Int($0.rounded()))%" } ?? "\u{2014}")
+            Text(bar.percent.map(PercentFormat.display) ?? "\u{2014}")
                 .font(Typography.monoTiny)
                 .frame(width: Layout.cardPercentWidth, alignment: .trailing)
         }

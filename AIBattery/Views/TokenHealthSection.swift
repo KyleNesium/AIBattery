@@ -38,7 +38,7 @@ struct TokenHealthSection: View {
                 CollapsibleSectionHeader(
                     title: "Context",
                     collapsed: $collapsed,
-                    tooltip: "Context: \(Int(health.usagePercentage))% used \u{00B7} ~\(remainingText) of \(usableText) remaining\(sessions.count > 1 ? " \u{00B7} \(sessions.count) sessions (← → to browse)" : "")"
+                    tooltip: "Context: \(PercentFormat.display(health.usagePercentage)) used \u{00B7} ~\(remainingText) of \(usableText) remaining\(sessions.count > 1 ? " \u{00B7} \(sessions.count) sessions (← → to browse)" : "")"
                 )
                 Spacer()
 
@@ -70,7 +70,7 @@ struct TokenHealthSection: View {
                     // Gauge bar
                     GaugeBar(percent: health.usagePercentage, barColor: bandColor)
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
+                        .accessibilityLabel("Context usage \(PercentFormat.spoken(health.usagePercentage))")
                         .accessibilityValue("\(remainingText) tokens remaining")
 
                     // Detail row
@@ -308,9 +308,9 @@ struct TokenHealthSection: View {
                 .frame(width: Layout.dotSize, height: Layout.dotSize)
                 .animation(MotionConstants.smooth, value: bandColor)
                 .accessibilityLabel("Health: \(health.band == .green ? "good" : health.band == .orange ? "warning" : health.band == .red ? "critical" : "unknown")")
-            Text("\(Int(health.usagePercentage))%")
+            Text(PercentFormat.display(health.usagePercentage))
                 .font(Typography.monoValue)
-                .copyable("\(Int(health.usagePercentage))%")
+                .copyable(PercentFormat.display(health.usagePercentage))
         }
     }
 
