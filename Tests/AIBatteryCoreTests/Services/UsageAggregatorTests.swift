@@ -1389,6 +1389,28 @@ struct UsageAggregatorTests {
         #expect(snapshot.firstSessionDate == earliest)
     }
 
+    @Test func aggregate_firstSessionDate_acceptsWholeSecondStatsCacheStamp() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+        // Either ISO 8601 shape must parse; the fractional-only formatter returned nil
+        // for a whole-second stamp and the Insights header silently lost its start date.
+        let cacheURL = try writeStatsCache(
+            #"{"version":1,"lastComputedDate":"2025-06-15","dailyActivity":[],"dailyModelTokens":[],"modelUsage":{},"totalSessions":1,"totalMessages":1,"firstSessionDate":"2025-01-10T08:30:00Z","hourCounts":{}}"#,
+            to: dir
+        )
+        let stub = StubEntrySource([makeEntry(model: "claude-sonnet-4-6-20250929", timestamp: Date())])
+        let aggregator = UsageAggregator(
+            statsCacheReader: StatsCacheReader(fileURL: cacheURL),
+            sessionLogReader: stub,
+            ledger: TokenLedger(fileURL: dir.appendingPathComponent("token-ledger.json")),
+            provider: .claude
+        )
+
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
+
+        #expect(snapshot.firstSessionDate == DateFormatters.parseISO8601("2025-01-10T08:30:00Z"))
+    }
+
     @Test func convenienceInit_perProvider_stampsProvider() {
         #expect(UsageAggregator(provider: .claude).provider == .claude)
         #expect(UsageAggregator(provider: .codex).provider == .codex)

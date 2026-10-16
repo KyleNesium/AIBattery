@@ -60,7 +60,6 @@ final class UsageAggregator: @unchecked Sendable {
     }
 
     private static let dateFormatter = DateFormatters.dateKey
-    nonisolated(unsafe) private static let isoFormatter = DateFormatters.iso8601
 
     // MARK: - Time window constants
 
@@ -373,7 +372,7 @@ final class UsageAggregator: @unchecked Sendable {
         // First session date — stats cache when present, else the earliest JSONL entry
         // (entries are sorted ascending). Codex always takes the fallback.
         let firstSessionDate = statsCache?.firstSessionDate
-            .flatMap { Self.isoFormatter.date(from: $0) }
+            .flatMap(DateFormatters.parseISO8601)
             ?? allEntries.first?.timestamp
 
         // Token health assessment — single-pass grouping for current + top sessions

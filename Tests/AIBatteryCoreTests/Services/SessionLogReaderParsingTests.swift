@@ -101,6 +101,49 @@ struct SessionLogReaderParsingTests {
         #expect(reader.lastCorruptLineCount == 1)
     }
 
+    // MARK: - A16: timestamp is required; whole-second stamps accepted
+
+    @Test func missingTimestamp_isCorruptAndSkipped_neverNow() throws {
+        let dir = try makeProjectsDir()
+        defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }
+        try write([line(messageId: "no-ts", toolUses: 0, timestamp: nil), line(messageId: "ok", toolUses: 0)], to: dir)
+
+        let reader = SessionLogReader(projectsURL: dir)
+        let entries = reader.readAllUsageEntries()
+
+        // A `Date()` fallback would drop a historical message into today's windows.
+        #expect(entries.map(\.messageId) == ["ok"])
+        #expect(reader.lastCorruptLineCount == 1)
+    }
+
+    @Test func malformedTimestamp_isCorruptAndSkipped() throws {
+        let dir = try makeProjectsDir()
+        defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }
+        try write([line(messageId: "bad-ts", toolUses: 0, timestamp: "yesterday-ish")], to: dir)
+
+        let reader = SessionLogReader(projectsURL: dir)
+
+        #expect(reader.readAllUsageEntries().isEmpty)
+        #expect(reader.lastCorruptLineCount == 1)
+    }
+
+    @Test func wholeSecondTimestamp_isParsed() throws {
+        let dir = try makeProjectsDir()
+        defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }
+        try write([line(messageId: "plain", toolUses: 0, timestamp: "2026-02-17T10:00:00Z")], to: dir)
+
+        let reader = SessionLogReader(projectsURL: dir)
+        let entries = reader.readAllUsageEntries()
+
+        #expect(entries.first?.timestamp == DateFormatters.parseISO8601("2026-02-17T10:00:00Z"))
+        #expect(reader.lastCorruptLineCount == 0)
+    }
+
+    @Test func makeUsageEntry_missingTimestamp_returnsNil() throws {
+        let entry = try JSONDecoder().decode(SessionEntry.self, from: Data(line(messageId: "m", toolUses: 0, timestamp: nil).utf8))
+        #expect(SessionLogReader.makeUsageEntry(from: entry) == nil)
+    }
+
     @Test func toolCalls_distinctIds_stayPerMessage() throws {
         let dir = try makeProjectsDir()
         defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }

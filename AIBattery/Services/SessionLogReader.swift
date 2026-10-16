@@ -83,8 +83,6 @@ final class SessionLogReader: @unchecked Sendable {
     /// when directory mod-dates don't reflect new files (filesystem-dependent).
     private var lastFullEnumerationDate: Date?
 
-    private nonisolated(unsafe) static let isoFormatter = DateFormatters.iso8601
-
     /// Pre-computed byte markers for fast JSONL pre-filtering (avoids re-allocating per file).
     private static let assistantMarkers: [Data] = [
         "\"type\":\"assistant\"",
@@ -482,6 +480,9 @@ final class SessionLogReader: @unchecked Sendable {
                 }
                 if let usageEntry = Self.makeUsageEntry(from: decoded) {
                     collect(usageEntry)
+                } else if Self.hasCorruptTimestamp(decoded) {
+                    lastCorruptLineCount += 1
+                    AppLogger.files.debug("JSONL line without a parseable timestamp skipped in \(url.lastPathComponent, privacy: .public)")
                 }
             }
 
@@ -514,6 +515,18 @@ final class SessionLogReader: @unchecked Sendable {
         return entries
     }
 
+    /// The line's top-level ISO 8601 timestamp (fractional or whole seconds), or nil.
+    nonisolated static func parseTimestamp(_ text: String?) -> Date? {
+        text.flatMap(DateFormatters.parseISO8601)
+    }
+
+    /// True for a line that is an assistant usage line in every respect except its
+    /// timestamp — the one reason `makeUsageEntry` returns nil that counts as corrupt.
+    private static func hasCorruptTimestamp(_ entry: SessionEntry) -> Bool {
+        entry.type == "assistant" && entry.message?.usage != nil && entry.message?.model != nil
+            && parseTimestamp(entry.timestamp) == nil
+    }
+
     /// Copy of `entry` with `count` more tool calls — used to fold a later content-block
     /// line of the same message into the entry built from its first line.
     private static func addingToolCalls(_ count: Int, to entry: AssistantUsageEntry) -> AssistantUsageEntry {
@@ -543,11 +556,10 @@ final class SessionLogReader: @unchecked Sendable {
         // after cache eviction produces the same ID (preserving deduplication).
         let messageId = message.id ?? entry.uuid
             ?? "\(entry.sessionId ?? ""):\(entry.timestamp ?? ""):\(usage.inputTokens ?? 0):\(usage.outputTokens ?? 0)"
-        let timestamp: Date = if let ts = entry.timestamp {
-            isoFormatter.date(from: ts) ?? Date()
-        } else {
-            Date()
-        }
+        // Either ISO 8601 shape; a missing / malformed stamp is a corrupt line, never
+        // "now" — a `Date()` fallback drops a historical message into the current 5h /
+        // 7d windows and today's chart during a cold scan (mirrors CodexSessionLogParser).
+        guard let timestamp = Self.parseTimestamp(entry.timestamp) else { return nil }
 
         let toolCallCount = message.content?.filter { $0.type == "tool_use" }.count ?? 0
 
