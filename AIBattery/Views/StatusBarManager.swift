@@ -392,7 +392,10 @@ public final class StatusBarManager: NSObject {
         guard toggleState.isShowing else { return }
         let screenMaxHeight = panel.screen?.visibleFrame.height ?? Layout.fallbackScreenHeight
         let maxPanelHeight = screenMaxHeight - Layout.menuBarInset
-        let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
+        // One read: each access to `fittingSize` runs a SwiftUI layout pass, and this
+        // method runs on every content size change.
+        let fitting = hosting.fittingSize
+        let fittingHeight = min(fitting.height, maxPanelHeight)
         let newHeight = max(fittingHeight, Layout.panelMinHeight)
         // Skip no-op frame updates to avoid layout feedback loops
         guard abs(newHeight - panel.frame.height) > 0.5 else { return }
@@ -407,7 +410,7 @@ public final class StatusBarManager: NSObject {
             x: panel.frame.origin.x,
             y: topAnchor - newHeight
         )
-        let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
+        let fittingWidth = max(fitting.width, Layout.popoverWidth)
         panel.setFrame(
             NSRect(origin: newOrigin, size: NSSize(width: fittingWidth, height: newHeight)),
             display: true,

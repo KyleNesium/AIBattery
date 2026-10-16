@@ -38,8 +38,15 @@ enum MenuBarIcon {
 
     // MARK: - Icon cache
 
-    private static let cacheLock = NSLock()
+    // The whole type is `@MainActor`, so the caches need no lock. The NSLock this used
+    // to take (and the "render outside the lock, across threads" comment that went with
+    // it) predated that annotation; every caller is main-isolated.
     private static var iconCache: [Int: NSImage] = [:]
+    /// Provider brand marks, already tinted and sized. Keyed by provider, colour and
+    /// size: `menuBarAttributedText` re-tinted both marks on every call, and during the
+    /// sub-minute countdown that call runs once a second — two off-screen image renders
+    /// per second for artwork that only changes with the text colour.
+    private static var markCache: [Int: NSImage] = [:]
     private static var cachedColorblindFlag: Bool = ThemeColors.isColorblind
     private static var cachedAppearanceName: String = ""
 
@@ -76,7 +83,7 @@ enum MenuBarIcon {
         let result = NSMutableAttributedString(string: text, attributes: attributes)
         let markSize = ceil(font.capHeight)
         for provider in AIProvider.allCases {
-            guard let mark = provider.markImage?.tinted(color, size: NSSize(width: markSize, height: markSize)) else { continue }
+            guard let mark = tintedMark(for: provider, color: color, size: markSize) else { continue }
             while let range = result.string.range(of: provider.glyph) {
                 let attachment = NSTextAttachment()
                 attachment.image = mark
@@ -86,6 +93,24 @@ enum MenuBarIcon {
             }
         }
         return result
+    }
+
+    /// A provider's brand mark, tinted and sized, reused across calls. Invalidated with
+    /// the icon cache (appearance / colourblind changes), which is what changes `color`.
+    private static func tintedMark(for provider: AIProvider, color: NSColor, size: CGFloat) -> NSImage? {
+        var hasher = Hasher()
+        hasher.combine(provider)
+        hasher.combine(color.hash)
+        hasher.combine(size)
+        let key = hasher.finalize()
+        if let cached = markCache[key] {
+            return cached
+        }
+        guard let mark = provider.markImage?.tinted(color, size: NSSize(width: size, height: size)) else {
+            return nil
+        }
+        markCache[key] = mark
+        return mark
     }
 
     /// Accessibility value for the status item: provider names in place of glyphs.
@@ -145,27 +170,26 @@ enum MenuBarIcon {
         let appearanceName = currentAppearance?.name.rawValue ?? ""
         let currentColorblind = ThemeColors.isColorblind
 
-        // Check cache under lock; render outside lock to avoid holding it during image creation
         let colorHash = color.hash
-        let (key, cached): (Int, NSImage?) = cacheLock.withLock {
-            if cachedColorblindFlag != currentColorblind
-                || cachedAppearanceName != appearanceName {
-                iconCache.removeAll()
-                cachedColorblindFlag = currentColorblind
-                cachedAppearanceName = appearanceName
-            }
-
-            let qPercent = quantizedPercent(percent)
-            let k = cacheKey(quantizedPercent: qPercent, colorHash: colorHash, isBroken: isBroken, isSparkle: isSparkle)
-            return (k, iconCache[k])
+        if cachedColorblindFlag != currentColorblind || cachedAppearanceName != appearanceName {
+            iconCache.removeAll()
+            // The marks are tinted with the same colours these keys describe, so they
+            // go stale at exactly the same moments.
+            markCache.removeAll()
+            cachedColorblindFlag = currentColorblind
+            cachedAppearanceName = appearanceName
         }
 
-        if let cached {
+        let key = cacheKey(
+            quantizedPercent: quantizedPercent(percent),
+            colorHash: colorHash,
+            isBroken: isBroken,
+            isSparkle: isSparkle
+        )
+        if let cached = iconCache[key] {
             return cached
         }
 
-        // Render without holding the lock — NSImage creation is thread-safe
-        // but can be slow; no need to serialize rendering across threads.
         let icon: NSImage = if isBroken {
             // Throttled: static multi-pointed star at peak intensity
             renderThrottledIcon(color: color)
@@ -183,7 +207,7 @@ enum MenuBarIcon {
             width: icon.size.width - iconAlignmentInsets.left - iconAlignmentInsets.right,
             height: icon.size.height - iconAlignmentInsets.top - iconAlignmentInsets.bottom
         )
-        cacheLock.withLock { iconCache[key] = icon }
+        iconCache[key] = icon
         return icon
     }
 

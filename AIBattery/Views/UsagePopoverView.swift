@@ -319,11 +319,15 @@ public struct UsagePopoverView: View {
                 // already separates the settings stack from the footer row. Adding
                 // another here renders a doubled-up line at the bottom.
             } else if let snapshot = viewModel.snapshot {
+                // Resolved once per body evaluation. It was recomputed at each of the
+                // four sites below, and every call re-ran `CodexDisplayKind.of` plus an
+                // `activeAccount` lookup for an answer that cannot change mid-render.
+                let kind = displayKind(snapshot)
                 MetricToggleView(
                     pickerBinding: pickerBinding,
                     snapshot: snapshot,
                     provider: snapshot.provider,
-                    kind: displayKind(snapshot)
+                    kind: kind
                 )
 
                 // Local estimate header — shown once when API rate limits are unavailable
@@ -373,7 +377,7 @@ public struct UsagePopoverView: View {
                         } else if let stdLimits = snapshot.standardLimits {
                             StandardLimitsSection(limits: stdLimits, provider: snapshot.provider)
                             StyledDivider()
-                        } else if displayKind(snapshot) == .apiLimits {
+                        } else if kind == .apiLimits {
                             // An API-key account selects the "API Limits" tab from the
                             // account type alone, but `standardLimits` is nil until the
                             // first `/v1/responses` probe lands. `.sevenDay` is EmptyView
@@ -383,7 +387,7 @@ public struct UsagePopoverView: View {
                             StyledDivider()
                         }
                     case .sevenDay:
-                        if displayKind(snapshot) != .windows {
+                        if kind != .windows {
                             // Rendered once in the .fiveHour slot as the Credits / API Limits bar.
                             EmptyView()
                         } else if let limits = snapshot.rateLimits {
