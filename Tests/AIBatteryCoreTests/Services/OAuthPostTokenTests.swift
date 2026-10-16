@@ -104,9 +104,12 @@ struct OAuthPostTokenTests {
         #expect(stub.attemptCount == 2)
     }
 
-    @Test func authFailure401_failsImmediately_noRetry() async {
+    @Test func authFailure401_withOAuthErrorBody_failsImmediately_noRetry() async {
         // A dead credential is not transient — retrying spams the token endpoint.
-        let stub = TransportStub([.status(401)])
+        // Only a body that is recognisably an OAuth error makes a 401 final.
+        let stub = TransportStub([
+            .status(401, body: #"{"error":"invalid_client","error_description":"client rejected"}"#),
+        ])
         let result = await Self.post(stub)
 
         guard case .failure(.invalidCode) = result else {
@@ -114,6 +117,61 @@ struct OAuthPostTokenTests {
             return
         }
         #expect(stub.attemptCount == 1)
+    }
+
+    /// `invalid_grant` on a 401 is the provider's final word on the refresh token.
+    @Test func authFailure401_invalidGrantBody_isTerminalExpired() async {
+        let stub = TransportStub([.status(401, body: #"{"error":"invalid_grant"}"#)])
+        let result = await Self.post(stub)
+
+        guard case .failure(.expired) = result else {
+            Issue.record("Expected .expired, got \(result)")
+            return
+        }
+        #expect(stub.attemptCount == 1)
+    }
+
+    /// A 403 with no OAuth error body is a WAF / CDN / proxy answer, not Anthropic's
+    /// verdict on the refresh token. It must be transient — a terminal error here signs
+    /// the account out and deletes its Keychain item.
+    @Test func forbidden403_emptyBody_isTransient_retries() async {
+        let stub = TransportStub([.status(403), .status(403), .status(403)])
+        let result = await Self.post(stub)
+
+        guard case .failure(let error) = result, case .serverError(403, _) = error else {
+            Issue.record("Expected .serverError(403), got \(result)")
+            return
+        }
+        #expect(error.isTransient)
+        #expect(stub.attemptCount == 3)
+    }
+
+    /// Statuses outside {400, 401, 403, 429, 5xx} (404 from a CDN, 408, 418…) say
+    /// nothing about the credential.
+    @Test func unexpectedStatus404_isTransient() async {
+        let stub = TransportStub([.status(404), .status(404), .status(404)])
+        let result = await Self.post(stub)
+
+        guard case .failure(let error) = result, case .serverError(404, _) = error else {
+            Issue.record("Expected .serverError(404), got \(result)")
+            return
+        }
+        #expect(error.isTransient)
+        #expect(stub.attemptCount == 3)
+    }
+
+    /// Captive portal / proxy HTML on a 200 — the classic "hotel Wi-Fi" response.
+    @Test func html200Body_isTransient_keepsAuth() async {
+        let html = "<html><body><h1>Sign in to the network</h1></body></html>"
+        let stub = TransportStub([.status(200, body: html), .status(200, body: html), .status(200, body: html)])
+        let result = await Self.post(stub)
+
+        guard case .failure(let error) = result else {
+            Issue.record("Expected failure, got \(result)")
+            return
+        }
+        #expect(error.isTransient, "an unparseable 2xx must never sign the account out")
+        #expect(stub.attemptCount == 3)
     }
 
     @Test func expiredGrant_mapsToExpired_noRetry() async {
@@ -129,8 +187,9 @@ struct OAuthPostTokenTests {
         #expect(stub.attemptCount == 1)
     }
 
-    @Test func malformed200Body_retriesThenFails() async {
-        // A 200 with an unparseable body is treated as transient (server hiccup).
+    @Test func malformed200Body_retriesThenFails_transient() async {
+        // A 200 with an unparseable body is treated as transient (server hiccup) —
+        // `.serverError`, never `.unknownError`, so the caller keeps the account.
         let stub = TransportStub([
             .status(200, body: "not json"),
             .status(200, body: "not json"),
@@ -138,10 +197,11 @@ struct OAuthPostTokenTests {
         ])
         let result = await Self.post(stub)
 
-        guard case .failure(.unknownError) = result else {
-            Issue.record("Expected .unknownError, got \(result)")
+        guard case .failure(let error) = result, case .serverError(200, _) = error else {
+            Issue.record("Expected .serverError(200), got \(result)")
             return
         }
+        #expect(error.isTransient)
         #expect(stub.attemptCount == 3)
     }
 }

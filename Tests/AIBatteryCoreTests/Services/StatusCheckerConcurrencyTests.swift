@@ -36,6 +36,28 @@ struct StatusCheckerConcurrencyTests {
         }
     }
 
+    /// A7: a cancelled fan-out must not count as a feed failure — the backoff would
+    /// freeze the status dot for up to 5 min after an account add/remove.
+    @Test @MainActor func cancelledTransport_doesNotBumpFailureCount() async throws {
+        let url = try #require(URL(string: "https://status.example.invalid/summary.json"))
+        let checker = StatusChecker(config: Self.config(url))
+        checker.transport = { _ in throw URLError(.cancelled) }
+
+        let status = await checker.fetchStatus()
+        #expect(status.indicator == .unknown)
+        #expect(checker.failureCountForTesting() == 0)
+    }
+
+    /// Control for the test above: a genuine transport failure still backs off.
+    @Test @MainActor func timedOutTransport_bumpsFailureCount() async throws {
+        let url = try #require(URL(string: "https://status.example.invalid/summary.json"))
+        let checker = StatusChecker(config: Self.config(url))
+        checker.transport = { _ in throw URLError(.timedOut) }
+
+        _ = await checker.fetchStatus()
+        #expect(checker.failureCountForTesting() == 1)
+    }
+
     /// `fetchAndParse` must not block MainActor while the network call is
     /// pending. We start a MainActor "ping" task in parallel with the
     /// network attempt; if MainActor were blocked, the ping would not run

@@ -52,6 +52,13 @@ public final class OAuthManager: ObservableObject {
     /// and network-delay induced 401s that trigger unnecessary re-authentication.
     private static let expiryBuffer: TimeInterval = 300 // 5 minutes
 
+    /// Transport used by the refresh and code-exchange paths. Injectable so the refresh
+    /// contract (cancellation, failure backoff) is testable without the live token
+    /// endpoint; production keeps the `SecureNetworking` default.
+    var tokenTransport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) }
+    /// Retry policy for the Claude token endpoint; tests swap in a zero-delay policy.
+    var tokenRetryPolicy: RetryPolicy = .oauth
+
     /// Serializes concurrent refresh attempts per account.
     private var refreshTasks: [String: Task<String?, Never>] = [:]
     /// Generation counter per account — used to detect stale refresh tasks.
@@ -477,9 +484,16 @@ public final class OAuthManager: ObservableObject {
             "client_id": clientID,
         ]
 
-        let tokenResult = await Self.postToken(body: body)
+        let tokenResult = await Self.postToken(body: body, transport: tokenTransport, retryPolicy: tokenRetryPolicy)
         switch tokenResult {
         case .success(let result):
+            // `signOut` cancels this task and drops `tokens[accountId]`, but the network
+            // round-trip can't be retracted. Writing the fresh set back here would
+            // resurrect the account in memory and re-create its Keychain item.
+            guard !Task.isCancelled, tokens[accountId] != nil else {
+                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+                return nil
+            }
             tokens[accountId] = AccountTokens(
                 accessToken: result.accessToken,
                 refreshToken: result.refreshToken,
@@ -510,9 +524,14 @@ public final class OAuthManager: ObservableObject {
             tokens[accountId] = AccountTokens(accessToken: refresh, refreshToken: refresh, expiresAt: .distantFuture)
             return refresh
         }
-        let result = await CodexTokenClient.refresh(refreshToken: refresh)
+        let result = await CodexTokenClient.refresh(refreshToken: refresh, transport: tokenTransport)
         switch result {
         case .success(let set):
+            // Same post-sign-out guard as the Anthropic arm: never resurrect a removed account.
+            guard !Task.isCancelled, tokens[accountId] != nil else {
+                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+                return nil
+            }
             let expires = JWTDecoder.expiry(set.accessToken) ?? Date().addingTimeInterval(3_600)
             tokens[accountId] = AccountTokens(
                 accessToken: set.accessToken,
@@ -553,6 +572,76 @@ public final class OAuthManager: ObservableObject {
     /// `nonisolated` because `postToken` is `nonisolated static` and references this.
     nonisolated private static let maxRetries = 2
 
+    /// The recognisable parts of an OAuth error body. Anthropic answers either the
+    /// standard `{"error":"invalid_grant","error_description":"…"}` or its nested
+    /// `{"error":{"type":"…","message":"…"}}` shape.
+    private struct OAuthErrorBody {
+        let type: String?
+        let message: String?
+
+        /// nil when the body is not a JSON object carrying `error` / `error_description`.
+        init?(data: Data) {
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            let nested = json["error"] as? [String: Any]
+            let type = json["error"] as? String ?? nested?["type"] as? String
+            let message = json["error_description"] as? String ?? nested?["message"] as? String
+            guard type != nil || message != nil else { return nil }
+            self.type = type
+            self.message = message
+        }
+    }
+
+    /// Pure classification of one token-endpoint response. Mirrors
+    /// `CodexTokenClient.interpretTokenResponse`: a non-transient failure makes the
+    /// refresh path sign the account out and delete its Keychain item, so only a body
+    /// that is recognisably an OAuth error (`error` / `error_description` present) is
+    /// treated as the provider's final word. Everything else is transient:
+    /// - 2xx whose body does not decode (captive portal, proxy HTML, truncated response)
+    /// - 401 / 403 with no OAuth error body (WAF, CDN, proxy)
+    /// - 429, 5xx, and any status outside {400, 401, 403}
+    ///
+    /// A 400 stays terminal regardless of body — the OAuth spec reserves it for a
+    /// malformed or rejected grant, and the pre-existing `.unknownError` copy tells the
+    /// user to check Console.app.
+    nonisolated static func interpretTokenResponse(statusCode: Int, data: Data) -> Result<TokenResult, AuthError> {
+        switch statusCode {
+        case 200..<300:
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let access = json["access_token"] as? String,
+                  let refresh = json["refresh_token"] as? String,
+                  let expiresIn = json["expires_in"] as? Int else {
+                return .failure(.serverError(statusCode))
+            }
+            return .success(TokenResult(
+                accessToken: access,
+                refreshToken: refresh,
+                expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn))
+            ))
+        case 401, 403:
+            guard let body = OAuthErrorBody(data: data) else {
+                return .failure(.serverError(statusCode))
+            }
+            if body.type == "invalid_grant" || body.message?.lowercased().contains("expired") == true {
+                return .failure(.expired)
+            }
+            return .failure(.invalidCode)
+        case 400:
+            guard let body = OAuthErrorBody(data: data) else {
+                return .failure(.unknownError("Server returned status \(statusCode). Check Console.app for details."))
+            }
+            if body.type == "invalid_grant" {
+                return .failure(.expired)
+            }
+            if let message = body.message {
+                return .failure(.unknownError("Auth failed: \(message)"))
+            }
+            return .failure(.unknownError("Server returned status \(statusCode). Check Console.app for details."))
+        default:
+            // 429 / 5xx / CDN 4xx / anything unexpected — say nothing about the credential.
+            return .failure(.serverError(statusCode))
+        }
+    }
+
     /// HTTP POST to Anthropic's OAuth token endpoint. Pure: takes a body dict,
     /// returns a `Sendable Result<TokenResult, AuthError>`.
     ///
@@ -588,6 +677,10 @@ public final class OAuthManager: ObservableObject {
 
         var lastError: AuthError = .networkError
         for attempt in 0...Self.maxRetries {
+            // A cancelled refresh (sign-out mid-flight) must not keep hitting the endpoint
+            // through the retry loop. `.networkError` is transient, so the caller never
+            // treats a cancellation as a rejected credential.
+            guard !Task.isCancelled else { return .failure(.networkError) }
             if attempt > 0 {
                 // Exponential backoff with jitter via RetryPolicy.oauth (1s, 2s, 4s ±20%).
                 let delay = retryPolicy.delay(forAttempt: attempt)
@@ -598,19 +691,10 @@ public final class OAuthManager: ObservableObject {
                 let (data, response) = try await transport(request)
                 guard let http = response as? HTTPURLResponse else { return .failure(.networkError) }
 
-                if http.statusCode == 401 || http.statusCode == 403 {
-                    // Parse error body for specific message
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let errorMsg = json["error_description"] as? String {
-                        if errorMsg.lowercased().contains("expired") {
-                            return .failure(.expired)
-                        }
-                    }
-                    return .failure(.invalidCode)
-                }
-
-                // Retry on rate limit (429) and transient server errors (5xx)
-                if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
+                let result = Self.interpretTokenResponse(statusCode: http.statusCode, data: data)
+                if case .failure(let error) = result, error.isTransient {
+                    // 429 / 5xx / unparseable 2xx / non-OAuth 401-403 / any other status:
+                    // nothing here is the provider's verdict on the credential — retry.
                     AppLogger.oauth.warning("Token endpoint returned \(http.statusCode), attempt \(attempt + 1)/\(Self.maxRetries + 1)")
                     // Honor Retry-After header on 429 if present (capped at 30s via RateLimitFetcher)
                     if http.statusCode == 429,
@@ -619,51 +703,15 @@ public final class OAuthManager: ObservableObject {
                        ) {
                         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     }
-                    lastError = .serverError(http.statusCode)
+                    lastError = error
                     continue
                 }
-
-                guard http.statusCode == 200 else {
-                    let bodyStr = String(data: data, encoding: .utf8) ?? "(no body)"
+                if case .failure = result {
+                    // Terminal: the body is an OAuth error. It never contains a token.
+                    let bodyStr = String(data: data.prefix(512), encoding: .utf8) ?? "(no body)"
                     AppLogger.oauth.error("Token endpoint returned \(http.statusCode): \(bodyStr)")
-                    // Parse OAuth error response for specific feedback.
-                    // Anthropic wraps errors as {"error":{"type":"...","message":"..."}}
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        // Standard OAuth: top-level "error" string + "error_description"
-                        let oauthError = json["error"] as? String
-                        let desc = json["error_description"] as? String
-                        // Anthropic nested: {"error":{"type":"...","message":"..."}}
-                        let nested = json["error"] as? [String: Any]
-                        let nestedType = nested?["type"] as? String
-                        let nestedMsg = nested?["message"] as? String
-
-                        let errorType = oauthError ?? nestedType ?? ""
-                        let errorMsg = desc ?? nestedMsg
-
-                        if errorType == "invalid_grant" {
-                            return .failure(.expired)
-                        }
-                        if let errorMsg {
-                            return .failure(.unknownError("Auth failed: \(errorMsg)"))
-                        }
-                    }
-                    return .failure(.unknownError("Server returned status \(http.statusCode). Check Console.app for details."))
                 }
-
-                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let access = json["access_token"] as? String,
-                      let refresh = json["refresh_token"] as? String,
-                      let expiresIn = json["expires_in"] as? Int else {
-                    AppLogger.oauth.warning("Token endpoint returned 200 with invalid JSON, attempt \(attempt + 1)/\(Self.maxRetries + 1)")
-                    lastError = .unknownError("Invalid token response format")
-                    continue
-                }
-
-                return .success(TokenResult(
-                    accessToken: access,
-                    refreshToken: refresh,
-                    expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn))
-                ))
+                return result
             } catch {
                 AppLogger.oauth.error("Token exchange network error: \(error)")
                 lastError = .networkError
@@ -711,6 +759,12 @@ public final class OAuthManager: ObservableObject {
         let data = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
         tokens[accountId] = data
         OAuthTokenStorage.save(data, for: Self.tokenStorageKey(accountId: accountId, provider: provider))
+    }
+
+    /// Memory-only token seed for tests — nothing is written to the Keychain or
+    /// UserDefaults, so a test can prove the code under test didn't write either.
+    func seedTokensForTesting(accountId: String, accessToken: String?, refreshToken: String?, expiresAt: Date?) {
+        tokens[accountId] = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
     }
 
     private func loadAllTokens() {

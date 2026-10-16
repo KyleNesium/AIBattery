@@ -17,6 +17,17 @@ enum SecureNetworking {
         return URLSession(configuration: config)
     }()
 
+    /// True when a thrown transport error is the caller's own cancellation rather than
+    /// the endpoint failing — a fan-out torn down by a toggle flip or an account change
+    /// surfaces as `URLError(.cancelled)` / `CancellationError` / `Task.isCancelled`.
+    /// Fetchers must not count these toward endpoint backoff or status failure counts.
+    static func isCancellation(_ error: Error) -> Bool {
+        if Task.isCancelled || error is CancellationError {
+            return true
+        }
+        return (error as? URLError)?.code == .cancelled
+    }
+
     /// Fetch data with size guard. Drops responses exceeding `maxResponseSize`.
     static func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         let (data, response) = try await session.data(for: request)

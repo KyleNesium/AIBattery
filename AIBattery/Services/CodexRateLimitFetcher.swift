@@ -75,6 +75,10 @@ final class CodexRateLimitFetcher {
         backoff[accountId] = nil
     }
 
+    /// Injectable transport (production: `SecureNetworking`). Lets tests drive `fetch`
+    /// and `fetchAPIKeyLimits` through their real error paths without the network.
+    var transport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) }
+
     /// User-Agent string built from bundle version at startup — same construction
     /// as `RateLimitFetcher.userAgent`.
     let userAgent: String = {
@@ -158,7 +162,7 @@ final class CodexRateLimitFetcher {
 
     func validateAPIKey(_ apiKey: String) async -> APIKeyValidation {
         let request = Self.apiKeyValidationRequest(apiKey: apiKey, userAgent: userAgent)
-        guard let (_, response) = try? await SecureNetworking.data(for: request),
+        guard let (_, response) = try? await transport(request),
               let http = response as? HTTPURLResponse else { return .unknown }
         return Self.interpretAPIKeyValidation(statusCode: http.statusCode)
     }
@@ -230,7 +234,7 @@ final class CodexRateLimitFetcher {
         for model in Self.apiKeyProbeModels {
             let request = Self.apiKeyProbeRequest(apiKey: apiKey, model: model, userAgent: userAgent)
             do {
-                let (_, response) = try await SecureNetworking.data(for: request)
+                let (_, response) = try await transport(request)
                 guard let http = response as? HTTPURLResponse else { break }
                 AppLogger.network.info("openai api probe (\(model, privacy: .public)): status=\(http.statusCode)")
                 switch Self.interpretAPIKeyProbe(statusCode: http.statusCode, headers: http.allHeaderFields) {
@@ -252,6 +256,11 @@ final class CodexRateLimitFetcher {
                     return cachedOrEmpty(accountId: accountId)
                 }
             } catch {
+                // A cancelled fan-out (toggle flip, account added/removed) is not the
+                // endpoint failing — recording it would park the account in backoff.
+                if SecureNetworking.isCancellation(error) {
+                    return cachedOrEmpty(accountId: accountId)
+                }
                 AppLogger.network.warning("openai api probe failed: \(error.localizedDescription)")
                 recordEndpointFailure(accountId: accountId)
                 return cachedOrEmpty(accountId: accountId)
@@ -270,7 +279,7 @@ final class CodexRateLimitFetcher {
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
         if Self.shouldSkipEndpoint(backoff[accountId] ?? EndpointBackoff(), now: Date()) {
             AppLogger.network.info("codex usage endpoint in backoff (attempt \(self.backoff[accountId]?.failureCount ?? 0)) — using session log fallback")
-            return sessionLogFallback(accountId: accountId)
+            return await sessionLogFallback(accountId: accountId)
         }
 
         var request = URLRequest(url: Self.usageURL)
@@ -282,10 +291,10 @@ final class CodexRateLimitFetcher {
         request.timeoutInterval = 30
 
         do {
-            let (data, response) = try await SecureNetworking.data(for: request)
+            let (data, response) = try await transport(request)
             guard let http = response as? HTTPURLResponse else {
                 recordEndpointFailure(accountId: accountId)
-                return sessionLogFallback(accountId: accountId)
+                return await sessionLogFallback(accountId: accountId)
             }
 
             AppLogger.network.info("codex usage endpoint: status=\(http.statusCode), bodySize=\(data.count)")
@@ -309,12 +318,17 @@ final class CodexRateLimitFetcher {
                     }
                 }
                 recordEndpointFailure(accountId: accountId)
-                return sessionLogFallback(accountId: accountId)
+                return await sessionLogFallback(accountId: accountId)
             }
         } catch {
+            // Cancellation is the caller tearing the fan-out down, not an outage: serve
+            // the cache and leave the backoff state alone (A7).
+            if SecureNetworking.isCancellation(error) {
+                return cachedOrEmpty(accountId: accountId)
+            }
             AppLogger.network.warning("codex usage endpoint failed: \(error.localizedDescription)")
             recordEndpointFailure(accountId: accountId)
-            return sessionLogFallback(accountId: accountId)
+            return await sessionLogFallback(accountId: accountId)
         }
     }
 
@@ -352,14 +366,18 @@ final class CodexRateLimitFetcher {
     /// returns a transport error. Caches the fallback result in memory (so the menu
     /// bar reflects it immediately) but never persists it — a session-log snapshot
     /// must not overwrite real endpoint data on disk.
-    private func sessionLogFallback(accountId: String) -> APIFetchResult {
+    private func sessionLogFallback(accountId: String) async -> APIFetchResult {
         let codexAccountCount = OAuthManager.shared.accountStore.accounts.filter { $0.provider == .codex && !$0.isAPIKeyAccount }.count
         // Check the cheap disqualifier first. With 2+ ChatGPT-backed accounts the scan
         // result is discarded unconditionally, and this path runs on every poll for every
         // account for as long as the endpoint is down — a whole-tree walk per account per
         // poll, thrown away.
         guard codexAccountCount <= 1 else { return cachedOrEmpty(accountId: accountId) }
-        guard let (rateLimits, asOf) = CodexSessionRateLimitScanner.latestRateLimits(),
+        // The scan is file I/O (seek + 256 KB read + JSON, or a whole-tree walk after an
+        // invalidation) and runs on every poll per account for the whole backoff window —
+        // never on the main actor (the scanner is nonisolated + lock-guarded).
+        let scanned = await Task.detached(priority: .utility) { CodexSessionRateLimitScanner.latestRateLimits() }.value
+        guard let (rateLimits, asOf) = scanned,
               Self.shouldUseSessionLogFallback(cached: cachedResults[accountId], fallbackAsOf: asOf, codexAccountCount: codexAccountCount) else {
             return cachedOrEmpty(accountId: accountId)
         }
