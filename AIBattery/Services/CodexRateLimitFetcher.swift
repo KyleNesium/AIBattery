@@ -75,6 +75,10 @@ final class CodexRateLimitFetcher {
         backoff[accountId] = nil
     }
 
+    /// Injectable transport (production: `SecureNetworking`). Lets tests drive `fetch`
+    /// and `fetchAPIKeyLimits` through their real error paths without the network.
+    var transport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) }
+
     /// User-Agent string built from bundle version at startup — same construction
     /// as `RateLimitFetcher.userAgent`.
     let userAgent: String = {
@@ -158,7 +162,7 @@ final class CodexRateLimitFetcher {
 
     func validateAPIKey(_ apiKey: String) async -> APIKeyValidation {
         let request = Self.apiKeyValidationRequest(apiKey: apiKey, userAgent: userAgent)
-        guard let (_, response) = try? await SecureNetworking.data(for: request),
+        guard let (_, response) = try? await transport(request),
               let http = response as? HTTPURLResponse else { return .unknown }
         return Self.interpretAPIKeyValidation(statusCode: http.statusCode)
     }
@@ -230,7 +234,7 @@ final class CodexRateLimitFetcher {
         for model in Self.apiKeyProbeModels {
             let request = Self.apiKeyProbeRequest(apiKey: apiKey, model: model, userAgent: userAgent)
             do {
-                let (_, response) = try await SecureNetworking.data(for: request)
+                let (_, response) = try await transport(request)
                 guard let http = response as? HTTPURLResponse else { break }
                 AppLogger.network.info("openai api probe (\(model, privacy: .public)): status=\(http.statusCode)")
                 switch Self.interpretAPIKeyProbe(statusCode: http.statusCode, headers: http.allHeaderFields) {
@@ -252,6 +256,11 @@ final class CodexRateLimitFetcher {
                     return cachedOrEmpty(accountId: accountId)
                 }
             } catch {
+                // A cancelled fan-out (toggle flip, account added/removed) is not the
+                // endpoint failing — recording it would park the account in backoff.
+                if SecureNetworking.isCancellation(error) {
+                    return cachedOrEmpty(accountId: accountId)
+                }
                 AppLogger.network.warning("openai api probe failed: \(error.localizedDescription)")
                 recordEndpointFailure(accountId: accountId)
                 return cachedOrEmpty(accountId: accountId)
@@ -282,7 +291,7 @@ final class CodexRateLimitFetcher {
         request.timeoutInterval = 30
 
         do {
-            let (data, response) = try await SecureNetworking.data(for: request)
+            let (data, response) = try await transport(request)
             guard let http = response as? HTTPURLResponse else {
                 recordEndpointFailure(accountId: accountId)
                 return sessionLogFallback(accountId: accountId)
@@ -312,6 +321,11 @@ final class CodexRateLimitFetcher {
                 return sessionLogFallback(accountId: accountId)
             }
         } catch {
+            // Cancellation is the caller tearing the fan-out down, not an outage: serve
+            // the cache and leave the backoff state alone (A7).
+            if SecureNetworking.isCancellation(error) {
+                return cachedOrEmpty(accountId: accountId)
+            }
             AppLogger.network.warning("codex usage endpoint failed: \(error.localizedDescription)")
             recordEndpointFailure(accountId: accountId)
             return sessionLogFallback(accountId: accountId)
