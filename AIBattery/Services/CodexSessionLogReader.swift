@@ -40,12 +40,33 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     /// from the merged array cost a string hash per entry on every dirty cycle.
     private var cachedSeenIds: Set<String>?
 
-    /// Maximum time between directory enumerations. The nested date directories make
-    /// per-directory mtimes a poor "new file" signal, so discovery is TTL + root-mtime.
+    /// Maximum time between directory enumerations, as a safety net behind the
+    /// per-directory mtime cache below.
     static let discoveryTTL: TimeInterval = 60
     private var discoveredFiles: [URL]?
     private var lastEnumerationDate: Date?
     private var rootModDateAtEnumeration: Date?
+
+    /// One directory's contents plus the mtime they were read at.
+    ///
+    /// A directory's mtime moves whenever an entry is added or removed, so an unchanged
+    /// mtime means BOTH lists are still accurate and the directory needs no read at all.
+    private struct DirListing {
+        var modDate: Date?
+        var files: [URL]
+        var subdirectories: [URL]
+    }
+
+    /// Per-directory listings, keyed by path and deliberately kept across `invalidate()`
+    /// — that is the whole point. Discovery used to re-walk the entire tree and resolve
+    /// every file's symlink on each invalidation (roughly 15–40 ms per cycle, every two
+    /// seconds during an active session) because the only short-circuit was the root's
+    /// mtime, which changes about once a year.
+    private var dirListings: [String: DirListing] = [:]
+
+    /// How many directories the last discovery actually read, as opposed to served from
+    /// `dirListings`. Tests assert this drops once the tree is warm.
+    private var directoriesListedDuringLastDiscovery = 0
 
     /// Corrupt / skipped line count from the most recent `readAllUsageEntries()`.
     private(set) var lastCorruptLineCount = 0
@@ -208,25 +229,99 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         let resolvedBase = sessionsURL.resolvingSymlinksInPath().path
         let resolvedBaseSlash = resolvedBase + "/"
         var files: [URL] = []
+        var liveDirPaths = Set<String>()
+        var listedCount = 0
 
-        if let enumerator = fm.enumerator(
-            at: sessionsURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) {
-            for case let fileURL as URL in enumerator where fileURL.pathExtension == "jsonl" {
-                // Symlink boundary: a link inside ~/.codex/sessions must not read arbitrary files.
-                let resolved = fileURL.resolvingSymlinksInPath().path
-                guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
-                guard (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
-                files.append(fileURL)
+        // Breadth-first over the YYYY/MM/DD skeleton. An unchanged directory costs one
+        // stat and nothing else; only directories whose mtime moved are read.
+        var queue = [sessionsURL]
+        while let dir = queue.popLast() {
+            let path = dir.path
+            guard liveDirPaths.insert(path).inserted else { continue } // cycle guard
+
+            let modDate = FileStat.modificationDate(of: dir)
+            let listing: DirListing
+            if let cached = dirListings[path], let modDate, cached.modDate == modDate {
+                listing = cached
+            } else {
+                listing = listDirectory(
+                    dir, fileManager: fm,
+                    resolvedBase: resolvedBase, resolvedBaseSlash: resolvedBaseSlash,
+                    modDate: modDate
+                )
+                dirListings[path] = listing
+                listedCount += 1
             }
+
+            files.append(contentsOf: listing.files)
+            queue.append(contentsOf: listing.subdirectories)
         }
 
+        // Forget directories that no longer exist, so a deleted date folder cannot keep
+        // feeding its files into discovery.
+        if dirListings.count != liveDirPaths.count {
+            dirListings = dirListings.filter { liveDirPaths.contains($0.key) }
+        }
+
+        directoriesListedDuringLastDiscovery = listedCount
         discoveredFiles = files
         lastEnumerationDate = Date()
         rootModDateAtEnumeration = rootModDate
         return files
+    }
+
+    /// Read one directory: its `.jsonl` files and its subdirectories.
+    ///
+    /// The symlink boundary is enforced per entry rather than by resolving every file.
+    /// Only entries that ARE symlinks are resolved, which is what made the old version
+    /// expensive — `resolvingSymlinksInPath()` is a multi-component `realpath` and it
+    /// ran on all 900-odd files whether or not any of them was a link.
+    private func listDirectory(
+        _ dir: URL,
+        fileManager fm: FileManager,
+        resolvedBase: String,
+        resolvedBaseSlash: String,
+        modDate: Date?
+    ) -> DirListing {
+        let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+        guard let entries = try? fm.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]
+        ) else {
+            return DirListing(modDate: modDate, files: [], subdirectories: [])
+        }
+
+        var files: [URL] = []
+        var subdirectories: [URL] = []
+
+        for entry in entries {
+            guard let values = try? entry.resourceValues(forKeys: Set(keys)) else { continue }
+
+            let isLink = values.isSymbolicLink == true
+            if isLink {
+                let resolved = entry.resolvingSymlinksInPath().path
+                guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
+            }
+
+            if values.isDirectory == true {
+                // Descend into real directories only. A symlinked directory inside the
+                // sessions tree is not something Codex creates, and refusing to follow
+                // one removes any chance of a traversal cycle.
+                if !isLink {
+                    subdirectories.append(entry)
+                }
+            } else if entry.pathExtension == "jsonl", values.isRegularFile == true {
+                files.append(entry)
+            }
+        }
+
+        return DirListing(modDate: modDate, files: files, subdirectories: subdirectories)
+    }
+
+    /// Directories read (not served from cache) by the most recent discovery — tests only.
+    func directoriesListedDuringLastDiscoveryForTesting() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return directoriesListedDuringLastDiscovery
     }
 
     // MARK: - Streaming line reader
