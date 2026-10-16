@@ -135,7 +135,7 @@ struct UsageBar: View {
     private var displayPercent: Double { alarm.displayPercent }
 
     private var headerTooltip: String {
-        var parts = ["\(label) rate limit: \(Int(displayPercent))% used"]
+        var parts = ["\(label) rate limit: \(PercentFormat.display(displayPercent)) used"]
         if isBinding {
             parts.append("This window is the binding constraint")
         }
@@ -158,8 +158,8 @@ struct UsageBar: View {
         GaugeRow(
             percent: displayPercent,
             barColor: ThemeColors.barColor(percent: displayPercent),
-            accessibilityLabel: "\(label) rate limit usage \(Int(displayPercent)) percent",
-            accessibilityValue: alarm.throttled ? "Rate limited" : "\(max(0, Int(100 - displayPercent))) percent remaining",
+            accessibilityLabel: "\(label) rate limit usage \(PercentFormat.spoken(displayPercent))",
+            accessibilityValue: alarm.throttled ? "Rate limited" : "\(PercentFormat.remaining(displayPercent)) percent remaining",
             tickInterval: resetTickInterval,
             headerLeading: {
                 HStack(spacing: Spacing.inner) {
@@ -195,9 +195,9 @@ struct UsageBar: View {
                             .frame(width: Layout.tokenColumn, alignment: .trailing)
                             .copyable("\(tokenTotal) tokens")
                     }
-                    Text("\(Int(displayPercent))%")
+                    Text(PercentFormat.display(displayPercent))
                         .font(Typography.monoValue)
-                        .copyable("\(Int(displayPercent))%")
+                        .copyable(PercentFormat.display(displayPercent))
                 }
             },
             footer: { now in
@@ -234,7 +234,7 @@ struct UsageBar: View {
                             .help("Estimated time until rate limit based on current burn rate")
                     } else {
                         // No burn rate estimate yet — show remaining percentage
-                        let remainingText = "\(max(0, Int(100 - displayPercent)))% remaining"
+                        let remainingText = "\(PercentFormat.remaining(displayPercent))% remaining"
                         Text(remainingText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)

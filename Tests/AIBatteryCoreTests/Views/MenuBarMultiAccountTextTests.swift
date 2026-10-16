@@ -205,6 +205,52 @@ struct MenuBarMultiAccountTextTests {
         #expect(MenuBarMultiAccountText.build(order: ["x"], limits: ["x": uncapped], metricMode: .fiveHour).text == "\u{2014}")
     }
 
+    // MARK: - Percent text truncates like every other surface (A13)
+
+    @Test("Multi-account slot: 99.6% reads 99%, never 100% — same rule as the detail bar")
+    func multiAccountSlotTruncates() {
+        let limits: [String: RateLimitUsage] = [
+            "a": Self.usage(fiveHourUtilization: 0.996),
+            "b": Self.usage(fiveHourUtilization: 0.004),
+        ]
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        #expect(out.text == "99%\u{00A0}|\u{00A0}0%")
+    }
+
+    @Test("Worst-only bar: 99.6% reads 99%")
+    func worstOnlyTruncates() {
+        let limits: [String: RateLimitUsage] = [
+            "a": Self.usage(fiveHourUtilization: 0.996),
+            "b": Self.usage(fiveHourUtilization: 0.25),
+        ]
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: limits,
+            order: ["a", "b"],
+            activeRateLimits: limits["b"],
+            activePercent: 25,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: { _, _ in nil }
+        )
+        #expect(result.text == "99%")
+    }
+
+    @Test("Single-account bar: 99.6% reads 99%")
+    func singleAccountTruncates() {
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: false,
+            perAccount: [:],
+            order: ["a"],
+            activeRateLimits: Self.usage(fiveHourUtilization: 0.996),
+            activePercent: 99.6,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: { _, _ in nil }
+        )
+        #expect(result.text == "99%")
+    }
+
     // MARK: - Several accounts with the list turned off
 
     @Test("Two accounts, list off: one number, the worst account's headline")
@@ -248,14 +294,14 @@ struct MenuBarMultiAccountTextTests {
         #expect(result.usedMultiAccount == false)
     }
 
-    // MARK: - Rounding
+    // MARK: - Truncation (PercentFormat rule — the bar never rounds up)
 
-    @Test("Percent rounds to nearest integer")
-    func percentRoundsToNearest() {
+    @Test("Percent truncates — 42.6% reads 42%, like the detail bar")
+    func percentTruncates() {
         let lower: [String: RateLimitUsage] = ["a": Self.usage(fiveHourUtilization: 0.424)]
         let upper: [String: RateLimitUsage] = ["a": Self.usage(fiveHourUtilization: 0.426)]
         #expect(MenuBarMultiAccountText.build(order: ["a"], limits: lower, metricMode: .fiveHour).text == "42%")
-        #expect(MenuBarMultiAccountText.build(order: ["a"], limits: upper, metricMode: .fiveHour).text == "43%")
+        #expect(MenuBarMultiAccountText.build(order: ["a"], limits: upper, metricMode: .fiveHour).text == "42%")
     }
 
     // MARK: - shouldRender gate

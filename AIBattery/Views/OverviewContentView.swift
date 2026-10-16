@@ -11,13 +11,20 @@ struct OverviewContentView: View {
     let cards: [AccountCard]
     let onSelect: (AccountCard) -> Void
 
+    /// How often the cards' relative text ("Cached 3m ago", "resets in 2h", the live
+    /// dot) is re-read. One `TimelineView` here drives every card; a ticker per card
+    /// re-evaluated N whole card bodies every tick for two lines that read the clock.
+    static let clockInterval: TimeInterval = 10
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
-                if index > 0 {
-                    insetDivider
+        TimelineView(.periodic(from: .now, by: Self.clockInterval)) { context in
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                    if index > 0 {
+                        insetDivider
+                    }
+                    AccountCardView(card: card, now: context.date, onSelect: { onSelect(card) })
                 }
-                AccountCardView(card: card, onSelect: { onSelect(card) })
             }
         }
         .padding(.top, Spacing.gap)

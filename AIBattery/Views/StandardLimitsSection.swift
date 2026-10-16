@@ -87,7 +87,7 @@ private struct StandardLimitBar: View {
         GaugeRow(
             percent: percent,
             barColor: ThemeColors.barColor(percent: percent),
-            accessibilityLabel: "\(label) rate limit usage \(Int(percent)) percent",
+            accessibilityLabel: "\(label) rate limit usage \(PercentFormat.spoken(percent))",
             accessibilityValue: isExhausted ? "Limit reached" : "\(TokenFormatter.format(remaining)) remaining",
             headerLeading: {
                 HStack(spacing: Spacing.inner) {

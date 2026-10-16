@@ -42,7 +42,7 @@ enum MenuBarMultiAccountText {
     ) -> Output {
         let parts: [String] = order.map { id in
             guard let pct = headlinePercent(id: id, limits: limits, apiLimits: apiLimits) else { return "—" }
-            return "\(Int(pct.rounded()))%"
+            return PercentFormat.display(pct)
         }
 
         // Determine if we have mixed providers (single provider vs mixed).
@@ -233,7 +233,7 @@ enum MenuBarMultiAccountText {
             let text: String = if let reset {
                 RateLimitUsage.countdownText(to: reset)
             } else {
-                "\(Int(worst.rounded()))%"
+                PercentFormat.display(worst)
             }
             return Display(
                 text: text,
@@ -253,7 +253,7 @@ enum MenuBarMultiAccountText {
                     RateLimitUsage.countdownText(to: activeReset)
                 }
             } else {
-                "\(Int(activePercent))%"
+                PercentFormat.display(activePercent)
             }
             return Display(
                 text: text,
