@@ -43,6 +43,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | 24-hour trailing window | 86400 sec | UsageAggregator |
 | Insights chart bucket count | 20 (fifteen-minute buckets over 5 hours) | UsageAggregator |
 | Insights chart bucket duration | 900 sec (15 min) | UsageAggregator |
+| Aggregation fingerprint time bucket | 900 sec (15 min) — `fingerprintTimeBucket`; `now` quantised to this is part of the redundant-aggregation fingerprint, so an idle provider re-aggregates at most once per bucket instead of serving a time-stale snapshot indefinitely | UsageAggregator |
 
 ## URLs
 

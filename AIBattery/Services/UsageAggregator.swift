@@ -112,6 +112,14 @@ final class UsageAggregator: @unchecked Sendable {
     private var lastRateLimitsFresh = true
     private var lastIdleSessionMinutes: Int = -1
     private var lastAccountId: String?
+    /// `now` quantised to `fingerprintTimeBucket`; part of the fingerprint so an idle
+    /// provider (no FS events → no `invalidate()`) cannot serve a time-stale snapshot
+    /// forever: the 5h-window tokens, today's counters and `lastUpdated` all depend on
+    /// `now`, not only on the inputs.
+    private var lastTimeBucket: Int = -1
+
+    /// Width of the `now` bucket in the redundant-aggregation fingerprint (seconds).
+    static let fingerprintTimeBucket: TimeInterval = 15 * 60
 
     /// Clear cached snapshot so the next aggregate() re-computes from scratch.
     /// Called by FileWatcher when JSONL or stats-cache files change.
@@ -134,9 +142,11 @@ final class UsageAggregator: @unchecked Sendable {
 
         // Narrow lock scope: only guards cached-state reads/writes, not I/O.
         // Prevents blocking invalidate() callers on main actor during JSONL scans.
+        let timeBucket = Int(now.timeIntervalSinceReferenceDate / Self.fingerprintTimeBucket)
         lock.lock()
         let statsCacheModDate = statsCacheReader?.lastModificationDate
         if let cached = cachedSnapshot,
+           timeBucket == lastTimeBucket,
            statsCacheModDate == lastStatsCacheModDate,
            rateLimits == lastRateLimits,
            standardLimits == lastStandardLimits,
@@ -516,6 +526,7 @@ final class UsageAggregator: @unchecked Sendable {
         lastRateLimitsFresh = rateLimitsFresh
         lastIdleSessionMinutes = idleSessionMinutes
         lastAccountId = accountId
+        lastTimeBucket = timeBucket
         lock.unlock()
 
         return (snapshot, effects)
