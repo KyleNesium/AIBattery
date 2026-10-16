@@ -37,30 +37,17 @@ final class CodexRateLimitFetcher {
     /// off, `fetch` skips the network and serves the session-log fallback — no
     /// immediate retries against an endpoint that just failed. Auth failures are NOT
     /// backed off (they have their own counter and must surface promptly).
-    struct EndpointBackoff: Sendable, Equatable {
-        var failureCount = 0
-        var lastFailedAt: Date?
-        var currentDelay: TimeInterval = 0
-    }
+    /// Shared with `RateLimitFetcher` — see `EndpointBackoff`.
+    typealias EndpointBackoff = AIBatteryCore.EndpointBackoff
 
     private var backoff: [String: EndpointBackoff] = [:]
 
     nonisolated static func shouldSkipEndpoint(_ state: EndpointBackoff, now: Date) -> Bool {
-        guard let failedAt = state.lastFailedAt, state.failureCount > 0 else { return false }
-        let elapsed = now.timeIntervalSince(failedAt)
-        // A backward clock jump (NTP correction, VM resume, manual change) makes `elapsed`
-        // negative, which is `< currentDelay` for the whole skew. A menu-bar app runs for
-        // weeks, so that would wedge the endpoint in backoff until the next relaunch.
-        guard elapsed >= 0 else { return false }
-        return elapsed < state.currentDelay
+        EndpointBackoff.shouldSkip(state, now: now)
     }
 
     nonisolated static func recordingFailure(_ state: EndpointBackoff, now: Date, policy: RetryPolicy = .statusCheck) -> EndpointBackoff {
-        var next = state
-        next.failureCount += 1
-        next.lastFailedAt = now
-        next.currentDelay = policy.delay(forAttempt: next.failureCount)
-        return next
+        EndpointBackoff.recordingFailure(state, now: now, policy: policy)
     }
 
     func isInBackoffForTesting(accountId: String, now: Date = Date()) -> Bool {

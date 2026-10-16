@@ -35,20 +35,21 @@ struct SecureNetworkingTests {
     /// whatever host the Location named. The delegate must hand URLSession nil.
     @Test func redirectDelegate_refusesRedirect() async throws {
         let delegate = SecureNetworking.NoRedirectDelegate()
+        let origin = try #require(URL(string: "https://example.com/a"))
+        let elsewhere = try #require(URL(string: "https://evil.example/b"))
         let response = try #require(HTTPURLResponse(
-            url: #require(URL(string: "https://example.com/a")),
+            url: origin,
             statusCode: 302,
             httpVersion: nil,
-            headerFields: ["Location": "https://evil.example/b"]
+            headerFields: ["Location": elsewhere.absoluteString]
         ))
-        let newRequest = try URLRequest(url: #require(URL(string: "https://evil.example/b")))
 
         let delivered: URLRequest? = await withCheckedContinuation { continuation in
             delegate.urlSession(
                 SecureNetworking.session,
-                task: SecureNetworking.session.dataTask(with: URL(string: "https://example.com/a")!),
+                task: SecureNetworking.session.dataTask(with: origin),
                 willPerformHTTPRedirection: response,
-                newRequest: newRequest
+                newRequest: URLRequest(url: elsewhere)
             ) { request in
                 continuation.resume(returning: request)
             }

@@ -15,6 +15,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Status request timeout | 5 sec | StatusChecker |
 | Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck`; a cancelled request (`SecureNetworking.isCancellation`) never counts as a failure | StatusChecker (one state per feed: Claude, Codex) |
 | Codex usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account; transport errors / 5xx record a failure, 2xx / 429 / 401 / 403 clear it, a **cancelled** request records nothing; while backing off the session-log fallback is served without a request. Backoff state + auth-failure counter are dropped by `clearCache` (sign-out) and `pruneAccounts` (launch sweep) | CodexRateLimitFetcher |
+| Claude usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account. Armed only when a whole cycle yielded nothing (usage endpoint `.unavailable` **and** no probe model answered), so a working Messages-probe fallback keeps it disarmed; a success on either path clears it. While backing off, `fetch` returns the cache without a single request | RateLimitFetcher |
 | Codex session-log fallback gate | Used only when ≤ 1 ChatGPT-backed Codex account exists **and** the rollout's mtime is newer than the cached endpoint reading (`shouldUseSessionLogFallback`) | CodexRateLimitFetcher |
 | Codex usage request timeout | 30 sec | CodexRateLimitFetcher |
 | Codex OAuth callback timeout | 180 sec — abandoned sign-in releases port 1455 | CodexAuthSession |
