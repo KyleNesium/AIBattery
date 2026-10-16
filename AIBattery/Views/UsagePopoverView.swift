@@ -153,7 +153,14 @@ public struct UsagePopoverView: View {
             .onReceive(accountStore.$accounts) { accounts in
                 // Signing out of the second-to-last account leaves the overview with nothing
                 // to compare; gaining one never yanks the user out of a detail view.
-                mode = PopoverMode.next(current: mode, eligibleAccountCount: AccountCard.eligibleCount(accounts: accounts))
+                let next = PopoverMode.next(current: mode, eligibleAccountCount: AccountCard.eligibleCount(accounts: accounts))
+                guard next != mode else { return }
+                mode = next
+                // Forced out of the overview onto the detail face: arm the heavy sections
+                // the same way `select` and `.panelDidShow` do, or Projects/Insights stay
+                // collapsed until the panel is closed and reopened.
+                guard next == .detail else { return }
+                DispatchQueue.main.async { deferredRender.appeared() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in
                 resetTransientPopoverState()

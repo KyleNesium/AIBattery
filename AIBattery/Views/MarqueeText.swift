@@ -45,7 +45,6 @@ struct MarqueeText: View {
 
     var body: some View {
         GeometryReader { geo in
-            let _ = updateContainerWidth(geo.size.width)
             Text(currentText)
                 .id(currentIndex)
                 .font(font)
@@ -73,6 +72,11 @@ struct MarqueeText: View {
                 }
                 .offset(x: offset)
                 .opacity(textOpacity)
+                // Container width is @State: written from the lifecycle hooks, never from
+                // inside the GeometryReader builder (a state write during body evaluation
+                // is undefined behaviour in SwiftUI and logs at runtime).
+                .onAppear { updateContainerWidth(geo.size.width) }
+                .onChange(of: geo.size.width) { updateContainerWidth($0) }
         }
         .clipped()
         .frame(height: Layout.marqueeHeight)
