@@ -67,6 +67,40 @@ struct SessionLogReaderParsingTests {
         #expect(entries.first?.inputTokens == 100)
     }
 
+    // MARK: - A15: oversized line is skipped once, to its newline
+
+    @Test func oversizedLine_countedOnce_tailNotParsed_nextLineParsed() throws {
+        let dir = try makeProjectsDir()
+        defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }
+        // 1.5 MB line whose last bytes are a *valid* assistant line ("ghost"): if the
+        // reader only dropped the first 1 MB and kept streaming, the ghost would be
+        // parsed as its own entry and the line would be counted once per MB.
+        let ghost = line(messageId: "ghost", toolUses: 0)
+        let pad = String(repeating: "x", count: 1_500_000 - ghost.utf8.count)
+        try write([#"{"pad":""# + pad + #""}"# + ghost, line(messageId: "real", toolUses: 0)], to: dir)
+
+        let reader = SessionLogReader(projectsURL: dir)
+        let entries = reader.readAllUsageEntries()
+
+        #expect(entries.map(\.messageId) == ["real"])
+        #expect(reader.lastCorruptLineCount == 1)
+    }
+
+    @Test func oversizedLine_withoutTrailingNewline_isNotParsedAsTail() throws {
+        let dir = try makeProjectsDir()
+        defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }
+        let ghost = line(messageId: "ghost", toolUses: 0)
+        let pad = String(repeating: "x", count: 1_500_000 - ghost.utf8.count)
+        let url = dir.appendingPathComponent("-test-project").appendingPathComponent("session.jsonl")
+        try Data((line(messageId: "real", toolUses: 0) + "\n" + #"{"pad":""# + pad + #""}"# + ghost).utf8).write(to: url)
+
+        let reader = SessionLogReader(projectsURL: dir)
+        let entries = reader.readAllUsageEntries()
+
+        #expect(entries.map(\.messageId) == ["real"])
+        #expect(reader.lastCorruptLineCount == 1)
+    }
+
     @Test func toolCalls_distinctIds_stayPerMessage() throws {
         let dir = try makeProjectsDir()
         defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }

@@ -430,20 +430,32 @@ final class SessionLogReader: @unchecked Sendable {
         let bufferSize = 64 * 1_024 // 64KB chunks
         let maxLineSize = 1_048_576 // 1MB — skip lines longer than this (malformed/corrupt)
         var leftover = Data()
+        /// Set once a line passes `maxLineSize` without a newline. Until the newline
+        /// arrives every further byte is dropped — previously the remainder was
+        /// re-counted as corrupt once per MB and its tail parsed as a new line.
+        var skippingOversizedLine = false
 
         while true {
             guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
-            let alreadyScanned = leftover.count
+            var alreadyScanned = leftover.count
             leftover.append(chunk)
 
-            // Safety: if leftover exceeds max line size without finding a newline,
-            // the JSONL line is malformed — discard and move on.
-            if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
+            if skippingOversizedLine {
+                guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
+                    leftover.removeAll()
+                    continue
+                }
+                leftover = Data(leftover[(newlineIndex + 1)...])
+                alreadyScanned = 0
+                skippingOversizedLine = false
+            } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
+                // Malformed / unexpectedly large line — count once, skip to its newline.
                 lastCorruptLineCount += 1
-                AppLogger.files.warning("Skipping oversized JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
+                AppLogger.files.debug("Skipping oversized JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
+                skippingOversizedLine = true
                 continue
             }
 
@@ -482,7 +494,7 @@ final class SessionLogReader: @unchecked Sendable {
 
         // Process any remaining data without trailing newline.
         // Skip incomplete lines (no closing brace = partial write, likely still being written).
-        if !leftover.isEmpty,
+        if !skippingOversizedLine, !leftover.isEmpty,
            leftover.last == UInt8(ascii: "}") {
             let hasAssistant = Self.assistantMarkers.contains { leftover.range(of: $0) != nil }
             if hasAssistant, leftover.range(of: Self.usageMarker) != nil {

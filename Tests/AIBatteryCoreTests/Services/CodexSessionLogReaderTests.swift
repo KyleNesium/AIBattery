@@ -145,6 +145,27 @@ struct CodexSessionLogReaderTests {
         #expect(reader.lastCorruptLineCount == 0)
     }
 
+    @Test func oversizedLine_countedOnce_tailNotParsed_nextLineParsed() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        // A 1.5 MB response_item-sized line whose tail is a valid token_count ("ghost").
+        // Only the real line after it may be parsed, and the oversize counts once.
+        let ghost = tokenCount(ordinal: 7, timestamp: "2026-09-21T08:30:00.000Z")
+        let pad = String(repeating: "x", count: 1_500_000 - ghost.utf8.count)
+        try writeRollout([
+            turnContext(),
+            #"{"pad":""# + pad + #""}"# + ghost,
+            tokenCount(ordinal: 9, timestamp: "2026-09-21T09:00:00.000Z"),
+        ],
+        datePath: "2026/09/21", name: "rollout-a", root: root)
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        let entries = reader.readAllUsageEntries()
+
+        #expect(entries.map(\.messageId) == ["rollout-a:9"])
+        #expect(reader.lastCorruptLineCount == 1)
+    }
+
     @Test func corruptLine_isCountedAndSkipped() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }

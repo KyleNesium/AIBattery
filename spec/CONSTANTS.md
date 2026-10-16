@@ -519,7 +519,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 |----------|-------|
 | Read buffer size | 64 KB (256 KB measured: no gain) |
 | Newline search | `memchr` via `Data.firstNewlineIndex(from:)`, resumed per chunk — both readers |
-| Max line size | 1 MB — oversized lines discarded (malformed data protection) |
+| Max line size | 1 MB — an oversized line is counted as corrupt once and skipped through to its newline (malformed data protection) |
 | Pre-filter marker 1a | `"type":"assistant"` (no space) |
 | Pre-filter marker 1b | `"type": "assistant"` (with space) |
 | Pre-filter marker 2 | `"usage"` |
