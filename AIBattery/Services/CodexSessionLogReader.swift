@@ -264,7 +264,10 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
 
             var searchFrom = leftover.startIndex + alreadyScanned
             while let newlineIndex = leftover.firstNewlineIndex(from: searchFrom) {
-                let lineData = Data(leftover[leftover.startIndex..<newlineIndex])
+                // A slice, not a copy: most lines are multi-KB (or multi-MB) `response_item`
+                // records that the 512-byte pre-filter rejects — copying each one first
+                // cost ~80–160 ms per cold scan and 2–10 ms per invalidation.
+                let lineData = leftover[leftover.startIndex..<newlineIndex]
                 leftover = leftover[(newlineIndex + 1)...]
                 searchFrom = leftover.startIndex
                 process(lineData)
@@ -279,7 +282,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         // Trailing data without a newline: only a complete object (ends with `}`) is a
         // finished line — anything else is a partial write still in progress.
         if !skippingOversizedLine, !leftover.isEmpty, leftover.last == UInt8(ascii: "}") {
-            process(Data(leftover))
+            process(leftover)
         }
 
         lastCorruptLineCount += parser.corruptLineCount

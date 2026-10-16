@@ -26,6 +26,29 @@ struct CodexSessionLogParserTests {
         #expect(parser.corruptLineCount == 0)
     }
 
+    /// The reader hands the parser slices of its read buffer (non-zero `startIndex`)
+    /// rather than copying every line; the pre-filters and JSON decode must honour that.
+    @Test func consume_acceptsDataSliceWithNonZeroStartIndex() throws {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        let buffer = Data(("junk-prefix\n" + turnContext + "\n" + tokenCount + "\n").utf8)
+        let firstNewline = try #require(buffer.firstNewlineIndex(from: buffer.startIndex))
+        let rest = buffer[(firstNewline + 1)...]
+        let secondNewline = try #require(rest.firstNewlineIndex(from: rest.startIndex))
+        let turnSlice = rest[rest.startIndex..<secondNewline]
+        let tail = rest[(secondNewline + 1)...]
+        let countSlice = tail[tail.startIndex..<(tail.endIndex - 1)]
+        #expect(turnSlice.startIndex > 0 && countSlice.startIndex > 0)
+
+        #expect(CodexSessionLogParser.mightBeRelevant(countSlice))
+        #expect(!CodexSessionLogParser.isResponseItem(countSlice))
+        #expect(parser.consume(line: turnSlice, lineIndex: 0) == nil)
+        let produced = parser.consume(line: countSlice, lineIndex: 1)
+        let entry = try #require(produced)
+        #expect(entry.model == "gpt-5.4")
+        #expect(entry.outputTokens == 233)
+        #expect(parser.corruptLineCount == 0)
+    }
+
     @Test func tokenCount_beforeTurnContext_isSkipped() {
         var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
         _ = parser.consume(line: line(sessionMeta), lineIndex: 0)
