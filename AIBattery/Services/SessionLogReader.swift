@@ -321,15 +321,11 @@ final class SessionLogReader: @unchecked Sendable {
         for dir in projectDirs {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
 
-            // Skip non-Claude-Code project directories (e.g. MCP observer sessions).
-            // Claude Code encodes the project's absolute path as the directory name,
-            // replacing "/" with "-". Decode back to a path and check if any component
-            // starts with "." (hidden directory).
-            let decodedPath = "/" + dir.lastPathComponent.dropFirst().replacingOccurrences(of: "-", with: "/")
-            if decodedPath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) {
-                continue
-            }
-
+            // Every project directory counts — including sessions other tools write here
+            // (e.g. claude-mem observer sessions under `-Users-x--claude-mem-...`). Claude
+            // Code encodes both `/` and `.` as `-`, so a "decode and skip hidden path
+            // components" filter can never match a real directory name; a deny-list
+            // was considered and rejected (spec/DATA_LAYER.md, SessionLogReader).
             let dirPath = dir.path
             currentDirPaths.insert(dirPath)
 
