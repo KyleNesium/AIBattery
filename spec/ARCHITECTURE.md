@@ -114,6 +114,7 @@ AIBattery/
     AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3 per provider; Claude-first `displayOrdered`)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, auto-refresh; `postToken` is `nonisolated static` so the network call releases MainActor cleanly. Concurrent-refresh serialization preserved via `refreshTasks[accountId]`
     OAuthManager+Codex.swift      — Codex provider routing: `tokenStorageKey`, `startCodexAuthFlow` / `completeCodexAuthFlow` / `cancelCodexAuthFlow`, `registerCodexAccount` (cap-guarded, returns Result)
+    OAuthManagerMigrations.swift  — The three one-time launch Keychain migrations (legacy single-account layout → prefixed per-account entries, stale `accessToken_`/`expiresAt_` sweep, `ThisDeviceOnly` accessibility re-create). Each is gated by its own done-flag so a launch costs no Keychain calls once applied. Split out when `OAuthManager.swift` passed the 800-line ceiling
     CodexOAuth/
       CodexOAuthConstants.swift   — client-id, port 1455, scopes, authorize/token URLs lifted from codex-rs
       CodexAuthSession.swift      — In-flight PKCE state; awaits the redirect through `OneShotMailbox`

@@ -97,4 +97,98 @@ struct OAuthManagerRefreshTests {
         #expect(token == "at-new")
         #expect(manager.isAuthenticated(accountId: accountId))
     }
+
+    // MARK: - Transient-failure backoff
+
+    /// A transient refresh failure used to be retried on the very next poll, and each
+    /// attempt costs three requests with sleeps between them. The account now backs off,
+    /// stays authenticated, and the endpoint is not touched again until the window ends.
+    @Test func transientFailure_backsOffAndSkipsTheNextAttempt() async {
+        let manager = OAuthManager()
+        let accountId = "a4-backoff-\(UUID().uuidString)"
+        let keychainAccount = "refreshToken_\(accountId)"
+        defer {
+            manager.signOut(accountId: accountId)
+            KeychainHelper.delete(account: keychainAccount)
+        }
+
+        manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
+        manager.tokenRetryPolicy = Self.noDelay
+        let attempts = Counter()
+        manager.tokenTransport = { request in
+            await attempts.increment()
+            return try Self.response(request, status: 500, body: "")
+        }
+
+        #expect(await manager.getAccessToken(for: accountId) == nil)
+        let afterFirst = await attempts.value
+        #expect(afterFirst > 0, "the first call must actually reach the endpoint")
+        // A 5xx is transient: the account keeps its session rather than being signed out.
+        #expect(manager.isAuthenticated(accountId: accountId))
+        #expect(manager.isRefreshBackingOff(accountId: accountId))
+
+        // Second call inside the window: no further requests.
+        #expect(await manager.getAccessToken(for: accountId) == nil)
+        #expect(await attempts.value == afterFirst)
+
+        // Past the widest first window (60 s ± 20% jitter) it is live again.
+        #expect(!manager.isRefreshBackingOff(accountId: accountId, now: Date().addingTimeInterval(73)))
+    }
+
+    /// Backoff is per account — one account's bad network must not stall another's.
+    @Test func backoffIsPerAccount() async {
+        let manager = OAuthManager()
+        let failing = "a4-fail-\(UUID().uuidString)"
+        let healthy = "a4-ok-\(UUID().uuidString)"
+        defer {
+            manager.signOut(accountId: failing)
+            manager.signOut(accountId: healthy)
+            KeychainHelper.delete(account: "refreshToken_\(failing)")
+            KeychainHelper.delete(account: "refreshToken_\(healthy)")
+        }
+
+        // Distinct refresh tokens so the stub can fail one and serve the other.
+        manager.seedTokensForTesting(accountId: failing, accessToken: nil, refreshToken: "rt-doomed", expiresAt: nil)
+        manager.seedTokensForTesting(accountId: healthy, accessToken: nil, refreshToken: "rt-fine", expiresAt: nil)
+        manager.tokenRetryPolicy = Self.noDelay
+        manager.tokenTransport = { request in
+            let body = request.httpBody.flatMap { String(bytes: $0, encoding: .utf8) } ?? ""
+            let doomed = body.contains("rt-doomed")
+            return try Self.response(request, status: doomed ? 500 : 200, body: doomed ? "" : Self.validTokenBody)
+        }
+
+        #expect(await manager.getAccessToken(for: failing) == nil)
+        #expect(await manager.getAccessToken(for: healthy) == "at-new")
+
+        #expect(manager.isRefreshBackingOff(accountId: failing))
+        #expect(!manager.isRefreshBackingOff(accountId: healthy), "a healthy account must not inherit the window")
+    }
+
+    /// A success clears the window, so recovery is immediate rather than waiting it out.
+    @Test func successClearsTheBackoff() async {
+        let manager = OAuthManager()
+        let accountId = "a4-recover-\(UUID().uuidString)"
+        defer {
+            manager.signOut(accountId: accountId)
+            KeychainHelper.delete(account: "refreshToken_\(accountId)")
+        }
+
+        manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
+        manager.tokenRetryPolicy = Self.noDelay
+        manager.recordRefreshFailure(accountId: accountId)
+        #expect(manager.isRefreshBackingOff(accountId: accountId))
+
+        manager.clearRefreshBackoff(accountId: accountId)
+        manager.tokenTransport = { request in try Self.response(request, status: 200, body: Self.validTokenBody) }
+        #expect(await manager.getAccessToken(for: accountId) == "at-new")
+        #expect(!manager.isRefreshBackingOff(accountId: accountId))
+    }
+
+    /// Counts transport invocations across concurrent contexts.
+    private actor Counter {
+        private(set) var value = 0
+        func increment() {
+            value += 1
+        }
+    }
 }
