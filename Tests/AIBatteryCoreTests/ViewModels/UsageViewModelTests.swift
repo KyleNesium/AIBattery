@@ -199,6 +199,44 @@ struct UsageViewModelTests {
 
     // MARK: - recordThrottleEvent
 
+    @Test func recordThrottleEvent_isKeyedPerAccount_switchingAwayAndBackDoesNotReRecord() {
+        // A9: throttled A → healthy B → throttled A (unchanged) must log ONE event. A
+        // global tracker saw B's "allowed" as A's recovery and appended a second
+        // timestamp on return, inflating the Insights throttle-trend rows.
+        let key = UserDefaultsKeys.throttleTimestamps
+        UserDefaults.standard.removeObject(forKey: key)
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+        let throttled = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 1.0, fiveHourReset: nil, fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let healthy = RateLimitUsage(
+            representativeClaim: "five_hour",
+            fiveHourUtilization: 0.2, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.1, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+        // Reset both accounts' transition state.
+        UsageViewModel.recordThrottleEvent(nil, accountId: "throttle-a")
+        UsageViewModel.recordThrottleEvent(nil, accountId: "throttle-b")
+
+        UsageViewModel.recordThrottleEvent(throttled, accountId: "throttle-a")
+        UsageViewModel.recordThrottleEvent(healthy, accountId: "throttle-b")
+        UsageViewModel.recordThrottleEvent(throttled, accountId: "throttle-a")
+        UsageViewModel.recordThrottleEvent(healthy, accountId: "throttle-b")
+        UsageViewModel.recordThrottleEvent(throttled, accountId: "throttle-a")
+
+        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(timestamps.count == 1)
+
+        // B's own first throttle is still a distinct event.
+        UsageViewModel.recordThrottleEvent(throttled, accountId: "throttle-b")
+        let after = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        #expect(after.count == 2)
+    }
+
     @Test func recordThrottleEvent_nilRateLimits_noOp() {
         let key = UserDefaultsKeys.throttleTimestamps
         UserDefaults.standard.removeObject(forKey: key)

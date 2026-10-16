@@ -453,7 +453,7 @@ public final class UsageViewModel: ObservableObject {
         }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
-        Self.recordThrottleEvent(api.rateLimits, source: api.isCached ? "stale-cache" : "api-fresh")
+        Self.recordThrottleEvent(api.rateLimits, accountId: accountId, source: api.isCached ? "stale-cache" : "api-fresh")
         // Hold the last good API rate limit data until replaced by a newer API response.
         // The primary /api/oauth/usage endpoint returns limits on essentially every
         // successful poll, but the legacy Messages-probe fallback returns unified
@@ -857,20 +857,26 @@ public final class UsageViewModel: ObservableObject {
     // ThrottleTracker (`throttleTracker`), which only makes sense alongside
     // the storage it manages.
 
-    /// Throttle transition tracker — pure struct, side-effects handled here.
-    private static var throttleTracker = ThrottleTracker()
+    /// Throttle transition trackers — pure structs, side-effects handled here. Keyed by
+    /// account id: a single global tracker read account B's healthy reading as account
+    /// A's recovery, so switching throttled A → healthy B → A logged a fresh "engaged"
+    /// and appended a duplicate timestamp every round trip (inflating the Insights
+    /// throttle-trend rows). The signed-out / legacy path keys under `""`.
+    private static var throttleTrackers: [String: ThrottleTracker] = [:]
 
     /// Formats reset timestamps for throttle-transition log lines.
     private static let throttleLogDateFormatter = ISO8601DateFormatter()
 
-    /// Record a throttle event on the transition from normal → throttled.
+    /// Record a throttle event on the transition from normal → throttled for ONE account.
     /// Each distinct throttle session counts as one event regardless of duration.
     /// Also emits one structured log line on each throttle on/off transition so a
     /// stuck/false throttle state is diagnosable after the fact.
-    static func recordThrottleEvent(_ rateLimits: RateLimitUsage?, source: String = "unknown") {
-        let wasThrottled = throttleTracker.wasThrottled
-        let (next, timestamp) = throttleTracker.evaluate(rateLimits)
-        throttleTracker = next
+    static func recordThrottleEvent(_ rateLimits: RateLimitUsage?, accountId: String? = nil, source: String = "unknown") {
+        let key = accountId ?? ""
+        let tracker = throttleTrackers[key] ?? ThrottleTracker()
+        let wasThrottled = tracker.wasThrottled
+        let (next, timestamp) = tracker.evaluate(rateLimits)
+        throttleTrackers[key] = next
         if next.wasThrottled != wasThrottled {
             let window = rateLimits?.bindingWindowLabel ?? "n/a"
             let reset = rateLimits?.bindingReset.map(Self.throttleLogDateFormatter.string(from:)) ?? "none"
