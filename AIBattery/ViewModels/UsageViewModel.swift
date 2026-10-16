@@ -555,10 +555,10 @@ public final class UsageViewModel: ObservableObject {
         // the local estimate, and the `latest*Tokens` globals feed a header-less-429
         // calibration on whichever account is active next: leaving Codex token counts
         // there could seed a Claude limit from Codex math right after an account switch.
+        LocalUsageEstimate.recordLatestTokens(
+            fiveHour: result.fiveHourTokens, sevenDay: result.sevenDayTokens, provider: accountProvider
+        )
         if accountProvider == .claude {
-            LocalUsageEstimate.latestFiveHourTokens = result.fiveHourTokens
-            LocalUsageEstimate.latestSevenDayTokens = result.sevenDayTokens
-
             // Auto-calibrate local usage limits when API returns fresh utilization data.
             // This lets us estimate percentages from local tokens when the API is unavailable.
             if let rl = api.rateLimits, !api.isCached {
@@ -643,9 +643,11 @@ public final class UsageViewModel: ObservableObject {
         // re-captures the reverted value) until the next poll. Dropping the result is
         // safe — the refresh that invalidated it aggregated the same-or-newer local data.
         guard snapshot?.rateLimits == baseLimits, rateLimitsFresh == baseFresh else { return }
-        // Keep latest token counts available for 429 auto-calibration (mirrors refresh()).
-        LocalUsageEstimate.latestFiveHourTokens = result.fiveHourTokens
-        LocalUsageEstimate.latestSevenDayTokens = result.sevenDayTokens
+        // Keep latest token counts available for 429 auto-calibration (mirrors refresh();
+        // Claude-gated inside — this path fires every ~2s during a Codex session).
+        LocalUsageEstimate.recordLatestTokens(
+            fiveHour: result.fiveHourTokens, sevenDay: result.sevenDayTokens, provider: accountProvider
+        )
         // Record activity for adaptive polling BEFORE publishing — once `snapshot` is
         // updated here, the next timed poll compares equal totals and would otherwise
         // read continuous activity as "no change" and back polling off.

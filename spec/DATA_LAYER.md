@@ -364,6 +364,7 @@ Fallback estimation when Anthropic's unified rate limit headers are unavailable.
 | `latestSevenDayTokens` | `Int` | Updated each refresh cycle for 429 calibration snapshot (active account's counts) |
 
 Methods:
+- `recordLatestTokens(fiveHour:sevenDay:provider:)` — the **only** writer of `latest*Tokens`; a no-op unless `provider == .claude`. Both `UsageViewModel.refresh()` and the FS-triggered `refreshLocalData()` (which fires every ~2s during a Codex session) go through it, so Codex token counts can never seed a Claude limit on a header-less 429 after an account switch.
 - `migrateIfNeeded(activeAccountId:defaults:)` — clears stale pre-v2 calibrations (before cache-inclusive counting), then one-time-moves the legacy global calibration keys to the active account (`aibattery_calibration_perAccount_migrated` flag; only marks done when an account exists, else retries next launch). Called once at launch.
 - `calibrate(fiveHourUtilization:sevenDayUtilization:localFiveHourTokens:localSevenDayTokens:accountId:)` — derives limits from API utilization + local counts; `UsageViewModel.refresh()` passes the poll's captured account ID
 - `calibrateFrom429(accountId:activeAccountId:)` — when a 429 is received without headers, uses current local token count as the limit (with 95% buffer). **Only seeds the active account**: `latest*Tokens` hold the active account's local counts, so a fan-out 429 for another account is ignored
