@@ -301,8 +301,7 @@ final class SessionLogReader: @unchecked Sendable {
         var newDirModDates: [String: Date] = [:]
 
         // Track projects root mod date
-        if let attrs = try? fm.attributesOfItem(atPath: projectsURL.path),
-           let modDate = attrs[.modificationDate] as? Date {
+        if let modDate = FileStat.modificationDate(of: projectsURL) {
             newDirModDates[projectsURL.path] = modDate
         }
 
@@ -328,14 +327,9 @@ final class SessionLogReader: @unchecked Sendable {
             currentDirPaths.insert(dirPath)
 
             // Track directory mod date
-            let dirModDate: Date?
-            if let attrs = try? fm.attributesOfItem(atPath: dirPath) {
-                dirModDate = attrs[.modificationDate] as? Date
-                if let md = dirModDate {
-                    newDirModDates[dirPath] = md
-                }
-            } else {
-                dirModDate = nil
+            let dirModDate = FileStat.modificationDate(of: dir)
+            if let md = dirModDate {
+                newDirModDates[dirPath] = md
             }
 
             // Skip unchanged directories — use cached file list (unless forced full enumeration)
@@ -386,10 +380,8 @@ final class SessionLogReader: @unchecked Sendable {
 
     /// Check if any tracked directory mod dates have changed since last discovery.
     private func discoveryDirModDatesChanged() -> Bool {
-        let fm = FileManager.default
         for (path, cachedDate) in discoveryDirModDates {
-            guard let attrs = try? fm.attributesOfItem(atPath: path),
-                  let currentDate = attrs[.modificationDate] as? Date else {
+            guard let currentDate = FileStat.modificationDate(ofPath: path) else {
                 return true // Can't stat → assume changed
             }
             if currentDate != cachedDate {

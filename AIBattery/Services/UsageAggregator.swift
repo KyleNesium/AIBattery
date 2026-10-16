@@ -290,16 +290,25 @@ final class UsageAggregator: @unchecked Sendable {
 
             // --- Project accumulation ---
             if Self.isTrackedModel(entry.model, provider: provider) {
-                let projKey: String
-                let projName: String
-                if let cwd = entry.cwd, !cwd.isEmpty, (cwd as NSString).lastPathComponent != "/" {
-                    projKey = cwd
-                    projName = (cwd as NSString).lastPathComponent
-                } else {
-                    projKey = "Other"
-                    projName = "Other"
+                // The map is keyed by the cwd itself, so a project seen earlier in this
+                // pass needs no path work at all. `lastPathComponent` bridges to NSString
+                // and costs about a microsecond; it used to run TWICE per entry, over
+                // every entry, on every pass — for a value with only tens of distinct
+                // results. Now it runs once per distinct cwd.
+                var projKey = "Other"
+                if let cwd = entry.cwd, !cwd.isEmpty {
+                    if projectMap[cwd] != nil {
+                        projKey = cwd
+                    } else {
+                        let name = (cwd as NSString).lastPathComponent
+                        // A cwd whose last component is "/" carries no project name.
+                        if name != "/" {
+                            projKey = cwd
+                            projectMap[cwd] = ProjectAccum(displayName: name)
+                        }
+                    }
                 }
-                var proj = projectMap[projKey] ?? ProjectAccum(displayName: projName)
+                var proj = projectMap[projKey] ?? ProjectAccum(displayName: "Other")
                 var m = proj.byModel[entry.model] ?? (0, 0, 0, 0)
                 m.input += entry.inputTokens
                 m.output += entry.outputTokens

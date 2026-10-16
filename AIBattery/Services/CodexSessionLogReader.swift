@@ -182,7 +182,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         let fm = FileManager.default
         guard fm.fileExists(atPath: sessionsURL.path) else { return [] }
 
-        let rootModDate = (try? fm.attributesOfItem(atPath: sessionsURL.path))?[.modificationDate] as? Date
+        let rootModDate = FileStat.modificationDate(of: sessionsURL)
         if let cached = discoveredFiles,
            let lastEnum = lastEnumerationDate,
            Date().timeIntervalSince(lastEnum) < Self.discoveryTTL,
