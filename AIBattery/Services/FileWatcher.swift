@@ -117,7 +117,16 @@ final class FileWatcher {
 
         source.setEventHandler { [weak self] in
             MainActor.assumeIsolated {
-                self?.debounceNotify(invalidateStatsCache: true, invalidateSessionLog: false)
+                guard let self else { return }
+                // Claude Code rewrites stats-cache.json atomically (temp file + rename), so
+                // after a `.rename` / `.delete` the watched descriptor points at the old,
+                // unlinked inode and no further `.write` ever arrives. Re-arm on the new
+                // file; `watchStatsCache` schedules the retry path if it isn't there yet.
+                let events = self.fileSource?.data ?? []
+                if !events.isDisjoint(with: [.rename, .delete]) {
+                    self.rearmStatsCacheWatch()
+                }
+                self.debounceNotify(invalidateStatsCache: true, invalidateSessionLog: false)
             }
         }
 
@@ -128,6 +137,17 @@ final class FileWatcher {
 
         source.resume()
         fileSource = source
+    }
+
+    /// Drop the current stats-cache source (its cancel handler closes the fd) and open a
+    /// fresh one on whatever now lives at the path.
+    private func rearmStatsCacheWatch() {
+        guard !isStopped else { return }
+        if let source = fileSource {
+            source.cancel()
+            fileSource = nil
+        }
+        watchStatsCache()
     }
 
     private func watchProjectsDirectory() {
