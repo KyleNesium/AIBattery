@@ -41,6 +41,26 @@ struct AccountReadingTests {
         #expect(a.isExhausted)
     }
 
+    @Test func worstPercent_balanceOnlyBudget_keepsWindowedHeadline() {
+        // A subscription plan that merely reports a purchased-credit balance arrives as a
+        // `CodexCreditBudget(limit: 0)` next to real 5h / weekly windows. That is NOT a
+        // credit-budget plan (`isCreditBudget == false`): the card and the menu bar must
+        // lead with the fuller window, not the budget's 0%.
+        let balanceOnly = CodexCreditBudget(
+            usedPercent: 0, used: 0, limit: 0, remaining: 0, unit: "credit", resetsAt: nil,
+            reached: false, hasCredits: true, unlimited: false, planType: "plus", balance: 100
+        )
+        let rl = RateLimitUsage(
+            representativeClaim: RateLimitUsage.fiveHourWindow,
+            fiveHourUtilization: 0.34, fiveHourReset: nil, fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.61, sevenDayReset: nil, sevenDayStatus: "allowed",
+            overallStatus: "allowed", provider: .codex, creditBudget: balanceOnly
+        )
+        #expect(rl.isCreditBudget == false)
+        let r = AccountReading(windows: rl, apiLimits: nil, fetchedAt: .now, isCached: false, source: nil)
+        #expect(r.worstPercent == 61)
+    }
+
     @Test func noReading_hasNilPercent() {
         let r = AccountReading(windows: nil, apiLimits: nil, fetchedAt: .now, isCached: true, source: nil)
         #expect(r.worstPercent == nil)

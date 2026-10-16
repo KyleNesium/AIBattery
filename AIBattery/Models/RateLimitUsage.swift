@@ -333,6 +333,11 @@ struct RateLimitUsage: Equatable, Codable {
     /// based on current utilization and time remaining until reset.
     /// Returns nil if utilization is too low or the estimate exceeds reset time.
     func estimatedTimeToLimit(for window: String) -> TimeInterval? {
+        estimatedTimeToLimit(for: window, now: .now)
+    }
+
+    /// Injected-clock overload for pure callers (`AccountCard.state`) and tests.
+    func estimatedTimeToLimit(for window: String, now: Date) -> TimeInterval? {
         let (utilization, reset): (Double, Date?) = switch window {
         case Self.sevenDayWindow: (sevenDayUtilization, sevenDayReset)
         default: (fiveHourUtilization, fiveHourReset)
@@ -340,7 +345,7 @@ struct RateLimitUsage: Equatable, Codable {
 
         guard utilization > 0.20, let reset else { return nil }
 
-        let remaining = reset.timeIntervalSinceNow
+        let remaining = reset.timeIntervalSince(now)
         guard remaining > 0 else { return nil }
 
         // Window duration from the payload when present, else the provider default

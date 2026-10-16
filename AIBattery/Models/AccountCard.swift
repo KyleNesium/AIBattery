@@ -75,7 +75,8 @@ struct AccountCard: Identifiable, Equatable {
         statuses: [AIProvider: ClaudeSystemStatus],
         snapshots: [AIProvider: UsageSnapshot] = [:],
         isAuthenticated: (String) -> Bool,
-        maskEmail: Bool
+        maskEmail: Bool,
+        now: Date = .now
     ) -> [AccountCard] {
         AccountStore.displayOrdered(accounts)
             .filter { !$0.isPendingIdentity }
@@ -98,7 +99,7 @@ struct AccountCard: Identifiable, Equatable {
                 return AccountCard(
                     id: account.id, provider: account.provider, identity: identity, plan: plan,
                     isActive: active, status: status, worstPercent: reading?.worstPercent,
-                    bars: bars, state: state(for: reading), reset: bindingReset(bars: bars, reading: reading),
+                    bars: bars, state: state(for: reading, now: now), reset: bindingReset(bars: bars, reading: reading),
                     tokensToday: tokensToday(bars: bars, snapshot: snapshots[account.provider]),
                     lastActivity: lastActivity(snapshots[account.provider])
                 )
@@ -133,7 +134,8 @@ struct AccountCard: Identifiable, Equatable {
             ]
         }
         guard let windows = reading.windows else { return [] }
-        if let budget = windows.creditBudget {
+        // Balance-only budgets (`limit: 0` beside real windows) stay windowed.
+        if windows.isCreditBudget, let budget = windows.creditBudget {
             return [BarRow(
                 label: "Credits",
                 percent: budget.isUncapped ? nil : budget.usedPercent,
@@ -195,8 +197,9 @@ struct AccountCard: Identifiable, Equatable {
 
     /// First match wins: throttled → limit reached → burn-rate estimate → cached → none.
     /// The alarm states go through `UsageBar.AlarmState` so a card can't alarm on data
-    /// the bars would refuse to alarm on.
-    private nonisolated static func state(for reading: AccountReading?) -> State {
+    /// the bars would refuse to alarm on. `now` is injected so the burn-rate estimate is
+    /// pure (and deterministic in tests).
+    private nonisolated static func state(for reading: AccountReading?, now: Date) -> State {
         guard let reading else { return .fetching }
         let confirmed = !reading.isCached
         if let windows = reading.windows {
@@ -211,11 +214,11 @@ struct AccountCard: Identifiable, Equatable {
             if alarm.limitReached {
                 return .limitReached
             }
-            if confirmed, windows.creditBudget == nil {
+            if confirmed, !windows.isCreditBudget {
                 let binding = windows.fiveHourPercent >= windows.sevenDayPercent
                     ? RateLimitUsage.fiveHourWindow
                     : RateLimitUsage.sevenDayWindow
-                if let eta = windows.estimatedTimeToLimit(for: binding) {
+                if let eta = windows.estimatedTimeToLimit(for: binding, now: now) {
                     return .timeToLimit(eta)
                 }
             }
