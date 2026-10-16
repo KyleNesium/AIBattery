@@ -227,6 +227,9 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         let bufferSize = 64 * 1_024
         let maxLineSize = 1_048_576 // 1 MB — discard oversized (malformed) lines
         var leftover = Data()
+        /// Set once a line passes `maxLineSize` without a newline; bytes are dropped
+        /// until that newline so the line is counted once and its tail never parsed.
+        var skippingOversizedLine = false
 
         func process(_ lineData: Data) {
             defer { lineIndex += 1 }
@@ -240,19 +243,31 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
-            let alreadyScanned = leftover.count
+            var alreadyScanned = leftover.count
             leftover.append(chunk)
 
-            if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
+            if skippingOversizedLine {
+                guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
+                    leftover.removeAll()
+                    continue
+                }
+                leftover = Data(leftover[(newlineIndex + 1)...])
+                alreadyScanned = 0
+                skippingOversizedLine = false
+            } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
                 lastCorruptLineCount += 1
-                AppLogger.files.warning("Skipping oversized Codex JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
+                AppLogger.files.debug("Skipping oversized Codex JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
+                skippingOversizedLine = true
                 continue
             }
 
             var searchFrom = leftover.startIndex + alreadyScanned
             while let newlineIndex = leftover.firstNewlineIndex(from: searchFrom) {
-                let lineData = Data(leftover[leftover.startIndex..<newlineIndex])
+                // A slice, not a copy: most lines are multi-KB (or multi-MB) `response_item`
+                // records that the 512-byte pre-filter rejects — copying each one first
+                // cost ~80–160 ms per cold scan and 2–10 ms per invalidation.
+                let lineData = leftover[leftover.startIndex..<newlineIndex]
                 leftover = leftover[(newlineIndex + 1)...]
                 searchFrom = leftover.startIndex
                 process(lineData)
@@ -266,8 +281,8 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
 
         // Trailing data without a newline: only a complete object (ends with `}`) is a
         // finished line — anything else is a partial write still in progress.
-        if !leftover.isEmpty, leftover.last == UInt8(ascii: "}") {
-            process(Data(leftover))
+        if !skippingOversizedLine, !leftover.isEmpty, leftover.last == UInt8(ascii: "}") {
+            process(leftover)
         }
 
         lastCorruptLineCount += parser.corruptLineCount

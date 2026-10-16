@@ -181,6 +181,7 @@ struct SessionLogReaderTests {
         let json = """
         {
             "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
             "sessionId": "sess-002",
             "message": {
                 "role": "assistant",
@@ -202,6 +203,7 @@ struct SessionLogReaderTests {
         let json = """
         {
             "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
             "uuid": "fallback-uuid-123",
             "message": {
                 "role": "assistant",
