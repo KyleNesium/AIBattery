@@ -279,7 +279,7 @@ final class CodexRateLimitFetcher {
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
         if Self.shouldSkipEndpoint(backoff[accountId] ?? EndpointBackoff(), now: Date()) {
             AppLogger.network.info("codex usage endpoint in backoff (attempt \(self.backoff[accountId]?.failureCount ?? 0)) — using session log fallback")
-            return sessionLogFallback(accountId: accountId)
+            return await sessionLogFallback(accountId: accountId)
         }
 
         var request = URLRequest(url: Self.usageURL)
@@ -294,7 +294,7 @@ final class CodexRateLimitFetcher {
             let (data, response) = try await transport(request)
             guard let http = response as? HTTPURLResponse else {
                 recordEndpointFailure(accountId: accountId)
-                return sessionLogFallback(accountId: accountId)
+                return await sessionLogFallback(accountId: accountId)
             }
 
             AppLogger.network.info("codex usage endpoint: status=\(http.statusCode), bodySize=\(data.count)")
@@ -318,7 +318,7 @@ final class CodexRateLimitFetcher {
                     }
                 }
                 recordEndpointFailure(accountId: accountId)
-                return sessionLogFallback(accountId: accountId)
+                return await sessionLogFallback(accountId: accountId)
             }
         } catch {
             // Cancellation is the caller tearing the fan-out down, not an outage: serve
@@ -328,7 +328,7 @@ final class CodexRateLimitFetcher {
             }
             AppLogger.network.warning("codex usage endpoint failed: \(error.localizedDescription)")
             recordEndpointFailure(accountId: accountId)
-            return sessionLogFallback(accountId: accountId)
+            return await sessionLogFallback(accountId: accountId)
         }
     }
 
@@ -366,14 +366,18 @@ final class CodexRateLimitFetcher {
     /// returns a transport error. Caches the fallback result in memory (so the menu
     /// bar reflects it immediately) but never persists it — a session-log snapshot
     /// must not overwrite real endpoint data on disk.
-    private func sessionLogFallback(accountId: String) -> APIFetchResult {
+    private func sessionLogFallback(accountId: String) async -> APIFetchResult {
         let codexAccountCount = OAuthManager.shared.accountStore.accounts.filter { $0.provider == .codex && !$0.isAPIKeyAccount }.count
         // Check the cheap disqualifier first. With 2+ ChatGPT-backed accounts the scan
         // result is discarded unconditionally, and this path runs on every poll for every
         // account for as long as the endpoint is down — a whole-tree walk per account per
         // poll, thrown away.
         guard codexAccountCount <= 1 else { return cachedOrEmpty(accountId: accountId) }
-        guard let (rateLimits, asOf) = CodexSessionRateLimitScanner.latestRateLimits(),
+        // The scan is file I/O (seek + 256 KB read + JSON, or a whole-tree walk after an
+        // invalidation) and runs on every poll per account for the whole backoff window —
+        // never on the main actor (the scanner is nonisolated + lock-guarded).
+        let scanned = await Task.detached(priority: .utility) { CodexSessionRateLimitScanner.latestRateLimits() }.value
+        guard let (rateLimits, asOf) = scanned,
               Self.shouldUseSessionLogFallback(cached: cachedResults[accountId], fallbackAsOf: asOf, codexAccountCount: codexAccountCount) else {
             return cachedOrEmpty(accountId: accountId)
         }
