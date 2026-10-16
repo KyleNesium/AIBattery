@@ -197,6 +197,30 @@ struct UsageViewModelTests {
         #expect(UsageViewModel.hasDataChanged(previousTotal: 10, previousToday: 5, newTotal: 20, newToday: 15))
     }
 
+    // MARK: - displayIsCurrent / displayGeneration (A8: guard after EVERY await)
+
+    @Test func displayIsCurrent_requiresSameGenerationAndSameAccount() {
+        #expect(UsageViewModel.displayIsCurrent(captured: 3, current: 3, fetchedAccountId: "a", activeAccountId: "a"))
+        // Account switched mid-cycle (the original shouldApplyFetchResult semantics).
+        #expect(!UsageViewModel.displayIsCurrent(captured: 3, current: 3, fetchedAccountId: "a", activeAccountId: "b"))
+        // Display cleared / re-pointed mid-cycle even though the SAME account is active
+        // again (A → B → A): the old cycle's data was built for a display that no longer
+        // exists and must not land on top of the new cycle's paint.
+        #expect(!UsageViewModel.displayIsCurrent(captured: 3, current: 4, fetchedAccountId: "a", activeAccountId: "a"))
+        // Signed-out cycle (no account on either side) is still current.
+        #expect(UsageViewModel.displayIsCurrent(captured: 0, current: 0, fetchedAccountId: nil, activeAccountId: nil))
+    }
+
+    @Test func clearAccountDisplayState_bumpsDisplayGeneration() {
+        let vm = UsageViewModel()
+        let before = vm.displayGeneration
+        vm.clearAccountDisplayState()
+        #expect(vm.displayGeneration == before &+ 1)
+        #expect(vm.snapshot == nil)
+        #expect(vm.errorMessage == nil)
+        #expect(!vm.displayIsCurrent(before, accountId: nil))
+    }
+
     // MARK: - recordThrottleEvent
 
     @Test func recordThrottleEvent_isKeyedPerAccount_switchingAwayAndBackDoesNotReRecord() {

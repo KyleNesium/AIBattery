@@ -111,6 +111,7 @@ extension UsageViewModel {
         let accountProvider = provider(ofAccount: accountId)
         let cached = Self.cachedResult(for: accountProvider, accountId: accountId)
         guard cached.rateLimits != nil || cached.standardLimits != nil else { return }
+        let generation = displayGeneration
         let result = await aggregateOffMain(
             // Clear rollover artifacts so a just-reset window's carried-over
             // near-full utilization doesn't paint "Limit reached" on return.
@@ -122,10 +123,7 @@ extension UsageViewModel {
             rateLimitsFresh: false
         )
         // Mirror refresh()'s account-switch guard for the suspension window.
-        guard Self.shouldApplyFetchResult(
-            fetchedAccountId: accountId,
-            activeAccountId: OAuthManager.shared.accountStore.activeAccountId
-        ) else { return }
+        guard displayIsCurrent(generation, accountId: accountId) else { return }
         if result != snapshot {
             snapshot = result
         }
