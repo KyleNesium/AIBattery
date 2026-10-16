@@ -36,6 +36,10 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     private var isDirty = true
     private var cachedAllEntries: [AssistantUsageEntry]?
 
+    /// The message ids of `cachedAllEntries`, written together with it. Rebuilding this
+    /// from the merged array cost a string hash per entry on every dirty cycle.
+    private var cachedSeenIds: Set<String>?
+
     /// Maximum time between directory enumerations. The nested date directories make
     /// per-directory mtimes a poor "new file" signal, so discovery is TTL + root-mtime.
     static let discoveryTTL: TimeInterval = 60
@@ -86,10 +90,11 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
             if !idsToRemove.isEmpty, let existing = cachedAllEntries {
                 cachedAllEntries = existing.filter { !idsToRemove.contains($0.messageId) }
+                cachedSeenIds?.subtract(idsToRemove)
             }
         }
 
-        let result = rebuild(files: files, base: cachedAllEntries)
+        let (result, resultIds) = rebuild(files: files, base: cachedAllEntries, baseIds: cachedSeenIds)
 
         if pendingInvalidation.swap(false) {
             isDirty = true
@@ -98,6 +103,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         }
 
         cachedAllEntries = result
+        cachedSeenIds = resultIds
         evictOldFileEntries()
         lock.unlock()
         return result
@@ -105,9 +111,14 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
 
     // MARK: - Rebuild / eviction
 
-    private func rebuild(files: [URL], base: [AssistantUsageEntry]?) -> [AssistantUsageEntry] {
+    private func rebuild(
+        files: [URL],
+        base: [AssistantUsageEntry]?,
+        baseIds: Set<String>?
+    ) -> ([AssistantUsageEntry], Set<String>) {
         var resultEntries = base ?? []
-        var seenIds = Set(resultEntries.map(\.messageId))
+        // Reuse the previous cycle's id set rather than rehashing every message id.
+        var seenIds = baseIds ?? Set(resultEntries.map(\.messageId))
         var changed = false
 
         for fileURL in files {
@@ -157,15 +168,19 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         if changed || base == nil {
             resultEntries.sort { $0.timestamp < $1.timestamp }
         }
-        return resultEntries
+        return (resultEntries, seenIds)
     }
 
     /// Release raw entry arrays for files not modified today — fingerprints and
     /// message IDs stay so a later change can still purge the file's stale entries.
     private func evictOldFileEntries() {
         let today = Calendar.current.startOfDay(for: Date())
-        for (path, entry) in cache where entry.entries != nil && entry.modDate < today {
-            cache[path] = FileCacheEntry(modDate: entry.modDate, fileSize: entry.fileSize, entries: nil, messageIds: entry.messageIds)
+        // Collect first: mutating `cache` while iterating it copies the whole dictionary.
+        let stalePaths = cache.compactMap { path, entry -> String? in
+            entry.entries != nil && entry.modDate < today ? path : nil
+        }
+        for path in stalePaths {
+            cache[path]?.entries = nil
         }
     }
 

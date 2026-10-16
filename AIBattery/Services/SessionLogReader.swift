@@ -72,6 +72,12 @@ final class SessionLogReader: @unchecked Sendable {
     /// Preserved across invalidations so incremental rebuilds can add only changed files.
     private var cachedAllEntries: [AssistantUsageEntry]?
 
+    /// The message ids of `cachedAllEntries`, kept in step with it. Rebuilding this from
+    /// the merged array cost a string hash per entry on every dirty cycle — tens of
+    /// thousands of them — to re-learn something the previous cycle already knew.
+    /// Always written together with `cachedAllEntries`; `nil` means "not yet computed".
+    private var cachedSeenIds: Set<String>?
+
     /// Cached list of discovered JSONL file URLs.
     private var discoveredFiles: [URL]?
     /// Parent directory mod dates used to invalidate discovery cache.
@@ -147,12 +153,15 @@ final class SessionLogReader: @unchecked Sendable {
             }
             if !idsToRemove.isEmpty, let existing = cachedAllEntries {
                 cachedAllEntries = existing.filter { !idsToRemove.contains($0.messageId) }
+                cachedSeenIds?.subtract(idsToRemove)
             }
         }
 
         // Incremental rebuild: use cachedAllEntries as base, only re-parse changed/new files.
         // For evicted files with unchanged fingerprint, entries already live in cachedAllEntries.
-        let result = rebuild(jsonlFiles: jsonlFiles, base: cachedAllEntries)
+        let (result, resultIds) = rebuild(
+            jsonlFiles: jsonlFiles, base: cachedAllEntries, baseIds: cachedSeenIds
+        )
 
         if pendingInvalidation.swap(false) {
             isDirty = true
@@ -161,6 +170,7 @@ final class SessionLogReader: @unchecked Sendable {
         }
 
         cachedAllEntries = result
+        cachedSeenIds = resultIds
         evictOldFileEntries()
         lock.unlock()
         return result
@@ -172,9 +182,15 @@ final class SessionLogReader: @unchecked Sendable {
     ///   - Unchanged + live entries: add any not yet in base (handles first-run where base was nil).
     ///   - Changed or new: remove stale messageIds from base, re-parse, add fresh entries.
     ///   - base == nil: parse all files from scratch.
-    private func rebuild(jsonlFiles: [URL], base: [AssistantUsageEntry]?) -> [AssistantUsageEntry] {
+    private func rebuild(
+        jsonlFiles: [URL],
+        base: [AssistantUsageEntry]?,
+        baseIds: Set<String>?
+    ) -> ([AssistantUsageEntry], Set<String>) {
         var resultEntries = base ?? []
-        var seenIds = Set(resultEntries.map(\.messageId))
+        // Reuse the previous cycle's id set when it is in step with `base`; only the
+        // first pass (or a reader that was invalidated) pays the full rehash.
+        var seenIds = baseIds ?? Set(resultEntries.map(\.messageId))
         var changed = false
 
         for fileURL in jsonlFiles {
@@ -239,7 +255,7 @@ final class SessionLogReader: @unchecked Sendable {
         if changed || base == nil {
             resultEntries.sort { $0.timestamp < $1.timestamp }
         }
-        return resultEntries
+        return (resultEntries, seenIds)
     }
 
     /// Release raw entry arrays from per-file cache for files not modified today.
@@ -247,13 +263,13 @@ final class SessionLogReader: @unchecked Sendable {
     /// cachedAllEntries remains the authoritative source for these entries.
     private func evictOldFileEntries() {
         let today = Calendar.current.startOfDay(for: Date())
-        for (path, entry) in cache where entry.entries != nil && entry.modDate < today {
-            cache[path] = FileCacheEntry(
-                modDate: entry.modDate,
-                fileSize: entry.fileSize,
-                entries: nil,
-                messageIds: entry.messageIds
-            )
+        // Collect first: mutating `cache` while iterating it forces a copy of the whole
+        // per-file dictionary on every committed cycle.
+        let stalePaths = cache.compactMap { path, entry -> String? in
+            entry.entries != nil && entry.modDate < today ? path : nil
+        }
+        for path in stalePaths {
+            cache[path]?.entries = nil
         }
     }
 
