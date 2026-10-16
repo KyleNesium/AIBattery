@@ -96,7 +96,7 @@ extension StatusBarManager {
         if confirmed {
             updateSparkleState(isThrottled: isExhausted)
         }
-        updateRenderState(percent: percent, color: starColor, isThrottled: confirmed ? isExhausted : currentIsThrottled)
+        updateRenderState(isThrottled: confirmed ? isExhausted : currentIsThrottled)
 
         // Skip the image rebuild when nothing visible changed. Sparkle/appearance are
         // part of the key, so their transitions still render. The countdown timer
@@ -178,9 +178,7 @@ extension StatusBarManager {
         }
     }
 
-    private func updateRenderState(percent: Double, color: NSColor, isThrottled: Bool) {
-        currentPercent = percent
-        currentColor = color
+    private func updateRenderState(isThrottled: Bool) {
         currentIsThrottled = isThrottled
         hasReceivedFirstUpdate = true
     }

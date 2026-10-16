@@ -103,9 +103,9 @@ public final class StatusBarManager: NSObject {
     /// Gap between the menu bar button and the panel's top edge.
     static let panelMargin: CGFloat = 4
 
-    // Snapshot of current render state
-    var currentPercent: Double = 0
-    var currentColor: NSColor = .systemGreen
+    // Snapshot of current render state. Only the throttle flag is read back (to detect
+    // a real transition); the percent and colour were written every update and never
+    // consulted, so they are not kept.
     var currentIsThrottled: Bool = false
     /// Whether we've received at least one update (so we can detect real transitions vs initial state).
     var hasReceivedFirstUpdate: Bool = false
