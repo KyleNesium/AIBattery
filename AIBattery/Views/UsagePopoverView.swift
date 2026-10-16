@@ -45,9 +45,11 @@ public struct UsagePopoverView: View {
     /// CPU). Never armed by `onAppear` — that fires at setup, not on show.
     @State private var deferredRender = DeferredRenderState()
 
-    /// Cached ordered modes — avoids allocating a new array on every body evaluation.
-    @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
-    private var orderedModes: [MetricMode] { cachedOrderedModes }
+    /// Selected metric first, then the other two. Computed per body evaluation (a
+    /// 3-element array) rather than cached: in auto mode the selection is
+    /// `viewModel.resolvedMetricMode`, which a cache keyed on the AppStorage values
+    /// never saw change — the tab highlight moved while the sections stayed put.
+    private var orderedModes: [MetricMode] { MetricMode.orderedModes(current: metricMode) }
 
     /// Shape of the active account's quota (windows / credits / per-minute API limits).
     private func displayKind(_ snapshot: UsageSnapshot) -> CodexDisplayKind {
@@ -118,11 +120,8 @@ public struct UsagePopoverView: View {
                 // is attached at setup (launch), NOT on panel show — arming here would race
                 // the launch pre-warm's orderOut and could leave the heavy sections armed
                 // on a never-opened panel. Every real open posts .panelDidShow instead.
-                recomputeOrderedModes()
             }
-            .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
             .onChange(of: autoMetricMode) { _ in
-                recomputeOrderedModes()
                 if !autoMetricMode {
                     viewModel.resetHysteresis()
                 }
@@ -417,7 +416,7 @@ public struct UsagePopoverView: View {
                         }
                     }
                 }
-                .animation(MotionConstants.snappy, value: metricModeRaw)
+                .animation(MotionConstants.snappy, value: metricMode)
 
                 if deferredRender.hasAppeared {
                     ProjectUsageGate(snapshot: snapshot)
@@ -519,10 +518,6 @@ public struct UsagePopoverView: View {
         // onDisappear, so without this the hidden panel kept re-rendering
         // Projects/Insights (incl. Swift Charts) on every poll.
         deferredRender.disappeared()
-    }
-
-    private func recomputeOrderedModes() {
-        cachedOrderedModes = MetricMode.orderedModes(current: metricMode)
     }
 
     private func handleKeyPress(_ key: String) {

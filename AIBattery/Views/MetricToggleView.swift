@@ -12,11 +12,6 @@ struct MetricToggleView: View {
     var kind: CodexDisplayKind = .windows
     private var collapsed: Bool { kind != .windows }
 
-    /// Cached ordered modes — avoids allocating a new array on every body evaluation.
-    @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
-
-    var orderedModes: [MetricMode] { cachedOrderedModes }
-
     var body: some View {
         HStack(spacing: 0) {
             autoModeButton
@@ -37,8 +32,6 @@ struct MetricToggleView: View {
         .accessibilityLabel("Metric mode")
         .accessibilityHint(collapsed ? "Switch between \(MetricMode.fiveHour.shortLabel(provider: provider, kind: kind).lowercased()) and context health views" : "Switch between 5-hour, \(provider.secondaryWindowLabel.lowercased()), and context health views")
         .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric (keys: 1, 2, 3)")
-        .onAppear { recomputeOrderedModes() }
-        .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
     }
 
     // MARK: - Tab Button
@@ -127,10 +120,5 @@ struct MetricToggleView: View {
             notification: .announcementRequested,
             userInfo: [.announcement: "Auto mode \(active ? "on" : "off")"]
         )
-    }
-
-    private func recomputeOrderedModes() {
-        let currentMode = MetricMode(rawValue: pickerBinding.wrappedValue) ?? .fiveHour
-        cachedOrderedModes = MetricMode.orderedModes(current: currentMode)
     }
 }
