@@ -190,15 +190,19 @@ Fix: seed from `AccountReading(api:)` (windows or apiLimits); always exclude the
 
 **Fixed on this branch:** A1–A15 (all correctness bugs except the smaller A16 items listed below), B1, B2, B3, B5, B7, B8, B9, B10, B13 (reader + eviction parts), the C networking items, the Keychain-migration and dead-code hygiene items, and the `UsageViewModel` split (968 → 457 lines, back under the 800 ceiling).
 
-**Deliberately deferred — worth a follow-up PR:**
-- **B4** — Codex discovery still re-walks the whole tree per invalidation. Medium effort, needs a per-leaf-directory mtime cache mirroring the Claude reader. The highest-value item left.
-- **B11** — per-account refresh-failure backoff. The auth path is delicate and this PR already touches its error classification; worth landing on its own.
-- **B12** — `UsagePopoverView` still recomputes `displayKind` and `eligibleAccountCount` several times per publish and builds overview cards in detail mode.
-- **B13 remainder** — `fittingSize` read twice per refit, provider-mark tint cache, per-keystroke alias persistence, `AboutSection` observing the whole ViewModel, the three separate `UserDefaults.didChangeNotification` subscribers.
-- **A16 remainder** — the `.dropFirst()` on the auth sink (needs confirming the re-auth-while-open path still fires), the overview→detail `deferredRender` arming, and the VoiceOver `.isSelected` trait.
-- **File splits** — `UsagePopoverView` (552), `AuthView` (504) and `RateLimitUsage` (646) are over the 400-line guideline but under the 800 maximum.
-- **UI_SPEC drift** — the six items listed above are untouched except where this PR changed the behaviour they describe.
-- **Unused design tokens** — kept on purpose. They belong to coherent scales (`cardResetWidth` sits beside `cardPercentWidth`/`cardTokensWidth`) and `hoverStroke` is still described in UI_SPEC, so the right fix is a design decision, not a deletion.
+**Second pass (same day) closed the rest:** B4, B11, B12, the B13 remainder, the A16 remainder, the UI_SPEC drift, and the file splits that mattered. Details:
+- **B4** — Codex discovery now caches a per-directory listing. Measured on the real 939-file tree: 0 directories re-read across 20 consecutive invalidations, and `resolvingSymlinksInPath()` runs only on entries that are actually symlinks.
+- **B11** — transient refresh failures arm a per-account window on the shared backoff curve.
+- **B12** — `displayKind` resolved once per body evaluation. Two of the three claims here did not survive checking: `overviewCards` is already branch-scoped (it is only reachable from `overviewContent`), and `eligibleAccountCount` is a filter-and-count over at most six records, so it was left alone.
+- **B13** — `fittingSize` read once per refit, tinted provider marks cached, MenuBarIcon's obsolete `NSLock` removed, and the account alias field switched to a focused draft.
+- **A16** — the auth-sink `.dropFirst()`, the overview→detail `deferredRender` arming and the VoiceOver `.isSelected` trait were all already in place from the first pass.
+- **File splits** — `OAuthManager` was over the hard maximum at 927 lines and is now 647, with the launch migrations and the token endpoint in their own files. `RateLimitUsage` split its wire-format parsing out (367 + 289).
+
+**Still deliberately not done, with reasons:**
+- **`AuthView` (504 lines)** — under the 800 maximum. Splitting it by provider was attempted and reverted: it forced about ten pieces of private view state to become internal, which costs more than the file length.
+- **`AboutSection` observing the whole ViewModel** — the proposed Binding would silently break it. Its parent (`SettingsRow`) does not observe the ViewModel either, so nothing would re-render when an update is found and the "Install" button would never appear. With a macOS 13 minimum there is no per-property observation; `@ObservedObject` is correct here, and the cost is bounded to while the Settings pane is open.
+- **`RefreshSettingsSection`'s unobserved ViewModel** — its "×N accounts" hint does update, because the fan-out count only changes when accounts change and `accountStore` is observed. Passing values in would make the dependency explicit without changing behaviour.
+- **Unused design tokens** — they belong to coherent scales (`cardResetWidth` sits beside `cardPercentWidth`/`cardTokensWidth`). `hoverStroke` turned out to be a genuine spec/code gap: UI_SPEC claimed the gear draws it and the code does not. The spec now says so; whether to restore the edge is a design decision.
 - **Keychain accessibility read failure** — distinguishing "item absent" from "read failed" needs a `KeychainHelper` API change, which is disproportionate for a pre-2.x-install edge case.
 
 ## Suggested PR grouping (one integration branch per group, tested locally)

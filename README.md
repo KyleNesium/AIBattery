@@ -470,12 +470,12 @@ AI Battery is **free and open source** — always will be. If it helps you get m
 
 ## 🧪 Test Coverage
 
-**1489 tests** across 115 test files.
+**1495 tests** across 115 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 398 | Rate-limit parsing (unified, standard, Claude Code client data, Codex `wham/usage`, spend-control credits), usage snapshots and escalation, spike/rollover filters, account readings and the fan-out gate (incl. balance-only credit budgets keeping their windowed layout), overview cards (state precedence, tokens, live and status dots), popover mode and Escape routing, metric modes, pricing tables, provider and account records |
-| Services | 547 | Token ledger, version checker, Sparkle updates, notifications, health monitor, status checker and backoff, per-account endpoint backoff for both rate-limit fetchers, session-log readers (Claude + Codex, streaming, caching, message-id set, oversized lines, concurrency), tool-call coalescing across JSONL lines, account store (caps, identity tiers, ordering), OAuth managers (PKCE, refresh, typed errors, transient-vs-terminal classification, sign-out races), rate-limit fetchers and caches, Keychain, secure networking (redirect refusal, response cap) |
+| Services | 553 | Token ledger, version checker, Sparkle updates, notifications, health monitor, status checker and backoff, per-account endpoint backoff for both rate-limit fetchers and for token refresh, Codex per-directory discovery caching (new rollouts found, deleted directories dropped, symlink boundary held), session-log readers (Claude + Codex, streaming, caching, message-id set, oversized lines, concurrency), tool-call coalescing across JSONL lines, account store (caps, identity tiers, ordering), OAuth managers (PKCE, refresh, typed errors, transient-vs-terminal classification, sign-out races), rate-limit fetchers and caches, Keychain, secure networking (redirect refusal, response cap) |
 | Views | 197 | Menu-bar text and headline percent, one truncating percent rule across surfaces, panel refit trigger, popover header and back control, overview content and its shared clock, footer, activity chart transforms and trends, token health display, collapsible sections, settings sections and hints, transition bans for the headless runner |
 | ViewModels | 101 | Multi-account fan-out (routing, carry-forward, generation stamp, active-account exclusion), refresh interval and adaptive polling, throttle tracking per account, stale rate-limit expiry, auth-error reconnect, cross-account refresh races, provider switching, off-main aggregation |
 | Utilities | 246 | Token and duration formatting, percent display, model-name mapping, theme colors (incl. provider tints, colorblind palette), menu-bar icon rendering and cache, date formatters, JSONL newline scanning, email masking, logging redaction |
