@@ -186,6 +186,21 @@ Fix: seed from `AccountReading(api:)` (windows or apiLimits); always exclude the
 
 ---
 
+## Status (updated 2026-10-16, end of the fix pass)
+
+**Fixed on this branch:** A1–A15 (all correctness bugs except the smaller A16 items listed below), B1, B2, B3, B5, B7, B8, B9, B10, B13 (reader + eviction parts), the C networking items, the Keychain-migration and dead-code hygiene items, and the `UsageViewModel` split (968 → 457 lines, back under the 800 ceiling).
+
+**Deliberately deferred — worth a follow-up PR:**
+- **B4** — Codex discovery still re-walks the whole tree per invalidation. Medium effort, needs a per-leaf-directory mtime cache mirroring the Claude reader. The highest-value item left.
+- **B11** — per-account refresh-failure backoff. The auth path is delicate and this PR already touches its error classification; worth landing on its own.
+- **B12** — `UsagePopoverView` still recomputes `displayKind` and `eligibleAccountCount` several times per publish and builds overview cards in detail mode.
+- **B13 remainder** — `fittingSize` read twice per refit, provider-mark tint cache, per-keystroke alias persistence, `AboutSection` observing the whole ViewModel, the three separate `UserDefaults.didChangeNotification` subscribers.
+- **A16 remainder** — the `.dropFirst()` on the auth sink (needs confirming the re-auth-while-open path still fires), the overview→detail `deferredRender` arming, and the VoiceOver `.isSelected` trait.
+- **File splits** — `UsagePopoverView` (552), `AuthView` (504) and `RateLimitUsage` (646) are over the 400-line guideline but under the 800 maximum.
+- **UI_SPEC drift** — the six items listed above are untouched except where this PR changed the behaviour they describe.
+- **Unused design tokens** — kept on purpose. They belong to coherent scales (`cardResetWidth` sits beside `cardPercentWidth`/`cardTokensWidth`) and `hoverStroke` is still described in UI_SPEC, so the right fix is a design decision, not a deletion.
+- **Keychain accessibility read failure** — distinguishing "item absent" from "read failed" needs a `KeychainHelper` API change, which is disproportionate for a pre-2.x-install edge case.
+
 ## Suggested PR grouping (one integration branch per group, tested locally)
 
 1. **Data correctness** — A1, A2 (decide filter policy first), A15, A16-timestamp, B3, B5, B7, B8, reader-scaffolding extraction. Measure with `AIBATTERY_REAL_CLAUDE_LOGS=1` / `AIBATTERY_REAL_CODEX_LOGS=1`.
