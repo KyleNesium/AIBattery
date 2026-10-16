@@ -52,6 +52,13 @@ public final class OAuthManager: ObservableObject {
     /// and network-delay induced 401s that trigger unnecessary re-authentication.
     private static let expiryBuffer: TimeInterval = 300 // 5 minutes
 
+    /// Transport used by the refresh and code-exchange paths. Injectable so the refresh
+    /// contract (cancellation, failure backoff) is testable without the live token
+    /// endpoint; production keeps the `SecureNetworking` default.
+    var tokenTransport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) }
+    /// Retry policy for the Claude token endpoint; tests swap in a zero-delay policy.
+    var tokenRetryPolicy: RetryPolicy = .oauth
+
     /// Serializes concurrent refresh attempts per account.
     private var refreshTasks: [String: Task<String?, Never>] = [:]
     /// Generation counter per account — used to detect stale refresh tasks.
@@ -477,9 +484,16 @@ public final class OAuthManager: ObservableObject {
             "client_id": clientID,
         ]
 
-        let tokenResult = await Self.postToken(body: body)
+        let tokenResult = await Self.postToken(body: body, transport: tokenTransport, retryPolicy: tokenRetryPolicy)
         switch tokenResult {
         case .success(let result):
+            // `signOut` cancels this task and drops `tokens[accountId]`, but the network
+            // round-trip can't be retracted. Writing the fresh set back here would
+            // resurrect the account in memory and re-create its Keychain item.
+            guard !Task.isCancelled, tokens[accountId] != nil else {
+                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+                return nil
+            }
             tokens[accountId] = AccountTokens(
                 accessToken: result.accessToken,
                 refreshToken: result.refreshToken,
@@ -510,9 +524,14 @@ public final class OAuthManager: ObservableObject {
             tokens[accountId] = AccountTokens(accessToken: refresh, refreshToken: refresh, expiresAt: .distantFuture)
             return refresh
         }
-        let result = await CodexTokenClient.refresh(refreshToken: refresh)
+        let result = await CodexTokenClient.refresh(refreshToken: refresh, transport: tokenTransport)
         switch result {
         case .success(let set):
+            // Same post-sign-out guard as the Anthropic arm: never resurrect a removed account.
+            guard !Task.isCancelled, tokens[accountId] != nil else {
+                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+                return nil
+            }
             let expires = JWTDecoder.expiry(set.accessToken) ?? Date().addingTimeInterval(3_600)
             tokens[accountId] = AccountTokens(
                 accessToken: set.accessToken,
@@ -658,6 +677,10 @@ public final class OAuthManager: ObservableObject {
 
         var lastError: AuthError = .networkError
         for attempt in 0...Self.maxRetries {
+            // A cancelled refresh (sign-out mid-flight) must not keep hitting the endpoint
+            // through the retry loop. `.networkError` is transient, so the caller never
+            // treats a cancellation as a rejected credential.
+            guard !Task.isCancelled else { return .failure(.networkError) }
             if attempt > 0 {
                 // Exponential backoff with jitter via RetryPolicy.oauth (1s, 2s, 4s ±20%).
                 let delay = retryPolicy.delay(forAttempt: attempt)
@@ -736,6 +759,12 @@ public final class OAuthManager: ObservableObject {
         let data = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
         tokens[accountId] = data
         OAuthTokenStorage.save(data, for: Self.tokenStorageKey(accountId: accountId, provider: provider))
+    }
+
+    /// Memory-only token seed for tests — nothing is written to the Keychain or
+    /// UserDefaults, so a test can prove the code under test didn't write either.
+    func seedTokensForTesting(accountId: String, accessToken: String?, refreshToken: String?, expiresAt: Date?) {
+        tokens[accountId] = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
     }
 
     private func loadAllTokens() {

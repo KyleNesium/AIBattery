@@ -140,6 +140,9 @@ enum CodexTokenClient {
         var lastError: OAuthManager.AuthError = .networkError
 
         for attempt in 0...maxRetries {
+            // Mirrors `postToken`: a refresh cancelled by sign-out stops retrying, and the
+            // transient `.networkError` can never be mistaken for a rejected credential.
+            guard !Task.isCancelled else { return .failure(.networkError) }
             if attempt > 0 {
                 // Exponential backoff with jitter via RetryPolicy.oauth (1s, 2s, 4s ±20%).
                 let delay = retryPolicy.delay(forAttempt: attempt)
