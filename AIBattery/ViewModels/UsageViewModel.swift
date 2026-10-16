@@ -608,16 +608,26 @@ public final class UsageViewModel: ObservableObject {
             accountId: accountId
         )
         // Multi-account menu bar fan-out (no-op when toggle is off).
-        // Seed with the active account's just-fetched data — RateLimitFetcher does
-        // not short-circuit on cache, so seeding is what keeps net cost at N
-        // requests per cycle for N accounts (instead of N+1). Seed the spike-CONFIRMED
-        // value (not the raw fetch) so an unconfirmed spike can't leak into the menu bar.
-        let seed: (String, RateLimitUsage)? = {
-            guard let id = accountId, api.rateLimits != nil, !api.isCached,
-                  let rl = effectiveRateLimits else { return nil }
-            return (id, rl)
+        // Seed with the active account's just-fetched data — RateLimitFetcher does not
+        // short-circuit on cache, so seeding is what keeps net cost at N requests per
+        // cycle for N accounts (instead of N+1). Seed the spike-CONFIRMED windows (not
+        // the raw fetch) so an unconfirmed spike can't leak into the menu bar; an
+        // API-key account has no windows at all and seeds from its per-minute limits,
+        // which is why the shape here is an `AccountReading` rather than windows alone.
+        let seed: (String, AccountReading)? = {
+            guard let id = accountId, !api.isCached else { return nil }
+            if let rl = effectiveRateLimits, api.rateLimits != nil {
+                return (id, AccountReading(
+                    windows: rl, apiLimits: nil, fetchedAt: api.fetchedAt,
+                    isCached: false, source: api.rateLimitSource
+                ))
+            }
+            guard let reading = AccountReading(api: api) else { return nil }
+            return (id, reading)
         }()
-        await fetchAllAccounts(seed: seed)
+        // The active account is excluded whether or not it seeded: an unseeded re-fetch
+        // would spend a second request on the endpoint that just served it from cache.
+        await fetchAllAccounts(seed: seed, excluding: accountId)
     }
 
     // MARK: - Refresh helpers

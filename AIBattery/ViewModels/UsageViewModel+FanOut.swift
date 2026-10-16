@@ -33,7 +33,10 @@ extension UsageViewModel {
     ///   account's just-fetched data — `RateLimitFetcher.fetch` does NOT short-circuit
     ///   on cache, so without seeding we'd issue an extra network call for the active
     ///   account every refresh cycle (N+1 total instead of N).
-    func fetchAllAccounts(seed: (accountId: String, rateLimits: RateLimitUsage)? = nil) async {
+    func fetchAllAccounts(
+        seed: (accountId: String, reading: AccountReading)? = nil,
+        excluding activeAccountId: String? = nil
+    ) async {
         // Single-writer rule: whoever started last owns `perAccountReadings`. Anything
         // that finishes after a newer call began is dropped — mirrors
         // `shouldApplyFetchResult` on the refresh path.
@@ -44,6 +47,7 @@ extension UsageViewModel {
         let resolved = await MultiAccountFanOut.resolve(
             enabled: FanOutGate.enabled(menuBarToggle: toggle, eligibleAccountCount: eligible),
             seed: seed,
+            excluding: activeAccountId,
             previous: perAccountReadings,
             provider: OAuthManager.shared,
             fetcher: ProviderDispatchingFetcher.live(accountStore: OAuthManager.shared.accountStore)

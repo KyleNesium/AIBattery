@@ -108,7 +108,7 @@ struct MultiAccountFanOutTests {
 
         let result = await MultiAccountFanOut.resolve(
             enabled: true,
-            seed: (accountId: "a", rateLimits: Self.usage(0.42)),
+            seed: (accountId: "a", reading: AccountReading(windows: Self.usage(0.42), apiLimits: nil, fetchedAt: .now, isCached: false, source: nil)),
             provider: provider,
             fetcher: fetcher
         )
@@ -127,7 +127,7 @@ struct MultiAccountFanOutTests {
 
         let result = await MultiAccountFanOut.resolve(
             enabled: true,
-            seed: (accountId: "a", rateLimits: Self.usage(0.42)),
+            seed: (accountId: "a", reading: AccountReading(windows: Self.usage(0.42), apiLimits: nil, fetchedAt: .now, isCached: false, source: nil)),
             provider: provider,
             fetcher: fetcher
         )
@@ -255,5 +255,117 @@ struct MultiAccountFanOutTests {
         // Single-provider account sets have nothing extra to poll.
         #expect(MultiAccountFanOut.otherProviders(eligible: [claude1, claude2], active: .claude).isEmpty)
         #expect(MultiAccountFanOut.otherProviders(eligible: [], active: .claude).isEmpty)
+    }
+}
+
+// MARK: - Active-account exclusion (N+1 / double-billing)
+
+@MainActor
+@Suite("MultiAccountFanOut active-account exclusion")
+struct MultiAccountFanOutExclusionTests {
+    private static func usage(_ fiveHour: Double) -> RateLimitUsage {
+        RateLimitUsage(
+            representativeClaim: RateLimitUsage.fiveHourWindow,
+            fiveHourUtilization: fiveHour,
+            fiveHourReset: nil,
+            fiveHourStatus: "allowed",
+            sevenDayUtilization: 0,
+            sevenDayReset: nil,
+            sevenDayStatus: "allowed",
+            overallStatus: "allowed"
+        )
+    }
+
+    private static func perMinute(requestsRemaining: Int) -> StandardRateLimits {
+        StandardRateLimits(
+            requestsLimit: 100,
+            requestsRemaining: requestsRemaining,
+            requestsReset: nil,
+            tokensLimit: 1_000,
+            tokensRemaining: 1_000,
+            tokensReset: nil
+        )
+    }
+
+    /// An API-key account's probe returns `rateLimits: nil` (its limits live in
+    /// `standardLimits`), so it could never produce a windowed seed. Before the fix the
+    /// active key was therefore left in `idsToFetch` and probed a SECOND time every
+    /// cycle — a real, billed `/v1/responses` request per poll.
+    @Test("API-key active account seeds from apiLimits and is never re-probed")
+    func apiKeyActiveAccountSeeds() async {
+        let fetcher = MultiAccountFanOutTests.MockRateLimitFetcher(
+            resultsByID: ["b": Self.usage(0.23)]
+        )
+        let provider = MultiAccountFanOutTests.MockAccountProvider(
+            displayIDs: ["key", "b"],
+            tokensByID: ["key": "token-key", "b": "token-b"]
+        )
+        let seedReading = AccountReading(
+            windows: nil, apiLimits: Self.perMinute(requestsRemaining: 40),
+            fetchedAt: .now, isCached: false, source: nil
+        )
+
+        let result = await MultiAccountFanOut.resolve(
+            enabled: true,
+            seed: (accountId: "key", reading: seedReading),
+            excluding: "key",
+            provider: provider,
+            fetcher: fetcher
+        )
+
+        #expect(fetcher.fetchedIDs.contains("key") == false)
+        #expect(Set(fetcher.fetchedIDs) == ["b"])
+        #expect(result?["key"]?.apiLimits?.peakPercent == 60)
+    }
+
+    /// When the active account's own fetch was served from cache there is no seed, but
+    /// re-fetching it hits the very endpoint that just failed. Exclude it and carry its
+    /// previous reading forward instead.
+    @Test("Cached active fetch: active account is not re-fetched, previous reading carried forward")
+    func cachedActiveAccountCarriesForward() async {
+        let fetcher = MultiAccountFanOutTests.MockRateLimitFetcher(
+            resultsByID: ["b": Self.usage(0.23)]
+        )
+        let provider = MultiAccountFanOutTests.MockAccountProvider(
+            displayIDs: ["a", "b"],
+            tokensByID: ["a": "token-a", "b": "token-b"]
+        )
+        let previous: [String: AccountReading] = [
+            "a": AccountReading(
+                windows: Self.usage(0.77), apiLimits: nil,
+                fetchedAt: .now, isCached: false, source: nil
+            ),
+        ]
+
+        let result = await MultiAccountFanOut.resolve(
+            enabled: true,
+            seed: nil,
+            excluding: "a",
+            previous: previous,
+            provider: provider,
+            fetcher: fetcher
+        )
+
+        #expect(fetcher.fetchedIDs.contains("a") == false)
+        #expect(Set(fetcher.fetchedIDs) == ["b"])
+        #expect((result?["a"]?.windows?.fiveHourPercent ?? -1) == 77)
+        #expect(result?["a"]?.isCached == true)
+    }
+
+    /// Excluding the only account, with no seed and nothing to carry forward, must not
+    /// invent a slot — the caller clears its map.
+    @Test("Excluded active account with no seed and no history is simply absent")
+    func excludedWithNoHistoryIsAbsent() async {
+        let fetcher = MultiAccountFanOutTests.MockRateLimitFetcher(resultsByID: [:])
+        let provider = MultiAccountFanOutTests.MockAccountProvider(
+            displayIDs: ["a"], tokensByID: ["a": "token-a"]
+        )
+
+        let result = await MultiAccountFanOut.resolve(
+            enabled: true, seed: nil, excluding: "a", provider: provider, fetcher: fetcher
+        )
+
+        #expect(fetcher.fetchedIDs.isEmpty)
+        #expect(result == nil)
     }
 }

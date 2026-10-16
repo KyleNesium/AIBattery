@@ -93,9 +93,15 @@ enum MultiAccountFanOut {
     ///
     /// - Parameters:
     ///   - enabled: `FanOutGate.enabled(...)` — the menu-bar toggle OR ≥ 2 eligible accounts.
-    ///   - seed: the active account's just-fetched `(id, rateLimits)`, or `nil` when
-    ///     the active fetch was cached/absent. Injected into the result without a
-    ///     network call; that account is dropped from the fan-out.
+    ///   - seed: the active account's just-fetched reading, or `nil` when the active
+    ///     fetch was cached/absent. Injected into the result without a network call.
+    ///     Carries either shape, so an API-key account (whose probe reports per-minute
+    ///     `apiLimits` and never `windows`) seeds just like a windowed one.
+    ///   - excluding: the active account's id. ALWAYS dropped from the fan-out, seed or
+    ///     no seed: re-fetching it would issue a second request on the same cycle — a
+    ///     billed `/v1/responses` probe for an API key, or a retry against the very
+    ///     endpoint that just served the active fetch from cache. With no seed, its
+    ///     `previous` reading is carried forward instead.
     ///   - previous: the caller's current map. An account whose fetch fails keeps its
     ///     previous reading, marked cached, so a card never blanks out between polls.
     ///   - provider: account list + per-account tokens.
@@ -105,7 +111,8 @@ enum MultiAccountFanOut {
     ///   clears its map); otherwise the normalized per-account map.
     static func resolve(
         enabled: Bool,
-        seed: (accountId: String, rateLimits: RateLimitUsage)?,
+        seed: (accountId: String, reading: AccountReading)?,
+        excluding activeAccountId: String? = nil,
         previous: [String: AccountReading] = [:],
         provider: MultiAccountTokenProviding,
         fetcher: RateLimitFetching,
@@ -113,16 +120,20 @@ enum MultiAccountFanOut {
     ) async -> [String: AccountReading]? {
         guard enabled else { return nil }
 
-        let idsToFetch = provider.multiAccountDisplayIDs().filter { $0 != seed?.accountId }
-        if idsToFetch.isEmpty, seed == nil {
-            return nil
-        }
+        let skipped = Set([seed?.accountId, activeAccountId].compactMap { $0 })
+        let idsToFetch = provider.multiAccountDisplayIDs().filter { !skipped.contains($0) }
 
         var collected: [String: AccountReading] = [:]
         if let seed {
-            collected[seed.accountId] = AccountReading(
-                windows: seed.rateLimits, apiLimits: nil, fetchedAt: now, isCached: false, source: nil
-            )
+            collected[seed.accountId] = seed.reading
+        } else if let activeAccountId, let old = previous[activeAccountId] {
+            // Excluded but unseeded (the active fetch was cached): keep showing the last
+            // reading rather than spending a second request to re-learn it.
+            collected[activeAccountId] = old.carriedForward()
+        }
+
+        if idsToFetch.isEmpty, collected.isEmpty {
+            return nil
         }
 
         if !idsToFetch.isEmpty {
