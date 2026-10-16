@@ -96,6 +96,13 @@ public final class UsageViewModel: ObservableObject {
     /// the slower one must not overwrite `perAccountReadings` with an older map —
     /// only the newest call's result is applied. Read/written by `+FanOut.swift`.
     var fanOutGeneration: UInt64 = 0
+    /// Bumped by `clearAccountDisplayState` (account switch / sign-out). A refresh cycle
+    /// captures it at its start and re-checks it — together with the active account id —
+    /// after EVERY await before publishing (`displayIsCurrent`). The account-id check alone
+    /// (`shouldApplyFetchResult`) misses A → B → A: same account active again, but the
+    /// display was cleared in between, and the cold aggregate from the first cycle could
+    /// still publish an old snapshot / error / mode under the fresh paint.
+    var displayGeneration: UInt64 = 0
     /// Last observed value of the multi-account toggle — used to filter the
     /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
     private var lastObservedShowAllAccounts: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
@@ -343,10 +350,23 @@ public final class UsageViewModel: ObservableObject {
         }
     }
 
+    /// Instance form of `displayIsCurrent(captured:current:fetchedAccountId:activeAccountId:)`
+    /// against the live generation and active account.
+    func displayIsCurrent(_ captured: UInt64, accountId: String?) -> Bool {
+        Self.displayIsCurrent(
+            captured: captured,
+            current: displayGeneration,
+            fetchedAccountId: accountId,
+            activeAccountId: OAuthManager.shared.accountStore.activeAccountId
+        )
+    }
+
     private func performRefresh(skipNetworkCheck: Bool) async {
         // Skip polling cycle when suspended due to idle or screen lock.
         // Allow explicit resume refreshes through by checking skipNetworkCheck (wake path).
         guard !isSuspended || skipNetworkCheck else { return }
+        // Captured once; every publish below is gated on it still being current.
+        let generation = displayGeneration
 
         // Check idle at each polling tick — suspend if threshold reached.
         // No new timer — piggybacks on the existing polling cycle.
@@ -365,6 +385,8 @@ public final class UsageViewModel: ObservableObject {
         guard oauthManager.isAuthenticated else {
             rateLimitsFresh = false
             let result = await aggregateOffMain(rateLimits: nil, rateLimitsFresh: false)
+            // Generation only: this branch has no account to compare (signed-out local view).
+            guard generation == displayGeneration else { return }
             if result.totalMessages > 0, result != snapshot {
                 snapshot = result
             }
@@ -389,6 +411,7 @@ public final class UsageViewModel: ObservableObject {
                 provider: provider(ofAccount: offlineAccountId),
                 rateLimitsFresh: false
             )
+            guard displayIsCurrent(generation, accountId: offlineAccountId) else { return }
             if result != snapshot {
                 snapshot = result
             }
@@ -420,6 +443,8 @@ public final class UsageViewModel: ObservableObject {
                     provider: accountProvider,
                     rateLimitsFresh: false
                 )
+                // The instant-paint awaited a (possibly cold) aggregate: same guard.
+                guard displayIsCurrent(generation, accountId: accountId) else { return }
                 snapshot = earlyResult
                 isShowingCachedData = true
                 rateLimitsFresh = false
@@ -431,13 +456,11 @@ public final class UsageViewModel: ObservableObject {
 
         let (api, status) = await fetchAPIData(oauthManager: oauthManager, accountId: accountId)
 
-        // If user switched accounts while fetching, discard stale results BEFORE
-        // any published state is written — otherwise the old account's data leaks
-        // into the new account's display (apiResult/isShowingCachedData/lastFreshFetch).
-        guard Self.shouldApplyFetchResult(
-            fetchedAccountId: accountId,
-            activeAccountId: oauthManager.accountStore.activeAccountId
-        ) else { return }
+        // If user switched accounts (or the display was cleared) while fetching, discard
+        // stale results BEFORE any published state is written — otherwise the old
+        // account's data leaks into the new account's display
+        // (apiResult/isShowingCachedData/lastFreshFetch).
+        guard displayIsCurrent(generation, accountId: accountId) else { return }
 
         apiResult = api
         systemStatus = status
@@ -453,7 +476,7 @@ public final class UsageViewModel: ObservableObject {
         }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
-        Self.recordThrottleEvent(api.rateLimits, source: api.isCached ? "stale-cache" : "api-fresh")
+        Self.recordThrottleEvent(api.rateLimits, accountId: accountId, source: api.isCached ? "stale-cache" : "api-fresh")
         // Hold the last good API rate limit data until replaced by a newer API response.
         // The primary /api/oauth/usage endpoint returns limits on essentially every
         // successful poll, but the legacy Messages-probe fallback returns unified
@@ -548,6 +571,9 @@ public final class UsageViewModel: ObservableObject {
             provider: accountProvider,
             rateLimitsFresh: rateLimitsFresh
         )
+        // A cold scan can take seconds; the user may have switched (or switched and
+        // come back) meanwhile. Nothing below may publish for a display that is gone.
+        guard displayIsCurrent(generation, accountId: accountId) else { return }
         logCorruptionMetrics()
 
         // Keep latest token counts available for 429 auto-calibration, and calibrate the
@@ -555,10 +581,10 @@ public final class UsageViewModel: ObservableObject {
         // the local estimate, and the `latest*Tokens` globals feed a header-less-429
         // calibration on whichever account is active next: leaving Codex token counts
         // there could seed a Claude limit from Codex math right after an account switch.
+        LocalUsageEstimate.recordLatestTokens(
+            fiveHour: result.fiveHourTokens, sevenDay: result.sevenDayTokens, provider: accountProvider
+        )
         if accountProvider == .claude {
-            LocalUsageEstimate.latestFiveHourTokens = result.fiveHourTokens
-            LocalUsageEstimate.latestSevenDayTokens = result.sevenDayTokens
-
             // Auto-calibrate local usage limits when API returns fresh utilization data.
             // This lets us estimate percentages from local tokens when the API is unavailable.
             if let rl = api.rateLimits, !api.isCached {
@@ -578,7 +604,8 @@ public final class UsageViewModel: ObservableObject {
             confirmedRateLimits: effectiveRateLimits,
             rateLimitsFresh: rateLimitsFresh,
             status: status,
-            provider: accountProvider
+            provider: accountProvider,
+            accountId: accountId
         )
         // Multi-account menu bar fan-out (no-op when toggle is off).
         // Seed with the active account's just-fetched data — RateLimitFetcher does
@@ -611,6 +638,7 @@ public final class UsageViewModel: ObservableObject {
     func refreshLocalData() async {
         let accountId = OAuthManager.shared.accountStore.activeAccountId
         let accountProvider = provider(ofAccount: accountId)
+        let generation = displayGeneration
         // Capture the display inputs BEFORE suspending so the post-await guard can
         // detect a concurrent refresh() publishing newer limits mid-flight. Expired
         // windows are cleared here (the fetch paths clear via cachedOrEmpty /
@@ -632,10 +660,7 @@ public final class UsageViewModel: ObservableObject {
         // displayed rate limits — publishing it would clobber the NEW account's
         // snapshot (UsageSnapshot carries no accountId, so nothing downstream could
         // detect the mismatch).
-        guard Self.shouldApplyFetchResult(
-            fetchedAccountId: accountId,
-            activeAccountId: OAuthManager.shared.accountStore.activeAccountId
-        ) else { return }
+        guard displayIsCurrent(generation, accountId: accountId) else { return }
         // Interleave guard: a timed refresh() completing during the await publishes
         // NEWER rate limits (possibly fresh/spike-corrected); a result built from the
         // pre-refresh limits must not revert them. Because FS events recur every ~2s
@@ -643,9 +668,11 @@ public final class UsageViewModel: ObservableObject {
         // re-captures the reverted value) until the next poll. Dropping the result is
         // safe — the refresh that invalidated it aggregated the same-or-newer local data.
         guard snapshot?.rateLimits == baseLimits, rateLimitsFresh == baseFresh else { return }
-        // Keep latest token counts available for 429 auto-calibration (mirrors refresh()).
-        LocalUsageEstimate.latestFiveHourTokens = result.fiveHourTokens
-        LocalUsageEstimate.latestSevenDayTokens = result.sevenDayTokens
+        // Keep latest token counts available for 429 auto-calibration (mirrors refresh();
+        // Claude-gated inside — this path fires every ~2s during a Codex session).
+        LocalUsageEstimate.recordLatestTokens(
+            fiveHour: result.fiveHourTokens, sevenDay: result.sevenDayTokens, provider: accountProvider
+        )
         // Record activity for adaptive polling BEFORE publishing — once `snapshot` is
         // updated here, the next timed poll compares equal totals and would otherwise
         // read continuous activity as "no change" and back polling off.
@@ -750,11 +777,15 @@ public final class UsageViewModel: ObservableObject {
         restartPolling(interval: interval)
     }
 
+    /// - Parameter accountId: the account the reading was FETCHED for — never re-read
+    ///   from the store here, or a mid-cycle switch keys the "already fired" latch (and
+    ///   the notification) to the new account with the old account's limits.
     private func handlePostFetchAlerts(
         confirmedRateLimits: RateLimitUsage?,
         rateLimitsFresh: Bool,
         status: ClaudeSystemStatus,
-        provider: AIProvider
+        provider: AIProvider,
+        accountId: String?
     ) async {
         NotificationManager.shared.checkStatusAlerts(
             status: status,
@@ -766,10 +797,7 @@ public final class UsageViewModel: ObservableObject {
         if let limits = Self.alertableRateLimits(confirmed: confirmedRateLimits, rateLimitsFresh: rateLimitsFresh) {
             // Scoped to the account the reading belongs to — a global latch let an account
             // switch clear another account's "already fired" and re-alert on return.
-            NotificationManager.shared.checkRateLimitAlerts(
-                rateLimits: limits,
-                accountId: OAuthManager.shared.accountStore.activeAccountId
-            )
+            NotificationManager.shared.checkRateLimitAlerts(rateLimits: limits, accountId: accountId)
         }
 
         #if ENABLE_VERSION_CHECKER
@@ -807,16 +835,26 @@ public final class UsageViewModel: ObservableObject {
     }
 
     /// Drop everything that describes a specific account. Shared by `switchAccount` and
-    /// the signed-out path so the two can never diverge.
-    private func clearAccountDisplayState() {
+    /// the signed-out path so the two can never diverge. Bumps `displayGeneration` so
+    /// any refresh / local-refresh / repaint cycle still in flight for the previous
+    /// display discards its result instead of publishing it here.
+    func clearAccountDisplayState() {
+        displayGeneration &+= 1
         lastResolvedMode = nil
         snapshot = nil
+        // The offline fallback path re-aggregates from `apiResult`, so a stale value here
+        // would render the OLD account's rate limits under the new account's identity.
         apiResult = nil
+        // The status feed follows the provider — drop the old one until the next fetch.
         systemStatus = nil
         isShowingCachedData = false
         rateLimitsFresh = false
+        // No spike-confirmation history carries over — the next account's first fresh
+        // near-full reading must re-confirm before alarming.
         previouslyNearFullWindows = [:]
         lastFreshFetch = nil
+        // Without this the next account's first header-less poll can still resolve the OLD
+        // account's limits through `effectiveRateLimits`' stale window.
         lastFreshRateLimitsAt = nil
         errorMessage = nil
     }
@@ -824,24 +862,7 @@ public final class UsageViewModel: ObservableObject {
     /// Switch to a different account and refresh data.
     func switchAccount(to accountId: String) {
         OAuthManager.shared.accountStore.setActive(id: accountId)
-        lastResolvedMode = nil
-        snapshot = nil
-        // Clear the previous account's API result too — the offline fallback path
-        // in refresh() re-aggregates from apiResult, so a stale value here would
-        // render the OLD account's rate limits under the new account's identity.
-        apiResult = nil
-        // The status feed follows the provider — drop the old one until the next fetch.
-        systemStatus = nil
-        isShowingCachedData = false
-        rateLimitsFresh = false
-        // New account has no spike-confirmation history — start clean so its first fresh
-        // near-full reading must re-confirm before alarming.
-        previouslyNearFullWindows = [:]
-        lastFreshFetch = nil
-        // Without this the new account's first header-less poll can still resolve the OLD
-        // account's limits through `effectiveRateLimits`' stale window.
-        lastFreshRateLimitsAt = nil
-        errorMessage = nil
+        clearAccountDisplayState()
         isLoading = true
         OAuthManager.shared.objectWillChange.send()
         Task { await refresh() } // refresh() also calls fetchAllAccounts() at its tail.
@@ -855,20 +876,26 @@ public final class UsageViewModel: ObservableObject {
     // ThrottleTracker (`throttleTracker`), which only makes sense alongside
     // the storage it manages.
 
-    /// Throttle transition tracker — pure struct, side-effects handled here.
-    private static var throttleTracker = ThrottleTracker()
+    /// Throttle transition trackers — pure structs, side-effects handled here. Keyed by
+    /// account id: a single global tracker read account B's healthy reading as account
+    /// A's recovery, so switching throttled A → healthy B → A logged a fresh "engaged"
+    /// and appended a duplicate timestamp every round trip (inflating the Insights
+    /// throttle-trend rows). The signed-out / legacy path keys under `""`.
+    private static var throttleTrackers: [String: ThrottleTracker] = [:]
 
     /// Formats reset timestamps for throttle-transition log lines.
     private static let throttleLogDateFormatter = ISO8601DateFormatter()
 
-    /// Record a throttle event on the transition from normal → throttled.
+    /// Record a throttle event on the transition from normal → throttled for ONE account.
     /// Each distinct throttle session counts as one event regardless of duration.
     /// Also emits one structured log line on each throttle on/off transition so a
     /// stuck/false throttle state is diagnosable after the fact.
-    static func recordThrottleEvent(_ rateLimits: RateLimitUsage?, source: String = "unknown") {
-        let wasThrottled = throttleTracker.wasThrottled
-        let (next, timestamp) = throttleTracker.evaluate(rateLimits)
-        throttleTracker = next
+    static func recordThrottleEvent(_ rateLimits: RateLimitUsage?, accountId: String? = nil, source: String = "unknown") {
+        let key = accountId ?? ""
+        let tracker = throttleTrackers[key] ?? ThrottleTracker()
+        let wasThrottled = tracker.wasThrottled
+        let (next, timestamp) = tracker.evaluate(rateLimits)
+        throttleTrackers[key] = next
         if next.wasThrottled != wasThrottled {
             let window = rateLimits?.bindingWindowLabel ?? "n/a"
             let reset = rateLimits?.bindingReset.map(Self.throttleLogDateFormatter.string(from:)) ?? "none"

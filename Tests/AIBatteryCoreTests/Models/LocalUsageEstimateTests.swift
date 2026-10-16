@@ -4,6 +4,36 @@ import Foundation
 
 @Suite("LocalUsageEstimate")
 struct LocalUsageEstimateTests {
+    // MARK: - recordLatestTokens (A5: Claude-only 429-calibration globals)
+
+    @MainActor
+    @Test func recordLatestTokens_claude_updatesGlobals() {
+        LocalUsageEstimate.latestFiveHourTokens = 0
+        LocalUsageEstimate.latestSevenDayTokens = 0
+        defer {
+            LocalUsageEstimate.latestFiveHourTokens = 0
+            LocalUsageEstimate.latestSevenDayTokens = 0
+        }
+        LocalUsageEstimate.recordLatestTokens(fiveHour: 1_234, sevenDay: 5_678, provider: .claude)
+        #expect(LocalUsageEstimate.latestFiveHourTokens == 1_234)
+        #expect(LocalUsageEstimate.latestSevenDayTokens == 5_678)
+    }
+
+    @MainActor
+    @Test func recordLatestTokens_codex_leavesGlobalsUntouched() {
+        // Codex token counts must never seed a Claude limit on a header-less 429 right
+        // after an account switch — the FS-triggered local refresh used to write them.
+        LocalUsageEstimate.latestFiveHourTokens = 111
+        LocalUsageEstimate.latestSevenDayTokens = 222
+        defer {
+            LocalUsageEstimate.latestFiveHourTokens = 0
+            LocalUsageEstimate.latestSevenDayTokens = 0
+        }
+        LocalUsageEstimate.recordLatestTokens(fiveHour: 9_999_999, sevenDay: 9_999_999, provider: .codex)
+        #expect(LocalUsageEstimate.latestFiveHourTokens == 111)
+        #expect(LocalUsageEstimate.latestSevenDayTokens == 222)
+    }
+
     // MARK: - calibrateFrom429 policy
 
     @MainActor

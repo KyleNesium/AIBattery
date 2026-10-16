@@ -35,7 +35,10 @@ struct AccountReading: Equatable, Sendable {
     /// the plan has no cap to meter.
     var worstPercent: Double? {
         if let windows {
-            if let budget = windows.creditBudget {
+            // `isCreditBudget`, not a nil-check: a subscription plan with a purchased-
+            // credit balance carries a `limit: 0` budget next to real windows and must
+            // keep leading with the fuller window, not the budget's 0%.
+            if windows.isCreditBudget, let budget = windows.creditBudget {
                 return budget.isUncapped ? nil : budget.usedPercent
             }
             return max(windows.fiveHourPercent, windows.sevenDayPercent)

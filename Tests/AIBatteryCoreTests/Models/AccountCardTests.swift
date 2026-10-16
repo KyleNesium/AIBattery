@@ -164,6 +164,34 @@ struct AccountCardTests {
         #expect(cards[1].worstPercent == 80)
     }
 
+    @Test func rows_balanceOnlyBudget_staysWindowed_andEstimatesTimeToLimit() {
+        // Subscription plan with a purchased-credit balance: `creditBudget` is set but
+        // `limit == 0` → not a credit-budget plan. Two window rows, headline = fuller
+        // window, and the burn-rate state line is still computed.
+        let balanceOnly = CodexCreditBudget(
+            usedPercent: 0, used: 0, limit: 0, remaining: 0, unit: "credit", resetsAt: nil,
+            reached: false, hasCredits: true, unlimited: false, planType: "plus", balance: 100
+        )
+        // 4h into a 5h window at 90%: projects to the limit before the reset.
+        let rl = RateLimitUsage(
+            representativeClaim: RateLimitUsage.fiveHourWindow,
+            fiveHourUtilization: 0.9, fiveHourReset: now.addingTimeInterval(3_600), fiveHourStatus: "allowed",
+            sevenDayUtilization: 0.2, sevenDayReset: now.addingTimeInterval(5 * 86_400), sevenDayStatus: "allowed",
+            overallStatus: "allowed", provider: .codex, creditBudget: balanceOnly
+        )
+        let cards = AccountCard.rows(
+            accounts: [rec("x1", .codex, billing: "plus")], activeId: "x1",
+            readings: ["x1": AccountReading(windows: rl, apiLimits: nil, fetchedAt: now, isCached: false, source: nil)],
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: true, now: now
+        )
+        #expect(cards[0].bars.map(\.label) == ["5-Hour", "Weekly"])
+        #expect(cards[0].worstPercent == 90)
+        guard case .timeToLimit = cards[0].state else {
+            Issue.record("expected .timeToLimit, got \(cards[0].state)")
+            return
+        }
+    }
+
     @Test func rows_uncappedCredits_haveNoPercent() {
         let budget = CodexCreditBudget(
             usedPercent: 0, used: 0, limit: 0, remaining: 0, unit: "credit", resetsAt: nil,
