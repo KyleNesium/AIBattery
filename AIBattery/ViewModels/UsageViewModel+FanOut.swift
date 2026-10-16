@@ -83,7 +83,11 @@ extension UsageViewModel {
                 rateLimitsFresh: false,
                 applySideEffects: false // never touch the active account's probe state
             )
-            providerSnapshots[provider] = snapshot
+            // The aggregator short-circuits to its cached snapshot when nothing changed,
+            // so this is a value-equal publish on most cycles for an idle provider.
+            if providerSnapshots[provider] != snapshot {
+                providerSnapshots[provider] = snapshot
+            }
         }
     }
 

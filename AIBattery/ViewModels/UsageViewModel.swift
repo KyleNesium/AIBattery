@@ -335,6 +335,14 @@ public final class UsageViewModel: ObservableObject {
             // A weaker cycle, or one for a different account, is in flight — let it
             // finish, then re-check.
             await inflight.task.value
+            // Release the finished slot if its owner has not reached its own cleanup
+            // yet. Awaiting an already-completed task resumes synchronously, so without
+            // this a waiter that resumed BEFORE the owner would re-read the same
+            // finished cycle and loop forever with no suspension point, wedging the
+            // main actor. Reachable whenever `switchAccount` lands mid-cycle.
+            if inflightRefresh?.task == inflight.task {
+                inflightRefresh = nil
+            }
         }
         let task = Task { [weak self] in
             guard let self else { return }
@@ -348,6 +356,15 @@ public final class UsageViewModel: ObservableObject {
         if inflightRefresh?.task == task {
             inflightRefresh = nil
         }
+    }
+
+    /// Assign only when the value actually changed. `@Published` fires on every write,
+    /// equal or not, and these properties are written once per poll from a cycle whose
+    /// awaits put each write in its own run-loop tick — so an unchanged poll re-rendered
+    /// the open popover several times over.
+    func setIfChanged<T: Equatable>(_ storage: inout T, _ newValue: T) {
+        guard storage != newValue else { return }
+        storage = newValue
     }
 
     /// Instance form of `displayIsCurrent(captured:current:fetchedAccountId:activeAccountId:)`
@@ -463,16 +480,21 @@ public final class UsageViewModel: ObservableObject {
         guard displayIsCurrent(generation, accountId: accountId) else { return }
 
         apiResult = api
-        systemStatus = status
+        // Value-equal writes still publish, and these are separated by awaits, so each
+        // one landed in its own run-loop tick and re-rendered the open popover. A poll
+        // that changed nothing cost four or five full re-evaluations.
+        setIfChanged(&systemStatus, status)
         // Mirror into the per-provider map the overview's cards read from.
-        providerStatuses[accountProvider] = status
-        isShowingCachedData = api.isCached
+        if providerStatuses[accountProvider] != status {
+            providerStatuses[accountProvider] = status
+        }
+        setIfChanged(&isShowingCachedData, api.isCached)
         // Fresh ONLY when this fetch returned unified rate-limit headers and wasn't
         // cache-served. A header-less-but-successful fetch reuses held stale limits
         // (see effectiveRateLimits below) — those must not arm the alarm / maxed bar.
-        rateLimitsFresh = Self.rateLimitsAreFresh(freshRateLimits: api.rateLimits, isCached: api.isCached)
+        setIfChanged(&rateLimitsFresh, Self.rateLimitsAreFresh(freshRateLimits: api.rateLimits, isCached: api.isCached))
         if !api.isCached {
-            lastFreshFetch = api.fetchedAt
+            setIfChanged(&lastFreshFetch, api.fetchedAt)
         }
 
         resolveAccountIdentity(oauthManager: oauthManager, accountId: accountId, api: api)
@@ -739,7 +761,7 @@ public final class UsageViewModel: ObservableObject {
     }
 
     private func updateSnapshot(_ result: UsageSnapshot, api: APIFetchResult) {
-        errorMessage = Self.refreshErrorMessage(
+        setIfChanged(&errorMessage, Self.refreshErrorMessage(
             hasRateLimits: api.rateLimits != nil,
             hasStandardLimits: api.standardLimits != nil,
             hasProfile: api.profile != nil,
@@ -748,7 +770,7 @@ public final class UsageViewModel: ObservableObject {
             authError: api.authError,
             provider: result.provider,
             endpointUnavailable: api.endpointUnavailable
-        )
+        ))
         if result != snapshot {
             snapshot = result
         }
@@ -766,7 +788,7 @@ public final class UsageViewModel: ObservableObject {
             resolvedMetricMode = filtered
         }
 
-        isLoading = false
+        setIfChanged(&isLoading, false)
     }
 
     private func updateAdaptivePolling(_ result: UsageSnapshot) {
