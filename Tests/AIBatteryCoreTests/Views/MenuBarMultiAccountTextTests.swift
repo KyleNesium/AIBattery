@@ -36,7 +36,7 @@ struct MenuBarMultiAccountTextTests {
             "a": Self.usage(fiveHourUtilization: 0.42),
             "b": Self.usage(fiveHourUtilization: 0.23),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits)
         #expect(out.text == "42%\u{00A0}|\u{00A0}23%")
     }
 
@@ -47,7 +47,7 @@ struct MenuBarMultiAccountTextTests {
             "b": Self.usage(fiveHourUtilization: 0.23),
             "c": Self.usage(fiveHourUtilization: 0.99),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b", "c"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b", "c"], limits: limits)
         #expect(out.text == "42%\u{00A0}|\u{00A0}23%\u{00A0}|\u{00A0}99%")
     }
 
@@ -57,8 +57,8 @@ struct MenuBarMultiAccountTextTests {
             "a": Self.usage(fiveHourUtilization: 0.10),
             "b": Self.usage(fiveHourUtilization: 0.90),
         ]
-        let outAB = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
-        let outBA = MenuBarMultiAccountText.build(order: ["b", "a"], limits: limits, metricMode: .fiveHour)
+        let outAB = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits)
+        let outBA = MenuBarMultiAccountText.build(order: ["b", "a"], limits: limits)
         #expect(outAB.text == "10%\u{00A0}|\u{00A0}90%")
         #expect(outBA.text == "90%\u{00A0}|\u{00A0}10%")
     }
@@ -71,13 +71,13 @@ struct MenuBarMultiAccountTextTests {
             "a": Self.usage(fiveHourUtilization: 0.42),
             // "b" missing
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits)
         #expect(out.text == "42%\u{00A0}|\u{00A0}—")
     }
 
     @Test("All slots missing: renders em-dashes, doesn't crash")
     func allMissingRendersDashes() {
-        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: [:], metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: [:])
         #expect(out.text == "—\u{00A0}|\u{00A0}—")
         #expect(out.worstPercent == 0)
         #expect(out.anyThrottled == false)
@@ -90,7 +90,7 @@ struct MenuBarMultiAccountTextTests {
         let limits: [String: RateLimitUsage] = [
             "a": Self.usage(fiveHourUtilization: 0.42),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a"], limits: limits)
         #expect(out.text == "42%")
         #expect(!out.text.contains("|"))
     }
@@ -104,13 +104,13 @@ struct MenuBarMultiAccountTextTests {
             "b": Self.usage(fiveHourUtilization: 0.87),
             "c": Self.usage(fiveHourUtilization: 0.45),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b", "c"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b", "c"], limits: limits)
         #expect(out.worstPercent == 87)
     }
 
     @Test("WorstPercent is 0 when limits is empty")
     func worstPercentEmpty() {
-        let out = MenuBarMultiAccountText.build(order: [], limits: [:], metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: [], limits: [:])
         #expect(out.worstPercent == 0)
     }
 
@@ -122,7 +122,7 @@ struct MenuBarMultiAccountTextTests {
             "a": Self.usage(fiveHourUtilization: 0.20),
             "b": Self.usage(fiveHourUtilization: 0.30),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits)
         #expect(out.anyThrottled == false)
     }
 
@@ -132,7 +132,7 @@ struct MenuBarMultiAccountTextTests {
             "a": Self.usage(fiveHourUtilization: 0.20),
             "b": Self.usage(fiveHourUtilization: 0.30, overallStatus: "throttled"),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits)
         #expect(out.anyThrottled == true)
     }
 
@@ -142,7 +142,7 @@ struct MenuBarMultiAccountTextTests {
             "a": Self.usage(fiveHourUtilization: 0.20),
             "b": Self.usage(fiveHourUtilization: 1.0),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits)
         #expect(out.anyThrottled == false)
     }
 
@@ -152,7 +152,7 @@ struct MenuBarMultiAccountTextTests {
             "a": Self.usage(fiveHourUtilization: 0.20),
             "b": Self.usage(fiveHourUtilization: 1.0, fiveHourStatus: "throttled", overallStatus: "throttled"),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits)
         #expect(out.anyThrottled == true)
     }
 
@@ -168,9 +168,12 @@ struct MenuBarMultiAccountTextTests {
         let limits: [String: RateLimitUsage] = [
             "a": Self.usage(fiveHourUtilization: 0.42, sevenDayUtilization: 0.99),
         ]
-        for mode in [MetricMode.fiveHour, .sevenDay, .contextHealth] {
-            let out = MenuBarMultiAccountText.build(order: ["a"], limits: limits, metricMode: mode)
-            #expect(out.text == "99%", "mode \(mode)")
+        // The metric mode used to be a parameter here and was never read; the slot has
+        // always shown the account's worst window. Independence is now structural, so
+        // one call is the whole assertion.
+        do {
+            let out = MenuBarMultiAccountText.build(order: ["a"], limits: limits)
+            #expect(out.text == "99%")
             #expect(out.worstPercent == 99)
         }
     }
@@ -202,7 +205,7 @@ struct MenuBarMultiAccountTextTests {
             overallStatus: "allowed", provider: .codex, creditBudget: budget
         )
         #expect(MenuBarMultiAccountText.headlinePercent(id: "x", limits: ["x": uncapped], apiLimits: [:]) == nil)
-        #expect(MenuBarMultiAccountText.build(order: ["x"], limits: ["x": uncapped], metricMode: .fiveHour).text == "\u{2014}")
+        #expect(MenuBarMultiAccountText.build(order: ["x"], limits: ["x": uncapped]).text == "\u{2014}")
     }
 
     // MARK: - Percent text truncates like every other surface (A13)
@@ -213,7 +216,7 @@ struct MenuBarMultiAccountTextTests {
             "a": Self.usage(fiveHourUtilization: 0.996),
             "b": Self.usage(fiveHourUtilization: 0.004),
         ]
-        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits, metricMode: .fiveHour)
+        let out = MenuBarMultiAccountText.build(order: ["a", "b"], limits: limits)
         #expect(out.text == "99%\u{00A0}|\u{00A0}0%")
     }
 
@@ -300,8 +303,8 @@ struct MenuBarMultiAccountTextTests {
     func percentTruncates() {
         let lower: [String: RateLimitUsage] = ["a": Self.usage(fiveHourUtilization: 0.424)]
         let upper: [String: RateLimitUsage] = ["a": Self.usage(fiveHourUtilization: 0.426)]
-        #expect(MenuBarMultiAccountText.build(order: ["a"], limits: lower, metricMode: .fiveHour).text == "42%")
-        #expect(MenuBarMultiAccountText.build(order: ["a"], limits: upper, metricMode: .fiveHour).text == "42%")
+        #expect(MenuBarMultiAccountText.build(order: ["a"], limits: lower).text == "42%")
+        #expect(MenuBarMultiAccountText.build(order: ["a"], limits: upper).text == "42%")
     }
 
     // MARK: - shouldRender gate
@@ -738,8 +741,7 @@ struct MenuBarMultiAccountTextTests {
         let output = MenuBarMultiAccountText.build(
             order: ["c1", "c2", "x1"],
             providers: providers,
-            limits: limits,
-            metricMode: .fiveHour
+            limits: limits
         )
         #expect(output.text == "\u{2726}\u{00A0}42%\u{00A0}|\u{00A0}23%  \u{2B21}\u{00A0}57%")
         #expect(Int(output.worstPercent.rounded()) == 57)
@@ -752,8 +754,7 @@ struct MenuBarMultiAccountTextTests {
         let output = MenuBarMultiAccountText.build(
             order: ["c1", "c2"],
             providers: providers,
-            limits: limits,
-            metricMode: .fiveHour
+            limits: limits
         )
         #expect(output.text == "42%\u{00A0}|\u{00A0}23%")
     }
@@ -768,8 +769,7 @@ struct MenuBarMultiAccountTextTests {
         let output = MenuBarMultiAccountText.build(
             order: ["c1", "c2"], // x1 not displayed
             providers: providers,
-            limits: limits,
-            metricMode: .fiveHour
+            limits: limits
         )
         #expect(output.text == "42%\u{00A0}|\u{00A0}23%") // legacy format — no glyphs
     }
@@ -784,8 +784,7 @@ struct MenuBarMultiAccountTextTests {
         let out = MenuBarMultiAccountText.build(
             order: ["a", "k"],
             limits: ["a": Self.usage(fiveHourUtilization: 0.3)],
-            apiLimits: ["k": std],
-            metricMode: .fiveHour
+            apiLimits: ["k": std]
         )
         #expect(out.text.contains("30%"))
         #expect(out.text.contains("80%"))
@@ -798,7 +797,7 @@ struct MenuBarMultiAccountTextTests {
             "x-ratelimit-limit-requests": "100", "x-ratelimit-remaining-requests": "0",
             "x-ratelimit-limit-tokens": "1000", "x-ratelimit-remaining-tokens": "900",
         ], now: .now))
-        let out = MenuBarMultiAccountText.build(order: ["k"], limits: [:], apiLimits: ["k": std], metricMode: .sevenDay)
+        let out = MenuBarMultiAccountText.build(order: ["k"], limits: [:], apiLimits: ["k": std])
         #expect(out.text == "100%")
         #expect(out.anyThrottled)
     }
