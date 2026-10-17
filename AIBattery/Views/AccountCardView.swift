@@ -92,7 +92,7 @@ struct AccountCardView: View {
             ProviderBadge(provider: card.provider)
             Text(card.identity)
                 .font(Typography.accountTitle)
-                .foregroundStyle(hovered || card.isActive ? .primary : ThemeColors.secondaryLabel)
+                .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 // The name is the row; the badge and the plan yield before it does.
@@ -101,17 +101,6 @@ struct AccountCardView: View {
                 // Breathes only while the provider is actually being used.
                 LiveDot(color: tint)
                     .padding(.leading, Spacing.tight)
-            }
-            if card.isActive {
-                // A word in the app's existing badge vocabulary, not a glyph crammed
-                // against the percentage — and readable without colour vision.
-                Text("active")
-                    .font(Typography.badgeLabel)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-                    .padding(.horizontal, Spacing.small)
-                    .padding(.vertical, Spacing.micro)
-                    .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: Layout.barCornerRadius))
-                    .accessibilityHidden(true)
             }
             if let plan = card.plan {
                 Text("\u{00B7} \(plan)")

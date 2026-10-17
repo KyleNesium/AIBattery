@@ -123,7 +123,6 @@ With **two or more accounts** the popover opens on an overview: one card per acc
 | **State line** | Time to limit at the current burn rate, reset countdowns, **Limit reached**, **Throttled**, or **Cached** when the last fetch failed |
 | **Live dot** | Breathes beside the name while that provider's CLI is actually in use (activity in the last 5 minutes) |
 | **Status dot** | Only when the provider's status page reports degraded performance or an outage — a healthy overview has no dots |
-| **`active`** | Which account the detail view, Insights and Projects currently follow |
 
 Click a card (or press `1`–`6`) to open that account; the **‹** chevron beside the account name brings you back. The popover remembers where you were between opens. `R` refreshes every account, `Esc` steps back then closes. A signed-out account shows as a sign-in card. With one account there is no overview — the popover opens straight on that account's detail view.
 

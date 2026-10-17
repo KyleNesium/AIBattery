@@ -23,7 +23,7 @@ struct OverviewClockTests {
         let reading = AccountReading(windows: rl, apiLimits: nil, fetchedAt: now, isCached: false, source: nil)
         let account = AccountRecord(id: "c1", displayName: nil, billingType: nil, addedAt: now, provider: .claude, codexAccessMode: nil)
         return AccountCard.rows(
-            accounts: [account], activeId: "c1",
+            accounts: [account],
             readings: ["c1": reading], statuses: [:],
             isAuthenticated: { _ in true }, maskEmail: true
         )[0]

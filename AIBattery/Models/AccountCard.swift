@@ -35,7 +35,6 @@ struct AccountCard: Identifiable, Equatable {
     let provider: AIProvider
     let identity: String
     let plan: String?
-    let isActive: Bool
     /// Only set when the provider is actually having trouble. A green dot on every
     /// healthy card is noise — the dot is an exception marker, not a status readout.
     let status: StatusIndicator?
@@ -70,7 +69,6 @@ struct AccountCard: Identifiable, Equatable {
 
     nonisolated static func rows(
         accounts: [AccountRecord],
-        activeId: String?,
         readings: [String: AccountReading],
         statuses: [AIProvider: ClaudeSystemStatus],
         snapshots: [AIProvider: UsageSnapshot] = [:],
@@ -85,12 +83,10 @@ struct AccountCard: Identifiable, Equatable {
                 let identity = AccountStore.identityLabel(for: account, providerIndex: index, maskEmail: maskEmail)
                 let plan = account.provider == .codex ? AccountStore.planLabel(account.billingType) : nil
                 let status = alertingStatus(statuses[account.provider]?.indicator)
-                let active = account.id == activeId
-
                 guard isAuthenticated(account.id) else {
                     return AccountCard(
                         id: account.id, provider: account.provider, identity: identity, plan: plan,
-                        isActive: active, status: status, worstPercent: nil, bars: [],
+                        status: status, worstPercent: nil, bars: [],
                         state: .signedOut, reset: nil, tokensToday: nil, lastActivity: nil
                     )
                 }
@@ -98,7 +94,7 @@ struct AccountCard: Identifiable, Equatable {
                 let bars = barRows(for: account, reading: reading, snapshot: snapshots[account.provider])
                 return AccountCard(
                     id: account.id, provider: account.provider, identity: identity, plan: plan,
-                    isActive: active, status: status, worstPercent: reading?.worstPercent,
+                    status: status, worstPercent: reading?.worstPercent,
                     bars: bars, state: state(for: reading, now: now), reset: bindingReset(bars: bars, reading: reading),
                     tokensToday: tokensToday(bars: bars, snapshot: snapshots[account.provider]),
                     lastActivity: lastActivity(snapshots[account.provider])
@@ -284,9 +280,6 @@ struct AccountCard: Identifiable, Equatable {
         var parts = ["\(provider.displayName) account \(identity)"]
         if let plan {
             parts.append(plan)
-        }
-        if isActive {
-            parts.append("active")
         }
         for bar in bars {
             if let percent = bar.percent {

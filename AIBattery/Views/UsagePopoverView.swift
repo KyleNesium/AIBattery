@@ -214,7 +214,6 @@ public struct UsagePopoverView: View {
     private var overviewCards: [AccountCard] {
         AccountCard.rows(
             accounts: accountStore.accounts,
-            activeId: accountStore.activeAccountId,
             readings: viewModel.perAccountReadings,
             statuses: viewModel.providerStatuses,
             snapshots: viewModel.providerSnapshots,
