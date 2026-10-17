@@ -45,8 +45,11 @@ jobs:
           max_attempts=3
           per_attempt_timeout=360
           # Lower bound on ✔ markers that still counts as "the whole suite ran".
-          # Bump this whenever the suite grows (current: 1384).
-          MIN_PASSES=1300
+          # Keep this just behind the real count, or the shutdown-SIGSEGV escape
+          # hatch below starts accepting runs where the tail of the suite never
+          # executed — the exact failure it exists to catch. Bump it with the
+          # suite (README's Test Coverage section has the live number).
+          MIN_PASSES=1450
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
             set +e
@@ -78,7 +81,7 @@ jobs:
             # during SHUTDOWN — after every test has actually run and passed,
             # but before it prints the "Test run with N tests passed" summary
             # line. Detect this "ran-clean-then-shutdown-crashed" state by
-            # counting actual ✔ markers: if we have ≥MIN_PASSES (suite is 1384), the
+            # counting actual ✔ markers: if we have ≥MIN_PASSES, the
             # tests themselves are clean. See ci.yml for the same logic.
             passed_count=$(grep -c '^✔ Test ' test-output.txt || true)
             if [ "$passed_count" -ge "$MIN_PASSES" ]; then

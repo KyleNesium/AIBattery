@@ -53,7 +53,11 @@ public final class VersionChecker {
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
+                // Persist, not just remember: without this a user whose GitHub call is
+                // blocked (proxy, firewall) re-checked on every single launch instead of
+                // honouring the 24h window.
                 lastCheck = Date()
+                persistToDefaults()
                 return nil
             }
 
@@ -61,6 +65,7 @@ public final class VersionChecker {
                   let tagName = json["tag_name"] as? String,
                   let htmlURL = json["html_url"] as? String else {
                 lastCheck = Date()
+                persistToDefaults()
                 return nil
             }
 

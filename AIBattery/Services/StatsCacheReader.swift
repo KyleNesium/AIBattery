@@ -46,7 +46,10 @@ final class StatsCacheReader: @unchecked Sendable {
 
         // Single stat() call — replaces fileExists + attributesOfItem double stat
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path) else {
-            AppLogger.files.info("StatsCacheReader: stats-cache.json not found")
+            // `.debug`, not `.info`: a machine that only uses Codex has no
+            // stats-cache.json at all, and `read()` runs on every aggregation — once
+            // every couple of seconds during an active session.
+            AppLogger.files.debug("StatsCacheReader: stats-cache.json not found")
             return nil
         }
         let modDate = attrs[.modificationDate] as? Date
