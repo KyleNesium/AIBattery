@@ -157,6 +157,10 @@ public final class UsageViewModel: ObservableObject {
     /// True when timers are suspended due to system idle or screen lock.
     /// Read/written by lifecycle extension; tests assert suspend/resume cycle.
     var isSuspended = false
+    /// Set when a file-system event lands while suspended. The aggregate is deferred to
+    /// `resumeTimers` so an unattended agent run does not drive a full re-aggregate every
+    /// ~2 s into a popover nobody has open.
+    var localDataDirtyWhileSuspended = false
     nonisolated(unsafe) var lockObserver: NSObjectProtocol?
     nonisolated(unsafe) var unlockObserver: NSObjectProtocol?
     /// Global event monitor that detects user activity (mouse/keyboard) to resume

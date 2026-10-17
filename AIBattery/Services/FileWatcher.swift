@@ -27,13 +27,15 @@ final class FileWatcher {
     private var pendingInvalidations: PendingInvalidations = .none
     nonisolated(unsafe) private var timer: Timer?
     nonisolated(unsafe) private var retryTimer: Timer?
-    private let onChange: () -> Void
+    /// Called after a debounced batch, carrying which readers were just invalidated so
+    /// the caller can scope its own caches to the provider whose data actually moved.
+    private let onChange: (PendingInvalidations) -> Void
     private var isStopped = false
     private var statsCacheRetryCount = 0
     private static let debounceDelay: TimeInterval = 2.0
     private static let fallbackPollingInterval: TimeInterval = 60
 
-    init(onChange: @escaping () -> Void) {
+    init(onChange: @escaping (PendingInvalidations) -> Void) {
         self.onChange = onChange
     }
 
@@ -272,13 +274,20 @@ final class FileWatcher {
                 // delivered, so it must also invalidate that watcher's reader —
                 // `onChange` alone re-aggregates from the reader's (fingerprint) cache
                 // and would never notice new rollouts / session lines.
+                var owed = PendingInvalidations.none
                 if self.fsEventStream == nil {
                     SessionLogReader.shared.invalidate()
+                    owed.sessionLog = true
+                    owed.statsCache = true
                 }
                 if self.codexWatchFailed {
                     CodexSessionLogReader.shared.invalidate()
+                    owed.codexSessionLog = true
                 }
-                self.onChange()
+                // A tick that stands in for nothing — every watcher this one covers is
+                // healthy — must not make the caller re-aggregate anything.
+                guard owed != .none else { return }
+                self.onChange(owed)
             }
         }
     }
@@ -313,7 +322,7 @@ final class FileWatcher {
                     // memoized "newest file" must not outlive it.
                     CodexSessionRateLimitScanner.invalidateFileCache()
                 }
-                self.onChange()
+                self.onChange(owed)
             }
         }
         debounceWorkItem = work
