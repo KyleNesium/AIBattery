@@ -139,6 +139,12 @@ struct MarqueeText: View {
         textWidth = 0
         currentIndex = 0
         textOpacity = 1.0
+        // Re-arm before scheduling. `cancelAndStop` clears `animating`, and every block
+        // `schedule` wraps opens with `guard animating` — so the restart block returned
+        // immediately and only `beginCycle` could set the flag, which was the very thing
+        // being guarded out. The ticker froze on the first string for the life of the
+        // view on any `texts` change, which is exactly when an incident list updates.
+        animating = true
         schedule(after: MotionConstants.marqueeRestartSeconds) {
             beginCycle()
         }

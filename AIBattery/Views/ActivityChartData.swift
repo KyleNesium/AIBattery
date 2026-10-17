@@ -64,8 +64,26 @@ enum ActivityChartData {
         return result
     }
 
-    /// Generates 12 monthly data points with current-month projection.
-    /// Accepts pre-computed month totals.
+    /// The `yyyy-MM` keys of the rolling twelve-month window, oldest first.
+    ///
+    /// Shared with the trend row beneath the chart. `monthTokenTotals` folds every date
+    /// the aggregator ever wrote, so a summary that reduces it directly disagrees with
+    /// the chart immediately above it for anyone retaining more than a year of logs.
+    static func rollingTwelveMonthKeys(now: Date = .now) -> [String] {
+        let cal = Calendar.current
+        let nowComps = cal.dateComponents([.year, .month], from: now)
+        guard let thisMonth = cal.date(from: nowComps) else { return [] }
+
+        return (0..<12).compactMap { offset in
+            guard let date = cal.date(byAdding: .month, value: -(11 - offset), to: thisMonth) else { return nil }
+            let comps = cal.dateComponents([.year, .month], from: date)
+            guard let y = comps.year, let m = comps.month else { return nil }
+            return String(format: "%04d-%02d", y, m)
+        }
+    }
+
+    /// Generates 12 monthly data points with current-month projection, from pre-computed
+    /// month totals. Covers the same window as `rollingTwelveMonthKeys`.
     static func monthlyData(from lookup: [String: Int], now: Date = .now) -> [MonthlyPoint] {
         let cal = Calendar.current
 

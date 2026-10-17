@@ -56,10 +56,17 @@ enum ActivityTrendComputation {
             }
             let thisMonth = thisMonthKey.flatMap { monthTotals[$0] } ?? 0
             let lastMonth = lastMonthKey.flatMap { monthTotals[$0] } ?? 0
-            let twelveMonthTotal = monthTotals.values.reduce(0, +)
+            // Window both to the same twelve months the chart above plots. Reducing all
+            // of `monthTotals` folds every month the aggregator ever wrote, so "N in 12m"
+            // and "Peak" disagreed with the chart for anyone keeping more than a year of
+            // logs (Claude Code's 30-day default hides it; raising `cleanupPeriodDays`
+            // or hoarding Codex rollouts does not).
+            let windowKeys = ActivityChartData.rollingTwelveMonthKeys(now: now)
+            let windowed = windowKeys.compactMap { key in monthTotals[key].map { (key, $0) } }
+            let twelveMonthTotal = windowed.reduce(0) { $0 + $1.1 }
             let busiestLabel: String? = {
-                guard let peak = monthTotals.max(by: { $0.value < $1.value }),
-                      let date = DateFormatters.dateKey.date(from: peak.key + "-01") else { return nil }
+                guard let peak = windowed.max(by: { $0.1 < $1.1 }), peak.1 > 0,
+                      let date = DateFormatters.dateKey.date(from: peak.0 + "-01") else { return nil }
                 return InsightsView.monthAbbrev(date)
             }()
             return ActivityTrendData(

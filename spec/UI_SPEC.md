@@ -368,7 +368,7 @@ X-axis per mode:
 Data per mode (cached per-mode with fingerprint — toggling back to a mode skips recomputation if underlying data unchanged):
   - **5H**: `fiveHourTokenBuckets` — 20 × 15-minute token buckets (all 4 token types)
   - **7D**: `dailyTokenTotals` last 7 days (rolling window) → daily token totals (all 4 types)
-  - **12M**: `dailyActivity` grouped by year-month, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
+  - **12M**: `dailyTokenTotals` grouped by year-month (tokens, not messages — all three chart modes plot token counts), windowed to the rolling twelve months by `ActivityChartData.rollingTwelveMonthKeys`, which the trend row's total and peak share so the summary always agrees with the chart above it, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
 
 **Trend summary** (below chart, mode-aware, two rows of two stats each):
 
