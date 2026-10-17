@@ -36,12 +36,37 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     private var isDirty = true
     private var cachedAllEntries: [AssistantUsageEntry]?
 
-    /// Maximum time between directory enumerations. The nested date directories make
-    /// per-directory mtimes a poor "new file" signal, so discovery is TTL + root-mtime.
+    /// The message ids of `cachedAllEntries`, written together with it. Rebuilding this
+    /// from the merged array cost a string hash per entry on every dirty cycle.
+    private var cachedSeenIds: Set<String>?
+
+    /// Maximum time between directory enumerations, as a safety net behind the
+    /// per-directory mtime cache below.
     static let discoveryTTL: TimeInterval = 60
     private var discoveredFiles: [URL]?
     private var lastEnumerationDate: Date?
     private var rootModDateAtEnumeration: Date?
+
+    /// One directory's contents plus the mtime they were read at.
+    ///
+    /// A directory's mtime moves whenever an entry is added or removed, so an unchanged
+    /// mtime means BOTH lists are still accurate and the directory needs no read at all.
+    private struct DirListing {
+        var modDate: Date?
+        var files: [URL]
+        var subdirectories: [URL]
+    }
+
+    /// Per-directory listings, keyed by path and deliberately kept across `invalidate()`
+    /// — that is the whole point. Discovery used to re-walk the entire tree and resolve
+    /// every file's symlink on each invalidation (roughly 15–40 ms per cycle, every two
+    /// seconds during an active session) because the only short-circuit was the root's
+    /// mtime, which changes about once a year.
+    private var dirListings: [String: DirListing] = [:]
+
+    /// How many directories the last discovery actually read, as opposed to served from
+    /// `dirListings`. Tests assert this drops once the tree is warm.
+    private var directoriesListedDuringLastDiscovery = 0
 
     /// Corrupt / skipped line count from the most recent `readAllUsageEntries()`.
     private(set) var lastCorruptLineCount = 0
@@ -86,10 +111,11 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
             if !idsToRemove.isEmpty, let existing = cachedAllEntries {
                 cachedAllEntries = existing.filter { !idsToRemove.contains($0.messageId) }
+                cachedSeenIds?.subtract(idsToRemove)
             }
         }
 
-        let result = rebuild(files: files, base: cachedAllEntries)
+        let (result, resultIds) = rebuild(files: files, base: cachedAllEntries, baseIds: cachedSeenIds)
 
         if pendingInvalidation.swap(false) {
             isDirty = true
@@ -98,6 +124,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         }
 
         cachedAllEntries = result
+        cachedSeenIds = resultIds
         evictOldFileEntries()
         lock.unlock()
         return result
@@ -105,9 +132,14 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
 
     // MARK: - Rebuild / eviction
 
-    private func rebuild(files: [URL], base: [AssistantUsageEntry]?) -> [AssistantUsageEntry] {
+    private func rebuild(
+        files: [URL],
+        base: [AssistantUsageEntry]?,
+        baseIds: Set<String>?
+    ) -> ([AssistantUsageEntry], Set<String>) {
         var resultEntries = base ?? []
-        var seenIds = Set(resultEntries.map(\.messageId))
+        // Reuse the previous cycle's id set rather than rehashing every message id.
+        var seenIds = baseIds ?? Set(resultEntries.map(\.messageId))
         var changed = false
 
         for fileURL in files {
@@ -157,15 +189,19 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         if changed || base == nil {
             resultEntries.sort { $0.timestamp < $1.timestamp }
         }
-        return resultEntries
+        return (resultEntries, seenIds)
     }
 
     /// Release raw entry arrays for files not modified today — fingerprints and
     /// message IDs stay so a later change can still purge the file's stale entries.
     private func evictOldFileEntries() {
         let today = Calendar.current.startOfDay(for: Date())
-        for (path, entry) in cache where entry.entries != nil && entry.modDate < today {
-            cache[path] = FileCacheEntry(modDate: entry.modDate, fileSize: entry.fileSize, entries: nil, messageIds: entry.messageIds)
+        // Collect first: mutating `cache` while iterating it copies the whole dictionary.
+        let stalePaths = cache.compactMap { path, entry -> String? in
+            entry.entries != nil && entry.modDate < today ? path : nil
+        }
+        for path in stalePaths {
+            cache[path]?.entries = nil
         }
     }
 
@@ -182,7 +218,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         let fm = FileManager.default
         guard fm.fileExists(atPath: sessionsURL.path) else { return [] }
 
-        let rootModDate = (try? fm.attributesOfItem(atPath: sessionsURL.path))?[.modificationDate] as? Date
+        let rootModDate = FileStat.modificationDate(of: sessionsURL)
         if let cached = discoveredFiles,
            let lastEnum = lastEnumerationDate,
            Date().timeIntervalSince(lastEnum) < Self.discoveryTTL,
@@ -193,25 +229,99 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         let resolvedBase = sessionsURL.resolvingSymlinksInPath().path
         let resolvedBaseSlash = resolvedBase + "/"
         var files: [URL] = []
+        var liveDirPaths = Set<String>()
+        var listedCount = 0
 
-        if let enumerator = fm.enumerator(
-            at: sessionsURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) {
-            for case let fileURL as URL in enumerator where fileURL.pathExtension == "jsonl" {
-                // Symlink boundary: a link inside ~/.codex/sessions must not read arbitrary files.
-                let resolved = fileURL.resolvingSymlinksInPath().path
-                guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
-                guard (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
-                files.append(fileURL)
+        // Breadth-first over the YYYY/MM/DD skeleton. An unchanged directory costs one
+        // stat and nothing else; only directories whose mtime moved are read.
+        var queue = [sessionsURL]
+        while let dir = queue.popLast() {
+            let path = dir.path
+            guard liveDirPaths.insert(path).inserted else { continue } // cycle guard
+
+            let modDate = FileStat.modificationDate(of: dir)
+            let listing: DirListing
+            if let cached = dirListings[path], let modDate, cached.modDate == modDate {
+                listing = cached
+            } else {
+                listing = listDirectory(
+                    dir, fileManager: fm,
+                    resolvedBase: resolvedBase, resolvedBaseSlash: resolvedBaseSlash,
+                    modDate: modDate
+                )
+                dirListings[path] = listing
+                listedCount += 1
             }
+
+            files.append(contentsOf: listing.files)
+            queue.append(contentsOf: listing.subdirectories)
         }
 
+        // Forget directories that no longer exist, so a deleted date folder cannot keep
+        // feeding its files into discovery.
+        if dirListings.count != liveDirPaths.count {
+            dirListings = dirListings.filter { liveDirPaths.contains($0.key) }
+        }
+
+        directoriesListedDuringLastDiscovery = listedCount
         discoveredFiles = files
         lastEnumerationDate = Date()
         rootModDateAtEnumeration = rootModDate
         return files
+    }
+
+    /// Read one directory: its `.jsonl` files and its subdirectories.
+    ///
+    /// The symlink boundary is enforced per entry rather than by resolving every file.
+    /// Only entries that ARE symlinks are resolved, which is what made the old version
+    /// expensive — `resolvingSymlinksInPath()` is a multi-component `realpath` and it
+    /// ran on all 900-odd files whether or not any of them was a link.
+    private func listDirectory(
+        _ dir: URL,
+        fileManager fm: FileManager,
+        resolvedBase: String,
+        resolvedBaseSlash: String,
+        modDate: Date?
+    ) -> DirListing {
+        let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey]
+        guard let entries = try? fm.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]
+        ) else {
+            return DirListing(modDate: modDate, files: [], subdirectories: [])
+        }
+
+        var files: [URL] = []
+        var subdirectories: [URL] = []
+
+        for entry in entries {
+            guard let values = try? entry.resourceValues(forKeys: Set(keys)) else { continue }
+
+            let isLink = values.isSymbolicLink == true
+            if isLink {
+                let resolved = entry.resolvingSymlinksInPath().path
+                guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
+            }
+
+            if values.isDirectory == true {
+                // Descend into real directories only. A symlinked directory inside the
+                // sessions tree is not something Codex creates, and refusing to follow
+                // one removes any chance of a traversal cycle.
+                if !isLink {
+                    subdirectories.append(entry)
+                }
+            } else if entry.pathExtension == "jsonl", values.isRegularFile == true {
+                files.append(entry)
+            }
+        }
+
+        return DirListing(modDate: modDate, files: files, subdirectories: subdirectories)
+    }
+
+    /// Directories read (not served from cache) by the most recent discovery — tests only.
+    func directoriesListedDuringLastDiscoveryForTesting() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return directoriesListedDuringLastDiscovery
     }
 
     // MARK: - Streaming line reader
@@ -227,6 +337,9 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         let bufferSize = 64 * 1_024
         let maxLineSize = 1_048_576 // 1 MB — discard oversized (malformed) lines
         var leftover = Data()
+        /// Set once a line passes `maxLineSize` without a newline; bytes are dropped
+        /// until that newline so the line is counted once and its tail never parsed.
+        var skippingOversizedLine = false
 
         func process(_ lineData: Data) {
             defer { lineIndex += 1 }
@@ -240,19 +353,31 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
-            let alreadyScanned = leftover.count
+            var alreadyScanned = leftover.count
             leftover.append(chunk)
 
-            if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
+            if skippingOversizedLine {
+                guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
+                    leftover.removeAll()
+                    continue
+                }
+                leftover = Data(leftover[(newlineIndex + 1)...])
+                alreadyScanned = 0
+                skippingOversizedLine = false
+            } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
                 lastCorruptLineCount += 1
-                AppLogger.files.warning("Skipping oversized Codex JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
+                AppLogger.files.debug("Skipping oversized Codex JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
+                skippingOversizedLine = true
                 continue
             }
 
             var searchFrom = leftover.startIndex + alreadyScanned
             while let newlineIndex = leftover.firstNewlineIndex(from: searchFrom) {
-                let lineData = Data(leftover[leftover.startIndex..<newlineIndex])
+                // A slice, not a copy: most lines are multi-KB (or multi-MB) `response_item`
+                // records that the 512-byte pre-filter rejects — copying each one first
+                // cost ~80–160 ms per cold scan and 2–10 ms per invalidation.
+                let lineData = leftover[leftover.startIndex..<newlineIndex]
                 leftover = leftover[(newlineIndex + 1)...]
                 searchFrom = leftover.startIndex
                 process(lineData)
@@ -266,8 +391,8 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
 
         // Trailing data without a newline: only a complete object (ends with `}`) is a
         // finished line — anything else is a partial write still in progress.
-        if !leftover.isEmpty, leftover.last == UInt8(ascii: "}") {
-            process(Data(leftover))
+        if !skippingOversizedLine, !leftover.isEmpty, leftover.last == UInt8(ascii: "}") {
+            process(leftover)
         }
 
         lastCorruptLineCount += parser.corruptLineCount

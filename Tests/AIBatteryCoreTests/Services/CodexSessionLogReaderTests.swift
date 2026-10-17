@@ -145,6 +145,27 @@ struct CodexSessionLogReaderTests {
         #expect(reader.lastCorruptLineCount == 0)
     }
 
+    @Test func oversizedLine_countedOnce_tailNotParsed_nextLineParsed() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        // A 1.5 MB response_item-sized line whose tail is a valid token_count ("ghost").
+        // Only the real line after it may be parsed, and the oversize counts once.
+        let ghost = tokenCount(ordinal: 7, timestamp: "2026-09-21T08:30:00.000Z")
+        let pad = String(repeating: "x", count: 1_500_000 - ghost.utf8.count)
+        try writeRollout([
+            turnContext(),
+            #"{"pad":""# + pad + #""}"# + ghost,
+            tokenCount(ordinal: 9, timestamp: "2026-09-21T09:00:00.000Z"),
+        ],
+        datePath: "2026/09/21", name: "rollout-a", root: root)
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        let entries = reader.readAllUsageEntries()
+
+        #expect(entries.map(\.messageId) == ["rollout-a:9"])
+        #expect(reader.lastCorruptLineCount == 1)
+    }
+
     @Test func corruptLine_isCountedAndSkipped() throws {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -157,5 +178,97 @@ struct CodexSessionLogReaderTests {
         let reader = CodexSessionLogReader(sessionsURL: root)
         #expect(reader.readAllUsageEntries().count == 1)
         #expect(reader.lastCorruptLineCount == 1)
+    }
+
+    // MARK: - Per-directory discovery cache
+
+    /// `invalidate()` used to force a full re-walk of `~/.codex/sessions`, resolving the
+    /// symlink of every file — the root's mtime only changes once a year, so the TTL
+    /// fast path never caught it. Discovery now keeps a per-directory listing and only
+    /// re-reads directories whose mtime moved. A new rollout always bumps its own leaf.
+    @Test func newRolloutInOneLeafIsFound_withoutRereadingUnchangedLeaves() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
+            datePath: "2026/09/20", name: "rollout-a", root: root
+        )
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 2, timestamp: "2026-09-21T10:00:00.000Z")],
+            datePath: "2026/09/21", name: "rollout-b", root: root
+        )
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        #expect(reader.readAllUsageEntries().count == 2)
+        let firstWalk = reader.directoriesListedDuringLastDiscoveryForTesting()
+        #expect(firstWalk > 0, "cold discovery must list every directory")
+
+        // A new file in an existing leaf: that leaf's mtime moves, the others do not.
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 3, timestamp: "2026-09-21T11:00:00.000Z")],
+            datePath: "2026/09/21", name: "rollout-c", root: root
+        )
+        reader.invalidate()
+        #expect(reader.readAllUsageEntries().count == 3)
+        #expect(
+            reader.directoriesListedDuringLastDiscoveryForTesting() < firstWalk,
+            "unchanged directories must be served from the cached listing"
+        )
+
+        // A whole new date directory still has to be discovered.
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 4, timestamp: "2026-09-22T10:00:00.000Z")],
+            datePath: "2026/09/22", name: "rollout-d", root: root
+        )
+        reader.invalidate()
+        #expect(reader.readAllUsageEntries().count == 4)
+    }
+
+    /// A deleted leaf must drop out of discovery rather than linger in the cache.
+    @Test func deletedDirectoryDropsItsEntries() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
+            datePath: "2026/09/20", name: "rollout-a", root: root
+        )
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 2, timestamp: "2026-09-21T10:00:00.000Z")],
+            datePath: "2026/09/21", name: "rollout-b", root: root
+        )
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        #expect(reader.readAllUsageEntries().count == 2)
+
+        try FileManager.default.removeItem(at: root.appendingPathComponent("2026/09/21"))
+        reader.invalidate()
+        #expect(reader.readAllUsageEntries().count == 1)
+    }
+
+    /// The symlink boundary still holds: a link inside the tree pointing outside it must
+    /// not pull arbitrary files in.
+    @Test func symlinkEscapingTheTreeIsRejected() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-outside-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: outside) }
+
+        let smuggled = outside.appendingPathComponent("rollout-evil.jsonl")
+        let content = [turnContext(), tokenCount(ordinal: 9, timestamp: "2026-09-20T10:00:00.000Z")]
+            .joined(separator: "\n") + "\n"
+        try Data(content.utf8).write(to: smuggled)
+
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
+            datePath: "2026/09/20", name: "rollout-a", root: root
+        )
+        try FileManager.default.createSymbolicLink(
+            at: root.appendingPathComponent("2026/09/20/rollout-link.jsonl"),
+            withDestinationURL: smuggled
+        )
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        #expect(reader.readAllUsageEntries().count == 1, "the escaping symlink must be skipped")
     }
 }

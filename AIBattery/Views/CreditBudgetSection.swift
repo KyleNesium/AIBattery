@@ -19,7 +19,7 @@ struct CreditBudgetSection: View {
             ["Codex credits: this plan has no individual spend cap, so there is nothing to meter"]
         } else {
             [
-                "Codex credits: \(Int(alarm.displayPercent))% of this period's budget used",
+                "Codex credits: \(PercentFormat.display(alarm.displayPercent)) of this period's budget used",
                 "\(CodexCreditBudget.formatCredits(budget.used)) of \(CodexCreditBudget.formatCredits(budget.limit)) \(budget.unit)s",
             ]
         }
@@ -39,7 +39,7 @@ struct CreditBudgetSection: View {
         GaugeRow(
             percent: alarm.displayPercent,
             barColor: ThemeColors.barColor(percent: alarm.displayPercent),
-            accessibilityLabel: "Codex credits \(Int(alarm.displayPercent)) percent used",
+            accessibilityLabel: "Codex credits \(PercentFormat.spoken(alarm.displayPercent)) used",
             accessibilityValue: alarm.throttled ? "Credits exhausted" : (budget.isUncapped ? "No spend cap" : "\(CodexCreditBudget.formatCredits(budget.remaining)) credits remaining"),
             headerLeading: {
                 HStack(spacing: Spacing.inner) {
@@ -76,9 +76,9 @@ struct CreditBudgetSection: View {
                             .foregroundStyle(ThemeColors.secondaryLabel)
                             .help("No individual spend cap on this plan")
                     } else {
-                        Text("\(Int(alarm.displayPercent))%")
+                        Text(PercentFormat.display(alarm.displayPercent))
                             .font(Typography.monoValue)
-                            .copyable("\(Int(alarm.displayPercent))%")
+                            .copyable(PercentFormat.display(alarm.displayPercent))
                         Text("\(CodexCreditBudget.formatCredits(budget.used)) / \(CodexCreditBudget.formatCredits(budget.limit))")
                             .font(Typography.monoValue)
                             .foregroundStyle(ThemeColors.secondaryLabel)

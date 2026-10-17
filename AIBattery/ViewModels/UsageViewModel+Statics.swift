@@ -131,6 +131,22 @@ extension UsageViewModel {
         fetchedAccountId == activeAccountId
     }
 
+    /// Whether a cycle that captured `captured` (`displayGeneration` at its start) for
+    /// `fetchedAccountId` may still publish. Strictly stronger than
+    /// `shouldApplyFetchResult`: the generation also catches A → B → A, where the same
+    /// account is active again but the display was cleared in between — the old cycle's
+    /// snapshot / error / mode were built for a display that no longer exists and would
+    /// land on top of the new cycle's paint.
+    nonisolated static func displayIsCurrent(
+        captured: UInt64,
+        current: UInt64,
+        fetchedAccountId: String?,
+        activeAccountId: String?
+    ) -> Bool {
+        captured == current
+            && shouldApplyFetchResult(fetchedAccountId: fetchedAccountId, activeAccountId: activeAccountId)
+    }
+
     /// Rate limits eligible for notification alerts, or nil when none may fire.
     /// Only a genuinely fresh reading may alert; cached / header-less / held-stale data
     /// never does (mirrors the menu bar alarm gate). Takes the **spike-confirmed** limits

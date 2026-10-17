@@ -12,11 +12,6 @@ struct MetricToggleView: View {
     var kind: CodexDisplayKind = .windows
     private var collapsed: Bool { kind != .windows }
 
-    /// Cached ordered modes — avoids allocating a new array on every body evaluation.
-    @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
-
-    var orderedModes: [MetricMode] { cachedOrderedModes }
-
     var body: some View {
         HStack(spacing: 0) {
             autoModeButton
@@ -36,9 +31,7 @@ struct MetricToggleView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Metric mode")
         .accessibilityHint(collapsed ? "Switch between \(MetricMode.fiveHour.shortLabel(provider: provider, kind: kind).lowercased()) and context health views" : "Switch between 5-hour, \(provider.secondaryWindowLabel.lowercased()), and context health views")
-        .help(autoMetricMode ? "Disabled while auto mode is active" : "Select primary metric (keys: 1, 2, 3)")
-        .onAppear { recomputeOrderedModes() }
-        .onChange(of: pickerBinding.wrappedValue) { _ in recomputeOrderedModes() }
+        .help(autoMetricMode ? "Auto mode is choosing — select a tab to pick manually (keys: 1, 2, 3)" : "Select primary metric (keys: 1, 2, 3)")
     }
 
     // MARK: - Tab Button
@@ -65,15 +58,18 @@ struct MetricToggleView: View {
                 UserDefaults.standard.set(mode.rawValue, forKey: UserDefaultsKeys.metricMode)
             }
         } label: {
+            // The highlight follows the selection in auto mode too: the tab that auto
+            // picked is the one the sections below lead with, and the lit "A" already
+            // says who is choosing. Tabs stay enabled — a click is how auto mode ends.
             Text(mode.shortLabel(provider: provider, kind: kind))
                 .font(Typography.caption)
-                .foregroundStyle(isSelected && !autoMetricMode ? .primary : ThemeColors.secondaryLabel)
+                .foregroundStyle(isSelected ? .primary : ThemeColors.secondaryLabel)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Spacing.small)
                 .background(
                     RoundedRectangle(cornerRadius: Layout.tabCornerRadius)
-                        .fill(isSelected && !autoMetricMode ? Self.selectedFill : isHovered ? ThemeColors.hoverFill : .clear)
-                        .shadow(color: isSelected && !autoMetricMode ? ThemeColors.shadowColor.opacity(ThemeColors.shadowOpacity) : .clear, radius: Layout.shadowSmall, y: 0.5)
+                        .fill(isSelected ? Self.selectedFill : isHovered ? ThemeColors.hoverFill : .clear)
+                        .shadow(color: isSelected ? ThemeColors.shadowColor.opacity(ThemeColors.shadowOpacity) : .clear, radius: Layout.shadowSmall, y: 0.5)
                 )
                 .contentShape(RoundedRectangle(cornerRadius: Layout.tabCornerRadius))
         }
@@ -81,6 +77,7 @@ struct MetricToggleView: View {
         .onHover { hovering in
             hoveredMode = hovering ? mode : nil
         }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Auto Mode Button
@@ -127,10 +124,5 @@ struct MetricToggleView: View {
             notification: .announcementRequested,
             userInfo: [.announcement: "Auto mode \(active ? "on" : "off")"]
         )
-    }
-
-    private func recomputeOrderedModes() {
-        let currentMode = MetricMode(rawValue: pickerBinding.wrappedValue) ?? .fiveHour
-        cachedOrderedModes = MetricMode.orderedModes(current: currentMode)
     }
 }

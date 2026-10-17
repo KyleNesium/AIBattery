@@ -193,4 +193,28 @@ struct SessionLogReaderDiscoveryTests {
         #expect(second.count == 1)
         #expect(second.first?.lastPathComponent == "a.jsonl")
     }
+
+    // MARK: - Every project directory is scanned (no hidden-path filter)
+
+    /// Claude Code encodes both `/` and `.` as `-`, so `~/.claude-mem/...` observer
+    /// sessions live under `-Users-x--claude-mem-...`. Decision (2026-10 review, A2):
+    /// everything under `~/.claude/projects` counts — there is no deny-list.
+    @Test func directoryEncodedFromHiddenPath_isDiscovered() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("discovery-hidden-test-\(UUID().uuidString)")
+        let projectsDir = tmpDir.appendingPathComponent("projects")
+        try FileManager.default.createDirectory(at: projectsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let observer = try makeProjectDir(in: projectsDir, name: "-Users-x--claude-foo")
+        try addJSONLFileToProject(in: observer, name: "obs.jsonl")
+        // A literal dot in the encoded name is not something Claude Code writes, but
+        // the old decode-and-skip filter would have dropped it — it must count too.
+        let literalDot = try makeProjectDir(in: projectsDir, name: "-Users-x-.hidden-proj")
+        try addJSONLFileToProject(in: literalDot, name: "dot.jsonl")
+
+        let files = SessionLogReader(projectsURL: projectsDir).discoverJSONLFilesForTesting()
+
+        #expect(files.map(\.lastPathComponent).sorted() == ["dot.jsonl", "obs.jsonl"])
+    }
 }

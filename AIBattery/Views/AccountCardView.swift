@@ -8,45 +8,48 @@ import SwiftUI
 /// the same vocabulary as a list row that drills down.
 struct AccountCardView: View {
     let card: AccountCard
+    /// The clock the relative text ("Cached 3m ago", "resets in 2h", the live dot) is
+    /// read against. Injected by `OverviewContentView`'s single `TimelineView` rather
+    /// than one ticker per card: only the state line and the live dot depend on it,
+    /// and N tickers each re-evaluating a whole card body every 10 s added up.
+    let now: Date
     let onSelect: () -> Void
     @State private var hovered = false
 
     var body: some View {
         Button(action: onSelect) {
-            TimelineView(.periodic(from: .now, by: 10)) { context in
-                HStack(alignment: .center, spacing: Spacing.gap) {
-                    VStack(alignment: .leading, spacing: Spacing.inner) {
-                        header(now: context.date)
-                        ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
-                            AccountCardBarRow(bar: bar)
-                        }
-                        if let text = AccountCard.stateLine(card, now: context.date) {
-                            Text(text)
-                                .font(Typography.tinyLabel)
-                                .foregroundStyle(stateColor)
-                        }
+            HStack(alignment: .center, spacing: Spacing.gap) {
+                VStack(alignment: .leading, spacing: Spacing.inner) {
+                    header
+                    ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
+                        AccountCardBarRow(bar: bar)
                     }
-                    // Drill-in affordance, the mirror of the detail header's back control:
-                    // on hover it takes the account's colour, glows in it, and slides toward
-                    // where it leads. A lit chevron says "this goes somewhere"; a box around
-                    // it only said "button".
-                    Image(systemName: "chevron.forward")
-                        .font(Typography.navChevron)
-                        .foregroundStyle(hovered ? tint : ThemeColors.tertiaryLabel)
-                        .shadow(color: tint.opacity(hovered ? ThemeColors.chevronGlowOpacity : 0), radius: Layout.glowRadius)
-                        .offset(x: hovered ? Layout.chevronHoverShift : 0)
-                        .frame(width: Layout.chevronHitSize, height: Layout.chevronHitSize)
-                        .animation(MotionConstants.standard, value: hovered)
-                        .accessibilityHidden(true)
+                    if let text = AccountCard.stateLine(card, now: now) {
+                        Text(text)
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(stateColor)
+                    }
                 }
-                .padding(.horizontal, Spacing.gap)
-                .padding(.vertical, Spacing.section)
-                .background(rowHighlight)
-                // The highlight is inset from the panel edge; the content still lines up
-                // with the header and footer gutters.
-                .padding(.horizontal, Spacing.medium)
-                .contentShape(Rectangle())
+                // Drill-in affordance, the mirror of the detail header's back control:
+                // on hover it takes the account's colour, glows in it, and slides toward
+                // where it leads. A lit chevron says "this goes somewhere"; a box around
+                // it only said "button".
+                Image(systemName: "chevron.forward")
+                    .font(Typography.navChevron)
+                    .foregroundStyle(hovered ? tint : ThemeColors.tertiaryLabel)
+                    .shadow(color: tint.opacity(hovered ? ThemeColors.chevronGlowOpacity : 0), radius: Layout.glowRadius)
+                    .offset(x: hovered ? Layout.chevronHoverShift : 0)
+                    .frame(width: Layout.chevronHitSize, height: Layout.chevronHitSize)
+                    .animation(MotionConstants.standard, value: hovered)
+                    .accessibilityHidden(true)
             }
+            .padding(.horizontal, Spacing.gap)
+            .padding(.vertical, Spacing.section)
+            .background(rowHighlight)
+            // The highlight is inset from the panel edge; the content still lines up
+            // with the header and footer gutters.
+            .padding(.horizontal, Spacing.medium)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
@@ -60,7 +63,7 @@ struct AccountCardView: View {
         // The state line ("Throttled", "~2h to limit · resets in 3d", "Cached 3m ago") is
         // the card's value. `children: .ignore` hides the on-screen Text from VoiceOver,
         // so without this a screen-reader user got no state at all.
-        .accessibilityValue(AccountCard.stateLine(card, now: Date()) ?? "")
+        .accessibilityValue(AccountCard.stateLine(card, now: now) ?? "")
         .accessibilityHint(card.state == .signedOut ? "Signs in to this account" : "Opens this account")
     }
 
@@ -84,12 +87,12 @@ struct AccountCardView: View {
             }
     }
 
-    private func header(now: Date) -> some View {
+    private var header: some View {
         HStack(spacing: Spacing.xsmall) {
             ProviderBadge(provider: card.provider)
             Text(card.identity)
                 .font(Typography.accountTitle)
-                .foregroundStyle(hovered || card.isActive ? .primary : ThemeColors.secondaryLabel)
+                .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 // The name is the row; the badge and the plan yield before it does.
@@ -98,17 +101,6 @@ struct AccountCardView: View {
                 // Breathes only while the provider is actually being used.
                 LiveDot(color: tint)
                     .padding(.leading, Spacing.tight)
-            }
-            if card.isActive {
-                // A word in the app's existing badge vocabulary, not a glyph crammed
-                // against the percentage — and readable without colour vision.
-                Text("active")
-                    .font(Typography.badgeLabel)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-                    .padding(.horizontal, Spacing.small)
-                    .padding(.vertical, Spacing.micro)
-                    .background(ThemeColors.badgeFill, in: RoundedRectangle(cornerRadius: Layout.barCornerRadius))
-                    .accessibilityHidden(true)
             }
             if let plan = card.plan {
                 Text("\u{00B7} \(plan)")
@@ -124,7 +116,7 @@ struct AccountCardView: View {
                     .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
                     .accessibilityHidden(true)
             }
-            Text(card.worstPercent.map { "\(Int($0.rounded()))%" } ?? "\u{2014}")
+            Text(card.worstPercent.map(PercentFormat.display) ?? "\u{2014}")
                 .font(Typography.monoValueMedium)
                 .foregroundStyle(card.worstPercent.map { ThemeColors.barColor(percent: $0) } ?? ThemeColors.tertiaryLabel)
         }
@@ -134,7 +126,7 @@ struct AccountCardView: View {
         if card.state == .signedOut {
             return "\(card.identity) — signed out. Click to sign in."
         }
-        let number = card.worstPercent.map { "worst window \(Int($0.rounded()))%" } ?? "no reading yet"
+        let number = card.worstPercent.map { "worst window \(PercentFormat.display($0))" } ?? "no reading yet"
         return "\(card.identity) — \(number). Click to open this account."
     }
 
@@ -164,7 +156,7 @@ struct AccountCardBarRow: View {
                 .font(Typography.monoTiny)
                 .foregroundStyle(ThemeColors.tertiaryLabel)
                 .frame(width: Layout.cardTokensWidth, alignment: .trailing)
-            Text(bar.percent.map { "\(Int($0.rounded()))%" } ?? "\u{2014}")
+            Text(bar.percent.map(PercentFormat.display) ?? "\u{2014}")
                 .font(Typography.monoTiny)
                 .frame(width: Layout.cardPercentWidth, alignment: .trailing)
         }

@@ -43,4 +43,35 @@ struct FileWatcherInvalidationTests {
         #expect(!none.sessionLog)
         #expect(!none.codexSessionLog)
     }
+
+    // MARK: - Scoping the aggregate to the provider that changed
+
+    /// The watcher works out exactly which reader it owes, and the ViewModel now uses
+    /// that instead of invalidating both providers' aggregators. Without the scoping, a
+    /// Claude write every ~2 s during an active session stopped the Codex aggregator
+    /// from ever short-circuiting, so every poll paid a full Codex pass over a tree that
+    /// had not changed.
+    @Test func aggregatorsAreScopedToTheReaderThatChanged() {
+        let codexWrite = FileWatcher.PendingInvalidations(statsCache: false, sessionLog: false, codexSessionLog: true)
+        let claudeJSONL = FileWatcher.PendingInvalidations(statsCache: false, sessionLog: true, codexSessionLog: false)
+        let statsCacheOnly = FileWatcher.PendingInvalidations(statsCache: true, sessionLog: false, codexSessionLog: false)
+
+        // Mirrors the decision in `UsageViewModel.setupFileWatcher`.
+        func invalidatesClaude(_ c: FileWatcher.PendingInvalidations) -> Bool {
+            c.sessionLog || c.statsCache
+        }
+        func invalidatesCodex(_ c: FileWatcher.PendingInvalidations) -> Bool {
+            c.codexSessionLog
+        }
+
+        #expect(!invalidatesClaude(codexWrite), "a Codex rollout write must not re-aggregate Claude")
+        #expect(invalidatesCodex(codexWrite))
+
+        #expect(invalidatesClaude(claudeJSONL))
+        #expect(!invalidatesCodex(claudeJSONL), "a Claude JSONL write must not re-aggregate Codex")
+
+        // The stats cache is Claude-only, so it stands for the Claude aggregator alone.
+        #expect(invalidatesClaude(statsCacheOnly))
+        #expect(!invalidatesCodex(statsCacheOnly))
+    }
 }

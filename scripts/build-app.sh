@@ -140,8 +140,16 @@ echo "Done! App bundle at: $APP_DIR"
 echo "Packaging zip..."
 ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" .build/AIBattery.zip
 
-# EdDSA-sign the zip for Sparkle (when SPARKLE_EDDSA_KEY env is set)
-if [ -n "${SPARKLE_EDDSA_KEY:-}" ]; then
+# EdDSA-sign the zip for Sparkle (when SPARKLE_EDDSA_KEY env is set).
+#
+# A function, not a straight-line block, because the notarization path below
+# REPLACES the zip after stapling. Signing only once, before that, left
+# sparkle-signature.txt describing a file that no longer existed — and
+# generate-appcast.sh copies both `edSignature` and `length` straight out of it.
+# verify-release.sh catches the length mismatch, so this would have hard-failed
+# the first signed release rather than shipping a bad update.
+sign_zip_for_sparkle() {
+  [ -n "${SPARKLE_EDDSA_KEY:-}" ] || return 0
   echo "EdDSA-signing zip for Sparkle..."
   SIGN_UPDATE=""
 
@@ -159,71 +167,82 @@ if [ -n "${SPARKLE_EDDSA_KEY:-}" ]; then
   else
     echo "Warning: sign_update not found — skipping EdDSA signing"
   fi
-fi
+}
 
-echo "Packaging DMG..."
-DMG_DIR=".build/dmg"
-DMG_RW=".build/AIBattery-rw.dmg"
-rm -rf "$DMG_DIR" "$DMG_RW"
-mkdir -p "$DMG_DIR"
-cp -R "$APP_DIR" "$DMG_DIR/"
-ln -s /Applications "$DMG_DIR/Applications"
+sign_zip_for_sparkle
 
-# Set volume icon on the DMG
-cp .build/AppIcon.icns "$DMG_DIR/.VolumeIcon.icns"
-SetFile -a C "$DMG_DIR" 2>/dev/null || true
+# Build the distributable DMG: volume icon, Finder icon-view layout, then compress.
+#
+# A function because the notarization path repackages after stapling. That path used
+# to call a bare `hdiutil create ... UDZO`, silently dropping the volume icon and the
+# drag-to-Applications layout from exactly the builds users download.
+package_dmg() {
+  echo "Packaging DMG..."
+  DMG_DIR=".build/dmg"
+  DMG_RW=".build/AIBattery-rw.dmg"
+  rm -rf "$DMG_DIR" "$DMG_RW"
+  mkdir -p "$DMG_DIR"
+  cp -R "$APP_DIR" "$DMG_DIR/"
+  ln -s /Applications "$DMG_DIR/Applications"
 
-# Create read-write DMG, configure Finder layout, then convert to compressed
-hdiutil create -volname "AI Battery" -srcfolder "$DMG_DIR" -ov -format UDRW "$DMG_RW"
-rm -rf "$DMG_DIR"
+  # Set volume icon on the DMG
+  cp .build/AppIcon.icns "$DMG_DIR/.VolumeIcon.icns"
+  SetFile -a C "$DMG_DIR" 2>/dev/null || true
 
-# Mount the read-write DMG and configure Finder window layout
-MOUNT_DIR=$(hdiutil attach "$DMG_RW" -readwrite -noverify | grep '/Volumes/' | tail -1 | awk -F'\t' '{print $NF}')
-if [ -n "$MOUNT_DIR" ]; then
-  # AppleScript configures icon view with drag-to-Applications layout.
-  # May fail in headless CI (no Finder) — tolerate failure gracefully.
-  osascript <<APPLESCRIPT || true
-tell application "Finder"
-  tell disk "AI Battery"
-    open
-    set current view of container window to icon view
-    set toolbar visible of container window to false
-    set statusbar visible of container window to false
-    set bounds of container window to {100, 100, 540, 380}
-    set opts to icon view options of container window
-    set icon size of opts to 80
-    set arrangement of opts to not arranged
-    set position of item "AIBattery.app" of container window to {110, 140}
-    set position of item "Applications" of container window to {330, 140}
-    close
+  # Create read-write DMG, configure Finder layout, then convert to compressed
+  hdiutil create -volname "AI Battery" -srcfolder "$DMG_DIR" -ov -format UDRW "$DMG_RW"
+  rm -rf "$DMG_DIR"
+
+  # Mount the read-write DMG and configure Finder window layout
+  MOUNT_DIR=$(hdiutil attach "$DMG_RW" -readwrite -noverify | grep '/Volumes/' | tail -1 | awk -F'\t' '{print $NF}')
+  if [ -n "$MOUNT_DIR" ]; then
+    # AppleScript configures icon view with drag-to-Applications layout.
+    # May fail in headless CI (no Finder) — tolerate failure gracefully.
+    osascript <<APPLESCRIPT || true
+  tell application "Finder"
+    tell disk "AI Battery"
+      open
+      set current view of container window to icon view
+      set toolbar visible of container window to false
+      set statusbar visible of container window to false
+      set bounds of container window to {100, 100, 540, 380}
+      set opts to icon view options of container window
+      set icon size of opts to 80
+      set arrangement of opts to not arranged
+      set position of item "AIBattery.app" of container window to {110, 140}
+      set position of item "Applications" of container window to {330, 140}
+      close
+    end tell
   end tell
-end tell
 APPLESCRIPT
-  # Let Finder write .DS_Store
-  sync
-  sleep 1
-  # Finder can still hold the volume for a few seconds after the AppleScript
-  # returns; a single detach then fails with "Resource busy" (hdiutil exit 16)
-  # and `set -e` kills the whole build. Seen on the macos-15 runner (main CI run
-  # 38137172281) while the release run on the same commit sailed through.
-  # Retry, then force — the layout is already written, so a forced eject is safe.
-  detached=0
-  for attempt in 1 2 3 4 5; do
-    if hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null; then
-      detached=1
-      break
+    # Let Finder write .DS_Store
+    sync
+    sleep 1
+    # Finder can still hold the volume for a few seconds after the AppleScript
+    # returns; a single detach then fails with "Resource busy" (hdiutil exit 16)
+    # and `set -e` kills the whole build. Seen on the macos-15 runner (main CI run
+    # 38137172281) while the release run on the same commit sailed through.
+    # Retry, then force — the layout is already written, so a forced eject is safe.
+    detached=0
+    for attempt in 1 2 3 4 5; do
+      if hdiutil detach "$MOUNT_DIR" -quiet 2>/dev/null; then
+        detached=1
+        break
+      fi
+      echo "  detach attempt $attempt failed (volume busy) — retrying"
+      sleep 2
+    done
+    if [ "$detached" -eq 0 ]; then
+      echo "  forcing detach of $MOUNT_DIR"
+      hdiutil detach "$MOUNT_DIR" -force
     fi
-    echo "  detach attempt $attempt failed (volume busy) — retrying"
-    sleep 2
-  done
-  if [ "$detached" -eq 0 ]; then
-    echo "  forcing detach of $MOUNT_DIR"
-    hdiutil detach "$MOUNT_DIR" -force
   fi
-fi
 
-hdiutil convert "$DMG_RW" -format UDZO -ov -o .build/AIBattery.dmg
-rm -f "$DMG_RW"
+  hdiutil convert "$DMG_RW" -format UDZO -ov -o .build/AIBattery.dmg
+  rm -f "$DMG_RW"
+}
+
+package_dmg
 
 # Optional notarization (requires Apple Developer credentials)
 if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
@@ -242,21 +261,15 @@ if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
   done
   xcrun stapler staple "$APP_DIR"
 
-  # Re-package after stapling
+  # Re-package after stapling, then re-sign: the zip signed before notarization
+  # describes a file that no longer exists.
   rm -f .build/AIBattery.zip .build/AIBattery.dmg
   ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" .build/AIBattery.zip
+  sign_zip_for_sparkle
 
-  # Re-create DMG with stapled app
-  DMG_DIR=".build/dmg"
-  DMG_RW=".build/AIBattery-rw.dmg"
-  rm -rf "$DMG_DIR" "$DMG_RW"
-  mkdir -p "$DMG_DIR"
-  cp -R "$APP_DIR" "$DMG_DIR/"
-  ln -s /Applications "$DMG_DIR/Applications"
-  cp .build/AppIcon.icns "$DMG_DIR/.VolumeIcon.icns"
-  SetFile -a C "$DMG_DIR" 2>/dev/null || true
-  hdiutil create -volname "AI Battery" -srcfolder "$DMG_DIR" -ov -format UDZO .build/AIBattery.dmg
-  rm -rf "$DMG_DIR"
+  # Re-create the DMG with the stapled app, through the same packaging as above so
+  # the notarized DMG keeps its volume icon and Finder layout.
+  package_dmg
   echo "Notarization + stapling complete."
 fi
 

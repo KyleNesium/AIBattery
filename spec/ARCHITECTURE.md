@@ -90,7 +90,8 @@ AIBattery/
     AccountRecord.swift           — Per-account identity record (Codable, Identifiable); `provider` decodes as `.claude` for pre-Codex records
     APIFetchResult.swift          — Combined result from a single Messages API call
     APIProfile.swift              — Organization info from API response headers
-    RateLimitUsage.swift          — Unified rate limit header parsing (5h/7d windows); provider tag + optional window minutes (Codex payloads)
+    RateLimitUsage.swift          — The 5h/7d window model and its normalisation helpers (expired-window clearing, rollover-artifact suppression, spike confirmation); provider tag + optional window minutes (Codex payloads)
+    RateLimitUsage+Parsing.swift  — Parsing it out of the wire formats: unified response headers and the Claude Code `client_data` JSON with its path tables. Pure functions, no state
     CodexUsageParser.swift        — Parses `wham/usage` JSON (windows, credit budget, plan — one pass) and session-log `rate_limits` snapshots into RateLimitUsage
     CodexDisplayKind.swift        — windows / credits / apiLimits layout selector
     CodexAccessMode.swift         — chatgpt / apiKey account access mode
@@ -114,6 +115,8 @@ AIBattery/
     AccountStore.swift            — Multi-account registry (UserDefaults persistence, max 3 per provider; Claude-first `displayOrdered`)
     OAuthManager.swift            — OAuth 2.0 PKCE flow, auto-refresh; `postToken` is `nonisolated static` so the network call releases MainActor cleanly. Concurrent-refresh serialization preserved via `refreshTasks[accountId]`
     OAuthManager+Codex.swift      — Codex provider routing: `tokenStorageKey`, `startCodexAuthFlow` / `completeCodexAuthFlow` / `cancelCodexAuthFlow`, `registerCodexAccount` (cap-guarded, returns Result)
+    OAuthManagerTokenEndpoint.swift — The Anthropic token endpoint: `TokenResult` and `postToken`, which performs the exchange and classifies the outcome (`nonisolated static`, so the network suspension stays off the main actor; transport + retry policy injected)
+    OAuthManagerMigrations.swift  — The three one-time launch Keychain migrations (legacy single-account layout → prefixed per-account entries, stale `accessToken_`/`expiresAt_` sweep, `ThisDeviceOnly` accessibility re-create). Each is gated by its own done-flag so a launch costs no Keychain calls once applied. Split out when `OAuthManager.swift` passed the 800-line ceiling
     CodexOAuth/
       CodexOAuthConstants.swift   — client-id, port 1455, scopes, authorize/token URLs lifted from codex-rs
       CodexAuthSession.swift      — In-flight PKCE state; awaits the redirect through `OneShotMailbox`
@@ -147,10 +150,12 @@ AIBattery/
     SparkleUpdateService.swift     — Sparkle 2 wrapper for user-initiated auto-update
     SparkleUpdateDelegate.swift   — SPUUpdaterDelegate: error tracking + update cycle logging
   ViewModels/
-    UsageViewModel.swift          — @MainActor ObservableObject, single source of truth (state + init + refresh orchestration + throttle bookkeeping + deinit); owns one `UsageAggregator` per provider and routes every fetch/aggregate/status call by the active account's provider
+    UsageViewModel.swift          — @MainActor ObservableObject, single source of truth (published state + init + `refresh()` coalescing + `aggregateOffMain` + account switching + deinit); owns one `UsageAggregator` per provider and routes every fetch/aggregate/status call by the active account's provider
+    UsageViewModel+Refresh.swift  — The refresh cycle itself: `performRefresh` (network + aggregate + publish), `refreshLocalData` (file-system, local-only), and the publish helpers `updateSnapshot` / `updateAdaptivePolling` / `handlePostFetchAlerts` / `scheduleRolloverClear`. Split out when the main file passed the 800-line ceiling; the state it touches is declared without `private` because Swift's `private` is file-scoped
+    UsageViewModel+Throttle.swift — Throttle-transition bookkeeping, kept next to its storage (the per-account `ThrottleTracker` map is a stored static, so it does not belong in the pure-helper file)
     UsageViewModel+Statics.swift  — `nonisolated static` pure helpers: refresh-interval clamping, error-message string, change detection, TTL-guarded effective rate-limits / values
     UsageViewModel+Lifecycle.swift — File watcher setup, sleep/wake/screen-lock observers, idle-suspend + activity-monitor resume, polling timer (start/restart/updateInterval)
-    UsageViewModel+FanOut.swift   — Thin wrapper: `scheduleFanOut` + `fetchAllAccounts(seed:)` delegate to `MultiAccountFanOut.resolve` and assign the result to `perAccountRateLimits`
+    UsageViewModel+FanOut.swift   — Thin wrapper: `scheduleFanOut` + `fetchAllAccounts(seed:excluding:)` delegate to `MultiAccountFanOut.resolve` and assign the result to `perAccountReadings`. The active account is always excluded, seeded or not, so no cycle spends a second request on it
     MultiAccountFanOut.swift      — Multi-account fan-out orchestration → `[String: AccountReading]` (windows | per-minute apiLimits; previous reading carried forward on failure)
     ProviderDispatchingFetcher.swift — Routes each fan-out fetch: Claude → RateLimitFetcher, Codex ChatGPT → CodexRateLimitFetcher.fetch, Codex API key → fetchAPIKeyLimits (never the ChatGPT endpoint)
     UsageViewModel+ProviderRouting.swift — Aggregator / fetcher-cache / fetch / status routing by the active account's provider + Codex plan-name sync (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.

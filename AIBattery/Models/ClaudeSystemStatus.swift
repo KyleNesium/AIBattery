@@ -7,7 +7,10 @@ struct StatusComponent {
     let alertKey: String
 }
 
-struct ClaudeSystemStatus {
+/// Equatable so the ViewModel can skip republishing an unchanged status. The status
+/// endpoint is polled every cycle and almost always returns the same thing; without the
+/// comparison each poll re-rendered the open popover.
+struct ClaudeSystemStatus: Equatable {
     let indicator: StatusIndicator
     let description: String
     let incidentNames: [String]
@@ -31,7 +34,7 @@ struct ClaudeSystemStatus {
     }
 }
 
-enum StatusIndicator: String {
+enum StatusIndicator: String, Equatable {
     case operational
     case degradedPerformance
     case partialOutage

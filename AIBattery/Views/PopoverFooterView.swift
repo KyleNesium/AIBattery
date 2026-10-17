@@ -240,26 +240,17 @@ private struct RelativeTimeText: View {
     let date: Date
     var isStale: Bool = false
     var staleTooltip: String? = nil
-    var alternateText: String? = nil
-    var alternateTooltip: String? = nil
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 10)) { _ in
-            let resolvedAlternate: String? = alternateText.flatMap { text in
-                Int(Date().timeIntervalSinceReferenceDate / 10).isMultiple(of: 2) ? text : nil
-            }
-            let text = resolvedAlternate
-                ?? (isStale
-                    ? "Cached \(PopoverFooterView.relativeTime(date))"
-                    : "Updated \(PopoverFooterView.relativeTime(date))")
-            Text(text)
+            Text(isStale
+                ? "Cached \(PopoverFooterView.relativeTime(date))"
+                : "Updated \(PopoverFooterView.relativeTime(date))")
                 .font(Typography.monoTiny)
                 .foregroundStyle(isStale ? ThemeColors.caution : ThemeColors.tertiaryLabel)
-                .help(resolvedAlternate != nil
-                    ? (alternateTooltip ?? "")
-                    : (isStale
-                        ? (staleTooltip ?? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))")
-                        : "Last fetched: \(PopoverFooterView.absoluteTime(date))"))
+                .help(isStale
+                    ? (staleTooltip ?? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))")
+                    : "Last fetched: \(PopoverFooterView.absoluteTime(date))")
         }
     }
 }

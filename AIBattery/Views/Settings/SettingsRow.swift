@@ -89,11 +89,12 @@ struct SettingsRow: View {
                     .accessibilityHidden(false)
                     .accessibilityLabel("\(account.provider.displayName) account")
             }
-            TextField(placeholder, text: nameBinding(for: account.id))
-                .textFieldStyle(.roundedBorder)
-                .font(Typography.caption)
-                .help("Display name for this account (max 30 chars)")
-                .accessibilityLabel("Display name for \(identity)")
+            AccountNameField(
+                accountId: account.id,
+                placeholder: placeholder,
+                persisted: account.displayName ?? ""
+            )
+            .accessibilityLabel("Display name for \(identity)")
             if accountStore.accounts.count > 1 {
                 Button(action: {
                     let wasActive = accountStore.activeAccountId == account.id
@@ -116,20 +117,48 @@ struct SettingsRow: View {
             }
         }
     }
+}
 
-    /// Two-way binding that reads/writes `displayName` on the AccountRecord.
-    private func nameBinding(for accountId: String) -> Binding<String> {
-        Binding(
-            get: {
-                accountStore.accounts.first { $0.id == accountId }?.displayName ?? ""
-            },
-            set: { newValue in
-                let clamped = String(newValue.prefix(30))
-                OAuthManager.shared.updateAccountMetadata(
-                    accountId: accountId,
-                    displayName: clamped
-                )
+/// The account alias field.
+///
+/// The text lives in local state and is written back on Enter or when the field loses
+/// focus. Binding the field straight to the record persisted the whole `aibattery_accounts`
+/// blob and republished `$accounts` on EVERY keystroke, re-rendering the header chip, the
+/// popover root and every settings row between characters.
+private struct AccountNameField: View {
+    let accountId: String
+    let placeholder: String
+    /// The stored alias. Mirrored into `draft` while the field is not being edited, so a
+    /// rename from elsewhere still shows up.
+    let persisted: String
+
+    @State private var draft: String = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $draft)
+            .textFieldStyle(.roundedBorder)
+            .font(Typography.caption)
+            .help("Display name for this account (max 30 chars)")
+            .focused($isFocused)
+            .onAppear { draft = persisted }
+            .onChange(of: persisted) { newValue in
+                guard !isFocused else { return }
+                draft = newValue
             }
-        )
+            .onChange(of: isFocused) { focused in
+                guard !focused else { return }
+                commit()
+            }
+            .onSubmit { commit() }
+    }
+
+    private func commit() {
+        let clamped = String(draft.prefix(30))
+        if clamped != draft {
+            draft = clamped
+        }
+        guard clamped != persisted else { return }
+        OAuthManager.shared.updateAccountMetadata(accountId: accountId, displayName: clamped)
     }
 }

@@ -151,6 +151,38 @@ struct TokenHealthMonitorTests {
         #expect(results.top.contains { $0.id == "current" })
     }
 
+    // MARK: - Entry ordering within a session
+
+    /// The current session's entries from before the idle cutoff are collected by
+    /// scanning backwards, so they used to be appended newest-to-oldest after the
+    /// ascending post-cutoff ones. `assess` reads `.last` as the latest turn and
+    /// `.first` as the session start, so with any pre-cutoff entry present the context
+    /// percentage came from the session's FIRST turn and the duration came out negative.
+    @Test func assessSessions_currentSessionWithPreCutoffEntries_readsTheNewestTurn() throws {
+        let now = Date()
+        // Default cutoff is 24h; put two turns well before it and two after.
+        let entries = [
+            makeEntry(sessionId: "current", input: 10_000, output: 100, timestamp: now.addingTimeInterval(-30 * 3_600)),
+            makeEntry(sessionId: "current", input: 20_000, output: 100, timestamp: now.addingTimeInterval(-28 * 3_600)),
+            makeEntry(sessionId: "current", input: 30_000, output: 100, timestamp: now.addingTimeInterval(-2 * 3_600)),
+            makeEntry(sessionId: "current", input: 900_000, output: 100, timestamp: now.addingTimeInterval(-60)),
+        ]
+
+        let current = try #require(monitor.assessSessions(entries: entries, topLimit: 5).current)
+
+        // Input tokens are cumulative, so the newest turn carries the real context size.
+        #expect(current.totalUsed > 800_000, "context must come from the newest turn, not the first")
+        // Last activity is the newest turn, and the session ran forward in time.
+        let newestTurn = now.addingTimeInterval(-60)
+        #expect((current.lastActivity?.timeIntervalSince(newestTurn)).map { abs($0) < 1 } == true)
+        #expect(current.sessionDuration != nil, "a session that started 30h ago has a duration")
+        if let duration = current.sessionDuration {
+            #expect(duration > 0, "duration must not be negative")
+        }
+        // A 30-hour session is not rapid consumption.
+        #expect(!current.warnings.contains { $0.message.lowercased().contains("rapid") })
+    }
+
     @Test func topSessions_excludesOldSessions() {
         let recentTime = Date()
         let oldTime = Date().addingTimeInterval(-48 * 3_600) // 48h ago

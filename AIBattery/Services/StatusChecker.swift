@@ -49,8 +49,16 @@ final class StatusChecker {
 
     let config: StatusFeedConfig
 
+    /// Injectable transport (production: `SecureNetworking`) so the backoff bookkeeping
+    /// in `fetchStatus` is testable through real error paths without the network.
+    var transport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) }
+
     init(config: StatusFeedConfig) {
         self.config = config
+    }
+
+    func failureCountForTesting() -> Int {
+        failureCount
     }
 
     /// Base URL for the Claude status page. Kept as a static for `ClaudeSystemStatus.unknown`
@@ -85,7 +93,7 @@ final class StatusChecker {
 
         // Hop off MainActor for the HTTP request, decode, and parse.
         // We re-enter MainActor only to mutate cache/backoff state.
-        let outcome = await Self.fetchAndParse(config: config, timeout: 5)
+        let outcome = await Self.fetchAndParse(config: config, timeout: 5, transport: transport)
         switch outcome {
         case let .success(status):
             cachedStatus = status
@@ -99,6 +107,11 @@ final class StatusChecker {
             AppLogger.network.warning("StatusChecker(\(self.config.statusPageBaseURL, privacy: .public)) HTTP \(code), backing off \(Int(self.currentBackoff))s (attempt \(self.failureCount))")
             return cachedStatus ?? .unknown(statusPageURL: config.statusPageBaseURL)
         case let .failure(error):
+            // A cancelled fan-out (toggle flip, account change) is not the feed failing:
+            // bumping the counter here froze the status dot for up to 5 min (A7).
+            if SecureNetworking.isCancellation(error) {
+                return cachedStatus ?? .unknown(statusPageURL: config.statusPageBaseURL)
+            }
             failureCount += 1
             updateBackoff()
             lastFailedAt = Date()
@@ -118,11 +131,15 @@ final class StatusChecker {
 
     /// Off-MainActor fetch + decode + parse. Pure: takes a feed config, returns an
     /// outcome. All instance state lives on MainActor; this never touches `self`.
-    nonisolated static func fetchAndParse(config: StatusFeedConfig, timeout: TimeInterval) async -> FetchOutcome {
+    nonisolated static func fetchAndParse(
+        config: StatusFeedConfig,
+        timeout: TimeInterval,
+        transport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) }
+    ) async -> FetchOutcome {
         var request = URLRequest(url: config.summaryURL)
         request.timeoutInterval = timeout
         do {
-            let (data, response) = try await SecureNetworking.data(for: request)
+            let (data, response) = try await transport(request)
             guard let http = response as? HTTPURLResponse else {
                 return .httpError(0)
             }

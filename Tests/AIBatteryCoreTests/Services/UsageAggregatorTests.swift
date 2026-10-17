@@ -853,6 +853,44 @@ struct UsageAggregatorTests {
         #expect(first.modelTokens.map(\.id) == second.modelTokens.map(\.id))
     }
 
+    @Test func aggregate_fingerprintSkip_sameInputsWithinBucket_returnsCachedSnapshot() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-09-21T12:00:00Z"))
+        let stub = StubEntrySource([makeEntry(model: "claude-sonnet-4-6-20250929", timestamp: now.addingTimeInterval(-60))])
+        let aggregator = UsageAggregator(
+            statsCacheReader: nil, sessionLogReader: stub,
+            ledger: TokenLedger(fileURL: dir.appendingPathComponent("token-ledger.json"))
+        )
+
+        let (first, _) = aggregator.aggregate(rateLimits: nil, now: now)
+        let (second, _) = aggregator.aggregate(rateLimits: nil, now: now.addingTimeInterval(5 * 60))
+
+        // Same 15-minute bucket of `now` → served from cache (lastUpdated proves it).
+        #expect(second.lastUpdated == first.lastUpdated)
+    }
+
+    @Test func aggregate_fingerprintSkip_nowCrossesBucket_recomputes() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+        // With no `now` component in the fingerprint, an idle provider (no FS events →
+        // no invalidate) kept returning a snapshot whose 5h-window tokens, today
+        // counters and `lastUpdated` were frozen for as long as its CLI stayed quiet.
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-09-21T12:00:00Z"))
+        let stub = StubEntrySource([makeEntry(model: "claude-sonnet-4-6-20250929", timestamp: now.addingTimeInterval(-60))])
+        let aggregator = UsageAggregator(
+            statsCacheReader: nil, sessionLogReader: stub,
+            ledger: TokenLedger(fileURL: dir.appendingPathComponent("token-ledger.json"))
+        )
+
+        let (first, _) = aggregator.aggregate(rateLimits: nil, now: now)
+        let later = now.addingTimeInterval(16 * 60)
+        let (second, _) = aggregator.aggregate(rateLimits: nil, now: later)
+
+        #expect(first.lastUpdated == now)
+        #expect(second.lastUpdated == later)
+    }
+
     @Test func aggregate_fingerprintChanged_recomputes() throws {
         let dir = tempDir()
         defer { cleanup(dir) }
@@ -1387,6 +1425,28 @@ struct UsageAggregatorTests {
         let (snapshot, _) = aggregator.aggregate(rateLimits: nil, now: now)
         #expect(snapshot.provider == .claude)
         #expect(snapshot.firstSessionDate == earliest)
+    }
+
+    @Test func aggregate_firstSessionDate_acceptsWholeSecondStatsCacheStamp() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+        // Either ISO 8601 shape must parse; the fractional-only formatter returned nil
+        // for a whole-second stamp and the Insights header silently lost its start date.
+        let cacheURL = try writeStatsCache(
+            #"{"version":1,"lastComputedDate":"2025-06-15","dailyActivity":[],"dailyModelTokens":[],"modelUsage":{},"totalSessions":1,"totalMessages":1,"firstSessionDate":"2025-01-10T08:30:00Z","hourCounts":{}}"#,
+            to: dir
+        )
+        let stub = StubEntrySource([makeEntry(model: "claude-sonnet-4-6-20250929", timestamp: Date())])
+        let aggregator = UsageAggregator(
+            statsCacheReader: StatsCacheReader(fileURL: cacheURL),
+            sessionLogReader: stub,
+            ledger: TokenLedger(fileURL: dir.appendingPathComponent("token-ledger.json")),
+            provider: .claude
+        )
+
+        let (snapshot, _) = aggregator.aggregate(rateLimits: nil)
+
+        #expect(snapshot.firstSessionDate == DateFormatters.parseISO8601("2025-01-10T08:30:00Z"))
     }
 
     @Test func convenienceInit_perProvider_stampsProvider() {
