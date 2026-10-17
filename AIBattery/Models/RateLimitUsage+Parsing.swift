@@ -127,8 +127,16 @@ extension RateLimitUsage {
                 return nil
             }()
             guard let raw else { return nil }
-            let normalized = raw > 1.0 ? raw / 100.0 : raw
-            return min(max(normalized, 0), 1)
+            // These payloads report utilization as a PERCENTAGE, 0–100. Verified against
+            // the live `/api/oauth/usage` endpoint, which returned `6` and `84` for an
+            // account the UI showed at 6% and 84%.
+            //
+            // This used to guess the unit with `raw > 1.0 ? raw / 100 : raw`, which is
+            // right for every percentage above 1 and catastrophically wrong at or below
+            // it: a fresh week reporting `1` (one percent) was read as the fraction 1.0
+            // and rendered as 100% — "Limit reached" on an account that had barely been
+            // used. Anything in (0, 1] was inflated a hundredfold.
+            return min(max(raw / 100.0, 0), 1)
         }
 
         func lookup(in json: Any, path: [String]) -> Any? {

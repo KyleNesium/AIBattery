@@ -411,8 +411,8 @@ struct RateLimitFetcherTests {
     private static let usageBody200: String = """
     {
       "rate_limits": {
-        "five_hour": {"utilization": 0.42, "reset": 1800000000, "status": "allowed"},
-        "seven_day": {"utilization": 0.18, "reset": 1800500000, "status": "allowed"},
+        "five_hour": {"utilization": 42, "reset": 1800000000, "status": "allowed"},
+        "seven_day": {"utilization": 18, "reset": 1800500000, "status": "allowed"},
         "representative_claim": "five_hour"
       }
     }
@@ -429,8 +429,8 @@ struct RateLimitFetcherTests {
     private static let usageBody429HighUtilStatusAllowed: String = """
     {
       "rate_limits": {
-        "five_hour": {"utilization": 0.98, "reset": 1800000000, "status": "allowed"},
-        "seven_day": {"utilization": 0.5, "reset": 1800500000, "status": "allowed"},
+        "five_hour": {"utilization": 98, "reset": 1800000000, "status": "allowed"},
+        "seven_day": {"utilization": 50, "reset": 1800500000, "status": "allowed"},
         "representative_claim": "five_hour",
         "status": "allowed"
       }
@@ -442,8 +442,8 @@ struct RateLimitFetcherTests {
     private static let usageBody429LowUtil: String = """
     {
       "rate_limits": {
-        "five_hour": {"utilization": 0.10, "reset": 1800000000, "status": "allowed"},
-        "seven_day": {"utilization": 0.05, "reset": 1800500000, "status": "allowed"},
+        "five_hour": {"utilization": 10, "reset": 1800000000, "status": "allowed"},
+        "seven_day": {"utilization": 5, "reset": 1800500000, "status": "allowed"},
         "representative_claim": "five_hour"
       }
     }
@@ -876,8 +876,8 @@ struct RateLimitFetcherTests {
     private static let clientDataBody429HighUtilStatusAllowed: String = """
     {
       "rate_limits": {
-        "five_hour": {"utilization": 0.97, "reset": 1800000000, "status": "allowed"},
-        "seven_day": {"utilization": 0.3, "reset": 1800500000, "status": "allowed"},
+        "five_hour": {"utilization": 97, "reset": 1800000000, "status": "allowed"},
+        "seven_day": {"utilization": 30, "reset": 1800500000, "status": "allowed"},
         "representative_claim": "five_hour",
         "status": "allowed"
       }

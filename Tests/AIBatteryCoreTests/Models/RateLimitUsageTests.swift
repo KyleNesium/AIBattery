@@ -185,12 +185,12 @@ struct RateLimitUsageTests {
             "status": "allowed",
             "representative_claim": "seven_day",
             "five_hour": {
-              "utilization": 0.42,
+              "utilization": 42,
               "reset_at": 1700000000,
               "status": "allowed"
             },
             "seven_day": {
-              "utilization": 0.85,
+              "utilization": 85,
               "reset_at": "2026-04-09T12:00:00Z",
               "status": "throttled"
             }
@@ -206,6 +206,53 @@ struct RateLimitUsageTests {
         #expect(usage?.fiveHourReset?.timeIntervalSince1970 == 1_700_000_000)
         #expect(usage?.sevenDayStatus == "throttled")
         #expect(usage?.isThrottled == true)
+    }
+
+    /// Reported by a user: a fresh week showing 1% on claude.ai rendered as 100% —
+    /// "Limit reached" on an account that had barely been touched.
+    ///
+    /// These payloads report utilization as a PERCENTAGE. The parser used to guess the
+    /// unit with `raw > 1.0 ? raw / 100 : raw`, which reads `1` (one percent) as the
+    /// fraction 1.0. Every value in (0, 1] was inflated a hundredfold, and the worst
+    /// case landed on the one number the whole app is built to get right.
+    @Test func parse_clientDataJSON_onePercent_isOnePercentNotFull() throws {
+        let data = try #require("""
+        {
+          "rate_limits": {
+            "five_hour": { "utilization": 0, "status": "allowed" },
+            "seven_day": { "utilization": 1, "status": "allowed" }
+          }
+        }
+        """.data(using: .utf8))
+
+        let usage = try #require(RateLimitUsage.parse(clientData: data))
+
+        #expect(usage.sevenDayUtilization == 0.01)
+        #expect(usage.sevenDayPercent == 1)
+        #expect(usage.fiveHourPercent == 0)
+        #expect(!usage.isThrottled, "1% used is not a throttle")
+    }
+
+    /// The whole sub-1% range, since that is where the old heuristic was wrong.
+    @Test func parse_clientDataJSON_subOnePercentValues_scaleCorrectly() throws {
+        for (raw, expectedPercent) in [("0.5", 0.5), ("1", 1.0), ("0.25", 0.25)] {
+            let data = try #require("""
+            { "rate_limits": { "seven_day": { "utilization": \(raw) } } }
+            """.data(using: .utf8))
+            let usage = try #require(RateLimitUsage.parse(clientData: data))
+            #expect(usage.sevenDayPercent == expectedPercent, "raw \(raw) should be \(expectedPercent)%")
+        }
+    }
+
+    /// The other end still has to work: a genuinely exhausted window reports 100.
+    @Test func parse_clientDataJSON_hundredPercent_isFull() throws {
+        let data = try #require("""
+        { "rate_limits": { "seven_day": { "utilization": 100, "status": "throttled" } } }
+        """.data(using: .utf8))
+
+        let usage = try #require(RateLimitUsage.parse(clientData: data))
+        #expect(usage.sevenDayUtilization == 1.0)
+        #expect(usage.sevenDayPercent == 100)
     }
 
     @Test func parse_clientDataJSON_withPercentValues_infersBindingWindow() throws {
@@ -241,10 +288,10 @@ struct RateLimitUsageTests {
             "status": "throttled",
             "representative_claim": "five_hour",
             "five_hour": {
-              "utilization": 1.0
+              "utilization": 100
             },
             "seven_day": {
-              "utilization": 1.0
+              "utilization": 100
             }
           }
         }
@@ -266,11 +313,11 @@ struct RateLimitUsageTests {
             "status": "allowed",
             "representative_claim": "five_hour",
             "five_hour": {
-              "utilization": 1.0,
+              "utilization": 100,
               "reset_at": 1700000000
             },
             "seven_day": {
-              "utilization": 1.0,
+              "utilization": 100,
               "reset_at": 1700500000
             }
           }
