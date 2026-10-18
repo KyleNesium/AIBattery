@@ -233,8 +233,19 @@ APPLESCRIPT
       sleep 2
     done
     if [ "$detached" -eq 0 ]; then
+      # The volume can finish unmounting between the last retry and this line, and a
+      # forced detach of something already gone exits non-zero with "No such file or
+      # directory" — which `set -e` then turned into a failed release. The retry loop
+      # added in #194 handled "busy" but not "already unmounted"; this is the other half.
       echo "  forcing detach of $MOUNT_DIR"
-      hdiutil detach "$MOUNT_DIR" -force
+      hdiutil detach "$MOUNT_DIR" -force 2>/dev/null || true
+    fi
+
+    # Only one thing actually matters: the volume must be gone before we convert. A
+    # detach that reported failure because it had already unmounted is a success.
+    if [ -d "$MOUNT_DIR" ]; then
+      echo "  ERROR: $MOUNT_DIR is still mounted after detach attempts"
+      exit 1
     fi
   fi
 
