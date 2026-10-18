@@ -71,9 +71,11 @@ public final class StatusBarManager: NSObject {
     var escapeHandler: (() -> Bool)?
     weak var viewModel: UsageViewModel?
     private var cancellables = Set<AnyCancellable>()
-    /// Last observed value of the multi-account toggle — used to filter the
-    /// `UserDefaults.didChangeNotification` firehose down to actual toggle flips.
+    /// Last observed values of the two preferences that change what the menu bar
+    /// draws — used to filter the `UserDefaults.didChangeNotification` firehose down
+    /// to actual flips of those keys.
     private var lastObservedShowAllAccounts: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
+    private var lastObservedColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
     // NSEvent monitors / observers / Timers touched by the nonisolated deinit;
     // `nonisolated(unsafe)` is required so the deinit can clean them up.
     // Documented thread-safe cleanup APIs.
@@ -87,6 +89,7 @@ public final class StatusBarManager: NSObject {
     /// Timestamp of last click — debounces rapid clicks during toggle.
     var lastClickAt: Date = .distantPast
     nonisolated(unsafe) private var appearanceObserver: NSKeyValueObservation?
+    nonisolated(unsafe) private var buttonAppearanceObserver: NSKeyValueObservation?
     nonisolated(unsafe) private var frameObserver: Any?
     /// Debounce token for the panel-resize observer below. Stored on the
     /// MainActor-isolated instance so it can be mutated from the @Sendable
@@ -100,9 +103,9 @@ public final class StatusBarManager: NSObject {
     /// Gap between the menu bar button and the panel's top edge.
     static let panelMargin: CGFloat = 4
 
-    // Snapshot of current render state
-    var currentPercent: Double = 0
-    var currentColor: NSColor = .systemGreen
+    // Snapshot of current render state. Only the throttle flag is read back (to detect
+    // a real transition); the percent and colour were written every update and never
+    // consulted, so they are not kept.
     var currentIsThrottled: Bool = false
     /// Whether we've received at least one update (so we can detect real transitions vs initial state).
     var hasReceivedFirstUpdate: Bool = false
@@ -224,26 +227,36 @@ public final class StatusBarManager: NSObject {
             }
             .store(in: &cancellables)
 
-        // Toggle observer: when the user flips "Show all accounts in menu bar", redraw
-        // the button immediately rather than waiting for the next refresh tick (up to 30 s).
-        // Filter to actual toggle flips — `UserDefaults.didChangeNotification` fires
-        // on every preference write, and we don't want unrelated changes (slider drags,
-        // colorblind toggle) to thrash the menu bar redraw path.
+        // Preference observer: when the user flips "Show all accounts in menu bar" or
+        // the colorblind palette, redraw the button immediately rather than waiting for
+        // the next refresh tick (up to 5 min). Filter to actual flips of those two keys —
+        // `UserDefaults.didChangeNotification` fires on every preference write, and
+        // unrelated changes (slider drags) must not thrash the menu bar redraw path.
+        // The colorblind flip must also defeat the render-key skip: the key holds the
+        // star colour, which `ThemeColors` has already re-derived by the time this runs.
         NotificationCenter.default
             .publisher(for: UserDefaults.didChangeNotification)
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
             .sink { [weak self, weak item, weak viewModel] _ in
                 guard let self, let button = item?.button, let viewModel else { return }
-                let current = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
-                guard current != self.lastObservedShowAllAccounts else { return }
-                self.lastObservedShowAllAccounts = current
+                let showAll = UserDefaults.standard.bool(forKey: UserDefaultsKeys.showAllAccountsInMenuBar)
+                let colorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+                let showAllFlipped = showAll != self.lastObservedShowAllAccounts
+                let colorblindFlipped = colorblind != self.lastObservedColorblind
+                guard showAllFlipped || colorblindFlipped else { return }
+                self.lastObservedShowAllAccounts = showAll
+                self.lastObservedColorblind = colorblind
                 self.updateButton(button, viewModel: viewModel)
             }
             .store(in: &cancellables)
 
-        // Refresh on auth change
+        // Refresh on auth change. `dropFirst` skips the value `@Published` replays on
+        // subscription: at launch that fired a refresh at t≈0 on top of the view model's
+        // own `initialPollDelay` refresh two seconds later. Only real flips (sign-out →
+        // sign-in, including re-auth while the panel is open) refresh from here.
         oauthManager.$isAuthenticated
             .removeDuplicates()
+            .dropFirst()
             .sink { [weak self] authenticated in
                 if authenticated {
                     Task { @MainActor [weak self] in
@@ -302,24 +315,32 @@ public final class StatusBarManager: NSObject {
         }
 
         // Track system appearance changes so the panel follows light/dark mode.
-        // Also rebuild the menu bar image: `combinedStatusBarImage` bakes the text color
-        // (black/white) at render time from the then-current effective appearance, so a
-        // dark/light or "Increase Contrast" switch leaves stale text until the next poll
-        // unless we force a redraw here.
         //
         // KVO callbacks for `effectiveAppearance` are not contractually main-thread, so
         // hop explicitly via `Task { @MainActor in ... }` rather than asserting isolation.
-        // Both the panel mutation and the status-bar redraw are AppKit UI work.
-        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak self, weak panel] _, _ in
+        appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak panel] _, _ in
             // Re-capture weakly inside the Task body: Swift 5 mode's checker
             // rejects accessing the outer closure's `weak` captures from a
             // concurrent task (they're `var` semantically).
-            Task { @MainActor [weak self, weak panel] in
+            Task { @MainActor [weak panel] in
                 panel?.appearance = NSApp.effectiveAppearance
-                guard let self,
-                      let button = self.statusItem?.button,
-                      let viewModel = self.viewModel else { return }
-                self.updateButton(button, viewModel: viewModel)
+            }
+        }
+
+        // Rebuild the menu bar image when the BUTTON's appearance changes.
+        // `combinedStatusBarImage` bakes the text colour (black/white) at render time from
+        // `button.effectiveAppearance` — the menu bar's own backdrop (wallpaper tint,
+        // translucency), which can differ from `NSApp.effectiveAppearance` and change
+        // without it (new wallpaper, moving to another display). Observing NSApp here left
+        // stale text until the next poll; the button is what the render actually reads.
+        if let button = item.button {
+            buttonAppearanceObserver = button.observe(\.effectiveAppearance) { [weak self] _, _ in
+                Task { @MainActor [weak self] in
+                    guard let self,
+                          let button = self.statusItem?.button,
+                          let viewModel = self.viewModel else { return }
+                    self.updateButton(button, viewModel: viewModel)
+                }
             }
         }
 
@@ -371,7 +392,10 @@ public final class StatusBarManager: NSObject {
         guard toggleState.isShowing else { return }
         let screenMaxHeight = panel.screen?.visibleFrame.height ?? Layout.fallbackScreenHeight
         let maxPanelHeight = screenMaxHeight - Layout.menuBarInset
-        let fittingHeight = min(hosting.fittingSize.height, maxPanelHeight)
+        // One read: each access to `fittingSize` runs a SwiftUI layout pass, and this
+        // method runs on every content size change.
+        let fitting = hosting.fittingSize
+        let fittingHeight = min(fitting.height, maxPanelHeight)
         let newHeight = max(fittingHeight, Layout.panelMinHeight)
         // Skip no-op frame updates to avoid layout feedback loops
         guard abs(newHeight - panel.frame.height) > 0.5 else { return }
@@ -386,7 +410,7 @@ public final class StatusBarManager: NSObject {
             x: panel.frame.origin.x,
             y: topAnchor - newHeight
         )
-        let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
+        let fittingWidth = max(fitting.width, Layout.popoverWidth)
         panel.setFrame(
             NSRect(origin: newOrigin, size: NSSize(width: fittingWidth, height: newHeight)),
             display: true,
@@ -408,6 +432,7 @@ public final class StatusBarManager: NSObject {
             NotificationCenter.default.removeObserver(obs)
         }
         appearanceObserver?.invalidate()
+        buttonAppearanceObserver?.invalidate()
         sparkleTimer?.invalidate()
         countdownTimer?.invalidate()
     }

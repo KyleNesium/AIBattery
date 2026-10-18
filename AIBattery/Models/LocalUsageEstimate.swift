@@ -216,6 +216,18 @@ enum LocalUsageEstimate {
     static var latestFiveHourTokens: Int = 0
     static var latestSevenDayTokens: Int = 0
 
+    /// Publish the active account's aggregated window tokens for 429 calibration —
+    /// **Claude only**. Codex snapshots never use the local estimate, and the globals
+    /// feed a header-less-429 calibration on whichever account is active next: Codex
+    /// token counts left here could seed a Claude limit from Codex math right after an
+    /// account switch. Both the network refresh and the FS-triggered local refresh go
+    /// through this one gate.
+    static func recordLatestTokens(fiveHour: Int, sevenDay: Int, provider: AIProvider) {
+        guard provider == .claude else { return }
+        latestFiveHourTokens = fiveHour
+        latestSevenDayTokens = sevenDay
+    }
+
     /// Called when a 429 is received without unified headers.
     /// The 429 *may* mean the user's quota is at the real limit, but a 429 with
     /// no rate limit headers also fires for upstream incidents, IP/org blocks,

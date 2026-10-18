@@ -43,3 +43,16 @@ struct MetricToggleViewTests {
         #expect(remaining == expected)
     }
 }
+
+@Suite("Auto-mode section order (A12)")
+struct AutoModeSectionOrderTests {
+    @Test("the section order follows whichever mode is current — it is derived, never cached",
+          arguments: [(MetricMode.fiveHour, MetricMode.sevenDay), (.sevenDay, .contextHealth), (.contextHealth, .fiveHour)])
+    func orderChangesWhenResolvedModeChanges(before: MetricMode, after: MetricMode) {
+        let first = MetricMode.orderedModes(current: before)
+        let second = MetricMode.orderedModes(current: after)
+        #expect(first.first == before)
+        #expect(second.first == after)
+        #expect(first != second)
+    }
+}

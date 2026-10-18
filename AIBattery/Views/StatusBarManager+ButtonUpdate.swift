@@ -21,7 +21,9 @@ struct MenuBarRenderKey: Equatable {
 
     init(text: String, percent: Double, color: NSColor, isBroken: Bool, isSparkle: Bool, appearanceName: NSAppearance.Name) {
         self.text = text
-        percentBucket = Int(percent.rounded())
+        // Same truncation as the displayed number (`PercentFormat`), so the bucket
+        // flips exactly when the text would.
+        percentBucket = PercentFormat.whole(percent)
         self.color = color
         self.isBroken = isBroken
         self.isSparkle = isSparkle
@@ -94,7 +96,7 @@ extension StatusBarManager {
         if confirmed {
             updateSparkleState(isThrottled: isExhausted)
         }
-        updateRenderState(percent: percent, color: starColor, isThrottled: confirmed ? isExhausted : currentIsThrottled)
+        updateRenderState(isThrottled: confirmed ? isExhausted : currentIsThrottled)
 
         // Skip the image rebuild when nothing visible changed. Sparkle/appearance are
         // part of the key, so their transitions still render. The countdown timer
@@ -176,9 +178,7 @@ extension StatusBarManager {
         }
     }
 
-    private func updateRenderState(percent: Double, color: NSColor, isThrottled: Bool) {
-        currentPercent = percent
-        currentColor = color
+    private func updateRenderState(isThrottled: Bool) {
         currentIsThrottled = isThrottled
         hasReceivedFirstUpdate = true
     }

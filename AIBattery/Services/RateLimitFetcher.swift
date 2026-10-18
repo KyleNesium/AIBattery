@@ -85,6 +85,26 @@ final class RateLimitFetcher {
     private var consecutiveAuthFailures: [String: Int] = [:]
     static let authErrorThreshold = 3
 
+    /// Per-account backoff for `/api/oauth/usage`. Without it an outage on that endpoint
+    /// turned every poll into a burst: the usage call, then a Messages probe per
+    /// candidate model, then a client-data read on each header-less success. The Codex
+    /// fetcher has had this since it shipped; this is the Claude side catching up.
+    private var usageEndpointBackoff: [String: EndpointBackoff] = [:]
+
+    func isUsageEndpointInBackoff(accountId: String, now: Date = Date()) -> Bool {
+        EndpointBackoff.shouldSkip(usageEndpointBackoff[accountId] ?? EndpointBackoff(), now: now)
+    }
+
+    func recordUsageEndpointFailure(accountId: String, now: Date = Date()) {
+        usageEndpointBackoff[accountId] = EndpointBackoff.recordingFailure(
+            usageEndpointBackoff[accountId] ?? EndpointBackoff(), now: now
+        )
+    }
+
+    func resetUsageEndpointBackoff(accountId: String) {
+        usageEndpointBackoff[accountId] = nil
+    }
+
     init() {
         restorePersistedRateLimits()
         restoreWorkingModels()
@@ -166,10 +186,18 @@ final class RateLimitFetcher {
     /// - Header parsing (`RateLimitUsage.parse`, `APIProfile.parse`, etc.) — these are
     ///   pure, sub-millisecond, and don't materially affect responsiveness.
     func fetch(accessToken: String, accountId: String) async -> APIFetchResult {
+        // Every source failed recently — skip the cycle rather than spend the usage call
+        // plus a probe per candidate model plus a client-data read re-learning that they
+        // are still down. Stale limits beat a request storm against a struggling host.
+        if isUsageEndpointInBackoff(accountId: accountId) {
+            return cachedOrEmpty(accountId: accountId)
+        }
+
         // Primary: dedicated usage endpoint — no model probe needed, always returns data.
         switch await fetchUsageEndpoint(accessToken: accessToken, accountId: accountId) {
         case .success(let usageResult):
             consecutiveAuthFailures[accountId] = 0
+            resetUsageEndpointBackoff(accountId: accountId)
             cachedResults[accountId] = usageResult
             persistRateLimits(usageResult, accountId: accountId)
             return usageResult
@@ -206,6 +234,9 @@ final class RateLimitFetcher {
                 // and the popover dropped to a local estimate with the real percentages
                 // gone for good. Keep the last good windows and let the rest refresh.
                 let merged = Self.preservingRateLimits(new: fetchResult, previous: cachedResults[accountId])
+                // A working probe means this account still has a live data source, even
+                // with the usage endpoint down — keep the backoff disarmed.
+                resetUsageEndpointBackoff(accountId: accountId)
                 cachedResults[accountId] = merged
                 persistRateLimits(merged, accountId: accountId)
                 return merged
@@ -217,10 +248,14 @@ final class RateLimitFetcher {
                 // Network errors don't reset auth-failure count — a flaky network
                 // shouldn't mask a persistent auth problem, but it shouldn't
                 // count as one either.
+                recordUsageEndpointFailure(accountId: accountId)
                 return cachedOrEmpty(accountId: accountId)
             }
         }
 
+        // Usage endpoint unavailable AND no candidate model answered: nothing here is
+        // working, so arm the backoff and let the next few polls cost nothing.
+        recordUsageEndpointFailure(accountId: accountId)
         return cachedOrEmpty(accountId: accountId)
     }
 
@@ -430,15 +465,10 @@ final class RateLimitFetcher {
                             ))
                         }
 
-                        if let fallback = await fetchClaudeCodeClientData(
-                            accessToken: accessToken,
-                            cached: cached,
-                            accountId: accountId,
-                            model: model,
-                            callerStandardLimits: retryStdLimits ?? standardLimits
-                        ) {
-                            return .success(fallback)
-                        }
+                        // No second client-data read here: the first one, a few lines up,
+                        // already failed for this same account moments ago. Retrying it
+                        // inside a Retry-After window only adds a request to a host that
+                        // has just asked us to slow down.
 
                         if retryProfile != nil || Self.containsStandardRateLimitHeaders(retryHttp.allHeaderFields) {
                             return .success(APIFetchResult(

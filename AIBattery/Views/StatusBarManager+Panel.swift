@@ -26,10 +26,12 @@ extension StatusBarManager {
             // Refit panel to current SwiftUI content size — settings may have
             // collapsed while the panel was hidden, leaving a stale frame.
             if let hosting = hostingView {
-                let screenMaxHeight = panel.screen?.visibleFrame.height ?? 900
-                let maxPanelHeight = screenMaxHeight - 40
-                let fittingHeight = min(max(hosting.fittingSize.height, Layout.panelMinHeight), maxPanelHeight)
-                let fittingWidth = max(hosting.fittingSize.width, Layout.popoverWidth)
+                let screenMaxHeight = panel.screen?.visibleFrame.height ?? Layout.fallbackScreenHeight
+                let maxPanelHeight = screenMaxHeight - Layout.menuBarInset
+                // One read: each access to `fittingSize` runs a SwiftUI layout pass.
+                let fitting = hosting.fittingSize
+                let fittingHeight = min(max(fitting.height, Layout.panelMinHeight), maxPanelHeight)
+                let fittingWidth = max(fitting.width, Layout.popoverWidth)
                 panel.setContentSize(NSSize(width: fittingWidth, height: fittingHeight))
             }
             positionPanel(relativeTo: button)

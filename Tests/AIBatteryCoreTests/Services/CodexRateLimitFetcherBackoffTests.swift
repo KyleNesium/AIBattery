@@ -48,6 +48,36 @@ struct CodexRateLimitFetcherBackoffTests {
         #expect(CodexRateLimitFetcher.shouldSkipEndpoint(state, now: t0.addingTimeInterval(1)))
     }
 
+    // MARK: - Cancellation is not an endpoint failure (A7)
+
+    /// `UsageViewModel+FanOut` cancels in-flight fan-outs on a toggle flip or an account
+    /// change; the children see `URLError(.cancelled)`. Recording that as an endpoint
+    /// failure parked the account in a 60 s–5 min backoff right after the user added or
+    /// removed an account.
+    @Test @MainActor func cancelledTransport_servesCache_withoutRecordingFailure() async {
+        let fetcher = CodexRateLimitFetcher()
+        fetcher.transport = { _ in throw URLError(.cancelled) }
+
+        let result = await fetcher.fetchAPIKeyLimits(apiKey: "sk-test-cancelled-probe-000", accountId: "a7-api")
+        #expect(result.rateLimits == nil && result.standardLimits == nil)
+        #expect(!fetcher.isInBackoffForTesting(accountId: "a7-api"))
+
+        // The ChatGPT path takes the same exit before it would touch the session logs.
+        let oauth = await fetcher.fetch(accessToken: "at", accountId: "a7-oauth")
+        #expect(oauth.rateLimits == nil, "nothing cached → empty result, never a session-log scan")
+        #expect(!fetcher.isInBackoffForTesting(accountId: "a7-oauth"))
+    }
+
+    /// Control: a real transport failure still records one (the API-key path has no
+    /// session-log fallback, so it is the one safe to drive end-to-end in a unit test).
+    @Test @MainActor func timedOutTransport_recordsFailure() async {
+        let fetcher = CodexRateLimitFetcher()
+        fetcher.transport = { _ in throw URLError(.timedOut) }
+
+        _ = await fetcher.fetchAPIKeyLimits(apiKey: "sk-test-timeout-probe-0000", accountId: "a7-timeout")
+        #expect(fetcher.isInBackoffForTesting(accountId: "a7-timeout"))
+    }
+
     @Test @MainActor func fetcher_tracksBackoffPerAccount() {
         let fetcher = CodexRateLimitFetcher()
         #expect(!fetcher.isInBackoffForTesting(accountId: "a"))

@@ -142,6 +142,53 @@ struct ActivityTrendTests {
 
     // MARK: - Helpers
 
+    // MARK: - 12-month window
+
+    /// The chart plots exactly the rolling twelve months, but the summary beneath it
+    /// used to reduce every month the aggregator had ever written. Anyone retaining more
+    /// than a year of logs saw "N in 12m" and "Peak" disagree with the chart above them.
+    @Test func monthlyStatAndPeakUseOnlyTheRollingTwelveMonths() throws {
+        let keys = ActivityChartData.rollingTwelveMonthKeys()
+        #expect(keys.count == 12)
+
+        var totals: [String: Int] = [:]
+        for key in keys {
+            totals[key] = 1_000
+        }
+        // An ancient month, far larger than anything in the window.
+        let cal = Calendar.current
+        let ancient = try #require(cal.date(byAdding: .month, value: -30, to: Date()))
+        let comps = cal.dateComponents([.year, .month], from: ancient)
+        let ancientKey = try String(format: "%04d-%02d", #require(comps.year), #require(comps.month))
+        totals[ancientKey] = 10_000_000
+
+        let data = ActivityTrendComputation.compute(
+            mode: .monthly,
+            snapshot: makeSnapshot(),
+            monthTotals: totals
+        )
+
+        // 12 × 1,000 = 12,000 exactly. Compare against the formatter's own output so the
+        // assertion cannot be satisfied by an unrelated "12" elsewhere in the string —
+        // "in 12m" is part of every value this can take.
+        let stat = try #require(data.stat)
+        #expect(stat == "\(InsightsView.compactCount(12_000)) in 12m", "stat was \(stat)")
+
+        // And it must not win "Peak" either.
+        let ancientAbbrev = InsightsView.monthAbbrev(ancient)
+        #expect(data.peak != "Peak: \(ancientAbbrev)", "an out-of-window month was named the peak")
+    }
+
+    @Test func rollingTwelveMonthKeysEndOnTheCurrentMonthAndAreAscending() {
+        let keys = ActivityChartData.rollingTwelveMonthKeys()
+        #expect(keys == keys.sorted(), "keys must be oldest first")
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.year, .month], from: Date())
+        if let y = comps.year, let m = comps.month {
+            #expect(keys.last == String(format: "%04d-%02d", y, m))
+        }
+    }
+
     private func makeSnapshot(
         todayMessages: Int = 0,
         dailyActivity: [DailyActivity] = [],

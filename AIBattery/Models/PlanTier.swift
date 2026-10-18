@@ -122,6 +122,10 @@ enum PlanTier: String, CaseIterable, Codable {
         }
         if decodedAccounts.count >= decodedAccountsCap {
             decodedAccounts.removeAll(keepingCapacity: true)
+            // `decodeCounts` shadows the same keys and is pure test instrumentation.
+            // Left uncapped it retained a copy of every accounts blob the process had
+            // ever seen, for the lifetime of the process.
+            decodeCounts.removeAll(keepingCapacity: true)
         }
         decodedAccounts[data] = billing
         return billing

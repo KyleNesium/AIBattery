@@ -79,6 +79,16 @@ struct InsightsView: View {
         hasher.combine(snapshot?.fiveHourTokens)
         hasher.combine(snapshot?.sevenDayTokens)
         hasher.combine(snapshot?.totalTokens)
+        // All three transforms are anchored to the clock: the 5-hour buckets shift every
+        // 15 minutes and the daily series rolls at midnight, both WITHOUT the totals
+        // changing. Keying only on totals meant an idle hour left the chart drawing its
+        // peak under a "Now" label it recomputed from the live clock — it claimed the
+        // last 15 minutes held work done hours ago. The aggregator already re-aggregates
+        // on this same 15-minute bucket, so following `lastUpdated` picks up exactly the
+        // snapshots whose buckets moved, at constant cost. Hashing the bucket maps
+        // themselves would be correct too, but this is read on every body evaluation and
+        // `dailyTokenTotals` is unbounded.
+        hasher.combine(snapshot.map { Int($0.lastUpdated.timeIntervalSinceReferenceDate / UsageAggregator.fingerprintTimeBucket) })
         return hasher.finalize()
     }
 

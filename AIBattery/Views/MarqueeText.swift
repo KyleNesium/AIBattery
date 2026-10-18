@@ -45,7 +45,6 @@ struct MarqueeText: View {
 
     var body: some View {
         GeometryReader { geo in
-            let _ = updateContainerWidth(geo.size.width)
             Text(currentText)
                 .id(currentIndex)
                 .font(font)
@@ -73,6 +72,11 @@ struct MarqueeText: View {
                 }
                 .offset(x: offset)
                 .opacity(textOpacity)
+                // Container width is @State: written from the lifecycle hooks, never from
+                // inside the GeometryReader builder (a state write during body evaluation
+                // is undefined behaviour in SwiftUI and logs at runtime).
+                .onAppear { updateContainerWidth(geo.size.width) }
+                .onChange(of: geo.size.width) { updateContainerWidth($0) }
         }
         .clipped()
         .frame(height: Layout.marqueeHeight)
@@ -135,6 +139,12 @@ struct MarqueeText: View {
         textWidth = 0
         currentIndex = 0
         textOpacity = 1.0
+        // Re-arm before scheduling. `cancelAndStop` clears `animating`, and every block
+        // `schedule` wraps opens with `guard animating` — so the restart block returned
+        // immediately and only `beginCycle` could set the flag, which was the very thing
+        // being guarded out. The ticker froze on the first string for the life of the
+        // view on any `texts` change, which is exactly when an incident list updates.
+        animating = true
         schedule(after: MotionConstants.marqueeRestartSeconds) {
             beginCycle()
         }

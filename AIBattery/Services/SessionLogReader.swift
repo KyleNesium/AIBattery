@@ -72,6 +72,12 @@ final class SessionLogReader: @unchecked Sendable {
     /// Preserved across invalidations so incremental rebuilds can add only changed files.
     private var cachedAllEntries: [AssistantUsageEntry]?
 
+    /// The message ids of `cachedAllEntries`, kept in step with it. Rebuilding this from
+    /// the merged array cost a string hash per entry on every dirty cycle — tens of
+    /// thousands of them — to re-learn something the previous cycle already knew.
+    /// Always written together with `cachedAllEntries`; `nil` means "not yet computed".
+    private var cachedSeenIds: Set<String>?
+
     /// Cached list of discovered JSONL file URLs.
     private var discoveredFiles: [URL]?
     /// Parent directory mod dates used to invalidate discovery cache.
@@ -82,8 +88,6 @@ final class SessionLogReader: @unchecked Sendable {
     /// Timestamp of the last full directory enumeration. Used as TTL fallback
     /// when directory mod-dates don't reflect new files (filesystem-dependent).
     private var lastFullEnumerationDate: Date?
-
-    private nonisolated(unsafe) static let isoFormatter = DateFormatters.iso8601
 
     /// Pre-computed byte markers for fast JSONL pre-filtering (avoids re-allocating per file).
     private static let assistantMarkers: [Data] = [
@@ -149,12 +153,15 @@ final class SessionLogReader: @unchecked Sendable {
             }
             if !idsToRemove.isEmpty, let existing = cachedAllEntries {
                 cachedAllEntries = existing.filter { !idsToRemove.contains($0.messageId) }
+                cachedSeenIds?.subtract(idsToRemove)
             }
         }
 
         // Incremental rebuild: use cachedAllEntries as base, only re-parse changed/new files.
         // For evicted files with unchanged fingerprint, entries already live in cachedAllEntries.
-        let result = rebuild(jsonlFiles: jsonlFiles, base: cachedAllEntries)
+        let (result, resultIds) = rebuild(
+            jsonlFiles: jsonlFiles, base: cachedAllEntries, baseIds: cachedSeenIds
+        )
 
         if pendingInvalidation.swap(false) {
             isDirty = true
@@ -163,6 +170,7 @@ final class SessionLogReader: @unchecked Sendable {
         }
 
         cachedAllEntries = result
+        cachedSeenIds = resultIds
         evictOldFileEntries()
         lock.unlock()
         return result
@@ -174,9 +182,15 @@ final class SessionLogReader: @unchecked Sendable {
     ///   - Unchanged + live entries: add any not yet in base (handles first-run where base was nil).
     ///   - Changed or new: remove stale messageIds from base, re-parse, add fresh entries.
     ///   - base == nil: parse all files from scratch.
-    private func rebuild(jsonlFiles: [URL], base: [AssistantUsageEntry]?) -> [AssistantUsageEntry] {
+    private func rebuild(
+        jsonlFiles: [URL],
+        base: [AssistantUsageEntry]?,
+        baseIds: Set<String>?
+    ) -> ([AssistantUsageEntry], Set<String>) {
         var resultEntries = base ?? []
-        var seenIds = Set(resultEntries.map(\.messageId))
+        // Reuse the previous cycle's id set when it is in step with `base`; only the
+        // first pass (or a reader that was invalidated) pays the full rehash.
+        var seenIds = baseIds ?? Set(resultEntries.map(\.messageId))
         var changed = false
 
         for fileURL in jsonlFiles {
@@ -241,7 +255,7 @@ final class SessionLogReader: @unchecked Sendable {
         if changed || base == nil {
             resultEntries.sort { $0.timestamp < $1.timestamp }
         }
-        return resultEntries
+        return (resultEntries, seenIds)
     }
 
     /// Release raw entry arrays from per-file cache for files not modified today.
@@ -249,13 +263,13 @@ final class SessionLogReader: @unchecked Sendable {
     /// cachedAllEntries remains the authoritative source for these entries.
     private func evictOldFileEntries() {
         let today = Calendar.current.startOfDay(for: Date())
-        for (path, entry) in cache where entry.entries != nil && entry.modDate < today {
-            cache[path] = FileCacheEntry(
-                modDate: entry.modDate,
-                fileSize: entry.fileSize,
-                entries: nil,
-                messageIds: entry.messageIds
-            )
+        // Collect first: mutating `cache` while iterating it forces a copy of the whole
+        // per-file dictionary on every committed cycle.
+        let stalePaths = cache.compactMap { path, entry -> String? in
+            entry.entries != nil && entry.modDate < today ? path : nil
+        }
+        for path in stalePaths {
+            cache[path]?.entries = nil
         }
     }
 
@@ -303,8 +317,7 @@ final class SessionLogReader: @unchecked Sendable {
         var newDirModDates: [String: Date] = [:]
 
         // Track projects root mod date
-        if let attrs = try? fm.attributesOfItem(atPath: projectsURL.path),
-           let modDate = attrs[.modificationDate] as? Date {
+        if let modDate = FileStat.modificationDate(of: projectsURL) {
             newDirModDates[projectsURL.path] = modDate
         }
 
@@ -321,27 +334,18 @@ final class SessionLogReader: @unchecked Sendable {
         for dir in projectDirs {
             guard (try? dir.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
 
-            // Skip non-Claude-Code project directories (e.g. MCP observer sessions).
-            // Claude Code encodes the project's absolute path as the directory name,
-            // replacing "/" with "-". Decode back to a path and check if any component
-            // starts with "." (hidden directory).
-            let decodedPath = "/" + dir.lastPathComponent.dropFirst().replacingOccurrences(of: "-", with: "/")
-            if decodedPath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) {
-                continue
-            }
-
+            // Every project directory counts — including sessions other tools write here
+            // (e.g. claude-mem observer sessions under `-Users-x--claude-mem-...`). Claude
+            // Code encodes both `/` and `.` as `-`, so a "decode and skip hidden path
+            // components" filter can never match a real directory name; a deny-list
+            // was considered and rejected (spec/DATA_LAYER.md, SessionLogReader).
             let dirPath = dir.path
             currentDirPaths.insert(dirPath)
 
             // Track directory mod date
-            let dirModDate: Date?
-            if let attrs = try? fm.attributesOfItem(atPath: dirPath) {
-                dirModDate = attrs[.modificationDate] as? Date
-                if let md = dirModDate {
-                    newDirModDates[dirPath] = md
-                }
-            } else {
-                dirModDate = nil
+            let dirModDate = FileStat.modificationDate(of: dir)
+            if let md = dirModDate {
+                newDirModDates[dirPath] = md
             }
 
             // Skip unchanged directories — use cached file list (unless forced full enumeration)
@@ -392,10 +396,8 @@ final class SessionLogReader: @unchecked Sendable {
 
     /// Check if any tracked directory mod dates have changed since last discovery.
     private func discoveryDirModDatesChanged() -> Bool {
-        let fm = FileManager.default
         for (path, cachedDate) in discoveryDirModDates {
-            guard let attrs = try? fm.attributesOfItem(atPath: path),
-                  let currentDate = attrs[.modificationDate] as? Date else {
+            guard let currentDate = FileStat.modificationDate(ofPath: path) else {
                 return true // Can't stat → assume changed
             }
             if currentDate != cachedDate {
@@ -412,25 +414,54 @@ final class SessionLogReader: @unchecked Sendable {
         defer { try? handle.close() }
 
         var entries: [AssistantUsageEntry] = []
+        // Claude Code writes one JSONL line per content block, all sharing `message.id`
+        // and carrying identical `usage`. The first line is usually text/thinking with
+        // zero `tool_use` blocks; the cross-file dedup in `rebuild` keeps first-wins, so
+        // without coalescing here the tool-call count was ~25x too low (187 → 7 on a
+        // real file). Token fields are taken from the first line only.
+        var indexById: [String: Int] = [:]
         let decoder = Self.jsonDecoder
+
+        func collect(_ entry: AssistantUsageEntry) {
+            if let index = indexById[entry.messageId] {
+                if entry.toolCallCount > 0 {
+                    entries[index] = Self.addingToolCalls(entry.toolCallCount, to: entries[index])
+                }
+            } else {
+                indexById[entry.messageId] = entries.count
+                entries.append(entry)
+            }
+        }
 
         let bufferSize = 64 * 1_024 // 64KB chunks
         let maxLineSize = 1_048_576 // 1MB — skip lines longer than this (malformed/corrupt)
         var leftover = Data()
+        /// Set once a line passes `maxLineSize` without a newline. Until the newline
+        /// arrives every further byte is dropped — previously the remainder was
+        /// re-counted as corrupt once per MB and its tail parsed as a new line.
+        var skippingOversizedLine = false
 
         while true {
             guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
-            let alreadyScanned = leftover.count
+            var alreadyScanned = leftover.count
             leftover.append(chunk)
 
-            // Safety: if leftover exceeds max line size without finding a newline,
-            // the JSONL line is malformed — discard and move on.
-            if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
+            if skippingOversizedLine {
+                guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
+                    leftover.removeAll()
+                    continue
+                }
+                leftover = Data(leftover[(newlineIndex + 1)...])
+                alreadyScanned = 0
+                skippingOversizedLine = false
+            } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
+                // Malformed / unexpectedly large line — count once, skip to its newline.
                 lastCorruptLineCount += 1
-                AppLogger.files.warning("Skipping oversized JSONL line (\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
+                AppLogger.files.debug("Skipping oversized JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
+                skippingOversizedLine = true
                 continue
             }
 
@@ -456,7 +487,10 @@ final class SessionLogReader: @unchecked Sendable {
                     continue
                 }
                 if let usageEntry = Self.makeUsageEntry(from: decoded) {
-                    entries.append(usageEntry)
+                    collect(usageEntry)
+                } else if Self.hasCorruptTimestamp(decoded) {
+                    lastCorruptLineCount += 1
+                    AppLogger.files.debug("JSONL line without a parseable timestamp skipped in \(url.lastPathComponent, privacy: .public)")
                 }
             }
 
@@ -469,7 +503,7 @@ final class SessionLogReader: @unchecked Sendable {
 
         // Process any remaining data without trailing newline.
         // Skip incomplete lines (no closing brace = partial write, likely still being written).
-        if !leftover.isEmpty,
+        if !skippingOversizedLine, !leftover.isEmpty,
            leftover.last == UInt8(ascii: "}") {
             let hasAssistant = Self.assistantMarkers.contains { leftover.range(of: $0) != nil }
             if hasAssistant, leftover.range(of: Self.usageMarker) != nil {
@@ -481,12 +515,42 @@ final class SessionLogReader: @unchecked Sendable {
                     decoded = nil
                 }
                 if let entry = decoded, let usageEntry = Self.makeUsageEntry(from: entry) {
-                    entries.append(usageEntry)
+                    collect(usageEntry)
                 }
             }
         }
 
         return entries
+    }
+
+    /// The line's top-level ISO 8601 timestamp (fractional or whole seconds), or nil.
+    nonisolated static func parseTimestamp(_ text: String?) -> Date? {
+        text.flatMap(DateFormatters.parseISO8601)
+    }
+
+    /// True for a line that is an assistant usage line in every respect except its
+    /// timestamp — the one reason `makeUsageEntry` returns nil that counts as corrupt.
+    private static func hasCorruptTimestamp(_ entry: SessionEntry) -> Bool {
+        entry.type == "assistant" && entry.message?.usage != nil && entry.message?.model != nil
+            && parseTimestamp(entry.timestamp) == nil
+    }
+
+    /// Copy of `entry` with `count` more tool calls — used to fold a later content-block
+    /// line of the same message into the entry built from its first line.
+    private static func addingToolCalls(_ count: Int, to entry: AssistantUsageEntry) -> AssistantUsageEntry {
+        AssistantUsageEntry(
+            timestamp: entry.timestamp,
+            model: entry.model,
+            messageId: entry.messageId,
+            inputTokens: entry.inputTokens,
+            outputTokens: entry.outputTokens,
+            cacheReadTokens: entry.cacheReadTokens,
+            cacheWriteTokens: entry.cacheWriteTokens,
+            sessionId: entry.sessionId,
+            cwd: entry.cwd,
+            gitBranch: entry.gitBranch,
+            toolCallCount: entry.toolCallCount + count
+        )
     }
 
     /// Build an `AssistantUsageEntry` from a decoded session entry, or nil if it's not an assistant message with usage.
@@ -500,11 +564,10 @@ final class SessionLogReader: @unchecked Sendable {
         // after cache eviction produces the same ID (preserving deduplication).
         let messageId = message.id ?? entry.uuid
             ?? "\(entry.sessionId ?? ""):\(entry.timestamp ?? ""):\(usage.inputTokens ?? 0):\(usage.outputTokens ?? 0)"
-        let timestamp: Date = if let ts = entry.timestamp {
-            isoFormatter.date(from: ts) ?? Date()
-        } else {
-            Date()
-        }
+        // Either ISO 8601 shape; a missing / malformed stamp is a corrupt line, never
+        // "now" — a `Date()` fallback drops a historical message into the current 5h /
+        // 7d windows and today's chart during a cold scan (mirrors CodexSessionLogParser).
+        guard let timestamp = Self.parseTimestamp(entry.timestamp) else { return nil }
 
         let toolCallCount = message.content?.filter { $0.type == "tool_use" }.count ?? 0
 

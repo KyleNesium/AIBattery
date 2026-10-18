@@ -193,6 +193,36 @@ struct SessionInfoFormatterTests {
 
     // MARK: - Helpers
 
+    // MARK: - Injected clock
+
+    /// Both of these read the wall clock, and the view that shows them used to recompute
+    /// only when the session data changed. An idle session produces equal snapshots, so
+    /// "Idle 31m" and "14m ago" froze at whatever they said when the popover opened —
+    /// on labels whose entire job is to count. The view now drives them from a timeline,
+    /// which is only possible because `now` is injectable.
+    @Test func staleIdleMinutesFollowsTheInjectedClock() {
+        let lastActivity = Date(timeIntervalSince1970: 1_800_000_000)
+        let health = makeHealth(band: .orange, lastActivity: lastActivity)
+
+        // Under the 30-minute threshold: nothing to report yet.
+        #expect(SessionInfoFormatter.staleIdleMinutes(for: health, now: lastActivity.addingTimeInterval(29 * 60)) == nil)
+        // Past it, the number tracks the clock rather than the data.
+        #expect(SessionInfoFormatter.staleIdleMinutes(for: health, now: lastActivity.addingTimeInterval(31 * 60)) == 31)
+        #expect(SessionInfoFormatter.staleIdleMinutes(for: health, now: lastActivity.addingTimeInterval(90 * 60)) == 90)
+    }
+
+    @Test func bottomPartsLastActiveFollowsTheInjectedClock() {
+        let lastActivity = Date(timeIntervalSince1970: 1_800_000_000)
+        let health = makeHealth(lastActivity: lastActivity)
+
+        let justAfter = SessionInfoFormatter.bottomParts(for: health, now: lastActivity.addingTimeInterval(30))
+        #expect(justAfter.contains("just now"))
+
+        let later = SessionInfoFormatter.bottomParts(for: health, now: lastActivity.addingTimeInterval(14 * 60))
+        #expect(later.contains("14m ago"))
+        #expect(!later.contains("just now"), "the same data must read differently at a later clock")
+    }
+
     private func makeHealth(
         id: String = "session-1",
         band: HealthBand = .green,

@@ -16,11 +16,29 @@ extension UsageViewModel {
     // MARK: - One-time setup (init)
 
     func setupFileWatcher() {
-        fileWatcher = FileWatcher { [weak self] in
+        fileWatcher = FileWatcher { [weak self] changed in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.aggregator.invalidate()
-                self.codexAggregator.invalidate()
+                // Scope the invalidation to the provider whose data actually moved. The
+                // watcher already works out which reader it owes; blanket-nilling both
+                // aggregators meant a Claude write every ~2s stopped the Codex aggregator
+                // from ever short-circuiting, so every poll paid a full Codex pass —
+                // entry loop, session grouping, health assessment, ledger merge — over a
+                // tree that had not changed.
+                if changed.sessionLog || changed.statsCache {
+                    self.aggregator.invalidate()
+                }
+                if changed.codexSessionLog {
+                    self.codexAggregator.invalidate()
+                }
+                // Suspended means idle or screen-locked: the popover cannot be open and
+                // the menu bar is not being read. Record that local data moved and let
+                // `resumeTimers` do the one aggregate pass, instead of running one every
+                // ~2s through a long unattended agent run.
+                guard !self.isSuspended else {
+                    self.localDataDirtyWhileSuspended = true
+                    return
+                }
                 // Local-only: a JSONL/stats write changed local token counts, not the
                 // API state. Re-aggregate with the currently displayed rate limits and
                 // leave the poll timer alone — restarting it here starved network polls
@@ -111,6 +129,7 @@ extension UsageViewModel {
         let accountProvider = provider(ofAccount: accountId)
         let cached = Self.cachedResult(for: accountProvider, accountId: accountId)
         guard cached.rateLimits != nil || cached.standardLimits != nil else { return }
+        let generation = displayGeneration
         let result = await aggregateOffMain(
             // Clear rollover artifacts so a just-reset window's carried-over
             // near-full utilization doesn't paint "Limit reached" on return.
@@ -122,10 +141,7 @@ extension UsageViewModel {
             rateLimitsFresh: false
         )
         // Mirror refresh()'s account-switch guard for the suspension window.
-        guard Self.shouldApplyFetchResult(
-            fetchedAccountId: accountId,
-            activeAccountId: OAuthManager.shared.accountStore.activeAccountId
-        ) else { return }
+        guard displayIsCurrent(generation, accountId: accountId) else { return }
         if result != snapshot {
             snapshot = result
         }
@@ -183,6 +199,12 @@ extension UsageViewModel {
         adaptivePolling.unchangedCycles = 0
         restartPolling(interval: refreshInterval)
         fileWatcher?.resumeFallbackTimer()
+        // Catch up on the writes that landed while suspended, in one pass rather than the
+        // one-every-2s the watcher would otherwise have run through the whole absence.
+        if localDataDirtyWhileSuspended {
+            localDataDirtyWhileSuspended = false
+            Task { await refreshLocalData() }
+        }
     }
 
     /// Install a global event monitor that fires on the first mouse/keyboard event

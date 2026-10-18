@@ -23,13 +23,15 @@ enum SessionInfoFormatter {
     }
 
     /// Bottom line parts: duration, last activity, velocity.
-    static func bottomParts(for health: TokenHealthStatus) -> [String] {
+    /// `now` is injected because "Xm ago" counts: the caller drives it from a timeline
+    /// so the line keeps up, rather than freezing until the session data next changes.
+    static func bottomParts(for health: TokenHealthStatus, now: Date = Date()) -> [String] {
         var parts: [String] = []
         if let duration = health.sessionDuration {
             parts.append(DurationFormatter.compact(duration))
         }
         if let lastActivity = health.lastActivity {
-            parts.append(formatSessionTime(lastActivity))
+            parts.append(formatSessionTime(lastActivity, now: now))
         } else if let start = health.sessionStart {
             parts.append(formatSessionTime(start))
         }
@@ -40,9 +42,11 @@ enum SessionInfoFormatter {
     }
 
     /// Minutes idle if session is stale (>30 min with non-green band), otherwise nil.
-    static func staleIdleMinutes(for health: TokenHealthStatus) -> Int? {
+    /// `now` is injected for the same reason as `bottomParts` — an idle session produces
+    /// identical snapshots, so a data-only trigger never refreshes this.
+    static func staleIdleMinutes(for health: TokenHealthStatus, now: Date = Date()) -> Int? {
         guard let lastActivity = health.lastActivity, health.band != .green else { return nil }
-        let idle = Date().timeIntervalSince(lastActivity)
+        let idle = now.timeIntervalSince(lastActivity)
         guard idle > 30 * 60 else { return nil }
         return Int(idle / 60)
     }
@@ -89,7 +93,7 @@ enum SessionInfoFormatter {
         if let branch = health.gitBranch, branch != "HEAD", !branch.isEmpty {
             lines.append("Branch:   \(branch)")
         }
-        lines.append("Context:  \(health.totalUsed)/\(health.usableWindow) (\(Int(health.usagePercentage))%)")
+        lines.append("Context:  \(health.totalUsed)/\(health.usableWindow) (\(PercentFormat.display(health.usagePercentage)))")
         lines.append("Input:    \(health.inputTokens)")
         lines.append("Output:   \(health.outputTokens)")
         if health.cacheReadTokens > 0 {

@@ -45,9 +45,11 @@ public struct UsagePopoverView: View {
     /// CPU). Never armed by `onAppear` — that fires at setup, not on show.
     @State private var deferredRender = DeferredRenderState()
 
-    /// Cached ordered modes — avoids allocating a new array on every body evaluation.
-    @State private var cachedOrderedModes: [MetricMode] = MetricMode.allCases
-    private var orderedModes: [MetricMode] { cachedOrderedModes }
+    /// Selected metric first, then the other two. Computed per body evaluation (a
+    /// 3-element array) rather than cached: in auto mode the selection is
+    /// `viewModel.resolvedMetricMode`, which a cache keyed on the AppStorage values
+    /// never saw change — the tab highlight moved while the sections stayed put.
+    private var orderedModes: [MetricMode] { MetricMode.orderedModes(current: metricMode) }
 
     /// Shape of the active account's quota (windows / credits / per-minute API limits).
     private func displayKind(_ snapshot: UsageSnapshot) -> CodexDisplayKind {
@@ -118,11 +120,8 @@ public struct UsagePopoverView: View {
                 // is attached at setup (launch), NOT on panel show — arming here would race
                 // the launch pre-warm's orderOut and could leave the heavy sections armed
                 // on a never-opened panel. Every real open posts .panelDidShow instead.
-                recomputeOrderedModes()
             }
-            .onChange(of: metricModeRaw) { _ in recomputeOrderedModes() }
             .onChange(of: autoMetricMode) { _ in
-                recomputeOrderedModes()
                 if !autoMetricMode {
                     viewModel.resetHysteresis()
                 }
@@ -154,7 +153,14 @@ public struct UsagePopoverView: View {
             .onReceive(accountStore.$accounts) { accounts in
                 // Signing out of the second-to-last account leaves the overview with nothing
                 // to compare; gaining one never yanks the user out of a detail view.
-                mode = PopoverMode.next(current: mode, eligibleAccountCount: AccountCard.eligibleCount(accounts: accounts))
+                let next = PopoverMode.next(current: mode, eligibleAccountCount: AccountCard.eligibleCount(accounts: accounts))
+                guard next != mode else { return }
+                mode = next
+                // Forced out of the overview onto the detail face: arm the heavy sections
+                // the same way `select` and `.panelDidShow` do, or Projects/Insights stay
+                // collapsed until the panel is closed and reopened.
+                guard next == .detail else { return }
+                DispatchQueue.main.async { deferredRender.appeared() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in
                 resetTransientPopoverState()
@@ -208,7 +214,6 @@ public struct UsagePopoverView: View {
     private var overviewCards: [AccountCard] {
         AccountCard.rows(
             accounts: accountStore.accounts,
-            activeId: accountStore.activeAccountId,
             readings: viewModel.perAccountReadings,
             statuses: viewModel.providerStatuses,
             snapshots: viewModel.providerSnapshots,
@@ -313,11 +318,15 @@ public struct UsagePopoverView: View {
                 // already separates the settings stack from the footer row. Adding
                 // another here renders a doubled-up line at the bottom.
             } else if let snapshot = viewModel.snapshot {
+                // Resolved once per body evaluation. It was recomputed at each of the
+                // four sites below, and every call re-ran `CodexDisplayKind.of` plus an
+                // `activeAccount` lookup for an answer that cannot change mid-render.
+                let kind = displayKind(snapshot)
                 MetricToggleView(
                     pickerBinding: pickerBinding,
                     snapshot: snapshot,
                     provider: snapshot.provider,
-                    kind: displayKind(snapshot)
+                    kind: kind
                 )
 
                 // Local estimate header — shown once when API rate limits are unavailable
@@ -367,7 +376,7 @@ public struct UsagePopoverView: View {
                         } else if let stdLimits = snapshot.standardLimits {
                             StandardLimitsSection(limits: stdLimits, provider: snapshot.provider)
                             StyledDivider()
-                        } else if displayKind(snapshot) == .apiLimits {
+                        } else if kind == .apiLimits {
                             // An API-key account selects the "API Limits" tab from the
                             // account type alone, but `standardLimits` is nil until the
                             // first `/v1/responses` probe lands. `.sevenDay` is EmptyView
@@ -377,7 +386,7 @@ public struct UsagePopoverView: View {
                             StyledDivider()
                         }
                     case .sevenDay:
-                        if displayKind(snapshot) != .windows {
+                        if kind != .windows {
                             // Rendered once in the .fiveHour slot as the Credits / API Limits bar.
                             EmptyView()
                         } else if let limits = snapshot.rateLimits {
@@ -417,7 +426,7 @@ public struct UsagePopoverView: View {
                         }
                     }
                 }
-                .animation(MotionConstants.snappy, value: metricModeRaw)
+                .animation(MotionConstants.snappy, value: metricMode)
 
                 if deferredRender.hasAppeared {
                     ProjectUsageGate(snapshot: snapshot)
@@ -519,10 +528,6 @@ public struct UsagePopoverView: View {
         // onDisappear, so without this the hidden panel kept re-rendering
         // Projects/Insights (incl. Swift Charts) on every poll.
         deferredRender.disappeared()
-    }
-
-    private func recomputeOrderedModes() {
-        cachedOrderedModes = MetricMode.orderedModes(current: metricMode)
     }
 
     private func handleKeyPress(_ key: String) {

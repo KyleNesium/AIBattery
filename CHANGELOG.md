@@ -1,5 +1,95 @@
 # Changelog
 
+## [3.2.0] — 2026-10-18
+
+### 🩹 Fixed: a barely-used week could read as a full one
+
+A reported bug: claude.ai said "Fresh week. 1% of your weekly limit used" while AI
+Battery showed the 7-Day bar full and red. The usage endpoint reports utilization as a
+percentage, and the parser was guessing the unit — correct for every value above 1 and
+inverted below it, so `1` (one percent) was read as the fraction 1.0 and drawn as 100%.
+The error was largest exactly where it mattered most: an almost untouched window
+reported as exhausted. Confirmed against the live endpoint and pinned by tests across
+the whole sub-1% range.
+
+This release is otherwise a sweep: a full code review of every layer, the fixes it
+found, and the performance work that came with them.
+
+### Fixed
+- **A fresh week no longer reads as a full one.** Any 7-Day or 5-Hour figure at or below
+  1% was multiplied a hundredfold; 1% showed as 100% with the alarm armed.
+- **Tool-call counts were roughly 25× too low.** Claude Code writes one log line per
+  content block and they share a message id, so the first line won per message — usually
+  a thinking block, not a tool call. One real session counted 7 of its 187 tool calls.
+- **Every project directory counts now.** A filter meant to skip other tools' sessions
+  could never match, because Claude Code encodes `.` and `/` the same way. Nothing was
+  actually being excluded; the filter is gone rather than repaired, since making it work
+  would have dropped worktree sessions too.
+- **The active session's Context reading came from its oldest turn.** Any session older
+  than the idle cutoff showed the first turn's context instead of the newest, reported no
+  duration, and raised a spurious "rapid token consumption" warning.
+- **A Codex plan with a purchased-credit balance** showed "Credits 0%" on its overview
+  card and in the menu bar instead of its real 5-hour and weekly windows.
+- **Auto mode reordered the tabs but not the sections** beneath them.
+- **One rounding rule across every surface.** 99.6% read "100%" on cards and in the menu
+  bar but "99%" in the detail bar. Everything truncates now, so "100%" means 100.
+- **Switching accounts logged phantom throttle events** into the Insights trend, because
+  one tracker was shared across every account.
+- **"Idle Nm" and "Xm ago" froze** while the popover stayed open, on labels whose whole
+  job is to count.
+- **The 12-month total and peak** folded every month ever recorded while the chart above
+  them plotted twelve, so the two disagreed for anyone keeping more than a year of logs.
+- **The activity chart could show stale buckets** under a live "Now" axis after an idle
+  spell, claiming recent work that happened hours earlier.
+- **The footer's incident ticker stopped scrolling** whenever the incident list changed.
+- **A junk response no longer signs you out of Claude.** An unparseable 200 from a
+  captive portal, or a 403 from a WAF, was treated as a dead credential and deleted the
+  stored refresh token.
+- **Signing out during a token refresh** could resurrect the account and recreate its
+  Keychain item.
+- **Adding or removing an account** no longer drops Codex into a multi-minute backoff and
+  freezes its status dot.
+- **Redirects are refused.** The app followed 3xx by default, which would replay an
+  `Authorization` header to whatever host the redirect named. The 2 MB response cap is
+  now enforced while the body streams rather than after it is already in memory.
+- An account switch landing mid-refresh could publish the previous account's readings,
+  errors or alerts under the new account.
+
+### Changed
+- **The `active` badge is gone from the overview cards.** It marked nothing you could act
+  on: clicking any card makes that account active, so it only recorded the last card you
+  opened, and it changed no number on any card or in the menu bar. The live dot stays —
+  it answers which CLI is working right now — and the detail header still names the
+  account you are viewing.
+
+### Performance
+- **Codex log discovery no longer re-walks its whole tree** on every file-system event.
+  It had been re-reading every directory and resolving every file path a few times a
+  second during an active session; a warm tree now re-reads nothing.
+- **Three endpoints learned to back off.** The Claude usage endpoint, which previously
+  turned an outage into a burst across two further endpoints every poll; token refresh,
+  which re-ran three requests with sleeps for every expired account every cycle; and both
+  already-backing-off fetchers now share one implementation.
+- **No cycle spends a second request on the active account.** An API-key account was
+  being probed twice per poll, and the second probe was billed.
+- **Idle and locked machines stop re-aggregating.** A long unattended run kept rebuilding
+  usage every couple of seconds into a popover nobody had open.
+- **A file-system event only re-aggregates the provider that changed**, instead of both.
+- Lighter log reading and rendering throughout: the message-id set is reused between
+  cycles, directory timestamps no longer bridge a full attribute dictionary, overview
+  cards share one clock, menu-bar brand marks are tinted once, and the account alias
+  field saves on commit rather than on every keystroke.
+
+### Internal
+- A full written review of every layer lives in `docs/reviews/2026-10-16-full-review.md`,
+  including the items deliberately left and why.
+- A notarized release would have shipped an update signature for a file that had already
+  been replaced, and its disk image would have lost the volume icon and window layout.
+- The CI pass floor had fallen far enough behind the suite that a crash partway through
+  could have reported as a clean run.
+- `UsageViewModel` and `OAuthManager` are back under the project's size ceiling, and the
+  test suite is at 1504.
+
 ## [3.1.0] — 2026-10-15
 
 ### ✨ Added: multi-account overview

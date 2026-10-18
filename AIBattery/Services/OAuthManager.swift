@@ -29,7 +29,7 @@ public final class OAuthManager: ObservableObject {
     // Anthropic OAuth constants (same as Claude Code / OpenCode)
     private let clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private let authBaseURL = "https://claude.ai/oauth/authorize"
-    nonisolated private static let tokenURL = "https://console.anthropic.com/v1/oauth/token"
+    nonisolated static let tokenURL = "https://console.anthropic.com/v1/oauth/token"
     private let redirectURI = "https://console.anthropic.com/oauth/code/callback"
     private let scopes = "org:create_api_key user:profile user:inference"
 
@@ -52,10 +52,35 @@ public final class OAuthManager: ObservableObject {
     /// and network-delay induced 401s that trigger unnecessary re-authentication.
     private static let expiryBuffer: TimeInterval = 300 // 5 minutes
 
+    /// Transport used by the refresh and code-exchange paths. Injectable so the refresh
+    /// contract (cancellation, failure backoff) is testable without the live token
+    /// endpoint; production keeps the `SecureNetworking` default.
+    var tokenTransport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) }
+    /// Retry policy for the Claude token endpoint; tests swap in a zero-delay policy.
+    var tokenRetryPolicy: RetryPolicy = .oauth
+
     /// Serializes concurrent refresh attempts per account.
     private var refreshTasks: [String: Task<String?, Never>] = [:]
     /// Generation counter per account — used to detect stale refresh tasks.
     private var refreshGeneration: [String: UInt64] = [:]
+    /// Per-account backoff after a TRANSIENT refresh failure, on the shared
+    /// `RetryPolicy.statusCheck` curve. Cleared on any successful refresh. Auth failures
+    /// never land here: those sign the account out instead of being retried.
+    private var refreshBackoff: [String: EndpointBackoff] = [:]
+
+    func isRefreshBackingOff(accountId: String, now: Date = Date()) -> Bool {
+        EndpointBackoff.shouldSkip(refreshBackoff[accountId] ?? EndpointBackoff(), now: now)
+    }
+
+    func recordRefreshFailure(accountId: String, now: Date = Date()) {
+        refreshBackoff[accountId] = EndpointBackoff.recordingFailure(
+            refreshBackoff[accountId] ?? EndpointBackoff(), now: now
+        )
+    }
+
+    func clearRefreshBackoff(accountId: String) {
+        refreshBackoff[accountId] = nil
+    }
 
     /// Account registry — persisted to UserDefaults.
     @Published public var accountStore = AccountStore()
@@ -132,6 +157,15 @@ public final class OAuthManager: ObservableObject {
         // If a refresh is already in-flight for this account, piggyback on it
         if let existing = refreshTasks[accountId] {
             return await existing.value
+        }
+
+        // A refresh that just failed transiently is not retried on the very next poll.
+        // Each attempt costs three requests with ~1 s and ~2 s sleeps between them (and
+        // up to three 30 s timeouts), nothing recorded the failure, and on wake several
+        // expired accounts did this at once inside the fan-out. Auth failures are not
+        // backed off — those sign out immediately rather than being retried at all.
+        if isRefreshBackingOff(accountId: accountId) {
+            return nil
         }
 
         // Try to refresh
@@ -410,6 +444,9 @@ public final class OAuthManager: ObservableObject {
         tokens.removeValue(forKey: id)
         refreshTasks[id]?.cancel()
         refreshTasks.removeValue(forKey: id)
+        // Account ids are deterministic across a re-login (JWT account id / key hash),
+        // so a fresh sign-in must not inherit the old one's backoff window.
+        clearRefreshBackoff(accountId: id)
         deleteTokens(for: id)
         if removedProvider == .codex {
             cancelCodexAuthFlow()
@@ -477,9 +514,16 @@ public final class OAuthManager: ObservableObject {
             "client_id": clientID,
         ]
 
-        let tokenResult = await Self.postToken(body: body)
+        let tokenResult = await Self.postToken(body: body, transport: tokenTransport, retryPolicy: tokenRetryPolicy)
         switch tokenResult {
         case .success(let result):
+            // `signOut` cancels this task and drops `tokens[accountId]`, but the network
+            // round-trip can't be retracted. Writing the fresh set back here would
+            // resurrect the account in memory and re-create its Keychain item.
+            guard !Task.isCancelled, tokens[accountId] != nil else {
+                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+                return nil
+            }
             tokens[accountId] = AccountTokens(
                 accessToken: result.accessToken,
                 refreshToken: result.refreshToken,
@@ -487,12 +531,14 @@ public final class OAuthManager: ObservableObject {
             )
             saveTokens(for: accountId)
             updateAuthState()
+            clearRefreshBackoff(accountId: accountId)
             return result.accessToken
         case .failure(let error):
             // Only mark as unauthenticated for auth errors (revoked/invalid token).
             // Transient errors (network, 5xx) keep isAuthenticated so we retry next cycle.
             if error.isTransient {
-                AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), will retry next cycle")
+                recordRefreshFailure(accountId: accountId)
+                AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), backing off before the next attempt")
             } else {
                 signOut(accountId: accountId, reason: Self.sessionExpiredReason(for: .claude))
             }
@@ -510,9 +556,14 @@ public final class OAuthManager: ObservableObject {
             tokens[accountId] = AccountTokens(accessToken: refresh, refreshToken: refresh, expiresAt: .distantFuture)
             return refresh
         }
-        let result = await CodexTokenClient.refresh(refreshToken: refresh)
+        let result = await CodexTokenClient.refresh(refreshToken: refresh, transport: tokenTransport)
         switch result {
         case .success(let set):
+            // Same post-sign-out guard as the Anthropic arm: never resurrect a removed account.
+            guard !Task.isCancelled, tokens[accountId] != nil else {
+                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+                return nil
+            }
             let expires = JWTDecoder.expiry(set.accessToken) ?? Date().addingTimeInterval(3_600)
             tokens[accountId] = AccountTokens(
                 accessToken: set.accessToken,
@@ -527,151 +578,20 @@ public final class OAuthManager: ObservableObject {
                 accountStore.backfillDiscoveredIdentity(accountId: accountId, identity: JWTDecoder.email(idToken: idToken))
             }
             updateAuthState()
+            clearRefreshBackoff(accountId: accountId)
             return set.accessToken
         case .failure(let error):
             // Identical disposition to the Anthropic arm above: transient errors
-            // (network, 5xx) keep isAuthenticated and retry next cycle; only
-            // genuine auth errors sign the account out.
+            // (network, 5xx) keep isAuthenticated and back off before the next attempt;
+            // only genuine auth errors sign the account out.
             if error.isTransient {
-                AppLogger.oauth.warning("Codex OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), will retry next cycle")
+                recordRefreshFailure(accountId: accountId)
+                AppLogger.oauth.warning("Codex OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), backing off before the next attempt")
             } else {
                 signOut(accountId: accountId, reason: Self.sessionExpiredReason(for: .codex))
             }
             return nil
         }
-    }
-
-    // MARK: - Token Endpoint
-
-    struct TokenResult {
-        let accessToken: String
-        let refreshToken: String
-        let expiresAt: Date
-    }
-
-    /// Maximum number of retries for transient server errors (5xx).
-    /// `nonisolated` because `postToken` is `nonisolated static` and references this.
-    nonisolated private static let maxRetries = 2
-
-    /// HTTP POST to Anthropic's OAuth token endpoint. Pure: takes a body dict,
-    /// returns a `Sendable Result<TokenResult, AuthError>`.
-    ///
-    /// `nonisolated static` so this can run off-MainActor; the network suspension
-    /// already releases MainActor (see `getAccessToken(for:)` doc), but explicit
-    /// nonisolation lets the compiler enforce that this function never depends
-    /// on instance state — preventing the kind of accidental MainActor capture
-    /// that would defeat the suspension contract.
-    ///
-    /// Used by both `exchangeCode` (authorization_code grant) and
-    /// `refreshAccessToken` (refresh_token grant). The MainActor caller owns
-    /// all side effects (token storage, account creation, auth state updates).
-    ///
-    /// `transport` and `retryPolicy` are injectable for tests so the retry loop's
-    /// contract (attempt count, 5xx/429/timeout classification) can be pinned
-    /// without URLProtocol stubs — those are global and racy under parallel
-    /// Swift Testing suites. Production callers use the defaults.
-    nonisolated static func postToken(
-        body: [String: String],
-        transport: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await SecureNetworking.data(for: $0) },
-        retryPolicy: RetryPolicy = .oauth
-    ) async -> Result<TokenResult, AuthError> {
-        guard let url = URL(string: tokenURL) else { return .failure(.unknownError("Invalid token URL")) }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 30
-        guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {
-            return .failure(.unknownError("Failed to serialize request body"))
-        }
-        request.httpBody = bodyData
-
-        var lastError: AuthError = .networkError
-        for attempt in 0...Self.maxRetries {
-            if attempt > 0 {
-                // Exponential backoff with jitter via RetryPolicy.oauth (1s, 2s, 4s ±20%).
-                let delay = retryPolicy.delay(forAttempt: attempt)
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            }
-
-            do {
-                let (data, response) = try await transport(request)
-                guard let http = response as? HTTPURLResponse else { return .failure(.networkError) }
-
-                if http.statusCode == 401 || http.statusCode == 403 {
-                    // Parse error body for specific message
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let errorMsg = json["error_description"] as? String {
-                        if errorMsg.lowercased().contains("expired") {
-                            return .failure(.expired)
-                        }
-                    }
-                    return .failure(.invalidCode)
-                }
-
-                // Retry on rate limit (429) and transient server errors (5xx)
-                if http.statusCode == 429 || (http.statusCode >= 500 && http.statusCode < 600) {
-                    AppLogger.oauth.warning("Token endpoint returned \(http.statusCode), attempt \(attempt + 1)/\(Self.maxRetries + 1)")
-                    // Honor Retry-After header on 429 if present (capped at 30s via RateLimitFetcher)
-                    if http.statusCode == 429,
-                       let delay = RateLimitFetcher.parseRetryAfter(
-                           http.value(forHTTPHeaderField: "Retry-After")
-                       ) {
-                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    }
-                    lastError = .serverError(http.statusCode)
-                    continue
-                }
-
-                guard http.statusCode == 200 else {
-                    let bodyStr = String(data: data, encoding: .utf8) ?? "(no body)"
-                    AppLogger.oauth.error("Token endpoint returned \(http.statusCode): \(bodyStr)")
-                    // Parse OAuth error response for specific feedback.
-                    // Anthropic wraps errors as {"error":{"type":"...","message":"..."}}
-                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        // Standard OAuth: top-level "error" string + "error_description"
-                        let oauthError = json["error"] as? String
-                        let desc = json["error_description"] as? String
-                        // Anthropic nested: {"error":{"type":"...","message":"..."}}
-                        let nested = json["error"] as? [String: Any]
-                        let nestedType = nested?["type"] as? String
-                        let nestedMsg = nested?["message"] as? String
-
-                        let errorType = oauthError ?? nestedType ?? ""
-                        let errorMsg = desc ?? nestedMsg
-
-                        if errorType == "invalid_grant" {
-                            return .failure(.expired)
-                        }
-                        if let errorMsg {
-                            return .failure(.unknownError("Auth failed: \(errorMsg)"))
-                        }
-                    }
-                    return .failure(.unknownError("Server returned status \(http.statusCode). Check Console.app for details."))
-                }
-
-                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let access = json["access_token"] as? String,
-                      let refresh = json["refresh_token"] as? String,
-                      let expiresIn = json["expires_in"] as? Int else {
-                    AppLogger.oauth.warning("Token endpoint returned 200 with invalid JSON, attempt \(attempt + 1)/\(Self.maxRetries + 1)")
-                    lastError = .unknownError("Invalid token response format")
-                    continue
-                }
-
-                return .success(TokenResult(
-                    accessToken: access,
-                    refreshToken: refresh,
-                    expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn))
-                ))
-            } catch {
-                AppLogger.oauth.error("Token exchange network error: \(error)")
-                lastError = .networkError
-                continue
-            }
-        }
-
-        return .failure(lastError)
     }
 
     // MARK: - Per-Account Keychain Storage
@@ -713,117 +633,15 @@ public final class OAuthManager: ObservableObject {
         OAuthTokenStorage.save(data, for: Self.tokenStorageKey(accountId: accountId, provider: provider))
     }
 
+    /// Memory-only token seed for tests — nothing is written to the Keychain or
+    /// UserDefaults, so a test can prove the code under test didn't write either.
+    func seedTokensForTesting(accountId: String, accessToken: String?, refreshToken: String?, expiresAt: Date?) {
+        tokens[accountId] = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
+    }
+
     private func loadAllTokens() {
         for account in accountStore.accounts {
             tokens[account.id] = loadTokens(for: account.id)
         }
-    }
-
-    // MARK: - Migration from Single-Account Format
-
-    /// One-time migration: moves legacy Keychain entries (unprefixed) to the new prefixed format.
-    private func migrateFromLegacy() {
-        // Already migrated — accounts exist
-        guard accountStore.accounts.isEmpty else { return }
-
-        // Check for legacy (unprefixed) Keychain entries
-        let legacyRefresh = KeychainHelper.get(account: "refreshToken")
-        guard legacyRefresh != nil else { return }
-
-        AppLogger.oauth.info("Migrating legacy single-account Keychain entries")
-
-        let tempId = "pending-\(UUID().uuidString)"
-        let record = AccountRecord(
-            id: tempId,
-            displayName: nil,
-            billingType: UserDefaults.standard.string(forKey: UserDefaultsKeys.plan),
-            addedAt: Date()
-        )
-
-        // Only persist the refresh token (access token will be re-derived on launch).
-        // Verify the new entry before deleting the legacy one — if the write fails,
-        // keep the legacy entries intact and retry the migration next launch.
-        if let value = KeychainHelper.get(account: "refreshToken") {
-            guard Self.setAndVerify(account: "refreshToken_\(tempId)", value: value) else {
-                AppLogger.oauth.error("Legacy Keychain migration failed — keeping legacy entries for retry next launch")
-                return
-            }
-        }
-        // expiresAt goes to UserDefaults (not a secret)
-        if let expiresStr = KeychainHelper.get(account: "expiresAt"),
-           let interval = Double(expiresStr) {
-            UserDefaults.standard.set(interval,
-                                      forKey: UserDefaultsKeys.tokenExpiresAtPrefix + tempId)
-        }
-        // Clean up all legacy unprefixed entries
-        for key in ["accessToken", "refreshToken", "expiresAt"] {
-            KeychainHelper.delete(account: key)
-        }
-
-        accountStore.add(record)
-        accountStore.setActive(id: tempId)
-    }
-
-    // MARK: - Migration: Remove Stale Keychain Items
-
-    /// Removes accessToken and expiresAt from Keychain (they're no longer stored
-    /// there). Moves expiresAt to UserDefaults if not already present.
-    private func migrateStaleKeychainItems() {
-        for account in accountStore.accounts {
-            let accountId = account.id
-
-            // Move expiresAt from Keychain to UserDefaults if present
-            let udKey = UserDefaultsKeys.tokenExpiresAtPrefix + accountId
-            if UserDefaults.standard.double(forKey: udKey) == 0 {
-                if let expiresStr = KeychainHelper.get(account: "expiresAt_\(accountId)"),
-                   let interval = Double(expiresStr) {
-                    UserDefaults.standard.set(interval, forKey: udKey)
-                }
-            }
-
-            // Remove stale Keychain items (accessToken + expiresAt)
-            KeychainHelper.delete(account: "accessToken_\(accountId)")
-            KeychainHelper.delete(account: "expiresAt_\(accountId)")
-        }
-    }
-
-    // MARK: - Migration: Keychain ThisDeviceOnly Accessibility
-
-    /// One-time migration: re-creates Keychain items with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
-    /// The old flag (`kSecAttrAccessibleWhenUnlocked`) allows iCloud Keychain to sync refresh tokens
-    /// to other Apple devices. Keychain doesn't support updating `kSecAttrAccessible` in-place, so
-    /// we delete and re-add each item. Only runs once (tracked via UserDefaults flag).
-    private func migrateKeychainAccessibility() {
-        let migrationKey = "aibattery_keychainThisDeviceOnlyMigrated"
-        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-
-        // Accessibility can't be updated in place, so each item must be deleted and
-        // re-added — a window where a failed re-add would destroy the refresh token.
-        // Hardening: verify the re-add by reading the value back, retry once on
-        // failure, and only mark the migration done when EVERY account verified.
-        // Leaving the flag unset means the next launch retries instead of silently
-        // signing the user out forever.
-        var allVerified = true
-        for account in accountStore.accounts {
-            let keychainAccount = "refreshToken_\(account.id)"
-            guard let value = KeychainHelper.get(account: keychainAccount) else { continue }
-            KeychainHelper.delete(account: keychainAccount)
-            if !Self.setAndVerify(account: keychainAccount, value: value),
-               !Self.setAndVerify(account: keychainAccount, value: value) {
-                allVerified = false
-                AppLogger.oauth.error("Keychain accessibility migration failed for \(account.id, privacy: .public) — will retry next launch")
-            }
-        }
-
-        guard allVerified else { return }
-        UserDefaults.standard.set(true, forKey: migrationKey)
-        AppLogger.oauth.info("Migrated Keychain items to ThisDeviceOnly accessibility")
-    }
-
-    /// Write a Keychain value and confirm it round-trips. A `set` that reports
-    /// success but doesn't read back identical is treated as a failure.
-    private static func setAndVerify(account: String, value: String) -> Bool {
-        KeychainHelper.set(account: account, value: value)
-            && KeychainHelper.get(account: account) == value
     }
 }

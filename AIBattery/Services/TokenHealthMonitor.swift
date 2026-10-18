@@ -26,19 +26,18 @@ final class TokenHealthMonitor: Sendable {
         // Only scan from cutoff forward instead of filtering all entries (O(log N + recent) vs O(N)).
         let cutoffIndex = binarySearchCutoff(entries: entries, cutoff: cutoff)
 
-        // Collect recent entries + current session entries from before the cutoff
-        var relevantEntries: [AssistantUsageEntry] = []
-        relevantEntries.reserveCapacity(entries.count - cutoffIndex + 50)
+        // The current session's older turns are found by scanning BACKWARDS, so they come
+        // out newest-first. They are collected separately and flipped, because
+        // `Dictionary(grouping:)` preserves insertion order and `assess` reads `.last` as
+        // the latest turn and `.first` as the session start. Appending them directly made
+        // the "latest" entry the session's very first turn: the context bar read that
+        // turn's cumulative input (far too low), the duration came out negative, and the
+        // negative interval always satisfied the rapid-consumption check.
+        var olderCurrentSessionEntries: [AssistantUsageEntry] = []
 
-        // Entries after cutoff — all potentially relevant
-        for i in cutoffIndex..<entries.count {
-            relevantEntries.append(entries[i])
-        }
-
-        // Current session entries before cutoff (scan backward from cutoff)
         for i in stride(from: cutoffIndex - 1, through: 0, by: -1) {
             if entries[i].sessionId == currentSessionId {
-                relevantEntries.append(entries[i])
+                olderCurrentSessionEntries.append(entries[i])
             } else {
                 // Stop scanning once we hit a different session far enough back
                 // (current session entries tend to be clustered near the end)
@@ -46,6 +45,15 @@ final class TokenHealthMonitor: Sendable {
                     break
                 }
             }
+        }
+
+        var relevantEntries: [AssistantUsageEntry] = []
+        relevantEntries.reserveCapacity(entries.count - cutoffIndex + olderCurrentSessionEntries.count)
+        // Everything before the cutoff is older than everything after it, so flipping the
+        // backward scan and putting it first yields one ascending run.
+        relevantEntries.append(contentsOf: olderCurrentSessionEntries.reversed())
+        for i in cutoffIndex..<entries.count {
+            relevantEntries.append(entries[i])
         }
 
         let grouped = Dictionary(grouping: relevantEntries, by: \.sessionId)

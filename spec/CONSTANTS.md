@@ -13,8 +13,9 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Stats-cache retry (base) | 60 sec, exponential (doubles per retry), cap 300 sec, max 10 retries — `RetryPolicy.fileWatch` | FileWatcher |
 | API request timeout | 15 sec | RateLimitFetcher |
 | Status request timeout | 5 sec | StatusChecker |
-| Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck` | StatusChecker (one state per feed: Claude, Codex) |
-| Codex usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account; transport errors / 5xx record a failure, 2xx / 429 / 401 / 403 clear it; while backing off the session-log fallback is served without a request. Backoff state + auth-failure counter are dropped by `clearCache` (sign-out) and `pruneAccounts` (launch sweep) | CodexRateLimitFetcher |
+| Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck`; a cancelled request (`SecureNetworking.isCancellation`) never counts as a failure | StatusChecker (one state per feed: Claude, Codex) |
+| Codex usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account; transport errors / 5xx record a failure, 2xx / 429 / 401 / 403 clear it, a **cancelled** request records nothing; while backing off the session-log fallback is served without a request. Backoff state + auth-failure counter are dropped by `clearCache` (sign-out) and `pruneAccounts` (launch sweep) | CodexRateLimitFetcher |
+| Claude usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account. Armed only when a whole cycle yielded nothing (usage endpoint `.unavailable` **and** no probe model answered), so a working Messages-probe fallback keeps it disarmed; a success on either path clears it. While backing off, `fetch` returns the cache without a single request | RateLimitFetcher |
 | Codex session-log fallback gate | Used only when ≤ 1 ChatGPT-backed Codex account exists **and** the rollout's mtime is newer than the cached endpoint reading (`shouldUseSessionLogFallback`) | CodexRateLimitFetcher |
 | Codex usage request timeout | 30 sec | CodexRateLimitFetcher |
 | Codex OAuth callback timeout | 180 sec — abandoned sign-in releases port 1455 | CodexAuthSession |
@@ -27,6 +28,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
+| Token refresh failure backoff | Same `RetryPolicy.statusCheck` curve (60 s → 300 s, ±20% jitter), per account. Armed only by a **transient** failure; an auth failure signs out instead. Cleared by any successful refresh and by `signOut`. While backing off, `getAccessToken(for:)` returns nil without touching the endpoint — previously every poll re-ran all 3 attempts with their 1 s + 2 s sleeps | OAuthManager |
 | Token endpoint timeout | 30 sec | OAuthManager |
 | Adaptive polling threshold | 3 unchanged cycles | AdaptivePollingState |
 | Adaptive polling escalation | Progressive doubling: base × 2^(cycles past threshold) | AdaptivePollingState |
@@ -43,6 +45,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | 24-hour trailing window | 86400 sec | UsageAggregator |
 | Insights chart bucket count | 20 (fifteen-minute buckets over 5 hours) | UsageAggregator |
 | Insights chart bucket duration | 900 sec (15 min) | UsageAggregator |
+| Aggregation fingerprint time bucket | 900 sec (15 min) — `fingerprintTimeBucket`; `now` quantised to this is part of the redundant-aggregation fingerprint, so an idle provider re-aggregates at most once per bucket instead of serving a time-stale snapshot indefinitely | UsageAggregator |
 
 ## URLs
 
@@ -62,6 +65,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex Usage Dashboard | `https://chatgpt.com/codex/settings/usage` (ChatGPT accounts) / `https://platform.openai.com/usage` (API-key accounts) |
 | OpenAI API-key probe | `POST https://api.openai.com/v1/responses` — `{"model": <gpt-5-nano → gpt-5-mini → gpt-5>, "input": ".", "max_output_tokens": 16, "reasoning": {"effort": "minimal"}, "store": false}` (minimal effort so reasoning doesn't eat the cap; `store: false` keeps probes out of the user's dashboard logs; ≈ $0.000007 per probe); limits read from `x-ratelimit-limit/remaining/reset-requests|tokens` (Go-duration resets incl. `ms`/`µs`/`ns`). Next probe model on a header-less **400 / 403 / 404** (`probeShouldTryNextModel`); **401 only** is an auth failure |
 | Codex OAuth token-endpoint statuses | 400 / 401 / 403 → `AuthError.codexSignInRejected` (final, signs out on refresh); 5xx **and any other status** (429, 408, CDN 4xx) → `.serverError(code, provider: .codex)` (transient, retried) — `CodexTokenClient` |
+| Claude OAuth token-endpoint statuses | 2xx decodable → success; 2xx undecodable → `.serverError(code)` (transient); 401 / 403 **with** an OAuth error body → `.expired` / `.invalidCode` (final); 401 / 403 **without** one → `.serverError(code)` (transient); 400 → final (`.expired` / `.unknownError`); 429, 5xx, anything else → `.serverError(code)` (transient) — `OAuthManager.interpretTokenResponse` |
 | GitHub Releases | `https://api.github.com/repos/KyleNesium/AIBattery/releases/latest` |
 | Release notes (Settings → About) | `https://github.com/KyleNesium/AIBattery/releases` (`AboutSection.releasesURL`); "Download" after a Sparkle failure → `…/releases/latest` (`AboutSection.latestReleaseURL`) |
 | Sparkle Appcast | `https://kylenesium.github.io/AIBattery/appcast.xml` |
@@ -519,7 +523,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 |----------|-------|
 | Read buffer size | 64 KB (256 KB measured: no gain) |
 | Newline search | `memchr` via `Data.firstNewlineIndex(from:)`, resumed per chunk — both readers |
-| Max line size | 1 MB — oversized lines discarded (malformed data protection) |
+| Max line size | 1 MB — an oversized line is counted as corrupt once and skipped through to its newline (malformed data protection) |
 | Pre-filter marker 1a | `"type":"assistant"` (no space) |
 | Pre-filter marker 1b | `"type": "assistant"` (with space) |
 | Pre-filter marker 2 | `"usage"` |

@@ -30,19 +30,17 @@ enum MenuBarMultiAccountText {
     ///   - order: account IDs in display order (typically `AccountStore.accounts.map(\.id)`).
     ///   - providers: per-account provider, keyed by account ID. Defaults to empty (single provider mode).
     ///   - limits: per-account `RateLimitUsage`, keyed by account ID. Missing entries → "—".
-    ///   - metricMode: the active metric mode. `.contextHealth` falls back to `.fiveHour`
     ///     because context health is per-session, not per-account, and would not
     ///     produce a meaningful per-account number.
     static func build(
         order: [String],
         providers: [String: AIProvider] = [:],
         limits: [String: RateLimitUsage],
-        apiLimits: [String: StandardRateLimits] = [:],
-        metricMode: MetricMode
+        apiLimits: [String: StandardRateLimits] = [:]
     ) -> Output {
         let parts: [String] = order.map { id in
             guard let pct = headlinePercent(id: id, limits: limits, apiLimits: apiLimits) else { return "—" }
-            return "\(Int(pct.rounded()))%"
+            return PercentFormat.display(pct)
         }
 
         // Determine if we have mixed providers (single provider vs mixed).
@@ -193,7 +191,7 @@ enum MenuBarMultiAccountText {
         let useWorstOnly = !useMulti && fetchedCount >= 2 && order.count >= 2
 
         if useMulti {
-            let multi = build(order: order, providers: providers, limits: perAccount, apiLimits: apiLimits, metricMode: metricMode)
+            let multi = build(order: order, providers: providers, limits: perAccount, apiLimits: apiLimits)
             let percent = max(multi.worstPercent, activePercent)
             let isExhausted = confirmed && (multi.anyThrottled || (activeRateLimits?.isThrottled ?? false))
             let reset: Date? = confirmed
@@ -233,7 +231,7 @@ enum MenuBarMultiAccountText {
             let text: String = if let reset {
                 RateLimitUsage.countdownText(to: reset)
             } else {
-                "\(Int(worst.rounded()))%"
+                PercentFormat.display(worst)
             }
             return Display(
                 text: text,
@@ -253,7 +251,7 @@ enum MenuBarMultiAccountText {
                     RateLimitUsage.countdownText(to: activeReset)
                 }
             } else {
-                "\(Int(activePercent))%"
+                PercentFormat.display(activePercent)
             }
             return Display(
                 text: text,

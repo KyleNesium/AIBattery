@@ -38,7 +38,7 @@ struct TokenHealthSection: View {
                 CollapsibleSectionHeader(
                     title: "Context",
                     collapsed: $collapsed,
-                    tooltip: "Context: \(Int(health.usagePercentage))% used \u{00B7} ~\(remainingText) of \(usableText) remaining\(sessions.count > 1 ? " \u{00B7} \(sessions.count) sessions (← → to browse)" : "")"
+                    tooltip: "Context: \(PercentFormat.display(health.usagePercentage)) used \u{00B7} ~\(remainingText) of \(usableText) remaining\(sessions.count > 1 ? " \u{00B7} \(sessions.count) sessions (← → to browse)" : "")"
                 )
                 Spacer()
 
@@ -70,7 +70,7 @@ struct TokenHealthSection: View {
                     // Gauge bar
                     GaugeBar(percent: health.usagePercentage, barColor: bandColor)
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Context usage \(Int(health.usagePercentage)) percent")
+                        .accessibilityLabel("Context usage \(PercentFormat.spoken(health.usagePercentage))")
                         .accessibilityValue("\(remainingText) tokens remaining")
 
                     // Detail row
@@ -256,28 +256,37 @@ struct TokenHealthSection: View {
                     .lineLimit(1)
                 }
 
-                if let idleMinutes = staleIdleMinutes {
-                    HStack(spacing: Spacing.tight) {
-                        Circle()
-                            .fill(ThemeColors.caution)
-                            .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
-                        Text("Idle \(idleMinutes)m")
-                            .font(Typography.monoCaptionSmall)
-                            .foregroundStyle(ThemeColors.caution)
+                // Driven by the clock, not by the data. An idle session keeps producing
+                // equal snapshots, so `onChange(of: sessions)` never fires and this froze
+                // at whatever it said when the popover opened — on a label whose entire
+                // job is to count.
+                TimelineView(.periodic(from: .now, by: 60)) { context in
+                    if let idleMinutes = SessionInfoFormatter.staleIdleMinutes(for: health, now: context.date) {
+                        HStack(spacing: Spacing.tight) {
+                            Circle()
+                                .fill(ThemeColors.caution)
+                                .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
+                            Text("Idle \(idleMinutes)m")
+                                .font(Typography.monoCaptionSmall)
+                                .foregroundStyle(ThemeColors.caution)
+                        }
+                        .help("Session has been idle — context may be stale")
                     }
-                    .help("Session has been idle — context may be stale")
                 }
             }
 
-            // Line 2: duration · last active · velocity
-            let bottomParts = sessionBottomParts
-            if !bottomParts.isEmpty {
-                let bottomText = bottomParts.joined(separator: " · ")
-                Text(bottomText)
-                    .font(Typography.tinyLabel)
-                    .foregroundStyle(ThemeColors.secondaryLabel)
-                    .lineLimit(1)
-                    .copyable(bottomText)
+            // Line 2: duration · last active · velocity. Same clock dependency as the
+            // idle badge above — "Xm ago" has to keep counting.
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                let bottomParts = SessionInfoFormatter.bottomParts(for: health, now: context.date)
+                if !bottomParts.isEmpty {
+                    let bottomText = bottomParts.joined(separator: " · ")
+                    Text(bottomText)
+                        .font(Typography.tinyLabel)
+                        .foregroundStyle(ThemeColors.secondaryLabel)
+                        .lineLimit(1)
+                        .copyable(bottomText)
+                }
             }
         }
         .help(sessionDetailTooltip)
@@ -285,20 +294,20 @@ struct TokenHealthSection: View {
 
     // Session detail helpers — cached to avoid recomputation on every body evaluation.
     // Recomputed via onChange(of: selectedIndex) and onChange(of: sessions).
+    //
+    // Only the values that depend purely on the DATA live here. The two that depend on
+    // the clock ("Idle Nm" and "Xm ago") are driven by a TimelineView instead: an idle
+    // session produces equal snapshots, so a data-only trigger left them frozen.
 
-    @State private var staleIdleMinutes: Int? = nil
     @State private var sessionDetailTooltip: String = ""
     @State private var sessionLabelParts: [String] = []
     @State private var sessionIdPrefix: String? = nil
-    @State private var sessionBottomParts: [String] = []
 
     private func recomputeSessionInfo() {
         let h = health
-        staleIdleMinutes = SessionInfoFormatter.staleIdleMinutes(for: h)
         sessionDetailTooltip = SessionInfoFormatter.detailTooltip(for: h)
         sessionLabelParts = SessionInfoFormatter.labelParts(for: h)
         sessionIdPrefix = SessionInfoFormatter.idPrefix(for: h)
-        sessionBottomParts = SessionInfoFormatter.bottomParts(for: h)
     }
 
     private var healthBadge: some View {
@@ -308,9 +317,9 @@ struct TokenHealthSection: View {
                 .frame(width: Layout.dotSize, height: Layout.dotSize)
                 .animation(MotionConstants.smooth, value: bandColor)
                 .accessibilityLabel("Health: \(health.band == .green ? "good" : health.band == .orange ? "warning" : health.band == .red ? "critical" : "unknown")")
-            Text("\(Int(health.usagePercentage))%")
+            Text(PercentFormat.display(health.usagePercentage))
                 .font(Typography.monoValue)
-                .copyable("\(Int(health.usagePercentage))%")
+                .copyable(PercentFormat.display(health.usagePercentage))
         }
     }
 

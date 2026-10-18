@@ -181,6 +181,7 @@ struct SessionLogReaderTests {
         let json = """
         {
             "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
             "sessionId": "sess-002",
             "message": {
                 "role": "assistant",
@@ -202,6 +203,7 @@ struct SessionLogReaderTests {
         let json = """
         {
             "type": "assistant",
+            "timestamp": "2026-02-17T10:00:00.000Z",
             "uuid": "fallback-uuid-123",
             "message": {
                 "role": "assistant",
@@ -837,5 +839,51 @@ struct SessionLogReaderTests {
         #expect(second.count == 2, "Count preserved on second call")
         let secondTotal = second.reduce(0) { $0 + $1.inputTokens }
         #expect(secondTotal == 300, "Totals preserved on second call")
+    }
+
+    // MARK: - Cached message-id set
+
+    /// The id set is carried between cycles instead of being rehashed from the merged
+    /// array. It must stay in step with the entries through appends, through a file
+    /// whose contents are replaced, and through a deletion — otherwise a stale id would
+    /// silently suppress a real entry, or a dropped one would let a duplicate through.
+    @Test func cachedIdSet_staysInStepAcrossAppendsReplacementsAndDeletions() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL([assistantLine(messageId: "a-1", inputTokens: 10)], to: projectsDir, sessionName: "a.jsonl")
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        #expect(reader.readAllUsageEntries().count == 1)
+
+        // A second file appears: its entry must be added, not deduped away.
+        try writeJSONL([assistantLine(messageId: "b-1", inputTokens: 20)], to: projectsDir, sessionName: "b.jsonl")
+        reader.invalidate()
+        let twoFiles = reader.readAllUsageEntries()
+        #expect(twoFiles.count == 2)
+        #expect(twoFiles.reduce(0) { $0 + $1.inputTokens } == 30)
+
+        // The first file is rewritten with a DIFFERENT id: the old entry must go and the
+        // new one must land, so the count holds steady while the total changes.
+        Thread.sleep(forTimeInterval: 1.1)
+        try writeJSONL([assistantLine(messageId: "a-2", inputTokens: 90)], to: projectsDir, sessionName: "a.jsonl")
+        reader.invalidate()
+        let replaced = reader.readAllUsageEntries()
+        #expect(replaced.count == 2)
+        #expect(replaced.reduce(0) { $0 + $1.inputTokens } == 110)
+        #expect(replaced.contains { $0.messageId == "a-2" })
+        #expect(!replaced.contains { $0.messageId == "a-1" })
+
+        // Deleting a file drops its entries AND frees its ids for reuse.
+        try FileManager.default.removeItem(at: projectsDir.appendingPathComponent("-test-project/b.jsonl"))
+        reader.invalidate()
+        let afterDelete = reader.readAllUsageEntries()
+        #expect(afterDelete.count == 1)
+        #expect(afterDelete[0].messageId == "a-2")
+
+        // Re-adding the same id must be accepted, proving it left the id set.
+        Thread.sleep(forTimeInterval: 1.1)
+        try writeJSONL([assistantLine(messageId: "b-1", inputTokens: 20)], to: projectsDir, sessionName: "c.jsonl")
+        reader.invalidate()
+        #expect(reader.readAllUsageEntries().count == 2)
     }
 }

@@ -30,4 +30,36 @@ struct SecureNetworkingTests {
         let config = SecureNetworking.session.configuration
         #expect(config.timeoutIntervalForResource == 30)
     }
+
+    /// Following a 3xx would re-issue the request, Authorization header and all, to
+    /// whatever host the Location named. The delegate must hand URLSession nil.
+    @Test func redirectDelegate_refusesRedirect() async throws {
+        let delegate = SecureNetworking.NoRedirectDelegate()
+        let origin = try #require(URL(string: "https://example.com/a"))
+        let elsewhere = try #require(URL(string: "https://evil.example/b"))
+        let response = try #require(HTTPURLResponse(
+            url: origin,
+            statusCode: 302,
+            httpVersion: nil,
+            headerFields: ["Location": elsewhere.absoluteString]
+        ))
+
+        let delivered: URLRequest? = await withCheckedContinuation { continuation in
+            delegate.urlSession(
+                SecureNetworking.session,
+                task: SecureNetworking.session.dataTask(with: origin),
+                willPerformHTTPRedirection: response,
+                newRequest: URLRequest(url: elsewhere)
+            ) { request in
+                continuation.resume(returning: request)
+            }
+        }
+
+        #expect(delivered == nil)
+    }
+
+    /// The session must carry the delegate, or the refusal above never runs.
+    @Test func session_installsRedirectDelegate() {
+        #expect(SecureNetworking.session.delegate is SecureNetworking.NoRedirectDelegate)
+    }
 }
