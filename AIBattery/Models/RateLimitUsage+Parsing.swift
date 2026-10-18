@@ -12,6 +12,24 @@ extension RateLimitUsage {
     /// Parse unified rate limit headers from an HTTP response.
     /// Uses case-insensitive lookup to handle server-side casing changes
     /// (HTTPURLResponse.allHeaderFields bridging to Swift can lose case-insensitivity).
+    ///
+    /// **Units — read this before touching the utilization lines below.** This path reads
+    /// its utilization as a FRACTION (0–1) and only clamps. That is deliberately NOT the
+    /// same as `parse(clientDataJSON:)`, which reads a PERCENTAGE (0–100), and the
+    /// difference is the single most dangerous thing in this file: a unit mistake either
+    /// way is silent, and in one direction it renders an idle account as "Limit reached".
+    ///
+    /// The JSON unit is verified — the live `/api/oauth/usage` endpoint returned `6` and
+    /// `84` for an account shown at 6% and 84%. The header unit is NOT verified against a
+    /// live response. It has been read as a fraction since v1.0.0, when these headers were
+    /// the app's only source and it displayed correct numbers for two major versions,
+    /// which is the evidence for leaving it alone. Attempts to capture a live sample
+    /// failed: `anthropic-ratelimit-unified-*` is legacy (public docs now describe
+    /// standard `anthropic-ratelimit-*` headers), this path only runs when the usage
+    /// endpoint is down, and even then the probe rarely carries these headers.
+    ///
+    /// If you ever do capture one: a raw value above 1 proves percentages, and this
+    /// function then needs the same `/ 100` treatment the JSON path got.
     static func parse(headers: [AnyHashable: Any]) -> RateLimitUsage? {
         // Build a lowercased lookup table for reliable case-insensitive access.
         let normalized: [String: String] = {
