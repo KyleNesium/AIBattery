@@ -135,15 +135,17 @@ re-base touches these spots:
 - **Ledger key.** Task 2's `ModelTokenRecord.reasoning` and Task 9's `firstScan` both key by
   the ledger key (§3 "Ledger"), not the raw account id; Task 9's `firstScanDate(ledgerKey:)`.
 - **One tooltip signature.** Task 9 names `InsightsView.allTimeTooltip(for:since:)`; the real
-  function is `InsightsRowsAndHover.allTimeTooltip(for:)` (`:46`). The re-based plan uses
-  `InsightsRowsAndHover.allTimeTooltip(for:since:unattributed:)`; Task 9 adds `since:`, §3 adds
+  function is `InsightsView.allTimeTooltip(for:)`, defined in `InsightsRowsAndHover.swift` (`:46`)
+  as an `extension InsightsView`. The re-based plan uses
+  `InsightsView.allTimeTooltip(for:since:unattributed:)`; Task 9 adds `since:`, §3 adds
   `unattributed:` (default 0). Task 9's test file becomes `Views/InsightsTooltipTests.swift`
   (the plan's `InsightsAllTimeTooltipTests` does not exist yet).
 - **One caption line, always visible.** Task 9's "since <date>" caption (plan `:1264`, monthly
   mode only) and §3's hidden-turn caption share one `Typography.monoTiny` tertiary line under
   the chart, rendered in **every** chart mode when either half applies:
   `"since 12 Oct 2026 · N turns from older Codex CLI versions not shown"`. Pure formatter
-  `InsightsCharts.sinceCaption(provider:since:unattributed:mode:now:)` — the chart body lives in
+  `InsightsView.sinceCaption(provider:since:unattributed:now:)`, defined in `InsightsCharts.swift`
+  as an `extension InsightsView` — the chart body lives in
   `InsightsCharts.swift:185-204`, the mode enum in `ActivityChartView.swift:9`; Task 9's code
   block, its test and the plan's "Names used across tasks" line (`:1299`) are updated to the new
   home. The "since" half is shown in all modes too (one rule, not two).
