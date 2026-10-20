@@ -974,9 +974,9 @@ struct UsageSnapshotTests {
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 40 = 39 compared fields + lastUpdated.
+        // it) AND update this count. 41 = 40 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 40)
+        #expect(mirror.children.count == 41)
     }
 
     // MARK: - Provider (Plan 2)
@@ -987,6 +987,18 @@ struct UsageSnapshotTests {
         #expect(claude != codex)
         #expect(claude.provider == .claude)
         #expect(codex.provider == .codex)
+    }
+
+    // MARK: - Attribution (Plan 2, Task 7)
+
+    @Test func equality_includesUnattributedTurnCount() {
+        var a = makeSnapshot()
+        var b = makeSnapshot()
+        a.unattributedTurnCount = 0
+        b.unattributedTurnCount = 3
+        #expect(a != b)
+        b.unattributedTurnCount = 0
+        #expect(a == b)
     }
 
     // MARK: - Codex never uses Claude local estimates

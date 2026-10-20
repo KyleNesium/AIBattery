@@ -12,6 +12,16 @@ final class UsageAggregator: @unchecked Sendable {
         var provider: AIProvider = .claude
     }
 
+    /// The two snapshots one `aggregate` call produces when attribution is active.
+    struct AggregateResult {
+        /// What the active account's popover shows (attributed when attribution is active).
+        var detail: UsageSnapshot
+        /// What the overview cards show for the provider: every entry on disk. Equal to
+        /// `detail` when attribution is `.all`.
+        var providerWide: UsageSnapshot
+        let effects: SideEffects
+    }
+
     /// Optional: Codex has no stats-cache equivalent — its all-time figures derive
     /// purely from session JSONL (bounded by log retention; the UI says so).
     private let statsCacheReader: StatsCacheReader?
@@ -119,6 +129,8 @@ final class UsageAggregator: @unchecked Sendable {
         let todayDate: String
         let fiveHoursAgo: Date
         let twentyFourHoursAgo: Date
+        /// Rolling 7×86400 for the rate-limit count, distinct from the calendar-day
+        /// `sevenDaysAgo` used for the weekly UI breakdown.
         let sevenDayRateLimitCutoff: Date
         let sevenDaysAgo: Date
         let twelveMonthsAgo: Date
@@ -135,6 +147,8 @@ final class UsageAggregator: @unchecked Sendable {
         var allJsonlModelTokensMap: TokenMap = [:]
         var jsonlTodayToolCalls = 0
         var projectMap: [String: ProjectAccum] = [:]
+        /// Feeds the Claude Messages-probe model list (`SideEffects.observedModels`,
+        /// sorted most-recent-first in `finish`).
         var lastSeenByModel: [String: Date] = [:]
         var todayTokenMap: TokenMap = [:]
         var weekTokenMap: TokenMap = [:]
@@ -158,6 +172,9 @@ final class UsageAggregator: @unchecked Sendable {
             twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today
         }
 
+        /// Entries must be fed in ascending timestamp order — the day-boundary cache
+        /// (`lastDayStart`/`lastDayEnd`/`lastDateKey`) assumes a monotonically advancing
+        /// stream and will mis-bucket an out-of-order entry silently.
         mutating func add(_ entry: AssistantUsageEntry) {
             let ts = entry.timestamp
 
@@ -272,6 +289,11 @@ final class UsageAggregator: @unchecked Sendable {
 
         /// Everything after the loop: observed models, project/model summaries, ledger
         /// merge, health, activity merge, hour counts, and the snapshot itself.
+        ///
+        /// `entries` need not be the same array that was fed to `add` — it supplies the
+        /// stream `finish` reads itself from (first-session date, session health), so a
+        /// caller running the provider-wide and per-account passes side by side can feed
+        /// each its own subset while sharing accumulation of the same underlying scan.
         func finish(
             entries: [AssistantUsageEntry],
             statsCache: StatsCache?,
@@ -281,7 +303,7 @@ final class UsageAggregator: @unchecked Sendable {
             rateLimitsFresh: Bool,
             idleSessionMinutes: Int,
             ledger: TokenLedger,
-            accountId: String?
+            ledgerKey: String?
         ) -> (snapshot: UsageSnapshot, observedModels: [String]) {
             // Build observed model list sorted by recency (most recent first) for dynamic probe fallback.
             let observedModels = lastSeenByModel.sorted { $0.value > $1.value }.map(\.key)
@@ -336,12 +358,12 @@ final class UsageAggregator: @unchecked Sendable {
             // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
             let modelTokens: [ModelTokenSummary]
             var ledgerSince: Date?
-            if let accountId {
-                modelTokens = ledger.merge(rawModelTokens, ledgerKey: accountId)
+            if let ledgerKey {
+                modelTokens = ledger.merge(rawModelTokens, ledgerKey: ledgerKey)
                 // Codex has no lifetime cache of its own — date its All-Time figure from
                 // the ledger's first scan. Claude's firstSessionDate already covers this.
                 if provider == .codex {
-                    ledgerSince = ledger.firstScanDate(ledgerKey: accountId)
+                    ledgerSince = ledger.firstScanDate(ledgerKey: ledgerKey)
                 }
             } else {
                 modelTokens = rawModelTokens
@@ -482,8 +504,7 @@ final class UsageAggregator: @unchecked Sendable {
 
     // MARK: - Redundant aggregation skip
 
-    private var cachedSnapshot: UsageSnapshot?
-    private var cachedEffects: SideEffects?
+    private var cachedResult: AggregateResult?
     private var lastStatsCacheModDate: Date?
     private var lastRateLimits: RateLimitUsage?
     private var lastStandardLimits: StandardRateLimits?
@@ -491,6 +512,10 @@ final class UsageAggregator: @unchecked Sendable {
     private var lastRateLimitsFresh = true
     private var lastIdleSessionMinutes: Int = -1
     private var lastAccountId: String?
+    /// Which attribution the cached result was built under — part of the fingerprint so
+    /// switching between `.all` and `.account(_)` always re-aggregates instead of serving
+    /// a snapshot filtered (or not) for the wrong series.
+    private var lastAttribution: Attribution = .all
     /// `now` quantised to `fingerprintTimeBucket`; part of the fingerprint so an idle
     /// provider (no FS events → no `invalidate()`) cannot serve a time-stale snapshot
     /// forever: the 5h-window tokens, today's counters and `lastUpdated` all depend on
@@ -505,7 +530,7 @@ final class UsageAggregator: @unchecked Sendable {
     func invalidate() {
         lock.lock()
         defer { lock.unlock() }
-        cachedSnapshot = nil
+        cachedResult = nil
     }
 
     func aggregate(
@@ -514,8 +539,9 @@ final class UsageAggregator: @unchecked Sendable {
         standardLimits: StandardRateLimits? = nil,
         accountId: String? = nil,
         rateLimitsFresh: Bool = true,
+        attribution: Attribution = .all,
         now: Date = Date()
-    ) -> (UsageSnapshot, SideEffects) {
+    ) -> AggregateResult {
         // Idle session cutoff for context health (0 = never hide)
         let idleSessionMinutes = Int(UserDefaults.standard.double(forKey: UserDefaultsKeys.idleSessionMinutes))
 
@@ -524,7 +550,7 @@ final class UsageAggregator: @unchecked Sendable {
         let timeBucket = Int(now.timeIntervalSinceReferenceDate / Self.fingerprintTimeBucket)
         lock.lock()
         let statsCacheModDate = statsCacheReader?.lastModificationDate
-        if let cached = cachedSnapshot,
+        if let cached = cachedResult,
            timeBucket == lastTimeBucket,
            statsCacheModDate == lastStatsCacheModDate,
            rateLimits == lastRateLimits,
@@ -532,10 +558,10 @@ final class UsageAggregator: @unchecked Sendable {
            rateLimitSource == lastRateLimitSource,
            rateLimitsFresh == lastRateLimitsFresh,
            idleSessionMinutes == lastIdleSessionMinutes,
-           accountId == lastAccountId {
-            let effects = cachedEffects ?? SideEffects(activeUserModel: nil, observedModels: [], accountId: accountId, provider: provider)
+           accountId == lastAccountId,
+           attribution == lastAttribution {
             lock.unlock()
-            return (cached, effects)
+            return cached
         }
         lock.unlock()
 
@@ -547,34 +573,80 @@ final class UsageAggregator: @unchecked Sendable {
         // - activeUserModel = allEntries.last?.model
         // - setObservedModels(observedModels, accountId:)
 
-        // Unified single-pass over allEntries: date grouping, today extraction,
-        // project token accumulation, and windowed model token bucketing — all in one iteration.
-        // `now` is injectable via the function parameter; default = Date(). Tests
-        // pin window-boundary behavior by supplying a deterministic value.
+        // One pass over allEntries builds the provider-wide accumulator; when attribution
+        // is active, a second accumulator walks alongside it over the kept subsequence —
+        // `now` is injectable via the function parameter (default = Date()) so tests pin
+        // window-boundary behavior with a deterministic value.
+        let (kept, unattributed) = attribution.partition(allEntries)
         let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
-        var pass = AggregationPass(provider: provider, now: now, cachedDates: cachedDates)
-        for entry in allEntries {
-            pass.add(entry)
+        var all = AggregationPass(provider: provider, now: now, cachedDates: cachedDates)
+        var mine: AggregationPass? = attribution.isAttributed
+            ? AggregationPass(provider: provider, now: now, cachedDates: cachedDates)
+            : nil
+
+        if mine != nil {
+            // One walk, two accumulators: `kept` is a subsequence of `allEntries` in the
+            // same ascending-timestamp order (see `Attribution.partition`), and message
+            // ids are unique per entry (the readers dedupe on them), so a single cursor
+            // over `kept` can be advanced in lock-step with the `allEntries` loop.
+            var keptIndex = kept.startIndex
+            for entry in allEntries {
+                all.add(entry)
+                if keptIndex < kept.endIndex, kept[keptIndex].messageId == entry.messageId {
+                    mine?.add(entry)
+                    keptIndex += 1
+                }
+            }
+        } else {
+            for entry in allEntries {
+                all.add(entry)
+            }
         }
-        let (snapshot, observedModels) = pass.finish(
+
+        // Provider-wide pass's ledger key: unattributed, it's the plain account id (every
+        // existing single-account user, unchanged); attributed, it's the dedicated
+        // provider-wide series so the per-account series doesn't get polluted with totals
+        // that include other accounts' turns.
+        let providerKey: String? = accountId.map { id in
+            attribution.isAttributed ? TokenLedger.providerWideCodexKey : TokenLedger.key(accountId: id, attribution: .all)
+        }
+        let (providerWide, observedAll) = all.finish(
             entries: allEntries, statsCache: statsCache, rateLimits: rateLimits,
             rateLimitSource: rateLimitSource, standardLimits: standardLimits,
             rateLimitsFresh: rateLimitsFresh, idleSessionMinutes: idleSessionMinutes,
-            ledger: ledger, accountId: accountId
+            ledger: ledger, ledgerKey: providerKey
         )
+
+        var detail = providerWide
+        var observedModels = observedAll
+        var activeModel = allEntries.last?.model
+        if let mine {
+            let detailKey = accountId.map { TokenLedger.key(accountId: $0, attribution: attribution) }
+            let (d, o) = mine.finish(
+                entries: kept, statsCache: statsCache, rateLimits: rateLimits,
+                rateLimitSource: rateLimitSource, standardLimits: standardLimits,
+                rateLimitsFresh: rateLimitsFresh, idleSessionMinutes: idleSessionMinutes,
+                ledger: ledger, ledgerKey: detailKey
+            )
+            detail = d
+            detail.unattributedTurnCount = unattributed
+            observedModels = o
+            activeModel = kept.last?.model
+        }
 
         // Build side effects for @MainActor callers to apply
         let effects = SideEffects(
-            activeUserModel: allEntries.last?.model,
+            activeUserModel: activeModel,
             observedModels: observedModels,
             accountId: accountId,
             provider: provider
         )
 
+        let result = AggregateResult(detail: detail, providerWide: providerWide, effects: effects)
+
         // Cache the result and fingerprint (lock protects mutable state only)
         lock.lock()
-        cachedSnapshot = snapshot
-        cachedEffects = effects
+        cachedResult = result
         lastStatsCacheModDate = statsCacheModDate
         lastRateLimits = rateLimits
         lastStandardLimits = standardLimits
@@ -582,10 +654,11 @@ final class UsageAggregator: @unchecked Sendable {
         lastRateLimitsFresh = rateLimitsFresh
         lastIdleSessionMinutes = idleSessionMinutes
         lastAccountId = accountId
+        lastAttribution = attribution
         lastTimeBucket = timeBucket
         lock.unlock()
 
-        return (snapshot, effects)
+        return result
     }
 
     /// Group JSONL entries by project (full cwd path as key), compute cost per (project, model) pair.

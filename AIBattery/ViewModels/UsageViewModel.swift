@@ -77,7 +77,7 @@ public final class UsageViewModel: ObservableObject {
     let aggregator = UsageAggregator(provider: .claude)
     let codexAggregator = UsageAggregator(provider: .codex)
     /// Serializes concurrent aggregateOffMain calls — only one detached task runs at a time.
-    private var inflightAggregation: Task<(UsageSnapshot, UsageAggregator.SideEffects), Never>?
+    private var inflightAggregation: Task<UsageAggregator.AggregateResult, Never>?
     var fileWatcher: FileWatcher?
     // Polling timer + NSWorkspace observers: read/written from MainActor methods,
     // but the nonisolated `deinit` must invalidate/remove them. `nonisolated(unsafe)`
@@ -276,11 +276,11 @@ public final class UsageViewModel: ObservableObject {
             agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitsFresh: rateLimitsFresh)
         }
         inflightAggregation = task
-        var (result, effects) = await task.value
+        var result = await task.value
         // Pay-per-token accounts: the cost rows are a real bill, not subscription value —
         // but only when the CLI's rollouts can be attributed to the key (no ChatGPT-backed
         // Codex account that could have produced them under a subscription).
-        result.costIsBilled = accountId.map {
+        result.detail.costIsBilled = accountId.map {
             AccountStore.billsLocalCodexCosts(accounts: OAuthManager.shared.accountStore.accounts, activeId: $0)
         } ?? false
 
@@ -291,14 +291,14 @@ public final class UsageViewModel: ObservableObject {
         // NON-active provider: `activeUserModel` / observed models are global probe state
         // for the account being polled, and a background pass for another account must
         // not overwrite them every cycle.
-        if applySideEffects, effects.provider == .claude {
-            RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
-            if let id = effects.accountId {
-                RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)
+        if applySideEffects, result.effects.provider == .claude {
+            RateLimitFetcher.shared.activeUserModel = result.effects.activeUserModel
+            if let id = result.effects.accountId {
+                RateLimitFetcher.shared.setObservedModels(result.effects.observedModels, accountId: id)
             }
         }
         inflightAggregation = nil
-        return result
+        return result.detail
     }
 
     /// - Parameter skipNetworkCheck: When true, bypasses the offline guard. Used on wake

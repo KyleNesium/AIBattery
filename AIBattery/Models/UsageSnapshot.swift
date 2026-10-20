@@ -45,6 +45,7 @@ struct UsageSnapshot: Equatable {
             && lhs.busiestDayOfWeek?.averageCount == rhs.busiestDayOfWeek?.averageCount
             && lhs.provider == rhs.provider
             && lhs.costIsBilled == rhs.costIsBilled
+            && lhs.unattributedTurnCount == rhs.unattributedTurnCount
     }
 
     /// Weekday symbols from the user's current calendar (Sunday = index 0).
@@ -410,6 +411,10 @@ struct UsageSnapshot: Equatable {
     /// True for pay-per-token accounts (Codex API key): the cost figures are an actual
     /// bill at API rates, not the subscription "API-equivalent" framing.
     var costIsBilled: Bool = false
+
+    /// Turns hidden from this snapshot because their rollout carries no account stamp
+    /// (older Codex CLI versions) while per-account attribution is active. 0 otherwise.
+    var unattributedTurnCount: Int = 0
 }
 
 struct ModelTokenSummary: Identifiable, Equatable {
