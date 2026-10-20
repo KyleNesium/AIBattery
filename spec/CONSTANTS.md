@@ -647,7 +647,7 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Flag | Default | Effect |
 |------|---------|--------|
 | `ENABLE_SPARKLE` | Defined (all 3 SPM targets) | Guards Sparkle imports, `SparkleUpdateService`, and Sparkle-dependent UI. Remove to build App Store variant without Sparkle. |
-| `ENABLE_VERSION_CHECKER` | Defined (all 3 SPM targets) | Guards `VersionChecker`, update banner UI, and version check button. Remove for App Store (guideline 3.1.1). |
+| `ENABLE_VERSION_CHECKER` | Always defined (all 3 SPM targets) | Guards `VersionChecker` and the service-layer update check (`UsageViewModel+Refresh.swift`, `AboutSection.swift`). View-side references (`UpdateArrowButton`, `availableUpdate` properties) are unguarded, so removing the define does not compile — kept for the service files' `#if` only. |
 | `APP_SANDBOX` | NOT defined | Reserved for future App Store sandbox support (security-scoped bookmark for `~/.claude/` access). Only set for App Store builds. |
 
 ## Build Environment Variables

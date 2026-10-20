@@ -157,7 +157,7 @@ struct AboutSection: View {
         checking = true
         Task {
             let result = await VersionChecker.shared.forceCheckForUpdate()
-            viewModel.availableUpdate = result
+            withAnimation(MotionConstants.standard) { viewModel.availableUpdate = result }
             checking = false
             guard result == nil else {
                 checkMessage = nil

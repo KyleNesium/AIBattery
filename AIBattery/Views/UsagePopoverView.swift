@@ -222,16 +222,6 @@ public struct UsagePopoverView: View {
         )
     }
 
-    /// An update that was found and whose banner was dismissed badges the gear, wherever
-    /// the gear happens to live. `VersionChecker` is compiled out in some configurations.
-    private var gearShowsUpdateBadge: Bool {
-        #if ENABLE_VERSION_CHECKER
-        return viewModel.availableUpdate != nil
-        #else
-        return false
-        #endif
-    }
-
     private var overviewContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             if showSettings {
@@ -254,7 +244,7 @@ public struct UsagePopoverView: View {
             OverviewFooterView(
                 lastFreshFetch: viewModel.lastFreshFetch,
                 isLoading: viewModel.isLoading,
-                showsUpdateBadge: gearShowsUpdateBadge,
+                availableUpdate: viewModel.availableUpdate,
                 showSettings: $showSettings,
                 // `refresh()` fans out at its tail; scheduling another here fetched
                 // every account twice per click.

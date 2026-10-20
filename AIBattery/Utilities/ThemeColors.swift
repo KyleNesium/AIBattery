@@ -156,7 +156,7 @@ enum ThemeColors {
     /// Color for interactive links and action buttons.
     static var action: Color { .accentColor }
 
-    /// Color for update-available indicators and banners.
+    /// Color for the update-available arrow.
     static var updateAvailable: Color {
         isColorblind ? amber : Color(nsColor: .systemYellow)
     }

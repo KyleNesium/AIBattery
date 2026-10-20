@@ -467,7 +467,8 @@ extension UsageViewModel {
 
         #if ENABLE_VERSION_CHECKER
         if availableUpdate == nil {
-            availableUpdate = await VersionChecker.shared.checkForUpdate()
+            let found = await VersionChecker.shared.checkForUpdate()
+            withAnimation(MotionConstants.standard) { availableUpdate = found }
         }
         #endif
     }

@@ -168,7 +168,7 @@ AIBattery/
     MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, multiPointStarPath) + NSBezierPath→CGPath
     MenuBarMultiAccountText.swift — Pure builder for multi-account menu bar text (`42% | 23%`); worst-account percent + throttle + reset selection. Unit-tested without AppKit.
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
-    PopoverHeaderView.swift       — Header row: account chip + gear, auto-update banner (ENABLE_VERSION_CHECKER)
+    PopoverHeaderView.swift       — Header row: account chip, update arrow (when available) + gear
     AccountChipView.swift         — Compact account chip (brand badge + provider + identity) whose click pops the AppKit switch/add NSMenu
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
@@ -336,7 +336,7 @@ CHANGELOG.md                      — Release notes per version
 - **Dock icon**: None (LSUIElement = true)
 - **Dependencies**: Sparkle 2 (SPM, auto-update framework) — all other dependencies are Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
 - **Compiler flag**: `ENABLE_SPARKLE` — defined in all 3 SPM targets via `swiftSettings`. Guards all Sparkle imports/usage. Remove the define to build without Sparkle (App Store variant)
-- **Compiler flag**: `ENABLE_VERSION_CHECKER` — defined in all 3 SPM targets. Guards VersionChecker + update UI. Remove to build App Store variant (guideline 3.1.1)
+- **Compiler flag**: `ENABLE_VERSION_CHECKER` — always defined by all 3 SPM targets; view-side references (`UpdateArrowButton`, `availableUpdate` properties) are unguarded, so removing the define does not compile — kept for the service files' `#if` only
 - **Compiler flag**: `APP_SANDBOX` — NOT defined by default. Reserved for future App Store sandbox support. Only set for App Store builds
 - **Privacy manifest**: `PrivacyInfo.xcprivacy` bundled as SPM resource, also copied to `Contents/Resources/` by build script
 - **SPM resource bundle**: `scripts/build-app.sh` copies `.build/release/AIBattery_AIBatteryCore.bundle` into `Contents/Resources/`. **`Bundle.module` is never used** — SwiftPM's generated accessor only searches `Bundle.main.bundleURL/<bundle>` (the .app root, which codesign's bundle-format rules forbid anyway) and an absolute path on the build machine, then `fatalError`s; it passes on the dev machine and crashes every install. `AIProvider.markURL(for:searchRoots:)` instead walks `Bundle.main.resourceURL` (packaged app) → `Bundle.main.bundleURL` (bare `.build/release` binary) → the loaded module's parent directory (`swift test`) and returns nil when nothing matches, so a missing bundle degrades to the SF-symbol badge instead of a crash. Release smoke test: copy the .app elsewhere, hide `.build/release/AIBattery_AIBatteryCore.bundle`, launch, confirm the brand marks still render.
@@ -393,7 +393,7 @@ Not currently planned, but documented here for reference. These are the architec
 |---------|--------|--------|
 | App Sandbox | Can't read `~/.claude/` — App Store requires sandbox | `AIBattery-AppStore.entitlements` has `user-selected.read-only` + `bookmarks.app-scope`; needs NSOpenPanel + bookmark persistence implementation (behind `APP_SANDBOX` flag) |
 | Sparkle framework | App Store rejects third-party update mechanisms | `ENABLE_SPARKLE` flag gates all Sparkle code; remove define for App Store build |
-| Version checker | App Store rejects apps that check for updates outside the store (guideline 3.1.1) | `ENABLE_VERSION_CHECKER` flag gates VersionChecker + update UI; remove define for App Store build |
+| Version checker | App Store rejects apps that check for updates outside the store (guideline 3.1.1) | `ENABLE_VERSION_CHECKER` flag gates `VersionChecker` and the service-layer update check only; always defined by all three targets, since view-side references (`UpdateArrowButton`, `availableUpdate` properties) are unguarded and removing the define does not compile |
 | `disable-library-validation` entitlement | Rejected by App Store review (only needed for Sparkle's dynamic loading) | Not in `AIBattery-AppStore.entitlements` — resolved when Sparkle is disabled |
 | SUFeedURL in Info.plist | App Store may flag Sparkle feed URL | `build-app.sh` strips SUFeedURL when `APP_STORE_BUILD` env is set |
 | Privacy manifest | Required for App Store submission | `PrivacyInfo.xcprivacy` added (UserDefaults + FileTimestamp) |
