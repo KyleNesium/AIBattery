@@ -30,4 +30,25 @@ struct TokenHealthSectionTextTests {
         )
         #expect(!text.contains("reasoning"))
     }
+
+    @Test func helpText_codexEffortAndReasoning_includesAllThreeParts() {
+        let text = TokenHealthSection.detailHelpText(model: "gpt-6-astra", effort: "xhigh", reasoningTokens: 36_226)
+        #expect(text == "Conversation turns and model for this session · Reasoning effort configured for this session · Share of this session's output tokens spent on reasoning")
+    }
+
+    @Test func helpText_claudeEffortOnly_saysFastModeWithNoShareSentence() {
+        let text = TokenHealthSection.detailHelpText(model: "claude-opus-5", effort: "fast", reasoningTokens: 0)
+        #expect(text.contains("Fast mode"))
+        #expect(!text.contains("Share of this session's output tokens"))
+    }
+
+    @Test func helpText_noExtras_isBaseSentenceOnly() {
+        let text = TokenHealthSection.detailHelpText(model: "claude-opus-5", effort: nil, reasoningTokens: 0)
+        #expect(text == "Conversation turns and model for this session")
+    }
+
+    @Test func helpText_reasoningOnly_addsShareWithoutEffortSentence() {
+        let text = TokenHealthSection.detailHelpText(model: "claude-opus-5", effort: nil, reasoningTokens: 139)
+        #expect(text == "Conversation turns and model for this session · Share of this session's output tokens spent on thinking")
+    }
 }

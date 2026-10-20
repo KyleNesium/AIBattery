@@ -46,6 +46,21 @@ struct TokenHealthSection: View {
         return parts.joined(separator: " · ")
     }
 
+    /// Help text for the detail row's trailing text: effort and the reasoning/thinking
+    /// share are each explained independently, so a session with effort but no reasoning
+    /// tokens (or vice versa) still gets a sentence for the part that applies.
+    nonisolated static func detailHelpText(model: String, effort: String?, reasoningTokens: Int) -> String {
+        var text = "Conversation turns and model for this session"
+        if let effort, !effort.isEmpty {
+            let effortSentence = model.hasPrefix("claude-") ? "Fast mode" : "Reasoning effort configured for this session"
+            text += " · \(effortSentence)"
+        }
+        if reasoningTokens > 0 {
+            text += " · Share of this session's output tokens spent on \(ReasoningVocabulary.label(forModel: model))"
+        }
+        return text
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.gap) {
             // Header with session toggle
@@ -103,9 +118,9 @@ struct TokenHealthSection: View {
                         Text(turnsModelText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .help(health.reasoningTokens > 0
-                                ? "Conversation turns, model, effort, and the share of this session's output spent on \(ReasoningVocabulary.label(forModel: health.model))"
-                                : "Conversation turns in this session")
+                            .help(Self.detailHelpText(
+                                model: health.model, effort: health.effortLabel, reasoningTokens: health.reasoningTokens
+                            ))
                             .copyable(turnsModelText)
                     }
                     .accessibilityElement(children: .combine)
