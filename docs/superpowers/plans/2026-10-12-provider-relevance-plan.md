@@ -461,7 +461,7 @@ Append to `TokenLedgerTests`:
 ```
 
 `merge(_:accountId:)` is now `merge(_:ledgerKey:)`. The key is whatever the aggregator passes
-(`TokenLedger.key(accountId:provider:attribution:)`, v3.3.0 plan §3 "Ledger") — for every
+(`TokenLedger.key(accountId:attribution:)`, v3.3.0 plan Task 6) — for every
 existing user it is the plain account id, unchanged.
 
 - [ ] **Step 3: Run to verify failure**
@@ -1218,7 +1218,7 @@ git commit -m "feat: runway estimate for Codex credit budgets"
 - Test: `Tests/AIBatteryCoreTests/Services/TokenLedgerTests.swift`, `Tests/AIBatteryCoreTests/Views/InsightsAllTimeCaveatTests.swift` (exists; append)
 
 **Interfaces:**
-- Produces: `TokenLedger.firstScanDate(ledgerKey:) -> Date?`; `UsageSnapshot.ledgerSince: Date?`; `InsightsView.allTimeTooltip(for:since:) -> String`; `InsightsView.sinceCaption(provider:since:unattributed:now:) -> String?`. The key is whatever the aggregator passes (`TokenLedger.key(accountId:provider:attribution:)`, v3.3.0 plan §3 "Ledger") — for every existing user it is the plain account id, unchanged. Keep the name `InsightsView.allTimeTooltip(for:since:)` — that is right; the function lives in `InsightsRowsAndHover.swift` as an `extension InsightsView`. `sinceCaption` lives in `InsightsCharts.swift`, also an `extension InsightsView`, and returns the one caption line for **every** chart mode: `"since 12 Oct 2026"`, `"N turns from older Codex CLI versions not shown"`, both joined with `" · "`, or nil. Render it in `ActivityChartView.swift` right after the `switch mode { … }` that picks the chart (`:58-66`), regardless of mode, when non-nil.
+- Produces: `TokenLedger.firstScanDate(ledgerKey:) -> Date?`; `UsageSnapshot.ledgerSince: Date?`; `InsightsView.allTimeTooltip(for:since:) -> String`; `InsightsView.sinceCaption(provider:since:unattributed:now:) -> String?`. The key is whatever the aggregator passes (`TokenLedger.key(accountId:attribution:)`, v3.3.0 plan Task 6) — for every existing user it is the plain account id, unchanged. Keep the name `InsightsView.allTimeTooltip(for:since:)` — that is right; the function lives in `InsightsRowsAndHover.swift` as an `extension InsightsView`. `sinceCaption` lives in `InsightsCharts.swift`, also an `extension InsightsView`, and returns the one caption line for **every** chart mode: `"since 12 Oct 2026"`, `"N turns from older Codex CLI versions not shown"`, both joined with `" · "`, or nil. Render it in `ActivityChartView.swift` right after the `switch mode { … }` that picks the chart (`:58-66`), regardless of mode, when non-nil.
 
 - [ ] **Step 1: Failing tests**
 

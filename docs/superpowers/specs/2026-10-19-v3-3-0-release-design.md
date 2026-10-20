@@ -138,8 +138,8 @@ re-base touches these spots:
   function is `InsightsView.allTimeTooltip(for:)`, defined in `InsightsRowsAndHover.swift` (`:46`)
   as an `extension InsightsView`. The re-based plan uses
   `InsightsView.allTimeTooltip(for:since:unattributed:)`; Task 9 adds `since:`, §3 adds
-  `unattributed:` (default 0). Task 9's test file becomes `Views/InsightsTooltipTests.swift`
-  (the plan's `InsightsAllTimeTooltipTests` does not exist yet).
+  `unattributed:` (default 0). Task 9's tests append to the existing
+  `Views/InsightsAllTimeCaveatTests.swift`.
 - **One caption line, always visible.** Task 9's "since <date>" caption (plan `:1264`, monthly
   mode only) and §3's hidden-turn caption share one `Typography.monoTiny` tertiary line under
   the chart, rendered in **every** chart mode when either half applies:
@@ -223,10 +223,11 @@ re-base touches these spots:
 
 ### Ledger (namespaced keys, no migration)
 
-- `TokenLedger.key(accountId:provider:attribution:) -> String`:
+- `TokenLedger.key(accountId:attribution:) -> String`:
   - attribution inactive (`.all` because ≤ 1 ChatGPT account, or Claude, or API-key active):
     the plain `accountId` — **unchanged for every existing user**;
-  - `.account(id)`: `"\(id)#attributed"` for the `mine` pass, `"codex#all"` for the `all` pass.
+  - `.account(id)`: `"\(id)#attributed"` for the `mine` pass;
+  - provider-wide pass → `providerWideCodexKey`, passed explicitly by the aggregator (Task 7).
   `merge(_:accountId:)` becomes `merge(_:ledgerKey:)`.
 - `pruneAccounts(keeping:)` keeps a record when the key with any `#…` suffix stripped is a live
   account id, and keeps `"codex#all"` while any Codex account is live. `migrate(from:to:)` is
