@@ -331,7 +331,7 @@ final class UsageAggregator: @unchecked Sendable {
 
             // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
             let modelTokens: [ModelTokenSummary] = if let accountId {
-                ledger.merge(rawModelTokens, accountId: accountId)
+                ledger.merge(rawModelTokens, ledgerKey: accountId)
             } else {
                 rawModelTokens
             }

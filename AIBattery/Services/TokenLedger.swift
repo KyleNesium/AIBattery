@@ -33,17 +33,40 @@ final class TokenLedger: @unchecked Sendable {
         self.ledger = Self.load(from: url)
     }
 
+    // MARK: - Keys
+
+    /// Suffix of the per-account series kept while attribution is active.
+    static let attributedSuffix = "#attributed"
+    /// The provider-wide Codex series kept while attribution is active. The plain
+    /// account-id key stays what every single-account user has today.
+    static let providerWideCodexKey = "codex#all"
+
+    /// Which series an aggregation writes to.
+    ///
+    ///     .all                 → "<accountId>"            (unchanged for every existing user)
+    ///     .account(_)          → "<accountId>#attributed" (fresh series on first attributed scan)
+    ///     provider-wide pass   → providerWideCodexKey      (Task 7 passes it explicitly)
+    nonisolated static func key(accountId: String, attribution: Attribution) -> String {
+        attribution.isAttributed ? accountId + attributedSuffix : accountId
+    }
+
+    /// `"acc#attributed"` → `"acc"`, `"codex#all"` → `"codex"`, `"acc"` → `"acc"`.
+    nonisolated static func baseAccountId(ofKey key: String) -> String {
+        guard let hash = key.firstIndex(of: "#") else { return key }
+        return String(key[..<hash])
+    }
+
     // MARK: - Merge
 
     /// Merge current model tokens with stored high-water marks.
     /// Returns an array with the maximum of current vs stored values for each token type.
     /// Includes historical models no longer in current stats-cache/JSONL data.
     /// Writes to disk only when values increase.
-    func merge(_ tokens: [ModelTokenSummary], accountId: String) -> [ModelTokenSummary] {
+    func merge(_ tokens: [ModelTokenSummary], ledgerKey: String) -> [ModelTokenSummary] {
         lock.lock()
         defer { lock.unlock() }
 
-        var accountData = ledger.accounts[accountId] ?? [:]
+        var accountData = ledger.accounts[ledgerKey] ?? [:]
         var changed = false
         var result: [ModelTokenSummary] = []
         var seenModels = Set<String>()
@@ -96,7 +119,7 @@ final class TokenLedger: @unchecked Sendable {
         }
 
         if changed {
-            ledger.accounts[accountId] = accountData
+            ledger.accounts[ledgerKey] = accountData
             isDirty = true
             save()
         }
@@ -139,16 +162,26 @@ final class TokenLedger: @unchecked Sendable {
     ///
     /// No-op when `liveAccountIds` is empty so a logged-out / fresh-launch transient
     /// state can never wipe legitimately-held high-water history.
-    func pruneAccounts(keeping liveAccountIds: Set<String>) {
+    func pruneAccounts(keeping liveAccountIds: Set<String>, hasLiveCodexAccount: Bool = true) {
         guard !liveAccountIds.isEmpty else { return }
         lock.lock()
         defer { lock.unlock() }
         let before = ledger.accounts.count
-        ledger.accounts = ledger.accounts.filter { liveAccountIds.contains($0.key) }
+        ledger.accounts = ledger.accounts.filter { key, _ in
+            if key == Self.providerWideCodexKey {
+                return hasLiveCodexAccount
+            }
+            return liveAccountIds.contains(Self.baseAccountId(ofKey: key))
+        }
         if ledger.accounts.count != before {
             isDirty = true
             save()
         }
+    }
+
+    func ledgerKeysForTesting() -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        return Array(ledger.accounts.keys)
     }
 
     // MARK: - Storage
