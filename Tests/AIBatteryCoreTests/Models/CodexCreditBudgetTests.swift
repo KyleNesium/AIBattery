@@ -313,13 +313,17 @@ struct CodexCreditBudgetTests {
         let t0 = Date(timeIntervalSince1970: 1_000_000)
         let reset = t0.addingTimeInterval(30 * 86_400)
         let first = budget(used: 10, resetsAt: reset).anchored(from: nil, now: t0)
-        // 10 credits in 2 h → 90 remaining ≈ 18 h
+        // 10 credits in 2 h → 80 remaining (limit 100, used 20) ≈ 16 h
         let now = t0.addingTimeInterval(7_200)
         let b = budget(used: 20, resetsAt: reset).anchored(from: first, now: now)
-        #expect(abs((b.estimatedTimeToExhaustion(now: now) ?? 0) - 18 * 3_600) < 1)
+        #expect(abs((b.estimatedTimeToExhaustion(now: now) ?? 0) - 16 * 3_600) < 1)
         // Reset in 1 h → projection lands after reset → nil
         let soonReset = budget(used: 20, resetsAt: now.addingTimeInterval(3_600)).anchored(from: first, now: now)
         #expect(soonReset.estimatedTimeToExhaustion(now: now) == nil)
+        // Satisfied observation window (2 h, well past the 1 h minimum), reset at +10 h
+        // from now: the 16 h projection lands past it (now + 16 h = +18 h > +10 h) → nil.
+        let resetWithinObservedWindow = budget(used: 20, resetsAt: now.addingTimeInterval(10 * 3_600)).anchored(from: first, now: now)
+        #expect(resetWithinObservedWindow.estimatedTimeToExhaustion(now: now) == nil)
     }
 
     @Test func rolledOver_clearsAnchor() {

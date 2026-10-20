@@ -63,13 +63,8 @@ struct CodexCreditBudget: Codable, Equatable, Sendable {
         guard elapsed >= RateLimitUsage.creditRunwayMinObservation else { return nil }
         let spent = used - anchor.used
         guard spent > 0 else { return nil }
-        // Project from the anchor's baseline, not the current reading's remaining: the
-        // observed pace already reflects everything spent since the anchor, so running
-        // it forward over the anchor's full remaining budget is the period's exhaustion
-        // point. (Matches the projectsAtObservedPace test: 10 credits in 2h against a
-        // 90-remaining-at-anchor budget ≈ 18h, not the then-current 80 remaining.)
-        let remainingAtAnchor = limit - anchor.used
-        let eta = remainingAtAnchor / (spent / elapsed)
+        let rate = spent / elapsed
+        let eta = remaining / rate
         if let resetsAt, now.addingTimeInterval(eta) >= resetsAt {
             return nil
         }
