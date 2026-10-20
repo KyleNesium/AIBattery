@@ -127,7 +127,9 @@ struct SessionEntryTests {
                     outputTokens: 200,
                     cacheCreationInputTokens: 0,
                     cacheReadInputTokens: 50,
-                    serviceTier: nil
+                    serviceTier: nil,
+                    speed: nil,
+                    outputTokensDetails: nil
                 ),
                 id: "msg-rt",
                 content: nil

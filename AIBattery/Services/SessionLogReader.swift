@@ -368,8 +368,7 @@ final class SessionLogReader: @unchecked Sendable {
                     if fileURL.pathExtension == "jsonl" {
                         // Symlink boundary + regular file check
                         let resolved = fileURL.resolvingSymlinksInPath().path
-                        guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
-                        guard (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+                        guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash), (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
                         dirFiles.append(fileURL)
                     }
                 }
@@ -549,7 +548,11 @@ final class SessionLogReader: @unchecked Sendable {
             sessionId: entry.sessionId,
             cwd: entry.cwd,
             gitBranch: entry.gitBranch,
-            toolCallCount: entry.toolCallCount + count
+            toolCallCount: entry.toolCallCount + count,
+            contextWindow: entry.contextWindow,
+            reasoningTokens: entry.reasoningTokens,
+            effortLabel: entry.effortLabel,
+            creatorAccountId: entry.creatorAccountId
         )
     }
 
@@ -571,6 +574,11 @@ final class SessionLogReader: @unchecked Sendable {
 
         let toolCallCount = message.content?.filter { $0.type == "tool_use" }.count ?? 0
 
+        let output = usage.outputTokens ?? 0
+        let thinking = min(max(usage.outputTokensDetails?.thinkingTokens ?? 0, 0), output)
+        let speed = usage.speed?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let effort: String? = (speed == nil || speed == "standard" || speed == "") ? nil : speed
+
         return AssistantUsageEntry(
             timestamp: timestamp,
             model: model,
@@ -582,7 +590,10 @@ final class SessionLogReader: @unchecked Sendable {
             sessionId: entry.sessionId ?? "",
             cwd: entry.cwd,
             gitBranch: entry.gitBranch,
-            toolCallCount: toolCallCount
+            toolCallCount: toolCallCount,
+            contextWindow: nil,
+            reasoningTokens: thinking,
+            effortLabel: effort
         )
     }
 }

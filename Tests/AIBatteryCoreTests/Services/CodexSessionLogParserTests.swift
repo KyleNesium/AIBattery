@@ -238,4 +238,67 @@ struct CodexSessionLogParserTests {
         #expect(CodexSessionLogParser.mightBeRelevant(line(tokenCount)))
         #expect(CodexSessionLogParser.relevanceHeadBytes >= 256)
     }
+
+    private let turnContextEffort = #"{"timestamp":"2026-10-11T20:49:40.000Z","ordinal":3,"type":"turn_context","payload":{"cwd":"/Users/me/work/proj","model":"gpt-6-astra","effort":"XHigh ","summary":"auto"}}"#
+    private let tokenCountReasoning = #"{"timestamp":"2026-10-11T20:50:00.000Z","ordinal":4,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":400,"reasoning_output_tokens":120,"total_tokens":1400},"last_token_usage":{"input_tokens":1000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":400,"reasoning_output_tokens":120,"total_tokens":1400},"model_context_window":258400},"rate_limits":null}}"#
+    private let tokenCountReasoningOverflow = #"{"timestamp":"2026-10-11T20:51:00.000Z","ordinal":5,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":2000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":10,"reasoning_output_tokens":50,"total_tokens":2010},"last_token_usage":{"input_tokens":1000,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":10,"reasoning_output_tokens":50,"total_tokens":1010},"model_context_window":0},"rate_limits":null}}"#
+
+    @Test func tokenCount_carriesContextWindowReasoningAndEffort() throws {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(sessionMeta), lineIndex: 0)
+        _ = parser.consume(line: line(turnContextEffort), lineIndex: 1)
+        let entryResult = parser.consume(line: line(tokenCountReasoning), lineIndex: 2)
+        let entry = try #require(entryResult)
+        #expect(entry.contextWindow == 258_400)
+        #expect(entry.reasoningTokens == 120)
+        #expect(entry.outputTokens == 400)
+        #expect(entry.effortLabel == "xhigh") // trimmed, lower-cased
+    }
+
+    @Test func tokenCount_clampsReasoningAndDropsZeroWindow() throws {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(sessionMeta), lineIndex: 0)
+        _ = parser.consume(line: line(turnContext), lineIndex: 1) // no effort key
+        let entryResult = parser.consume(line: line(tokenCountReasoningOverflow), lineIndex: 2)
+        let entry = try #require(entryResult)
+        #expect(entry.reasoningTokens == 10) // min(reasoning, output)
+        #expect(entry.contextWindow == nil) // 0 is not a window
+        #expect(entry.effortLabel == nil)
+    }
+
+    private let sessionMetaWithAccount = #"{"timestamp":"2026-10-11T20:49:34.000Z","ordinal":0,"type":"session_meta","payload":{"id":"0199d7a0-0000-7000-8000-000000000001","cwd":"/Users/me/work/proj","originator":"codex_cli_rs","cli_version":"0.160.1","source":"cli","model_provider":"openai","creator_account_id":"b0776e30-1111-2222-3333-444444444444","git":{"branch":"main"},"base_instructions":{"text":"You are Codex"}}}"#
+    private let sessionMetaEmptyAccount = #"{"timestamp":"2026-10-11T20:49:34.000Z","ordinal":0,"type":"session_meta","payload":{"id":"s-empty","cwd":"/x","creator_account_id":""}}"#
+
+    @Test func sessionMeta_carriesCreatorAccountIdOntoEntries() throws {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(sessionMetaWithAccount), lineIndex: 0)
+        _ = parser.consume(line: line(turnContext), lineIndex: 1)
+        let entryResult = parser.consume(line: line(tokenCount), lineIndex: 2)
+        let entry = try #require(entryResult)
+        #expect(entry.creatorAccountId == "b0776e30-1111-2222-3333-444444444444")
+    }
+
+    @Test func sessionMeta_withoutOrEmptyAccountId_leavesNil() throws {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(sessionMetaEmptyAccount), lineIndex: 0)
+        _ = parser.consume(line: line(turnContext), lineIndex: 1)
+        let entryResult = parser.consume(line: line(tokenCount), lineIndex: 2)
+        let entry = try #require(entryResult)
+        #expect(entry.creatorAccountId == nil)
+    }
+
+    /// Two session_meta lines in one file (observed on disk): entries after the second
+    /// take its account; entries before it keep whatever the first said.
+    @Test func laterSessionMeta_overridesAccountForLaterEntries() throws {
+        var parser = CodexSessionLogParser(fallbackSessionId: "rollout-x")
+        _ = parser.consume(line: line(sessionMeta), lineIndex: 0) // no account
+        _ = parser.consume(line: line(turnContext), lineIndex: 1)
+        let beforeResult = parser.consume(line: line(tokenCount), lineIndex: 2)
+        let before = try #require(beforeResult)
+        _ = parser.consume(line: line(sessionMetaWithAccount), lineIndex: 3)
+        let afterResult = parser.consume(line: line(tokenCountCacheWrite), lineIndex: 4)
+        let after = try #require(afterResult)
+        #expect(before.creatorAccountId == nil)
+        #expect(after.creatorAccountId == "b0776e30-1111-2222-3333-444444444444")
+    }
 }
