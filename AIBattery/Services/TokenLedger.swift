@@ -121,6 +121,11 @@ final class TokenLedger: @unchecked Sendable {
             ))
         }
 
+        if ledger.firstScan[ledgerKey] == nil {
+            ledger.firstScan[ledgerKey] = Date()
+            changed = true
+        }
+
         if changed {
             ledger.accounts[ledgerKey] = accountData
             isDirty = true
@@ -128,6 +133,14 @@ final class TokenLedger: @unchecked Sendable {
         }
 
         return result.sorted { $0.totalTokens > $1.totalTokens }
+    }
+
+    /// The date the ledger first recorded a merge for `ledgerKey` — the earliest AI
+    /// Battery scanned that series, surviving log rotation and stats-cache rebuilds.
+    /// Used to date Codex's All-Time figure (it has no lifetime cache of its own).
+    func firstScanDate(ledgerKey: String) -> Date? {
+        lock.lock(); defer { lock.unlock() }
+        return ledger.firstScan[ledgerKey]
     }
 
     // MARK: - Account lifecycle
@@ -155,6 +168,13 @@ final class TokenLedger: @unchecked Sendable {
         }
         ledger.accounts[newId] = target
         ledger.accounts.removeValue(forKey: oldId)
+        // The first-scan date follows the account — it should read as "since we first
+        // scanned this identity," not reset to "now" just because the id resolved.
+        if let oldFirstScan = ledger.firstScan[oldId] {
+            let existingFirstScan = ledger.firstScan[newId]
+            ledger.firstScan[newId] = min(oldFirstScan, existingFirstScan ?? oldFirstScan)
+        }
+        ledger.firstScan.removeValue(forKey: oldId)
         isDirty = true
         save()
     }
@@ -171,12 +191,14 @@ final class TokenLedger: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         let before = ledger.accounts.count
-        ledger.accounts = ledger.accounts.filter { key, _ in
+        let keep: (String) -> Bool = { key in
             if key == Self.providerWideCodexKey {
                 return hasLiveCodexAccount
             }
             return liveAccountIds.contains(Self.baseAccountId(ofKey: key))
         }
+        ledger.accounts = ledger.accounts.filter { key, _ in keep(key) }
+        ledger.firstScan = ledger.firstScan.filter { key, _ in keep(key) }
         if ledger.accounts.count != before {
             isDirty = true
             save()
@@ -251,6 +273,19 @@ final class TokenLedger: @unchecked Sendable {
 extension TokenLedger {
     struct LedgerData: Codable {
         var accounts: [String: [String: ModelTokenRecord]] = [:]
+        /// First time each ledger key was merged — the earliest AI Battery scanned that
+        /// series. Absent from files written before this field existed.
+        var firstScan: [String: Date] = [:]
+
+        init() {}
+
+        private enum CodingKeys: String, CodingKey { case accounts, firstScan }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            accounts = try c.decodeIfPresent([String: [String: ModelTokenRecord]].self, forKey: .accounts) ?? [:]
+            firstScan = try c.decodeIfPresent([String: Date].self, forKey: .firstScan) ?? [:]
+        }
     }
 
     struct ModelTokenRecord: Codable, Equatable {

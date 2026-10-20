@@ -432,4 +432,45 @@ struct TokenLedgerTests {
         )
         #expect(ledger.merge([lower], ledgerKey: "acc").first?.reasoningTokens == 30)
     }
+
+    // MARK: - First-scan date
+
+    @Test @MainActor func merge_recordsFirstScanDateOncePerAccount() {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let ledger = TokenLedger(fileURL: url)
+        #expect(ledger.firstScanDate(ledgerKey: "acc") == nil)
+        _ = ledger.merge([makeToken(output: 1)], ledgerKey: "acc")
+        let first = ledger.firstScanDate(ledgerKey: "acc")
+        #expect(first != nil)
+        _ = ledger.merge([makeToken(output: 2)], ledgerKey: "acc")
+        #expect(ledger.firstScanDate(ledgerKey: "acc") == first)
+        // survives reload
+        ledger.flushForTesting()
+        #expect(TokenLedger(fileURL: url).firstScanDate(ledgerKey: "acc") == first)
+    }
+
+    @Test @MainActor func migrate_movesFirstScanDateWithAccount() {
+        let ledger = TokenLedger(fileURL: makeTempURL())
+        _ = ledger.merge([makeToken(input: 1_000)], ledgerKey: "pending-x")
+        let original = ledger.firstScanDate(ledgerKey: "pending-x")
+        #expect(original != nil)
+
+        ledger.migrate(from: "pending-x", to: "org-real")
+
+        #expect(ledger.firstScanDate(ledgerKey: "org-real") == original)
+        #expect(ledger.firstScanDate(ledgerKey: "pending-x") == nil)
+    }
+
+    @Test @MainActor func pruneAccounts_dropsFirstScanForNonLiveEntries() {
+        let ledger = TokenLedger(fileURL: makeTempURL())
+        _ = ledger.merge([makeToken(input: 10)], ledgerKey: "live")
+        _ = ledger.merge([makeToken(input: 20)], ledgerKey: "pending-orphan")
+        let liveFirst = ledger.firstScanDate(ledgerKey: "live")
+
+        ledger.pruneAccounts(keeping: ["live"])
+
+        #expect(ledger.firstScanDate(ledgerKey: "live") == liveFirst)
+        #expect(ledger.firstScanDate(ledgerKey: "pending-orphan") == nil)
+    }
 }

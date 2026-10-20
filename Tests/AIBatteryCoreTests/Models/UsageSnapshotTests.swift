@@ -974,9 +974,9 @@ struct UsageSnapshotTests {
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 39 = 38 compared fields + lastUpdated.
+        // it) AND update this count. 40 = 39 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 39)
+        #expect(mirror.children.count == 40)
     }
 
     // MARK: - Provider (Plan 2)

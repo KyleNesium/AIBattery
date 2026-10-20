@@ -194,6 +194,13 @@ struct InsightsView: View {
                     case .monthly:
                         monthlyChart
                     }
+                    if let snapshot,
+                       let caption = Self.sinceCaption(provider: snapshot.provider, since: snapshot.ledgerSince, now: Date()) {
+                        Text(caption)
+                            .font(Typography.monoTiny)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .help("The 12-month chart is rebuilt from the Codex rollouts still on disk; All Time is a ledger that also keeps what was scanned before rotation")
+                    }
                 }
                 .id(mode)
                 .transition(.opacity)

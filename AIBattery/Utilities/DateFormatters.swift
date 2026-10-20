@@ -70,6 +70,20 @@ enum DateFormatters {
         return f
     }()
 
+    /// Medium date style, no time — locale-aware (e.g. "Oct 12, 2026"). Used for the
+    /// Codex All-Time "since" date; cached because DateFormatter is expensive to create.
+    static let mediumStyle: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
+
+    /// Formats a single date with `.medium` style (e.g. "Oct 12, 2026").
+    static func mediumDate(_ date: Date) -> String {
+        mediumStyle.string(from: date)
+    }
+
     /// Formats a date range: same year → "Nov 6 – Mar 10, 2026", cross-year → "Dec 15, 2025 – Mar 10, 2026".
     static func formatDateRange(from start: Date, to end: Date) -> String {
         let cal = Calendar.current

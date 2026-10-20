@@ -370,6 +370,8 @@ Data per mode (cached per-mode with fingerprint — toggling back to a mode skip
   - **7D**: `dailyTokenTotals` last 7 days (rolling window) → daily token totals (all 4 types)
   - **12M**: `dailyTokenTotals` grouped by year-month (tokens, not messages — all three chart modes plot token counts), windowed to the rolling twelve months by `ActivityChartData.rollingTwelveMonthKeys`, which the trend row's total and peak share so the summary always agrees with the chart above it, summed, rolling 12-month window. Current month projected to full-month pace (`total * daysInMonth / dayOfMonth`) for fair comparison.
 
+**Since caption** — rendered right after the chart (`switch mode { … }` block), in **every** mode, when `InsightsView.sinceCaption(provider:since:unattributed:now:)` returns non-nil: `Text` in `Typography.monoTiny` / `ThemeColors.tertiaryLabel`, `.help("The 12-month chart is rebuilt from the Codex rollouts still on disk; All Time is a ledger that also keeps what was scanned before rotation")`. Codex only, and only while `snapshot.ledgerSince` is within the last 365 days (older than that, or Claude, or nil `since` → nil, nothing rendered) — states `"since {mediumDate}"` (e.g. `"since Oct 12, 2026"`). Reconciles the 12M chart (rebuilt from rollouts still on disk, so it can show less than All Time) with the All-Time ledger figure (which also keeps what was scanned before rotation) so the two numbers stop looking like they disagree. A second clause, `"N turns from older Codex CLI versions not shown"` (joined with `" · "` when both apply), is reserved for the Codex-attribution task and contributes nothing yet (`unattributed` defaults to 0).
+
 **Trend summary** (below chart, mode-aware, two rows of two stats each):
 
 - **5H** — Row 1: vs-yesterday token change (↑/↓/→ + %, colored) + tokens in 5h (compactCount). Row 2: throttle count today + peak hour.
@@ -400,7 +402,7 @@ Insight rows display cumulative stats using `insightRow(label:value:tooltip:)` h
 |-----|-------|-------|-----------|
 | Period | `"Period"` | `"Nov 6 – Mar 16, 2026"` (date range) | `firstSessionDate` exists |
 | Longest | `"Longest"` | `"{duration} · {messages} turns"` | `longestSessionDuration` exists & messages > 0 |
-| All Time | `"All Time"` | `"{totalTokens} tokens · {totalSessions} sessions"` | Always (at bottom). Tooltip via `allTimeTooltip(for: snapshot.provider)` — Claude: "Cumulative tokens across all sessions"; Codex: states the figure is rebuilt from retained session logs (no lifetime cache, bounded by log retention) |
+| All Time | `"All Time"` | `"{totalTokens} tokens · {totalSessions} sessions"` | Always (at bottom). Tooltip via `allTimeTooltip(for: snapshot.provider, since: snapshot.ledgerSince)` — Claude: "Cumulative tokens across all sessions" (ignores `since`); Codex: states the figure is rebuilt from retained session logs kept as a ledger high-water mark (survives rotation, nothing before the first scan), and when `ledgerSince` is known appends `" — since {mediumDate}"` (e.g. "— since Oct 12, 2026") |
 
 Codex accounts have no stats-cache: `Period` starts at the earliest retained rollout, `Longest` hides (nil), tool-call counts are 0, and the cost breakdown uses `OpenAIModelPricing` with `GPT-…` display names.
 

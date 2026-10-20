@@ -30,6 +30,7 @@ struct UsageSnapshot: Equatable {
             && lhs.longestSessionDuration == rhs.longestSessionDuration
             && lhs.longestSessionMessages == rhs.longestSessionMessages
             && lhs.firstSessionDate == rhs.firstSessionDate
+            && lhs.ledgerSince == rhs.ledgerSince
             && lhs.dailyAverage == rhs.dailyAverage
             && lhs.trendDirection == rhs.trendDirection
             && lhs.fiveHourTokens == rhs.fiveHourTokens
@@ -65,6 +66,11 @@ struct UsageSnapshot: Equatable {
 
     // From stats-cache.json
     let firstSessionDate: Date?
+    /// Codex only: when `TokenLedger` first recorded this account's series — the ledger
+    /// has no lifetime cache of its own, so this dates the All-Time figure. Nil for
+    /// Claude (stats-cache dates it instead) and until the first merge completes.
+    /// Declared with a default so the memberwise init stays source-compatible.
+    var ledgerSince: Date? = nil
     let totalSessions: Int
     let totalMessages: Int
     let longestSessionDuration: String?

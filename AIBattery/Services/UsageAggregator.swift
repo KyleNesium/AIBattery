@@ -334,10 +334,17 @@ final class UsageAggregator: @unchecked Sendable {
             let rawModelTokens = UsageAggregator.buildModelTokens(from: modelTokensMap, provider: provider)
 
             // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
-            let modelTokens: [ModelTokenSummary] = if let accountId {
-                ledger.merge(rawModelTokens, ledgerKey: accountId)
+            let modelTokens: [ModelTokenSummary]
+            var ledgerSince: Date?
+            if let accountId {
+                modelTokens = ledger.merge(rawModelTokens, ledgerKey: accountId)
+                // Codex has no lifetime cache of its own — date its All-Time figure from
+                // the ledger's first scan. Claude's firstSessionDate already covers this.
+                if provider == .codex {
+                    ledgerSince = ledger.firstScanDate(ledgerKey: accountId)
+                }
             } else {
-                rawModelTokens
+                modelTokens = rawModelTokens
             }
 
             // First session date — stats cache when present, else the earliest JSONL entry
@@ -427,7 +434,7 @@ final class UsageAggregator: @unchecked Sendable {
 
             let activityStats = UsageSnapshot.computeActivityStats(activity)
 
-            let snapshot = UsageSnapshot(
+            var snapshot = UsageSnapshot(
                 lastUpdated: now,
                 rateLimits: rateLimits,
                 rateLimitSource: rateLimitSource,
@@ -467,6 +474,7 @@ final class UsageAggregator: @unchecked Sendable {
                 topSessionHealths: topSessionHealths,
                 provider: provider
             )
+            snapshot.ledgerSince = ledgerSince
 
             return (snapshot, observedModels)
         }

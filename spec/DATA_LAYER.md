@@ -14,6 +14,7 @@ Main aggregated data struct consumed by all views.
 | `lastUpdated` | `Date` | Generated at aggregation time |
 | `rateLimits` | `RateLimitUsage?` | API response headers |
 | `firstSessionDate` | `Date?` | stats-cache.json (ISO 8601) |
+| `ledgerSince` | `Date?` | `TokenLedger.firstScanDate(ledgerKey:)`, Codex only (nil for Claude) |
 | `totalSessions` | `Int` | stats-cache + additional JSONL (deduped across all dates) |
 | `totalMessages` | `Int` | stats-cache + additional JSONL (deduped across all dates) |
 | `longestSessionDuration` | `String?` | stats-cache (formatted) |
@@ -608,7 +609,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - Reads: stats cache, all JSONL entries (single scan)
 - **Token aggregation**: always all-time mode — stats-cache `modelUsage` + uncached JSONL, anti-double-counting for dates already in stats cache. All models from `modelUsage` are shown (no recency filter) so totals match the Anthropic dashboard.
 - **Provider model filter**: excludes model IDs outside the aggregator's provider prefix (`claude-` / `gpt-`) — e.g. `"synthetic"`, or a stray other-provider entry
-- **Token ledger merge**: after `buildModelTokens`, merges with `TokenLedger.shared.merge()` when `accountId` is non-nil. Preserves high-water marks and restores historical models lost from stats-cache. Skipped when unauthenticated (nil account).
+- **Token ledger merge**: after `buildModelTokens`, merges with `TokenLedger.shared.merge()` when `accountId` is non-nil. Preserves high-water marks and restores historical models lost from stats-cache. Skipped when unauthenticated (nil account). Codex only: `UsageSnapshot.ledgerSince` is set from `TokenLedger.firstScanDate(ledgerKey:)` right after the merge (the snapshot is built as a `var` and the field set after construction) — dates the Codex All-Time figure from the ledger's first scan; nil for Claude (stats-cache's `firstSessionDate` already covers it) and nil until the first merge completes.
 - **`buildModelTokens(from:provider:)` helper**: private static method that applies the provider model filter, maps to `ModelTokenSummary` (cost via `ModelPricing.pricing(for:)`, which routes `gpt-` IDs to `OpenAIModelPricing`), and sorts by `totalTokens` descending
 - **`buildProjectTokens` helper**: private static method that groups all JSONL entries by full `cwd` path (nil/empty → "Other"), accumulates 4 token types per project, computes cost per entry via `ModelPricing.pricing(for:)`, and returns `[ProjectTokenSummary]` sorted by `totalTokens` descending. Display name uses `lastPathComponent` of the cwd. Filters non-Claude models. Project data is JSONL-only (stats-cache lacks per-entry cwd).
 - **All-dates daily activity merge**: groups all JSONL entries by date via `entriesByDate` dictionary, then merges every date into `dailyActivity` (not just today). This fills gaps between a stale stats-cache rebuild date and the present. If JSONL has more messages for a date than the cache entry, replaces it; if no entry exists, appends one. Preserves the higher of JSONL or cache tool-call counts.
@@ -625,8 +626,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - File: `~/Library/Application Support/AIBattery/token-ledger.json` (1MB size guard on load)
 - Thread safety: `NSLock` guards all reads/writes to the in-memory ledger — prevents concurrent `Task.detached` calls from racing on dictionary mutation
 - `merge(_ tokens: [ModelTokenSummary], ledgerKey: String) -> [ModelTokenSummary]` — takes max of current vs stored for each token type (input, output, cacheRead, cacheWrite, reasoning). Restores historical models no longer in current data. Returns sorted by totalTokens descending. Writes to disk only when values increase (background `Task.detached`, atomic write).
-- `LedgerData`: `{ accounts: { ledgerKey: { modelId: ModelTokenRecord } } }` — per-account (or per-attribution-series) isolation
+- `LedgerData`: `{ accounts: { ledgerKey: { modelId: ModelTokenRecord } }, firstScan: { ledgerKey: Date } }` — per-account (or per-attribution-series) isolation. `firstScan` has a custom `init(from:)` using `decodeIfPresent` (mirrors `ModelTokenRecord`) so files written before this field existed decode as an empty dictionary.
 - `ModelTokenRecord`: `Codable, Equatable` struct with `input`, `output`, `cacheRead`, `cacheWrite` (all `Int`) plus `reasoning: Int` (defaulted = 0, `decodeIfPresent` so pre-reasoning ledger files decode unchanged)
+- `firstScanDate(ledgerKey:) -> Date?` — the date `merge` first recorded this key. Set once, inside the lock, the first time `merge` runs for a `ledgerKey` (`ledger.firstScan[ledgerKey] == nil` → set to `Date()`, marks `changed`); untouched on every subsequent merge. Survives reload (persisted in `LedgerData.firstScan`). `migrate(from:to:)` moves the earlier of the two dates to `newId` and drops `oldId`'s entry — the date follows the account identity, not the resolved-id timing. `pruneAccounts(keeping:)` drops `firstScan` entries alongside `accounts` for the same orphaned/dead keys.
 - Injectable `fileURL` for testing (defaults to Application Support path)
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)

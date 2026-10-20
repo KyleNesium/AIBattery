@@ -16,6 +16,24 @@ extension InsightsView {
     /// Shared line style used by all chart modes.
     static let chartLineStyle = StrokeStyle(lineWidth: Layout.borderWidth)
 
+    /// Caption shown under the chart in every mode, naming the date the ledger first
+    /// scanned Codex's logs — so the 12-month chart (rebuilt from rollouts still on
+    /// disk) and All-Time (a ledger that also keeps what was scanned before rotation)
+    /// stop looking like they disagree. Nil for Claude, a `since` older than 365 days
+    /// (not relevant to any chart window shown), or a nil `since`.
+    /// `unattributed` (turns from older Codex CLI versions not shown) contributes
+    /// nothing yet — wired up by the Codex-attribution task.
+    nonisolated static func sinceCaption(provider: AIProvider, since: Date?, unattributed: Int = 0, now: Date) -> String? {
+        let sincePart: String? = {
+            guard provider == .codex, let since, since > now.addingTimeInterval(-365 * 86_400) else { return nil }
+            return "since \(DateFormatters.mediumDate(since))"
+        }()
+        let unattributedPart = unattributed > 0
+            ? "\(unattributed) turns from older Codex CLI versions not shown" : nil
+        let parts = [sincePart, unattributedPart].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     /// Standard Y-axis for all chart modes: trailing position, 3 ticks, compact count labels.
     var sharedYAxis: some AxisContent {
         AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in

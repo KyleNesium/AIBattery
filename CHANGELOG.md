@@ -7,6 +7,7 @@
 - **Thinking and effort in the Context row.** The session line now shows what share of output was thinking (Claude) or reasoning (Codex) and the configured effort or fast mode; Insights model tooltips carry the share too.
 - **Credits bar names the plan limit.** The Codex credits tooltip shows the limit name OpenAI reports (e.g. the Business plan's budget) instead of the bare plan type.
 - **Credit budgets get a runway.** Spend-control plans show "~N d to limit" from the pace observed within the current period, once an hour of observation exists.
+- **Codex All-Time says since when.** The Insights All-Time tooltip and chart caption name the date AI Battery first scanned the Codex logs, so the ledger and the chart stop looking like they disagree.
 
 ## [3.2.0] — 2026-10-18
 
