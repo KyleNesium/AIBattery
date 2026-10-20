@@ -101,6 +101,373 @@ final class UsageAggregator: @unchecked Sendable {
         var byModel: [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)] = [:]
     }
 
+    /// One accumulation over a sorted entry stream, plus the assembly of its snapshot.
+    ///
+    /// Extracted from `aggregate` so that a second instance can run beside the first
+    /// (per-account attribution, Task 7): the entries are read once and walked once; each
+    /// instance only pays for its own accumulators.
+    ///
+    ///     entries ──► pass.add(entry) ×N ──► pass.finish(entries:…) ──► UsageSnapshot
+    ///
+    private struct AggregationPass {
+        let provider: AIProvider
+        let now: Date
+        let calendar: Calendar
+        let today: Date
+        let todayDate: String
+        let fiveHoursAgo: Date
+        let twentyFourHoursAgo: Date
+        let sevenDayRateLimitCutoff: Date
+        let sevenDaysAgo: Date
+        let twelveMonthsAgo: Date
+        let cachedDates: Set<String>
+
+        var todayEntries: [AssistantUsageEntry] = []
+        var trailing24hEntries: [AssistantUsageEntry] = []
+        var fiveHourTokens = 0
+        var sevenDayTokens = 0
+        var fiveHourTokenBuckets: [Int: Int] = [:]
+        var dailyTokenTotals: [String: Int] = [:]
+        var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
+        var uncachedModelTokensMap: TokenMap = [:]
+        var allJsonlModelTokensMap: TokenMap = [:]
+        var jsonlTodayToolCalls = 0
+        var projectMap: [String: ProjectAccum] = [:]
+        var lastSeenByModel: [String: Date] = [:]
+        var todayTokenMap: TokenMap = [:]
+        var weekTokenMap: TokenMap = [:]
+        var monthTokenMap: TokenMap = [:]
+        private var lastDayStart: Date = .distantPast
+        private var lastDayEnd: Date = .distantPast
+        private var lastDateKey = ""
+
+        init(provider: AIProvider, now: Date, cachedDates: Set<String>) {
+            self.provider = provider
+            self.now = now
+            self.cachedDates = cachedDates
+            let calendar = Calendar.current
+            self.calendar = calendar
+            today = calendar.startOfDay(for: now)
+            todayDate = UsageAggregator.dateFormatter.string(from: now)
+            fiveHoursAgo = now.addingTimeInterval(-UsageAggregator.fiveHourWindow)
+            twentyFourHoursAgo = now.addingTimeInterval(-UsageAggregator.twentyFourHourWindow)
+            sevenDayRateLimitCutoff = now.addingTimeInterval(-UsageAggregator.sevenDayWindow)
+            sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
+            twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today
+        }
+
+        mutating func add(_ entry: AssistantUsageEntry) {
+            let ts = entry.timestamp
+
+            // --- Date grouping ---
+            let dateKey: String
+            if ts >= lastDayStart && ts < lastDayEnd {
+                dateKey = lastDateKey
+            } else {
+                let entryDay = calendar.startOfDay(for: ts)
+                lastDayStart = entryDay
+                // Calendar arithmetic, not a fixed 86 400 s: on a DST spring-forward the
+                // local day is 23 h, so a flat +86 400 lands an hour INTO the next day and
+                // every entry in that hour reuses the previous day's key — landing on the
+                // wrong 7D bar, the wrong daily total and the wrong side of
+                // `changeVsYesterday`, twice a year for every user in a DST timezone.
+                lastDayEnd = calendar.date(byAdding: .day, value: 1, to: entryDay) ?? entryDay.addingTimeInterval(86_400)
+                dateKey = UsageAggregator.dateFormatter.string(from: ts)
+                lastDateKey = dateKey
+            }
+
+            var bucket = entriesByDate[dateKey] ?? (messages: 0, sessions: [])
+            bucket.messages += 1
+            bucket.sessions.insert(entry.sessionId)
+            entriesByDate[dateKey] = bucket
+
+            // Track most-recent timestamp per model (entries are sorted ascending,
+            // so last write wins — no comparison needed).
+            lastSeenByModel[entry.model] = ts
+
+            if ts >= today {
+                todayEntries.append(entry)
+                jsonlTodayToolCalls += entry.toolCallCount
+            }
+            if ts >= twentyFourHoursAgo {
+                trailing24hEntries.append(entry)
+            }
+
+            // --- 5-hour and 7-day token totals for local usage estimation ---
+            // Include all token types: Anthropic's unified rate limit counts input, output,
+            // cache read, and cache write tokens toward the 5h/7d budget.
+            let entryAllTokens = entry.inputTokens + entry.outputTokens + entry.cacheReadTokens + entry.cacheWriteTokens
+            if ts >= fiveHoursAgo {
+                fiveHourTokens += entryAllTokens
+                // 15-minute bucket: offset 0 = 5h ago, offset (bucketCount-1) = now
+                let secondsAgo = now.timeIntervalSince(ts)
+                let bucket = min(UsageAggregator.fiveHourBucketCount - 1, Int((UsageAggregator.fiveHourWindow - secondsAgo) / UsageAggregator.bucketDuration))
+                if bucket >= 0 {
+                    fiveHourTokenBuckets[bucket, default: 0] += entryAllTokens
+                }
+            }
+            if ts >= sevenDayRateLimitCutoff {
+                sevenDayTokens += entryAllTokens
+            }
+            // Daily token totals (all dates, for 7D and 12M charts)
+            // Uses all token types to match 5h/7d summary totals and model breakdowns.
+            dailyTokenTotals[dateKey, default: 0] += entryAllTokens
+
+            // All-time model tokens from dates not in stats-cache
+            if !cachedDates.contains(dateKey) {
+                UsageAggregator.accumulate(into: &uncachedModelTokensMap, key: entry.model, entry: entry)
+            }
+
+            // Accumulate all JSONL model tokens (all dates) as a floor for all-time totals.
+            if UsageAggregator.isTrackedModel(entry.model, provider: provider) {
+                UsageAggregator.accumulate(into: &allJsonlModelTokensMap, key: entry.model, entry: entry)
+            }
+
+            // --- Project accumulation ---
+            if UsageAggregator.isTrackedModel(entry.model, provider: provider) {
+                // The map is keyed by the cwd itself, so a project seen earlier in this
+                // pass needs no path work at all. `lastPathComponent` bridges to NSString
+                // and costs about a microsecond; it used to run TWICE per entry, over
+                // every entry, on every pass — for a value with only tens of distinct
+                // results. Now it runs once per distinct cwd.
+                var projKey = "Other"
+                if let cwd = entry.cwd, !cwd.isEmpty {
+                    if projectMap[cwd] != nil {
+                        projKey = cwd
+                    } else {
+                        let name = (cwd as NSString).lastPathComponent
+                        // A cwd whose last component is "/" carries no project name.
+                        if name != "/" {
+                            projKey = cwd
+                            projectMap[cwd] = ProjectAccum(displayName: name)
+                        }
+                    }
+                }
+                var proj = projectMap[projKey] ?? ProjectAccum(displayName: "Other")
+                var m = proj.byModel[entry.model] ?? (0, 0, 0, 0)
+                m.input += entry.inputTokens
+                m.output += entry.outputTokens
+                m.cacheRead += entry.cacheReadTokens
+                m.cacheWrite += entry.cacheWriteTokens
+                proj.byModel[entry.model] = m
+                projectMap[projKey] = proj
+            }
+
+            // --- Windowed model tokens ---
+            if ts >= today {
+                UsageAggregator.accumulate(into: &todayTokenMap, key: entry.model, entry: entry)
+                UsageAggregator.accumulate(into: &weekTokenMap, key: entry.model, entry: entry)
+                UsageAggregator.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
+            } else if ts >= sevenDaysAgo {
+                UsageAggregator.accumulate(into: &weekTokenMap, key: entry.model, entry: entry)
+                if ts >= twelveMonthsAgo {
+                    UsageAggregator.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
+                }
+            } else if ts >= twelveMonthsAgo {
+                UsageAggregator.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
+            }
+        }
+
+        /// Everything after the loop: observed models, project/model summaries, ledger
+        /// merge, health, activity merge, hour counts, and the snapshot itself.
+        func finish(
+            entries: [AssistantUsageEntry],
+            statsCache: StatsCache?,
+            rateLimits: RateLimitUsage?,
+            rateLimitSource: RateLimitSource?,
+            standardLimits: StandardRateLimits?,
+            rateLimitsFresh: Bool,
+            idleSessionMinutes: Int,
+            ledger: TokenLedger,
+            accountId: String?
+        ) -> (snapshot: UsageSnapshot, observedModels: [String]) {
+            // Build observed model list sorted by recency (most recent first) for dynamic probe fallback.
+            let observedModels = lastSeenByModel.sorted { $0.value > $1.value }.map(\.key)
+
+            let todayMessages = todayEntries.count
+            let todaySessions = entriesByDate[todayDate]?.sessions.count ?? 0
+            let statsCacheToolCalls = statsCache?.dailyActivity
+                .first(where: { $0.date == todayDate })?.toolCallCount ?? 0
+            let todayToolCalls = max(jsonlTodayToolCalls, statsCacheToolCalls)
+
+            // Build project tokens from accumulated map (O(projects × models) pricing lookups)
+            let projectTokens = UsageAggregator.buildProjectTokensFromMap(projectMap)
+
+            // Build windowed model tokens from accumulated maps
+            let todayModelTokens = UsageAggregator.buildModelTokens(from: todayTokenMap, provider: provider)
+            let weekModelTokens = UsageAggregator.buildModelTokens(from: weekTokenMap, provider: provider)
+            let monthModelTokens = UsageAggregator.buildModelTokens(from: monthTokenMap, provider: provider)
+
+            // All-time model tokens: stats cache + uncached JSONL
+            var modelTokensMap: TokenMap = [:]
+            if let cache = statsCache {
+                for (modelId, usage) in cache.modelUsage {
+                    modelTokensMap[modelId] = (
+                        input: usage.inputTokens,
+                        output: usage.outputTokens,
+                        cacheRead: usage.cacheReadInputTokens,
+                        cacheWrite: usage.cacheCreationInputTokens
+                    )
+                }
+            }
+            // Add JSONL entries from dates not covered by stats-cache.
+            // Uses uncachedModelTokensMap accumulated during the single-pass loop.
+            for (model, tokens) in uncachedModelTokensMap {
+                UsageAggregator.accumulate(into: &modelTokensMap, key: model, tokens: tokens)
+            }
+            // Ensure all-time per-model totals are never less than JSONL-only totals.
+            // Stats-cache can be stale (not rebuilt since new JSONL entries were added for
+            // a cached date), which would make Projects (all JSONL) exceed All Time.
+            for (model, jsonl) in allJsonlModelTokensMap {
+                let existing = modelTokensMap[model] ?? (0, 0, 0, 0)
+                modelTokensMap[model] = (
+                    input: max(existing.input, jsonl.input),
+                    output: max(existing.output, jsonl.output),
+                    cacheRead: max(existing.cacheRead, jsonl.cacheRead),
+                    cacheWrite: max(existing.cacheWrite, jsonl.cacheWrite)
+                )
+            }
+            let rawModelTokens = UsageAggregator.buildModelTokens(from: modelTokensMap, provider: provider)
+
+            // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
+            let modelTokens: [ModelTokenSummary] = if let accountId {
+                ledger.merge(rawModelTokens, accountId: accountId)
+            } else {
+                rawModelTokens
+            }
+
+            // First session date — stats cache when present, else the earliest JSONL entry
+            // (entries are sorted ascending). Codex always takes the fallback.
+            let firstSessionDate = statsCache?.firstSessionDate
+                .flatMap(DateFormatters.parseISO8601)
+                ?? entries.first?.timestamp
+
+            // Token health assessment — single-pass grouping for current + top sessions
+            let healthResult = TokenHealthMonitor.shared.assessSessions(entries: entries, topLimit: 5, idleCutoffMinutes: idleSessionMinutes)
+            let tokenHealth = healthResult.current
+            let topSessionHealths = healthResult.top
+
+            // Merge JSONL daily counts into dailyActivity and compute additional
+            // messages/sessions beyond stats-cache in a single pass.
+            var activity = statsCache?.dailyActivity ?? []
+            // Dictionary index for O(1) lookup instead of O(n) firstIndex(where:).
+            // Uses uniquingKeysWith to handle corrupt stats-cache with duplicate dates
+            // (Dictionary(uniqueKeysWithValues:) would fatally trap on duplicates).
+            var activityIndex: [String: Int] = Dictionary(
+                activity.enumerated().map { ($1.date, $0) },
+                uniquingKeysWith: { _, last in last }
+            )
+            var additionalMessages = 0
+            var additionalSessions = 0
+            for (date, bucket) in entriesByDate {
+                let toolCalls = (date == todayDate) ? jsonlTodayToolCalls : 0
+                if let idx = activityIndex[date] {
+                    // Capture original stats-cache values before potential mutation
+                    let cachedMessages = activity[idx].messageCount
+                    let cachedSessions = activity[idx].sessionCount
+                    // Update existing entry if JSONL has more messages
+                    if bucket.messages > cachedMessages {
+                        activity[idx] = DailyActivity(
+                            date: date,
+                            messageCount: bucket.messages,
+                            sessionCount: bucket.sessions.count,
+                            toolCallCount: max(toolCalls, activity[idx].toolCallCount)
+                        )
+                    }
+                    additionalMessages += max(bucket.messages - cachedMessages, 0)
+                    additionalSessions += max(bucket.sessions.count - cachedSessions, 0)
+                } else {
+                    activityIndex[date] = activity.count
+                    activity.append(DailyActivity(
+                        date: date,
+                        messageCount: bucket.messages,
+                        sessionCount: bucket.sessions.count,
+                        toolCallCount: toolCalls
+                    ))
+                    additionalMessages += bucket.messages
+                    additionalSessions += bucket.sessions.count
+                }
+            }
+
+            // Build trailing 24-hour breakdown from JSONL (for 24H chart).
+            // Uses entries from the past 24 hours (not just today) so the chart
+            // correctly shows yesterday evening's activity in the morning.
+            var todayHourCounts: [String: Int] = [:]
+            for entry in trailing24hEntries {
+                let hour = String(calendar.component(.hour, from: entry.timestamp))
+                todayHourCounts[hour, default: 0] += 1
+            }
+
+            // Merge today-only JSONL into all-time hourCounts for peak hour stat.
+            // Uses todayEntries (not trailing24h) to avoid inflating peaks by
+            // combining yesterday + today counts for the same hour.
+            var todayOnlyHourCounts: [String: Int] = [:]
+            for entry in todayEntries {
+                let hour = String(calendar.component(.hour, from: entry.timestamp))
+                todayOnlyHourCounts[hour, default: 0] += 1
+            }
+            var hourCounts = statsCache?.hourCounts ?? [:]
+            for (hour, count) in todayOnlyHourCounts {
+                hourCounts[hour] = max(hourCounts[hour] ?? 0, count)
+            }
+
+            // Peak hour (computed after hourly merge to reflect live data)
+            let peakEntry = hourCounts.max(by: { $0.value < $1.value })
+            let peakHour = peakEntry.flatMap { Int($0.key) }
+            let peakHourCount = peakEntry?.value ?? 0
+
+            // Sort by date so dailyActivity.last is the most recent day.
+            // Stats-cache entries are pre-sorted, but JSONL-only days are appended
+            // in arbitrary dictionary iteration order.
+            activity.sort { $0.date < $1.date }
+
+            let activityStats = UsageSnapshot.computeActivityStats(activity)
+
+            let snapshot = UsageSnapshot(
+                lastUpdated: now,
+                rateLimits: rateLimits,
+                rateLimitSource: rateLimitSource,
+                standardLimits: standardLimits,
+                rateLimitsFresh: rateLimitsFresh,
+                firstSessionDate: firstSessionDate,
+                totalSessions: (statsCache?.totalSessions ?? 0) + additionalSessions,
+                totalMessages: (statsCache?.totalMessages ?? 0) + additionalMessages,
+                longestSessionDuration: statsCache?.longestSession?.durationFormatted,
+                longestSessionMessages: statsCache?.longestSession?.messageCount ?? 0,
+                peakHour: peakHour,
+                peakHourCount: peakHourCount,
+                todayMessages: todayMessages,
+                todaySessions: todaySessions,
+                todayToolCalls: todayToolCalls,
+                modelTokens: modelTokens,
+                projectTokens: projectTokens,
+                totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
+                totalUsageTokens: modelTokens.reduce(0) { $0 + $1.usageTokens },
+                totalProjectTokens: projectTokens.reduce(0) { $0 + $1.totalTokens },
+                totalProjectUsageTokens: projectTokens.reduce(0) { $0 + $1.usageTokens },
+                totalProjectCost: projectTokens.reduce(0.0) { $0 + $1.estimatedCost },
+                fiveHourTokens: fiveHourTokens,
+                sevenDayTokens: sevenDayTokens,
+                fiveHourTokenBuckets: fiveHourTokenBuckets,
+                dailyTokenTotals: dailyTokenTotals,
+                todayModelTokens: todayModelTokens,
+                weekModelTokens: weekModelTokens,
+                monthModelTokens: monthModelTokens,
+                dailyActivity: activity,
+                dailyAverage: activityStats.average,
+                trendDirection: activityStats.trend,
+                busiestDayOfWeek: activityStats.busiestDay,
+                hourCounts: hourCounts,
+                todayHourCounts: todayHourCounts,
+                tokenHealth: tokenHealth,
+                topSessionHealths: topSessionHealths,
+                provider: provider
+            )
+
+            return (snapshot, observedModels)
+        }
+    }
+
     // MARK: - Redundant aggregation skip
 
     private var cachedSnapshot: UsageSnapshot?
@@ -172,348 +539,16 @@ final class UsageAggregator: @unchecked Sendable {
         // project token accumulation, and windowed model token bucketing — all in one iteration.
         // `now` is injectable via the function parameter; default = Date(). Tests
         // pin window-boundary behavior by supplying a deterministic value.
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: now)
-        let todayDate = Self.dateFormatter.string(from: now)
-        let fiveHoursAgo = now.addingTimeInterval(-Self.fiveHourWindow)
-        let twentyFourHoursAgo = now.addingTimeInterval(-Self.twentyFourHourWindow)
-        // Rolling 7×86400 boundary for the rate-limit token count (mirrors
-        // Anthropic's actual sliding-window quota). Distinct from `sevenDaysAgo`
-        // below, which is calendar-day for the per-model weekly UI breakdown.
-        let sevenDayRateLimitCutoff = now.addingTimeInterval(-Self.sevenDayWindow)
-        let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: today) ?? today
-        let twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: today) ?? today
-
-        var todayEntries: [AssistantUsageEntry] = []
-        var trailing24hEntries: [AssistantUsageEntry] = []
-        // 5-hour and 7-day token totals for local usage estimation
-        var fiveHourTokens = 0
-        var sevenDayTokens = 0
-        // 5-hour 15-minute token buckets for the insights chart (bucket 0 = oldest)
-        var fiveHourTokenBuckets: [Int: Int] = [:]
-        // Per-date token totals for 7D and 12M chart modes
-        var dailyTokenTotals: [String: Int] = [:]
-        var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
-        // All-time model tokens from JSONL entries not covered by stats-cache
         let cachedDates = Set(statsCache?.dailyModelTokens.map(\.date) ?? [])
-        var uncachedModelTokensMap: TokenMap = [:]
-        // All JSONL model tokens (all dates) — used as a floor for all-time totals
-        // so that Projects (JSONL-only) never exceeds All Time.
-        var allJsonlModelTokensMap: TokenMap = [:]
-        var jsonlTodayToolCalls = 0
-
-        // Project accumulators (keyed by cwd → model → tokens)
-        var projectMap: [String: ProjectAccum] = [:]
-
-        // Tracks the most-recent timestamp seen for each model ID — used to build
-        // the dynamic probe list in RateLimitFetcher after the pass completes.
-        var lastSeenByModel: [String: Date] = [:]
-
-        // Windowed model token accumulators
-        var todayTokenMap: TokenMap = [:]
-        var weekTokenMap: TokenMap = [:]
-        var monthTokenMap: TokenMap = [:]
-
-        // Date boundary cache — avoids Calendar.startOfDay() ICU calls per entry.
-        // Entries are sorted ascending, so we track the current day's start/end
-        // and only recompute when timestamp crosses the boundary.
-        var lastDayStart: Date = .distantPast
-        var lastDayEnd: Date = .distantPast
-        var lastDateKey = ""
-
+        var pass = AggregationPass(provider: provider, now: now, cachedDates: cachedDates)
         for entry in allEntries {
-            let ts = entry.timestamp
-
-            // --- Date grouping ---
-            let dateKey: String
-            if ts >= lastDayStart && ts < lastDayEnd {
-                dateKey = lastDateKey
-            } else {
-                let entryDay = calendar.startOfDay(for: ts)
-                lastDayStart = entryDay
-                // Calendar arithmetic, not a fixed 86 400 s: on a DST spring-forward the
-                // local day is 23 h, so a flat +86 400 lands an hour INTO the next day and
-                // every entry in that hour reuses the previous day's key — landing on the
-                // wrong 7D bar, the wrong daily total and the wrong side of
-                // `changeVsYesterday`, twice a year for every user in a DST timezone.
-                lastDayEnd = calendar.date(byAdding: .day, value: 1, to: entryDay) ?? entryDay.addingTimeInterval(86_400)
-                dateKey = Self.dateFormatter.string(from: ts)
-                lastDateKey = dateKey
-            }
-
-            var bucket = entriesByDate[dateKey] ?? (messages: 0, sessions: [])
-            bucket.messages += 1
-            bucket.sessions.insert(entry.sessionId)
-            entriesByDate[dateKey] = bucket
-
-            // Track most-recent timestamp per model (entries are sorted ascending,
-            // so last write wins — no comparison needed).
-            lastSeenByModel[entry.model] = ts
-
-            if ts >= today {
-                todayEntries.append(entry)
-                jsonlTodayToolCalls += entry.toolCallCount
-            }
-            if ts >= twentyFourHoursAgo {
-                trailing24hEntries.append(entry)
-            }
-
-            // --- 5-hour and 7-day token totals for local usage estimation ---
-            // Include all token types: Anthropic's unified rate limit counts input, output,
-            // cache read, and cache write tokens toward the 5h/7d budget.
-            let entryAllTokens = entry.inputTokens + entry.outputTokens + entry.cacheReadTokens + entry.cacheWriteTokens
-            if ts >= fiveHoursAgo {
-                fiveHourTokens += entryAllTokens
-                // 15-minute bucket: offset 0 = 5h ago, offset (bucketCount-1) = now
-                let secondsAgo = now.timeIntervalSince(ts)
-                let bucket = min(Self.fiveHourBucketCount - 1, Int((Self.fiveHourWindow - secondsAgo) / Self.bucketDuration))
-                if bucket >= 0 {
-                    fiveHourTokenBuckets[bucket, default: 0] += entryAllTokens
-                }
-            }
-            if ts >= sevenDayRateLimitCutoff {
-                sevenDayTokens += entryAllTokens
-            }
-            // Daily token totals (all dates, for 7D and 12M charts)
-            // Uses all token types to match 5h/7d summary totals and model breakdowns.
-            dailyTokenTotals[dateKey, default: 0] += entryAllTokens
-
-            // All-time model tokens from dates not in stats-cache
-            if !cachedDates.contains(dateKey) {
-                Self.accumulate(into: &uncachedModelTokensMap, key: entry.model, entry: entry)
-            }
-
-            // Accumulate all JSONL model tokens (all dates) as a floor for all-time totals.
-            if Self.isTrackedModel(entry.model, provider: provider) {
-                Self.accumulate(into: &allJsonlModelTokensMap, key: entry.model, entry: entry)
-            }
-
-            // --- Project accumulation ---
-            if Self.isTrackedModel(entry.model, provider: provider) {
-                // The map is keyed by the cwd itself, so a project seen earlier in this
-                // pass needs no path work at all. `lastPathComponent` bridges to NSString
-                // and costs about a microsecond; it used to run TWICE per entry, over
-                // every entry, on every pass — for a value with only tens of distinct
-                // results. Now it runs once per distinct cwd.
-                var projKey = "Other"
-                if let cwd = entry.cwd, !cwd.isEmpty {
-                    if projectMap[cwd] != nil {
-                        projKey = cwd
-                    } else {
-                        let name = (cwd as NSString).lastPathComponent
-                        // A cwd whose last component is "/" carries no project name.
-                        if name != "/" {
-                            projKey = cwd
-                            projectMap[cwd] = ProjectAccum(displayName: name)
-                        }
-                    }
-                }
-                var proj = projectMap[projKey] ?? ProjectAccum(displayName: "Other")
-                var m = proj.byModel[entry.model] ?? (0, 0, 0, 0)
-                m.input += entry.inputTokens
-                m.output += entry.outputTokens
-                m.cacheRead += entry.cacheReadTokens
-                m.cacheWrite += entry.cacheWriteTokens
-                proj.byModel[entry.model] = m
-                projectMap[projKey] = proj
-            }
-
-            // --- Windowed model tokens ---
-            if ts >= today {
-                Self.accumulate(into: &todayTokenMap, key: entry.model, entry: entry)
-                Self.accumulate(into: &weekTokenMap, key: entry.model, entry: entry)
-                Self.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
-            } else if ts >= sevenDaysAgo {
-                Self.accumulate(into: &weekTokenMap, key: entry.model, entry: entry)
-                if ts >= twelveMonthsAgo {
-                    Self.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
-                }
-            } else if ts >= twelveMonthsAgo {
-                Self.accumulate(into: &monthTokenMap, key: entry.model, entry: entry)
-            }
+            pass.add(entry)
         }
-
-        // Build observed model list sorted by recency (most recent first) for dynamic probe fallback.
-        let observedModels = lastSeenByModel.sorted { $0.value > $1.value }.map(\.key)
-
-        let todayMessages = todayEntries.count
-        let todaySessions = entriesByDate[todayDate]?.sessions.count ?? 0
-        let statsCacheToolCalls = statsCache?.dailyActivity
-            .first(where: { $0.date == todayDate })?.toolCallCount ?? 0
-        let todayToolCalls = max(jsonlTodayToolCalls, statsCacheToolCalls)
-
-        // Build project tokens from accumulated map (O(projects × models) pricing lookups)
-        let projectTokens = Self.buildProjectTokensFromMap(projectMap)
-
-        // Build windowed model tokens from accumulated maps
-        let todayModelTokens = Self.buildModelTokens(from: todayTokenMap, provider: provider)
-        let weekModelTokens = Self.buildModelTokens(from: weekTokenMap, provider: provider)
-        let monthModelTokens = Self.buildModelTokens(from: monthTokenMap, provider: provider)
-
-        // All-time model tokens: stats cache + uncached JSONL
-        var modelTokensMap: TokenMap = [:]
-        if let cache = statsCache {
-            for (modelId, usage) in cache.modelUsage {
-                modelTokensMap[modelId] = (
-                    input: usage.inputTokens,
-                    output: usage.outputTokens,
-                    cacheRead: usage.cacheReadInputTokens,
-                    cacheWrite: usage.cacheCreationInputTokens
-                )
-            }
-        }
-        // Add JSONL entries from dates not covered by stats-cache.
-        // Uses uncachedModelTokensMap accumulated during the single-pass loop.
-        for (model, tokens) in uncachedModelTokensMap {
-            Self.accumulate(into: &modelTokensMap, key: model, tokens: tokens)
-        }
-        // Ensure all-time per-model totals are never less than JSONL-only totals.
-        // Stats-cache can be stale (not rebuilt since new JSONL entries were added for
-        // a cached date), which would make Projects (all JSONL) exceed All Time.
-        for (model, jsonl) in allJsonlModelTokensMap {
-            let existing = modelTokensMap[model] ?? (0, 0, 0, 0)
-            modelTokensMap[model] = (
-                input: max(existing.input, jsonl.input),
-                output: max(existing.output, jsonl.output),
-                cacheRead: max(existing.cacheRead, jsonl.cacheRead),
-                cacheWrite: max(existing.cacheWrite, jsonl.cacheWrite)
-            )
-        }
-        let rawModelTokens = Self.buildModelTokens(from: modelTokensMap, provider: provider)
-
-        // Merge with persistent ledger — preserves high-water marks across stats-cache rebuilds.
-        let modelTokens: [ModelTokenSummary] = if let accountId {
-            ledger.merge(rawModelTokens, accountId: accountId)
-        } else {
-            rawModelTokens
-        }
-
-        // First session date — stats cache when present, else the earliest JSONL entry
-        // (entries are sorted ascending). Codex always takes the fallback.
-        let firstSessionDate = statsCache?.firstSessionDate
-            .flatMap(DateFormatters.parseISO8601)
-            ?? allEntries.first?.timestamp
-
-        // Token health assessment — single-pass grouping for current + top sessions
-        let healthResult = TokenHealthMonitor.shared.assessSessions(entries: allEntries, topLimit: 5, idleCutoffMinutes: idleSessionMinutes)
-        let tokenHealth = healthResult.current
-        let topSessionHealths = healthResult.top
-
-        // Merge JSONL daily counts into dailyActivity and compute additional
-        // messages/sessions beyond stats-cache in a single pass.
-        var activity = statsCache?.dailyActivity ?? []
-        // Dictionary index for O(1) lookup instead of O(n) firstIndex(where:).
-        // Uses uniquingKeysWith to handle corrupt stats-cache with duplicate dates
-        // (Dictionary(uniqueKeysWithValues:) would fatally trap on duplicates).
-        var activityIndex: [String: Int] = Dictionary(
-            activity.enumerated().map { ($1.date, $0) },
-            uniquingKeysWith: { _, last in last }
-        )
-        var additionalMessages = 0
-        var additionalSessions = 0
-        for (date, bucket) in entriesByDate {
-            let toolCalls = (date == todayDate) ? jsonlTodayToolCalls : 0
-            if let idx = activityIndex[date] {
-                // Capture original stats-cache values before potential mutation
-                let cachedMessages = activity[idx].messageCount
-                let cachedSessions = activity[idx].sessionCount
-                // Update existing entry if JSONL has more messages
-                if bucket.messages > cachedMessages {
-                    activity[idx] = DailyActivity(
-                        date: date,
-                        messageCount: bucket.messages,
-                        sessionCount: bucket.sessions.count,
-                        toolCallCount: max(toolCalls, activity[idx].toolCallCount)
-                    )
-                }
-                additionalMessages += max(bucket.messages - cachedMessages, 0)
-                additionalSessions += max(bucket.sessions.count - cachedSessions, 0)
-            } else {
-                activityIndex[date] = activity.count
-                activity.append(DailyActivity(
-                    date: date,
-                    messageCount: bucket.messages,
-                    sessionCount: bucket.sessions.count,
-                    toolCallCount: toolCalls
-                ))
-                additionalMessages += bucket.messages
-                additionalSessions += bucket.sessions.count
-            }
-        }
-
-        // Build trailing 24-hour breakdown from JSONL (for 24H chart).
-        // Uses entries from the past 24 hours (not just today) so the chart
-        // correctly shows yesterday evening's activity in the morning.
-        var todayHourCounts: [String: Int] = [:]
-        for entry in trailing24hEntries {
-            let hour = String(calendar.component(.hour, from: entry.timestamp))
-            todayHourCounts[hour, default: 0] += 1
-        }
-
-        // Merge today-only JSONL into all-time hourCounts for peak hour stat.
-        // Uses todayEntries (not trailing24h) to avoid inflating peaks by
-        // combining yesterday + today counts for the same hour.
-        var todayOnlyHourCounts: [String: Int] = [:]
-        for entry in todayEntries {
-            let hour = String(calendar.component(.hour, from: entry.timestamp))
-            todayOnlyHourCounts[hour, default: 0] += 1
-        }
-        var hourCounts = statsCache?.hourCounts ?? [:]
-        for (hour, count) in todayOnlyHourCounts {
-            hourCounts[hour] = max(hourCounts[hour] ?? 0, count)
-        }
-
-        // Peak hour (computed after hourly merge to reflect live data)
-        let peakEntry = hourCounts.max(by: { $0.value < $1.value })
-        let peakHour = peakEntry.flatMap { Int($0.key) }
-        let peakHourCount = peakEntry?.value ?? 0
-
-        // Sort by date so dailyActivity.last is the most recent day.
-        // Stats-cache entries are pre-sorted, but JSONL-only days are appended
-        // in arbitrary dictionary iteration order.
-        activity.sort { $0.date < $1.date }
-
-        let activityStats = UsageSnapshot.computeActivityStats(activity)
-
-        let snapshot = UsageSnapshot(
-            lastUpdated: now,
-            rateLimits: rateLimits,
-            rateLimitSource: rateLimitSource,
-            standardLimits: standardLimits,
-            rateLimitsFresh: rateLimitsFresh,
-            firstSessionDate: firstSessionDate,
-            totalSessions: (statsCache?.totalSessions ?? 0) + additionalSessions,
-            totalMessages: (statsCache?.totalMessages ?? 0) + additionalMessages,
-            longestSessionDuration: statsCache?.longestSession?.durationFormatted,
-            longestSessionMessages: statsCache?.longestSession?.messageCount ?? 0,
-            peakHour: peakHour,
-            peakHourCount: peakHourCount,
-            todayMessages: todayMessages,
-            todaySessions: todaySessions,
-            todayToolCalls: todayToolCalls,
-            modelTokens: modelTokens,
-            projectTokens: projectTokens,
-            totalTokens: modelTokens.reduce(0) { $0 + $1.totalTokens },
-            totalUsageTokens: modelTokens.reduce(0) { $0 + $1.usageTokens },
-            totalProjectTokens: projectTokens.reduce(0) { $0 + $1.totalTokens },
-            totalProjectUsageTokens: projectTokens.reduce(0) { $0 + $1.usageTokens },
-            totalProjectCost: projectTokens.reduce(0.0) { $0 + $1.estimatedCost },
-            fiveHourTokens: fiveHourTokens,
-            sevenDayTokens: sevenDayTokens,
-            fiveHourTokenBuckets: fiveHourTokenBuckets,
-            dailyTokenTotals: dailyTokenTotals,
-            todayModelTokens: todayModelTokens,
-            weekModelTokens: weekModelTokens,
-            monthModelTokens: monthModelTokens,
-            dailyActivity: activity,
-            dailyAverage: activityStats.average,
-            trendDirection: activityStats.trend,
-            busiestDayOfWeek: activityStats.busiestDay,
-            hourCounts: hourCounts,
-            todayHourCounts: todayHourCounts,
-            tokenHealth: tokenHealth,
-            topSessionHealths: topSessionHealths,
-            provider: provider
+        let (snapshot, observedModels) = pass.finish(
+            entries: allEntries, statsCache: statsCache, rateLimits: rateLimits,
+            rateLimitSource: rateLimitSource, standardLimits: standardLimits,
+            rateLimitsFresh: rateLimitsFresh, idleSessionMinutes: idleSessionMinutes,
+            ledger: ledger, accountId: accountId
         )
 
         // Build side effects for @MainActor callers to apply
