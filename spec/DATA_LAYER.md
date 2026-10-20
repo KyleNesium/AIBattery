@@ -68,10 +68,11 @@ Static constants: `hysteresisDeescalationBand = 10.0` — the percentage point b
 | `cacheReadTokens` | `Int` |
 | `cacheWriteTokens` | `Int` |
 | `estimatedCost` | `Double` (pre-computed API-equivalent cost) |
+| `reasoningTokens` | `Int` (defaulted = 0) — thinking/reasoning tokens, a subset of `outputTokens`; never added to totals |
 
 Computed: `usageTokens` (input + output, excludes cache).
 
-Computed: `totalTokens` = sum of all four token types. `cacheHitRate: Double?` = `cacheReadTokens / (cacheReadTokens + inputTokens) * 100` (nil when denominator is zero).
+Computed: `totalTokens` = sum of all four token types (`reasoningTokens` is a subset, not a fifth addend). `cacheHitRate: Double?` = `cacheReadTokens / (cacheReadTokens + inputTokens) * 100` (nil when denominator is zero). `reasoningShare: Double?` = `reasoningTokens / outputTokens` (0…1, nil when `outputTokens == 0`).
 
 Conforms to `Identifiable`, `Equatable`. Equatable enables SwiftUI to diff ForEach collections efficiently (skip re-rendering unchanged rows).
 
@@ -592,7 +593,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - **Static formatters**: `private static let dateFormatter: DateFormatter` and `isoFormatter: ISO8601DateFormatter` — created once at load time
 - **Time window constants**: `fiveHourWindow` (18,000s), `sevenDayWindow` (604,800s — rolling 7×86400 for rate-limit token count, mirrors Anthropic's sliding-window quota), `twentyFourHourWindow` (86,400s), `fiveHourBucketCount` (20), `bucketDuration` (900s). The aggregator computes two distinct 7-day cutoffs: `sevenDayRateLimitCutoff` (rolling, drives `sevenDayTokens`) and `sevenDaysAgo` (calendar-day, drives `weekTokenMap` UI breakdown).
 - **Injectable `now`**: `aggregate(...)` accepts `now: Date = Date()`. Production callers use the default; tests pin window-boundary behavior with deterministic timestamps independent of wall-clock time of day.
-- **TokenMap typealias**: `private typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]` — class-level type used by accumulator methods and `buildModelTokens`
+- **TokenMap typealias**: `private typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int, reasoning: Int)]` — class-level type used by accumulator methods and `buildModelTokens`. `reasoning` has no stats-cache source (passed `0` when seeding `modelTokensMap` from `StatsCache.modelUsage`) and is carried through as a `max()` floor alongside the other four types.
 - **`accumulate(into:key:entry:)`** and **`accumulate(into:key:tokens:)`**: static helpers for per-model token accumulation — replaces 9 inline patterns in the single-pass loop and post-loop merge
 - `aggregate(rateLimits:accountId:) -> UsageSnapshot`
 - **Redundant aggregation skip**: tracks a lightweight fingerprint (stats-cache modification date, rate limits via `Equatable`, standard limits via `Equatable`, rate limit source, rate-limits-fresh flag, idle session minutes setting, account ID, **and `now` quantised to `fingerprintTimeBucket` = 15 min**). Returns cached `UsageSnapshot` when all fingerprint components match — avoids rebuilding the entire snapshot during idle periods. The time bucket exists because `invalidate()` only fires on FS events: without it a provider whose CLI is idle (notably the non-active provider in the multi-account overview, via `aggregateOtherProviders`) returned the same snapshot indefinitely — frozen 5h-window tokens, `todayMessages` surviving past midnight, stale `lastUpdated`. Crossing a bucket boundary forces one recompute; within a bucket the skip still applies.
@@ -616,9 +617,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - Persistent high-water-mark storage for per-model token totals per account
 - File: `~/Library/Application Support/AIBattery/token-ledger.json` (1MB size guard on load)
 - Thread safety: `NSLock` guards all reads/writes to the in-memory ledger — prevents concurrent `Task.detached` calls from racing on dictionary mutation
-- `merge(_ tokens: [ModelTokenSummary], accountId: String) -> [ModelTokenSummary]` — takes max of current vs stored for each token type (input, output, cacheRead, cacheWrite). Restores historical models no longer in current data. Returns sorted by totalTokens descending. Writes to disk only when values increase (background `Task.detached`, atomic write).
-- `LedgerData`: `{ accounts: { accountId: { modelId: ModelTokenRecord } } }` — per-account isolation
-- `ModelTokenRecord`: `Codable, Equatable` struct with 4 Int fields
+- `merge(_ tokens: [ModelTokenSummary], ledgerKey: String) -> [ModelTokenSummary]` — takes max of current vs stored for each token type (input, output, cacheRead, cacheWrite, reasoning). Restores historical models no longer in current data. Returns sorted by totalTokens descending. Writes to disk only when values increase (background `Task.detached`, atomic write).
+- `LedgerData`: `{ accounts: { ledgerKey: { modelId: ModelTokenRecord } } }` — per-account (or per-attribution-series) isolation
+- `ModelTokenRecord`: `Codable, Equatable` struct with `input`, `output`, `cacheRead`, `cacheWrite` (all `Int`) plus `reasoning: Int` (defaulted = 0, `decodeIfPresent` so pre-reasoning ledger files decode unchanged)
 - Injectable `fileURL` for testing (defaults to Application Support path)
 
 ### TokenHealthMonitor (`Services/TokenHealthMonitor.swift`)
@@ -788,6 +789,9 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - `table: [(prefix, ModelPricing)]` ordered longest-prefix-first; `pricing(for:)` matches the lowercased model ID exactly or at a `-`/`.` boundary, so `gpt-5-mini` never falls through to `gpt-5` and `gpt-5.6-sol` beats `gpt-5`. An ID absent from the table falls through to its longest listed prefix **across a minor version too** (`gpt-5.3` → the `gpt-5` row), the documented trade-off in CONSTANTS.md: an approximate rate beats no cost at all for a model OpenAI shipped since the table was read. An unknown *family* (`gpt-3.5-turbo`) → nil (no cost shown rather than a wrong one). Add a row whenever a new minor version appears, or its cost is silently approximated — and for an API-key account `snapshot.costIsBilled` presents that as a real bill.
 - Rates fetched 2026-09-21 from developers.openai.com/api/docs/pricing (table in CONSTANTS.md). `cacheWritePerMillion` = input rate (OpenAI has no separate cache-write price); `cacheReadPerMillion` = cached-input rate. Presentation keeps the **API-equivalent cost** framing.
 - `ModelPricing.pricing(for:)` routes any `gpt-` ID here before the Claude display-name scan (same per-ID cache).
+
+### ReasoningVocabulary (`Utilities/ReasoningVocabulary.swift`)
+- `label(forModel model: String) -> String` — pure, `nonisolated static`. Anthropic calls the output-token subset spent before answering "thinking", OpenAI calls it "reasoning": `claude-` prefixed IDs → `"thinking"`, everything else (including unknown/empty) → `"reasoning"`.
 
 ### ModelNameMapper (`Utilities/ModelNameMapper.swift`)
 - `gpt-` IDs take their own branch: `"GPT-" + version` with dash-suffixes capitalised — `gpt-5.4` → "GPT-5.4", `gpt-5.6-sol` → "GPT-5.6 Sol", `gpt-5-mini` → "GPT-5 Mini", `gpt-5.3-codex` → "GPT-5.3 Codex".

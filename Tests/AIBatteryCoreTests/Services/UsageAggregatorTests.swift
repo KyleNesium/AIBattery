@@ -1453,4 +1453,19 @@ struct UsageAggregatorTests {
         #expect(UsageAggregator(provider: .claude).provider == .claude)
         #expect(UsageAggregator(provider: .codex).provider == .codex)
     }
+
+    @Test func modelTokenSummary_reasoningShare() {
+        let summary = ModelTokenSummary(
+            id: "gpt-6-astra", displayName: "GPT-6 Astra",
+            inputTokens: 10, outputTokens: 400, cacheReadTokens: 0, cacheWriteTokens: 0,
+            estimatedCost: 0, reasoningTokens: 120
+        )
+        #expect(summary.reasoningShare == 0.3)
+        let silent = ModelTokenSummary(
+            id: "x", displayName: "x", inputTokens: 1, outputTokens: 0,
+            cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0
+        )
+        #expect(silent.reasoningTokens == 0)
+        #expect(silent.reasoningShare == nil)
+    }
 }

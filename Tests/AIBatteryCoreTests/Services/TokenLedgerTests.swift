@@ -410,4 +410,26 @@ struct TokenLedgerTests {
         ledger.flushForTesting()
         #expect(Set(TokenLedger(fileURL: url).ledgerKeysForTesting()) == ["live", "live#attributed"])
     }
+
+    @Test @MainActor func merge_keepsReasoningHighWater_andDecodesLegacyRecords() throws {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        // Legacy blob without `reasoning`
+        let legacy = #"{"accounts":{"acc":{"gpt-6-astra":{"input":1,"output":100,"cacheRead":0,"cacheWrite":0}}}}"#
+        try Data(legacy.utf8).write(to: url)
+        let ledger = TokenLedger(fileURL: url)
+        var token = makeToken(id: "gpt-6-astra", output: 100)
+        token = ModelTokenSummary(
+            id: token.id, displayName: token.displayName, inputTokens: token.inputTokens,
+            outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0,
+            reasoningTokens: 30
+        )
+        let merged = ledger.merge([token], ledgerKey: "acc")
+        #expect(merged.first?.reasoningTokens == 30)
+        let lower = ModelTokenSummary(
+            id: "gpt-6-astra", displayName: "GPT-6 Astra", inputTokens: 1, outputTokens: 100,
+            cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0, reasoningTokens: 5
+        )
+        #expect(ledger.merge([lower], ledgerKey: "acc").first?.reasoningTokens == 30)
+    }
 }

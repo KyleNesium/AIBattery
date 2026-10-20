@@ -78,7 +78,8 @@ final class TokenLedger: @unchecked Sendable {
                 input: max(model.inputTokens, stored?.input ?? 0),
                 output: max(model.outputTokens, stored?.output ?? 0),
                 cacheRead: max(model.cacheReadTokens, stored?.cacheRead ?? 0),
-                cacheWrite: max(model.cacheWriteTokens, stored?.cacheWrite ?? 0)
+                cacheWrite: max(model.cacheWriteTokens, stored?.cacheWrite ?? 0),
+                reasoning: max(model.reasoningTokens, stored?.reasoning ?? 0)
             )
 
             if merged != stored {
@@ -97,7 +98,8 @@ final class TokenLedger: @unchecked Sendable {
                 outputTokens: merged.output,
                 cacheReadTokens: merged.cacheRead,
                 cacheWriteTokens: merged.cacheWrite,
-                estimatedCost: cost
+                estimatedCost: cost,
+                reasoningTokens: merged.reasoning
             ))
         }
 
@@ -114,7 +116,8 @@ final class TokenLedger: @unchecked Sendable {
                 outputTokens: record.output,
                 cacheReadTokens: record.cacheRead,
                 cacheWriteTokens: record.cacheWrite,
-                estimatedCost: cost
+                estimatedCost: cost,
+                reasoningTokens: record.reasoning
             ))
         }
 
@@ -146,7 +149,8 @@ final class TokenLedger: @unchecked Sendable {
                 input: max(record.input, existing?.input ?? 0),
                 output: max(record.output, existing?.output ?? 0),
                 cacheRead: max(record.cacheRead, existing?.cacheRead ?? 0),
-                cacheWrite: max(record.cacheWrite, existing?.cacheWrite ?? 0)
+                cacheWrite: max(record.cacheWrite, existing?.cacheWrite ?? 0),
+                reasoning: max(record.reasoning, existing?.reasoning ?? 0)
             )
         }
         ledger.accounts[newId] = target
@@ -254,5 +258,25 @@ extension TokenLedger {
         let output: Int
         let cacheRead: Int
         let cacheWrite: Int
+        var reasoning: Int = 0
+
+        init(input: Int, output: Int, cacheRead: Int, cacheWrite: Int, reasoning: Int = 0) {
+            self.input = input
+            self.output = output
+            self.cacheRead = cacheRead
+            self.cacheWrite = cacheWrite
+            self.reasoning = reasoning
+        }
+
+        private enum CodingKeys: String, CodingKey { case input, output, cacheRead, cacheWrite, reasoning }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            input = try c.decode(Int.self, forKey: .input)
+            output = try c.decode(Int.self, forKey: .output)
+            cacheRead = try c.decode(Int.self, forKey: .cacheRead)
+            cacheWrite = try c.decode(Int.self, forKey: .cacheWrite)
+            reasoning = try c.decodeIfPresent(Int.self, forKey: .reasoning) ?? 0
+        }
     }
 }

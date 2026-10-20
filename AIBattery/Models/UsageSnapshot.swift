@@ -416,6 +416,15 @@ struct ModelTokenSummary: Identifiable, Equatable {
     /// Pre-computed API-equivalent cost (avoids per-render pricing lock acquisition).
     let estimatedCost: Double
 
+    /// Thinking / reasoning tokens — a subset of `outputTokens` (never added to totals).
+    var reasoningTokens: Int = 0
+
+    /// Share of output spent on thinking / reasoning (0…1); nil when there is no output.
+    var reasoningShare: Double? {
+        guard outputTokens > 0 else { return nil }
+        return min(Double(reasoningTokens) / Double(outputTokens), 1)
+    }
+
     var totalTokens: Int {
         inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens
     }

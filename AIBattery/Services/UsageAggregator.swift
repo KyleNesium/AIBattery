@@ -78,21 +78,23 @@ final class UsageAggregator: @unchecked Sendable {
     /// Duration of each insights chart bucket (seconds).
     private static let bucketDuration: TimeInterval = 900
 
-    /// Per-model token accumulator: input, output, cacheRead, cacheWrite.
-    private typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int)]
+    /// Per-model token accumulator: input, output, cacheRead, cacheWrite, reasoning.
+    private typealias TokenMap = [String: (input: Int, output: Int, cacheRead: Int, cacheWrite: Int, reasoning: Int)]
 
     /// Accumulate an entry's tokens into a per-model map.
     private static func accumulate(into map: inout TokenMap, key: String, entry: AssistantUsageEntry) {
-        let e = map[key] ?? (0, 0, 0, 0)
+        let e = map[key] ?? (0, 0, 0, 0, 0)
         map[key] = (e.input + entry.inputTokens, e.output + entry.outputTokens,
-                    e.cacheRead + entry.cacheReadTokens, e.cacheWrite + entry.cacheWriteTokens)
+                    e.cacheRead + entry.cacheReadTokens, e.cacheWrite + entry.cacheWriteTokens,
+                    e.reasoning + entry.reasoningTokens)
     }
 
     /// Merge pre-accumulated token totals into a per-model map.
     private static func accumulate(into map: inout TokenMap, key: String, tokens: TokenMap.Value) {
-        let e = map[key] ?? (0, 0, 0, 0)
+        let e = map[key] ?? (0, 0, 0, 0, 0)
         map[key] = (e.input + tokens.input, e.output + tokens.output,
-                    e.cacheRead + tokens.cacheRead, e.cacheWrite + tokens.cacheWrite)
+                    e.cacheRead + tokens.cacheRead, e.cacheWrite + tokens.cacheWrite,
+                    e.reasoning + tokens.reasoning)
     }
 
     /// Per-project per-model token accumulator used by unified pass and buildProjectTokensFromMap.
@@ -306,7 +308,8 @@ final class UsageAggregator: @unchecked Sendable {
                         input: usage.inputTokens,
                         output: usage.outputTokens,
                         cacheRead: usage.cacheReadInputTokens,
-                        cacheWrite: usage.cacheCreationInputTokens
+                        cacheWrite: usage.cacheCreationInputTokens,
+                        reasoning: 0
                     )
                 }
             }
@@ -319,12 +322,13 @@ final class UsageAggregator: @unchecked Sendable {
             // Stats-cache can be stale (not rebuilt since new JSONL entries were added for
             // a cached date), which would make Projects (all JSONL) exceed All Time.
             for (model, jsonl) in allJsonlModelTokensMap {
-                let existing = modelTokensMap[model] ?? (0, 0, 0, 0)
+                let existing = modelTokensMap[model] ?? (0, 0, 0, 0, 0)
                 modelTokensMap[model] = (
                     input: max(existing.input, jsonl.input),
                     output: max(existing.output, jsonl.output),
                     cacheRead: max(existing.cacheRead, jsonl.cacheRead),
-                    cacheWrite: max(existing.cacheWrite, jsonl.cacheWrite)
+                    cacheWrite: max(existing.cacheWrite, jsonl.cacheWrite),
+                    reasoning: max(existing.reasoning, jsonl.reasoning)
                 )
             }
             let rawModelTokens = UsageAggregator.buildModelTokens(from: modelTokensMap, provider: provider)
@@ -623,7 +627,8 @@ final class UsageAggregator: @unchecked Sendable {
                 outputTokens: tokens.output,
                 cacheReadTokens: tokens.cacheRead,
                 cacheWriteTokens: tokens.cacheWrite,
-                estimatedCost: cost
+                estimatedCost: cost,
+                reasoningTokens: tokens.reasoning
             )
         }.sorted { $0.totalTokens > $1.totalTokens }
     }
