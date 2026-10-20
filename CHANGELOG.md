@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.3.0] — Unreleased
+
+### Added
+- **An update arrow instead of a banner.** When a newer release exists, an arrow breathes beside the Settings gear in both the account view and the overview; click it to update, right-click for the release notes. The banner that pushed the whole popover down, and the badge on the gear, are gone.
+
 ## [3.2.0] — 2026-10-18
 
 ### 🩹 Fixed: a barely-used week could read as a full one
