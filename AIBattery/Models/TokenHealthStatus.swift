@@ -51,6 +51,15 @@ struct TokenHealthStatus: Identifiable, Equatable {
     let sessionStart: Date?
     let sessionDuration: TimeInterval?
     let lastActivity: Date? // timestamp of most recent entry in this session
+    /// Thinking / reasoning tokens across the session — a subset of `outputTokens`.
+    var reasoningTokens: Int = 0
+    /// Latest turn's effort label ("xhigh", "fast", …); nil when the provider reports none.
+    var effortLabel: String? = nil
+
+    var reasoningShare: Double? {
+        guard outputTokens > 0 else { return nil }
+        return min(Double(reasoningTokens) / Double(outputTokens), 1)
+    }
 
     /// Placeholder for defensive code paths that should never be reached.
     static let empty = TokenHealthStatus(

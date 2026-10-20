@@ -271,10 +271,12 @@ Static: `countdownText(to date: Date, from now: Date = .now) -> String` — comp
 | `sessionStart` | `Date?` — first entry timestamp |
 | `sessionDuration` | `TimeInterval?` — last - first entry |
 | `lastActivity` | `Date?` — timestamp of most recent entry in session |
+| `reasoningTokens` | `Int` — session sum of `AssistantUsageEntry.reasoningTokens`, clamped to `totalOutputTokens`; a SUBSET of `outputTokens`, defaulted `0` |
+| `effortLabel` | `String?` — latest entry's effort label ("xhigh", "fast", …); defaulted `nil` |
 
 Static: `empty` — zero-value placeholder for defensive code paths (empty sessions guard in `TokenHealthSection`).
 
-Computed: `suggestedAction` — nil for green/unknown, recommendation text for orange/red.
+Computed: `suggestedAction` — nil for green/unknown, recommendation text for orange/red. `reasoningShare: Double?` — `reasoningTokens / outputTokens` clamped to 1, nil when `outputTokens == 0`.
 
 ### HealthWarning
 
@@ -285,6 +287,8 @@ Computed: `suggestedAction` — nil for green/unknown, recommendation text for o
 Instance properties with defaults: `greenThreshold = 60.0`, `redThreshold = 80.0`, `turnCountMild = 15`, `turnCountStrong = 25`, `inputOutputRatioThreshold = 20.0`, `staleSessionMinutes = 30`, `zeroOutputTurnThreshold = 3`, `rapidConsumptionSeconds = 60`, `rapidConsumptionTokens = 50_000`, `velocityMinDuration: TimeInterval = 60`
 
 Static: `contextWindows: [String: Int]` dictionary (Claude 4.x = 1M, Claude 3.x = 200K), `defaultContextWindow = 1_000_000`, `usableContextRatio = 1.0` (full window — 1M context makes the whole window usable; no compaction reservation), `contextWindow(for model:) -> Int` (exact match → pre-computed prefix lookup via `prefixLookup` dictionary, built once at load time from 3-part prefixes of `contextWindows` keys).
+
+**Per-record window wins, table is the fallback**: `TokenHealthMonitor.assess()` starts from `latestEntry.contextWindow ?? TokenHealthConfig.contextWindow(for: model)` — the provider's own figure (Codex writes `model_context_window` on every `token_count`; Claude logs carry no window, so they always fall back to the table). The tier bump below still applies on top of either source, so a record claiming a smaller window than the observed tokens never produces > 100%.
 
 **Bidirectional auto-detect from usage**: `TokenHealthMonitor.assess()` adjusts `contextWindow` in both directions based on observed token usage (tiers: 200K, 500K, 1M, 2M, 5M):
 - **Upward**: if observed tokens exceed the hardcoded window, bumps to the next tier above observed. Prevents inflated percentages when Anthropic expands context windows upstream.
@@ -629,6 +633,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - `topSessions(entries:limit:) -> [TokenHealthStatus]` — convenience wrapper, returns `assessSessions().top` (sorted by highest usagePercentage)
 - Groups by sessionId, each session assessed independently. Current session is always included in `top` results even when idle past the cutoff — ensures it appears in the session browser.
 - **Core calculation**: `totalUsed = latestEntry.inputTokens + latestEntry.cacheReadTokens + latestEntry.cacheWriteTokens + latestEntry.outputTokens` — input + cache tokens are the full conversation context for the latest turn (non-overlapping API components); latest output is added because it will be part of the next turn's input. Each component capped at contextWindow to guard against overflow from corrupted data. The `outputTokens` field in `TokenHealthStatus` stores the total across all entries (for display), while context calculation uses only the latest.
+- **Reasoning + effort**: `reasoningTokens` is `sessionEntries.reduce(0) { $0 + $1.reasoningTokens }` clamped to `totalOutputTokens` (never exceeds output); `effortLabel` is `latestEntry.effortLabel` (the latest turn's configured effort, not an aggregate).
 - **Usable window**: `usableWindow = contextWindow × usableContextRatio` (currently 1.0 = full window) — percentages calculated against it
 - Band: `< greenThreshold` → green, `< redThreshold` → orange, else red
 - Warnings: high turn count (>15 mild, >25 strong), input:output ratio (>20:1, includes cache tokens)

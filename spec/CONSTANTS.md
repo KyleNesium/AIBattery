@@ -174,6 +174,8 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 
 ## Context Windows
 
+`TokenHealthMonitor.assess` prefers the per-record window (`AssistantUsageEntry.contextWindow`, e.g. Codex's `model_context_window` on every `token_count`) over this table — the table below is only the **fallback** used when a record carries no window (Claude logs never do).
+
 | Model | Window |
 |-------|--------|
 | claude-opus-4-6 | 1,000,000 |
@@ -186,7 +188,7 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 | claude-3-opus-20240229 | 200,000 |
 | claude-3-sonnet-20240229 | 200,000 |
 | claude-3-haiku-20240307 | 200,000 |
-| `gpt-*` (any) | 258,400 — `TokenHealthConfig.openAIDefaultContextWindow`, the `model_context_window` Codex CLI 0.152 reports in `token_count` events for the gpt-5.x family |
+| `gpt-*` (any) | 258,400 — `TokenHealthConfig.openAIDefaultContextWindow`, the **fallback** used only when a record has no `contextWindow`; normally superseded by the per-record `model_context_window` Codex CLI 0.152 reports in `token_count` events for the gpt-5.x family |
 | Default fallback | 1,000,000 |
 
 ## Health Thresholds
