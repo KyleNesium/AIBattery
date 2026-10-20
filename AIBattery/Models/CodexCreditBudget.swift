@@ -27,6 +27,9 @@ struct CodexCreditBudget: Codable, Equatable, Sendable {
     /// nothing to meter. `limit` is 0 and `usedPercent` is 0 in that case. Optional so
     /// blobs persisted before the field existed still decode.
     var uncapped: Bool? = nil
+    /// `limit_name` from the payload (e.g. a workspace's named spend cap). Optional so
+    /// persisted blobs decode.
+    var limitName: String? = nil
 
     var isUncapped: Bool { uncapped == true }
 
@@ -52,6 +55,7 @@ struct CodexCreditBudget: Codable, Equatable, Sendable {
         )
         next.balance = balance
         next.uncapped = uncapped
+        next.limitName = limitName
         return next
     }
 

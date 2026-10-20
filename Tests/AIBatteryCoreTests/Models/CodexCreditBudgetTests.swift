@@ -256,4 +256,16 @@ struct CodexCreditBudgetTests {
         }
         #expect(result.planType == "pro")
     }
+
+    @Test func planLine_prefersLimitName() {
+        #expect(CreditBudgetSection.planLine(limitName: "Eng cap", planType: "business") == "Plan: Eng cap")
+        #expect(CreditBudgetSection.planLine(limitName: nil, planType: "business") == "Plan: business")
+        #expect(CreditBudgetSection.planLine(limitName: "  ", planType: nil) == nil)
+    }
+
+    @Test func legacyBudgetBlob_decodesWithoutLimitName() throws {
+        let json = #"{"usedPercent":10,"used":1,"limit":10,"remaining":9,"unit":"credit","resetsAt":null,"reached":false,"hasCredits":true,"unlimited":false,"planType":"business"}"#
+        let budget = try JSONDecoder().decode(CodexCreditBudget.self, from: Data(json.utf8))
+        #expect(budget.limitName == nil)
+    }
 }
