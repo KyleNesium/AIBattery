@@ -24,6 +24,11 @@ struct RateLimitUsage: Equatable, Codable {
     static let rolloverArtifactUtilizationThreshold = 0.95
     static let rolloverArtifactGracePeriod: TimeInterval = 600 // 10 minutes
 
+    /// Minimum observation window before a credit budget's runway estimate
+    /// (`CodexCreditBudget.estimatedTimeToExhaustion`) is shown — need a meaningful
+    /// burn rate, same rationale as the windowed estimate's 60s minimum elapsed time.
+    static let creditRunwayMinObservation: TimeInterval = 3_600 // 1 hour
+
     static func inferredWindowStatus(
         explicitStatus: String?,
         overallStatus: String,

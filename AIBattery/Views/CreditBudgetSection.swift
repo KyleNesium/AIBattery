@@ -114,6 +114,13 @@ struct CreditBudgetSection: View {
                         Text("Budget reached")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
+                    } else if confirmed, let eta = budget.estimatedTimeToExhaustion(now: now) {
+                        let runwayText = "~\(DurationFormatter.compact(eta)) to limit"
+                        Text(runwayText)
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.caution)
+                            .copyable(runwayText)
+                            .help("Estimated time until the credit cap at the pace observed this period")
                     } else {
                         let remainingText = "\(CodexCreditBudget.formatCredits(budget.remaining)) remaining"
                         Text(remainingText)

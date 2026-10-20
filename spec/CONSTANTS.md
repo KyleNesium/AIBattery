@@ -683,3 +683,4 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Calibrated 7d limit key | `aibattery_calibrated_7d_limit_{accountId}` (Int, per account) — `LocalUsageEstimate`; bare base key only pre-login |
 | Calibration timestamp key | `aibattery_calibrated_at_{accountId}` (Double, reference-date timestamp, per account) — `LocalUsageEstimate` |
 | Per-account calibration migration flag | `aibattery_calibration_perAccount_migrated` (Bool) — one-time move of legacy global keys to the active account |
+| Credit-budget runway minimum observation | `RateLimitUsage.creditRunwayMinObservation` = 3,600 sec (1 h; need a meaningful pace before `CodexCreditBudget.estimatedTimeToExhaustion` shows anything) |

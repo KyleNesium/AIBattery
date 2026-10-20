@@ -287,9 +287,14 @@ final class CodexRateLimitFetcher {
             AppLogger.network.info("codex usage endpoint: status=\(http.statusCode), bodySize=\(data.count)")
 
             switch Self.interpretUsageResponse(statusCode: http.statusCode, data: data) {
-            case .success(let result):
+            case .success(let rawResult):
                 consecutiveAuthFailures[accountId] = 0
                 backoff[accountId] = nil
+                let result = Self.withAnchoredCreditBudget(
+                    rawResult,
+                    cachedCreditBudget: cachedResults[accountId]?.rateLimits?.creditBudget,
+                    now: Date()
+                )
                 cachedResults[accountId] = result
                 persistRateLimits(result, accountId: accountId)
                 return result
@@ -336,6 +341,43 @@ final class CodexRateLimitFetcher {
             AppLogger.network.error("codex usage endpoint auth failed \(count) consecutive times for account \(accountId, privacy: .public) — surfacing authError to UI")
         }
         return cachedOrEmpty(accountId: accountId, authError: surfaceAuthError)
+    }
+
+    /// Carry the credit-budget runway anchor from the previously cached reading onto a
+    /// fresh result, so `estimatedTimeToExhaustion` has a baseline across polls. No-op
+    /// when the fresh result has no credit budget (windowed plans, Claude).
+    nonisolated static func withAnchoredCreditBudget(
+        _ result: APIFetchResult,
+        cachedCreditBudget: CodexCreditBudget?,
+        now: Date
+    ) -> APIFetchResult {
+        guard let limits = result.rateLimits, let budget = limits.creditBudget else { return result }
+        let updatedLimits = RateLimitUsage(
+            representativeClaim: limits.representativeClaim,
+            fiveHourUtilization: limits.fiveHourUtilization,
+            fiveHourReset: limits.fiveHourReset,
+            fiveHourStatus: limits.fiveHourStatus,
+            sevenDayUtilization: limits.sevenDayUtilization,
+            sevenDayReset: limits.sevenDayReset,
+            sevenDayStatus: limits.sevenDayStatus,
+            overallStatus: limits.overallStatus,
+            provider: limits.provider,
+            fiveHourWindowMinutes: limits.fiveHourWindowMinutes,
+            sevenDayWindowMinutes: limits.sevenDayWindowMinutes,
+            creditBudget: budget.anchored(from: cachedCreditBudget, now: now)
+        )
+        return APIFetchResult(
+            rateLimits: updatedLimits,
+            rateLimitSource: result.rateLimitSource,
+            standardLimits: result.standardLimits,
+            profile: result.profile,
+            hasStandardRateLimitHeaders: result.hasStandardRateLimitHeaders,
+            fetchedAt: result.fetchedAt,
+            isCached: result.isCached,
+            authError: result.authError,
+            planType: result.planType,
+            endpointUnavailable: result.endpointUnavailable
+        )
     }
 
     /// Whether a session-log snapshot taken at `fallbackAsOf` may replace what is

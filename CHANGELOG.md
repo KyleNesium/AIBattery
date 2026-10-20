@@ -6,6 +6,7 @@
 - **An update arrow instead of a banner.** When a newer release exists, an arrow breathes beside the Settings gear in both the account view and the overview; click it to update, right-click for the release notes. The banner that pushed the whole popover down, and the badge on the gear, are gone.
 - **Thinking and effort in the Context row.** The session line now shows what share of output was thinking (Claude) or reasoning (Codex) and the configured effort or fast mode; Insights model tooltips carry the share too.
 - **Credits bar names the plan limit.** The Codex credits tooltip shows the limit name OpenAI reports (e.g. the Business plan's budget) instead of the bare plan type.
+- **Credit budgets get a runway.** Spend-control plans show "~N d to limit" from the pace observed within the current period, once an hour of observation exists.
 
 ## [3.2.0] — 2026-10-18
 

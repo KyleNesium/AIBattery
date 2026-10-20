@@ -219,4 +219,35 @@ struct CodexRateLimitFetcherTests {
         #expect(cached.planType == "api")
         #expect(cached.isCached)
     }
+
+    // MARK: - Credit-budget runway anchor carry-forward
+
+    private nonisolated func businessBody(used: Double, resetAt: Int) -> Data {
+        Data("""
+        {"plan_type":"business","rate_limit":null,"code_review_rate_limit":null,"additional_rate_limits":null,
+         "credits":{"has_credits":true,"unlimited":false,"overage_limit_reached":false,"balance":null},
+         "spend_control":{"reached":false,"individual_limit":{"source":"group_based_spend_controls","unit":"credit",
+           "limit":"100","used":"\(used)","remaining":"\(100 - used)","used_percent":\(used),
+           "remaining_percent":\(100 - used),"reset_after_seconds":484869,"reset_at":\(resetAt)}},
+         "rate_limit_reached_type":null}
+        """.utf8)
+    }
+
+    /// Two fresh `wham/usage` reads of the same period (`reset_at` unchanged) must carry
+    /// the first reading's anchor forward, so the runway estimate has a stable baseline.
+    @Test func fetch_carriesCreditBudgetAnchorForward_acrossFreshReadings() async {
+        let resetAt = 1_790_812_800
+        let fetcher = CodexRateLimitFetcher()
+        fetcher.transport = { request in
+            (self.businessBody(used: 10, resetAt: resetAt), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let result1 = await fetcher.fetch(accessToken: "at", accountId: "runway-acct")
+        #expect(result1.rateLimits?.creditBudget?.periodAnchor?.used == 10)
+
+        fetcher.transport = { request in
+            (self.businessBody(used: 20, resetAt: resetAt), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let result2 = await fetcher.fetch(accessToken: "at", accountId: "runway-acct")
+        #expect(result2.rateLimits?.creditBudget?.periodAnchor?.used == 10)
+    }
 }
