@@ -259,7 +259,7 @@ Takes `sessions: [TokenHealthStatus]` array (top 5 by highest context usage). Ba
 - **Refresh button**: `arrow.clockwise` 10pt, .secondary
 - **Health badge**: 8pt colored circle + percentage in `Typography.monoValue` (monospaced headline semibold)
 - **Gauge bar**: same style as usage bars (8pt, 3pt radius), width proportional to usagePercentage
-- **Detail row**: `"~{remaining} of {usableWindow} usable"` (.caption, ThemeColors.secondaryLabel) + `"{turnCount} turns · {modelName}"` (.caption2, ThemeColors.tertiaryLabel)
+- **Detail row**: `"~{remaining} of {usableWindow} usable"` (.caption, ThemeColors.secondaryLabel) + `"{turnCount} turns · {modelName}[ · {effort}][ · {NN}% thinking|reasoning]"` (.caption2, ThemeColors.tertiaryLabel) via `TokenHealthSection.detailTrailingText(turnCount:model:effort:reasoningShare:reasoningTokens:)` — effort (`health.effortLabel`) and the share segment are each appended only when present/non-zero, so a session with neither reproduces the legacy `"{turnCount} turns · {modelName}"` text exactly. The vocabulary word is `ReasoningVocabulary.label(forModel:)` — `"thinking"` for Claude models, `"reasoning"` otherwise (Codex). `.help()` on the trailing text switches to a longer description mentioning effort and the share when `reasoningTokens > 0`, else the original "Conversation turns in this session"; the combined accessibility label on the row now embeds this same trailing text instead of re-deriving turns/model separately.
   - Percentage and remaining are relative to the usable window, which currently equals the full context window (`usableContextRatio = 1.0`)
   - 100% = Claude Code is about to auto-compact
 - **Safe minimum hint** (orange/red only): `"(keep above ~{20% of usable} for best quality)"` (.caption2, .tertiary)
@@ -385,9 +385,10 @@ All trend stats use `.caption` monospaced font with `ThemeColors.secondaryLabel`
 **Cost breakdown** (below trend, separated by subtle divider):
 
 Mode-aware per-model breakdown showing what the usage would cost on the pay-per-token API. Renders **per-model rows only** — there is no `"API Equivalent"` header text and no aggregated total-cost line.
-- Per-model rows: display name (.caption2) + `"▶"` if active (.green) + cost (.caption2 monospaced, 46pt width = `Layout.costColumn`) + tokens (.caption2 monospaced, 42pt width)
+- Per-model rows: display name (.caption2) + `"▶"` if active (.green) + cost (.caption2 monospaced, 46pt width = `Layout.costColumn`) + tokens (.caption2 monospaced, 42pt width). The three visible columns are unchanged — the 275pt popover width does not grow.
 - Data source: `todayModelTokens` (5H), `weekModelTokens` (7D), `monthModelTokens` (12M) — JSONL entries filtered by time window
 - Cost uses `formatCompactCost` (no cents) everywhere
+- Copy text and accessibility label gain a trailing `" · NN% thinking|reasoning"` suffix when `model.reasoningShare` is non-nil and `model.reasoningTokens > 0` (`ReasoningVocabulary.label(forModel: model.id)` picks the word); omitted entirely otherwise. Not shown in the visible row — tooltip/copy/VoiceOver only.
 
 **Insight rows** (below cost, separated by subtle divider):
 

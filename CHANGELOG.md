@@ -4,6 +4,7 @@
 
 ### Added
 - **An update arrow instead of a banner.** When a newer release exists, an arrow breathes beside the Settings gear in both the account view and the overview; click it to update, right-click for the release notes. The banner that pushed the whole popover down, and the badge on the gear, are gone.
+- **Thinking and effort in the Context row.** The session line now shows what share of output was thinking (Claude) or reasoning (Codex) and the configured effort or fast mode; Insights model tooltips carry the share too.
 
 ## [3.2.0] — 2026-10-18
 

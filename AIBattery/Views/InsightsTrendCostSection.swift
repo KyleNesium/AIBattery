@@ -100,7 +100,11 @@ extension InsightsView {
                     let modelTokensText = TokenFormatter.format(model.totalTokens)
                     let modelCost = "\(snapshot.costIsBilled ? "" : "~")\(ModelPricing.formatCompactCost(model.estimatedCost))"
                     let activeSuffix = active ? " \u{00B7} active" : ""
-                    let copyText = "\(model.displayName)\(activeSuffix) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)"
+                    let shareSuffix: String = {
+                        guard let share = model.reasoningShare, model.reasoningTokens > 0 else { return "" }
+                        return " \u{00B7} \(Int((share * 100).rounded()))% \(ReasoningVocabulary.label(forModel: model.id))"
+                    }()
+                    let copyText = "\(model.displayName)\(activeSuffix) \u{00B7} \(modelCost) \u{00B7} \(modelTokensText)\(shareSuffix)"
                     HStack(spacing: Spacing.gap) {
                         Text(model.displayName)
                             .font(Typography.tinyLabel)
@@ -128,7 +132,7 @@ extension InsightsView {
                     }
                     .copyable(copyText)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(model.displayName)\(active ? ", active" : ""), \(modelCost), \(modelTokensText) tokens")
+                    .accessibilityLabel("\(model.displayName)\(active ? ", active" : ""), \(modelCost), \(modelTokensText) tokens\(shareSuffix)")
                 }
             }
         }

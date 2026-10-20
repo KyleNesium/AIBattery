@@ -29,7 +29,22 @@ struct TokenHealthSection: View {
 
     private var remainingText: String { TokenFormatter.format(health.remainingTokens) }
     private var usableText: String { TokenFormatter.format(health.usableWindow) }
-    private var modelDisplay: String { health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model) }
+
+    /// Trailing text of the detail row: turns · model [· effort] [· NN% thinking|reasoning].
+    /// The share is omitted when there are no reasoning tokens so the legacy row is unchanged.
+    nonisolated static func detailTrailingText(
+        turnCount: Int, model: String, effort: String?, reasoningShare: Double?, reasoningTokens: Int
+    ) -> String {
+        let modelDisplay = model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: model)
+        var parts = ["\(turnCount) turns", modelDisplay]
+        if let effort, !effort.isEmpty {
+            parts.append(effort)
+        }
+        if let share = reasoningShare, reasoningTokens > 0 {
+            parts.append("\(Int((share * 100).rounded()))% \(ReasoningVocabulary.label(forModel: model))")
+        }
+        return parts.joined(separator: " · ")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.gap) {
@@ -74,6 +89,10 @@ struct TokenHealthSection: View {
                         .accessibilityValue("\(remainingText) tokens remaining")
 
                     // Detail row
+                    let turnsModelText = Self.detailTrailingText(
+                        turnCount: health.turnCount, model: health.model, effort: health.effortLabel,
+                        reasoningShare: health.reasoningShare, reasoningTokens: health.reasoningTokens
+                    )
                     HStack {
                         let detailText = "~\(remainingText) of \(usableText) usable"
                         Text(detailText)
@@ -81,15 +100,16 @@ struct TokenHealthSection: View {
                             .foregroundStyle(ThemeColors.secondaryLabel)
                             .copyable(detailText)
                         Spacer()
-                        let turnsModelText = "\(health.turnCount) turns · \(modelDisplay)"
                         Text(turnsModelText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .help("Conversation turns in this session")
+                            .help(health.reasoningTokens > 0
+                                ? "Conversation turns, model, effort, and the share of this session's output spent on \(ReasoningVocabulary.label(forModel: health.model))"
+                                : "Conversation turns in this session")
                             .copyable(turnsModelText)
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
+                    .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(turnsModelText)")
 
                     // Recommended minimum context hint
                     if health.band == .orange || health.band == .red {
