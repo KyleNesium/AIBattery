@@ -21,16 +21,18 @@ extension InsightsView {
     /// disk) and All-Time (a ledger that also keeps what was scanned before rotation)
     /// stop looking like they disagree. Nil for Claude, a `since` older than 365 days
     /// (not relevant to any chart window shown), or a nil `since`.
-    /// `unattributed` (turns from older Codex CLI versions not shown) contributes
-    /// nothing yet — wired up by the Codex-attribution task.
+    /// `unattributed` (turns from older Codex CLI versions not shown, hidden by
+    /// per-account attribution) contributes its own half, joined with the "since" half
+    /// when both apply.
     nonisolated static func sinceCaption(provider: AIProvider, since: Date?, unattributed: Int = 0, now: Date) -> String? {
-        let sincePart: String? = {
-            guard provider == .codex, let since, since > now.addingTimeInterval(-365 * 86_400) else { return nil }
-            return "since \(DateFormatters.mediumDate(since))"
-        }()
-        let unattributedPart = unattributed > 0
-            ? "\(unattributed) turns from older Codex CLI versions not shown" : nil
-        let parts = [sincePart, unattributedPart].compactMap { $0 }
+        guard provider == .codex else { return nil }
+        var parts: [String] = []
+        if let since, since > now.addingTimeInterval(-365 * 86_400) {
+            parts.append("since \(DateFormatters.mediumDate(since))")
+        }
+        if unattributed > 0 {
+            parts.append("\(unattributed) turn\(unattributed == 1 ? "" : "s") from older Codex CLI versions not shown")
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 

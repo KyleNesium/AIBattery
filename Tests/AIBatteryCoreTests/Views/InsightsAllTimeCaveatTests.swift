@@ -38,4 +38,22 @@ struct InsightsAllTimeCaveatTests {
         #expect(InsightsView.sinceCaption(provider: .claude, since: now, unattributed: 0, now: now) == nil)
         #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 0, now: now) == nil)
     }
+
+    @Test func codex_tooltipAppendsHiddenTurnCount() {
+        let text = InsightsView.allTimeTooltip(for: .codex, since: nil, unattributed: 902)
+        #expect(text.hasSuffix(" · 902 turns from older Codex CLI versions are not attributable"))
+        #expect(!InsightsView.allTimeTooltip(for: .codex, since: nil, unattributed: 0).contains("not attributable"))
+        #expect(!InsightsView.allTimeTooltip(for: .claude, since: nil, unattributed: 5).contains("not attributable"))
+    }
+
+    @Test func caption_combinesSinceAndHiddenCount_inEveryMode() {
+        let now = Date(timeIntervalSince1970: 1_789_000_000)
+        let since = now.addingTimeInterval(-30 * 86_400)
+        let both = InsightsView.sinceCaption(provider: .codex, since: since, unattributed: 3, now: now)
+        #expect(both?.hasPrefix("since ") == true)
+        #expect(both?.hasSuffix(" · 3 turns from older Codex CLI versions not shown") == true)
+        #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 1, now: now) == "1 turn from older Codex CLI versions not shown")
+        #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 0, now: now) == nil)
+        #expect(InsightsView.sinceCaption(provider: .claude, since: since, unattributed: 9, now: now) == nil)
+    }
 }

@@ -8,6 +8,7 @@
 - **Credits bar names the plan limit.** The Codex credits tooltip shows the limit name OpenAI reports (e.g. the Business plan's budget) instead of the bare plan type.
 - **Credit budgets get a runway.** Spend-control plans show "~N d to limit" from the pace observed within the current period, once an hour of observation exists.
 - **Codex All-Time says since when.** The Insights All-Time tooltip and chart caption name the date AI Battery first scanned the Codex logs, so the ledger and the chart stop looking like they disagree.
+- **Each Codex account sees its own sessions.** With two or more ChatGPT-backed Codex accounts, Insights, Projects and Context show the active account's turns only (current Codex CLI versions stamp every rollout with the account). Turns from older CLI versions carry no stamp and are hidden rather than guessed — the Insights caption says how many. Overview cards keep showing the provider's total. Verified with fixtures; if you run two accounts, please report what you see.
 
 ### Fixed
 - **A week-old Codex rollout reading no longer stands in for the usage endpoint.** The session-log fallback refuses readings older than 7 days, and with two ChatGPT accounts only the account stamped on the newest rollout uses it.

@@ -195,11 +195,12 @@ struct InsightsView: View {
                         monthlyChart
                     }
                     if let snapshot,
-                       let caption = Self.sinceCaption(provider: snapshot.provider, since: snapshot.ledgerSince, now: Date()) {
+                       let caption = Self.sinceCaption(provider: snapshot.provider, since: snapshot.ledgerSince, unattributed: snapshot.unattributedTurnCount, now: Date()) {
                         Text(caption)
                             .font(Typography.monoTiny)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .help("The 12-month chart is rebuilt from the Codex rollouts still on disk; All Time is a ledger that also keeps what was scanned before rotation")
+                            .lineLimit(2)
+                            .help("Codex has no lifetime cache: the charts are rebuilt from the rollouts on disk, and turns from Codex CLI versions that did not stamp the account are hidden while two or more ChatGPT accounts are signed in")
                     }
                 }
                 .id(mode)

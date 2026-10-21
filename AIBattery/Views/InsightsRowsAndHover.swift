@@ -34,7 +34,7 @@ extension InsightsView {
         insightRow(
             label: "All Time",
             value: "\(TokenFormatter.format(snapshot.totalTokens)) tokens \u{00B7} \(snapshot.totalSessions) sessions",
-            tooltip: Self.allTimeTooltip(for: snapshot.provider, since: snapshot.ledgerSince)
+            tooltip: Self.allTimeTooltip(for: snapshot.provider, since: snapshot.ledgerSince, unattributed: snapshot.unattributedTurnCount)
         )
         .accessibilityLabel("All time: \(TokenFormatter.format(snapshot.totalTokens)) tokens, \(snapshot.totalSessions) sessions")
     }
@@ -43,13 +43,18 @@ extension InsightsView {
     /// AI Battery has scanned, kept as a high-water mark in the app's own token ledger
     /// so they survive the CLI rotating or deleting rollouts — but nothing from before
     /// the first scan is recoverable. Say exactly that, and name the date when known.
-    nonisolated static func allTimeTooltip(for provider: AIProvider, since: Date? = nil) -> String {
+    nonisolated static func allTimeTooltip(for provider: AIProvider, since: Date? = nil, unattributed: Int = 0) -> String {
         switch provider {
         case .claude: return "Cumulative tokens across all sessions"
         case .codex:
-            let base = "Cumulative tokens from Codex session logs since AI Battery first scanned them (kept across log rotation; Codex has no lifetime cache of its own)"
-            guard let since else { return base }
-            return base + " — since \(DateFormatters.mediumDate(since))"
+            var text = "Cumulative tokens from Codex session logs since AI Battery first scanned them (kept across log rotation; Codex has no lifetime cache of its own)"
+            if let since {
+                text += " — since \(DateFormatters.mediumDate(since))"
+            }
+            if unattributed > 0 {
+                text += " · \(unattributed) turns from older Codex CLI versions are not attributable"
+            }
+            return text
         }
     }
 
