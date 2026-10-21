@@ -75,11 +75,9 @@ extension OAuthManager {
 
             // Move expiresAt from Keychain to UserDefaults if present
             let udKey = UserDefaultsKeys.tokenExpiresAtPrefix + accountId
-            if UserDefaults.standard.double(forKey: udKey) == 0 {
-                if let expiresStr = KeychainHelper.get(account: "expiresAt_\(accountId)"),
-                   let interval = Double(expiresStr) {
-                    UserDefaults.standard.set(interval, forKey: udKey)
-                }
+            if UserDefaults.standard.double(forKey: udKey) == 0, let expiresStr = KeychainHelper.get(account: "expiresAt_\(accountId)"),
+               let interval = Double(expiresStr) {
+                UserDefaults.standard.set(interval, forKey: udKey)
             }
 
             // Remove stale Keychain items (accessToken + expiresAt)

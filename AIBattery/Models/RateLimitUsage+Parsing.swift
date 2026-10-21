@@ -159,8 +159,7 @@ extension RateLimitUsage {
 
         func lookup(in json: Any, path: [String]) -> Any? {
             guard !path.isEmpty else { return json }
-            guard let dict = dictionary(json) else { return nil }
-            guard let value = dict[path[0]] else { return nil }
+            guard let dict = dictionary(json), let value = dict[path[0]] else { return nil }
             return lookup(in: value, path: Array(path.dropFirst()))
         }
 

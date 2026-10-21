@@ -72,8 +72,7 @@ extension UsageViewModel {
         accountId: String?,
         api: APIFetchResult
     ) {
-        guard let id = accountId else { return }
-        guard let account = oauthManager.accountStore.account(id: id) else { return }
+        guard let id = accountId, let account = oauthManager.accountStore.account(id: id) else { return }
         // Codex identities are resolved at auth time (real account id from the JWT) —
         // the Anthropic pending-identity machinery (temp-UUID -> org-ID migration)
         // must never touch them. Only the plan name is synced from the usage payload.
