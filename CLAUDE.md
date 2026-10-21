@@ -40,7 +40,7 @@ swift build -c release
 swift test
 ```
 
-1569 tests across 119 files, using `import Testing` + `@testable import AIBatteryCore`.
+1572 tests across 119 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities
@@ -48,6 +48,8 @@ The package has 3 SPM targets:
 - **AIBatteryCoreTests** (`.testTarget`) — unit tests, `@testable import AIBatteryCore`
 
 CI (`macos-15`): build → test → verify signed bundle. Runs on push to `main`, and once when a PR leaves draft — **not** on later pushes to that PR (force a re-run via `workflow_dispatch`). A separate Lint job (SwiftLint + SwiftFormat) runs on every PR push touching `.swift`/lint-config files; run `swiftformat AIBattery/ AIBatteryApp/ Tests/` and `swiftlint` locally before pushing to avoid a red check.
+
+Suites that render NSImages or read dynamic NSColors are `@MainActor` and `.serialized` — AppKit's one-time init deadlocks when raced from the parallel pool (seen locally 2026-10-21).
 
 ## Code Conventions
 

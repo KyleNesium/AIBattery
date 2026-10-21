@@ -85,6 +85,7 @@ App state (code anchors, verified):
   - Claude: `usage.speed` when present and ≠ `"standard"` (→ `"fast"`). `SessionEntry.TokenUsage` decodes `speed`.
 - `TokenHealthStatus` gains `let effortLabel: String?` from the latest entry.
 - Context detail row: model display becomes `"\(modelDisplay) · \(effortLabel)"` when non-nil (so a Codex row reads `GPT-6 Astra · xhigh`, a Claude fast-mode row `Opus 5 · fast`). Help: "Reasoning effort configured for this session" (Codex) / "Fast mode" (Claude). Pure formatter `TokenHealthSection.modelEffortText(model:effort:)`, tested.
+  - Implementation note: this formatter was folded into the single trailing-text builder for the detail row (item 2's reasoning-share text and item 3's effort label share one surface), so the shipped code names it `TokenHealthSection.detailTrailingText(turnCount:model:effort:reasoningShare:reasoningTokens:)` rather than a standalone `modelEffortText(model:effort:)`.
 
 ## 4. Limit name on the Codex credits bar (item 4)
 

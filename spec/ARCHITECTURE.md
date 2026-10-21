@@ -234,6 +234,7 @@ AIBattery/
     Spacing.swift                 — Spacing/Layout/MotionConstants enums — caseless enum namespaces co-located
     KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
     RetryPolicy.swift             — Pure value-type exponential-backoff + jitter policy with `nonisolated static` API. 4 presets (`oauth`, `statusCheck`, `fileWatch`, `rateLimit`) carry historical values from CONSTANTS.md. Used by OAuthManager, StatusChecker, FileWatcher, RateLimitFetcher
+    ReasoningVocabulary.swift     — "Thinking" vs "Reasoning" label by model prefix (Claude vs Codex/GPT)
 Tests/AIBatteryCoreTests/
   MetricToggleViewTests.swift     — orderedModes ordering, allCases completeness, stable remaining order
   Utilities/
