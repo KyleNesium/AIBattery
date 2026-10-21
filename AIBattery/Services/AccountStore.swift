@@ -217,6 +217,17 @@ public final class AccountStore: ObservableObject {
         return !accounts.contains { $0.provider == .codex && !$0.isAPIKeyAccount }
     }
 
+    /// Which turns the active account's local Codex data should count. Per-account
+    /// attribution is only meaningful (and only possible) when two or more ChatGPT-backed
+    /// Codex accounts exist and the active one is one of them.
+    nonisolated static func attribution(for accountId: String?, provider: AIProvider, accounts: [AccountRecord]) -> Attribution {
+        guard provider == .codex, let accountId,
+              let active = accounts.first(where: { $0.id == accountId }),
+              active.provider == .codex, !active.isAPIKeyAccount else { return .all }
+        let chatGPTCount = accounts.filter { $0.provider == .codex && !$0.isAPIKeyAccount }.count
+        return chatGPTCount >= 2 ? .account(accountId) : .all
+    }
+
     /// `kyle@example.com` → `k•••@example.com`. Anything that isn't email-shaped comes
     /// back unchanged.
     ///

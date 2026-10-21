@@ -76,18 +76,16 @@ extension UsageViewModel {
             // Attribute to that provider's first eligible account: it decides whether
             // the cost rows read as a bill (API-key) or as subscription value.
             let accountId = eligible.first { $0.provider == provider }?.id
-            let snapshot = await aggregateOffMain(
+            // Provider-wide by construction: cards show the provider's total, never one
+            // account's share.
+            _ = await aggregateOffMain(
                 rateLimits: nil,
                 accountId: accountId,
                 provider: provider,
                 rateLimitsFresh: false,
-                applySideEffects: false // never touch the active account's probe state
+                applySideEffects: false, // never touch the active account's probe state
+                providerWide: true
             )
-            // The aggregator short-circuits to its cached snapshot when nothing changed,
-            // so this is a value-equal publish on most cycles for an idle provider.
-            if providerSnapshots[provider] != snapshot {
-                providerSnapshots[provider] = snapshot
-            }
         }
     }
 
