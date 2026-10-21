@@ -66,6 +66,7 @@ final class TokenLedger: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
+        let isNewSeries = ledger.accounts[ledgerKey] == nil
         var accountData = ledger.accounts[ledgerKey] ?? [:]
         var changed = false
         var result: [ModelTokenSummary] = []
@@ -121,7 +122,10 @@ final class TokenLedger: @unchecked Sendable {
             ))
         }
 
-        if ledger.firstScan[ledgerKey] == nil {
+        // Only stamp firstScan for a brand-new series. A pre-existing series (months of
+        // accounts[ledgerKey] records from before this field existed) keeps firstScan nil
+        // rather than backdating to "today" — no date is shown rather than a wrong one.
+        if isNewSeries, ledger.firstScan[ledgerKey] == nil {
             ledger.firstScan[ledgerKey] = Date()
             changed = true
         }

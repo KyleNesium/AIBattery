@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import AIBatteryCore
 
-@Suite("TokenLedger")
+@Suite("TokenLedger", .serialized)
 struct TokenLedgerTests {
     private func makeTempURL() -> URL {
         FileManager.default.temporaryDirectory
@@ -472,5 +472,22 @@ struct TokenLedgerTests {
 
         #expect(ledger.firstScanDate(ledgerKey: "live") == liveFirst)
         #expect(ledger.firstScanDate(ledgerKey: "pending-orphan") == nil)
+    }
+
+    @Test @MainActor func merge_preexistingSeriesWithoutFirstScan_staysNilNotBackdated() throws {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        // Simulate a pre-3.3.0 ledger: months of accounts[ledgerKey] records, no firstScan field.
+        let legacy = #"{"accounts":{"legacy":{"claude-opus-4-6":{"input":1000,"output":500,"cacheRead":0,"cacheWrite":0}}}}"#
+        try Data(legacy.utf8).write(to: url)
+
+        let ledger = TokenLedger(fileURL: url)
+        #expect(ledger.firstScanDate(ledgerKey: "legacy") == nil)
+        _ = ledger.merge([makeToken(id: "claude-opus-4-6", input: 1_000, output: 500)], ledgerKey: "legacy")
+        ledger.flushForTesting()
+
+        // Must stay nil — an existing series is never backdated to the upgrade day.
+        #expect(ledger.firstScanDate(ledgerKey: "legacy") == nil)
+        #expect(TokenLedger(fileURL: url).firstScanDate(ledgerKey: "legacy") == nil)
     }
 }
