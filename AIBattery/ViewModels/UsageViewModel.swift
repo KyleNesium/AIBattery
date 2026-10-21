@@ -284,7 +284,12 @@ public final class UsageViewModel: ObservableObject {
         // (two Codex cards would otherwise show one account's turns). A nil snapshot on an
         // account switch must not erase a provider's last known aggregate either — only
         // real results land here.
-        providerSnapshots[provider] = result.providerWide
+        // Value-changed guard: this runs on every ~2s FS burst, and an unguarded @Published
+        // write fires objectWillChange even when the value is unchanged — the same churn
+        // `refreshLocalData` guards its publishes against (see UsageViewModel+Refresh.swift).
+        if providerSnapshots[provider] != result.providerWide {
+            providerSnapshots[provider] = result.providerWide
+        }
 
         // Apply side effects before clearing inflightAggregation so the next
         // caller sees consistent RateLimitFetcher state. The observed-model list feeds
