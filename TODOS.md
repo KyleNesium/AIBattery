@@ -93,11 +93,20 @@ Each says why, so a future session doesn't re-litigate it.
   nothing holds an `NWConnection` until the 180 s session timeout. Loopback-only
   and time-bounded; arm a `queue.asyncAfter` cancel per connection. Related to
   the already-deferred request-line accumulation item above.
-- [ ] **The session-log fallback has no maximum age.** Its windows are cleared
+- [x] ~~**The session-log fallback has no maximum age.** Its windows are cleared
   once their own reset passes, but the same stale line is re-read and re-served
   every cycle, so a week-old reading can be the displayed value for a whole
   endpoint outage. It is marked `isCached: true`, so alarms stay suppressed.
-  Consider refusing the fallback past a maximum `asOf` age.
+  Consider refusing the fallback past a maximum `asOf` age.~~ Fixed in v3.3.0:
+  `CodexRateLimitFetcher.codexFallbackMaxAge` (7 days) refuses the fallback on
+  both the fresh-scan path (`shouldUseSessionLogFallback`) and the cached
+  `.codexSessionLog` result (`cachedOrEmpty` drops its rate limits past the age;
+  a cached endpoint reading is unaffected).
+- [ ] **Session-log fallback inspects only the newest rollout.** With two ChatGPT
+  accounts the one whose CLI session is newest gets the fallback and the other serves
+  its cache. A per-account newest-file search (walk newest-first, head-read until a
+  matching `creator_account_id`, bounded to ~20 files) would give both accounts a
+  reading. Deferred from v3.3.0: outage × two accounts is an edge of an edge.
 - [ ] **A persisted `7d` metric mode orders the Credits / API-Limits bar second
   on a Codex credit account.** `UsagePopoverView` renders `EmptyView()` for
   `.sevenDay` when the kind collapses while `MetricToggleView` keeps the stored

@@ -9,6 +9,9 @@
 - **Credit budgets get a runway.** Spend-control plans show "~N d to limit" from the pace observed within the current period, once an hour of observation exists.
 - **Codex All-Time says since when.** The Insights All-Time tooltip and chart caption name the date AI Battery first scanned the Codex logs, so the ledger and the chart stop looking like they disagree.
 
+### Fixed
+- **A week-old Codex rollout reading no longer stands in for the usage endpoint.** The session-log fallback refuses readings older than 7 days, and with two ChatGPT accounts only the account stamped on the newest rollout uses it.
+
 ## [3.2.0] — 2026-10-18
 
 ### 🩹 Fixed: a barely-used week could read as a full one

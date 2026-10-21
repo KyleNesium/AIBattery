@@ -94,4 +94,52 @@ struct CodexSessionRateLimitScannerTests {
         let usage = try #require(CodexSessionRateLimitScanner.extractLatestRateLimits(fromTail: data))
         #expect(abs(usage.fiveHourUtilization - 0.77) < 0.0001)
     }
+
+    // MARK: - creatorAccountId head read
+
+    private func writeRollout(_ lines: [String]) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("scanner-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("rollout-2026-10-19T10-00-00-x.jsonl")
+        try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: url)
+        return url
+    }
+
+    @Test func creatorAccountId_readsOnlyTheFirstLine_evenWhenLarge() throws {
+        let padding = String(repeating: "x", count: 23_000)
+        let meta = #"{"type":"session_meta","payload":{"id":"s","base_instructions":{"text":"\#(padding)"},"creator_account_id":"acct-1"}}"#
+        let url = try writeRollout([meta, tokenCountLine(primaryPercent: 1), #"{"type":"session_meta","payload":{"creator_account_id":"acct-2"}}"#])
+        #expect(CodexSessionRateLimitScanner.creatorAccountId(fromFirstLineOf: url) == "acct-1")
+    }
+
+    @Test func creatorAccountId_nilWhenFirstLineIsResponseItem_orNotSessionMeta_orMissing() throws {
+        let responseFirst = try writeRollout([#"{"type":"response_item","payload":{"text":"\"creator_account_id\":\"leak\""}}"#, #"{"type":"session_meta","payload":{"creator_account_id":"acct-1"}}"#])
+        #expect(CodexSessionRateLimitScanner.creatorAccountId(fromFirstLineOf: responseFirst) == nil)
+        let turnFirst = try writeRollout([#"{"type":"turn_context","payload":{"creator_account_id":"acct-1"}}"#])
+        #expect(CodexSessionRateLimitScanner.creatorAccountId(fromFirstLineOf: turnFirst) == nil)
+        let noKey = try writeRollout([#"{"type":"session_meta","payload":{"id":"s"}}"#])
+        #expect(CodexSessionRateLimitScanner.creatorAccountId(fromFirstLineOf: noKey) == nil)
+        let empty = try writeRollout([""])
+        #expect(CodexSessionRateLimitScanner.creatorAccountId(fromFirstLineOf: empty) == nil)
+    }
+
+    @Test func creatorAccountId_nilWhenFirstLineExceedsCap() throws {
+        let huge = #"{"type":"session_meta","payload":{"creator_account_id":"acct-1","pad":""# + String(repeating: "y", count: CodexSessionRateLimitScanner.sessionMetaMaxLineBytes + 10) + #""}}"#
+        let url = try writeRollout([huge])
+        #expect(CodexSessionRateLimitScanner.creatorAccountId(fromFirstLineOf: url) == nil)
+    }
+
+    @Test func creatorAccountId_ofNewest_followsTheNewestFileCache() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("scanner-root-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let first = root.appendingPathComponent("a.jsonl")
+        try Data(#"{"type":"session_meta","payload":{"creator_account_id":"acct-1"}}"#.utf8).write(to: first)
+        CodexSessionRateLimitScanner.invalidateFileCache()
+        #expect(CodexSessionRateLimitScanner.creatorAccountId(ofNewestIn: root) == "acct-1")
+        let second = root.appendingPathComponent("b.jsonl")
+        try Data(#"{"type":"session_meta","payload":{"creator_account_id":"acct-2"}}"#.utf8).write(to: second)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(60)], ofItemAtPath: second.path)
+        CodexSessionRateLimitScanner.invalidateFileCache()
+        #expect(CodexSessionRateLimitScanner.creatorAccountId(ofNewestIn: root) == "acct-2")
+    }
 }

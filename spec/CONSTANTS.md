@@ -16,7 +16,9 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck`; a cancelled request (`SecureNetworking.isCancellation`) never counts as a failure | StatusChecker (one state per feed: Claude, Codex) |
 | Codex usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account; transport errors / 5xx record a failure, 2xx / 429 / 401 / 403 clear it, a **cancelled** request records nothing; while backing off the session-log fallback is served without a request. Backoff state + auth-failure counter are dropped by `clearCache` (sign-out) and `pruneAccounts` (launch sweep) | CodexRateLimitFetcher |
 | Claude usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account. Armed only when a whole cycle yielded nothing (usage endpoint `.unavailable` **and** no probe model answered), so a working Messages-probe fallback keeps it disarmed; a success on either path clears it. While backing off, `fetch` returns the cache without a single request | RateLimitFetcher |
-| Codex session-log fallback gate | Used only when ≤ 1 ChatGPT-backed Codex account exists **and** the rollout's mtime is newer than the cached endpoint reading (`shouldUseSessionLogFallback`) | CodexRateLimitFetcher |
+| Codex session-log fallback gate | Used only when ≤ 1 ChatGPT-backed Codex account exists, **or** with ≥ 2 the newest rollout's head-read `creator_account_id` matches the requesting account; **and** the rollout's mtime is newer than the cached endpoint reading, **and** the rollout is no older than `codexFallbackMaxAge` (`shouldUseSessionLogFallback`) | CodexRateLimitFetcher |
+| `codexFallbackMaxAge` | 7 × 86 400 s (7 days) — a rollout reading older than this is refused on both the fresh-scan path and the cached `.codexSessionLog` result (`cachedOrEmpty` returns `nil` rate limits past this age; endpoint-sourced cache is exempt) | CodexRateLimitFetcher |
+| `sessionMetaMaxLineBytes` | 1 MB — cap on the rollout's first line when reading `creator_account_id` for the fallback gate; see JSONL Processing | CodexSessionRateLimitScanner |
 | Codex usage request timeout | 30 sec | CodexRateLimitFetcher |
 | Codex OAuth callback timeout | 180 sec — abandoned sign-in releases port 1455 | CodexAuthSession |
 | Codex session-log tail scan | 256 KB of the newest rollout | CodexSessionRateLimitScanner |
@@ -533,6 +535,8 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | Discovery TTL | 60 sec — forces full re-enumeration regardless of dir mod-date (catches new files on filesystems where directory mtime may not update) |
 
 Codex rollouts (`CodexSessionLogReader` / `CodexSessionLogParser`) reuse the 64 KB buffer, 1 MB line cap and 60 s TTL. Pre-filter markers: `"session_meta"`, `"turn_context"`, `"token_count"`. Only those three `type`s are decoded; `response_item` (message content) is rejected on `type` and never parsed.
+
+`CodexSessionRateLimitScanner.creatorAccountId(fromFirstLineOf:)` reads only the rollout's first line, bounded by `sessionMetaMaxLineBytes = 1 MB` (first-line head read for `creator_account_id`; `response_item` rejected from head bytes before any JSON decode; only `type == "session_meta"` yields a value, and only the `creator_account_id` key is read — keys-only, never logged). Memoized next to the 60 s newest-file cache so an outage costs one head read per session, not per poll.
 
 ## Activity Chart
 

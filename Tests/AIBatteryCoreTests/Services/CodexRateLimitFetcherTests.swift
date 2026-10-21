@@ -57,20 +57,54 @@ struct CodexRateLimitFetcherTests {
     @Test func sessionLogFallback_onlyWhenNewerThanCachedEndpointReading() {
         let t0 = Date(timeIntervalSince1970: 1_800_000_000)
         let cached = endpointResult(fetchedAt: t0)
-        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0.addingTimeInterval(-3_600)))
-        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: cached, fallbackAsOf: t0.addingTimeInterval(-60)))
-        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: cached, fallbackAsOf: t0.addingTimeInterval(60)))
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0.addingTimeInterval(-3_600), rolloutAccountId: nil, accountId: "acc", now: t0))
+        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: cached, fallbackAsOf: t0.addingTimeInterval(-60), rolloutAccountId: nil, accountId: "acc", now: t0))
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: cached, fallbackAsOf: t0.addingTimeInterval(60), rolloutAccountId: nil, accountId: "acc", now: t0))
         // A previous fallback (already cached) may be superseded by a newer rollout snapshot.
         let priorFallback = APIFetchResult(rateLimits: cached.rateLimits, rateLimitSource: .codexSessionLog, profile: nil, fetchedAt: t0, isCached: true)
-        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: priorFallback, fallbackAsOf: t0.addingTimeInterval(1)))
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: priorFallback, fallbackAsOf: t0.addingTimeInterval(1), rolloutAccountId: nil, accountId: "acc", now: t0))
     }
 
     /// The CLI's rollout belongs to whichever ChatGPT account the CLI is logged into, so
     /// with more than one Codex account it can't be attributed — skip it.
     @Test func sessionLogFallback_skippedWithMultipleCodexAccounts() {
         let t0 = Date(timeIntervalSince1970: 1_800_000_000)
-        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 1))
-        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 2))
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 1, rolloutAccountId: nil, accountId: "acc", now: t0))
+        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 2, rolloutAccountId: nil, accountId: "acc", now: t0))
+    }
+
+    /// With two or more ChatGPT accounts, only the account stamped on the newest rollout
+    /// may use the fallback — the other must fall through to its own cache.
+    @Test func sessionLogFallback_withTwoAccounts_onlyForTheAccountStampedOnTheNewestRollout() {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 2, rolloutAccountId: "a", accountId: "a", now: t0))
+        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 2, rolloutAccountId: "a", accountId: "b", now: t0))
+        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 2, rolloutAccountId: nil, accountId: "a", now: t0))
+        // One account: the stamp is irrelevant.
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0, codexAccountCount: 1, rolloutAccountId: "zzz", accountId: "a", now: t0))
+    }
+
+    /// A rollout reading older than `codexFallbackMaxAge` is not a usable stand-in for the
+    /// endpoint, regardless of what is cached.
+    @Test func sessionLogFallback_refusesReadingsOlderThanMaxAge() {
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let limit = CodexRateLimitFetcher.codexFallbackMaxAge
+        #expect(CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0.addingTimeInterval(-limit), codexAccountCount: 1, rolloutAccountId: nil, accountId: "a", now: t0))
+        #expect(!CodexRateLimitFetcher.shouldUseSessionLogFallback(cached: nil, fallbackAsOf: t0.addingTimeInterval(-limit - 1), codexAccountCount: 1, rolloutAccountId: nil, accountId: "a", now: t0))
+    }
+
+    /// `cachedOrEmpty` ages out a cached `.codexSessionLog` reading past the max age (empty
+    /// bars beat a week-old CLI snapshot) but keeps a stale endpoint reading indefinitely
+    /// (stale beats empty for real data).
+    @Test func cachedOrEmpty_dropsStaleSessionLogReadings_keepsStaleEndpointReadings() {
+        let fetcher = CodexRateLimitFetcher()
+        let t0 = Date()
+        let old = t0.addingTimeInterval(-CodexRateLimitFetcher.codexFallbackMaxAge - 1)
+        let limits = endpointResult(fetchedAt: old).rateLimits
+        fetcher.cachedResults["log"] = APIFetchResult(rateLimits: limits, rateLimitSource: .codexSessionLog, profile: nil, fetchedAt: old, isCached: true)
+        fetcher.cachedResults["api"] = APIFetchResult(rateLimits: limits, rateLimitSource: .codexUsageEndpoint, profile: nil, fetchedAt: old, isCached: true)
+        #expect(fetcher.cachedOrEmpty(accountId: "log", now: t0).rateLimits == nil)
+        #expect(fetcher.cachedOrEmpty(accountId: "api", now: t0).rateLimits != nil)
     }
 
     // MARK: - clearCache resets per-account failure state
