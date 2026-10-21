@@ -3,7 +3,8 @@ import Foundation
 import Testing
 @testable import AIBatteryCore
 
-@Suite("AIProvider")
+@Suite("AIProvider", .serialized)
+@MainActor
 struct AIProviderTests {
     @Test func glyphsAndLabels() {
         #expect(AIProvider.claude.glyph == "\u{2726}") // ✦
