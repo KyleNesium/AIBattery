@@ -79,7 +79,7 @@ Requires **macOS 13+** and [Claude Code](https://docs.anthropic.com/en/docs/clau
 
 ## 🔄 Update
 
-AI Battery checks for updates once per day. When one is available a banner appears under the header; dismiss it and the ⚙️ gear carries an update badge until you install. **Check for Updates**, **Install**, and **Release notes** live in Settings → About, with the app version.
+AI Battery checks for updates once per day. When one is available, an arrow appears beside the ⚙️ gear — in the header and, with multiple accounts, in the overview footer too — and stays until you install: click it to install via Sparkle, right-click for **Release notes** or **Check for Updates**. **Check for Updates**, **Install**, and **Release notes** also live in Settings → About, with the app version.
 
 | Method | How |
 |---|---|
@@ -257,6 +257,8 @@ Interactive charts across three time windows:
 | **12M** | Rolling 12 months | Monthly activity, month-over-month trend, busiest month |
 
 Below the chart: API-equivalent cost per model, throttle count, and cumulative stats (All Time messages/sessions, Longest session, Period date range).
+
+With **two or more ChatGPT-backed Codex accounts**, each account's charts, Projects and Context Health are **attributed** to that account's own turns (`creator_account_id` on its rollouts) instead of showing every Codex account's combined activity. Turns from older Codex CLI versions that never stamped an account are hidden from every account's attributed view and counted in the All Time tooltip ("N turns from older Codex CLI versions are not attributable"). The multi-account overview's cards are unaffected — they always show each provider's full, unattributed totals.
 
 <div align="center">
 <img src="screenshots/activity.png" width="360" alt="5-hour activity chart with trend arrows, throttle count, and API-equivalent cost breakdown by model" />

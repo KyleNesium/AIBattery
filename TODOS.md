@@ -29,7 +29,7 @@
 
 ## Codex (deferred from the v3.0.0 pre-release review, 2026-10-10)
 
-- [ ] **Per-account attribution of Codex local data.** Every Codex account shows
+- [x] ~~**Per-account attribution of Codex local data.** Every Codex account shows
   the same Insights / Projects / Context Health because `~/.codex/sessions` is
   scanned provider-wide. Real rollouts carry `session_meta.payload.creator_account_id`
   (observed live, Codex CLI 0.160.1) — the same ChatGPT account id used as the
@@ -38,7 +38,22 @@
   `UsageAggregator` filter by the active account when ≥ 2 Codex accounts exist.
   Would also make `costIsBilled` exact (today: `AccountStore.billsLocalCodexCosts`
   heuristic) and let the session-log rate-limit fallback work with 2+ ChatGPT
-  accounts. Needs an API-key rollout fixture to confirm what that mode writes.
+  accounts. Needs an API-key rollout fixture to confirm what that mode writes.~~
+  Shipped in v3.3.0: `AssistantUsageEntry.creatorAccountId`, `Attribution`
+  (`.all` / `.account(_:)`) + `partition(_:)`, one aggregation pass yields both
+  an attributed detail snapshot and a provider-wide snapshot
+  (`UsageAggregator.AggregateResult`), namespaced `TokenLedger` keys (`<id>`,
+  `<id>#attributed`, `codex#all`), and the session-log fallback gated by the
+  newest rollout's stamp (`CodexSessionRateLimitScanner.creatorAccountId`).
+  `costIsBilled` still uses the `billsLocalCodexCosts` heuristic — attribution
+  did not change that (it answers a different question: whose turns count, not
+  whether the active account is paying API rates for them).
+- [ ] **Per-model weekly windows (`seven_day_opus` / `seven_day_sonnet`).** The
+  live `/api/oauth/usage` payload (captured 2026-10-20) carries
+  `seven_day_opus`, `seven_day_sonnet` (+ breakdown / cowork / oauth_apps /
+  omelette) keys but they were null on this account, so their nested shape is
+  unverified; Phase 2 §5 (per-model weekly windows) was dropped from v3.3.0 on
+  that basis. Revisit when a populated payload is seen (Max plans?).
 - [ ] **`isLoading` is not reset on every `performRefresh` early return.** The
   `isSuspended` guard, the idle-suspend branch and the `shouldApplyFetchResult`
   discard leave `isLoading` as the caller set it. `switchAccount` sets it `true`
