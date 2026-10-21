@@ -377,6 +377,7 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Header padding V | 6pt |
 | Footer padding V | 6pt |
 | Menu bar icon canvas | 22×22pt |
+| `MenuBarIcon.markScale` | 1.2 — inline provider mark = `ceil(capHeight × 1.2)`, centred on the cap height |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
 | Throttled ("broken") star | Static (`renderThrottledIcon`); not a fragmented/burst glyph. A 12-pt glow (outer 1.3×, inner 0.65×, 0.35 alpha) behind a solid 4-pt star at 1.14× — no fragment offset |

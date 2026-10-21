@@ -10,6 +10,9 @@
 - **Codex All-Time says since when.** The Insights All-Time tooltip and chart caption name the date AI Battery first scanned the Codex logs, so the ledger and the chart stop looking like they disagree.
 - **Each Codex account sees its own sessions.** With two or more ChatGPT-backed Codex accounts, Insights, Projects and Context show the active account's turns only (current Codex CLI versions stamp every rollout with the account). Turns from older CLI versions carry no stamp and are hidden rather than guessed — the Insights caption says how many. Overview cards keep showing the provider's total. Verified with fixtures; if you run two accounts, please report what you see.
 
+### Changed
+- **Menu bar marks are a touch larger and hover glows a touch stronger.** Provider marks beside the percentages are drawn at 1.2× the text's cap height; the chevron and update-arrow glow is now 95% opaque.
+
 ### Fixed
 - **A week-old Codex rollout reading no longer stands in for the usage endpoint.** The session-log fallback refuses readings older than 7 days, and with two ChatGPT accounts only the account stamped on the newest rollout uses it.
 
