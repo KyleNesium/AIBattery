@@ -68,12 +68,18 @@ enum CodexSessionRateLimitScanner {
     nonisolated static func creatorAccountId(ofNewestIn root: URL = CodexPaths.sessions, now: Date = .now) -> String? {
         guard let file = cachedNewestSessionFile(in: root, now: now) else { return nil }
         newestFileCacheLock.lock()
-        defer { newestFileCacheLock.unlock() }
-        if let cache = creatorIdCache, cache.file == file {
-            return cache.id
+        let memoized = creatorIdCache
+        newestFileCacheLock.unlock()
+        if let memoized, memoized.file == file {
+            return memoized.id
         }
+        // Read the head unlocked — `invalidateFileCache()` runs from the main-thread
+        // watcher debounce and must never block on this file I/O. A concurrent duplicate
+        // read of the same file by another caller is harmless; it just repeats the work.
         let id = creatorAccountId(fromFirstLineOf: file)
+        newestFileCacheLock.lock()
         creatorIdCache = (file, id)
+        newestFileCacheLock.unlock()
         return id
     }
 
