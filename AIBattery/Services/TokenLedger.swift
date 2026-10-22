@@ -51,6 +51,9 @@ final class TokenLedger: @unchecked Sendable {
     }
 
     /// `"acc#attributed"` → `"acc"`, `"codex#all"` → `"codex"`, `"acc"` → `"acc"`.
+    /// Splitting on the first `#` is safe because account ids never contain one —
+    /// they're UUIDs (Claude workspace / Codex `ChatGPT-Account-Id`) or org-id shapes,
+    /// neither of which uses `#`.
     nonisolated static func baseAccountId(ofKey key: String) -> String {
         guard let hash = key.firstIndex(of: "#") else { return key }
         return String(key[..<hash])

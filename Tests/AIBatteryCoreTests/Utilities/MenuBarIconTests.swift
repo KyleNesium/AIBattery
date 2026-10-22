@@ -183,6 +183,9 @@ struct MenuBarIconTests {
         let expected = ceil(font.capHeight * MenuBarIcon.markScale)
         #expect(MenuBarIcon.markSize(forCapHeight: font.capHeight) == expected)
         #expect(expected > ceil(font.capHeight))
+        // Bound the other direction too, so a future scale change can't clip the mark
+        // against the surrounding text's line height.
+        #expect(MenuBarIcon.markSize(forCapHeight: font.capHeight) <= font.pointSize)
         let text = MenuBarIcon.menuBarAttributedText("\(AIProvider.claude.glyph) 42%", font: font, color: .labelColor)
         var attachmentHeight: CGFloat?
         text.enumerateAttribute(.attachment, in: NSRange(location: 0, length: text.length)) { value, _, _ in
