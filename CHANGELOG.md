@@ -11,6 +11,7 @@
 - **Each Codex account sees its own sessions.** With two or more ChatGPT-backed Codex accounts, Insights, Projects and Context show the active account's turns only (current Codex CLI versions stamp every rollout with the account). Turns from older CLI versions carry no stamp and are hidden rather than guessed — the Insights caption says how many. Overview cards keep showing the provider's total. Verified with fixtures; if you run two accounts, please report what you see.
 
 ### Changed
+- **Settings → About highlights a waiting update.** After Check for Updates, the button turns into a yellow "Install vX.Y.Z" when a release is available.
 - **Menu bar marks are a touch larger and hover glows a touch stronger.** Provider marks beside the percentages are drawn at 1.2× the text's cap height; the chevron and update-arrow glow is now 95% opaque.
 
 ### Fixed
