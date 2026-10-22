@@ -284,4 +284,36 @@ struct CodexRateLimitFetcherTests {
         let result2 = await fetcher.fetch(accessToken: "at", accountId: "runway-acct")
         #expect(result2.rateLimits?.creditBudget?.periodAnchor?.used == 10)
     }
+
+    /// The session-log fallback must anchor its credit budget through the same helper
+    /// as the endpoint path — otherwise a fallback reading has no runway baseline, and
+    /// recovery onto the endpoint restarts the 1-hour observation clock from an
+    /// unanchored cached budget. `sessionLogFallback` isn't independently injectable
+    /// (it drives the scanner directly), so this exercises `withAnchoredCreditBudget`
+    /// itself with an endpoint-sourced cache and a session-log-sourced fresh reading of
+    /// the same period, mirroring what `sessionLogFallback` now does before caching.
+    @Test func withAnchoredCreditBudget_carriesAnchorFromEndpointCacheOntoSessionLogReading() {
+        let resetAt = 1_790_812_800
+        guard case .success(let endpointResult) = CodexRateLimitFetcher.interpretUsageResponse(
+            statusCode: 200, data: businessBody(used: 10, resetAt: resetAt)
+        ) else {
+            Issue.record("expected success"); return
+        }
+        let anchoredEndpointResult = CodexRateLimitFetcher.withAnchoredCreditBudget(
+            endpointResult, cachedCreditBudget: nil, now: Date(timeIntervalSince1970: 1_790_000_000)
+        )
+        #expect(anchoredEndpointResult.rateLimits?.creditBudget?.periodAnchor?.used == 10)
+
+        guard case .success(let sessionLogRawResult) = CodexRateLimitFetcher.interpretUsageResponse(
+            statusCode: 200, data: businessBody(used: 20, resetAt: resetAt)
+        ) else {
+            Issue.record("expected success"); return
+        }
+        let anchoredSessionLogResult = CodexRateLimitFetcher.withAnchoredCreditBudget(
+            sessionLogRawResult,
+            cachedCreditBudget: anchoredEndpointResult.rateLimits?.creditBudget,
+            now: Date(timeIntervalSince1970: 1_790_000_100)
+        )
+        #expect(anchoredSessionLogResult.rateLimits?.creditBudget?.periodAnchor?.used == 10)
+    }
 }

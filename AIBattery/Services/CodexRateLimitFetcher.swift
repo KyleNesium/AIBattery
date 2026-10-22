@@ -427,7 +427,7 @@ final class CodexRateLimitFetcher {
             return cachedOrEmpty(accountId: accountId)
         }
         AppLogger.network.info("codex usage endpoint unavailable — using session log fallback")
-        let result = APIFetchResult(
+        let rawResult = APIFetchResult(
             // A rollout's snapshot can already be past its own reset. `cachedOrEmpty`
             // normalizes on the cache path; do the same here or an expired window
             // reappears at its old utilization (and its old throttle) until some later
@@ -437,6 +437,15 @@ final class CodexRateLimitFetcher {
             profile: nil,
             fetchedAt: asOf,
             isCached: true
+        )
+        // Route through the same anchoring helper as the endpoint path — otherwise a
+        // Business/Enterprise credit budget has no runway while on fallback, and
+        // recovery onto the endpoint restarts the 1-hour observation clock from an
+        // unanchored cached budget.
+        let result = Self.withAnchoredCreditBudget(
+            rawResult,
+            cachedCreditBudget: cachedResults[accountId]?.rateLimits?.creditBudget,
+            now: Date()
         )
         cachedResults[accountId] = result
         return result
