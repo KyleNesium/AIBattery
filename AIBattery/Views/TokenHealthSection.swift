@@ -118,6 +118,8 @@ struct TokenHealthSection: View {
                         Text(turnsModelText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                             .help(Self.detailHelpText(
                                 model: health.model, effort: health.effortLabel, reasoningTokens: health.reasoningTokens
                             ))
