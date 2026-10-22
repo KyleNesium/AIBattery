@@ -118,7 +118,9 @@ final class TokenHealthMonitor: Sendable {
 
     private func assess(sessionEntries: [AssistantUsageEntry], sessionId: String = "", model: String, now: Date = Date()) -> TokenHealthStatus? {
         guard let latestEntry = sessionEntries.last else { return nil }
-        var contextWindow = TokenHealthConfig.contextWindow(for: model)
+        // The provider's own figure wins (Codex writes `model_context_window` on every
+        // token_count); the table is the fallback (Claude logs carry no window).
+        var contextWindow = latestEntry.contextWindow ?? TokenHealthConfig.contextWindow(for: model)
         let turnCount = sessionEntries.count
 
         // Bind timestamps once — avoids repeated optional chain traversals
@@ -135,6 +137,7 @@ final class TokenHealthMonitor: Sendable {
         let cacheWriteTokens = latestEntry.cacheWriteTokens
         let outputTokens = latestEntry.outputTokens
         let totalOutputTokens = sessionEntries.reduce(0) { $0 + $1.outputTokens }
+        let totalReasoningTokens = sessionEntries.reduce(0) { $0 + $1.reasoningTokens }
 
         // Auto-detect context window from observed token usage (upward only).
         // If observed tokens exceed the hardcoded window, the window was expanded
@@ -276,7 +279,9 @@ final class TokenHealthMonitor: Sendable {
             gitBranch: gitBranch,
             sessionStart: firstTimestamp,
             sessionDuration: sessionDuration,
-            lastActivity: lastTimestamp
+            lastActivity: lastTimestamp,
+            reasoningTokens: min(totalReasoningTokens, totalOutputTokens),
+            effortLabel: latestEntry.effortLabel
         )
     }
 }

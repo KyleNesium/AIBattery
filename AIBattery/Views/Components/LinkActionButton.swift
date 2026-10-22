@@ -16,6 +16,7 @@ struct LinkActionButton: View {
     let label: String
     var icon: String?
     var size: Size = .standard
+    var tint: Color = ThemeColors.action
     var help: String?
     var accessibilityLabel: String?
     var accessibilityHint: String = ""
@@ -47,7 +48,7 @@ struct LinkActionButton: View {
             }
         }
         .buttonStyle(.plain)
-        .foregroundStyle(ThemeColors.action)
+        .foregroundStyle(tint)
         .modifier(OptionalHelp(text: help))
         .accessibilityLabel(accessibilityLabel ?? label)
         .accessibilityHint(accessibilityHint)

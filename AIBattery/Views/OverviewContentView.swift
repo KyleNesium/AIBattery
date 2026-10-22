@@ -47,15 +47,18 @@ struct OverviewContentView: View {
 struct OverviewFooterView: View {
     let lastFreshFetch: Date?
     let isLoading: Bool
-    var showsUpdateBadge: Bool = false
+    var availableUpdate: VersionChecker.UpdateInfo? = nil
     @Binding var showSettings: Bool
     let onRefresh: () -> Void
 
     var body: some View {
         HStack(spacing: Spacing.medium) {
+            if let update = availableUpdate {
+                UpdateArrowButton(update: update)
+                    .transition(MotionConstants.expandTransition)
+            }
             SettingsGearButton(
                 showSettings: $showSettings,
-                showsUpdateBadge: showsUpdateBadge,
                 label: "Settings"
             )
             Spacer(minLength: Spacing.inner)

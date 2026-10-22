@@ -239,18 +239,17 @@ extension UsageViewModel {
         LocalUsageEstimate.recordLatestTokens(
             fiveHour: result.fiveHourTokens, sevenDay: result.sevenDayTokens, provider: accountProvider
         )
-        if accountProvider == .claude {
-            // Auto-calibrate local usage limits when API returns fresh utilization data.
-            // This lets us estimate percentages from local tokens when the API is unavailable.
-            if let rl = api.rateLimits, !api.isCached {
-                LocalUsageEstimate.calibrate(
-                    fiveHourUtilization: rl.fiveHourUtilization,
-                    sevenDayUtilization: rl.sevenDayUtilization,
-                    localFiveHourTokens: result.fiveHourTokens,
-                    localSevenDayTokens: result.sevenDayTokens,
-                    accountId: accountId
-                )
-            }
+        if accountProvider == .claude,
+           // Auto-calibrate local usage limits when API returns fresh utilization data.
+           // This lets us estimate percentages from local tokens when the API is unavailable.
+           let rl = api.rateLimits, !api.isCached {
+            LocalUsageEstimate.calibrate(
+                fiveHourUtilization: rl.fiveHourUtilization,
+                sevenDayUtilization: rl.sevenDayUtilization,
+                localFiveHourTokens: result.fiveHourTokens,
+                localSevenDayTokens: result.sevenDayTokens,
+                accountId: accountId
+            )
         }
 
         updateAdaptivePolling(result)
@@ -467,7 +466,8 @@ extension UsageViewModel {
 
         #if ENABLE_VERSION_CHECKER
         if availableUpdate == nil {
-            availableUpdate = await VersionChecker.shared.checkForUpdate()
+            let found = await VersionChecker.shared.checkForUpdate()
+            withAnimation(MotionConstants.standard) { availableUpdate = found }
         }
         #endif
     }

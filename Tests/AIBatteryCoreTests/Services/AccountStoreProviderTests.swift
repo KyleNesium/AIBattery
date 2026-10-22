@@ -129,4 +129,23 @@ struct AccountStoreProviderTests {
         #expect(!AccountStore.billsLocalCodexCosts(accounts: [claude], activeId: claude.id))
         #expect(!AccountStore.billsLocalCodexCosts(accounts: [apiKey], activeId: "missing"))
     }
+
+    /// Attribution exists only for a ChatGPT-backed Codex account when at least two such
+    /// accounts exist — the only case where "whose turns are these?" has more than one
+    /// answer. API keys, Claude and single-account setups always see everything.
+    @Test func attribution_onlyForChatGPTCodexWithTwoOrMore() {
+        let a = AccountRecord(id: "codex-a", billingType: "plus", addedAt: Date(), provider: .codex)
+        let b = AccountRecord(id: "codex-b", billingType: "pro", addedAt: Date(), provider: .codex)
+        let key = AccountRecord(id: "openai-api-k", billingType: "api", addedAt: Date(), provider: .codex, codexAccessMode: .apiKey)
+        let claude = AccountRecord(id: "org-1", billingType: "pro", addedAt: Date(), provider: .claude)
+
+        #expect(AccountStore.attribution(for: "codex-a", provider: .codex, accounts: [a, b]) == .account("codex-a"))
+        #expect(AccountStore.attribution(for: "codex-b", provider: .codex, accounts: [a, b, key]) == .account("codex-b"))
+        #expect(AccountStore.attribution(for: "codex-a", provider: .codex, accounts: [a]) == .all)
+        #expect(AccountStore.attribution(for: "codex-a", provider: .codex, accounts: [a, key]) == .all)
+        #expect(AccountStore.attribution(for: "openai-api-k", provider: .codex, accounts: [a, b, key]) == .all)
+        #expect(AccountStore.attribution(for: "org-1", provider: .claude, accounts: [a, b, claude]) == .all)
+        #expect(AccountStore.attribution(for: nil, provider: .codex, accounts: [a, b]) == .all)
+        #expect(AccountStore.attribution(for: "missing", provider: .codex, accounts: [a, b]) == .all)
+    }
 }

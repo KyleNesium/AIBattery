@@ -102,7 +102,7 @@ struct UsageAggregatorIntegrationTests {
         let (aggregator, sessionLogReader) = makeAggregator(projectsDir: projectsDir, rootDir: root)
 
         // First aggregate
-        let (snapshot1, _) = aggregator.aggregate(rateLimits: nil)
+        let snapshot1 = aggregator.aggregate(rateLimits: nil).detail
         #expect(snapshot1.todayMessages == 3, "First aggregate: 3 today messages")
         let total1 = snapshot1.todayModelTokens.reduce(0) { $0 + $1.inputTokens }
         #expect(total1 == 450, "First aggregate: 100 + 200 + 150 = 450 input tokens today")
@@ -111,7 +111,7 @@ struct UsageAggregatorIntegrationTests {
         sessionLogReader.invalidate()
         aggregator.invalidate()
 
-        let (snapshot2, _) = aggregator.aggregate(rateLimits: nil)
+        let snapshot2 = aggregator.aggregate(rateLimits: nil).detail
         #expect(snapshot2.todayMessages == snapshot1.todayMessages,
                 "Re-aggregate todayMessages must match first aggregate")
         let total2 = snapshot2.todayModelTokens.reduce(0) { $0 + $1.inputTokens }
@@ -157,7 +157,7 @@ struct UsageAggregatorIntegrationTests {
         let (aggregator, sessionLogReader) = makeAggregator(projectsDir: projectsDir, rootDir: root)
 
         // First aggregate — SessionLogReader parses and then evicts yesterday's entries from per-file cache
-        let (snapshot1, _) = aggregator.aggregate(rateLimits: nil)
+        let snapshot1 = aggregator.aggregate(rateLimits: nil).detail
         #expect(snapshot1.totalMessages == 2, "First aggregate: 2 total messages (old entries counted in total)")
 
         // Verify reader evicted the per-file arrays
@@ -168,7 +168,7 @@ struct UsageAggregatorIntegrationTests {
         // where files haven't changed so reader returns cachedAllEntries directly.
         aggregator.invalidate()
 
-        let (snapshot2, _) = aggregator.aggregate(rateLimits: nil)
+        let snapshot2 = aggregator.aggregate(rateLimits: nil).detail
         #expect(snapshot2.totalMessages == snapshot1.totalMessages,
                 "After eviction, re-aggregate total message count must match")
     }
@@ -193,7 +193,7 @@ struct UsageAggregatorIntegrationTests {
 
         let (aggregator, sessionLogReader) = makeAggregator(projectsDir: projectsDir, rootDir: root)
 
-        let (snapshot1, _) = aggregator.aggregate(rateLimits: nil)
+        let snapshot1 = aggregator.aggregate(rateLimits: nil).detail
         #expect(snapshot1.todayMessages == 2, "First aggregate: 2 messages from session 1")
         let total1 = snapshot1.todayModelTokens.reduce(0) { $0 + $1.inputTokens }
         #expect(total1 == 200, "First aggregate: 100 + 100 = 200 input tokens")
@@ -215,7 +215,7 @@ struct UsageAggregatorIntegrationTests {
         sessionLogReader.expireDiscoveryTTLForTesting()
         aggregator.invalidate()
 
-        let (snapshot2, _) = aggregator.aggregate(rateLimits: nil)
+        let snapshot2 = aggregator.aggregate(rateLimits: nil).detail
         #expect(snapshot2.todayMessages == 5, "Second aggregate: 2 + 3 = 5 total messages")
         let total2 = snapshot2.todayModelTokens.reduce(0) { $0 + $1.inputTokens }
         #expect(total2 == 1_100, "Second aggregate: 100+100+200+300+400 = 1100 input tokens")

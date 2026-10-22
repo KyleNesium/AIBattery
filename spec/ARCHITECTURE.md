@@ -31,6 +31,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 | Status feed | `StatusChecker.shared` (`StatusFeedConfig.claude`) | `StatusChecker.codex` (`StatusFeedConfig.codex`, filtered to Codex components) |
 | File watching | FSEvents on `~/.claude/projects` + DispatchSource on `stats-cache.json` | second FSEvents root on `~/.codex/sessions` |
 | UI vocabulary | "7-Day", ✦ glyph, `claude.ai/settings/usage`, `status.claude.com` | "Weekly", ⬡ glyph, `chatgpt.com/codex/settings/usage`, `status.openai.com` |
+| Attribution | Always `.all` — no per-account split | Decided in `UsageViewModel.aggregateOffMain`, applied in `UsageAggregator.aggregate` (one pass, `AggregateResult.detail` / `.providerWide`): the active detail view is attributed only with ≥ 2 ChatGPT-backed Codex accounts, never for the overview's background pass |
 
 Local logs are machine-wide per provider: every Codex account shows the same `~/.codex/sessions` analytics (exactly as multiple Claude accounts share `~/.claude`).
 
@@ -58,6 +59,8 @@ Local logs are machine-wide per provider: every Codex account shows the same `~/
 ```
 
 `refresh()` runs: gets active account + token from `OAuthManager`, resolves the account's provider once, and passes the token to that provider's fetcher (`RateLimitFetcher.fetch` or `CodexRateLimitFetcher.fetch`). The provider's status check runs concurrently. After fetch, Claude accounts resolve pending identity / update metadata (Codex identities are fixed at auth time from the ID token). Aggregation runs off-main in the provider's aggregator; `UsageSnapshot.provider` tells the views which vocabulary and links to use.
+
+`providerSnapshots: [AIProvider: UsageSnapshot]` (the multi-account overview cards' data source) is published **only** from inside `UsageViewModel.aggregateOffMain`, as `result.providerWide` from the same one-pass `AggregateResult` that produces the (possibly attributed) `snapshot` the detail view reads. It is never derived from, or mirrored off, `snapshot` — that would leak a per-account attributed total onto a provider-wide card.
 
 ## Refresh Triggers
 
@@ -98,7 +101,7 @@ AIBattery/
     CodexCreditBudget.swift       — Spend-control budget + purchased-credit balance
     OpenAIModelPricing.swift      — `gpt-5.x` pricing table (longest-prefix match on the raw model ID)
     StatsCache.swift              — Codable for stats-cache.json
-    SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry
+    SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry (`creatorAccountId` from `session_meta`, context window, reasoning tokens, effort)
     UsageSnapshot.swift           — UsageSnapshot (carries `provider`), ModelTokenSummary
     ProjectTokenSummary.swift     — Per-project token totals + cost from JSONL cwd
     MetricMode.swift              — MetricMode enum (5h / 7d / context)
@@ -138,9 +141,10 @@ AIBattery/
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
     SessionLogReader.swift        — Claude JSONL streaming reader (FileHandle, 64KB chunks)
     FileWatcher.swift             — DispatchSource + two FSEventStreams (~/.claude/projects, ~/.codex/sessions) for live updates
-    UsageAggregator.swift         — Merges a provider's data sources → UsageSnapshot (one instance per provider)
+    UsageAggregator.swift         — Merges a provider's data sources → UsageSnapshot (one instance per provider); one pass (`AggregationPass`) yields an `AggregateResult` with both an attributed/detail snapshot and a provider-wide snapshot, keyed by `Attribution`
+    Attribution.swift             — `Attribution` enum (`.all` / `.account(_:)`) + `partition(_:)`: splits a provider's entries into the active account's turns and everyone else's (Codex `creatorAccountId` only; Claude entries are always `.all`)
     TokenHealthMonitor.swift      — Analyzes session tokens → health status (single + top N sessions)
-    TokenLedger.swift             — Persistent per-model token high-water marks (Application Support)
+    TokenLedger.swift             — Persistent per-model token high-water marks (Application Support); series keyed `<id>` (provider-wide/default), `<id>#attributed` (per-account Codex detail), `codex#all` (provider-wide Codex, namespaced away from any single account's key)
     NetworkMonitor.swift          — NWPathMonitor connectivity observer (triggers refresh on recovery)
     StatusChecker.swift           — Feed-configurable Statuspage client (`StatusFeedConfig`; `.shared` = Claude, `.codex` = OpenAI); HTTP fetch + decode + parse via `nonisolated static func fetchAndParse(config:timeout:)` returning a `Sendable FetchOutcome`; optional component filter
     SingleInstanceGuard.swift     — POSIX flock single-instance guard, SIGTERM handler
@@ -168,7 +172,9 @@ AIBattery/
     MenuBarIconGeometry.swift     — Star path geometry helpers (starPath, multiPointStarPath) + NSBezierPath→CGPath
     MenuBarMultiAccountText.swift — Pure builder for multi-account menu bar text (`42% | 23%`); worst-account percent + throttle + reset selection. Unit-tested without AppKit.
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
-    PopoverHeaderView.swift       — Header row: account chip + gear, auto-update banner (ENABLE_VERSION_CHECKER)
+    PopoverHeaderView.swift       — Header row: account chip, update arrow (when available) + gear
+    UpdateArrowButton.swift       — Header/overview-footer arrow shown only when `availableUpdate` is set; click installs via Sparkle, right-click opens a context menu (release notes / check for updates); replaces the old update banner + gear badge
+    SettingsGearButton.swift      — Gear icon opening Settings
     AccountChipView.swift         — Compact account chip (brand badge + provider + identity) whose click pops the AppKit switch/add NSMenu
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
@@ -228,6 +234,7 @@ AIBattery/
     Spacing.swift                 — Spacing/Layout/MotionConstants enums — caseless enum namespaces co-located
     KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
     RetryPolicy.swift             — Pure value-type exponential-backoff + jitter policy with `nonisolated static` API. 4 presets (`oauth`, `statusCheck`, `fileWatch`, `rateLimit`) carry historical values from CONSTANTS.md. Used by OAuthManager, StatusChecker, FileWatcher, RateLimitFetcher
+    ReasoningVocabulary.swift     — "Thinking" vs "Reasoning" label by model prefix (Claude vs Codex/GPT)
 Tests/AIBatteryCoreTests/
   MetricToggleViewTests.swift     — orderedModes ordering, allCases completeness, stable remaining order
   Utilities/
@@ -336,7 +343,7 @@ CHANGELOG.md                      — Release notes per version
 - **Dock icon**: None (LSUIElement = true)
 - **Dependencies**: Sparkle 2 (SPM, auto-update framework) — all other dependencies are Apple frameworks only (SwiftUI, Charts, Security, Foundation, AppKit, ServiceManagement)
 - **Compiler flag**: `ENABLE_SPARKLE` — defined in all 3 SPM targets via `swiftSettings`. Guards all Sparkle imports/usage. Remove the define to build without Sparkle (App Store variant)
-- **Compiler flag**: `ENABLE_VERSION_CHECKER` — defined in all 3 SPM targets. Guards VersionChecker + update UI. Remove to build App Store variant (guideline 3.1.1)
+- **Compiler flag**: `ENABLE_VERSION_CHECKER` — always defined by all 3 SPM targets; view-side references (`UpdateArrowButton`, `availableUpdate` properties) are unguarded, so removing the define does not compile — kept for the service files' `#if` only
 - **Compiler flag**: `APP_SANDBOX` — NOT defined by default. Reserved for future App Store sandbox support. Only set for App Store builds
 - **Privacy manifest**: `PrivacyInfo.xcprivacy` bundled as SPM resource, also copied to `Contents/Resources/` by build script
 - **SPM resource bundle**: `scripts/build-app.sh` copies `.build/release/AIBattery_AIBatteryCore.bundle` into `Contents/Resources/`. **`Bundle.module` is never used** — SwiftPM's generated accessor only searches `Bundle.main.bundleURL/<bundle>` (the .app root, which codesign's bundle-format rules forbid anyway) and an absolute path on the build machine, then `fatalError`s; it passes on the dev machine and crashes every install. `AIProvider.markURL(for:searchRoots:)` instead walks `Bundle.main.resourceURL` (packaged app) → `Bundle.main.bundleURL` (bare `.build/release` binary) → the loaded module's parent directory (`swift test`) and returns nil when nothing matches, so a missing bundle degrades to the SF-symbol badge instead of a crash. Release smoke test: copy the .app elsewhere, hide `.build/release/AIBattery_AIBatteryCore.bundle`, launch, confirm the brand marks still render.
@@ -393,7 +400,7 @@ Not currently planned, but documented here for reference. These are the architec
 |---------|--------|--------|
 | App Sandbox | Can't read `~/.claude/` — App Store requires sandbox | `AIBattery-AppStore.entitlements` has `user-selected.read-only` + `bookmarks.app-scope`; needs NSOpenPanel + bookmark persistence implementation (behind `APP_SANDBOX` flag) |
 | Sparkle framework | App Store rejects third-party update mechanisms | `ENABLE_SPARKLE` flag gates all Sparkle code; remove define for App Store build |
-| Version checker | App Store rejects apps that check for updates outside the store (guideline 3.1.1) | `ENABLE_VERSION_CHECKER` flag gates VersionChecker + update UI; remove define for App Store build |
+| Version checker | App Store rejects apps that check for updates outside the store (guideline 3.1.1) | `ENABLE_VERSION_CHECKER` flag gates `VersionChecker` and the service-layer update check only; always defined by all three targets, since view-side references (`UpdateArrowButton`, `availableUpdate` properties) are unguarded and removing the define does not compile |
 | `disable-library-validation` entitlement | Rejected by App Store review (only needed for Sparkle's dynamic loading) | Not in `AIBattery-AppStore.entitlements` — resolved when Sparkle is disabled |
 | SUFeedURL in Info.plist | App Store may flag Sparkle feed URL | `build-app.sh` strips SUFeedURL when `APP_STORE_BUILD` env is set |
 | Privacy manifest | Required for App Store submission | `PrivacyInfo.xcprivacy` added (UserDefaults + FileTimestamp) |

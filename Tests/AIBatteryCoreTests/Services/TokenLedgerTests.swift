@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import AIBatteryCore
 
-@Suite("TokenLedger")
+@Suite("TokenLedger", .serialized)
 struct TokenLedgerTests {
     private func makeTempURL() -> URL {
         FileManager.default.temporaryDirectory
@@ -33,7 +33,7 @@ struct TokenLedgerTests {
     @Test @MainActor func merge_emptyLedger_returnsSameTokens() {
         let ledger = TokenLedger(fileURL: makeTempURL())
         let tokens = [makeToken(input: 100, output: 50)]
-        let result = ledger.merge(tokens, accountId: "acc1")
+        let result = ledger.merge(tokens, ledgerKey: "acc1")
 
         #expect(result.count == 1)
         #expect(result[0].inputTokens == 100)
@@ -47,10 +47,10 @@ struct TokenLedgerTests {
         let ledger = TokenLedger(fileURL: url)
 
         // First merge — stores 1000 input
-        _ = ledger.merge([makeToken(input: 1_000, output: 500)], accountId: "acc1")
+        _ = ledger.merge([makeToken(input: 1_000, output: 500)], ledgerKey: "acc1")
 
         // Second merge with lower values (stats-cache rebuilt)
-        let result = ledger.merge([makeToken(input: 200, output: 100)], accountId: "acc1")
+        let result = ledger.merge([makeToken(input: 200, output: 100)], ledgerKey: "acc1")
 
         #expect(result[0].inputTokens == 1_000)
         #expect(result[0].outputTokens == 500)
@@ -60,8 +60,8 @@ struct TokenLedgerTests {
         let url = makeTempURL()
         let ledger = TokenLedger(fileURL: url)
 
-        _ = ledger.merge([makeToken(input: 100)], accountId: "acc1")
-        let result = ledger.merge([makeToken(input: 500)], accountId: "acc1")
+        _ = ledger.merge([makeToken(input: 100)], ledgerKey: "acc1")
+        let result = ledger.merge([makeToken(input: 500)], ledgerKey: "acc1")
 
         #expect(result[0].inputTokens == 500)
     }
@@ -77,12 +77,12 @@ struct TokenLedgerTests {
             makeToken(id: "claude-opus-4-6", displayName: "Opus 4.6", input: 1_000),
             makeToken(id: "claude-sonnet-4-6", displayName: "Sonnet 4.6", input: 500),
         ]
-        _ = ledger.merge(tokens, accountId: "acc1")
+        _ = ledger.merge(tokens, ledgerKey: "acc1")
 
         // New data only has Opus (Sonnet lost from stats-cache)
         let result = ledger.merge(
             [makeToken(id: "claude-opus-4-6", displayName: "Opus 4.6", input: 1_000)],
-            accountId: "acc1"
+            ledgerKey: "acc1"
         )
 
         #expect(result.count == 2)
@@ -97,8 +97,8 @@ struct TokenLedgerTests {
         let url = makeTempURL()
         let ledger = TokenLedger(fileURL: url)
 
-        _ = ledger.merge([makeToken(input: 1_000)], accountId: "acc1")
-        let result = ledger.merge([makeToken(input: 100)], accountId: "acc2")
+        _ = ledger.merge([makeToken(input: 1_000)], ledgerKey: "acc1")
+        let result = ledger.merge([makeToken(input: 100)], ledgerKey: "acc2")
 
         // acc2 should not see acc1's values
         #expect(result[0].inputTokens == 100)
@@ -110,11 +110,11 @@ struct TokenLedgerTests {
         let url = makeTempURL()
 
         let ledger1 = TokenLedger(fileURL: url)
-        _ = ledger1.merge([makeToken(input: 1_000)], accountId: "acc1")
+        _ = ledger1.merge([makeToken(input: 1_000)], ledgerKey: "acc1")
         ledger1.flushForTesting()
 
         let ledger2 = TokenLedger(fileURL: url)
-        let result = ledger2.merge([makeToken(input: 200)], accountId: "acc1")
+        let result = ledger2.merge([makeToken(input: 200)], ledgerKey: "acc1")
 
         #expect(result[0].inputTokens == 1_000)
     }
@@ -128,7 +128,7 @@ struct TokenLedgerTests {
             makeToken(id: "claude-b", displayName: "B", input: 500),
             makeToken(id: "claude-c", displayName: "C", input: 300),
         ]
-        let result = ledger.merge(tokens, accountId: "acc1")
+        let result = ledger.merge(tokens, ledgerKey: "acc1")
 
         #expect(result[0].id == "claude-b")
         #expect(result[1].id == "claude-c")
@@ -143,11 +143,11 @@ struct TokenLedgerTests {
 
         _ = ledger.merge(
             [makeToken(input: 100, output: 200, cacheRead: 300, cacheWrite: 400)],
-            accountId: "acc1"
+            ledgerKey: "acc1"
         )
         let result = ledger.merge(
             [makeToken(input: 50, output: 50, cacheRead: 50, cacheWrite: 50)],
-            accountId: "acc1"
+            ledgerKey: "acc1"
         )
 
         #expect(result[0].inputTokens == 100)
@@ -163,7 +163,7 @@ struct TokenLedgerTests {
         let ledger = TokenLedger(fileURL: url)
 
         // First merge — values increase → write expected
-        _ = ledger.merge([makeToken(input: 100, output: 50)], accountId: "acc1")
+        _ = ledger.merge([makeToken(input: 100, output: 50)], ledgerKey: "acc1")
         ledger.flushForTesting()
 
         let attrsBefore = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -172,7 +172,7 @@ struct TokenLedgerTests {
         // Second merge — identical values → no increase → no write
         // Sleep 1s so any write would be detectable via mod date change
         Thread.sleep(forTimeInterval: 1.0)
-        _ = ledger.merge([makeToken(input: 100, output: 50)], accountId: "acc1")
+        _ = ledger.merge([makeToken(input: 100, output: 50)], ledgerKey: "acc1")
         ledger.flushForTesting()
 
         let attrsAfter = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -192,7 +192,7 @@ struct TokenLedgerTests {
             makeToken(id: "claude-b", displayName: "B", input: 2_000, output: 1_000),
             makeToken(id: "claude-c", displayName: "C", input: 3_000, output: 1_500),
         ]
-        _ = ledger1.merge(tokens, accountId: "acc1")
+        _ = ledger1.merge(tokens, ledgerKey: "acc1")
         ledger1.flushForTesting()
 
         // Load fresh instance from the same file
@@ -205,7 +205,7 @@ struct TokenLedgerTests {
             makeToken(id: "claude-b", displayName: "B", input: 200, output: 100),
             makeToken(id: "claude-c", displayName: "C", input: 300, output: 150),
         ]
-        let result = ledger2.merge(lower, accountId: "acc1")
+        let result = ledger2.merge(lower, ledgerKey: "acc1")
 
         let a = result.first(where: { $0.id == "claude-a" })
         let b = result.first(where: { $0.id == "claude-b" })
@@ -223,7 +223,7 @@ struct TokenLedgerTests {
         _ = ledger.merge([
             makeToken(id: "claude-x", displayName: "X", input: 100),
             makeToken(id: "claude-y", displayName: "Y", input: 200),
-        ], accountId: "acc1")
+        ], ledgerKey: "acc1")
         ledger.flushForTesting()
 
         let attrsBefore = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -236,7 +236,7 @@ struct TokenLedgerTests {
         _ = ledger.merge([
             makeToken(id: "claude-x", displayName: "X", input: 150), // increase
             makeToken(id: "claude-y", displayName: "Y", input: 100), // decrease (no-op)
-        ], accountId: "acc1")
+        ], ledgerKey: "acc1")
         ledger.flushForTesting()
 
         let attrsAfter = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -250,7 +250,7 @@ struct TokenLedgerTests {
         let result = fresh.merge([
             makeToken(id: "claude-x", displayName: "X", input: 0),
             makeToken(id: "claude-y", displayName: "Y", input: 0),
-        ], accountId: "acc1")
+        ], ledgerKey: "acc1")
 
         let x = result.first(where: { $0.id == "claude-x" })
         let y = result.first(where: { $0.id == "claude-y" })
@@ -268,7 +268,7 @@ struct TokenLedgerTests {
 
         let ledger = TokenLedger(fileURL: url)
         // Should start fresh (empty), not crash
-        let result = ledger.merge([makeToken(input: 42)], accountId: "acc1")
+        let result = ledger.merge([makeToken(input: 42)], ledgerKey: "acc1")
         #expect(result[0].inputTokens == 42)
     }
 
@@ -285,7 +285,7 @@ struct TokenLedgerTests {
         defer { try? FileManager.default.removeItem(at: badParent) }
 
         let ledger = TokenLedger(fileURL: url)
-        _ = ledger.merge([makeToken(input: 1_000, output: 500)], accountId: "acc1")
+        _ = ledger.merge([makeToken(input: 1_000, output: 500)], ledgerKey: "acc1")
         ledger.flushForTesting() // first write fails silently — parent dir missing
 
         // File must not exist yet — write failed.
@@ -303,7 +303,7 @@ struct TokenLedgerTests {
         // Reload a fresh ledger and verify the pending state actually persisted,
         // not just that an empty file was created.
         let fresh = TokenLedger(fileURL: url)
-        let result = fresh.merge([makeToken(input: 0, output: 0)], accountId: "acc1")
+        let result = fresh.merge([makeToken(input: 0, output: 0)], ledgerKey: "acc1")
         #expect(result.first?.inputTokens == 1_000)
         #expect(result.first?.outputTokens == 500)
     }
@@ -312,60 +312,182 @@ struct TokenLedgerTests {
 
     @Test @MainActor func migrate_movesHighWaterToNewIdAndDropsOld() {
         let ledger = TokenLedger(fileURL: makeTempURL())
-        _ = ledger.merge([makeToken(input: 1_000, output: 500)], accountId: "pending-x")
+        _ = ledger.merge([makeToken(input: 1_000, output: 500)], ledgerKey: "pending-x")
         // Target already holds a lower value for the same model.
-        _ = ledger.merge([makeToken(input: 200, output: 100)], accountId: "org-real")
+        _ = ledger.merge([makeToken(input: 200, output: 100)], ledgerKey: "org-real")
 
         ledger.migrate(from: "pending-x", to: "org-real")
 
         // org-real keeps the max of both entries.
-        let merged = ledger.merge([], accountId: "org-real")
+        let merged = ledger.merge([], ledgerKey: "org-real")
         #expect(merged.count == 1)
         #expect(merged[0].inputTokens == 1_000)
         #expect(merged[0].outputTokens == 500)
         // The pending entry is removed.
-        #expect(ledger.merge([], accountId: "pending-x").isEmpty)
+        #expect(ledger.merge([], ledgerKey: "pending-x").isEmpty)
     }
 
     @Test @MainActor func migrate_noopWhenSourceMissing() {
         let ledger = TokenLedger(fileURL: makeTempURL())
-        _ = ledger.merge([makeToken(input: 100)], accountId: "org-real")
+        _ = ledger.merge([makeToken(input: 100)], ledgerKey: "org-real")
         ledger.migrate(from: "pending-absent", to: "org-real")
-        #expect(ledger.merge([], accountId: "org-real").first?.inputTokens == 100)
+        #expect(ledger.merge([], ledgerKey: "org-real").first?.inputTokens == 100)
     }
 
     @Test @MainActor func migrate_persistsAcrossReload() {
         let url = makeTempURL()
         let l1 = TokenLedger(fileURL: url)
-        _ = l1.merge([makeToken(input: 1_000)], accountId: "pending-x")
+        _ = l1.merge([makeToken(input: 1_000)], ledgerKey: "pending-x")
         l1.migrate(from: "pending-x", to: "org-real")
         l1.flushForTesting()
 
         let l2 = TokenLedger(fileURL: url)
-        #expect(l2.merge([], accountId: "org-real").first?.inputTokens == 1_000)
-        #expect(l2.merge([], accountId: "pending-x").isEmpty)
+        #expect(l2.merge([], ledgerKey: "org-real").first?.inputTokens == 1_000)
+        #expect(l2.merge([], ledgerKey: "pending-x").isEmpty)
     }
 
     // MARK: - Orphan pruning
 
     @Test @MainActor func pruneAccounts_removesNonLiveEntries() {
         let ledger = TokenLedger(fileURL: makeTempURL())
-        _ = ledger.merge([makeToken(input: 10)], accountId: "live")
-        _ = ledger.merge([makeToken(input: 20)], accountId: "pending-orphan")
-        _ = ledger.merge([makeToken(input: 30)], accountId: "test-stray")
+        _ = ledger.merge([makeToken(input: 10)], ledgerKey: "live")
+        _ = ledger.merge([makeToken(input: 20)], ledgerKey: "pending-orphan")
+        _ = ledger.merge([makeToken(input: 30)], ledgerKey: "test-stray")
 
         ledger.pruneAccounts(keeping: ["live"])
 
-        #expect(ledger.merge([], accountId: "live").first?.inputTokens == 10)
-        #expect(ledger.merge([], accountId: "pending-orphan").isEmpty)
-        #expect(ledger.merge([], accountId: "test-stray").isEmpty)
+        #expect(ledger.merge([], ledgerKey: "live").first?.inputTokens == 10)
+        #expect(ledger.merge([], ledgerKey: "pending-orphan").isEmpty)
+        #expect(ledger.merge([], ledgerKey: "test-stray").isEmpty)
     }
 
     @Test @MainActor func pruneAccounts_emptyKeepSet_isNoop() {
         let ledger = TokenLedger(fileURL: makeTempURL())
-        _ = ledger.merge([makeToken(input: 10)], accountId: "live")
+        _ = ledger.merge([makeToken(input: 10)], ledgerKey: "live")
         // Guard: an empty live set must never wipe legitimately-held history.
         ledger.pruneAccounts(keeping: [])
-        #expect(ledger.merge([], accountId: "live").first?.inputTokens == 10)
+        #expect(ledger.merge([], ledgerKey: "live").first?.inputTokens == 10)
+    }
+
+    // MARK: - Attribution keys
+
+    @Test func key_plainForUnattributed_namespacedForAttributed() {
+        #expect(TokenLedger.key(accountId: "acc", attribution: .all) == "acc")
+        #expect(TokenLedger.key(accountId: "acc", attribution: .account("acc")) == "acc#attributed")
+        #expect(TokenLedger.key(accountId: "acc", attribution: .account("other")) == "acc#attributed")
+        #expect(TokenLedger.baseAccountId(ofKey: "acc#attributed") == "acc")
+        #expect(TokenLedger.baseAccountId(ofKey: "codex#all") == "codex")
+        #expect(TokenLedger.baseAccountId(ofKey: "acc") == "acc")
+    }
+
+    @Test @MainActor func merge_keepsSeparateSeriesPerKey() {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let ledger = TokenLedger(fileURL: url)
+        _ = ledger.merge([makeToken(id: "gpt-6-astra", output: 100)], ledgerKey: "acc")
+        _ = ledger.merge([makeToken(id: "gpt-6-astra", output: 10)], ledgerKey: "acc#attributed")
+        _ = ledger.merge([makeToken(id: "gpt-6-astra", output: 70)], ledgerKey: TokenLedger.providerWideCodexKey)
+        #expect(ledger.merge([makeToken(id: "gpt-6-astra")], ledgerKey: "acc").first?.outputTokens == 100)
+        #expect(ledger.merge([makeToken(id: "gpt-6-astra")], ledgerKey: "acc#attributed").first?.outputTokens == 10)
+        #expect(ledger.merge([makeToken(id: "gpt-6-astra")], ledgerKey: "codex#all").first?.outputTokens == 70)
+        ledger.flushForTesting()
+        let reloaded = TokenLedger(fileURL: url)
+        #expect(reloaded.merge([makeToken(id: "gpt-6-astra")], ledgerKey: "acc#attributed").first?.outputTokens == 10)
+    }
+
+    @Test @MainActor func prune_keepsNamespacedKeysOfLiveAccounts_andProviderWideWhileAnyCodexLives() {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let ledger = TokenLedger(fileURL: url)
+        for key in ["live", "live#attributed", "dead", "dead#attributed", "codex#all"] {
+            _ = ledger.merge([makeToken(id: "gpt-6-astra", output: 1)], ledgerKey: key)
+        }
+        ledger.pruneAccounts(keeping: ["live"], hasLiveCodexAccount: true)
+        ledger.flushForTesting()
+        let keys = Set(TokenLedger(fileURL: url).ledgerKeysForTesting())
+        #expect(keys == ["live", "live#attributed", "codex#all"])
+        ledger.pruneAccounts(keeping: ["live"], hasLiveCodexAccount: false)
+        ledger.flushForTesting()
+        #expect(Set(TokenLedger(fileURL: url).ledgerKeysForTesting()) == ["live", "live#attributed"])
+    }
+
+    @Test @MainActor func merge_keepsReasoningHighWater_andDecodesLegacyRecords() throws {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        // Legacy blob without `reasoning`
+        let legacy = #"{"accounts":{"acc":{"gpt-6-astra":{"input":1,"output":100,"cacheRead":0,"cacheWrite":0}}}}"#
+        try Data(legacy.utf8).write(to: url)
+        let ledger = TokenLedger(fileURL: url)
+        var token = makeToken(id: "gpt-6-astra", output: 100)
+        token = ModelTokenSummary(
+            id: token.id, displayName: token.displayName, inputTokens: token.inputTokens,
+            outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0,
+            reasoningTokens: 30
+        )
+        let merged = ledger.merge([token], ledgerKey: "acc")
+        #expect(merged.first?.reasoningTokens == 30)
+        let lower = ModelTokenSummary(
+            id: "gpt-6-astra", displayName: "GPT-6 Astra", inputTokens: 1, outputTokens: 100,
+            cacheReadTokens: 0, cacheWriteTokens: 0, estimatedCost: 0, reasoningTokens: 5
+        )
+        #expect(ledger.merge([lower], ledgerKey: "acc").first?.reasoningTokens == 30)
+    }
+
+    // MARK: - First-scan date
+
+    @Test @MainActor func merge_recordsFirstScanDateOncePerAccount() {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let ledger = TokenLedger(fileURL: url)
+        #expect(ledger.firstScanDate(ledgerKey: "acc") == nil)
+        _ = ledger.merge([makeToken(output: 1)], ledgerKey: "acc")
+        let first = ledger.firstScanDate(ledgerKey: "acc")
+        #expect(first != nil)
+        _ = ledger.merge([makeToken(output: 2)], ledgerKey: "acc")
+        #expect(ledger.firstScanDate(ledgerKey: "acc") == first)
+        // survives reload
+        ledger.flushForTesting()
+        #expect(TokenLedger(fileURL: url).firstScanDate(ledgerKey: "acc") == first)
+    }
+
+    @Test @MainActor func migrate_movesFirstScanDateWithAccount() {
+        let ledger = TokenLedger(fileURL: makeTempURL())
+        _ = ledger.merge([makeToken(input: 1_000)], ledgerKey: "pending-x")
+        let original = ledger.firstScanDate(ledgerKey: "pending-x")
+        #expect(original != nil)
+
+        ledger.migrate(from: "pending-x", to: "org-real")
+
+        #expect(ledger.firstScanDate(ledgerKey: "org-real") == original)
+        #expect(ledger.firstScanDate(ledgerKey: "pending-x") == nil)
+    }
+
+    @Test @MainActor func pruneAccounts_dropsFirstScanForNonLiveEntries() {
+        let ledger = TokenLedger(fileURL: makeTempURL())
+        _ = ledger.merge([makeToken(input: 10)], ledgerKey: "live")
+        _ = ledger.merge([makeToken(input: 20)], ledgerKey: "pending-orphan")
+        let liveFirst = ledger.firstScanDate(ledgerKey: "live")
+
+        ledger.pruneAccounts(keeping: ["live"])
+
+        #expect(ledger.firstScanDate(ledgerKey: "live") == liveFirst)
+        #expect(ledger.firstScanDate(ledgerKey: "pending-orphan") == nil)
+    }
+
+    @Test @MainActor func merge_preexistingSeriesWithoutFirstScan_staysNilNotBackdated() throws {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        // Simulate a pre-3.3.0 ledger: months of accounts[ledgerKey] records, no firstScan field.
+        let legacy = #"{"accounts":{"legacy":{"claude-opus-4-6":{"input":1000,"output":500,"cacheRead":0,"cacheWrite":0}}}}"#
+        try Data(legacy.utf8).write(to: url)
+
+        let ledger = TokenLedger(fileURL: url)
+        #expect(ledger.firstScanDate(ledgerKey: "legacy") == nil)
+        _ = ledger.merge([makeToken(id: "claude-opus-4-6", input: 1_000, output: 500)], ledgerKey: "legacy")
+        ledger.flushForTesting()
+
+        // Must stay nil — an existing series is never backdated to the upgrade day.
+        #expect(ledger.firstScanDate(ledgerKey: "legacy") == nil)
+        #expect(TokenLedger(fileURL: url).firstScanDate(ledgerKey: "legacy") == nil)
     }
 }

@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Settings → About: app name + version, manual "Check for Updates", release notes,
-/// and the Sparkle update-failed strip. The header keeps only the automatic
-/// update-available banner; everything a user *does* about updates lives here.
+/// and the Sparkle update-failed strip. The header shows only the update arrow;
+/// everything a user *does* about updates lives here.
 struct AboutSection: View {
     @ObservedObject var viewModel: UsageViewModel
 
@@ -19,6 +19,30 @@ struct AboutSection: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
         #endif
     }
+
+    /// Leading-column indent that keeps wrapped rows aligned under the
+    /// trailing-aligned "About" label in the header row.
+    private var labelColumnIndent: some View {
+        Spacer().frame(width: Layout.settingsLabel)
+    }
+
+    #if ENABLE_VERSION_CHECKER
+    /// Maps update state to the single row-2 button's label, icon, and
+    /// whether it should highlight yellow. Pure and tested so the
+    /// yellow-on-available-update contract doesn't depend on view introspection.
+    nonisolated static func updateAction(
+        for update: VersionChecker.UpdateInfo?,
+        checking: Bool
+    ) -> (label: String, icon: String, highlighted: Bool) {
+        if let update {
+            return ("Install v\(update.version)", "arrow.up.circle", true)
+        }
+        if checking {
+            return ("Checking…", "arrow.triangle.2.circlepath", false)
+        }
+        return ("Check for Updates", "arrow.triangle.2.circlepath", false)
+    }
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.tight) {
@@ -44,28 +68,27 @@ struct AboutSection: View {
             .accessibilityLabel("AI Battery version \(Self.version)")
 
             HStack(spacing: Spacing.section) {
-                Spacer().frame(width: Layout.settingsLabel)
+                labelColumnIndent
                 #if ENABLE_VERSION_CHECKER
-                if let update = viewModel.availableUpdate {
-                    LinkActionButton(
-                        label: "Install v\(update.version)",
-                        icon: "arrow.down.circle",
-                        help: "Downloads and installs the update",
-                        accessibilityLabel: "Install update version \(update.version)"
-                    ) {
+                let update = viewModel.availableUpdate
+                let action = Self.updateAction(for: update, checking: checking)
+                LinkActionButton(
+                    label: action.label,
+                    icon: action.icon,
+                    tint: action.highlighted ? ThemeColors.updateAvailable : ThemeColors.action,
+                    help: update != nil
+                        ? "Downloads and installs the update"
+                        : "Check GitHub for a newer release",
+                    accessibilityLabel: update.map { "Install update version \($0.version)" }
+                        ?? "Check for updates"
+                ) {
+                    if let update {
                         Self.installUpdate(update)
-                    }
-                } else {
-                    LinkActionButton(
-                        label: checking ? "Checking…" : "Check for Updates",
-                        icon: "arrow.triangle.2.circlepath",
-                        help: "Check GitHub for a newer release",
-                        accessibilityLabel: "Check for updates"
-                    ) {
+                    } else {
                         checkForUpdates()
                     }
-                    .disabled(checking)
                 }
+                .disabled(checking)
                 #endif
                 LinkActionButton(
                     label: "Release notes",
@@ -83,7 +106,7 @@ struct AboutSection: View {
             #if ENABLE_VERSION_CHECKER
             if let message = checkMessage {
                 HStack(spacing: Spacing.section) {
-                    Spacer().frame(width: Layout.settingsLabel)
+                    labelColumnIndent
                     Image(systemName: "checkmark.circle.fill")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.success)
@@ -96,7 +119,7 @@ struct AboutSection: View {
             #if ENABLE_SPARKLE
             if let sparkleError = SparkleUpdateService.shared.lastError {
                 HStack(spacing: Spacing.section) {
-                    Spacer().frame(width: Layout.settingsLabel)
+                    labelColumnIndent
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Typography.tinyLabel)
                         .foregroundStyle(ThemeColors.danger)
@@ -157,7 +180,7 @@ struct AboutSection: View {
         checking = true
         Task {
             let result = await VersionChecker.shared.forceCheckForUpdate()
-            viewModel.availableUpdate = result
+            withAnimation(MotionConstants.standard) { viewModel.availableUpdate = result }
             checking = false
             guard result == nil else {
                 checkMessage = nil

@@ -67,9 +67,12 @@ jobs:
           # Swift Testing on macos-15 occasionally hangs the swiftpm-testing-helper
           # at startup or shutdown — same fragility documented in release.yml. The
           # helper logs the first `◇ Test ... started` markers, then never finishes
-          # any of them, blowing past the job timeout. Locally and on
-          # workflow_dispatch the same commit runs the full suite in ~3s, so this
-          # is a runner-environment flake.
+          # any of them, blowing past the job timeout. Root cause pinned locally on
+          # 2026-10-21 (docs/reviews/2026-10-21-test-deadlock-sample.txt): AppKit's
+          # one-time init (NSColor.system*, NSImage rendering) deadlocks in
+          # dispatch_once when raced from Swift Testing's parallel pool with no run
+          # loop pumping. `--no-parallel` removes the race (full suite in ~12 s);
+          # the retry loop below stays as a belt-and-braces guard.
           #
           # Wrap each attempt in a 6-minute timeout (well under the 15-min job
           # cap) and retry up to 3 times on hang. Real test failures and build
@@ -89,7 +92,7 @@ jobs:
             # `gtimeout` isn't preinstalled on macos-15 runners but perl is.
             # `alarm` schedules SIGALRM, then `exec` replaces perl with swift
             # test; default SIGALRM action is to terminate.
-            perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build 2>&1 | tee test-output.txt
+            perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build --no-parallel 2>&1 | tee test-output.txt
             exit_code=${PIPESTATUS[0]}
             set -e
             echo "::endgroup::"

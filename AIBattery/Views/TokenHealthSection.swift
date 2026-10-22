@@ -29,7 +29,37 @@ struct TokenHealthSection: View {
 
     private var remainingText: String { TokenFormatter.format(health.remainingTokens) }
     private var usableText: String { TokenFormatter.format(health.usableWindow) }
-    private var modelDisplay: String { health.model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: health.model) }
+
+    /// Trailing text of the detail row: turns · model [· effort] [· NN% thinking|reasoning].
+    /// The share is omitted when there are no reasoning tokens so the legacy row is unchanged.
+    nonisolated static func detailTrailingText(
+        turnCount: Int, model: String, effort: String?, reasoningShare: Double?, reasoningTokens: Int
+    ) -> String {
+        let modelDisplay = model.isEmpty ? "unknown" : ModelNameMapper.displayName(for: model)
+        var parts = ["\(turnCount) turns", modelDisplay]
+        if let effort, !effort.isEmpty {
+            parts.append(effort)
+        }
+        if let share = reasoningShare, reasoningTokens > 0 {
+            parts.append("\(Int((share * 100).rounded()))% \(ReasoningVocabulary.label(forModel: model))")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Help text for the detail row's trailing text: effort and the reasoning/thinking
+    /// share are each explained independently, so a session with effort but no reasoning
+    /// tokens (or vice versa) still gets a sentence for the part that applies.
+    nonisolated static func detailHelpText(model: String, effort: String?, reasoningTokens: Int) -> String {
+        var text = "Conversation turns and model for this session"
+        if let effort, !effort.isEmpty {
+            let effortSentence = model.hasPrefix("claude-") ? "Fast mode" : "Reasoning effort configured for this session"
+            text += " · \(effortSentence)"
+        }
+        if reasoningTokens > 0 {
+            text += " · Share of this session's output tokens spent on \(ReasoningVocabulary.label(forModel: model))"
+        }
+        return text
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.gap) {
@@ -74,6 +104,10 @@ struct TokenHealthSection: View {
                         .accessibilityValue("\(remainingText) tokens remaining")
 
                     // Detail row
+                    let turnsModelText = Self.detailTrailingText(
+                        turnCount: health.turnCount, model: health.model, effort: health.effortLabel,
+                        reasoningShare: health.reasoningShare, reasoningTokens: health.reasoningTokens
+                    )
                     HStack {
                         let detailText = "~\(remainingText) of \(usableText) usable"
                         Text(detailText)
@@ -81,15 +115,18 @@ struct TokenHealthSection: View {
                             .foregroundStyle(ThemeColors.secondaryLabel)
                             .copyable(detailText)
                         Spacer()
-                        let turnsModelText = "\(health.turnCount) turns · \(modelDisplay)"
                         Text(turnsModelText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .help("Conversation turns in this session")
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .help(Self.detailHelpText(
+                                model: health.model, effort: health.effortLabel, reasoningTokens: health.reasoningTokens
+                            ))
                             .copyable(turnsModelText)
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(health.turnCount) turns, \(health.model.isEmpty ? "unknown model" : modelDisplay)")
+                    .accessibilityLabel("~\(remainingText) of \(usableText) usable, \(turnsModelText)")
 
                     // Recommended minimum context hint
                     if health.band == .orange || health.band == .red {

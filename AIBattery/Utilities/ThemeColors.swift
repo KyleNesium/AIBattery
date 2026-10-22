@@ -156,7 +156,7 @@ enum ThemeColors {
     /// Color for interactive links and action buttons.
     static var action: Color { .accentColor }
 
-    /// Color for update-available indicators and banners.
+    /// Color for the update-available arrow.
     static var updateAvailable: Color {
         isColorblind ? amber : Color(nsColor: .systemYellow)
     }
@@ -265,7 +265,7 @@ enum ThemeColors {
 
     /// Glow behind a navigation chevron on hover, in the account's own colour — the
     /// chevron lights up rather than sitting in a box.
-    static let chevronGlowOpacity: Double = 0.85
+    static let chevronGlowOpacity: Double = 0.95
 
     /// Low point of the live dot's breath. High enough that it never looks switched off.
     static let liveDotDimOpacity: Double = 0.55

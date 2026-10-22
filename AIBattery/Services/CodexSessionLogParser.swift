@@ -20,6 +20,11 @@ struct CodexSessionLogParser {
     /// Model from the most recent `turn_context`. A `token_count` seen before any
     /// `turn_context` cannot be attributed to a model and is skipped (not corrupt).
     private(set) var currentModel: String?
+    /// `turn_context.effort`, lower-cased/trimmed/capped at 8 chars (e.g. "xhigh").
+    private(set) var currentEffort: String?
+    /// `session_meta.payload.creator_account_id` — applied from EVERY `session_meta`
+    /// line seen, so a later one in the same file overrides it for later entries.
+    private(set) var creatorAccountId: String?
     /// Lines that looked relevant but failed to decode as JSON objects.
     private(set) var corruptLineCount = 0
     /// Cumulative `info.total_token_usage` of the last entry emitted for this file.
@@ -124,8 +129,13 @@ struct CodexSessionLogParser {
             applySessionMeta(object["payload"] as? [String: Any])
             return nil
         case "turn_context":
-            if let model = (object["payload"] as? [String: Any])?["model"] as? String, !model.isEmpty {
+            let payload = object["payload"] as? [String: Any]
+            if let model = payload?["model"] as? String, !model.isEmpty {
                 currentModel = model
+            }
+            if let effort = payload?["effort"] as? String {
+                let cleaned = effort.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                currentEffort = cleaned.isEmpty ? nil : String(cleaned.prefix(8))
             }
             return nil
         case "event_msg":
@@ -150,6 +160,9 @@ struct CodexSessionLogParser {
         }
         if let git = payload["git"] as? [String: Any], let branch = git["branch"] as? String, !branch.isEmpty {
             gitBranch = branch
+        }
+        if let account = payload["creator_account_id"] as? String, !account.isEmpty {
+            creatorAccountId = account
         }
     }
 
@@ -181,6 +194,8 @@ struct CodexSessionLogParser {
         let cached = Self.int(last["cached_input_tokens"])
         let cacheWrite = Self.int(last["cache_write_input_tokens"])
         let output = Self.int(last["output_tokens"])
+        let reasoning = min(max(Self.int(last["reasoning_output_tokens"]), 0), output)
+        let window = Self.int(info["model_context_window"])
 
         let resolvedSessionId = sessionId ?? fallbackSessionId
         let ordinal = (object["ordinal"] as? NSNumber)?.intValue ?? lineIndex
@@ -202,7 +217,11 @@ struct CodexSessionLogParser {
             sessionId: resolvedSessionId,
             cwd: cwd,
             gitBranch: gitBranch,
-            toolCallCount: 0 // would require decoding response_item lines — skipped for privacy
+            toolCallCount: 0, // would require decoding response_item lines — skipped for privacy
+            contextWindow: window > 0 ? window : nil,
+            reasoningTokens: reasoning,
+            effortLabel: currentEffort,
+            creatorAccountId: creatorAccountId
         )
     }
 

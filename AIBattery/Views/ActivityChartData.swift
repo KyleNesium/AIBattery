@@ -88,8 +88,7 @@ enum ActivityChartData {
         let cal = Calendar.current
 
         let nowComps = cal.dateComponents([.year, .month], from: now)
-        guard let thisMonth = cal.date(from: nowComps) else { return [] }
-        guard let nowYear = nowComps.year, let nowMonth = nowComps.month else { return [] }
+        guard let thisMonth = cal.date(from: nowComps), let nowYear = nowComps.year, let nowMonth = nowComps.month else { return [] }
         let thisMonthKey = String(format: "%04d-%02d", nowYear, nowMonth)
 
         return (0..<12).compactMap { offset in

@@ -183,4 +183,14 @@ struct CodexUsageParserTests {
         )
         #expect(CodexUsageParser.parseSessionRateLimits(dict) == nil)
     }
+
+    @Test func parseCreditBudget_readsLimitName() throws {
+        let dict: [String: Any] = [
+            "plan_type": "business",
+            "limit_name": "Engineering monthly cap",
+            "spend_control": ["individual_limit": ["limit": 100, "used": 25, "remaining": 75, "used_percent": 25, "unit": "credit"], "reached": false],
+        ]
+        let budget = try #require(CodexUsageParser.parseCreditBudget(dict))
+        #expect(budget.limitName == "Engineering monthly cap")
+    }
 }

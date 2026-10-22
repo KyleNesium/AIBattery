@@ -33,17 +33,44 @@ final class TokenLedger: @unchecked Sendable {
         self.ledger = Self.load(from: url)
     }
 
+    // MARK: - Keys
+
+    /// Suffix of the per-account series kept while attribution is active.
+    static let attributedSuffix = "#attributed"
+    /// The provider-wide Codex series kept while attribution is active. The plain
+    /// account-id key stays what every single-account user has today.
+    static let providerWideCodexKey = "codex#all"
+
+    /// Which series an aggregation writes to.
+    ///
+    ///     .all                 → "<accountId>"            (unchanged for every existing user)
+    ///     .account(_)          → "<accountId>#attributed" (fresh series on first attributed scan)
+    ///     provider-wide pass   → providerWideCodexKey      (Task 7 passes it explicitly)
+    nonisolated static func key(accountId: String, attribution: Attribution) -> String {
+        attribution.isAttributed ? accountId + attributedSuffix : accountId
+    }
+
+    /// `"acc#attributed"` → `"acc"`, `"codex#all"` → `"codex"`, `"acc"` → `"acc"`.
+    /// Splitting on the first `#` is safe because account ids never contain one —
+    /// they're UUIDs (Claude workspace / Codex `ChatGPT-Account-Id`) or org-id shapes,
+    /// neither of which uses `#`.
+    nonisolated static func baseAccountId(ofKey key: String) -> String {
+        guard let hash = key.firstIndex(of: "#") else { return key }
+        return String(key[..<hash])
+    }
+
     // MARK: - Merge
 
     /// Merge current model tokens with stored high-water marks.
     /// Returns an array with the maximum of current vs stored values for each token type.
     /// Includes historical models no longer in current stats-cache/JSONL data.
     /// Writes to disk only when values increase.
-    func merge(_ tokens: [ModelTokenSummary], accountId: String) -> [ModelTokenSummary] {
+    func merge(_ tokens: [ModelTokenSummary], ledgerKey: String) -> [ModelTokenSummary] {
         lock.lock()
         defer { lock.unlock() }
 
-        var accountData = ledger.accounts[accountId] ?? [:]
+        let isNewSeries = ledger.accounts[ledgerKey] == nil
+        var accountData = ledger.accounts[ledgerKey] ?? [:]
         var changed = false
         var result: [ModelTokenSummary] = []
         var seenModels = Set<String>()
@@ -55,7 +82,8 @@ final class TokenLedger: @unchecked Sendable {
                 input: max(model.inputTokens, stored?.input ?? 0),
                 output: max(model.outputTokens, stored?.output ?? 0),
                 cacheRead: max(model.cacheReadTokens, stored?.cacheRead ?? 0),
-                cacheWrite: max(model.cacheWriteTokens, stored?.cacheWrite ?? 0)
+                cacheWrite: max(model.cacheWriteTokens, stored?.cacheWrite ?? 0),
+                reasoning: max(model.reasoningTokens, stored?.reasoning ?? 0)
             )
 
             if merged != stored {
@@ -74,7 +102,8 @@ final class TokenLedger: @unchecked Sendable {
                 outputTokens: merged.output,
                 cacheReadTokens: merged.cacheRead,
                 cacheWriteTokens: merged.cacheWrite,
-                estimatedCost: cost
+                estimatedCost: cost,
+                reasoningTokens: merged.reasoning
             ))
         }
 
@@ -91,17 +120,34 @@ final class TokenLedger: @unchecked Sendable {
                 outputTokens: record.output,
                 cacheReadTokens: record.cacheRead,
                 cacheWriteTokens: record.cacheWrite,
-                estimatedCost: cost
+                estimatedCost: cost,
+                reasoningTokens: record.reasoning
             ))
         }
 
+        // Only stamp firstScan for a brand-new series. A pre-existing series (months of
+        // accounts[ledgerKey] records from before this field existed) keeps firstScan nil
+        // rather than backdating to "today" — no date is shown rather than a wrong one.
+        if isNewSeries, ledger.firstScan[ledgerKey] == nil {
+            ledger.firstScan[ledgerKey] = Date()
+            changed = true
+        }
+
         if changed {
-            ledger.accounts[accountId] = accountData
+            ledger.accounts[ledgerKey] = accountData
             isDirty = true
             save()
         }
 
         return result.sorted { $0.totalTokens > $1.totalTokens }
+    }
+
+    /// The date the ledger first recorded a merge for `ledgerKey` — the earliest AI
+    /// Battery scanned that series, surviving log rotation and stats-cache rebuilds.
+    /// Used to date Codex's All-Time figure (it has no lifetime cache of its own).
+    func firstScanDate(ledgerKey: String) -> Date? {
+        lock.lock(); defer { lock.unlock() }
+        return ledger.firstScan[ledgerKey]
     }
 
     // MARK: - Account lifecycle
@@ -123,11 +169,19 @@ final class TokenLedger: @unchecked Sendable {
                 input: max(record.input, existing?.input ?? 0),
                 output: max(record.output, existing?.output ?? 0),
                 cacheRead: max(record.cacheRead, existing?.cacheRead ?? 0),
-                cacheWrite: max(record.cacheWrite, existing?.cacheWrite ?? 0)
+                cacheWrite: max(record.cacheWrite, existing?.cacheWrite ?? 0),
+                reasoning: max(record.reasoning, existing?.reasoning ?? 0)
             )
         }
         ledger.accounts[newId] = target
         ledger.accounts.removeValue(forKey: oldId)
+        // The first-scan date follows the account — it should read as "since we first
+        // scanned this identity," not reset to "now" just because the id resolved.
+        if let oldFirstScan = ledger.firstScan[oldId] {
+            let existingFirstScan = ledger.firstScan[newId]
+            ledger.firstScan[newId] = min(oldFirstScan, existingFirstScan ?? oldFirstScan)
+        }
+        ledger.firstScan.removeValue(forKey: oldId)
         isDirty = true
         save()
     }
@@ -139,16 +193,28 @@ final class TokenLedger: @unchecked Sendable {
     ///
     /// No-op when `liveAccountIds` is empty so a logged-out / fresh-launch transient
     /// state can never wipe legitimately-held high-water history.
-    func pruneAccounts(keeping liveAccountIds: Set<String>) {
+    func pruneAccounts(keeping liveAccountIds: Set<String>, hasLiveCodexAccount: Bool = true) {
         guard !liveAccountIds.isEmpty else { return }
         lock.lock()
         defer { lock.unlock() }
         let before = ledger.accounts.count
-        ledger.accounts = ledger.accounts.filter { liveAccountIds.contains($0.key) }
+        let keep: (String) -> Bool = { key in
+            if key == Self.providerWideCodexKey {
+                return hasLiveCodexAccount
+            }
+            return liveAccountIds.contains(Self.baseAccountId(ofKey: key))
+        }
+        ledger.accounts = ledger.accounts.filter { key, _ in keep(key) }
+        ledger.firstScan = ledger.firstScan.filter { key, _ in keep(key) }
         if ledger.accounts.count != before {
             isDirty = true
             save()
         }
+    }
+
+    func ledgerKeysForTesting() -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        return Array(ledger.accounts.keys)
     }
 
     // MARK: - Storage
@@ -214,6 +280,19 @@ final class TokenLedger: @unchecked Sendable {
 extension TokenLedger {
     struct LedgerData: Codable {
         var accounts: [String: [String: ModelTokenRecord]] = [:]
+        /// First time each ledger key was merged — the earliest AI Battery scanned that
+        /// series. Absent from files written before this field existed.
+        var firstScan: [String: Date] = [:]
+
+        init() {}
+
+        private enum CodingKeys: String, CodingKey { case accounts, firstScan }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            accounts = try c.decodeIfPresent([String: [String: ModelTokenRecord]].self, forKey: .accounts) ?? [:]
+            firstScan = try c.decodeIfPresent([String: Date].self, forKey: .firstScan) ?? [:]
+        }
     }
 
     struct ModelTokenRecord: Codable, Equatable {
@@ -221,5 +300,25 @@ extension TokenLedger {
         let output: Int
         let cacheRead: Int
         let cacheWrite: Int
+        var reasoning: Int = 0
+
+        init(input: Int, output: Int, cacheRead: Int, cacheWrite: Int, reasoning: Int = 0) {
+            self.input = input
+            self.output = output
+            self.cacheRead = cacheRead
+            self.cacheWrite = cacheWrite
+            self.reasoning = reasoning
+        }
+
+        private enum CodingKeys: String, CodingKey { case input, output, cacheRead, cacheWrite, reasoning }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            input = try c.decode(Int.self, forKey: .input)
+            output = try c.decode(Int.self, forKey: .output)
+            cacheRead = try c.decode(Int.self, forKey: .cacheRead)
+            cacheWrite = try c.decode(Int.self, forKey: .cacheWrite)
+            reasoning = try c.decodeIfPresent(Int.self, forKey: .reasoning) ?? 0
+        }
     }
 }

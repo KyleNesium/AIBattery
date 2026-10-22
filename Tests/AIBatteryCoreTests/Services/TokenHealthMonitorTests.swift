@@ -58,7 +58,7 @@ struct TokenHealthMonitorTests {
         let entries = [makeEntry(sessionId: "s1", input: 999_999_999, output: 999_999_999)]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        #expect(try #require(result?.totalUsed) <= result!.contextWindow)
+        #expect(try #require(result?.totalUsed) <= #require(result?.contextWindow))
     }
 
     // MARK: - Turn count warnings
@@ -520,7 +520,10 @@ struct TokenHealthMonitorTests {
         timestamp: Date = Date(),
         model: String = "claude-opus-4-6",
         cwd: String? = nil,
-        gitBranch: String? = nil
+        gitBranch: String? = nil,
+        reasoning: Int = 0,
+        contextWindow: Int? = nil,
+        effort: String? = nil
     ) -> AssistantUsageEntry {
         AssistantUsageEntry(
             timestamp: timestamp,
@@ -533,7 +536,36 @@ struct TokenHealthMonitorTests {
             sessionId: sessionId,
             cwd: cwd,
             gitBranch: gitBranch,
-            toolCallCount: 0
+            toolCallCount: 0,
+            contextWindow: contextWindow,
+            reasoningTokens: reasoning,
+            effortLabel: effort
         )
+    }
+
+    @Test func assess_usesPerRecordContextWindow() {
+        let entries = [makeEntry(sessionId: "s1", input: 100_000, output: 1_000, contextWindow: 258_400)]
+        let result = monitor.assessCurrentSession(entries: entries)
+        #expect(result?.contextWindow == 258_400)
+        #expect(result?.usableWindow == 258_400)
+    }
+
+    @Test func assess_perRecordWindow_stillTierBumpsWhenExceeded() {
+        // Record claims 200K but the turn already used 300K → bump to the next tier (500K)
+        let entries = [makeEntry(sessionId: "s1", input: 300_000, output: 1_000, contextWindow: 200_000)]
+        let result = monitor.assessCurrentSession(entries: entries)
+        #expect(result?.contextWindow == 500_000)
+        #expect((result?.usagePercentage ?? 0) < 100)
+    }
+
+    @Test func assess_sumsReasoningAndCarriesLatestEffort() {
+        let entries = [
+            makeEntry(sessionId: "s1", input: 1_000, output: 100, reasoning: 40, effort: "high"),
+            makeEntry(sessionId: "s1", input: 2_000, output: 100, reasoning: 20, effort: "xhigh"),
+        ]
+        let result = monitor.assessCurrentSession(entries: entries)
+        #expect(result?.reasoningTokens == 60)
+        #expect(result?.reasoningShare == 0.3)
+        #expect(result?.effortLabel == "xhigh")
     }
 }

@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.3.0] — Unreleased
+
+### Added
+- **An update arrow instead of a banner.** When a newer release exists, an arrow breathes beside the Settings gear in both the account view and the overview; click it to update, right-click for the release notes. The banner that pushed the whole popover down, and the badge on the gear, are gone. There is no dismiss — the arrow is small enough not to need one and disappears once the update is installed.
+- **Thinking and effort in the Context row.** The session line now shows what share of output was thinking (Claude) or reasoning (Codex) and the configured effort or fast mode; Insights model tooltips carry the share too.
+- **Credits bar names the plan limit.** The Codex credits tooltip shows the limit name OpenAI reports (e.g. the Business plan's budget) instead of the bare plan type.
+- **Credit budgets get a runway.** Spend-control plans show "~N d to limit" from the pace observed within the current period, once an hour of observation exists.
+- **Codex All-Time says since when.** The Insights All-Time tooltip and chart caption name the date AI Battery first scanned the Codex logs, so the ledger and the chart stop looking like they disagree. Series that already existed before this release carry no date (nothing is backdated); the date appears for series that start fresh, and when an account crosses the two-ChatGPT-accounts threshold its Codex series starts a new, separately keyed history.
+- **Each Codex account sees its own sessions.** With two or more ChatGPT-backed Codex accounts, Insights, Projects and Context show the active account's turns only (current Codex CLI versions stamp every rollout with the account). Turns from older CLI versions carry no stamp and are hidden rather than guessed — the Insights caption says how many. Overview cards keep showing the provider's total. Verified with fixtures; if you run two accounts, please report what you see.
+
+### Changed
+- **Settings → About highlights a waiting update.** After Check for Updates, the button turns into a yellow "Install vX.Y.Z" when a release is available.
+- **Menu bar marks are a touch larger and hover glows a touch stronger.** Provider marks beside the percentages are drawn at 1.2× the text's cap height; the chevron and update-arrow glow is now 95% opaque.
+
+### Fixed
+- **A week-old Codex rollout reading no longer stands in for the usage endpoint.** The session-log fallback refuses readings older than 7 days, and with two ChatGPT accounts only the account stamped on the newest rollout uses it.
+
 ## [3.2.0] — 2026-10-18
 
 ### 🩹 Fixed: a barely-used week could read as a full one

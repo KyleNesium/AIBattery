@@ -194,6 +194,14 @@ struct InsightsView: View {
                     case .monthly:
                         monthlyChart
                     }
+                    if let snapshot,
+                       let caption = Self.sinceCaption(provider: snapshot.provider, since: snapshot.ledgerSince, unattributed: snapshot.unattributedTurnCount, mode: mode, now: Date()) {
+                        Text(caption)
+                            .font(Typography.monoTiny)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .lineLimit(2)
+                            .help("Codex has no lifetime cache: the charts are rebuilt from the Codex session logs on disk, and turns from Codex CLI versions that did not stamp the account are hidden while two or more ChatGPT accounts are signed in")
+                    }
                 }
                 .id(mode)
                 .transition(.opacity)

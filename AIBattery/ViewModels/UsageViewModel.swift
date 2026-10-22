@@ -4,17 +4,7 @@ import Combine
 
 @MainActor
 public final class UsageViewModel: ObservableObject {
-    @Published var snapshot: UsageSnapshot? {
-        didSet {
-            // Mirror into the per-provider map the overview's cards read their token
-            // totals from. A `nil` (account switch) must not erase a provider's last
-            // known aggregate — the cards keep showing it until that provider
-            // re-aggregates.
-            if let snapshot {
-                providerSnapshots[snapshot.provider] = snapshot
-            }
-        }
-    }
+    @Published var snapshot: UsageSnapshot?
 
     @Published var systemStatus: ClaudeSystemStatus?
     @Published var isLoading = true
@@ -77,7 +67,7 @@ public final class UsageViewModel: ObservableObject {
     let aggregator = UsageAggregator(provider: .claude)
     let codexAggregator = UsageAggregator(provider: .codex)
     /// Serializes concurrent aggregateOffMain calls — only one detached task runs at a time.
-    private var inflightAggregation: Task<(UsageSnapshot, UsageAggregator.SideEffects), Never>?
+    private var inflightAggregation: Task<UsageAggregator.AggregateResult, Never>?
     var fileWatcher: FileWatcher?
     // Polling timer + NSWorkspace observers: read/written from MainActor methods,
     // but the nonisolated `deinit` must invalidate/remove them. `nonisolated(unsafe)`
@@ -265,24 +255,41 @@ public final class UsageViewModel: ObservableObject {
         accountId: String? = nil,
         provider: AIProvider = .claude,
         rateLimitsFresh: Bool = true,
-        applySideEffects: Bool = true
+        applySideEffects: Bool = true,
+        providerWide: Bool = false
     ) async -> UsageSnapshot {
         if let inflight = inflightAggregation {
             _ = await inflight.value
         }
+        let accounts = OAuthManager.shared.accountStore.accounts
+        // Decided here, once, for all seven callers: the detail view gets per-account data
+        // only when two or more ChatGPT Codex accounts exist; the overview's background
+        // pass for another provider always asks for everything.
+        let attribution: Attribution = providerWide ? .all : AccountStore.attribution(for: accountId, provider: provider, accounts: accounts)
 
         let agg = aggregator(for: provider)
         let task = Task.detached {
-            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitsFresh: rateLimitsFresh)
+            agg.aggregate(rateLimits: rateLimits, rateLimitSource: rateLimitSource, standardLimits: standardLimits, accountId: accountId, rateLimitsFresh: rateLimitsFresh, attribution: attribution)
         }
         inflightAggregation = task
-        var (result, effects) = await task.value
+        var result = await task.value
         // Pay-per-token accounts: the cost rows are a real bill, not subscription value —
         // but only when the CLI's rollouts can be attributed to the key (no ChatGPT-backed
         // Codex account that could have produced them under a subscription).
-        result.costIsBilled = accountId.map {
-            AccountStore.billsLocalCodexCosts(accounts: OAuthManager.shared.accountStore.accounts, activeId: $0)
-        } ?? false
+        let billed = accountId.map { AccountStore.billsLocalCodexCosts(accounts: accounts, activeId: $0) } ?? false
+        result.detail.costIsBilled = billed
+        result.providerWide.costIsBilled = billed
+
+        // The overview's cards read this map; it must never carry an attributed snapshot
+        // (two Codex cards would otherwise show one account's turns). A nil snapshot on an
+        // account switch must not erase a provider's last known aggregate either — only
+        // real results land here.
+        // Value-changed guard: this runs on every ~2s FS burst, and an unguarded @Published
+        // write fires objectWillChange even when the value is unchanged — the same churn
+        // `refreshLocalData` guards its publishes against (see UsageViewModel+Refresh.swift).
+        if providerSnapshots[provider] != result.providerWide {
+            providerSnapshots[provider] = result.providerWide
+        }
 
         // Apply side effects before clearing inflightAggregation so the next
         // caller sees consistent RateLimitFetcher state. The observed-model list feeds
@@ -291,14 +298,14 @@ public final class UsageViewModel: ObservableObject {
         // NON-active provider: `activeUserModel` / observed models are global probe state
         // for the account being polled, and a background pass for another account must
         // not overwrite them every cycle.
-        if applySideEffects, effects.provider == .claude {
-            RateLimitFetcher.shared.activeUserModel = effects.activeUserModel
-            if let id = effects.accountId {
-                RateLimitFetcher.shared.setObservedModels(effects.observedModels, accountId: id)
+        if applySideEffects, result.effects.provider == .claude {
+            RateLimitFetcher.shared.activeUserModel = result.effects.activeUserModel
+            if let id = result.effects.accountId {
+                RateLimitFetcher.shared.setObservedModels(result.effects.observedModels, accountId: id)
             }
         }
         inflightAggregation = nil
-        return result
+        return result.detail
     }
 
     /// - Parameter skipNetworkCheck: When true, bypasses the offline guard. Used on wake

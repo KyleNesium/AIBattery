@@ -29,7 +29,7 @@
 
 ## Codex (deferred from the v3.0.0 pre-release review, 2026-10-10)
 
-- [ ] **Per-account attribution of Codex local data.** Every Codex account shows
+- [x] ~~**Per-account attribution of Codex local data.** Every Codex account shows
   the same Insights / Projects / Context Health because `~/.codex/sessions` is
   scanned provider-wide. Real rollouts carry `session_meta.payload.creator_account_id`
   (observed live, Codex CLI 0.160.1) — the same ChatGPT account id used as the
@@ -38,7 +38,22 @@
   `UsageAggregator` filter by the active account when ≥ 2 Codex accounts exist.
   Would also make `costIsBilled` exact (today: `AccountStore.billsLocalCodexCosts`
   heuristic) and let the session-log rate-limit fallback work with 2+ ChatGPT
-  accounts. Needs an API-key rollout fixture to confirm what that mode writes.
+  accounts. Needs an API-key rollout fixture to confirm what that mode writes.~~
+  Shipped in v3.3.0: `AssistantUsageEntry.creatorAccountId`, `Attribution`
+  (`.all` / `.account(_:)`) + `partition(_:)`, one aggregation pass yields both
+  an attributed detail snapshot and a provider-wide snapshot
+  (`UsageAggregator.AggregateResult`), namespaced `TokenLedger` keys (`<id>`,
+  `<id>#attributed`, `codex#all`), and the session-log fallback gated by the
+  newest rollout's stamp (`CodexSessionRateLimitScanner.creatorAccountId`).
+  `costIsBilled` still uses the `billsLocalCodexCosts` heuristic — attribution
+  did not change that (it answers a different question: whose turns count, not
+  whether the active account is paying API rates for them).
+- [ ] **Per-model weekly windows (`seven_day_opus` / `seven_day_sonnet`).** The
+  live `/api/oauth/usage` payload (captured 2026-10-20) carries
+  `seven_day_opus`, `seven_day_sonnet` (+ breakdown / cowork / oauth_apps /
+  omelette) keys but they were null on this account, so their nested shape is
+  unverified; Phase 2 §5 (per-model weekly windows) was dropped from v3.3.0 on
+  that basis. Revisit when a populated payload is seen (Max plans?).
 - [ ] **`isLoading` is not reset on every `performRefresh` early return.** The
   `isSuspended` guard, the idle-suspend branch and the `shouldApplyFetchResult`
   discard leave `isLoading` as the caller set it. `switchAccount` sets it `true`
@@ -93,11 +108,20 @@ Each says why, so a future session doesn't re-litigate it.
   nothing holds an `NWConnection` until the 180 s session timeout. Loopback-only
   and time-bounded; arm a `queue.asyncAfter` cancel per connection. Related to
   the already-deferred request-line accumulation item above.
-- [ ] **The session-log fallback has no maximum age.** Its windows are cleared
+- [x] ~~**The session-log fallback has no maximum age.** Its windows are cleared
   once their own reset passes, but the same stale line is re-read and re-served
   every cycle, so a week-old reading can be the displayed value for a whole
   endpoint outage. It is marked `isCached: true`, so alarms stay suppressed.
-  Consider refusing the fallback past a maximum `asOf` age.
+  Consider refusing the fallback past a maximum `asOf` age.~~ Fixed in v3.3.0:
+  `CodexRateLimitFetcher.codexFallbackMaxAge` (7 days) refuses the fallback on
+  both the fresh-scan path (`shouldUseSessionLogFallback`) and the cached
+  `.codexSessionLog` result (`cachedOrEmpty` drops its rate limits past the age;
+  a cached endpoint reading is unaffected).
+- [ ] **Session-log fallback inspects only the newest rollout.** With two ChatGPT
+  accounts the one whose CLI session is newest gets the fallback and the other serves
+  its cache. A per-account newest-file search (walk newest-first, head-read until a
+  matching `creator_account_id`, bounded to ~20 files) would give both accounts a
+  reading. Deferred from v3.3.0: outage × two accounts is an edge of an edge.
 - [ ] **A persisted `7d` metric mode orders the Credits / API-Limits bar second
   on a Codex credit account.** `UsagePopoverView` renders `EmptyView()` for
   `.sevenDay` when the kind collapses while `MetricToggleView` keeps the stored
@@ -492,3 +516,19 @@ being an accessibility container, and the slider announcing "infinity". Remainin
   retired models, so the correct figures could not be sourced — left as the family
   approximation rather than guessed. Sonnet 3/3.7 *were* resolvable ($3/$15 across
   every published Sonnet from 3 to 4.6) and now have a row.
+
+## Performance (deferred from the v3.3.0 release, 2026-10-22)
+
+
+
+Measured on the running 3.3.0 build: 11 MB bundle, 0 % idle CPU with ~5 % blips when a session log is written, 85 MB resident of which 32 MB is live heap (≈ 35 k cached entries + strings); the rest is freed-but-dirty allocator pages from scan peaks. Logs: 607 MB / 2 412 Claude files, 924 MB / 1 252 Codex files.
+
+
+
+- [ ] **Incremental tail parse for `SessionLogReader`.** A changed file is re-parsed from byte 0; the active session file (7–10 MB) is re-parsed on every debounced write (~95 ms). Keep a per-file byte offset + leftover buffer; full re-parse when the file shrinks, the offset is past EOF, or the head bytes changed. Risk: append-only assumption vs. tool-call coalescing across lines — pin with the real-data timing tests before/after. Biggest CPU win; medium risk.
+
+- [ ] **Hand memory back after scans.** Sort in place instead of copying, drop raw per-file arrays earlier, `malloc_zone_pressure_relief` after a cold scan. Expected 85 → ~50 MB resident. Low risk, mostly cosmetic.
+
+- [ ] **Compact cached entries.** Intern repeated strings (session id, cwd, model, branch); hash message ids in the global dedupe set (keep full ids per file). ~5–7 MB. Smallest payoff, most invasive — only if memory becomes a complaint.
+
+- [ ] **Test runner deadlock (infra).** Parallel `swift test` hung ~1 in 2 local runs (AppKit `dispatch_once` raced from the pool; traces in `docs/reviews/2026-10-21-test-deadlock-sample.txt`). CI now runs `--no-parallel` (12 s). Proper fix: pre-warm AppKit on the main thread before any suite, then drop the flag.

@@ -30,6 +30,7 @@ struct UsageSnapshot: Equatable {
             && lhs.longestSessionDuration == rhs.longestSessionDuration
             && lhs.longestSessionMessages == rhs.longestSessionMessages
             && lhs.firstSessionDate == rhs.firstSessionDate
+            && lhs.ledgerSince == rhs.ledgerSince
             && lhs.dailyAverage == rhs.dailyAverage
             && lhs.trendDirection == rhs.trendDirection
             && lhs.fiveHourTokens == rhs.fiveHourTokens
@@ -44,6 +45,7 @@ struct UsageSnapshot: Equatable {
             && lhs.busiestDayOfWeek?.averageCount == rhs.busiestDayOfWeek?.averageCount
             && lhs.provider == rhs.provider
             && lhs.costIsBilled == rhs.costIsBilled
+            && lhs.unattributedTurnCount == rhs.unattributedTurnCount
     }
 
     /// Weekday symbols from the user's current calendar (Sunday = index 0).
@@ -65,6 +67,11 @@ struct UsageSnapshot: Equatable {
 
     // From stats-cache.json
     let firstSessionDate: Date?
+    /// Codex only: when `TokenLedger` first recorded this account's series — the ledger
+    /// has no lifetime cache of its own, so this dates the All-Time figure. Nil for
+    /// Claude (stats-cache dates it instead) and until the first merge completes.
+    /// Declared with a default so the memberwise init stays source-compatible.
+    var ledgerSince: Date? = nil
     let totalSessions: Int
     let totalMessages: Int
     let longestSessionDuration: String?
@@ -404,6 +411,10 @@ struct UsageSnapshot: Equatable {
     /// True for pay-per-token accounts (Codex API key): the cost figures are an actual
     /// bill at API rates, not the subscription "API-equivalent" framing.
     var costIsBilled: Bool = false
+
+    /// Turns hidden from this snapshot because their rollout carries no account stamp
+    /// (older Codex CLI versions) while per-account attribution is active. 0 otherwise.
+    var unattributedTurnCount: Int = 0
 }
 
 struct ModelTokenSummary: Identifiable, Equatable {
@@ -415,6 +426,15 @@ struct ModelTokenSummary: Identifiable, Equatable {
     let cacheWriteTokens: Int
     /// Pre-computed API-equivalent cost (avoids per-render pricing lock acquisition).
     let estimatedCost: Double
+
+    /// Thinking / reasoning tokens — a subset of `outputTokens` (never added to totals).
+    var reasoningTokens: Int = 0
+
+    /// Share of output spent on thinking / reasoning (0…1); nil when there is no output.
+    var reasoningShare: Double? {
+        guard outputTokens > 0 else { return nil }
+        return min(Double(reasoningTokens) / Double(outputTokens), 1)
+    }
 
     var totalTokens: Int {
         inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens

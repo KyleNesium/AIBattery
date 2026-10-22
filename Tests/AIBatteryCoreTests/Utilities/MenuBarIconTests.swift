@@ -2,7 +2,7 @@ import Testing
 import AppKit
 @testable import AIBatteryCore
 
-@Suite("MenuBarIcon")
+@Suite("MenuBarIcon", .serialized)
 @MainActor
 struct MenuBarIconTests {
     private let testColor: NSColor = .systemGreen
@@ -174,6 +174,30 @@ struct MenuBarIconTests {
         #expect(icon.size.width == MenuBarIcon.iconSize)
         #expect(icon.size.height == MenuBarIcon.iconSize)
         #expect(icon.isTemplate == false)
+    }
+
+    // MARK: - Provider mark scale and hover glow
+
+    @Test func providerMark_isScaledAboveCapHeight_andCentredOnIt() {
+        let font = NSFont.menuBarFont(ofSize: 0)
+        let expected = ceil(font.capHeight * MenuBarIcon.markScale)
+        #expect(MenuBarIcon.markSize(forCapHeight: font.capHeight) == expected)
+        #expect(expected > ceil(font.capHeight))
+        // Bound the other direction too, so a future scale change can't clip the mark
+        // against the surrounding text's line height.
+        #expect(MenuBarIcon.markSize(forCapHeight: font.capHeight) <= font.pointSize)
+        let text = MenuBarIcon.menuBarAttributedText("\(AIProvider.claude.glyph) 42%", font: font, color: .labelColor)
+        var attachmentHeight: CGFloat?
+        text.enumerateAttribute(.attachment, in: NSRange(location: 0, length: text.length)) { value, _, _ in
+            if let attachment = value as? NSTextAttachment {
+                attachmentHeight = attachment.bounds.height
+            }
+        }
+        #expect(attachmentHeight == expected)
+    }
+
+    @Test func chevronGlow_isNearlyOpaque() {
+        #expect(ThemeColors.chevronGlowOpacity == 0.95)
     }
 
     // Note: test for `ThemeColors.contextHealthNSColor` with specific color assertions

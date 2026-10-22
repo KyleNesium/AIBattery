@@ -287,9 +287,14 @@ final class CodexRateLimitFetcher {
             AppLogger.network.info("codex usage endpoint: status=\(http.statusCode), bodySize=\(data.count)")
 
             switch Self.interpretUsageResponse(statusCode: http.statusCode, data: data) {
-            case .success(let result):
+            case .success(let rawResult):
                 consecutiveAuthFailures[accountId] = 0
                 backoff[accountId] = nil
+                let result = Self.withAnchoredCreditBudget(
+                    rawResult,
+                    cachedCreditBudget: cachedResults[accountId]?.rateLimits?.creditBudget,
+                    now: Date()
+                )
                 cachedResults[accountId] = result
                 persistRateLimits(result, accountId: accountId)
                 return result
@@ -338,13 +343,61 @@ final class CodexRateLimitFetcher {
         return cachedOrEmpty(accountId: accountId, authError: surfaceAuthError)
     }
 
+    /// Carry the credit-budget runway anchor from the previously cached reading onto a
+    /// fresh result, so `estimatedTimeToExhaustion` has a baseline across polls. No-op
+    /// when the fresh result has no credit budget (windowed plans, Claude).
+    nonisolated static func withAnchoredCreditBudget(
+        _ result: APIFetchResult,
+        cachedCreditBudget: CodexCreditBudget?,
+        now: Date
+    ) -> APIFetchResult {
+        guard let limits = result.rateLimits, let budget = limits.creditBudget else { return result }
+        let updatedLimits = RateLimitUsage(
+            representativeClaim: limits.representativeClaim,
+            fiveHourUtilization: limits.fiveHourUtilization,
+            fiveHourReset: limits.fiveHourReset,
+            fiveHourStatus: limits.fiveHourStatus,
+            sevenDayUtilization: limits.sevenDayUtilization,
+            sevenDayReset: limits.sevenDayReset,
+            sevenDayStatus: limits.sevenDayStatus,
+            overallStatus: limits.overallStatus,
+            provider: limits.provider,
+            fiveHourWindowMinutes: limits.fiveHourWindowMinutes,
+            sevenDayWindowMinutes: limits.sevenDayWindowMinutes,
+            creditBudget: budget.anchored(from: cachedCreditBudget, now: now)
+        )
+        return APIFetchResult(
+            rateLimits: updatedLimits,
+            rateLimitSource: result.rateLimitSource,
+            standardLimits: result.standardLimits,
+            profile: result.profile,
+            hasStandardRateLimitHeaders: result.hasStandardRateLimitHeaders,
+            fetchedAt: result.fetchedAt,
+            isCached: result.isCached,
+            authError: result.authError,
+            planType: result.planType,
+            endpointUnavailable: result.endpointUnavailable
+        )
+    }
+
+    /// A rollout reading older than this is not a usable stand-in for the endpoint, on
+    /// either path (fresh scan or the in-memory cache of a previous scan).
+    nonisolated static let codexFallbackMaxAge: TimeInterval = 7 * 86_400
+
     /// Whether a session-log snapshot taken at `fallbackAsOf` may replace what is
     /// cached for the account. Never let an older rollout reading overwrite a newer
-    /// endpoint reading (bars would drop mid-outage), and never attribute the CLI's
-    /// rollout to an account when more than one ChatGPT-backed Codex account exists —
-    /// the CLI is logged into exactly one of them and we can't tell which.
-    nonisolated static func shouldUseSessionLogFallback(cached: APIFetchResult?, fallbackAsOf: Date, codexAccountCount: Int = 1) -> Bool {
-        guard codexAccountCount <= 1 else { return false }
+    /// endpoint reading (bars would drop mid-outage); never attribute the CLI's
+    /// rollout to an account other than the one stamped on the newest rollout when more
+    /// than one ChatGPT-backed Codex account exists; and never serve a reading older
+    /// than `codexFallbackMaxAge` — a week-old CLI snapshot is not a usable stand-in.
+    nonisolated static func shouldUseSessionLogFallback(
+        cached: APIFetchResult?, fallbackAsOf: Date, codexAccountCount: Int = 1,
+        rolloutAccountId: String?, accountId: String, now: Date
+    ) -> Bool {
+        if codexAccountCount >= 2 {
+            guard let rolloutAccountId, rolloutAccountId == accountId else { return false }
+        }
+        guard now.timeIntervalSince(fallbackAsOf) <= codexFallbackMaxAge else { return false }
         guard let cached else { return true }
         return fallbackAsOf > cached.fetchedAt
     }
@@ -355,21 +408,26 @@ final class CodexRateLimitFetcher {
     /// must not overwrite real endpoint data on disk.
     private func sessionLogFallback(accountId: String) async -> APIFetchResult {
         let codexAccountCount = OAuthManager.shared.accountStore.accounts.filter { $0.provider == .codex && !$0.isAPIKeyAccount }.count
-        // Check the cheap disqualifier first. With 2+ ChatGPT-backed accounts the scan
-        // result is discarded unconditionally, and this path runs on every poll for every
-        // account for as long as the endpoint is down — a whole-tree walk per account per
-        // poll, thrown away.
-        guard codexAccountCount <= 1 else { return cachedOrEmpty(accountId: accountId) }
+        // With 2+ ChatGPT accounts only the account stamped on the newest rollout may use
+        // it. Decide that from the (memoized) first line BEFORE the tail scan, so the other
+        // accounts pay nothing per poll — the whole-tree walk + 256 KB tail read per account
+        // per poll is exactly what this guard existed to prevent.
+        var rolloutAccountId: String?
+        if codexAccountCount >= 2 {
+            rolloutAccountId = await Task.detached(priority: .utility) { CodexSessionRateLimitScanner.creatorAccountId(ofNewestIn: CodexPaths.sessions) }.value
+            guard rolloutAccountId == accountId else { return cachedOrEmpty(accountId: accountId) }
+        }
         // The scan is file I/O (seek + 256 KB read + JSON, or a whole-tree walk after an
         // invalidation) and runs on every poll per account for the whole backoff window —
         // never on the main actor (the scanner is nonisolated + lock-guarded).
         let scanned = await Task.detached(priority: .utility) { CodexSessionRateLimitScanner.latestRateLimits() }.value
         guard let (rateLimits, asOf) = scanned,
-              Self.shouldUseSessionLogFallback(cached: cachedResults[accountId], fallbackAsOf: asOf, codexAccountCount: codexAccountCount) else {
+              Self.shouldUseSessionLogFallback(cached: cachedResults[accountId], fallbackAsOf: asOf, codexAccountCount: codexAccountCount,
+                                               rolloutAccountId: rolloutAccountId, accountId: accountId, now: Date()) else {
             return cachedOrEmpty(accountId: accountId)
         }
         AppLogger.network.info("codex usage endpoint unavailable — using session log fallback")
-        let result = APIFetchResult(
+        let rawResult = APIFetchResult(
             // A rollout's snapshot can already be past its own reset. `cachedOrEmpty`
             // normalizes on the cache path; do the same here or an expired window
             // reappears at its old utilization (and its old throttle) until some later
@@ -380,17 +438,29 @@ final class CodexRateLimitFetcher {
             fetchedAt: asOf,
             isCached: true
         )
+        // Route through the same anchoring helper as the endpoint path — otherwise a
+        // Business/Enterprise credit budget has no runway while on fallback, and
+        // recovery onto the endpoint restarts the 1-hour observation clock from an
+        // unanchored cached budget.
+        let result = Self.withAnchoredCreditBudget(
+            rawResult,
+            cachedCreditBudget: cachedResults[accountId]?.rateLimits?.creditBudget,
+            now: Date()
+        )
         cachedResults[accountId] = result
         return result
     }
 
     /// Return cached result marked as stale, or an empty result.
     /// Always returns cached data when available — stale rate limits are better
-    /// than empty bars.
-    func cachedOrEmpty(accountId: String, authError: Bool = false) -> APIFetchResult {
+    /// than empty bars. The exception is a cached session-log reading past
+    /// `codexFallbackMaxAge`: a week-old CLI snapshot is not real data, so empty bars
+    /// beat it (endpoint-sourced cache has no such limit — stale still beats empty there).
+    func cachedOrEmpty(accountId: String, authError: Bool = false, now: Date = Date()) -> APIFetchResult {
         if let cached = cachedResults[accountId] {
+            let tooOld = cached.rateLimitSource == .codexSessionLog && now.timeIntervalSince(cached.fetchedAt) > Self.codexFallbackMaxAge
             return APIFetchResult(
-                rateLimits: cached.rateLimits?.withClearedExpiredWindows(),
+                rateLimits: tooOld ? nil : cached.rateLimits?.withClearedExpiredWindows(),
                 rateLimitSource: cached.rateLimitSource,
                 standardLimits: cached.standardLimits?.withClearedExpiredWindows(),
                 profile: nil,

@@ -14,6 +14,19 @@ struct CreditBudgetSection: View {
         UsageBar.AlarmState(percent: budget.usedPercent, isThrottled: limits.isThrottled, confirmed: confirmed)
     }
 
+    /// Tooltip's "Plan: …" line — the reported limit name (e.g. a workspace's named spend
+    /// cap) when present, else the bare plan type, else nothing.
+    nonisolated static func planLine(limitName: String?, planType: String?) -> String? {
+        let name = limitName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !name.isEmpty {
+            return "Plan: \(name)"
+        }
+        if let planType, !planType.isEmpty {
+            return "Plan: \(planType)"
+        }
+        return nil
+    }
+
     private var headerTooltip: String {
         var parts: [String] = if budget.isUncapped {
             ["Codex credits: this plan has no individual spend cap, so there is nothing to meter"]
@@ -23,8 +36,8 @@ struct CreditBudgetSection: View {
                 "\(CodexCreditBudget.formatCredits(budget.used)) of \(CodexCreditBudget.formatCredits(budget.limit)) \(budget.unit)s",
             ]
         }
-        if let planType = budget.planType {
-            parts.append("Plan: \(planType)")
+        if let line = Self.planLine(limitName: budget.limitName, planType: budget.planType) {
+            parts.append(line)
         }
         if let reset = budget.resetsAt, reset.timeIntervalSinceNow > 0 {
             parts.append("Resets at \(PopoverFooterView.absoluteTime(reset))")
@@ -101,6 +114,13 @@ struct CreditBudgetSection: View {
                         Text("Budget reached")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
+                    } else if confirmed, let eta = budget.estimatedTimeToExhaustion(now: now) {
+                        let runwayText = "~\(DurationFormatter.compact(eta)) to limit"
+                        Text(runwayText)
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.caution)
+                            .copyable(runwayText)
+                            .help("Estimated time until the credit cap at the pace observed this period")
                     } else {
                         let remainingText = "\(CodexCreditBudget.formatCredits(budget.remaining)) remaining"
                         Text(remainingText)

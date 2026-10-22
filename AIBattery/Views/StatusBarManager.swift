@@ -388,8 +388,7 @@ public final class StatusBarManager: NSObject {
     }
 
     private func refitPanelToContent() {
-        guard let panel, let hosting = hostingView else { return }
-        guard toggleState.isShowing else { return }
+        guard let panel, let hosting = hostingView, toggleState.isShowing else { return }
         let screenMaxHeight = panel.screen?.visibleFrame.height ?? Layout.fallbackScreenHeight
         let maxPanelHeight = screenMaxHeight - Layout.menuBarInset
         // One read: each access to `fittingSize` runs a SwiftUI layout pass, and this

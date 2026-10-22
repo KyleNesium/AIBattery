@@ -52,7 +52,61 @@ enum CodexSessionRateLimitScanner {
     nonisolated static func invalidateFileCache() {
         newestFileCacheLock.lock()
         newestFileCache = nil
+        creatorIdCache = nil
         newestFileCacheLock.unlock()
+    }
+
+    /// Cap on the first line of a rollout. `session_meta` carries `base_instructions`
+    /// (observed up to 23 KB); the reader discards lines over 1 MB, so do we.
+    static let sessionMetaMaxLineBytes = 1_048_576
+
+    nonisolated(unsafe) private static var creatorIdCache: (file: URL, id: String?)?
+
+    /// The ChatGPT account stamped on the newest rollout, or nil. Memoized per newest
+    /// file (the file changes only when the CLI starts a session; its first line never
+    /// changes after that), so an outage costs one head read per session, not per poll.
+    nonisolated static func creatorAccountId(ofNewestIn root: URL = CodexPaths.sessions, now: Date = .now) -> String? {
+        guard let file = cachedNewestSessionFile(in: root, now: now) else { return nil }
+        newestFileCacheLock.lock()
+        let memoized = creatorIdCache
+        newestFileCacheLock.unlock()
+        if let memoized, memoized.file == file {
+            return memoized.id
+        }
+        // Read the head unlocked — `invalidateFileCache()` runs from the main-thread
+        // watcher debounce and must never block on this file I/O. A concurrent duplicate
+        // read of the same file by another caller is harmless; it just repeats the work.
+        let id = creatorAccountId(fromFirstLineOf: file)
+        newestFileCacheLock.lock()
+        creatorIdCache = (file, id)
+        newestFileCacheLock.unlock()
+        return id
+    }
+
+    /// Reads the file's first line only. Same content boundary as everywhere else: a
+    /// `response_item` is rejected from its head bytes and never decoded; only a line
+    /// whose `type` is `session_meta` yields a value, and only `creator_account_id` is read.
+    nonisolated static func creatorAccountId(fromFirstLineOf file: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        guard let head = try? handle.read(upToCount: sessionMetaMaxLineBytes + 1), !head.isEmpty else { return nil }
+        let line: Data
+        if let lineEnd = head.firstNewlineIndex(from: head.startIndex) {
+            line = head[head.startIndex..<lineEnd]
+        } else if head.count <= sessionMetaMaxLineBytes {
+            // Read hit EOF, not the cap: the whole file is one unterminated line (the
+            // common case for a session_meta line written just before this read).
+            line = head
+        } else {
+            // Got cap+1 bytes with no newline inside: the line is over the cap.
+            return nil
+        }
+        guard !CodexSessionLogParser.isResponseItem(line),
+              let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+              object["type"] as? String == "session_meta",
+              let payload = object["payload"] as? [String: Any],
+              let id = payload["creator_account_id"] as? String, !id.isEmpty else { return nil }
+        return id
     }
 
     nonisolated static func newestSessionFile(in root: URL, fileManager: FileManager = .default) -> URL? {
@@ -70,8 +124,7 @@ enum CodexSessionRateLimitScanner {
         var newest: (url: URL, date: Date)?
         for case let url as URL in enumerator where url.pathExtension == "jsonl" {
             let resolved = url.resolvingSymlinksInPath().path
-            guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash) else { continue }
-            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash), (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
             let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
             if newest == nil || date > newest!.date {
                 newest = (url.standardizedFileURL, date)
@@ -90,8 +143,7 @@ enum CodexSessionRateLimitScanner {
             // mentions "rate_limits".
             guard !CodexSessionLogParser.isResponseItem(lineData),
                   let line = String(data: lineData, encoding: .utf8),
-                  line.contains("\"rate_limits\"") else { continue }
-            guard let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                  line.contains("\"rate_limits\""), let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                   let payload = obj["payload"] as? [String: Any],
                   payload["type"] as? String == "token_count",
                   let rateLimits = payload["rate_limits"] as? [String: Any] else { continue }

@@ -78,10 +78,19 @@ enum MenuBarIcon {
     /// time by an inline brand mark (`AIProvider.markImage`, tinted `color`, sized to
     /// the font's cap height and vertically centred on it). A provider whose mark
     /// fails to load keeps its glyph.
+    /// The inline provider mark is drawn a little larger than the text's cap height so
+    /// it reads at menu-bar size; it stays vertically centred on the cap height, so the
+    /// overflow splits evenly above and below the digits.
+    static let markScale: CGFloat = 1.2
+
+    nonisolated static func markSize(forCapHeight capHeight: CGFloat) -> CGFloat {
+        ceil(capHeight * markScale)
+    }
+
     static func menuBarAttributedText(_ text: String, font: NSFont, color: NSColor) -> NSAttributedString {
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
         let result = NSMutableAttributedString(string: text, attributes: attributes)
-        let markSize = ceil(font.capHeight)
+        let markSize = Self.markSize(forCapHeight: font.capHeight)
         for provider in AIProvider.allCases {
             guard let mark = tintedMark(for: provider, color: color, size: markSize) else { continue }
             while let range = result.string.range(of: provider.glyph) {

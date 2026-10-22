@@ -886,4 +886,31 @@ struct SessionLogReaderTests {
         reader.invalidate()
         #expect(reader.readAllUsageEntries().count == 2)
     }
+
+    @Test func makeUsageEntry_readsThinkingTokensAndSpeed() throws {
+        let json = """
+        {"type":"assistant","timestamp":"2026-10-12T10:00:00.000Z","sessionId":"s-1",
+         "message":{"role":"assistant","model":"claude-opus-5","id":"msg-9",
+           "usage":{"input_tokens":100,"output_tokens":226,"cache_read_input_tokens":0,
+                    "cache_creation_input_tokens":0,"service_tier":"standard","speed":"fast",
+                    "output_tokens_details":{"thinking_tokens":139}}}}
+        """
+        let decoded = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        let entry = try #require(SessionLogReader.makeUsageEntry(from: decoded))
+        #expect(entry.reasoningTokens == 139)
+        #expect(entry.effortLabel == "fast")
+        #expect(entry.contextWindow == nil)
+    }
+
+    @Test func makeUsageEntry_standardSpeedAndNoDetails_defaults() throws {
+        let json = """
+        {"type":"assistant","timestamp":"2026-10-12T10:00:00.000Z","sessionId":"s-1",
+         "message":{"role":"assistant","model":"claude-opus-5","id":"msg-10",
+           "usage":{"input_tokens":100,"output_tokens":20,"speed":"standard"}}}
+        """
+        let decoded = try JSONDecoder().decode(SessionEntry.self, from: Data(json.utf8))
+        let entry = try #require(SessionLogReader.makeUsageEntry(from: decoded))
+        #expect(entry.reasoningTokens == 0)
+        #expect(entry.effortLabel == nil)
+    }
 }

@@ -94,6 +94,7 @@ nonisolated enum CodexUsageParser {
         let credits = dict["credits"] as? [String: Any]
         let spend = dict["spend_control"] as? [String: Any]
         let planType = dict["plan_type"] as? String
+        let limitName = dict["limit_name"] as? String
         guard let limit = spend?["individual_limit"] as? [String: Any],
               let limitValue = number(limit["limit"]), limitValue > 0 else {
             guard let credits, let balance = number(credits["balance"]) else { return nil }
@@ -103,7 +104,8 @@ nonisolated enum CodexUsageParser {
                 hasCredits: (credits["has_credits"] as? Bool) ?? true,
                 unlimited: (credits["unlimited"] as? Bool) ?? false,
                 planType: planType,
-                balance: balance
+                balance: balance,
+                limitName: limitName
             )
         }
         let used = number(limit["used"]) ?? 0
@@ -120,7 +122,8 @@ nonisolated enum CodexUsageParser {
             hasCredits: (credits?["has_credits"] as? Bool) ?? true,
             unlimited: (credits?["unlimited"] as? Bool) ?? false,
             planType: planType,
-            balance: number(credits?["balance"])
+            balance: number(credits?["balance"]),
+            limitName: limitName
         )
     }
 
@@ -186,8 +189,7 @@ nonisolated enum CodexUsageParser {
 
     /// Extract plan_type from wham/usage JSON.
     nonisolated static func planType(_ data: Data) -> String? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
-        guard let dict = json as? [String: Any] else { return nil }
+        guard let json = try? JSONSerialization.jsonObject(with: data), let dict = json as? [String: Any] else { return nil }
         return dict["plan_type"] as? String
     }
 

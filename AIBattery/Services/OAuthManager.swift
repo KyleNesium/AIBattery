@@ -112,7 +112,8 @@ public final class OAuthManager: ObservableObject {
     /// launch can't wipe held history.
     public func pruneOrphanedLedgerAccounts() {
         let liveIds = Set(accountStore.accounts.map(\.id))
-        TokenLedger.shared.pruneAccounts(keeping: liveIds)
+        let hasLiveCodexAccount = accountStore.accounts.contains { $0.provider == .codex }
+        TokenLedger.shared.pruneAccounts(keeping: liveIds, hasLiveCodexAccount: hasLiveCodexAccount)
         RateLimitFetcher.shared.pruneAccounts(keeping: liveIds)
         CodexRateLimitFetcher.shared.pruneAccounts(keeping: liveIds)
     }

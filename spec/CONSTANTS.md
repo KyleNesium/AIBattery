@@ -16,7 +16,9 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Status backoff (base) | 60 sec, exponential (doubles per failure), cap 300 sec, ±20% jitter — `RetryPolicy.statusCheck`; a cancelled request (`SecureNetworking.isCancellation`) never counts as a failure | StatusChecker (one state per feed: Claude, Codex) |
 | Codex usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account; transport errors / 5xx record a failure, 2xx / 429 / 401 / 403 clear it, a **cancelled** request records nothing; while backing off the session-log fallback is served without a request. Backoff state + auth-failure counter are dropped by `clearCache` (sign-out) and `pruneAccounts` (launch sweep) | CodexRateLimitFetcher |
 | Claude usage-endpoint backoff | Same `RetryPolicy.statusCheck` curve, per account. Armed only when a whole cycle yielded nothing (usage endpoint `.unavailable` **and** no probe model answered), so a working Messages-probe fallback keeps it disarmed; a success on either path clears it. While backing off, `fetch` returns the cache without a single request | RateLimitFetcher |
-| Codex session-log fallback gate | Used only when ≤ 1 ChatGPT-backed Codex account exists **and** the rollout's mtime is newer than the cached endpoint reading (`shouldUseSessionLogFallback`) | CodexRateLimitFetcher |
+| Codex session-log fallback gate | Used only when ≤ 1 ChatGPT-backed Codex account exists, **or** with ≥ 2 the newest rollout's head-read `creator_account_id` matches the requesting account; **and** the rollout's mtime is newer than the cached endpoint reading, **and** the rollout is no older than `codexFallbackMaxAge` (`shouldUseSessionLogFallback`) | CodexRateLimitFetcher |
+| `codexFallbackMaxAge` | 7 × 86 400 s (7 days) — a rollout reading older than this is refused on both the fresh-scan path and the cached `.codexSessionLog` result (`cachedOrEmpty` returns `nil` rate limits past this age; endpoint-sourced cache is exempt) | CodexRateLimitFetcher |
+| `sessionMetaMaxLineBytes` | 1 MB — cap on the rollout's first line when reading `creator_account_id` for the fallback gate; see JSONL Processing | CodexSessionRateLimitScanner |
 | Codex usage request timeout | 30 sec | CodexRateLimitFetcher |
 | Codex OAuth callback timeout | 180 sec — abandoned sign-in releases port 1455 | CodexAuthSession |
 | Codex session-log tail scan | 256 KB of the newest rollout | CodexSessionRateLimitScanner |
@@ -174,6 +176,8 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 
 ## Context Windows
 
+`TokenHealthMonitor.assess` prefers the per-record window (`AssistantUsageEntry.contextWindow`, e.g. Codex's `model_context_window` on every `token_count`) over this table — the table below is only the **fallback** used when a record carries no window (Claude logs never do).
+
 | Model | Window |
 |-------|--------|
 | claude-opus-4-6 | 1,000,000 |
@@ -186,7 +190,7 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 | claude-3-opus-20240229 | 200,000 |
 | claude-3-sonnet-20240229 | 200,000 |
 | claude-3-haiku-20240307 | 200,000 |
-| `gpt-*` (any) | 258,400 — `TokenHealthConfig.openAIDefaultContextWindow`, the `model_context_window` Codex CLI 0.152 reports in `token_count` events for the gpt-5.x family |
+| `gpt-*` (any) | 258,400 — `TokenHealthConfig.openAIDefaultContextWindow`, the **fallback** used only when a record has no `contextWindow`; normally superseded by the per-record `model_context_window` Codex CLI 0.152 reports in `token_count` events for the gpt-5.x family |
 | Default fallback | 1,000,000 |
 
 ## Health Thresholds
@@ -373,6 +377,7 @@ See also: Design Tokens section for the Swift enum constants (`Layout.*`, `Spaci
 | Header padding V | 6pt |
 | Footer padding V | 6pt |
 | Menu bar icon canvas | 22×22pt |
+| `MenuBarIcon.markScale` | 1.2 — inline provider mark = `ceil(capHeight × 1.2)`, centred on the cap height |
 | Star outer radius | 6.5pt |
 | Star inner radius | 2.0pt |
 | Throttled ("broken") star | Static (`renderThrottledIcon`); not a fragmented/burst glyph. A 12-pt glow (outer 1.3×, inner 0.65×, 0.35 alpha) behind a solid 4-pt star at 1.14× — no fragment offset |
@@ -532,6 +537,8 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 
 Codex rollouts (`CodexSessionLogReader` / `CodexSessionLogParser`) reuse the 64 KB buffer, 1 MB line cap and 60 s TTL. Pre-filter markers: `"session_meta"`, `"turn_context"`, `"token_count"`. Only those three `type`s are decoded; `response_item` (message content) is rejected on `type` and never parsed.
 
+`CodexSessionRateLimitScanner.creatorAccountId(fromFirstLineOf:)` reads only the rollout's first line, bounded by `sessionMetaMaxLineBytes = 1 MB` (first-line head read for `creator_account_id`; `response_item` rejected from head bytes before any JSON decode; only `type == "session_meta"` yields a value, and only the `creator_account_id` key is read — keys-only, never logged). Memoized next to the 60 s newest-file cache so an outage costs one head read per session, not per poll.
+
 ## Activity Chart
 
 | Constant | Value |
@@ -647,7 +654,7 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Flag | Default | Effect |
 |------|---------|--------|
 | `ENABLE_SPARKLE` | Defined (all 3 SPM targets) | Guards Sparkle imports, `SparkleUpdateService`, and Sparkle-dependent UI. Remove to build App Store variant without Sparkle. |
-| `ENABLE_VERSION_CHECKER` | Defined (all 3 SPM targets) | Guards `VersionChecker`, update banner UI, and version check button. Remove for App Store (guideline 3.1.1). |
+| `ENABLE_VERSION_CHECKER` | Always defined (all 3 SPM targets) | Guards `VersionChecker` and the service-layer update check (`UsageViewModel+Refresh.swift`, `AboutSection.swift`). View-side references (`UpdateArrowButton`, `availableUpdate` properties) are unguarded, so removing the define does not compile — kept for the service files' `#if` only. |
 | `APP_SANDBOX` | NOT defined | Reserved for future App Store sandbox support (security-scoped bookmark for `~/.claude/` access). Only set for App Store builds. |
 
 ## Build Environment Variables
@@ -681,3 +688,4 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Calibrated 7d limit key | `aibattery_calibrated_7d_limit_{accountId}` (Int, per account) — `LocalUsageEstimate`; bare base key only pre-login |
 | Calibration timestamp key | `aibattery_calibrated_at_{accountId}` (Double, reference-date timestamp, per account) — `LocalUsageEstimate` |
 | Per-account calibration migration flag | `aibattery_calibration_perAccount_migrated` (Bool) — one-time move of legacy global keys to the active account |
+| Credit-budget runway minimum observation | `RateLimitUsage.creditRunwayMinObservation` = 3,600 sec (1 h; need a meaningful pace before `CodexCreditBudget.estimatedTimeToExhaustion` shows anything) |
