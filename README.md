@@ -258,7 +258,7 @@ Interactive charts across three time windows:
 
 Below the chart: API-equivalent cost per model, throttle count, and cumulative stats (All Time messages/sessions, Longest session, Period date range).
 
-With **two or more ChatGPT-backed Codex accounts**, each account's charts, Projects and Context Health are **attributed** to that account's own turns (`creator_account_id` on its rollouts) instead of showing every Codex account's combined activity. Turns from older Codex CLI versions that never stamped an account are hidden from every account's attributed view and counted in the All Time tooltip ("N turns from older Codex CLI versions are not attributable"). The multi-account overview's cards are unaffected — they always show each provider's full, unattributed totals.
+With **two or more ChatGPT-backed Codex accounts**, each account's charts, Projects and Context Health are **attributed** to that account's own turns (`creator_account_id` on its rollouts) instead of showing every Codex account's combined activity. Turns from older Codex CLI versions that never stamped an account are hidden from every account's attributed view and counted in the All Time tooltip ("N turns from older Codex CLI versions not shown"). The multi-account overview's cards are unaffected — they always show each provider's full, unattributed totals.
 
 <div align="center">
 <img src="screenshots/activity.png" width="360" alt="5-hour activity chart with trend arrows, throttle count, and API-equivalent cost breakdown by model" />

@@ -52,7 +52,7 @@ extension InsightsView {
                 text += " — since \(DateFormatters.mediumDate(since))"
             }
             if unattributed > 0 {
-                text += " · \(unattributed) turns from older Codex CLI versions are not attributable"
+                text += " · \(unattributed) turn\(unattributed == 1 ? "" : "s") from older Codex CLI versions not shown"
             }
             return text
         }

@@ -41,9 +41,9 @@ struct InsightsAllTimeCaveatTests {
 
     @Test func codex_tooltipAppendsHiddenTurnCount() {
         let text = InsightsView.allTimeTooltip(for: .codex, since: nil, unattributed: 902)
-        #expect(text.hasSuffix(" · 902 turns from older Codex CLI versions are not attributable"))
-        #expect(!InsightsView.allTimeTooltip(for: .codex, since: nil, unattributed: 0).contains("not attributable"))
-        #expect(!InsightsView.allTimeTooltip(for: .claude, since: nil, unattributed: 5).contains("not attributable"))
+        #expect(text.hasSuffix(" · 902 turns from older Codex CLI versions not shown"))
+        #expect(!InsightsView.allTimeTooltip(for: .codex, since: nil, unattributed: 0).contains("not shown"))
+        #expect(!InsightsView.allTimeTooltip(for: .claude, since: nil, unattributed: 5).contains("not shown"))
     }
 
     @Test func caption_combinesSinceAndHiddenCount_inEveryMode() {
