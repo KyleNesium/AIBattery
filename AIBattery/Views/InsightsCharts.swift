@@ -16,18 +16,19 @@ extension InsightsView {
     /// Shared line style used by all chart modes.
     static let chartLineStyle = StrokeStyle(lineWidth: Layout.borderWidth)
 
-    /// Caption shown under the chart in every mode, naming the date the ledger first
-    /// scanned Codex's logs — so the 12-month chart (rebuilt from rollouts still on
-    /// disk) and All-Time (a ledger that also keeps what was scanned before rotation)
-    /// stop looking like they disagree. Nil for Claude, a `since` older than 365 days
-    /// (not relevant to any chart window shown), or a nil `since`.
+    /// Caption shown under the chart, naming the date the ledger first scanned Codex's
+    /// logs — so the 12-month chart (rebuilt from rollouts still on disk) and All-Time
+    /// (a ledger that also keeps what was scanned before rotation) stop looking like
+    /// they disagree. Nil for Claude. The "since" half only applies under the 12-month
+    /// chart (`mode == .monthly`) — the 5H/7D windows are too short for that
+    /// reconciliation to be meaningful — and only when `since` is within 365 days.
     /// `unattributed` (turns from older Codex CLI versions not shown, hidden by
-    /// per-account attribution) contributes its own half, joined with the "since" half
-    /// when both apply.
-    nonisolated static func sinceCaption(provider: AIProvider, since: Date?, unattributed: Int = 0, now: Date) -> String? {
+    /// per-account attribution) contributes its own half in every mode, joined with the
+    /// "since" half when both apply.
+    nonisolated static func sinceCaption(provider: AIProvider, since: Date?, unattributed: Int = 0, mode: ActivityChartMode, now: Date) -> String? {
         guard provider == .codex else { return nil }
         var parts: [String] = []
-        if let since, since > now.addingTimeInterval(-365 * 86_400) {
+        if mode == .monthly, let since, since > now.addingTimeInterval(-365 * 86_400) {
             parts.append("since \(DateFormatters.mediumDate(since))")
         }
         if unattributed > 0 {

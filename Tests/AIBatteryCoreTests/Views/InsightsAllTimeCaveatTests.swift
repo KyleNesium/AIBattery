@@ -33,10 +33,22 @@ struct InsightsAllTimeCaveatTests {
 
     @Test func chartCaption_onlyForCodexWithinTwelveMonths() {
         let now = Date(timeIntervalSince1970: 1_789_000_000)
-        #expect(InsightsView.sinceCaption(provider: .codex, since: now.addingTimeInterval(-30 * 86_400), unattributed: 0, now: now)?.hasPrefix("since ") == true)
-        #expect(InsightsView.sinceCaption(provider: .codex, since: now.addingTimeInterval(-400 * 86_400), unattributed: 0, now: now) == nil)
-        #expect(InsightsView.sinceCaption(provider: .claude, since: now, unattributed: 0, now: now) == nil)
-        #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 0, now: now) == nil)
+        #expect(InsightsView.sinceCaption(provider: .codex, since: now.addingTimeInterval(-30 * 86_400), unattributed: 0, mode: .monthly, now: now)?.hasPrefix("since ") == true)
+        #expect(InsightsView.sinceCaption(provider: .codex, since: now.addingTimeInterval(-400 * 86_400), unattributed: 0, mode: .monthly, now: now) == nil)
+        #expect(InsightsView.sinceCaption(provider: .claude, since: now, unattributed: 0, mode: .monthly, now: now) == nil)
+        #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 0, mode: .monthly, now: now) == nil)
+    }
+
+    /// The "since" date is only meaningful under the 12-month chart (the window it
+    /// reconciles against); the 5H/7D windows never show it even when `since` is
+    /// recent. The hidden-turn count still applies in every mode.
+    @Test func chartCaption_sinceDateOnlyUnderMonthlyMode() {
+        let now = Date(timeIntervalSince1970: 1_789_000_000)
+        let since = now.addingTimeInterval(-30 * 86_400)
+        #expect(InsightsView.sinceCaption(provider: .codex, since: since, unattributed: 0, mode: .fiveHour, now: now) == nil)
+        #expect(InsightsView.sinceCaption(provider: .codex, since: since, unattributed: 0, mode: .sevenDay, now: now) == nil)
+        #expect(InsightsView.sinceCaption(provider: .codex, since: since, unattributed: 4, mode: .fiveHour, now: now) == "4 turns from older Codex CLI versions not shown")
+        #expect(InsightsView.sinceCaption(provider: .codex, since: since, unattributed: 4, mode: .sevenDay, now: now) == "4 turns from older Codex CLI versions not shown")
     }
 
     @Test func codex_tooltipAppendsHiddenTurnCount() {
@@ -46,14 +58,14 @@ struct InsightsAllTimeCaveatTests {
         #expect(!InsightsView.allTimeTooltip(for: .claude, since: nil, unattributed: 5).contains("not shown"))
     }
 
-    @Test func caption_combinesSinceAndHiddenCount_inEveryMode() {
+    @Test func caption_combinesSinceAndHiddenCount_underMonthlyMode() {
         let now = Date(timeIntervalSince1970: 1_789_000_000)
         let since = now.addingTimeInterval(-30 * 86_400)
-        let both = InsightsView.sinceCaption(provider: .codex, since: since, unattributed: 3, now: now)
+        let both = InsightsView.sinceCaption(provider: .codex, since: since, unattributed: 3, mode: .monthly, now: now)
         #expect(both?.hasPrefix("since ") == true)
         #expect(both?.hasSuffix(" · 3 turns from older Codex CLI versions not shown") == true)
-        #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 1, now: now) == "1 turn from older Codex CLI versions not shown")
-        #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 0, now: now) == nil)
-        #expect(InsightsView.sinceCaption(provider: .claude, since: since, unattributed: 9, now: now) == nil)
+        #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 1, mode: .monthly, now: now) == "1 turn from older Codex CLI versions not shown")
+        #expect(InsightsView.sinceCaption(provider: .codex, since: nil, unattributed: 0, mode: .monthly, now: now) == nil)
+        #expect(InsightsView.sinceCaption(provider: .claude, since: since, unattributed: 9, mode: .monthly, now: now) == nil)
     }
 }

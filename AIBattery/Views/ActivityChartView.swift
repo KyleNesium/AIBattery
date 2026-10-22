@@ -195,7 +195,7 @@ struct InsightsView: View {
                         monthlyChart
                     }
                     if let snapshot,
-                       let caption = Self.sinceCaption(provider: snapshot.provider, since: snapshot.ledgerSince, unattributed: snapshot.unattributedTurnCount, now: Date()) {
+                       let caption = Self.sinceCaption(provider: snapshot.provider, since: snapshot.ledgerSince, unattributed: snapshot.unattributedTurnCount, mode: mode, now: Date()) {
                         Text(caption)
                             .font(Typography.monoTiny)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
