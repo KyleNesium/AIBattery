@@ -516,3 +516,19 @@ being an accessibility container, and the slider announcing "infinity". Remainin
   retired models, so the correct figures could not be sourced — left as the family
   approximation rather than guessed. Sonnet 3/3.7 *were* resolvable ($3/$15 across
   every published Sonnet from 3 to 4.6) and now have a row.
+
+## Performance (deferred from the v3.3.0 release, 2026-10-22)
+
+
+
+Measured on the running 3.3.0 build: 11 MB bundle, 0 % idle CPU with ~5 % blips when a session log is written, 85 MB resident of which 32 MB is live heap (≈ 35 k cached entries + strings); the rest is freed-but-dirty allocator pages from scan peaks. Logs: 607 MB / 2 412 Claude files, 924 MB / 1 252 Codex files.
+
+
+
+- [ ] **Incremental tail parse for `SessionLogReader`.** A changed file is re-parsed from byte 0; the active session file (7–10 MB) is re-parsed on every debounced write (~95 ms). Keep a per-file byte offset + leftover buffer; full re-parse when the file shrinks, the offset is past EOF, or the head bytes changed. Risk: append-only assumption vs. tool-call coalescing across lines — pin with the real-data timing tests before/after. Biggest CPU win; medium risk.
+
+- [ ] **Hand memory back after scans.** Sort in place instead of copying, drop raw per-file arrays earlier, `malloc_zone_pressure_relief` after a cold scan. Expected 85 → ~50 MB resident. Low risk, mostly cosmetic.
+
+- [ ] **Compact cached entries.** Intern repeated strings (session id, cwd, model, branch); hash message ids in the global dedupe set (keep full ids per file). ~5–7 MB. Smallest payoff, most invasive — only if memory becomes a complaint.
+
+- [ ] **Test runner deadlock (infra).** Parallel `swift test` hung ~1 in 2 local runs (AppKit `dispatch_once` raced from the pool; traces in `docs/reviews/2026-10-21-test-deadlock-sample.txt`). CI now runs `--no-parallel` (12 s). Proper fix: pre-warm AppKit on the main thread before any suite, then drop the flag.
