@@ -47,5 +47,7 @@ package-lock.json
 .build-local/
 .claude/
 .gstack/
-.planning/quick/
+.planning/
+.superpowers/
+.wrangler/
 test-output.txt

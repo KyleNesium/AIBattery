@@ -68,7 +68,7 @@ jobs:
           # at startup or shutdown — same fragility documented in release.yml. The
           # helper logs the first `◇ Test ... started` markers, then never finishes
           # any of them, blowing past the job timeout. Root cause pinned locally on
-          # 2026-10-21 (docs/reviews/2026-10-21-test-deadlock-sample.txt): AppKit's
+          # 2026-10-21 (trace: git show 8f3d600:docs/reviews/2026-10-21-test-deadlock-sample.txt): AppKit's
           # one-time init (NSColor.system*, NSImage rendering) deadlocks in
           # dispatch_once when raced from Swift Testing's parallel pool with no run
           # loop pumping. `--no-parallel` removes the race (full suite in ~12 s);

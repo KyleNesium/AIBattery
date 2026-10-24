@@ -1,6 +1,11 @@
 # Changelog
 
-## [3.3.0] — Unreleased
+## [Unreleased]
+
+### Changed
+- **Repository cleanup.** Agent planning scratch (`.planning/`, `.superpowers/`, `.wrangler/`), internal review reports and session plans (`docs/reviews/`, `docs/superpowers/`), the unused XcodeGen `project.yml` and the 1024 px icon export are removed from the tree; all of it remains in history (`git show 8f3d600:<path>`). `AGENTS.md` is a symlink to `CLAUDE.md`. `TODOS.md` moved to `docs/TODOS.md` with completed items dropped. The README is shorter, with plain headings; troubleshooting, the context explainer and the Gatekeeper/Keychain notes moved to `docs/FAQ.md`. GitHub releases older than v2.6 were deleted (tags kept; every version stays in this changelog).
+
+## [3.3.0] — 2026-10-22
 
 ### Added
 - **An update arrow instead of a banner.** When a newer release exists, an arrow breathes beside the Settings gear in both the account view and the overview; click it to update, right-click for the release notes. The banner that pushed the whole popover down, and the badge on the gear, are gone. There is no dismiss — the arrow is small enough not to need one and disappears once the update is installed.

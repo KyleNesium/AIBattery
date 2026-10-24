@@ -26,6 +26,7 @@ AIBattery/
   Views/        — SwiftUI views
   Utilities/    — Formatters and mappers
 spec/           — Authoritative specs (architecture, data layer, UI, constants)
+docs/           — FAQ / troubleshooting, deferred work (TODOS.md)
 scripts/        — Build and packaging scripts
 Tests/          — Unit tests (Swift Testing framework)
 ```
