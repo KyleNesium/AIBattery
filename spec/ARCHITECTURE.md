@@ -18,7 +18,7 @@ Single `UsageViewModel` owns all state. Views read `viewModel.snapshot`.
 
 Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is shown. Multi-account add-account flow is handled inline by UsagePopoverView (shows AuthView as overlay, parameterised by `AIProvider`).
 
-**Two providers, one pipeline.** Every account carries an `AIProvider` (`.claude` / `.codex`). The architecture is "provider seams on the existing pipeline" (design spec `docs/superpowers/specs/2026-09-02-codex-support-design.md`): one `AccountStore`, one `UsageViewModel`, one `UsageSnapshot`/UI. Provider dispatch happens at exactly these boundaries, always keyed off the **active account's provider**:
+**Two providers, one pipeline.** Every account carries an `AIProvider` (`.claude` / `.codex`). The architecture is "provider seams on the existing pipeline" (original design spec kept in history: `git show 8f3d600:docs/superpowers/specs/2026-09-02-codex-support-design.md`): one `AccountStore`, one `UsageViewModel`, one `UsageSnapshot`/UI. Provider dispatch happens at exactly these boundaries, always keyed off the **active account's provider**:
 
 | Boundary | Claude | Codex |
 |---|---|---|
@@ -317,6 +317,9 @@ Tests/AIBatteryCoreTests/
     LinkActionButtonTests.swift   — Link action button behavior
     PopoverFooterStatusSymbolTests.swift — Footer status symbol mapping
     MoveTransitionBanTests.swift  — Guards against `.move(edge:)` transitions in the popover
+docs/
+  FAQ.md                          — Troubleshooting, context-health explainer, Gatekeeper/Keychain notes
+  TODOS.md                        — Deferred work, grouped by the review that deferred it
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   lint.yml                        — SwiftFormat + SwiftLint on PRs targeting main (macos-15)
@@ -327,7 +330,6 @@ scripts/
   generate-appcast.sh            — Generate appcast.xml for Sparkle update feed
   generate-icon.swift             — Generate AppIcon.icns (sparkle star, all macOS sizes)
   verify-release.sh               — Pre-release verification checks
-project.yml                       — XcodeGen project spec (optional, SPM is primary)
 Package.swift                     — SPM manifest: AIBatteryCore, AIBattery, AIBatteryCoreTests
 CHANGELOG.md                      — Release notes per version
 ```

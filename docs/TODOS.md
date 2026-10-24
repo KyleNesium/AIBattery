@@ -1,81 +1,6 @@
-# TODOs
+# Deferred work
 
-## Rate limit & depletion display
-
-- [x] ~~**`LocalUsageEstimate.calibrate()` is too sensitive at the band edges.**~~
-  Fixed: calibration band narrowed from `0.05–0.95` to `0.20–0.80`
-  (`LocalUsageEstimate.calibrationBand`), so dividing by a tiny utilization can no
-  longer magnify measurement error into a false ≥100% local reading.
-
-- [x] ~~**`UsageAggregator.sevenDaysAgo` uses calendar-day arithmetic** for the 7d
-  rate-limit count.~~ Fixed: split into `sevenDayRateLimitCutoff` (rolling
-  7×86400, used for `sevenDayTokens`) and `sevenDaysAgo` (calendar-day, retained
-  for `weekTokenMap` UI breakdown where calendar semantics are correct).
-
-- [x] ~~**Menu-bar exhaustion glyph is identical for 5h and 7d.**~~ Fixed via text
-  rather than a glyph: the throttled menu-bar countdown is prefixed with the binding
-  window code (`5H` / `7D`), e.g. `5H 2h 5m`, so users can tell whether to wait hours
-  or a day+ without opening the popover.
-
-- [x] ~~**No telemetry / structured log when `isExhausted` flips on or off.**~~
-  Fixed: `UsageViewModel.recordThrottleEvent(_:source:)` emits one
-  `AppLogger.network` line on each throttle on/off transition (binding window,
-  reset timestamp, source: `api-fresh` / `stale-cache`).
-
-- [x] ~~**`RateLimitUsage.withClearedExpiredWindows` is a no-op when reset dates are
-  nil.**~~ Fixed: a window with status `"throttled"` and no reset is now treated as
-  an unbounded throttle and its flag is dropped (utilization kept) on the
-  cache / stale-fallback path, so a reset-less throttle can no longer stick.
-
-## Codex (deferred from the v3.0.0 pre-release review, 2026-10-10)
-
-- [x] ~~**Per-account attribution of Codex local data.** Every Codex account shows
-  the same Insights / Projects / Context Health because `~/.codex/sessions` is
-  scanned provider-wide. Real rollouts carry `session_meta.payload.creator_account_id`
-  (observed live, Codex CLI 0.160.1) — the same ChatGPT account id used as the
-  app's Codex account id. Plan: parse it in `CodexSessionLogParser`, stamp it on
-  `AssistantUsageEntry` (new optional field, nil for Claude), and let
-  `UsageAggregator` filter by the active account when ≥ 2 Codex accounts exist.
-  Would also make `costIsBilled` exact (today: `AccountStore.billsLocalCodexCosts`
-  heuristic) and let the session-log rate-limit fallback work with 2+ ChatGPT
-  accounts. Needs an API-key rollout fixture to confirm what that mode writes.~~
-  Shipped in v3.3.0: `AssistantUsageEntry.creatorAccountId`, `Attribution`
-  (`.all` / `.account(_:)`) + `partition(_:)`, one aggregation pass yields both
-  an attributed detail snapshot and a provider-wide snapshot
-  (`UsageAggregator.AggregateResult`), namespaced `TokenLedger` keys (`<id>`,
-  `<id>#attributed`, `codex#all`), and the session-log fallback gated by the
-  newest rollout's stamp (`CodexSessionRateLimitScanner.creatorAccountId`).
-  `costIsBilled` still uses the `billsLocalCodexCosts` heuristic — attribution
-  did not change that (it answers a different question: whose turns count, not
-  whether the active account is paying API rates for them).
-- [ ] **Per-model weekly windows (`seven_day_opus` / `seven_day_sonnet`).** The
-  live `/api/oauth/usage` payload (captured 2026-10-20) carries
-  `seven_day_opus`, `seven_day_sonnet` (+ breakdown / cowork / oauth_apps /
-  omelette) keys but they were null on this account, so their nested shape is
-  unverified; Phase 2 §5 (per-model weekly windows) was dropped from v3.3.0 on
-  that basis. Revisit when a populated payload is seen (Max plans?).
-- [ ] **`isLoading` is not reset on every `performRefresh` early return.** The
-  `isSuspended` guard, the idle-suspend branch and the `shouldApplyFetchResult`
-  discard leave `isLoading` as the caller set it. `switchAccount` sets it `true`
-  and now always gets its own cycle (seventh review), so in practice the next
-  successful cycle clears it; a switch landing exactly in an idle-suspend window
-  could keep the spinner until resume. Reset it on every exit path instead.
-- [ ] **`FileWatcher` watches `~/.codex/sessions` for every user, not just Codex
-  accounts.** `startWatching()` calls `watchCodexSessionsDirectory()` unconditionally;
-  it no-ops when `~/.codex` is absent, but a Claude-only user who has ever run the
-  Codex CLI gets an FSEvents stream + fallback poll timer that only invalidates
-  caches nothing reads. Pure overhead, no data touched (seventh pre-release review,
-  2026-10-11). Gate on `accountStore.accounts.contains { $0.provider == .codex }` and
-  start/stop it from the account-list observer.
-- [ ] **`CodexCallbackServer`: accumulate the request line across TCP segments.**
-  A single `receive` is parsed as the whole head; a fragmented localhost redirect
-  (not observed) would 404 and leave sign-in waiting until the 180 s timeout.
-  Accumulate until the first CRLF under the existing 16 KB cap.
-- [ ] **`startCodexAuthFlow` should await the listener's `.ready` / `.failed`**
-  before returning the authorize URL. `NWListener` reports `EADDRINUSE`
-  asynchronously, so today the browser opens and the "port 1455 busy" copy is
-  never shown — the flow fails fast through the one-shot failure path with the
-  generic "listener failed" message instead.
+Open items that were consciously deferred, grouped by the review that deferred them. Each item names the file or type involved so it can be picked up cold. Shipped items are removed rather than struck through; the history is in `CHANGELOG.md`.
 
 ## Deferred from the third pre-release review (2026-10-10)
 
@@ -108,15 +33,6 @@ Each says why, so a future session doesn't re-litigate it.
   nothing holds an `NWConnection` until the 180 s session timeout. Loopback-only
   and time-bounded; arm a `queue.asyncAfter` cancel per connection. Related to
   the already-deferred request-line accumulation item above.
-- [x] ~~**The session-log fallback has no maximum age.** Its windows are cleared
-  once their own reset passes, but the same stale line is re-read and re-served
-  every cycle, so a week-old reading can be the displayed value for a whole
-  endpoint outage. It is marked `isCached: true`, so alarms stay suppressed.
-  Consider refusing the fallback past a maximum `asOf` age.~~ Fixed in v3.3.0:
-  `CodexRateLimitFetcher.codexFallbackMaxAge` (7 days) refuses the fallback on
-  both the fresh-scan path (`shouldUseSessionLogFallback`) and the cached
-  `.codexSessionLog` result (`cachedOrEmpty` drops its rate limits past the age;
-  a cached endpoint reading is unaffected).
 - [ ] **Session-log fallback inspects only the newest rollout.** With two ChatGPT
   accounts the one whose CLI session is newest gets the fallback and the other serves
   its cache. A per-account newest-file search (walk newest-first, head-read until a
@@ -266,73 +182,8 @@ is laundered through a fixed allowlist. Remaining items:
 
 A full spec/code audit found **no wrong constant values and no version drift** — the
 ~70 CONSTANTS.md values spot-checked all match source, and 3.0.0 is consistent across
-`project.yml`, `Info.plist` and the CHANGELOG. The defects are omissions and stale
+`Info.plist` and the CHANGELOG. The defects are omissions and stale
 references. Most user-facing first:
-
-- [x] **README's privacy table omits `api.openai.com`**, which is contacted on every
-  API-key registration (`/v1/models`) and every poll for an API-key account
-  (`/v1/responses`). `spec/ARCHITECTURE.md` has the same gap in a list it calls
-  "exhaustive".
-- [x] ~~**README claims each release runs `verify-release.sh`.**~~ Not a defect: `release.yml`
-  runs it before the GitHub Release step (gated on the Sparkle signing key) since 62e73cd;
-  the README now says so explicitly (2026-10-12).
-- [x] **README's uninstall instructions leave files behind** — they say "AI Battery
-  doesn't write any other files", contradicted 171 lines earlier by its own description
-  of `~/Library/Application Support/AIBattery/token-ledger.json`. CONSTANTS.md's File
-  Paths table omits the ledger too.
-- [x] **README says each account has its own tokens.** Rate limits and identity are
-  per-account; tokens are not — `~/.codex/sessions` is scanned provider-wide, as this
-  file's own first Codex item records.
-- [ ] **CHANGELOG describes the up/down switcher glyph that was tried and rejected**;
-  the chip ships a plain `chevron.down`. `spec/UI_SPEC.md` records the rejection
-  correctly. CHANGELOG also dates 3.0.0 as 2026-10-08 while the branch landed 2026-10-10.
-- [ ] **`spec/ARCHITECTURE.md` project tree is 27 files stale** — `CreditBudgetSection.swift`
-  (the headline Codex credits UI) is absent entirely, 26 test files are missing including
-  every Codex OAuth test, and `MetricToggleViewTests.swift` is listed at the wrong path.
-- [ ] **`spec/ARCHITECTURE.md:154` misattributes four things to the wrong file** — the
-  `RateLimitFetching` / `MultiAccountTokenProviding` seams, `multiAccountDisplayIDs` and
-  the "standalone, not a `UsageViewModel` method" note all belong to `MultiAccountFanOut.swift`;
-  `UsageViewModel+ProviderRouting.swift` is literally `extension UsageViewModel`.
-- [ ] **Four wrong signatures in `spec/DATA_LAYER.md`** — `aggregate(...)` returns
-  `(UsageSnapshot, SideEffects)`, not `UsageSnapshot` (the tuple is the whole reason
-  `SideEffects` exists, described correctly six lines earlier); `buildProjectTokens` is
-  `buildProjectTokensFromMap(_:)` and does **not** "filter non-Claude models" — that
-  happens upstream, and Codex project rows are kept; `shortLabel` / `pickerModes` take
-  `kind:` not `provider:`; `checkRateLimitAlerts` omits the `accountId:` that makes the
-  v3.0.0 per-account dedup work.
-- [ ] **`spec/DATA_LAYER.md` says `UsageAggregator` calls `setObservedModels`.** It does
-  not — it returns them on `SideEffects` and `UsageViewModel` applies them. That seam is
-  exactly what this branch introduced.
-- [ ] **`spec/UI_SPEC.md` shows Settings and the content sections as siblings**; opening
-  Settings *replaces* the body. It also names properties that do not exist
-  (`headerSection` / `metricToggle` / `footerSection`) and shows a divider the source
-  explicitly comments out as a doubled line.
-- [ ] **`spec/UI_SPEC.md` loading-state line is wrong on three of four facts** — the copy
-  is "Fetching usage data…", the spinner scale 0.5 and the height 40pt
-  (`stateHeightLoading`); 80pt is `stateHeightEmpty`.
-- [ ] **CONSTANTS.md design-token tables are materially incomplete** despite the file
-  claiming "every hardcoded value": Spacing 7 of 11, Layout 25 of 44, Typography 21 of 28
-  (with `clipboardIcon` listed twice and the four new chip tokens filed under Layout),
-  MotionConstants missing three. `spec/UI_SPEC.md` has the correct counts.
-- [ ] **12 UserDefaults keys are undocumented** (including `aibattery_accounts`, the blob
-  this branch added `discoveredIdentity` to, and `aibattery_rateLimits_` — the Claude
-  counterpart of a *documented* Codex key). Conversely `aibattery_claudeDirBookmark` and
-  the whole `APP_SANDBOX` section are documented but exist nowhere in source; mark them
-  planned.
-- [ ] **Smaller contradictions:** CONSTANTS.md points at a `RateLimitFetcher.probeModels`
-  static that is a runtime local, and never states the one hardcoded fallback model id;
-  ARCHITECTURE describes the App Store entitlements as granting `~/.claude` read (no such
-  grant exists) and says "two FSEventStreams" where a third exists precisely to cover the
-  case it claims is unwatched; DATA_LAYER omits `rateLimitSource`, `standardLimits`,
-  `provider`, `costIsBilled` and `codexAccessMode` from its model tables, omits the
-  `gpt-` branch of `contextWindow(for:)` (every Codex context-health percentage is
-  computed against a constant DATA_LAYER does not contain), states a 15 s timeout where
-  the primary endpoint uses 30 s, and names a `Services/OpenAIStatusFeed.swift` that does
-  not exist. UI_SPEC's "24 named font styles" is 28. ARCHITECTURE lists `Security` among
-  dependencies (never imported) while omitting six frameworks that are, and says CI runs
-  on PR pushes when it runs on `ready_for_review` only.
-- [ ] **`AGENTS.md` is a byte-identical copy of `CLAUDE.md`, not a symlink** — guaranteed
-  to drift.
 
 ## Deferred from the fifth pre-release review (2026-10-10)
 
@@ -519,11 +370,7 @@ being an accessibility container, and the slider announcing "infinity". Remainin
 
 ## Performance (deferred from the v3.3.0 release, 2026-10-22)
 
-
-
 Measured on the running 3.3.0 build: 11 MB bundle, 0 % idle CPU with ~5 % blips when a session log is written, 85 MB resident of which 32 MB is live heap (≈ 35 k cached entries + strings); the rest is freed-but-dirty allocator pages from scan peaks. Logs: 607 MB / 2 412 Claude files, 924 MB / 1 252 Codex files.
-
-
 
 - [ ] **Incremental tail parse for `SessionLogReader`.** A changed file is re-parsed from byte 0; the active session file (7–10 MB) is re-parsed on every debounced write (~95 ms). Keep a per-file byte offset + leftover buffer; full re-parse when the file shrinks, the offset is past EOF, or the head bytes changed. Risk: append-only assumption vs. tool-call coalescing across lines — pin with the real-data timing tests before/after. Biggest CPU win; medium risk.
 
@@ -531,4 +378,4 @@ Measured on the running 3.3.0 build: 11 MB bundle, 0 % idle CPU with ~5 % blips 
 
 - [ ] **Compact cached entries.** Intern repeated strings (session id, cwd, model, branch); hash message ids in the global dedupe set (keep full ids per file). ~5–7 MB. Smallest payoff, most invasive — only if memory becomes a complaint.
 
-- [ ] **Test runner deadlock (infra).** Parallel `swift test` hung ~1 in 2 local runs (AppKit `dispatch_once` raced from the pool; traces in `docs/reviews/2026-10-21-test-deadlock-sample.txt`). CI now runs `--no-parallel` (12 s). Proper fix: pre-warm AppKit on the main thread before any suite, then drop the flag.
+- [ ] **Test runner deadlock (infra).** Parallel `swift test` hung ~1 in 2 local runs (AppKit `dispatch_once` raced from the pool; traces: `git show 8f3d600:docs/reviews/2026-10-21-test-deadlock-sample.txt`). CI now runs `--no-parallel` (12 s). Proper fix: pre-warm AppKit on the main thread before any suite, then drop the flag.
