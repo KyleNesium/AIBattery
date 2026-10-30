@@ -67,37 +67,41 @@ struct AboutSection: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("AI Battery version \(Self.version)")
 
-            HStack(spacing: Spacing.section) {
+            // Stacked for the same reason as the add-account links: side by side,
+            // "Check for Updates" wrapped to two lines at 275pt.
+            HStack(alignment: .top, spacing: Spacing.section) {
                 labelColumnIndent
-                #if ENABLE_VERSION_CHECKER
-                let update = viewModel.availableUpdate
-                let action = Self.updateAction(for: update, checking: checking)
-                LinkActionButton(
-                    label: action.label,
-                    icon: action.icon,
-                    tint: action.highlighted ? ThemeColors.updateAvailable : ThemeColors.action,
-                    help: update != nil
-                        ? "Downloads and installs the update"
-                        : "Check GitHub for a newer release",
-                    accessibilityLabel: update.map { "Install update version \($0.version)" }
-                        ?? "Check for updates"
-                ) {
-                    if let update {
-                        Self.installUpdate(update)
-                    } else {
-                        checkForUpdates()
+                VStack(alignment: .leading, spacing: Spacing.inner) {
+                    #if ENABLE_VERSION_CHECKER
+                    let update = viewModel.availableUpdate
+                    let action = Self.updateAction(for: update, checking: checking)
+                    LinkActionButton(
+                        label: action.label,
+                        icon: action.icon,
+                        tint: action.highlighted ? ThemeColors.updateAvailable : ThemeColors.action,
+                        help: update != nil
+                            ? "Downloads and installs the update"
+                            : "Check GitHub for a newer release",
+                        accessibilityLabel: update.map { "Install update version \($0.version)" }
+                            ?? "Check for updates"
+                    ) {
+                        if let update {
+                            Self.installUpdate(update)
+                        } else {
+                            checkForUpdates()
+                        }
                     }
-                }
-                .disabled(checking)
-                #endif
-                LinkActionButton(
-                    label: "Release notes",
-                    icon: "arrow.up.right",
-                    help: "Open the release notes on GitHub",
-                    accessibilityLabel: "Open release notes in your browser"
-                ) {
-                    if let url = URL(string: Self.releasesURL) {
-                        NSWorkspace.shared.open(url)
+                    .disabled(checking)
+                    #endif
+                    LinkActionButton(
+                        label: "Release notes",
+                        icon: "arrow.up.right",
+                        help: "Open the release notes on GitHub",
+                        accessibilityLabel: "Open release notes in your browser"
+                    ) {
+                        if let url = URL(string: Self.releasesURL) {
+                            NSWorkspace.shared.open(url)
+                        }
                     }
                 }
                 Spacer()

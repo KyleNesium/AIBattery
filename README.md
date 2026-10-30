@@ -260,13 +260,13 @@ AI Battery is free and open source. If it helps you get more out of your subscri
 
 ## Test Coverage
 
-**1609 tests** across 124 test files.
+**1610 tests** across 125 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 419 | Rate-limit parsing for Claude and Codex, Claude plan from the OAuth profile (including spend-control credits and credit-budget runway), usage snapshots, spike and rollover filters, account readings and the fan-out gate, overview cards, popover mode and Escape routing, pricing tables, provider and account records |
 | Services | 606 | Claude plan lookup (response handling, once-per-launch selection), Keychain read retry (a failed read stays signed in, one prompt, backoff, refusal), plan labels for both providers, Session-log readers for both providers (streaming, caching, oversized lines, concurrency), Codex per-account attribution and fallback gating, token ledger high-water marks and key migration, aggregation (one pass, two snapshots), OAuth managers (PKCE, refresh, error classification), rate-limit fetchers and backoff, Keychain, secure networking, status checker, notifications, Sparkle updates |
-| Views | 229 | Menu-bar text and headline percent, panel refit trigger, icon hover motion (presets, Reduce Motion, layout never changes), header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner |
+| Views | 230 | Menu-bar text and headline percent, panel refit trigger, icon hover motion (presets, Reduce Motion, layout never changes), header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner |
 | ViewModels | 101 | Multi-account fan-out (routing, carry-forward, generation stamp), refresh interval and adaptive polling, throttle tracking per account, stale rate-limit expiry, auth-error reconnect, cross-account refresh races, provider switching, off-main aggregation |
 | Utilities | 254 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette, hover strength), motion tokens, menu-bar icon rendering and cache, date formatters, JSONL newline scanning, email masking, logging redaction |
 

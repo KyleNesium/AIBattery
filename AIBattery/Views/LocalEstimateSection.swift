@@ -92,12 +92,12 @@ struct LocalEstimateSection: View {
             Text("\(TokenFormatter.format(tokens)) / \(prefix)\(TokenFormatter.format(limit))")
                 .font(Typography.monoValue)
                 .foregroundStyle(ThemeColors.secondaryLabel)
-                .copyable("\(tokens) / \(limit)")
+                .copyable("\(tokens) / \(limit)", bleed: .trailing)
         } else {
             Text(TokenFormatter.format(tokens) + " tokens")
                 .font(Typography.monoValue)
                 .foregroundStyle(.primary)
-                .copyable("\(tokens)")
+                .copyable("\(tokens)", bleed: .trailing)
         }
     }
 }

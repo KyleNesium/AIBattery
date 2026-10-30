@@ -55,10 +55,11 @@ struct AccountCardView: View {
         .onHover { hovered = $0 }
         .help(helpText)
         .accessibilityElement(children: .ignore)
-        // `children: .ignore` replaces the Button's own representation, which drops the
-        // button trait with it — the card then exposed no actionable element at all to
-        // VoiceOver or to automation. Put the trait back explicitly.
+        // `children: .ignore` replaces the Button's own representation, dropping both its
+        // trait and its press action. The trait alone made the card look actionable while
+        // VoiceOver's activate (AXPress) did nothing, so put both back explicitly.
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onSelect() }
         .accessibilityLabel(card.accessibilityLabel)
         // The state line ("Throttled", "~2h to limit · resets in 3d", "Cached 3m ago") is
         // the card's value. `children: .ignore` hides the on-screen Text from VoiceOver,
@@ -97,17 +98,19 @@ struct AccountCardView: View {
                 .truncationMode(.middle)
                 // The name is the row; the badge and the plan yield before it does.
                 .layoutPriority(1)
-            if AccountCard.isLive(lastActivity: card.lastActivity, now: now) {
-                // Breathes only while the provider is actually being used.
-                LiveDot(color: tint)
-                    .padding(.leading, Spacing.tight)
-            }
             if let plan = card.plan {
                 Text("\u{00B7} \(plan)")
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .lineLimit(1)
                     .layoutPriority(-1)
+            }
+            // After the plan, not between the name and it: a dot beside the "·" read as a
+            // stray double separator ("Claude ● · Team").
+            if AccountCard.isLive(lastActivity: card.lastActivity, now: now) {
+                // Breathes only while the provider is actually being used.
+                LiveDot(color: tint)
+                    .padding(.leading, Spacing.tight)
             }
             Spacer(minLength: Spacing.inner)
             if let status = card.status {

@@ -20,26 +20,12 @@ struct SettingsRow: View {
             }
 
             // One add link per provider, each gated on its own cap (spec §5:
-            // "up to 3 accounts per provider").
-            HStack(spacing: Spacing.section) {
+            // "up to 3 accounts per provider"). Stacked: side by side at 275pt each label
+            // wrapped to two lines ("Add Claude / Account…"), so a stack costs no height.
+            HStack(alignment: .top, spacing: Spacing.section) {
                 Spacer().frame(width: Layout.settingsLabel)
-                if accountStore.canAddAccount(provider: .claude) {
-                    LinkActionButton(
-                        label: "Add Claude Account…",
-                        icon: "plus.circle",
-                        help: "Sign in with another Claude account",
-                        accessibilityLabel: "Add another Claude account",
-                        action: { onAddAccount(.claude) }
-                    )
-                }
-                if accountStore.canAddAccount(provider: .codex) {
-                    LinkActionButton(
-                        label: "Add Codex Account…",
-                        icon: "plus.circle",
-                        help: "Sign in with a Codex (ChatGPT or OpenAI API key) account",
-                        accessibilityLabel: "Add a Codex account",
-                        action: { onAddAccount(.codex) }
-                    )
+                VStack(alignment: .leading, spacing: Spacing.inner) {
+                    addAccountLinks
                 }
                 Spacer()
             }
@@ -63,6 +49,27 @@ struct SettingsRow: View {
         }
         .padding(.horizontal, Spacing.sectionHorizontal)
         .padding(.vertical, Spacing.section)
+    }
+
+    @ViewBuilder private var addAccountLinks: some View {
+        if accountStore.canAddAccount(provider: .claude) {
+            LinkActionButton(
+                label: "Add Claude Account…",
+                icon: "plus.circle",
+                help: "Sign in with another Claude account",
+                accessibilityLabel: "Add another Claude account",
+                action: { onAddAccount(.claude) }
+            )
+        }
+        if accountStore.canAddAccount(provider: .codex) {
+            LinkActionButton(
+                label: "Add Codex Account…",
+                icon: "plus.circle",
+                help: "Sign in with a Codex (ChatGPT or OpenAI API key) account",
+                accessibilityLabel: "Add a Codex account",
+                action: { onAddAccount(.codex) }
+            )
+        }
     }
 
     /// Editable name row for a single account.
