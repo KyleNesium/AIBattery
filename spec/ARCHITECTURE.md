@@ -112,6 +112,7 @@ AIBattery/
     ModelPricing.swift            — Per-model pricing lookup + cost calculation
     LocalUsageEstimate.swift      — Fallback token estimation when unified headers unavailable (calibration + plan tier)
     PlanTier.swift                — Claude plan tiers (Pro/Max 5×/Max 20×/Team) with estimated 5h/7d limits
+    ClaudePlan.swift              — Anthropic OAuth profile → Claude plan (`billingType` "max_20x" etc.) + its label ("Max 20×"); pure
     RateLimitSource.swift         — Enum tracking where rate limit data came from (API / local estimate / standard)
     StandardRateLimits.swift      — Standard per-model request/token rate limits from API headers
   Services/
@@ -137,6 +138,7 @@ AIBattery/
     RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)
     RateLimitFetcher+UsageEndpoint.swift  — Dedicated `/api/oauth/usage` primary path: `interpretUsageEndpoint` (pure) + async `fetchUsageEndpoint` wrapper
     RateLimitFetcher+ClientData.swift     — Claude Code `/api/oauth/claude_cli/client_data` fallback path: `interpretClaudeCodeClientData` (pure), async `fetchClaudeCodeClientData` wrapper, and `containsStandardRateLimitHeaders` (`nonisolated static`, called from the Messages path too)
+    ClaudePlanFetcher.swift       — Once-per-launch `GET /api/oauth/profile` per Claude account → `billingType`; `interpret` + `accountsNeedingPlan` are pure
     RateLimitFetcher+Persistence.swift    — UserDefaults-backed per-account cache: `PersistedRateLimits` (file-private), `persistRateLimits` (called by `fetch` on success), `restorePersistedRateLimits` (called from init; runs `withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence is dropped)
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
     SessionLogReader.swift        — Claude JSONL streaming reader (FileHandle, 64KB chunks)
@@ -174,7 +176,7 @@ AIBattery/
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
     PopoverHeaderView.swift       — Header row: account chip, update arrow (when available) + gear
     UpdateArrowButton.swift       — Header/overview-footer arrow shown only when `availableUpdate` is set; click installs via Sparkle, right-click opens a context menu (release notes / check for updates); replaces the old update banner + gear badge
-    SettingsGearButton.swift      — Gear icon opening Settings
+    SettingsGearButton.swift      — Gear icon opening Settings; the gear turns one tooth on hover (`IconHover.turn`)
     AccountChipView.swift         — Compact account chip (brand badge + provider + identity) whose click pops the AppKit switch/add NSMenu
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
@@ -192,6 +194,9 @@ AIBattery/
     Components/
       GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
       GaugeRow.swift              — Shared "labelled gauge row" shell: VStack[Header HStack + GaugeBar + TimelineView footer]. Accepts headerLeading / headerTrailing / footer ViewBuilders. Owns accessibility wiring and timeline schedule. Backs UsageBar (5h/7d) and StandardLimitBar.
+      IconHover.swift             — Hover motion for icons (`IconHover` presets + `.iconHover(_:active:)`): transform-only rotation/scale/offset, one `MotionConstants.iconHover` spring on enter and exit, identity under Reduce Motion; never changes layout, so a hover never refits the panel
+      LiveDot.swift               — Breathing dot beside an overview card's name while that provider is in use (static under Reduce Motion)
+      BetaBadge.swift             — Dimmed "beta" label for sections whose numbers are still approximate
       LinkActionButton.swift      — Inline link-styled action button (Size.standard for settings, .compact for in-banner). One canonical implementation for Add Account, Test, Download, Install Update — all routed through ThemeColors.action with consistent icon/label spacing.
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars; UsageBar.AlarmState gates throttle/limit alarm on confirmed (fresh) data
     LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable (window label follows provider vocabulary)
@@ -209,7 +214,7 @@ AIBattery/
     CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 3 sections (Context, Projects, Insights)
     StyledDivider.swift            — Standardized divider: Divider() at 0.3 opacity, Spacing.tight vertical padding
     FooterLink.swift              — Footer link button with hover underline and external arrow
-    RefreshButton.swift           — Refresh button with brief spin animation
+    RefreshButton.swift           — Refresh button with brief spin animation; winds 45° on hover (`IconHover.turn`)
     CopyableText.swift            — ViewModifier for click-to-copy: full CopyableModifier + lightweight LightCopyableModifier for dense areas
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
   Utilities/
@@ -232,7 +237,7 @@ AIBattery/
     IdleSuspendPolicy.swift       — Pure idle-suspension policy (5-min threshold) — used by UsageViewModel to skip polling when machine idle
     Typography.swift              — Named font style tokens (sectionHeader, monoValue, tinyLabel, decorativeIcon, etc.) — caseless enum namespace
     Spacing.swift                 — Spacing/Layout/MotionConstants enums — caseless enum namespaces co-located
-    KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
+    KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager); `read` tells found / not found / failed apart
     RetryPolicy.swift             — Pure value-type exponential-backoff + jitter policy with `nonisolated static` API. 4 presets (`oauth`, `statusCheck`, `fileWatch`, `rateLimit`) carry historical values from CONSTANTS.md. Used by OAuthManager, StatusChecker, FileWatcher, RateLimitFetcher
     ReasoningVocabulary.swift     — "Thinking" vs "Reasoning" label by model prefix (Claude vs Codex/GPT)
 Tests/AIBatteryCoreTests/
@@ -368,6 +373,7 @@ CHANGELOG.md                      — Release notes per version
 1. `GET https://api.anthropic.com/api/oauth/usage` — **primary** rate-limit fetch (dedicated usage endpoint, no model probe needed; first call every cycle)
 2. `GET https://api.anthropic.com/api/oauth/claude_cli/client_data` — Claude Code usage windows + account metadata (fallback)
 3. `POST https://api.anthropic.com/v1/messages?beta=true` — legacy unified/public rate-limit headers + org profile (probe fallback, ~10% hit rate)
+3a. `GET https://api.anthropic.com/api/oauth/profile` — the account's plan (`organization_type` + `rate_limit_tier`), once per Claude account per launch (`ClaudePlanFetcher`)
 4. `GET https://status.claude.com/api/v2/summary.json` — system status (every refresh interval)
 5. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
 6. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)

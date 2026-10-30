@@ -22,6 +22,7 @@ struct PopoverErrorView: View {
                 HStack(spacing: Spacing.inner) {
                     Image(systemName: "arrow.clockwise")
                         .font(Typography.monoTiny)
+                        .iconHover(.turn, active: retryHovered)
                         .accessibilityHidden(true)
                     Text("Retry")
                         .font(Typography.caption)

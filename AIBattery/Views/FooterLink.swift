@@ -47,9 +47,11 @@ struct FooterLink<Leading: View>: View {
             HStack(spacing: Spacing.tight) {
                 if Leading.self != EmptyView.self {
                     leading()
+                        .iconHover(.pop, active: isHovered || isFocused)
                 } else if let icon {
                     Image(systemName: icon)
                         .font(Typography.monoTiny)
+                        .iconHover(.pop, active: isHovered || isFocused)
                 }
                 Text(label)
                     .font(Typography.tinyLabel)
@@ -57,6 +59,7 @@ struct FooterLink<Leading: View>: View {
                 if showsExternalArrow {
                     Image(systemName: "arrow.up.right")
                         .font(Typography.decorativeIcon)
+                        .iconHover(.outward, active: isHovered || isFocused)
                 }
             }
             .fixedSize()

@@ -52,11 +52,28 @@ struct AccountCardTests {
         #expect(cards.map(\.id) == ["c1", "x1"])
         #expect(cards[0].identity == "Claude Team")
         #expect(cards[0].worstPercent == 34)
-        #expect(cards[0].plan == nil) // plan label is Codex-only
+        #expect(cards[0].plan == nil) // no plan looked up yet for this Claude account
         #expect(cards[1].plan == "Business")
         #expect(cards[0].bars.map(\.label) == ["5-Hour", "7-Day"])
         #expect(cards[1].bars.map(\.label) == ["5-Hour", "Weekly"])
         #expect(cards[0].state == .none)
+    }
+
+    /// Claude and Codex cards carry their plan the same way: "Claude · Max 20×" beside
+    /// "Codex · Business". A legacy, unrecognised Claude billing string shows nothing.
+    @Test func rows_claudePlan_alignsWithCodex() {
+        let accounts = [
+            rec("c1", .claude, billing: "max_20x"),
+            rec("c2", .claude, billing: "stripe_subscription"),
+            rec("x1", .codex, billing: "business"),
+        ]
+        let cards = AccountCard.rows(
+            accounts: accounts, readings: [:], statuses: [:],
+            isAuthenticated: { _ in true }, maskEmail: true
+        )
+        #expect(cards.first { $0.id == "c1" }?.plan == "Max 20×")
+        #expect(cards.first { $0.id == "c2" }?.plan == nil)
+        #expect(cards.first { $0.id == "x1" }?.plan == "Business")
     }
 
     @Test func rows_carryProviderStatusOntoEveryCard() {

@@ -16,6 +16,7 @@ struct SettingsGearButton: View {
             HStack(spacing: Spacing.inner) {
                 Image(systemName: "gearshape")
                     .font(Typography.headerGear)
+                    .iconHover(.turn, active: hovered)
                     .frame(
                         width: label == nil ? Layout.accountChipHeight : nil,
                         height: Layout.accountChipHeight

@@ -260,4 +260,18 @@ struct ThemeColorsTests {
         // off this token, and the visual result is calibrated against pure black.
         #expect(ThemeColors.shadowColor == .black)
     }
+
+    // MARK: - Hover strength
+
+    /// A hovered outline must read stronger than the same outline at rest.
+    @Test func hoverBorder_isStrongerThanRestingBorder() {
+        #expect(ThemeColors.hoverBorderOpacity > ThemeColors.subtleBorderOpacity)
+    }
+
+    /// The overview row's hover: the hairline gives the shape, so it stays above the fill.
+    @Test func rowHover_strokeLeadsTheFill() {
+        #expect(ThemeColors.rowHoverTintOpacity == 0.04)
+        #expect(ThemeColors.rowHoverStrokeOpacity == 0.12)
+        #expect(ThemeColors.rowHoverStrokeOpacity > ThemeColors.rowHoverTintOpacity)
+    }
 }

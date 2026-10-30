@@ -57,8 +57,9 @@ struct AccountChipView: View {
         // Three quiet elements, like a document title with a logo: the brand mark in
         // its own colour says which provider (no "Claude" / "Codex" caption — it
         // doubled the mark and often the identity itself), the identity is the title,
-        // and a small chevron is the only hint that it's a control. Hovering (or the
-        // open menu) lifts the chevron from secondary to primary; nothing else moves.
+        // and a small chevron is the only hint that it's a control. Hovering lifts the
+        // chevron from secondary to primary and dips it toward the menu it opens;
+        // nothing else moves.
         // One tight cluster: mark · 6pt · name · 3pt · chevron, all centred on the
         // text's cap height (`firstTextBaseline` alignment + each glyph's own baseline
         // offset) rather than on the 28pt row, so the mark no longer sits a hair high.
@@ -87,6 +88,7 @@ struct AccountChipView: View {
             Image(systemName: "chevron.down")
                 .font(Typography.switcherChevron)
                 .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
+                .iconHover(.drop, active: hovered)
                 .padding(.leading, Spacing.xsmall)
                 .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + Layout.capHeightBaselineOffset }
         }
@@ -188,7 +190,7 @@ struct AccountChipView: View {
             "\(account.provider.displayName) account",
             AccountStore.identityLabel(for: account, providerIndex: providerIndex, maskEmail: maskEmail),
         ]
-        if account.provider == .codex, let plan = AccountStore.planLabel(account.billingType) {
+        if let plan = AccountStore.planLabel(for: account) {
             parts.append(plan)
         }
         if isActive {

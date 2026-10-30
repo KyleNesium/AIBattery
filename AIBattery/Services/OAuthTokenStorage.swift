@@ -37,10 +37,29 @@ enum OAuthTokenStorage {
         }
     }
 
+    /// What `load` found.
+    struct Loaded {
+        var tokens: AccountTokens
+        /// The Keychain status when the refresh-token read failed; nil when it
+        /// succeeded or found no item. A failure leaves `tokens.refreshToken` nil
+        /// without meaning "no saved sign-in" (see `OAuthManager.unreadableAccounts`).
+        var readFailure: OSStatus?
+    }
+
     /// Load the persisted state for an account. The returned `accessToken` is
     /// always `nil` — callers must refresh via the refresh token on first use.
-    static func load(for accountId: String) -> AccountTokens {
-        let refresh = KeychainHelper.get(account: "refreshToken_\(accountId)")
+    /// Safe off the main actor; `readKeychain` is injectable for tests.
+    static func load(
+        for accountId: String,
+        readKeychain: (String) -> KeychainHelper.ReadResult = KeychainHelper.read(account:)
+    ) -> Loaded {
+        var refresh: String?
+        var readFailure: OSStatus?
+        switch readKeychain("refreshToken_\(accountId)") {
+        case let .found(value): refresh = value
+        case .notFound: break
+        case let .failed(status): readFailure = status
+        }
         var expires: Date?
         let interval = UserDefaults.standard.double(
             forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId
@@ -48,7 +67,10 @@ enum OAuthTokenStorage {
         if interval > 0 {
             expires = Date(timeIntervalSince1970: interval)
         }
-        return AccountTokens(accessToken: nil, refreshToken: refresh, expiresAt: expires)
+        return Loaded(
+            tokens: AccountTokens(accessToken: nil, refreshToken: refresh, expiresAt: expires),
+            readFailure: readFailure
+        )
     }
 
     /// Delete all persisted state for an account, including legacy entries

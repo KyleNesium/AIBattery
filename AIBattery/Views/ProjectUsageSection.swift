@@ -147,6 +147,7 @@ struct ProjectUsageSection: View {
                     HStack(spacing: Spacing.xsmall) {
                         Image(systemName: sortMode.icon)
                             .font(Typography.decorativeIcon)
+                            .iconHover(.pop, active: sortHovered)
                         Text(sortMode.label)
                             .font(Typography.tinyLabel)
                             .underline(sortHovered)

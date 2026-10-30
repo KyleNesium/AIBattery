@@ -18,6 +18,10 @@ struct RefreshButton: View {
         } label: {
             Image(systemName: "arrow.clockwise")
                 .font(Typography.tinyLabel)
+                // Inside the click spin, so the hover spring never animates the spin
+                // and the spin never animates the hover. Rotations about one centre
+                // compose, so the order is invisible.
+                .iconHover(.turn, active: isHovered)
                 .rotationEffect(.degrees(rotation))
         }
         .buttonStyle(.plain)

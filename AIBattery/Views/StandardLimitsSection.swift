@@ -104,7 +104,7 @@ private struct StandardLimitBar: View {
             headerTrailing: {
                 Text("\(TokenFormatter.format(remaining))/\(TokenFormatter.format(limit))")
                     .font(Typography.monoValue)
-                    .copyable("\(remaining)/\(limit)")
+                    .copyable("\(remaining)/\(limit)", bleed: .trailing)
             },
             footer: { now in
                 HStack {

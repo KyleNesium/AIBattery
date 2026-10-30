@@ -16,8 +16,10 @@ struct CollapsibleSectionHeader: View {
             HStack(spacing: Spacing.inner) {
                 Image(systemName: "chevron.right")
                     .font(Typography.chevronIcon)
+                    // Before the collapse rotation, so the nudge turns with the glyph.
+                    .iconHover(.forward, active: isHovered)
                     .rotationEffect(.degrees(collapsed ? 0 : 90))
-                    .foregroundStyle(ThemeColors.tertiaryLabel)
+                    .foregroundStyle(isHovered ? ThemeColors.secondaryLabel : ThemeColors.tertiaryLabel)
                 Text(title)
                     .font(Typography.sectionHeader)
                     .foregroundStyle(.primary)

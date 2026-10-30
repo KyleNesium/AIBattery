@@ -30,6 +30,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
+| Keychain read retry | A failed launch read (any status but `errSecUserCanceled` -128 / `errSecAuthFailed` -25293) keeps the account signed in and is re-read off main from `getAccessToken(for:)`, one read in flight per account; a read that fails again arms the token refresh failure backoff below | OAuthManager |
 | Token refresh failure backoff | Same `RetryPolicy.statusCheck` curve (60 s → 300 s, ±20% jitter), per account. Armed only by a **transient** failure; an auth failure signs out instead. Cleared by any successful refresh and by `signOut`. While backing off, `getAccessToken(for:)` returns nil without touching the endpoint — previously every poll re-ran all 3 attempts with their 1 s + 2 s sleeps | OAuthManager |
 | Token endpoint timeout | 30 sec | OAuthManager |
 | Adaptive polling threshold | 3 unchanged cycles | AdaptivePollingState |
@@ -56,6 +57,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | OAuth Usage (primary) | `https://api.anthropic.com/api/oauth/usage` |
 | Messages API (fallback) | `https://api.anthropic.com/v1/messages?beta=true` |
 | Claude Code Client Data | `https://api.anthropic.com/api/oauth/claude_cli/client_data` |
+| OAuth Profile (Claude plan) | `https://api.anthropic.com/api/oauth/profile` — `ClaudePlanFetcher`, once per Claude account per launch |
 | Status API | `https://status.claude.com/api/v2/summary.json` |
 | Usage Dashboard | `https://claude.ai/settings/usage` |
 | Status Page | `https://status.claude.com` |
@@ -94,6 +96,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex model-ID prefix | `gpt-` (`UsageAggregator.isTrackedModel`); Claude `claude-` |
 | Codex API-key account id | `openai-api-` + first 24 hex chars of SHA-256(key) (`OAuthManager.apiKeyAccountId`) |
 | Codex plan label | `AccountRecord.billingType` ← `plan_type` (`"api"` for API-key accounts), rendered "· Plus" / "· ChatGPT Team" / "· API" in the picker menu rows and Settings rows (`AccountStore.planLabel`); omitted from the collapsed picker label |
+| Claude plan label | `AccountRecord.billingType` ← `/api/oauth/profile` `organization.organization_type` (+ `rate_limit_tier` for Max), the mapping Claude Code itself uses: `claude_pro` → `"pro"` ("Pro"), `claude_max` + `default_claude_max_5x` → `"max_5x"` ("Max 5×"), `claude_max` + `default_claude_max_20x` → `"max_20x"` ("Max 20×"), other `claude_max` → `"max"` ("Max"), `claude_team` → `"team"` ("Team"), `claude_enterprise` → `"enterprise"` ("Enterprise"); anything else → no plan. Labels via `ClaudePlan.label`, which shows only those six values (a legacy `aibattery_plan` string is never displayed). Shown wherever the Codex plan is: overview card suffix, chip menu rows, Settings rows, VoiceOver label (`AccountStore.planLabel(for:)`) |
+| Claude plan lookup cadence | Once per account per launch (`ClaudePlanFetcher`, fire-and-forget from the fan-out tail). 2xx and 401/403/404 settle it; 429/5xx/no response retry next cycle. Only a recognised plan is written (an unrecognised answer never erases a stored one) |
 | Quota throttle threshold | `0.95` (`RateLimitFetcher.quotaExhaustionThreshold`) — binding utilization at/above which a header-less 429 is still treated as a quota throttle. Below this, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block. |
 | Rollover artifact utilization threshold | `0.95` (`RateLimitUsage.rolloverArtifactUtilizationThreshold`) — dual role. (1) Rollover artifacts: a window reading at/above this is treated as a stale rollover artifact (not a genuine limit) when the window also just started (see grace period below). (2) Spike filter near-full threshold: `UsageViewModel.spikeConfirmedRateLimits` treats a fresh reading at/above this as "near-full" — held at the previous displayed value until the spike sequence is confirmed (see minimum age below; no window-age condition). Tuning this value changes both behaviors. |
 | Spike-filter confirmation minimum age | `600` sec / 10 min (`UsageViewModel.spikeConfirmationMinimumAge`) — an unconfirmed (non-throttled) near-full spike is held at the previous displayed value until the SAME window instance has stayed near-full for this much wall-clock time of consecutive fresh polls (`NearFullMemory.firstSeen` is preserved across held polls). Time-based, not poll-count-based: the 2026-08-11 incident showed the server's eventual-consistency glitch spanning multiple polls, which defeated the old 2-consecutive-polls rule. Genuine throttles bypass the hold entirely; an accepted reading marks its memory `confirmed` so continuations never re-hold. Cost: a genuine limit crossing (reported as 100% + `"allowed"`) alarms up to this much later. |
@@ -409,7 +413,8 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Copy clipboard icon display | 1.5 seconds (`MotionConstants.clipboardFeedbackNs`), `MotionConstants.standard` (.easeOut 0.15) for both show and hide; `.scale`+`.opacity` transition |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
-| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.15) background, `NSCursor.pointingHand` |
+| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.10) background, `NSCursor.pointingHand` |
+| Icon hover motion | `IconHover` presets, `MotionConstants.iconHover` spring (response 0.28, damping 0.62), one settle on enter and one on exit, nothing repeats. Transform-only (rotation/scale/offset, applied after layout), so a hover never changes a control's fitting size or refits the panel. Identity under Reduce Motion. `turn` 45° (gear, refresh, retry) · `pop` ×1.15 (footer leading icons, Projects sort icon) · `outward` (+1.5, −1.5)pt (external `arrow.up.right`) · `drop` (0, +1.5)pt (header chip `chevron.down`) · `rise` (0, −1.5)pt (update arrow) · `forward` (+1.5, 0)pt inside the collapse rotation (section-header chevron) |
 | Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
 | MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
@@ -500,6 +505,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `MotionConstants.standard` | `.easeOut(duration: 0.15)` | Standard section expand/collapse, settings toggle, account switch |
 | `MotionConstants.snappy` | `.easeOut(duration: 0.1)` | Session navigation, metric mode change |
 | `MotionConstants.smooth` | `.easeInOut(duration: 0.4)` | Gauge bar fill, chart transitions |
+| `MotionConstants.iconHover` | `.spring(response: 0.28, dampingFraction: 0.62)` | Icon hover motion (`IconHover`). A spring so a pointer leaving mid-animation retargets with its velocity instead of restarting the curve |
 | `MotionConstants.expandTransition` | `.opacity` (plain cross-fade) | Section / settings expand-collapse content transition. `.move(edge:)` is banned inside the popover — see token doc-comment for the NSPanel resize-race rationale. |
 | `MotionConstants.fadeIn` | `.easeIn(duration: 0.3)` | Marquee text fade-in, generic incoming-content fade |
 | `MotionConstants.marqueePauseSeconds` | `0.5` seconds | Pause at each end of a marquee scroll; also initial geometry-settle delay |
@@ -623,7 +629,9 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Tertiary label | black 55% | white 35% |
 | Track fill | black 14% opacity | white 10% opacity |
 | Badge fill | black 9% opacity | white 6% opacity |
-| Hover fill | black 6% opacity | white 6% opacity |
+| Hover fill | black 4% opacity | white 4% opacity |
+| Hover stroke (defined, not currently applied) | black 8% opacity | white 8% opacity |
+| Copyable hover fill | black 10% opacity | white 10% opacity |
 | Disabled opacity | 0.55 | 0.55 |
 | Disabled deep opacity | 0.25 | 0.25 |
 | Popover background | `controlBackgroundColor` (opaque white) | `controlBackgroundColor` (opaque dark) |
