@@ -112,6 +112,7 @@ AIBattery/
     ModelPricing.swift            — Per-model pricing lookup + cost calculation
     LocalUsageEstimate.swift      — Fallback token estimation when unified headers unavailable (calibration + plan tier)
     PlanTier.swift                — Claude plan tiers (Pro/Max 5×/Max 20×/Team) with estimated 5h/7d limits
+    ClaudePlan.swift              — Anthropic OAuth profile → Claude plan (`billingType` "max_20x" etc.) + its label ("Max 20×"); pure
     RateLimitSource.swift         — Enum tracking where rate limit data came from (API / local estimate / standard)
     StandardRateLimits.swift      — Standard per-model request/token rate limits from API headers
   Services/
@@ -137,6 +138,7 @@ AIBattery/
     RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)
     RateLimitFetcher+UsageEndpoint.swift  — Dedicated `/api/oauth/usage` primary path: `interpretUsageEndpoint` (pure) + async `fetchUsageEndpoint` wrapper
     RateLimitFetcher+ClientData.swift     — Claude Code `/api/oauth/claude_cli/client_data` fallback path: `interpretClaudeCodeClientData` (pure), async `fetchClaudeCodeClientData` wrapper, and `containsStandardRateLimitHeaders` (`nonisolated static`, called from the Messages path too)
+    ClaudePlanFetcher.swift       — Once-per-launch `GET /api/oauth/profile` per Claude account → `billingType`; `interpret` + `accountsNeedingPlan` are pure
     RateLimitFetcher+Persistence.swift    — UserDefaults-backed per-account cache: `PersistedRateLimits` (file-private), `persistRateLimits` (called by `fetch` on success), `restorePersistedRateLimits` (called from init; runs `withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence is dropped)
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
     SessionLogReader.swift        — Claude JSONL streaming reader (FileHandle, 64KB chunks)
@@ -371,6 +373,7 @@ CHANGELOG.md                      — Release notes per version
 1. `GET https://api.anthropic.com/api/oauth/usage` — **primary** rate-limit fetch (dedicated usage endpoint, no model probe needed; first call every cycle)
 2. `GET https://api.anthropic.com/api/oauth/claude_cli/client_data` — Claude Code usage windows + account metadata (fallback)
 3. `POST https://api.anthropic.com/v1/messages?beta=true` — legacy unified/public rate-limit headers + org profile (probe fallback, ~10% hit rate)
+3a. `GET https://api.anthropic.com/api/oauth/profile` — the account's plan (`organization_type` + `rate_limit_tier`), once per Claude account per launch (`ClaudePlanFetcher`)
 4. `GET https://status.claude.com/api/v2/summary.json` — system status (every refresh interval)
 5. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
 6. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)

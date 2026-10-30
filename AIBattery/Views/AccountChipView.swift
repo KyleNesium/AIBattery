@@ -190,7 +190,7 @@ struct AccountChipView: View {
             "\(account.provider.displayName) account",
             AccountStore.identityLabel(for: account, providerIndex: providerIndex, maskEmail: maskEmail),
         ]
-        if account.provider == .codex, let plan = AccountStore.planLabel(account.billingType) {
+        if let plan = AccountStore.planLabel(for: account) {
             parts.append(plan)
         }
         if isActive {

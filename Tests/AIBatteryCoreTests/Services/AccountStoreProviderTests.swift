@@ -70,6 +70,19 @@ struct AccountStoreProviderTests {
         #expect(AccountStore.planLabel("api") == "API")
     }
 
+    /// The chip menu and Settings rows show a Claude plan exactly like a Codex one.
+    @Test func displayLabel_includesClaudePlan() {
+        var claude = record("c1", .claude)
+        claude.billingType = "max_20x"
+        #expect(AccountStore.displayLabel(for: claude, providerIndex: 0, showsProviderGlyph: false, includePlan: true, maskEmail: true) == "Claude 1 · Max 20×")
+        #expect(AccountStore.displayLabel(for: claude, providerIndex: 0, showsProviderGlyph: false, includePlan: false, maskEmail: true) == "Claude 1")
+        #expect(AccountStore.planLabel(for: claude) == "Max 20×")
+        // Codex wording is unchanged by the Claude path.
+        var codex = record("x1", .codex)
+        codex.billingType = "max_20x"
+        #expect(AccountStore.planLabel(for: codex) == "Max 20x")
+    }
+
     /// Resolving a pending Claude record onto an org that is already registered merges
     /// the two; the discovered identity survives the merge like the alias and plan do.
     @Test func update_mergePreservesDiscoveredIdentity() {
