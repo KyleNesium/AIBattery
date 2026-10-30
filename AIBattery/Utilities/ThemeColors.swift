@@ -205,25 +205,26 @@ enum ThemeColors {
     }
 
     /// Hover highlight for interactive elements (buttons, chevrons, headers).
-    /// 10%: at 6% the highlight barely separated from the panel, so a hovered tab or
-    /// header read as unchanged. Still well under the selected tab's `surfaceLevel2`.
+    /// 15%: at 6%, and still at 10%, a hovered tab or header read as unchanged. Kept
+    /// under the selected tab's `surfaceLevel2` (white 18% in dark) so hover never
+    /// passes for selection.
     static let hoverFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.10),
-        dark: NSColor(white: 1.0, alpha: 0.10)
+        light: NSColor(white: 0.0, alpha: 0.15),
+        dark: NSColor(white: 1.0, alpha: 0.15)
     )
 
     /// Hairline edge for a neutral hover highlight. Every highlight in the popover is a
     /// fill plus this edge; a fill on its own reads as a smudge rather than a shape.
     static let hoverStroke: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.18),
-        dark: NSColor(white: 1.0, alpha: 0.18)
+        light: NSColor(white: 0.0, alpha: 0.30),
+        dark: NSColor(white: 1.0, alpha: 0.30)
     )
 
     /// Stronger hover highlight for copyable elements (signals "click to copy"). Kept a
     /// step above `hoverFill`.
     static let copyableHoverFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.20),
-        dark: NSColor(white: 1.0, alpha: 0.20)
+        light: NSColor(white: 0.0, alpha: 0.26),
+        dark: NSColor(white: 1.0, alpha: 0.26)
     )
 
     /// Divider opacity (StyledDivider).
@@ -239,7 +240,7 @@ enum ThemeColors {
     static let subtleBorderOpacity: Double = 0.2
 
     /// Medium border opacity for hovered outlines.
-    static let hoverBorderOpacity: Double = 0.55
+    static let hoverBorderOpacity: Double = 0.75
 
     /// Active-state label opacity for secondary text.
     static let activeLabelOpacity: Double = 0.5
@@ -256,14 +257,13 @@ enum ThemeColors {
     /// Deeply disabled control opacity (chevron arrows when at boundary).
     static let disabledDeepOpacity: Double = 0.25
 
-    /// Subtle element fill opacity (banner backgrounds, auto mode fills).
     /// Overview row highlight. Tinted with the account's provider colour rather than a
     /// flat grey: the brand mark is already on the row, so the highlight belongs to that
     /// account instead of looking like a generic selection block. The hairline stroke,
-    /// not the fill, gives the row its shape; at 0.07 / 0.18 the pair was too faint to
-    /// register, so both were raised.
-    static let rowHoverTintOpacity: Double = 0.12
-    static let rowHoverStrokeOpacity: Double = 0.30
+    /// not the fill, gives the row its shape. 0.07 / 0.18 and then 0.12 / 0.30 were both
+    /// too faint to register on a hover.
+    static let rowHoverTintOpacity: Double = 0.22
+    static let rowHoverStrokeOpacity: Double = 0.50
     /// How far the "beta" label sits behind the tertiary label it is drawn in.
     static let betaBadgeOpacity: Double = 0.75
 
@@ -274,6 +274,7 @@ enum ThemeColors {
     /// Low point of the live dot's breath. High enough that it never looks switched off.
     static let liveDotDimOpacity: Double = 0.55
 
+    /// Subtle element fill opacity (banner backgrounds, auto mode fills).
     static let subtleElementOpacity: Double = 0.12
 
     /// Subtle border/stroke opacity (banner outlines).
