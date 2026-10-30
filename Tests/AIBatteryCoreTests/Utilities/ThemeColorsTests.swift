@@ -270,8 +270,8 @@ struct ThemeColorsTests {
 
     /// The overview row's hover: the hairline gives the shape, so it stays above the fill.
     @Test func rowHover_strokeLeadsTheFill() {
-        #expect(ThemeColors.rowHoverTintOpacity == 0.22)
-        #expect(ThemeColors.rowHoverStrokeOpacity == 0.50)
+        #expect(ThemeColors.rowHoverTintOpacity == 0.04)
+        #expect(ThemeColors.rowHoverStrokeOpacity == 0.12)
         #expect(ThemeColors.rowHoverStrokeOpacity > ThemeColors.rowHoverTintOpacity)
     }
 }
