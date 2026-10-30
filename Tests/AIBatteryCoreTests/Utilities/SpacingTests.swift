@@ -86,6 +86,12 @@ struct MotionConstantsTests {
         #expect(MotionConstants.fadeIn == .easeIn(duration: 0.3))
     }
 
+    @Test func iconHover_isAShortSpring() {
+        // A spring, not an ease: a pointer leaving mid-animation retargets it with its
+        // current velocity instead of restarting the curve.
+        #expect(MotionConstants.iconHover == .spring(response: 0.28, dampingFraction: 0.62))
+    }
+
     // MARK: - expandTransition: opacity-only contract
 
     @Test func expandTransition_isPlainOpacity_notMove() {

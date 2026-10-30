@@ -174,7 +174,7 @@ AIBattery/
     UsagePopoverView.swift        — Thin popover orchestrator: wires sub-views via init params, owns state
     PopoverHeaderView.swift       — Header row: account chip, update arrow (when available) + gear
     UpdateArrowButton.swift       — Header/overview-footer arrow shown only when `availableUpdate` is set; click installs via Sparkle, right-click opens a context menu (release notes / check for updates); replaces the old update banner + gear badge
-    SettingsGearButton.swift      — Gear icon opening Settings
+    SettingsGearButton.swift      — Gear icon opening Settings; the gear turns one tooth on hover (`IconHover.turn`)
     AccountChipView.swift         — Compact account chip (brand badge + provider + identity) whose click pops the AppKit switch/add NSMenu
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
@@ -192,6 +192,9 @@ AIBattery/
     Components/
       GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
       GaugeRow.swift              — Shared "labelled gauge row" shell: VStack[Header HStack + GaugeBar + TimelineView footer]. Accepts headerLeading / headerTrailing / footer ViewBuilders. Owns accessibility wiring and timeline schedule. Backs UsageBar (5h/7d) and StandardLimitBar.
+      IconHover.swift             — Hover motion for icons (`IconHover` presets + `.iconHover(_:active:)`): transform-only rotation/scale/offset, one `MotionConstants.iconHover` spring on enter and exit, identity under Reduce Motion; never changes layout, so a hover never refits the panel
+      LiveDot.swift               — Breathing dot beside an overview card's name while that provider is in use (static under Reduce Motion)
+      BetaBadge.swift             — Dimmed "beta" label for sections whose numbers are still approximate
       LinkActionButton.swift      — Inline link-styled action button (Size.standard for settings, .compact for in-banner). One canonical implementation for Add Account, Test, Download, Install Update — all routed through ThemeColors.action with consistent icon/label spacing.
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars; UsageBar.AlarmState gates throttle/limit alarm on confirmed (fresh) data
     LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable (window label follows provider vocabulary)
@@ -209,7 +212,7 @@ AIBattery/
     CollapsibleSectionHeader.swift — Shared collapsible header with rotating chevron, used by 3 sections (Context, Projects, Insights)
     StyledDivider.swift            — Standardized divider: Divider() at 0.3 opacity, Spacing.tight vertical padding
     FooterLink.swift              — Footer link button with hover underline and external arrow
-    RefreshButton.swift           — Refresh button with brief spin animation
+    RefreshButton.swift           — Refresh button with brief spin animation; winds 45° on hover (`IconHover.turn`)
     CopyableText.swift            — ViewModifier for click-to-copy: full CopyableModifier + lightweight LightCopyableModifier for dense areas
     MarqueeText.swift             — News-ticker scrolling text, supports multi-text cycling with cross-fade
   Utilities/

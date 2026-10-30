@@ -12,6 +12,7 @@ struct UpdateArrowButton: View {
     let update: VersionChecker.UpdateInfo
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var breathing = false
+    @State private var hovered = false
 
     nonisolated static let releaseNotesTitle = "Release notes"
     nonisolated static let checkForUpdatesTitle = "Check for Updates"
@@ -35,11 +36,15 @@ struct UpdateArrowButton: View {
                 .font(Typography.headerGear)
                 .foregroundStyle(ThemeColors.updateAvailable)
                 .shadow(color: ThemeColors.updateAvailable.opacity(ThemeColors.chevronGlowOpacity), radius: Layout.glowRadius)
+                // Inside the breathing opacity: the hover spring moves the glyph and
+                // its glow together and leaves the repeating breath alone.
+                .iconHover(.rise, active: hovered)
                 .opacity(breathing ? ThemeColors.liveDotDimOpacity : 1)
                 .frame(width: Layout.accountChipHeight, height: Layout.accountChipHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovered = $0 }
         .onAppear {
             guard let animation = Self.breatheAnimation(reduceMotion: reduceMotion) else { return }
             withAnimation(animation) { breathing = true }

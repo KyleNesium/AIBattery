@@ -409,7 +409,8 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Copy clipboard icon display | 1.5 seconds (`MotionConstants.clipboardFeedbackNs`), `MotionConstants.standard` (.easeOut 0.15) for both show and hide; `.scale`+`.opacity` transition |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
-| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.15) background, `NSCursor.pointingHand` |
+| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.20) background, `NSCursor.pointingHand` |
+| Icon hover motion | `IconHover` presets, `MotionConstants.iconHover` spring (response 0.28, damping 0.62), one settle on enter and one on exit, nothing repeats. Transform-only (rotation/scale/offset, applied after layout), so a hover never changes a control's fitting size or refits the panel. Identity under Reduce Motion. `turn` 45° (gear, refresh, retry) · `pop` ×1.15 (footer leading icons, Projects sort icon) · `outward` (+1.5, −1.5)pt (external `arrow.up.right`) · `drop` (0, +1.5)pt (header chip `chevron.down`) · `rise` (0, −1.5)pt (update arrow) · `forward` (+1.5, 0)pt inside the collapse rotation (section-header chevron) |
 | Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
 | MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
@@ -500,6 +501,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `MotionConstants.standard` | `.easeOut(duration: 0.15)` | Standard section expand/collapse, settings toggle, account switch |
 | `MotionConstants.snappy` | `.easeOut(duration: 0.1)` | Session navigation, metric mode change |
 | `MotionConstants.smooth` | `.easeInOut(duration: 0.4)` | Gauge bar fill, chart transitions |
+| `MotionConstants.iconHover` | `.spring(response: 0.28, dampingFraction: 0.62)` | Icon hover motion (`IconHover`). A spring so a pointer leaving mid-animation retargets with its velocity instead of restarting the curve |
 | `MotionConstants.expandTransition` | `.opacity` (plain cross-fade) | Section / settings expand-collapse content transition. `.move(edge:)` is banned inside the popover — see token doc-comment for the NSPanel resize-race rationale. |
 | `MotionConstants.fadeIn` | `.easeIn(duration: 0.3)` | Marquee text fade-in, generic incoming-content fade |
 | `MotionConstants.marqueePauseSeconds` | `0.5` seconds | Pause at each end of a marquee scroll; also initial geometry-settle delay |
@@ -623,7 +625,9 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Tertiary label | black 55% | white 35% |
 | Track fill | black 14% opacity | white 10% opacity |
 | Badge fill | black 9% opacity | white 6% opacity |
-| Hover fill | black 6% opacity | white 6% opacity |
+| Hover fill | black 10% opacity | white 10% opacity |
+| Hover stroke (defined, not currently applied) | black 18% opacity | white 18% opacity |
+| Copyable hover fill | black 20% opacity | white 20% opacity |
 | Disabled opacity | 0.55 | 0.55 |
 | Disabled deep opacity | 0.25 | 0.25 |
 | Popover background | `controlBackgroundColor` (opaque white) | `controlBackgroundColor` (opaque dark) |

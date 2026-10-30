@@ -231,6 +231,11 @@ enum MotionConstants {
     /// Full-rotation spin (refresh button): 0.5s easeInOut.
     static let spin: Animation = .easeInOut(duration: 0.5)
 
+    /// Icon hover motion (`IconHover`): a short, slightly springy settle. A spring rather
+    /// than an ease because a pointer that leaves mid-animation retargets it with its
+    /// current velocity instead of restarting the curve, so a quick pass never stutters.
+    static let iconHover: Animation = .spring(response: 0.28, dampingFraction: 0.62)
+
     // MARK: - Marquee (footer incident ticker)
 
     /// Pause at each end of a marquee scroll, and the initial geometry-settle
