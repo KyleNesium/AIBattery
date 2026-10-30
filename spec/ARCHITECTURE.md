@@ -237,7 +237,7 @@ AIBattery/
     IdleSuspendPolicy.swift       — Pure idle-suspension policy (5-min threshold) — used by UsageViewModel to skip polling when machine idle
     Typography.swift              — Named font style tokens (sectionHeader, monoValue, tinyLabel, decorativeIcon, etc.) — caseless enum namespace
     Spacing.swift                 — Spacing/Layout/MotionConstants enums — caseless enum namespaces co-located
-    KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
+    KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager); `read` tells found / not found / failed apart
     RetryPolicy.swift             — Pure value-type exponential-backoff + jitter policy with `nonisolated static` API. 4 presets (`oauth`, `statusCheck`, `fileWatch`, `rateLimit`) carry historical values from CONSTANTS.md. Used by OAuthManager, StatusChecker, FileWatcher, RateLimitFetcher
     ReasoningVocabulary.swift     — "Thinking" vs "Reasoning" label by model prefix (Claude vs Codex/GPT)
 Tests/AIBatteryCoreTests/

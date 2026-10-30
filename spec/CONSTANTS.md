@@ -30,6 +30,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
+| Keychain read retry | A failed launch read (any status but `errSecUserCanceled` -128 / `errSecAuthFailed` -25293) keeps the account signed in and is re-read off main from `getAccessToken(for:)`, one read in flight per account; a read that fails again arms the token refresh failure backoff below | OAuthManager |
 | Token refresh failure backoff | Same `RetryPolicy.statusCheck` curve (60 s → 300 s, ±20% jitter), per account. Armed only by a **transient** failure; an auth failure signs out instead. Cleared by any successful refresh and by `signOut`. While backing off, `getAccessToken(for:)` returns nil without touching the endpoint — previously every poll re-ran all 3 attempts with their 1 s + 2 s sleeps | OAuthManager |
 | Token endpoint timeout | 30 sec | OAuthManager |
 | Adaptive polling threshold | 3 unchanged cycles | AdaptivePollingState |

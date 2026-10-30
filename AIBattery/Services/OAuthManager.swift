@@ -82,6 +82,22 @@ public final class OAuthManager: ObservableObject {
         refreshBackoff[accountId] = nil
     }
 
+    /// Accounts whose saved sign-in couldn't be read: the Keychain read failed instead of
+    /// finding nothing (a prompt cancelled by sleep → `errSecInDarkWake`, a locked
+    /// keychain). They stay signed in on their last reading instead of dropping to the
+    /// sign-in screen; `getAccessToken` retries the read on the refresh backoff curve.
+    private var unreadableAccounts: Set<String> = []
+    /// One in-flight retry read per account, so concurrent callers raise one prompt.
+    private var keychainRetries: [String: Task<Void, Never>] = [:]
+    /// Reader for the retry; tests swap in a stub. The launch read always uses the Keychain.
+    var keychainRead: @Sendable (String) -> KeychainHelper.ReadResult = { KeychainHelper.read(account: $0) }
+
+    /// Whether a failed read is worth retrying. Deny / Cancel on the prompt is a refusal,
+    /// and retrying would only raise the prompt again, so that account signs out as before.
+    nonisolated static func isRetryableReadFailure(_ status: OSStatus) -> Bool {
+        status != errSecUserCanceled && status != errSecAuthFailed
+    }
+
     /// Account registry — persisted to UserDefaults.
     @Published public var accountStore = AccountStore()
 
@@ -171,6 +187,10 @@ public final class OAuthManager: ObservableObject {
 
         // Try to refresh
         guard let refresh = acctTokens.refreshToken else {
+            if unreadableAccounts.contains(accountId) {
+                retryKeychainRead(accountId: accountId)
+                return nil
+            }
             AppLogger.oauth.error("getAccessToken: no refresh token for account \(accountId, privacy: .public)")
             return nil
         }
@@ -445,6 +465,8 @@ public final class OAuthManager: ObservableObject {
         tokens.removeValue(forKey: id)
         refreshTasks[id]?.cancel()
         refreshTasks.removeValue(forKey: id)
+        unreadableAccounts.remove(id)
+        keychainRetries.removeValue(forKey: id)?.cancel()
         // Account ids are deterministic across a re-login (JWT account id / key hash),
         // so a fresh sign-in must not inherit the old one's backoff window.
         clearRefreshBackoff(accountId: id)
@@ -476,17 +498,16 @@ public final class OAuthManager: ObservableObject {
 
     // MARK: - Auth State
 
-    /// Whether a specific account currently has a refresh token (i.e. is authenticated).
+    /// Whether a specific account currently has a refresh token (i.e. is authenticated),
+    /// or has a saved one the Keychain couldn't hand over yet (`unreadableAccounts`).
     /// Used by multi-account fan-out to skip accounts whose refresh tokens are missing
     /// (e.g. removed account that hasn't been pruned, or pending sign-out).
     public func isAuthenticated(accountId: String) -> Bool {
-        tokens[accountId]?.refreshToken != nil
+        tokens[accountId]?.refreshToken != nil || unreadableAccounts.contains(accountId)
     }
 
     func updateAuthState() {
-        guard let activeId = accountStore.activeAccountId,
-              let acctTokens = tokens[activeId],
-              acctTokens.refreshToken != nil else {
+        guard let activeId = accountStore.activeAccountId, isAuthenticated(accountId: activeId) else {
             isAuthenticated = false
             return
         }
@@ -615,7 +636,7 @@ public final class OAuthManager: ObservableObject {
         OAuthTokenStorage.save(data, for: Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
 
-    private func loadTokens(for accountId: String) -> AccountTokens {
+    private func loadTokens(for accountId: String) -> OAuthTokenStorage.Loaded {
         OAuthTokenStorage.load(for: Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
 
@@ -640,9 +661,63 @@ public final class OAuthManager: ObservableObject {
         tokens[accountId] = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
     }
 
+    /// Synchronous on purpose (state is complete before the first refresh), so an
+    /// unapproved Keychain prompt holds launch until it is answered or cancelled.
     private func loadAllTokens() {
         for account in accountStore.accounts {
-            tokens[account.id] = loadTokens(for: account.id)
+            let loaded = loadTokens(for: account.id)
+            tokens[account.id] = loaded.tokens
+            if let status = loaded.readFailure, Self.isRetryableReadFailure(status) {
+                unreadableAccounts.insert(account.id)
+            }
         }
+    }
+
+    // MARK: - Keychain read retry
+
+    /// Re-reads an unreadable account's saved sign-in. Fire-and-forget and off the main
+    /// actor: a read that raises the Keychain prompt blocks its thread until the prompt is
+    /// answered, and on main that froze the whole app. The caller gets nil this cycle (the
+    /// last reading stays up); the refresh after the read succeeds uses the token.
+    private func retryKeychainRead(accountId: String) {
+        guard keychainRetries[accountId] == nil else { return }
+        let key = Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId))
+        let read = keychainRead
+        keychainRetries[accountId] = Task { [weak self] in
+            let loaded = await Task.detached { OAuthTokenStorage.load(for: key, readKeychain: read) }.value
+            self?.finishKeychainRetry(accountId: accountId, loaded: loaded)
+        }
+    }
+
+    private func finishKeychainRetry(accountId: String, loaded: OAuthTokenStorage.Loaded) {
+        keychainRetries[accountId] = nil
+        // Signed out, or signed in afresh, while the read was out: nothing to restore.
+        guard unreadableAccounts.contains(accountId), let current = tokens[accountId], current.refreshToken == nil else {
+            unreadableAccounts.remove(accountId)
+            return
+        }
+        if let status = loaded.readFailure, Self.isRetryableReadFailure(status) {
+            recordRefreshFailure(accountId: accountId)
+            AppLogger.oauth.info("Keychain retry for \(accountId, privacy: .public) still failing (\(status)), backing off")
+            return
+        }
+        // Found the token, found nothing (gone), or refused: either way no longer "unreadable".
+        unreadableAccounts.remove(accountId)
+        tokens[accountId] = loaded.tokens
+        clearRefreshBackoff(accountId: accountId)
+        let restored = loaded.tokens.refreshToken != nil
+        AppLogger.oauth.info("Keychain retry for \(accountId, privacy: .public): \(restored ? "sign-in restored" : "no usable sign-in", privacy: .public)")
+        updateAuthState()
+    }
+
+    /// Test seams: mark an account as having an unreadable saved sign-in, and expose the
+    /// in-flight retry so a test can await it.
+    func seedUnreadableKeychainForTesting(accountId: String) {
+        tokens[accountId] = AccountTokens(accessToken: nil, refreshToken: nil, expiresAt: nil)
+        unreadableAccounts.insert(accountId)
+    }
+
+    func pendingKeychainRetry(accountId: String) -> Task<Void, Never>? {
+        keychainRetries[accountId]
     }
 }
