@@ -260,7 +260,7 @@ AI Battery is free and open source. If it helps you get more out of your subscri
 
 ## Test Coverage
 
-**1646 tests** across 125 test files.
+**1647 tests** across 125 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
@@ -268,7 +268,7 @@ AI Battery is free and open source. If it helps you get more out of your subscri
 | Services | 630 | Session-log readers for both providers (streaming, caching, oversized lines, concurrency), Codex per-account attribution and fallback gating, token ledger high-water marks and key migration, aggregation (one pass, two snapshots), OAuth managers (PKCE, refresh, error classification), rate-limit fetchers and backoff, Keychain, secure networking, status checker, notifications, Sparkle updates, the Codex callback server's CSRF and one-shot rules, account-id-keyed storage migration, project identity (symlinks and worktrees), the incremental tail parse |
 | Views | 242 | Menu-bar text and headline percent, panel refit trigger, header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner, the menu bar's spoken description, each brand mark's own hover gesture (Claude's radiating bloom, Codex's full turn) and the Reduce Motion fallback |
 | ViewModels | 102 | Multi-account fan-out (routing, carry-forward, generation stamp), refresh interval and adaptive polling, throttle tracking per account, stale rate-limit expiry, auth-error reconnect, cross-account refresh races, provider switching, off-main aggregation |
-| Utilities | 256 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette, panel translucency), menu-bar icon rendering and cache, date formatters, JSONL newline scanning and the reused read buffer, email masking, logging redaction |
+| Utilities | 257 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette, the hover wash's fill-vs-edge balance), menu-bar icon rendering and cache, date formatters, JSONL newline scanning and the reused read buffer, email masking, logging redaction |
 
 ## License
 

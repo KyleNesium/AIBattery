@@ -261,15 +261,21 @@ struct ThemeColorsTests {
         #expect(ThemeColors.shadowColor == .black)
     }
 
-    // MARK: - Panel translucency
+    // MARK: - Overview row hover wash
 
-    /// The popover body lets a little of the desktop through — the panel is already
-    /// `isOpaque = false` with a `.clear` background, so this alpha is the only thing
-    /// standing between the content and the wallpaper. It has to stay *slightly*
-    /// translucent: there is no blur behind the panel, so anything lower stops reading
-    /// as frosted glass and starts costing text contrast over a busy wallpaper.
-    @Test func panelBody_isSlightlyTranslucentButStillNearlySolid() {
-        #expect(ThemeColors.panelBackgroundAlpha < 1.0)
-        #expect(ThemeColors.panelBackgroundAlpha >= 0.9)
+    /// The hovered card's provider-tinted wash is two layers, and they are not
+    /// interchangeable: the fill is the *body* of the glow and the stroke is its edge.
+    /// The fill must stay the fainter of the two — it covers the whole card, including
+    /// the bars, so at the stroke's weight it reads as a coloured panel laid over the
+    /// content rather than a highlight under it.
+    @Test func rowHoverFill_staysFainterThanItsEdge() {
+        #expect(ThemeColors.rowHoverTintOpacity < ThemeColors.rowHoverStrokeOpacity)
+        #expect(ThemeColors.rowHoverTintOpacity > 0)
+    }
+
+    /// The edge is what gives the row its shape — the fill alone is a blob. So a pass
+    /// that quietens the glow must leave the hairline alone.
+    @Test func rowHoverStroke_keepsItsWeight() {
+        #expect(ThemeColors.rowHoverStrokeOpacity == 0.18)
     }
 }

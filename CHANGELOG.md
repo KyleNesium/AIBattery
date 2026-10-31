@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- **The popover body lets a little of the desktop through.** The panel background is now very slightly translucent (0.93) instead of fully solid, so it reads as a panel sitting over your desktop rather than a flat slab. Only the body changed — cards, hover fills and tooltips keep their own opacity, so nothing layered on top washes out.
+- **The hover glow on a card is quieter.** The orange or green wash that fills a card under the pointer is fainter (0.07 → 0.04), so it no longer competes with the bars underneath it. Its hairline edge is unchanged — that outline, not the fill, is what gives the card its shape.
 - **Bigger logos on the overview cards.** 14pt instead of 12pt. The slot around them is unchanged, so every column still lines up; the header chip and Settings rows keep the smaller mark.
 - **The brand marks come alive on hover.** Point at an account card or the header chip and its logo lifts and glows in the provider's own colour — then does whatever its own shape asks for. Claude's sunburst radiates, its rays pushing out past the edges and fading; the OpenAI knot turns a full revolution. The whole card is the target, not the 12pt logo. Reduce Motion keeps the glow and drops the movement.
 

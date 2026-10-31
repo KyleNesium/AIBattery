@@ -266,7 +266,12 @@ enum ThemeColors {
     /// flat grey: the brand mark is already on the row, so the highlight belongs to that
     /// account instead of looking like a generic selection block. Kept to a whisper —
     /// the hairline stroke, not the fill, is what gives the row its shape.
-    static let rowHoverTintOpacity: Double = 0.07
+    ///
+    /// The fill is the *body* of that wash and is deliberately fainter than the edge:
+    /// at 0.07 the orange and green read as a coloured panel laid over the card, which
+    /// competed with the bars inside it. The stroke stays where it is — dropping both
+    /// together would have cost the row its shape rather than just its weight.
+    static let rowHoverTintOpacity: Double = 0.04
     static let rowHoverStrokeOpacity: Double = 0.18
     /// How far the "beta" label sits behind the tertiary label it is drawn in.
     static let betaBadgeOpacity: Double = 0.75
@@ -314,20 +319,14 @@ enum ThemeColors {
     /// Dark mode: rgb(28,28,30) — the standard system dark panel color.
     /// Light mode: rgb(246,246,246) — standard system light panel color.
     ///
-    /// Slightly translucent (`panelBackgroundAlpha`): the panel is already
-    /// `isOpaque = false` with a `.clear` `backgroundColor`, so this alpha is what lets
-    /// a hint of the desktop through and stops the popover reading as a flat slab. Only
-    /// this body colour is translucent — the surfaces, hover fills and tooltip materials
-    /// layered on top of it keep their own opacity, or the whole stack would wash out.
+    /// Deliberately **opaque**. Translucency was tried here and reverted: the panel has
+    /// no `NSVisualEffectView` behind it, so a lower alpha is the raw desktop showing
+    /// through rather than frosted glass, and it costs text contrast over a busy
+    /// wallpaper for no gain.
     static let panelBackground: Color = adaptive(
-        light: NSColor(white: 0.965, alpha: panelBackgroundAlpha),
-        dark: NSColor(red: 0.11, green: 0.11, blue: 0.118, alpha: panelBackgroundAlpha)
+        light: NSColor(white: 0.965, alpha: 1.0),
+        dark: NSColor(red: 0.11, green: 0.11, blue: 0.118, alpha: 1.0)
     )
-
-    /// How solid the popover body is. Kept high: there is no blur behind the panel, so
-    /// everything below this reads as the desktop showing through rather than frosted
-    /// glass, and text contrast falls off fast against a busy wallpaper.
-    static let panelBackgroundAlpha: CGFloat = 0.93
 
     // MARK: - Surface elevation (dark mode depth hierarchy)
 
