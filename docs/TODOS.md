@@ -7,20 +7,10 @@ through; the history is in `CHANGELOG.md`.
 
 Triaged 2026-10-31 against source, and the queue was then worked top-down — everything
 the triage marked "do" is in `CHANGELOG.md` for the next release. What is left is below:
-two items that need a decision or a certificate, and the verdicts kept so they are not
-re-litigated.
+one product decision, two blockers that need a certificate or a newer deployment target,
+and the verdicts kept so they are not re-litigated.
 
 ## Open
-
-- [ ] **The Claude reader has no date bound.** The aggregator never looks past 12 months,
-  but `SessionLogReader` still discovers and re-scans every JSONL file ever written. The
-  Codex side now skips date folders older than `CodexSessionLogReader.retentionHorizonMonths`
-  (13), which is free there because the date is in the path and Codex all-time figures are a
-  `TokenLedger` high-water mark. Claude is different: its all-time totals take a floor from
-  **every** JSONL date, not just the dates in `stats-cache.json`, so dropping old files could
-  visibly lower someone's all-time number. **Approach:** first prove the ledger high-water is
-  a sufficient floor for Claude (or record a one-time pre-prune snapshot), then apply the same
-  horizon at discovery using `.contentModificationDateKey`, which the enumerator can prefetch.
 
 - [ ] **Decide the Projects "beta" badge.** The badge says per-project attribution "is still
   being refined". Its concrete half shipped: rows now group by `ProjectIdentityResolver`
@@ -48,6 +38,23 @@ re-litigated.
 ## Decided not to do
 
 Kept so they are not re-litigated.
+
+- **A retention horizon for the Claude reader**, mirroring `CodexSessionLogReader`. Measured on a
+  real tree 2026-10-31 and the premise does not hold: Claude Code prunes its own session logs, so
+  there is nothing for a horizon to skip. 2700 files / 755 MB, and the oldest is 46 days old
+  (`find ~/.claude/projects -name '*.jsonl' -mtime +45` → 0; the cliff is at ~45 days, with only 3
+  files past 40). A 13-month filter would skip zero files and save zero time, while adding a
+  `.contentModificationDateKey` prefetch to every discovery pass. The two trees are opposites and
+  the asymmetry in the code is correct: `~/.codex/sessions` is **not** pruned — 1734 files with 105
+  already past 90 days and climbing — which is what the Codex horizon is guarding against, and why
+  it stays. Revisit only if Claude Code stops pruning.
+  The all-time-floor worry that blocked this is also the wrong way round. `stats-cache.json` on that
+  machine stopped being written in February (`lastComputedDate` 2026-02-20, 9 daily entries) while
+  the logs only reach back to September, so the JSONL `max()` and the `TokenLedger` high-water mark
+  are *already* the only things carrying all-time — the ledger is doing exactly the job it exists
+  for, with no pruning change needed. Note the consequence: on a machine like this, a lost
+  `token-ledger.json` collapses All Time to the last ~7 weeks. That is the ledger's risk, not the
+  reader's.
 
 - **Session-log fallback inspects only the newest rollout.** With two ChatGPT accounts the one whose
   CLI session is newest gets the fallback and the other serves its cache. Outage × two accounts is

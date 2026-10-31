@@ -24,6 +24,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex session-log tail scan | 256 KB of the newest rollout | CodexSessionRateLimitScanner |
 | Codex newest-rollout walk TTL | 60 s (`newestFileCacheTTL`) — the fallback runs on every poll for the whole endpoint backoff, so the directory walk is memoized; invalidated by FileWatcher on a Codex write | CodexSessionRateLimitScanner |
 | Codex reader discovery TTL | 60 sec (+ root-dir mtime check) | CodexSessionLogReader |
+| Codex reader retention horizon | 13 months (`CodexSessionLogReader.retentionHorizonMonths`) — one past the aggregator's 12-month reach so the boundary month is read whole; skips older `YYYY`/`YYYY/MM` folders at discovery. No Claude counterpart: the Codex CLI never prunes, Claude Code prunes at ~45 days | CodexSessionLogReader |
 | Codex line pre-filter head | 512 bytes (`CodexSessionLogParser.relevanceHeadBytes`) | CodexSessionLogParser |
 | OpenAI API-key validation | `GET https://api.openai.com/v1/models`, 15 s timeout — **401** invalid, 2xx/429 valid, else (incl. 403) unknown → key added with an "it's checked on the first refresh" note | CodexRateLimitFetcher |
 | OpenAI API-key shape check | `sk-` prefix + ≥ 20 chars (`OAuthManager.looksLikeOpenAIAPIKey`) — run locally before any network | OAuthManager+Codex / AuthView |

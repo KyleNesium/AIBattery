@@ -276,9 +276,14 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
 
     /// Months of history worth discovering. The aggregator never looks past 12 months
     /// and Codex all-time figures are a `TokenLedger` high-water mark (so they survive a
-    /// file disappearing), but both readers retained and re-scanned everything — on this
-    /// machine the oldest retained rollout is 7 months old and the Codex CLI never
-    /// prunes. 13 rather than 12 so the boundary month is always read whole.
+    /// file disappearing), but the Codex CLI never prunes its rollouts, so the tree grows
+    /// without bound — measured 2026-10-31: 1734 files, 105 of them already past 90 days.
+    /// 13 rather than 12 so the boundary month is always read whole.
+    ///
+    /// `SessionLogReader` deliberately has no equivalent: Claude Code prunes its own
+    /// session logs at ~45 days (same machine, same day: 2700 files, oldest 46 days), so a
+    /// horizon there would skip nothing and only cost a date prefetch per discovery pass.
+    /// See `docs/TODOS.md` → "Decided not to do".
     static let retentionHorizonMonths = 13
 
     /// Whether a `~/.codex/sessions/YYYY[/MM[/DD]]` directory can still hold anything
