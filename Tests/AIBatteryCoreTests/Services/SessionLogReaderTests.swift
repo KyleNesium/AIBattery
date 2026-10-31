@@ -913,4 +913,140 @@ struct SessionLogReaderTests {
         #expect(entry.reasoningTokens == 0)
         #expect(entry.effortLabel == nil)
     }
+
+    // MARK: - Incremental tail parse
+
+    /// One assistant line carrying `toolCalls` tool_use blocks, so coalescing across the
+    /// resume boundary can be exercised.
+    private func assistantLineWithTools(
+        messageId: String,
+        toolCalls: Int,
+        timestamp: String = "2026-02-17T10:00:00.000Z",
+        sessionId: String = "ses-1"
+    ) -> String {
+        let blocks = (0..<toolCalls)
+            .map { #"{"type":"tool_use","id":"tu-\#(messageId)-\#($0)","name":"Read","input":{}}"# }
+            .joined(separator: ",")
+        return """
+        {"type":"assistant","timestamp":"\(timestamp)","sessionId":"\(sessionId)","message":{"role":"assistant","model":"claude-sonnet-4-5-20250929","id":"\(messageId)","content":[\(blocks)],"usage":{"input_tokens":100,"output_tokens":50}}}
+        """
+    }
+
+    private func append(_ lines: [String], to projectsDir: URL, sessionName: String = "session.jsonl") throws {
+        let fileURL = projectsDir.appendingPathComponent("-test-project").appendingPathComponent(sessionName)
+        let handle = try FileHandle(forWritingTo: fileURL)
+        defer { try? handle.close() }
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data((lines.joined(separator: "\n") + "\n").utf8))
+    }
+
+    /// An appended file must produce exactly what a parse from byte 0 would, including
+    /// the entries that were already there.
+    @Test func tailParse_appendedLinesMatchAFullReparse() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL([assistantLine(messageId: "msg-1"), assistantLine(messageId: "msg-2")], to: projectsDir)
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        #expect(reader.readAllUsageEntries().count == 2)
+
+        try append([assistantLine(messageId: "msg-3"), assistantLine(messageId: "msg-4")], to: projectsDir)
+        reader.invalidate()
+        let incremental = reader.readAllUsageEntries()
+
+        let fresh = SessionLogReader(projectsURL: projectsDir).readAllUsageEntries()
+        #expect(incremental.map(\.messageId).sorted() == fresh.map(\.messageId).sorted())
+        #expect(incremental.count == 4)
+    }
+
+    /// Claude Code writes one line per content block, all sharing `message.id`. A message
+    /// whose blocks straddle the resume offset must end up with ALL its tool calls — this
+    /// is the coalescing case that makes the tail parse risky.
+    @Test func tailParse_coalescesToolCallsAcrossTheResumeBoundary() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL([assistantLineWithTools(messageId: "msg-split", toolCalls: 2)], to: projectsDir)
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        #expect(reader.readAllUsageEntries().first?.toolCallCount == 2)
+
+        try append([assistantLineWithTools(messageId: "msg-split", toolCalls: 3)], to: projectsDir)
+        reader.invalidate()
+        let incremental = reader.readAllUsageEntries()
+
+        let fresh = SessionLogReader(projectsURL: projectsDir).readAllUsageEntries()
+        #expect(incremental.count == 1)
+        #expect(incremental.first?.toolCallCount == 5)
+        #expect(incremental.first?.toolCallCount == fresh.first?.toolCallCount)
+    }
+
+    /// A line still being written has no trailing newline. It is parsed (so the newest
+    /// turn shows immediately) but re-read on the next pass — its contribution must be
+    /// undone first, or its tool calls are counted twice.
+    @Test func tailParse_unterminatedTrailingLineIsNotCountedTwice() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        let fileURL = projectsDir.appendingPathComponent("-test-project").appendingPathComponent("session.jsonl")
+        let first = assistantLineWithTools(messageId: "msg-a", toolCalls: 1)
+        let partial = assistantLineWithTools(messageId: "msg-b", toolCalls: 2)
+        try Data((first + "\n" + partial).utf8).write(to: fileURL) // no trailing newline
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        let firstPass = reader.readAllUsageEntries()
+        #expect(firstPass.count == 2)
+        #expect(firstPass.first(where: { $0.messageId == "msg-b" })?.toolCallCount == 2)
+
+        // The writer terminates that line and appends another.
+        try append(["", assistantLineWithTools(messageId: "msg-c", toolCalls: 1)], to: projectsDir)
+        reader.invalidate()
+        let second = reader.readAllUsageEntries()
+
+        let fresh = SessionLogReader(projectsURL: projectsDir).readAllUsageEntries()
+        #expect(second.count == 3)
+        #expect(second.first(where: { $0.messageId == "msg-b" })?.toolCallCount == 2)
+        for entry in second {
+            let expected = fresh.first(where: { $0.messageId == entry.messageId })?.toolCallCount
+            #expect(entry.toolCallCount == expected, "\(entry.messageId) tool calls")
+        }
+    }
+
+    /// A rewritten (not appended) file must re-parse from the top: the offset into the
+    /// old contents means nothing once the head changes.
+    @Test func tailParse_rewrittenFileFallsBackToAFullParse() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        try writeJSONL([assistantLine(messageId: "old-1"), assistantLine(messageId: "old-2")], to: projectsDir)
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        #expect(reader.readAllUsageEntries().count == 2)
+
+        // Same path, entirely different contents, longer than before.
+        try writeJSONL(
+            [assistantLine(messageId: "new-1"), assistantLine(messageId: "new-2"), assistantLine(messageId: "new-3")],
+            to: projectsDir
+        )
+        reader.invalidate()
+        let rebuilt = reader.readAllUsageEntries()
+        #expect(rebuilt.map(\.messageId).sorted() == ["new-1", "new-2", "new-3"])
+    }
+
+    @Test func tailParseOffset_onlyAcceptsAnAppendToTheSameFile() {
+        let head = Data("head bytes".utf8)
+        let cached = SessionLogReader.FileCacheEntry(
+            modDate: Date(), fileSize: 100, entries: [], messageIds: [],
+            resumeOffset: 80, trailing: nil, headFingerprint: head
+        )
+        #expect(SessionLogReader.tailParseOffset(cached: cached, newSize: 200, head: head) == 80)
+        // Shrunk below what was consumed, head changed, no offset yet, or evicted entries.
+        #expect(SessionLogReader.tailParseOffset(cached: cached, newSize: 10, head: head) == nil)
+        #expect(SessionLogReader.tailParseOffset(cached: cached, newSize: 200, head: Data("other".utf8)) == nil)
+        #expect(SessionLogReader.tailParseOffset(cached: nil, newSize: 200, head: head) == nil)
+        var evicted = cached
+        evicted.entries = nil
+        #expect(SessionLogReader.tailParseOffset(cached: evicted, newSize: 200, head: head) == nil)
+        var noOffset = cached
+        noOffset.resumeOffset = 0
+        #expect(SessionLogReader.tailParseOffset(cached: noOffset, newSize: 200, head: head) == nil)
+    }
 }
