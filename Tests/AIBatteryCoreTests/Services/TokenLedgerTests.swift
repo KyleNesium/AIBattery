@@ -490,4 +490,41 @@ struct TokenLedgerTests {
         #expect(ledger.firstScanDate(ledgerKey: "legacy") == nil)
         #expect(TokenLedger(fileURL: url).firstScanDate(ledgerKey: "legacy") == nil)
     }
+
+    // MARK: - Corrupt file
+
+    /// A ledger that will not decode is the one store with no other copy of its
+    /// high-water history, so it is set aside rather than silently overwritten.
+    @Test func corruptLedgerIsQuarantinedRatherThanOverwritten() throws {
+        let url = makeTempURL()
+        defer {
+            try? FileManager.default.removeItem(at: url)
+            for leftover in Self.quarantineFiles(for: url) {
+                try? FileManager.default.removeItem(at: leftover)
+            }
+        }
+        try Data("{ this is not json".utf8).write(to: url)
+
+        let ledger = TokenLedger(fileURL: url)
+        #expect(ledger.ledgerKeysForTesting().isEmpty, "a corrupt file loads as an empty ledger")
+        #expect(!FileManager.default.fileExists(atPath: url.path), "the unreadable file is moved aside")
+        let quarantined = Self.quarantineFiles(for: url)
+        #expect(quarantined.count == 1)
+        let contents = try String(contentsOf: #require(quarantined.first), encoding: .utf8)
+        #expect(contents == "{ this is not json")
+    }
+
+    @Test func missingLedgerIsNotTreatedAsCorrupt() {
+        let url = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        _ = TokenLedger(fileURL: url)
+        #expect(Self.quarantineFiles(for: url).isEmpty)
+    }
+
+    private static func quarantineFiles(for url: URL) -> [URL] {
+        let dir = url.deletingLastPathComponent()
+        let prefix = url.lastPathComponent + ".corrupt-"
+        let contents = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+        return contents.filter { $0.lastPathComponent.hasPrefix(prefix) }
+    }
 }

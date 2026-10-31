@@ -39,7 +39,7 @@ struct UserDefaultsKeysTests {
             UserDefaultsKeys.colorblindMode,
             UserDefaultsKeys.hasSeenTutorial,
             UserDefaultsKeys.idleSessionMinutes,
-            UserDefaultsKeys.throttleTimestamps,
+            UserDefaultsKeys.throttleTimestampsByAccount,
             UserDefaultsKeys.contextCollapsed,
             UserDefaultsKeys.activityCollapsed,
             UserDefaultsKeys.projectsCollapsed,

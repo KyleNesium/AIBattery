@@ -227,7 +227,7 @@ struct UsageViewModelTests {
         // A9: throttled A → healthy B → throttled A (unchanged) must log ONE event. A
         // global tracker saw B's "allowed" as A's recovery and appended a second
         // timestamp on return, inflating the Insights throttle-trend rows.
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         UserDefaults.standard.removeObject(forKey: key)
         defer { UserDefaults.standard.removeObject(forKey: key) }
         let throttled = RateLimitUsage(
@@ -252,27 +252,36 @@ struct UsageViewModelTests {
         UsageViewModel.recordThrottleEvent(healthy, accountId: "throttle-b")
         UsageViewModel.recordThrottleEvent(throttled, accountId: "throttle-a")
 
-        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
-        #expect(timestamps.count == 1)
+        #expect(Self.storedThrottleTimestamps(accountId: "throttle-a").count == 1)
+        // Each account's throttles are its own: B has none to report yet.
+        #expect(Self.storedThrottleTimestamps(accountId: "throttle-b").isEmpty)
+        #expect(UsageViewModel.throttleCount(days: 7, accountId: "throttle-b") == 0)
 
-        // B's own first throttle is still a distinct event.
+        // B's own first throttle is still a distinct event, recorded against B.
         UsageViewModel.recordThrottleEvent(throttled, accountId: "throttle-b")
-        let after = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
-        #expect(after.count == 2)
+        #expect(Self.storedThrottleTimestamps(accountId: "throttle-b").count == 1)
+        #expect(Self.storedThrottleTimestamps(accountId: "throttle-a").count == 1)
+        #expect(UsageViewModel.throttleCount(days: 7, accountId: "throttle-a") == 1)
+    }
+
+    /// `[accountId: [epochSeconds]]`; the unscoped account key is `""`.
+    private static func storedThrottleTimestamps(accountId: String = "") -> [Double] {
+        let raw = UserDefaults.standard.dictionary(forKey: UserDefaultsKeys.throttleTimestampsByAccount) ?? [:]
+        return ThrottleTracker.parseTimestamps(raw[accountId] as? [Any])
     }
 
     @Test func recordThrottleEvent_nilRateLimits_noOp() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         UserDefaults.standard.removeObject(forKey: key)
         // Reset transition state
         UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(nil)
-        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        let timestamps = Self.storedThrottleTimestamps()
         #expect(timestamps.isEmpty)
     }
 
     @Test func recordThrottleEvent_notThrottled_noOp() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         UserDefaults.standard.removeObject(forKey: key)
         let rl = RateLimitUsage(
             representativeClaim: "five_hour",
@@ -287,12 +296,12 @@ struct UsageViewModelTests {
         // Reset transition state, then send allowed
         UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(rl)
-        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        let timestamps = Self.storedThrottleTimestamps()
         #expect(timestamps.isEmpty)
     }
 
     @Test func recordThrottleEvent_throttled_recordsTimestamp() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         UserDefaults.standard.removeObject(forKey: key)
         let rl = RateLimitUsage(
             representativeClaim: "five_hour",
@@ -307,13 +316,13 @@ struct UsageViewModelTests {
         // Reset then transition to throttled
         UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(rl)
-        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        let timestamps = Self.storedThrottleTimestamps()
         #expect(timestamps.count == 1)
         UserDefaults.standard.removeObject(forKey: key)
     }
 
     @Test func recordThrottleEvent_repeatedThrottle_noDoubleCount() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         UserDefaults.standard.removeObject(forKey: key)
         let rl = RateLimitUsage(
             representativeClaim: "five_hour",
@@ -331,13 +340,13 @@ struct UsageViewModelTests {
         // Still throttled on next polls — should NOT record again
         UsageViewModel.recordThrottleEvent(rl)
         UsageViewModel.recordThrottleEvent(rl)
-        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        let timestamps = Self.storedThrottleTimestamps()
         #expect(timestamps.count == 1)
         UserDefaults.standard.removeObject(forKey: key)
     }
 
     @Test func recordThrottleEvent_at100ButAllowed_doesNotRecord() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         UserDefaults.standard.removeObject(forKey: key)
         // 100% utilization with an "allowed" status is "at capacity", not throttled —
         // it must NOT record a throttle event.
@@ -353,13 +362,13 @@ struct UsageViewModelTests {
         )
         UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(rl)
-        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        let timestamps = Self.storedThrottleTimestamps()
         #expect(timestamps.isEmpty)
         UserDefaults.standard.removeObject(forKey: key)
     }
 
     @Test func recordThrottleEvent_sevenDayAt100ButAllowed_doesNotRecord() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         UserDefaults.standard.removeObject(forKey: key)
         let rl = RateLimitUsage(
             representativeClaim: "seven_day",
@@ -373,7 +382,7 @@ struct UsageViewModelTests {
         )
         UsageViewModel.recordThrottleEvent(nil)
         UsageViewModel.recordThrottleEvent(rl)
-        let timestamps = UserDefaults.standard.array(forKey: key) as? [Double] ?? []
+        let timestamps = Self.storedThrottleTimestamps()
         #expect(timestamps.isEmpty)
         UserDefaults.standard.removeObject(forKey: key)
     }
@@ -381,27 +390,39 @@ struct UsageViewModelTests {
     // MARK: - throttleCount
 
     @Test func throttleCount_noData_returnsZero() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         UserDefaults.standard.removeObject(forKey: key)
-        #expect(UsageViewModel.throttleCount(days: 7) == 0)
+        #expect(UsageViewModel.throttleCount(days: 7, accountId: "acc-1") == 0)
     }
 
     @Test func throttleCount_stringTimestamps_parsedCorrectly() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         let now = Date().timeIntervalSince1970
-        // Simulate legacy string-typed timestamps (the actual bug that caused 0 counts)
-        UserDefaults.standard.set([String(now), String(now - 86_400)], forKey: key)
-        #expect(UsageViewModel.throttleCount(days: 7) == 2)
+        // String-typed timestamps (the shape that once read as 0 events) still parse.
+        UserDefaults.standard.set(["acc-1": [String(now), String(now - 86_400)]], forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7, accountId: "acc-1") == 2)
         UserDefaults.standard.removeObject(forKey: key)
     }
 
     @Test func throttleCount_filtersOldEvents() {
-        let key = UserDefaultsKeys.throttleTimestamps
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
         let now = Date().timeIntervalSince1970
         let old = now - 8 * 86_400 // 8 days ago
-        UserDefaults.standard.set([old, now], forKey: key)
-        #expect(UsageViewModel.throttleCount(days: 7) == 1)
-        #expect(UsageViewModel.throttleCount(days: 30) == 2)
+        UserDefaults.standard.set(["acc-1": [old, now]], forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7, accountId: "acc-1") == 1)
+        #expect(UsageViewModel.throttleCount(days: 30, accountId: "acc-1") == 2)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    /// The leak this store exists to close: one account's throttles must never show up
+    /// on another's Insights panel — least of all across providers.
+    @Test func throttleCount_isScopedToOneAccount() {
+        let key = UserDefaultsKeys.throttleTimestampsByAccount
+        let now = Date().timeIntervalSince1970
+        UserDefaults.standard.set(["claude-1": [now, now - 3_600], "codex-1": [now]], forKey: key)
+        #expect(UsageViewModel.throttleCount(days: 7, accountId: "claude-1") == 2)
+        #expect(UsageViewModel.throttleCount(days: 7, accountId: "codex-1") == 1)
+        #expect(UsageViewModel.throttleCount(days: 7, accountId: "someone-else") == 0)
         UserDefaults.standard.removeObject(forKey: key)
     }
 

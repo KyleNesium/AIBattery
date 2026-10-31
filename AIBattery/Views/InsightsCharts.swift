@@ -15,6 +15,9 @@ extension InsightsView {
 
     /// Shared line style used by all chart modes.
     static let chartLineStyle = StrokeStyle(lineWidth: Layout.borderWidth)
+    /// The 12-month chart's current month is extrapolated to full-month pace; dashed so
+    /// a forecast never reads as a measurement.
+    static let projectedLineStyle = StrokeStyle(lineWidth: Layout.borderWidth, dash: [3, 2])
 
     /// Caption shown under the chart, naming the date the ledger first scanned Codex's
     /// logs — so the 12-month chart (rebuilt from rollouts still on disk) and All-Time
@@ -205,12 +208,17 @@ extension InsightsView {
     @ViewBuilder
     var monthlyChart: some View {
         let data = cachedMonthly
+        // `monthlyData` always returns 12 zero-filled points, so this branch is only
+        // reached if the calendar maths fails outright. It is kept as the guard against
+        // an empty `ForEach` with `AxisMarks` (which crashes Swift Charts), not as a
+        // "come back in 30 days" state — the copy used to promise a threshold that does
+        // not exist, and the chart happily plots a brand-new install's single month.
         if data.isEmpty {
             VStack(spacing: Spacing.inner) {
                 Image(systemName: "calendar.badge.clock")
                     .font(Typography.stateIcon)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
-                Text("Need 30+ days of data for monthly view")
+                Text("No monthly data yet")
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
             }
@@ -240,7 +248,9 @@ extension InsightsView {
                     y: .value("Tokens", point.count)
                 )
                 .foregroundStyle(ThemeColors.chartAccent)
-                .lineStyle(Self.chartLineStyle)
+                // The projected month is drawn dashed, so the one point on this chart
+                // that is a forecast rather than a measurement reads as one.
+                .lineStyle(point.isProjected ? Self.projectedLineStyle : Self.chartLineStyle)
                 .interpolationMethod(.catmullRom)
 
                 PointMark(

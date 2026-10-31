@@ -157,7 +157,8 @@ extension InsightsView {
         case .monthly:
             guard let id = selectedMonthlyId,
                   let point = cachedMonthly.first(where: { $0.id == id }) else { return nil }
-            return "\(Self.monthAbbrev(point.date)) — \(Self.compactCount(point.count)) tokens"
+            let projected = point.isProjected ? " (projected)" : ""
+            return "\(Self.monthAbbrev(point.date)) — \(Self.compactCount(point.count)) tokens\(projected)"
         }
     }
 

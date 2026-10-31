@@ -31,8 +31,6 @@ struct UsageSnapshot: Equatable {
             && lhs.longestSessionMessages == rhs.longestSessionMessages
             && lhs.firstSessionDate == rhs.firstSessionDate
             && lhs.ledgerSince == rhs.ledgerSince
-            && lhs.dailyAverage == rhs.dailyAverage
-            && lhs.trendDirection == rhs.trendDirection
             && lhs.fiveHourTokens == rhs.fiveHourTokens
             && lhs.sevenDayTokens == rhs.sevenDayTokens
             && lhs.fiveHourTokenBuckets == rhs.fiveHourTokenBuckets
@@ -324,108 +322,49 @@ struct UsageSnapshot: Equatable {
 
     // MARK: - Projections & trends
 
-    /// Average messages per day over the last 7 days of activity.
-    /// Pre-computed at construction to avoid per-render iteration.
-    let dailyAverage: Int
-
-    /// Trend direction comparing this week's average to last week's.
-    /// Pre-computed at construction to avoid per-render iteration.
-    let trendDirection: TrendDirection
+    // `dailyAverage` and `trendDirection` used to live here. Both were computed on every
+    // aggregation cycle, reached no view, and were index-based — so they would have been
+    // wrong on sparse history had anything ever shown them. The trend the Insights row
+    // does show is `ActivityTrendComputation`, which works off `dailyTokenTotals`.
 
     /// Busiest day of the week based on daily activity history.
     /// Pre-computed at construction to avoid iterating all dailyActivity on every view render.
     let busiestDayOfWeek: (name: String, averageCount: Int)?
 
-    /// Compute daily average, trend direction, and busiest day in a single pass.
-    static func computeActivityStats(_ dailyActivity: [DailyActivity])
-        -> (average: Int, trend: TrendDirection, busiestDay: (name: String, averageCount: Int)?) {
-        guard !dailyActivity.isEmpty else { return (0, .flat, nil) }
+    /// The weekday with the highest average message count, or nil when there is nothing
+    /// to average. Pre-computed at construction so no view iterates `dailyActivity`.
+    ///
+    /// This used to also produce a daily average and a week-over-week trend; both reached
+    /// no view and were index-based rather than date-based, so they would have been wrong
+    /// on sparse history. The trend the Insights row shows is `ActivityTrendComputation`.
+    static func computeBusiestDay(_ dailyActivity: [DailyActivity]) -> (name: String, averageCount: Int)? {
+        guard !dailyActivity.isEmpty else { return nil }
 
-        let count = dailyActivity.count
         let calendar = Calendar.current
-
-        // Accumulators for all three metrics
-        var recentTotal = 0
-        var thisWeekTotal = 0
-        var lastWeekTotal = 0
         var weekdayTotals = [Int: Int]()
         var weekdayCounts = [Int: Int]()
 
-        let recentStart = max(0, count - 7)
-        let thisWeekStart = max(0, count - 7)
-        let lastWeekStart = max(0, count - 14)
-        let lastWeekEnd = max(0, count - 7)
-
-        for (i, day) in dailyActivity.enumerated() {
-            // Daily average (last 7)
-            if i >= recentStart {
-                recentTotal += day.messageCount
-            }
-            // Trend: this week vs last week (need >= 14 days)
-            if count >= 14 {
-                if i >= thisWeekStart {
-                    thisWeekTotal += day.messageCount
-                } else if i >= lastWeekStart && i < lastWeekEnd {
-                    lastWeekTotal += day.messageCount
-                }
-            }
-            // Busiest day
-            if let date = day.parsedDate {
-                let weekday = calendar.component(.weekday, from: date)
-                weekdayTotals[weekday, default: 0] += day.messageCount
-                weekdayCounts[weekday, default: 0] += 1
-            }
+        for day in dailyActivity {
+            guard let date = day.parsedDate else { continue }
+            let weekday = calendar.component(.weekday, from: date)
+            weekdayTotals[weekday, default: 0] += day.messageCount
+            weekdayCounts[weekday, default: 0] += 1
         }
 
-        // Average
-        let recentCount = count - recentStart
-        let average = recentCount > 0 ? recentTotal / recentCount : 0
-
-        // Trend
-        let trend: TrendDirection
-        if count < 14 {
-            trend = .flat
-        } else {
-            let thisWeekDays = count - thisWeekStart
-            let lastWeekDays = lastWeekEnd - lastWeekStart
-            let thisAvg = Double(thisWeekTotal) / Double(thisWeekDays)
-            let lastAvg = Double(lastWeekTotal) / Double(max(lastWeekDays, 1))
-            if lastAvg <= 0 {
-                trend = thisAvg > 0 ? .up : .flat
-            } else {
-                let change = (thisAvg - lastAvg) / lastAvg
-                if change > 0.10 {
-                    trend = .up
-                } else if change < -0.10 {
-                    trend = .down
-                } else {
-                    trend = .flat
-                }
-            }
-        }
-
-        // Busiest day
-        let busiestDay: (name: String, averageCount: Int)?
-        if let (weekday, total) = weekdayTotals.max(by: { a, b in
+        guard let (weekday, total) = weekdayTotals.max(by: { a, b in
             let avgA = Double(a.value) / Double(weekdayCounts[a.key] ?? 1)
             let avgB = Double(b.value) / Double(weekdayCounts[b.key] ?? 1)
-            return avgA < avgB
-        }) {
-            let avg = total / max(weekdayCounts[weekday] ?? 1, 1)
-            let index = weekday - 1
-            if avg > 0, index >= 0, index < weekdaySymbols.count {
-                busiestDay = (weekdaySymbols[index], avg)
-            } else {
-                busiestDay = nil
-            }
-        } else {
-            busiestDay = nil
-        }
+            // Equal averages break on the weekday index, so the answer is stable between
+            // polls instead of following dictionary order.
+            return avgA == avgB ? a.key > b.key : avgA < avgB
+        }) else { return nil }
 
-        return (average, trend, busiestDay)
+        let average = total / max(weekdayCounts[weekday] ?? 1, 1)
+        let index = weekday - 1
+        guard average > 0, index >= 0, index < weekdaySymbols.count else { return nil }
+        return (weekdaySymbols[index], average)
     }
 
-    // Hourly message distribution (hour "0"-"23" → count, all-time merged)
     let hourCounts: [String: Int]
 
     // Trailing 24-hour breakdown (hour "0"-"23" → count, from JSONL only)

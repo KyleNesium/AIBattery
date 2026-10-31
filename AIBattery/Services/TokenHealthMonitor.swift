@@ -81,7 +81,11 @@ final class TokenHealthMonitor: Sendable {
         }
 
         // Highest context usage first so the most-consumed session is always position 1
-        recentResults.sort { $0.usagePercentage > $1.usagePercentage }
+        // Sessions at identical usage break on their id: `sort` is not stable, so the
+        // list reordered itself between polls for no reason the user could see.
+        recentResults.sort {
+            $0.usagePercentage == $1.usagePercentage ? $0.id < $1.id : $0.usagePercentage > $1.usagePercentage
+        }
         let top = Array(recentResults.prefix(topLimit))
 
         return (current, top)

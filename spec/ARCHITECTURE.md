@@ -119,6 +119,7 @@ AIBattery/
     OAuthManager.swift            — OAuth 2.0 PKCE flow, auto-refresh; `postToken` is `nonisolated static` so the network call releases MainActor cleanly. Concurrent-refresh serialization preserved via `refreshTasks[accountId]`
     OAuthManager+Codex.swift      — Codex provider routing: `tokenStorageKey`, `startCodexAuthFlow` / `completeCodexAuthFlow` / `cancelCodexAuthFlow`, `registerCodexAccount` (cap-guarded, returns Result)
     OAuthManagerTokenEndpoint.swift — The Anthropic token endpoint: `TokenResult` and `postToken`, which performs the exchange and classifies the outcome (`nonisolated static`, so the network suspension stays off the main actor; transport + retry policy injected)
+    ProjectIdentity.swift         — `ProjectIdentityResolver`: cwd → project (symlink-resolved; a worktree folds into its parent repo by reading its `.git` file). Process-cached
     AccountIdentityRegistry.swift — The one list of account-id-keyed UserDefaults key shapes (calibration bases, observed-model and probe-model prefixes, the Codex rate-limit prefix) plus `migrate(from:to:)`, called from `resolveAccountIdentity` so a resolved id leaves no orphans. Stores with in-memory state keep their own `migrate`
     OAuthManagerMigrations.swift  — The three one-time launch Keychain migrations (legacy single-account layout → prefixed per-account entries, stale `accessToken_`/`expiresAt_` sweep, `ThisDeviceOnly` accessibility re-create). Each is gated by its own done-flag so a launch costs no Keychain calls once applied. Split out when `OAuthManager.swift` passed the 800-line ceiling
     CodexOAuth/
@@ -193,6 +194,7 @@ AIBattery/
     Components/
       GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
       GaugeRow.swift              — Shared "labelled gauge row" shell: VStack[Header HStack + GaugeBar + TimelineView footer]. Accepts headerLeading / headerTrailing / footer ViewBuilders. Owns accessibility wiring and timeline schedule. Backs UsageBar (5h/7d) and StandardLimitBar.
+      PanelPeriodicView.swift     — `TimelineView(.periodic)` that ticks only while the panel is on screen (`orderOut` never fires `onDisappear`); renders once with the current date while hidden
       LinkActionButton.swift      — Inline link-styled action button (Size.standard for settings, .compact for in-banner). One canonical implementation for Add Account, Test, Download, Install Update — all routed through ThemeColors.action with consistent icon/label spacing.
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars; UsageBar.AlarmState gates throttle/limit alarm on confirmed (fresh) data
     LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable (window label follows provider vocabulary)
@@ -219,6 +221,7 @@ AIBattery/
     UserDefaultsKeys.swift        — Centralized @AppStorage / UserDefaults key constants
     DateFormatters.swift          — Shared DateFormatter / ISO8601DateFormatter instances (allocated once)
     Data+Newline.swift            — `firstNewlineIndex(from:)`: memchr-backed newline search shared by both JSONL readers
+    ChunkedFileReader.swift       — `read(2)` into ONE reused 64KB buffer, shared by both JSONL readers (a `Data` per chunk was the launch footprint spike)
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
     AppLogger.swift               — Structured os.Logger instances by category
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations

@@ -45,19 +45,33 @@ extension UsageViewModel {
             }
         }
         if let timestamp {
-            let existing = ThrottleTracker.parseTimestamps(
-                UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps)
-            )
-            let updated = ThrottleTracker.appendAndPrune(timestamps: existing, newTimestamp: timestamp)
-            UserDefaults.standard.set(updated, forKey: UserDefaultsKeys.throttleTimestamps)
+            var byAccount = storedTimestampsByAccount()
+            let existing = byAccount[key] ?? []
+            byAccount[key] = ThrottleTracker.appendAndPrune(timestamps: existing, newTimestamp: timestamp)
+            UserDefaults.standard.set(byAccount, forKey: UserDefaultsKeys.throttleTimestampsByAccount)
         }
     }
 
-    /// Count throttle events within a given number of days.
-    static func throttleCount(days: Int) -> Int {
-        let timestamps = ThrottleTracker.parseTimestamps(
-            UserDefaults.standard.array(forKey: UserDefaultsKeys.throttleTimestamps)
-        )
+    /// Count throttle events within a given number of days, for ONE account.
+    ///
+    /// The store used to be a single unscoped array, so a Codex account's Insights panel
+    /// reported throttles that only ever happened on a Claude account — the one
+    /// cross-provider leak left in v3. (The 3.2.0 changelog says the tracker is per
+    /// account: true of the state machine above, not of this store until now.)
+    static func throttleCount(days: Int, accountId: String? = AccountStore.persistedActiveAccountId) -> Int {
+        let timestamps = storedTimestampsByAccount()[accountId ?? ""] ?? []
         return ThrottleTracker.count(timestamps: timestamps, days: days)
+    }
+
+    /// `[accountId: [epochSeconds]]`. A value written by an older build (the unscoped
+    /// array) simply does not decode here and is ignored: this is a 30-day rolling
+    /// trend, so it refills itself within a day of use, and migrating one global array
+    /// into an account would attribute another account's throttles to it.
+    private static func storedTimestampsByAccount() -> [String: [Double]] {
+        let raw = UserDefaults.standard.dictionary(forKey: UserDefaultsKeys.throttleTimestampsByAccount) ?? [:]
+        return raw.compactMapValues { value in
+            let parsed = ThrottleTracker.parseTimestamps(value as? [Any])
+            return parsed.isEmpty ? nil : parsed
+        }
     }
 }

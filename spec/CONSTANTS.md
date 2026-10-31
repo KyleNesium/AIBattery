@@ -318,7 +318,7 @@ IDs absent from the pricing page fall through to their longest listed prefix (e.
 
 | Constant | Value |
 |----------|-------|
-| Throttle timestamps key | `aibattery_throttleTimestamps` ([Any] — Unix epoch doubles; legacy entries may be stored as String or Int) |
+| Throttle timestamps key | `aibattery_throttleTimestampsByAccount` (`[accountId: [Any]]` — Unix epoch doubles; String/Int entries still parse). The unscoped `aibattery_throttleTimestamps` array it replaces is NOT migrated: a 30-day rolling trend refills itself, and one global array cannot be attributed to an account |
 | Pruning window | 30 days (entries older than 30 days pruned on each append) |
 
 ## Launch at Login

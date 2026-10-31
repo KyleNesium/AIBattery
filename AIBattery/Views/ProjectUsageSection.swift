@@ -179,6 +179,9 @@ struct ProjectUsageSection: View {
                 .font(Typography.caption)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                // The row shows the folder's name, which two different checkouts can
+                // share; the tooltip says which one this is.
+                .help(project.id)
 
             Spacer()
 
@@ -195,6 +198,8 @@ struct ProjectUsageSection: View {
         .copyable(copyText)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(project.projectName), \(tokensText) tokens")
+        // `.help` does not reach VoiceOver, so the full path goes in the hint.
+        .accessibilityHint(project.id == "Other" ? "" : project.id)
     }
 
     // MARK: - Search field
