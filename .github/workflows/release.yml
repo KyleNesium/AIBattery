@@ -49,7 +49,7 @@ jobs:
           # hatch below starts accepting runs where the tail of the suite never
           # executed — the exact failure it exists to catch. Bump it with the
           # suite (README's Test Coverage section has the live number).
-          MIN_PASSES=1450
+          MIN_PASSES=1600
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
             set +e

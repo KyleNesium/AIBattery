@@ -40,7 +40,7 @@ swift build -c release
 swift test
 ```
 
-1577 tests across 120 files, using `import Testing` + `@testable import AIBatteryCore`.
+1634 tests across 124 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities

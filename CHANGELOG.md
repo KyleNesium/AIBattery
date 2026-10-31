@@ -2,7 +2,31 @@
 
 ## [Unreleased]
 
+### Fixed
+- **A window that just reset no longer reads "Limit reached".** If this Mac's clock sits a few minutes behind the provider's — common right after wake — the rollover filter stopped recognising a window that had just rolled, and the lagging near-full reading was shown as a real limit. It now tolerates up to five minutes of skew; a reset further away than the window is long is still left alone.
+- **The token count under each bar counts only the window.** The 5-hour figure included up to 15 minutes of pre-window usage, and the 7-day figure counted its first calendar day whole — up to a day of tokens belonging to the previous window. Both now count only the buckets that lie entirely inside the window, the 7-day one at hourly resolution.
+- **Pressing Esc no longer empties the context gauge.** A session ending on one of Claude Code's `<synthetic>` interrupt entries reported 0% context and green, even at 700K of 1M used. Context is read from the last entry that carries real usage.
+- **Context over the window reads as over the window.** Exceeding the model's context used to widen the window to the next tier, halving the percentage exactly when it mattered — 199K/200K (red) became 201K/500K (green). The reading now saturates at 100%, red.
+- **Insights throttle counts are per account.** "Throttled: N×" was a single global list, so a Codex account's panel reported throttles that only ever happened on a Claude account.
+- **Projects shows one row per project.** Rows group by the resolved path, with git worktrees folded into their parent repository, so a worktree no longer splits a project in two; the full path is in the tooltip and in what VoiceOver reads.
+- **The 12-month chart marks its projection.** The current month is extrapolated to full-month pace; it is drawn dashed and the tooltip says "(projected)" instead of stating tokens that have not been spent.
+- **A trivially small previous day no longer prints ">999% vs yesterday".** The threshold that suppresses meaningless comparisons is relative to the day's own volume instead of a fixed token count.
+- **Peak hour, busiest weekday and the session list stop reshuffling.** All three had ties broken by dictionary order and visibly changed between polls.
+- **An unreadable `token-ledger.json` is kept, not overwritten.** It is renamed `.corrupt-<timestamp>` with a warning — it is the only copy of the all-time high-water history.
+- **Settings no longer shows an empty row at the account cap**, and the full-email toggle is hidden for Claude-only users (it only ever masks a Codex sign-in email).
+- **An uncapped Codex plan shows "Credits: unlimited"** even when the provider reports no balance.
+- **Adding an API key offline no longer flashes a red error.** An inconclusive check is not a failure; the next poll reports the real state.
+- **Claude 3 Haiku bills at its own retired rate** ($0.25/$1.25 per million) instead of the current Haiku rate, which was 4× too high on the oldest history.
+- **A Codex sign-in cannot be aborted by another local process.** The callback listener delivers only on a matching CSRF state, times out idle connections, and stops its 180-second clock as soon as the browser comes back.
+
 ### Changed
+- **Cold scans use a fraction of the memory.** Both session-log readers read through one reused buffer instead of allocating per 64 KB chunk — the measured launch footprint peak came almost entirely from that.
+- **A growing session file is read from where the last read stopped.** The active file (7–28 MB) was re-read from the start on every write; appending to a 28 MB file now costs 0.4 ms instead of 28 ms. Anything that is not a plain append still re-reads in full.
+- **The app goes quiet when the popover is closed.** The incident ticker and the "Updated N ago" clocks kept running behind a hidden panel; they stop and resume with it. Codex rollouts older than 13 months are no longer re-scanned.
+- **VoiceOver says what the menu-bar number means.** It reads the metric name, the account list as a list, "no data" instead of a dash, and announces a reached limit — and the countdown carries its window code on multi-account bars, the only non-colour cue that the bar has switched away from percentages.
+- **Usage bars pass WCAG non-text contrast in light mode.** Every bar fill was under 3:1 against its own track; the track is darker.
+- **The colourblind palette follows the system setting.** Turning on "Differentiate without colour" in macOS is enough; the app's own checkbox still works.
+- **Release builds will enable library validation** once a Developer ID certificate is configured; ad-hoc builds keep the exemption they need.
 - **Repository cleanup.** Agent planning scratch (`.planning/`, `.superpowers/`, `.wrangler/`), internal review reports and session plans (`docs/reviews/`, `docs/superpowers/`), the unused XcodeGen `project.yml` and the 1024 px icon export are removed from the tree; all of it remains in history (`git show 8f3d600:<path>`). `AGENTS.md` is a symlink to `CLAUDE.md`. `TODOS.md` moved to `docs/TODOS.md` with completed items dropped. The README is shorter, with plain headings; troubleshooting, the context explainer and the Gatekeeper/Keychain notes moved to `docs/FAQ.md`. GitHub releases older than v2.6 were deleted (tags kept; every version stays in this changelog).
 
 ## [3.3.0] — 2026-10-22
