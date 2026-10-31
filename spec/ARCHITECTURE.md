@@ -319,7 +319,7 @@ Tests/AIBatteryCoreTests/
     MoveTransitionBanTests.swift  — Guards against `.move(edge:)` transitions in the popover
 docs/
   FAQ.md                          — Troubleshooting, context-health explainer, Gatekeeper/Keychain notes
-  TODOS.md                        — Deferred work, grouped by the review that deferred it
+  TODOS.md                        — Deferred work, grouped by area and ordered by priority
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   lint.yml                        — SwiftFormat + SwiftLint on PRs targeting main (macos-15)
