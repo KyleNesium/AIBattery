@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **The brand marks come alive on hover.** Point at an account card or the header chip and its Claude or OpenAI logo turns once and lifts, with a soft bloom in the provider's own colour. The whole card is the target, not the 12pt logo. Reduce Motion keeps the bloom and drops the movement.
+
 ### Fixed
 - **A window that just reset no longer reads "Limit reached".** If this Mac's clock sits a few minutes behind the provider's — common right after wake — the rollover filter stopped recognising a window that had just rolled, and the lagging near-full reading was shown as a real limit. It now tolerates up to five minutes of skew; a reset further away than the window is long is still left alone.
 - **The token count under each bar counts only the window.** The 5-hour figure included up to 15 minutes of pre-window usage, and the 7-day figure counted its first calendar day whole — up to a day of tokens belonging to the previous window. Both now count only the buckets that lie entirely inside the window, the 7-day one at hourly resolution.

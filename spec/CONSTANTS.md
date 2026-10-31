@@ -440,6 +440,7 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.15) background, `NSCursor.pointingHand` |
 | Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
 | MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
+| Brand mark hover | One full turn (`ProviderBadge.hoverRotationDegrees` = 360) over `MotionConstants.markSpin`, plus a spring lift to `Layout.markHoverScale` (1.18) and a `Layout.markGlowRadius` (5) bloom at `ThemeColors.markGlowOpacity` (0.55) in the provider's colour. A whole turn on purpose — nothing unwinds the angle on hover-out. Driven by the parent's hover (chip, card) so the target is bigger than the 12pt mark. Reduce Motion: bloom only |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
 | MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
 
@@ -528,6 +529,8 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `MotionConstants.standard` | `.easeOut(duration: 0.15)` | Standard section expand/collapse, settings toggle, account switch |
 | `MotionConstants.snappy` | `.easeOut(duration: 0.1)` | Session navigation, metric mode change |
 | `MotionConstants.smooth` | `.easeInOut(duration: 0.4)` | Gauge bar fill, chart transitions |
+| `MotionConstants.markSpin` | `.easeInOut(duration: 0.6)` | The hovered brand mark's single turn. Slower than `spin` so it reads as the mark coming alive, not a control reacting to a click |
+| `MotionConstants.markLift(reduceMotion:)` | `.spring(response: 0.32, dampingFraction: 0.58)`, or `.easeOut(duration: 0.2)` under Reduce Motion | The hovered brand mark's lift + bloom. The spring's overshoot is the "pop"; Reduce Motion drops both the turn and the scale, leaving only the bloom to cross-fade |
 | `MotionConstants.expandTransition` | `.opacity` (plain cross-fade) | Section / settings expand-collapse content transition. `.move(edge:)` is banned inside the popover — see token doc-comment for the NSPanel resize-race rationale. |
 | `MotionConstants.fadeIn` | `.easeIn(duration: 0.3)` | Marquee text fade-in, generic incoming-content fade |
 | `MotionConstants.marqueePauseSeconds` | `0.5` seconds | Pause at each end of a marquee scroll; also initial geometry-settle delay |

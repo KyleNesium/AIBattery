@@ -183,6 +183,13 @@ enum Layout {
     /// Bare brand mark, drawn in the provider's colour with no backing shape.
     static let providerMarkSize: CGFloat = 12
 
+    /// How far the brand mark lifts on hover. Small on purpose: the mark sits inside a
+    /// fixed `providerBadgeSize` slot, so anything larger would crowd the name beside it.
+    static let markHoverScale: CGFloat = 1.18
+
+    /// Blur radius of the hovered mark's coloured bloom.
+    static let markGlowRadius: CGFloat = 5
+
     /// Clipboard icon trailing offset (negative for overlay positioning).
     static let clipboardIconOffset: CGFloat = 13
 
@@ -230,6 +237,17 @@ enum MotionConstants {
 
     /// Full-rotation spin (refresh button): 0.5s easeInOut.
     static let spin: Animation = .easeInOut(duration: 0.5)
+
+    /// The hovered brand mark's single turn. Slower than `spin` and eased at both ends,
+    /// so it reads as the mark coming alive rather than a control reacting to a click.
+    static let markSpin: Animation = .easeInOut(duration: 0.6)
+
+    /// The hovered brand mark's lift and bloom. A spring with a little overshoot gives
+    /// the scale a physical "pop" that a plain ease cannot; under Reduce Motion the mark
+    /// does not move at all, so only the glow is left to cross-fade.
+    nonisolated static func markLift(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.32, dampingFraction: 0.58)
+    }
 
     // MARK: - Marquee (footer incident ticker)
 

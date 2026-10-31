@@ -260,13 +260,13 @@ AI Battery is free and open source. If it helps you get more out of your subscri
 
 ## Test Coverage
 
-**1634 tests** across 124 test files.
+**1639 tests** across 125 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
 | Models | 416 | Rate-limit parsing for Claude and Codex (including spend-control credits and credit-budget runway), usage snapshots, spike and rollover filters, account readings and the fan-out gate, overview cards, popover mode and Escape routing, pricing tables (retired-model rows included, with real model ids driven through them), provider and account records, window-token bucketing, the clock-skew rollover guard |
 | Services | 630 | Session-log readers for both providers (streaming, caching, oversized lines, concurrency), Codex per-account attribution and fallback gating, token ledger high-water marks and key migration, aggregation (one pass, two snapshots), OAuth managers (PKCE, refresh, error classification), rate-limit fetchers and backoff, Keychain, secure networking, status checker, notifications, Sparkle updates, the Codex callback server's CSRF and one-shot rules, account-id-keyed storage migration, project identity (symlinks and worktrees), the incremental tail parse |
-| Views | 231 | Menu-bar text and headline percent, panel refit trigger, header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner, the menu bar's spoken description |
+| Views | 236 | Menu-bar text and headline percent, panel refit trigger, header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner, the menu bar's spoken description, the brand mark's hover turn and its Reduce Motion fallback |
 | ViewModels | 102 | Multi-account fan-out (routing, carry-forward, generation stamp), refresh interval and adaptive polling, throttle tracking per account, stale rate-limit expiry, auth-error reconnect, cross-account refresh races, provider switching, off-main aggregation |
 | Utilities | 255 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette), menu-bar icon rendering and cache, date formatters, JSONL newline scanning and the reused read buffer, email masking, logging redaction |
 

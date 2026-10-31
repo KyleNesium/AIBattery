@@ -278,6 +278,11 @@ enum ThemeColors {
     /// Low point of the live dot's breath. High enough that it never looks switched off.
     static let liveDotDimOpacity: Double = 0.55
 
+    /// Bloom behind a hovered brand mark, in the provider's own colour. Lower than the
+    /// chevron's glow: the mark is a dense shape rather than a thin glyph, so the same
+    /// strength would spill past it into a halo.
+    static let markGlowOpacity: Double = 0.55
+
     static let subtleElementOpacity: Double = 0.12
 
     /// Subtle border/stroke opacity (banner outlines).
