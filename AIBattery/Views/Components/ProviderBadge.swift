@@ -125,8 +125,12 @@ struct ProviderBadge: View {
                 .scaledToFit()
                 .frame(width: markSize, height: markSize)
         } else {
+            // Resource-missing fallback, scaled off `markSize` so a card's larger mark
+            // does not silently drop back to the chip's size. Smaller than the mark it
+            // stands in for, not equal: an SF Symbol carries internal padding the
+            // bundled SVGs do not, so matching the sizes draws a visibly bigger glyph.
             Image(systemName: provider.symbolName)
-                .font(Typography.badgeSymbol)
+                .font(.system(size: markSize * Layout.fallbackSymbolRatio, weight: .bold))
         }
     }
 

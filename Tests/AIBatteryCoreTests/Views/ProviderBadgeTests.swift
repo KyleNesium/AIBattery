@@ -83,6 +83,16 @@ struct ProviderBadgeTests {
         }
     }
 
+    /// The resource-missing fallback scales with the mark instead of sitting at a fixed
+    /// size, or a card's larger mark would silently drop back to the chip's glyph. It
+    /// stays smaller than the mark: SF Symbols carry padding the bundled SVGs do not.
+    @Test func theFallbackSymbolTracksTheMarkSizeWithoutMatchingIt() {
+        #expect(Layout.fallbackSymbolRatio < 1)
+        #expect(Layout.providerMarkSize * Layout.fallbackSymbolRatio == 10)
+        let onACard = Layout.cardProviderMarkSize * Layout.fallbackSymbolRatio
+        #expect(onACard > Layout.providerMarkSize * Layout.fallbackSymbolRatio)
+    }
+
     /// The overview card draws a bigger mark than the header chip — a card is a wider,
     /// quieter surface and at the chip's size the logo read as an afterthought. The
     /// slot does not change with it, so every text column still lines up.

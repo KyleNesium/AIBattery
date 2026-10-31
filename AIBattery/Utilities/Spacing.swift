@@ -183,6 +183,12 @@ enum Layout {
     /// Bare brand mark, drawn in the provider's colour with no backing shape.
     static let providerMarkSize: CGFloat = 12
 
+    /// How big the SF Symbol fallback runs relative to the brand mark it replaces when a
+    /// bundled SVG fails to load. Under 1 because a symbol carries internal padding the
+    /// SVGs do not — 10pt against the 12pt default mark is the pair this was calibrated
+    /// on, and expressing it as a ratio keeps the fallback in step with `markSize`.
+    static let fallbackSymbolRatio: CGFloat = 10.0 / 12.0
+
     /// The mark on an overview card. Larger than the header chip's: a card is a wider,
     /// quieter surface than a title row, and at 12pt the logo read as an afterthought
     /// beside the headline percentage. Sized so the bloom's 1.28 lift still fits the
