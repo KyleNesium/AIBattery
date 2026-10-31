@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Added
-- **The brand marks come alive on hover.** Point at an account card or the header chip and its Claude or OpenAI logo turns once and lifts, with a soft bloom in the provider's own colour. The whole card is the target, not the 12pt logo. Reduce Motion keeps the bloom and drops the movement.
+- **The brand marks come alive on hover.** Point at an account card or the header chip and its logo lifts and glows in the provider's own colour — then does whatever its own shape asks for. Claude's sunburst radiates, its rays pushing out past the edges and fading; the OpenAI knot turns a full revolution. The whole card is the target, not the 12pt logo. Reduce Motion keeps the glow and drops the movement.
 
 ### Fixed
 - **A window that just reset no longer reads "Limit reached".** If this Mac's clock sits a few minutes behind the provider's — common right after wake — the rollover filter stopped recognising a window that had just rolled, and the lagging near-full reading was shown as a real limit. It now tolerates up to five minutes of skew; a reset further away than the window is long is still left alone.

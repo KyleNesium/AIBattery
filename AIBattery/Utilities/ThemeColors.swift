@@ -283,6 +283,11 @@ enum ThemeColors {
     /// strength would spill past it into a halo.
     static let markGlowOpacity: Double = 0.55
 
+    /// Starting opacity of the radiating ghost in a blooming mark's hover. Well under
+    /// half: it sits directly behind the real mark at the first frame, and anything
+    /// stronger reads as a doubled logo before it starts moving.
+    static let markBloomGhostOpacity: Double = 0.4
+
     static let subtleElementOpacity: Double = 0.12
 
     /// Subtle border/stroke opacity (banner outlines).
