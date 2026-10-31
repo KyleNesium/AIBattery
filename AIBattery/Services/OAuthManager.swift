@@ -414,6 +414,12 @@ public final class OAuthManager: ObservableObject {
         // "Limit reached" on the resolved account.
         RateLimitFetcher.shared.migrate(from: tempId, to: realOrgId)
 
+        // Everything else that is keyed by account id: calibration, the observed-model
+        // probe list, the last working probe model. One registry rather than another
+        // one-off migration per store, so the next id-keyed store is caught too.
+        AccountIdentityRegistry.migrate(from: tempId, to: realOrgId)
+        NotificationManager.shared.migrateAlertLatches(from: tempId, to: realOrgId)
+
         // Clean up refresh tasks
         if let task = refreshTasks.removeValue(forKey: tempId) {
             refreshTasks[realOrgId] = task

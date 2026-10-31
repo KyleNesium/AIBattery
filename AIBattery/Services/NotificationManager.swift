@@ -92,6 +92,16 @@ public final class NotificationManager {
 
     /// Drop an account's latched rate-limit keys. Called when an account is removed so a
     /// re-added account starts clean rather than inheriting a stale "already fired".
+    /// Re-key the in-memory alert latches when a pending account id resolves, so a
+    /// threshold that already fired does not fire again under the new id.
+    func migrateAlertLatches(from oldId: String, to newId: String) {
+        guard oldId != newId else { return }
+        let suffix = "_\(oldId)"
+        hasFired = Set(hasFired.map { key in
+            key.hasSuffix(suffix) ? String(key.dropLast(suffix.count)) + "_\(newId)" : key
+        })
+    }
+
     func clearRateLimitAlerts(accountId: String) {
         hasFired = hasFired.filter { !$0.hasSuffix("_\(accountId)") }
     }

@@ -119,6 +119,7 @@ AIBattery/
     OAuthManager.swift            — OAuth 2.0 PKCE flow, auto-refresh; `postToken` is `nonisolated static` so the network call releases MainActor cleanly. Concurrent-refresh serialization preserved via `refreshTasks[accountId]`
     OAuthManager+Codex.swift      — Codex provider routing: `tokenStorageKey`, `startCodexAuthFlow` / `completeCodexAuthFlow` / `cancelCodexAuthFlow`, `registerCodexAccount` (cap-guarded, returns Result)
     OAuthManagerTokenEndpoint.swift — The Anthropic token endpoint: `TokenResult` and `postToken`, which performs the exchange and classifies the outcome (`nonisolated static`, so the network suspension stays off the main actor; transport + retry policy injected)
+    AccountIdentityRegistry.swift — The one list of account-id-keyed UserDefaults key shapes (calibration bases, observed-model and probe-model prefixes, the Codex rate-limit prefix) plus `migrate(from:to:)`, called from `resolveAccountIdentity` so a resolved id leaves no orphans. Stores with in-memory state keep their own `migrate`
     OAuthManagerMigrations.swift  — The three one-time launch Keychain migrations (legacy single-account layout → prefixed per-account entries, stale `accessToken_`/`expiresAt_` sweep, `ThisDeviceOnly` accessibility re-create). Each is gated by its own done-flag so a launch costs no Keychain calls once applied. Split out when `OAuthManager.swift` passed the 800-line ceiling
     CodexOAuth/
       CodexOAuthConstants.swift   — client-id, port 1455, scopes, authorize/token URLs lifted from codex-rs
