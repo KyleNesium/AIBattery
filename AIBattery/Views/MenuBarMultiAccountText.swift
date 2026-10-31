@@ -119,6 +119,29 @@ enum MenuBarMultiAccountText {
         return formattedGroups.joined(separator: "  ")
     }
 
+    /// Countdown text, prefixed with the window code when one is known.
+    private static func countdownText(reset: Date, windowCode: String?) -> String {
+        guard let windowCode else { return RateLimitUsage.countdownText(to: reset) }
+        return "\(windowCode) \(RateLimitUsage.countdownText(to: reset))"
+    }
+
+    /// The binding window short code of the displayed, throttled account whose reset is
+    /// the one being counted down.
+    private static func bindingWindowCode(
+        for reset: Date,
+        order: [String],
+        limits: [String: RateLimitUsage],
+        now: Date,
+        countdownResetDate: (RateLimitUsage, Date) -> Date?
+    ) -> String? {
+        for id in order {
+            guard let usage = limits[id], usage.isThrottled,
+                  countdownResetDate(usage, now) == reset else { continue }
+            return usage.bindingWindowShortCode
+        }
+        return nil
+    }
+
     /// Whether the toggle would render a multi-account display given current state.
     ///
     /// - Parameter fetchedAccountCount: count of accounts with **fetched rate-limit
@@ -211,7 +234,11 @@ enum MenuBarMultiAccountText {
                 ].compactMap { $0 }.min()
                 : nil
             let text: String = if let reset {
-                RateLimitUsage.countdownText(to: reset)
+                // Prefix the binding window code (5H/7D) of whichever displayed account
+                // owns the soonest reset, exactly as the single-account branch does.
+                // Without it a colour-blind user with two accounts had no non-colour cue
+                // that the bar had switched from percentages to a countdown.
+                countdownText(reset: reset, windowCode: bindingWindowCode(for: reset, order: order, limits: perAccount, now: now, countdownResetDate: countdownResetDate))
             } else {
                 multi.text
             }
@@ -268,6 +295,53 @@ enum MenuBarMultiAccountText {
                 usedMultiAccount: false
             )
         }
+    }
+
+    /// What VoiceOver reads for the status item.
+    ///
+    /// The image carries the number; the accessibility value has to carry the meaning.
+    /// It used to be the raw rendered string, so VoiceOver said "AI Battery, 63%" with
+    /// no hint of *what* 63% was, read the separator as "42% vertical bar 23%", spoke
+    /// `—` literally, and never mentioned being throttled on a multi-account bar.
+    ///
+    /// - Parameters:
+    ///   - display: the resolved menu-bar display.
+    ///   - metricLabel: the active metric in the provider's own words, from
+    ///     `MetricMode.shortLabel(provider:kind:)` — passed in rather than derived here
+    ///     so there is one source for that vocabulary.
+    ///   - providerNames: glyph → spoken provider name, applied to mixed-provider text.
+    static func spokenDescription(
+        display: Display,
+        metricLabel: String,
+        providerNames: (String) -> String = { $0 }
+    ) -> String {
+        var body = providerNames(display.text)
+            .replacingOccurrences(of: separator, with: ", ")
+            .replacingOccurrences(of: "\u{2014}", with: "no data")
+            .replacingOccurrences(of: "  ", with: ", ")
+        if body.isEmpty {
+            body = "no data"
+        }
+
+        var parts = ["AI Battery"]
+        if display.countdownReset != nil {
+            // A countdown replaces the percentage entirely, so "N%" vocabulary would lie.
+            parts.append("limit reached")
+            parts.append("resets in \(body)")
+        } else if display.usedMultiAccount {
+            parts.append("usage by account")
+            parts.append(body)
+            if display.isExhausted {
+                parts.append("limit reached")
+            }
+        } else {
+            parts.append(metricLabel)
+            parts.append(body)
+            if display.isExhausted {
+                parts.append("limit reached")
+            }
+        }
+        return parts.joined(separator: ", ")
     }
 
     /// The deterministic output of `resolveDisplay`. `usedMultiAccount` distinguishes

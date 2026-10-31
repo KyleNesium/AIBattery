@@ -155,11 +155,13 @@ struct PopoverFooterView: View {
                 .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
             if let symbol = statusSymbol {
                 Image(systemName: symbol)
-                    .font(.system(size: Layout.dotSizeSmall * 0.72, weight: .bold))
+                    .font(Typography.statusDotSymbol)
                     .foregroundStyle(Color.white)
             }
         }
-        .accessibilityLabel(statusTooltip)
+        // The enclosing FooterLink already announces "System status: …"; labelling the
+        // dot as well made VoiceOver read the status twice for one control.
+        .accessibilityHidden(true)
     }
 
     private var statusSymbol: String? {

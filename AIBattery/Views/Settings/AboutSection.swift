@@ -6,6 +6,16 @@ import SwiftUI
 struct AboutSection: View {
     @ObservedObject var viewModel: UsageViewModel
 
+    /// Speak a one-off result that has no lasting on-screen home. Same pattern the
+    /// metric picker uses for auto mode.
+    static func announce(_ message: String) {
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [.announcement: message]
+        )
+    }
+
     #if ENABLE_VERSION_CHECKER
     @State private var checking = false
     @State private var checkMessage: String?
@@ -184,9 +194,14 @@ struct AboutSection: View {
             checking = false
             guard result == nil else {
                 checkMessage = nil
+                // Pressing "Check for Updates" used to give VoiceOver nothing at all:
+                // the "Up to date" row auto-dismisses in 2.5 s and an available update
+                // only changes the footer arrow.
+                Self.announce("Update available, version \(result?.version ?? "")")
                 return
             }
             checkMessage = "Up to date"
+            Self.announce("Up to date")
             checkDismissTask?.cancel()
             checkDismissTask = Task {
                 try? await Task.sleep(nanoseconds: MotionConstants.updateCheckMessageNs)

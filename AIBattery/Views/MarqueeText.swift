@@ -22,6 +22,11 @@ struct MarqueeText: View {
     /// reachable through the `.help()` tooltip and the accessibility label below.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The row's height scales with the system text size. Fixed at 14 pt it clipped the
+    /// incident text at the larger accessibility sizes — the one place in the popover
+    /// where the text is the whole point of the row.
+    @ScaledMetric(relativeTo: .caption) private var scaledHeight: CGFloat = Layout.marqueeHeight
+
     private var currentText: String {
         texts.isEmpty ? "" : texts[currentIndex % texts.count]
     }
@@ -79,7 +84,7 @@ struct MarqueeText: View {
                 .onChange(of: geo.size.width) { updateContainerWidth($0) }
         }
         .clipped()
-        .frame(height: Layout.marqueeHeight)
+        .frame(height: scaledHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(texts.joined(separator: ", "))
         .accessibilityHint(texts.count > 1 ? "Cycles through \(texts.count) items" : "")

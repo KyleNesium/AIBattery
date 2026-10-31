@@ -140,9 +140,10 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
   - Slider positions: 30m, 1h, 2h, 4h, 8h, ∞ (left to right)
   - `.help()` tooltip on hover (no inline hint text)
 - **Display**: Checkboxes
-  - "Colorblind" → `aibattery_colorblindMode`
+  - "Colorblind" → `aibattery_colorblindMode`. The palette is ORed with the system setting: `ThemeColors.resolveColorblind()` returns true for this toggle **or** `NSWorkspace.accessibilityDisplayShouldDifferentiateWithoutColor`, so someone who already set it system-wide gets the safe palette without finding this checkbox.
+  - "Full account email in popover" is hidden entirely when no Codex account exists — Claude's discovered identity is a workspace name, which is never masked, so the toggle did nothing for a Claude-only user.
   - "All accounts in menu bar" → `aibattery_showAllAccountsInMenuBar` (second Display row; `.help()`: shows every connected account's usage, e.g. `42% | 23%`, with star color + countdown from the worst account)
-  - "Full account email in popover" → `aibattery_showFullAccountIdentity` (third Display row, default off; `.help()` explains the `k•••@domain` masking and that aliases are always shown in full). Only affects the header chip and its menu — Settings placeholders are always unmasked.
+  - "Full account email in popover" → `aibattery_showFullAccountIdentity` (third Display row, Codex accounts only, default off; `.help()` explains the `k•••@domain` masking and that aliases are always shown in full). Only affects the header chip and its menu — Settings placeholders are always unmasked.
 
 **`AlertSettingsSection`** (owns `alertStatus`, `alertRateLimit`, `rateLimitThreshold`):
 - **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)
@@ -224,7 +225,7 @@ News-ticker style scrolling text view. Supports single or multiple texts.
 Each bar:
 - **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (`Typography.badgeLabel` = .system 10pt, monospaced, .tertiary, rounded background) + throttle warning icon + token total (monoCaption, `ThemeColors.tertiaryLabel`, tokenColumn-width trailing) + percentage (.headline, monospaced, semibold)
   - Token total shows tokens consumed in the active rate limit window, aligned to the window boundary via `resetsAt`. Uses `fiveHourWindowTokens(resetsAt:)` / `sevenDayWindowTokens(resetsAt:)` — sums only the buckets that lie **entirely** inside the window (`UsageSnapshot.firstInWindowBucket`, which rounds the remaining time up), so the count resets when the window resets and the bucket the window started inside contributes nothing. The 5-hour window uses the 15-minute buckets; the 7-day window uses `sevenDayTokenBuckets` (hourly), falling back to the day-keyed `dailyTokenTotals` only when a snapshot carries no buckets.
-- **Progress bar**: 8pt height, 3pt corner radius. Background: `ThemeColors.trackFill` (black 0.14 light / white 0.1 dark). Fill: color by percent.
+- **Progress bar**: 8pt height, 3pt corner radius. Background: `ThemeColors.trackFill` (black **0.30** light / white 0.1 dark — at the previous 0.14 every fill measured under 3:1 against its own track in light mode, so the used/remaining boundary failed WCAG non-text contrast; darkening the track fixes all four without touching the palette). Fill: color by percent.
 - **Detail row**: left status + reset countdown on right
   - Normal: `"X% remaining"` (.caption2, secondaryLabel) + `"Resets in Xh Ym"` (.caption2, .tertiary)
   - Predictive: `"~Xh Ym to limit"` (.caption2, .caution) when `estimatedTimeToLimit` available (utilization > 20%, estimate before reset)
@@ -273,9 +274,9 @@ Padding: H 16, V 8
 Codex-native replacement for **both** rate-limit bars when `snapshot.rateLimits?.creditBudget != nil` (Business / Enterprise spend-control plans). Rendered in the `.fiveHour` slot; the `.sevenDay` slot renders nothing.
 
 - **Label row**: `"Credits"` (.buttonLabel; tooltip: % used, `used of limit credits`, plan, reset time, source) + optional `unlimited` badge + danger triangle when throttled; trailing `"{percent}%"` (.monoValue) + `"{used} / {limit}"` (`CodexCreditBudget.formatCredits`, .monoValue, secondaryLabel, copyable). The tooltip's "Plan: …" line is `CreditBudgetSection.planLine(limitName:planType:)`: the reported `limit_name` when present (e.g. a workspace's named spend cap, "Plan: Engineering monthly cap"), else the bare `planType` ("Plan: business"), else the line is omitted.
-- **Gauge bar**: shared `GaugeRow`, colored via `ThemeColors.barColor`
+- **Gauge bar**: shared `GaugeRow`, colored via `ThemeColors.barColor`. Its footer ticks through `PanelPeriodicView` (only while the panel is on screen), and it takes an `accessibilityHint` so the tooltip-only detail — reset time, plan, provenance — reaches VoiceOver, which `.help()` never does
 - **Footer**: `"{remaining} remaining"` (or "Budget reached" / "Credits depleted" in danger) + `"Resets in …"` countdown. When confirmed and not throttled/uncapped/at-limit, `"{remaining} remaining"` gives way to `"~{duration} to limit"` (.tinyLabel, `ThemeColors.caution`, copyable, help "Estimated time until the credit cap at the pace observed this period") once `CodexCreditBudget.estimatedTimeToExhaustion(now:)` has a value — same `confirmed` gate as the windowed bars' predictive estimate, never shown on unconfirmed/spiky data.
-- **Uncapped plan** (`budget.isUncapped` — no windows, no individual spend cap): the badge reads `no cap`, the trailing value is a single `"—"` (help "No individual spend cap on this plan") instead of `0% · 0 / 0`, the footer says "No spend cap on this plan", the accessibility value is "No spend cap", and the header tooltip opens with "Codex credits: this plan has no individual spend cap, so there is nothing to meter". A depleted `credits` flag still wins ("Credits depleted").
+- **Uncapped plan** (`budget.isUncapped` — no windows, no individual spend cap): the badge reads `no cap`, the trailing value is a single `"—"` (help "No individual spend cap on this plan") instead of `0% · 0 / 0`, the footer says "No spend cap on this plan", the accessibility value is "No spend cap", and the header tooltip opens with "Codex credits: this plan has no individual spend cap, so there is nothing to meter". A depleted `credits` flag still wins ("No credits left" — one verb per state: a limit is *reached*, and credits either remain or do not).
 - Alarm gating identical to `UsageBar.AlarmState` (confirmed data only)
 - The metric toggle shows **Credits | Context** (`MetricMode.pickerModes`); a stored `.sevenDay` selection highlights the Credits tab. Menu bar shows the credit % in either rate-limit mode; a throttled countdown is prefixed `CR`.
 
@@ -327,7 +328,7 @@ Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Token
 - **5-project limit**: shows top 5 by default. "Show more" expands to 10. "Show less" collapses. Controls row: "Show more"/"Show less" left (accent color) + sort button right — same line. State resets when section is collapsed.
 - **Search filter**: appears when expanded. Filters projects by name. Magnifying glass icon + plain text field in subtle rounded background.
 - Collapsed state: `@AppStorage("aibattery_projectsCollapsed")`
-- Accessibility: combined label per row with project name and token total
+- Accessibility: combined label per row with project name and token total; the full project path is the row’s `.help()` tooltip **and** its accessibility hint (two checkouts can share a folder name, and `.help` never reaches VoiceOver)
 - Column widths: cost 46pt (`Layout.costColumn`), tokens 42pt (`Layout.tokenColumn`)
 - Data source: JSONL entries only (stats-cache lacks per-entry cwd). Entries with nil/empty cwd grouped as "Other".
 

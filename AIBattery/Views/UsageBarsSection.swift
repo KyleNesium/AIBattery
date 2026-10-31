@@ -177,6 +177,8 @@ struct UsageBar: View {
             barColor: ThemeColors.barColor(percent: displayPercent),
             accessibilityLabel: "\(label) rate limit usage \(PercentFormat.spoken(displayPercent))",
             accessibilityValue: alarm.throttled ? "Rate limited" : "\(PercentFormat.remaining(displayPercent)) percent remaining",
+            // Same text as the header tooltip: reset time, binding window, provenance.
+            accessibilityHint: headerTooltip.replacingOccurrences(of: "\n", with: ", "),
             tickInterval: resetTickInterval,
             headerLeading: {
                 HStack(spacing: Spacing.inner) {

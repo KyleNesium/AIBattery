@@ -13,7 +13,15 @@ enum ThemeColors {
     /// `nonisolated(unsafe)` is acceptable here: writes happen exclusively from the
     /// main-queue observer closure below, and reads are a Bool (atomic on aligned memory)
     /// used only as a UI palette hint.
-    nonisolated(unsafe) private(set) static var isColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+    nonisolated(unsafe) private(set) static var isColorblind: Bool = Self.resolveColorblind()
+
+    /// The manual toggle OR the system's own "Differentiate without colour" setting.
+    /// Someone who has already turned that on system-wide should not have to find a
+    /// checkbox in this app's Settings to get the colourblind-safe palette.
+    static func resolveColorblind(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: UserDefaultsKeys.colorblindMode)
+            || NSWorkspace.shared.accessibilityDisplayShouldDifferentiateWithoutColor
+    }
 
     /// One-time KVO registration to keep isColorblind in sync with UserDefaults.
     /// `nonisolated(unsafe)` is fine — the value is set once at init and treated as
@@ -23,7 +31,7 @@ enum ThemeColors {
         object: nil,
         queue: .main
     ) { _ in
-        isColorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+        isColorblind = Self.resolveColorblind()
     }
 
     /// Call once at app launch to ensure the observer is registered.
@@ -31,9 +39,9 @@ enum ThemeColors {
         _ = observer
     }
 
-    /// Re-read the colorblind flag from UserDefaults. Used by tests after changing the preference.
+    /// Re-read the colorblind flag. Used by tests after changing the preference.
     static func refreshColorblindFlag() {
-        isColorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+        isColorblind = resolveColorblind()
     }
 
     /// Amber color constant used across both colorblind palettes.
@@ -316,9 +324,15 @@ enum ThemeColors {
 
     // MARK: - Track & background colors
 
-    /// Background for bar gauge tracks. Slightly higher contrast in light mode.
+    /// Background for bar gauge tracks.
+    ///
+    /// The light value is 0.30, not 0.14: at 0.14 every bar fill measured under 3:1
+    /// against its own track (green 1.47, orange 1.48, red 2.39), so the boundary
+    /// between "used" and "remaining" failed WCAG's non-text contrast minimum for a
+    /// sighted user in daylight. Darkening the track lifts all four past 3:1 without
+    /// touching the palette. Dark mode already passed.
     static let trackFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.14),
+        light: NSColor(white: 0.0, alpha: 0.30),
         dark: NSColor(white: 1.0, alpha: 0.1)
     )
 
