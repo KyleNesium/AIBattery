@@ -24,6 +24,33 @@ extension NSLock {
             return old
         }
     }
+
+    /// Lock-protected counter for a value written on a scan thread and read from
+    /// MainActor. Its own lock, deliberately: the reader's scan lock is held for the
+    /// whole of a cold scan, so reading through it would park the UI thread behind
+    /// seconds of file I/O — the thing these readers exist to avoid.
+    final class AtomicInt: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        var current: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+
+        func set(_ newValue: Int) {
+            lock.lock()
+            value = newValue
+            lock.unlock()
+        }
+
+        func add(_ delta: Int) {
+            lock.lock()
+            value += delta
+            lock.unlock()
+        }
+    }
 }
 
 /// Reads and caches JSONL session log files. NOT MainActor — file I/O must not block the UI.
@@ -98,8 +125,11 @@ final class SessionLogReader: @unchecked Sendable {
     /// Shared decoder — avoids allocating a new one per JSONL file.
     private static let jsonDecoder = JSONDecoder()
 
-    /// Number of corrupt/skipped lines from the most recent file parse cycle.
-    private(set) var lastCorruptLineCount = 0
+    /// Number of corrupt/skipped lines from the most recent file parse cycle. Written
+    /// on the scan thread, read from MainActor (`UsageViewModel.logCorruptionMetrics`) —
+    /// so it is an atomic rather than a plain `Int` guarded by nothing.
+    private let corruptLineCounter = NSLock.AtomicInt()
+    var lastCorruptLineCount: Int { corruptLineCounter.current }
 
     /// Called by FileWatcher when files change — marks caches dirty so the next read re-scans.
     /// Non-blocking: if a scan is in progress, sets a flag so the scan result is discarded.
@@ -130,7 +160,7 @@ final class SessionLogReader: @unchecked Sendable {
     func readAllUsageEntries() -> [AssistantUsageEntry] {
         lock.lock()
         pendingInvalidation.set(false)
-        lastCorruptLineCount = 0
+        corruptLineCounter.set(0)
 
         // Fast path: not dirty, return cached result
         if !isDirty, let cached = cachedAllEntries {
@@ -440,12 +470,15 @@ final class SessionLogReader: @unchecked Sendable {
         /// re-counted as corrupt once per MB and its tail parsed as a new line.
         var skippingOversizedLine = false
 
+        // One reused buffer for the whole file: a `Data` per chunk was the launch
+        // footprint spike (see `ChunkedFileReader`).
+        var chunkReader = ChunkedFileReader(handle: handle, bufferSize: bufferSize)
+
         while true {
-            guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
             var alreadyScanned = leftover.count
-            leftover.append(chunk)
+            guard chunkReader.readChunk(into: &leftover) else { break }
 
             if skippingOversizedLine {
                 guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
@@ -457,7 +490,7 @@ final class SessionLogReader: @unchecked Sendable {
                 skippingOversizedLine = false
             } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
                 // Malformed / unexpectedly large line — count once, skip to its newline.
-                lastCorruptLineCount += 1
+                corruptLineCounter.add(1)
                 AppLogger.files.debug("Skipping oversized JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
                 skippingOversizedLine = true
@@ -481,14 +514,14 @@ final class SessionLogReader: @unchecked Sendable {
                 do {
                     decoded = try decoder.decode(SessionEntry.self, from: Data(lineData))
                 } catch {
-                    lastCorruptLineCount += 1
+                    corruptLineCounter.add(1)
                     AppLogger.files.debug("JSONL decode failed in \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
                     continue
                 }
                 if let usageEntry = Self.makeUsageEntry(from: decoded) {
                     collect(usageEntry)
                 } else if Self.hasCorruptTimestamp(decoded) {
-                    lastCorruptLineCount += 1
+                    corruptLineCounter.add(1)
                     AppLogger.files.debug("JSONL line without a parseable timestamp skipped in \(url.lastPathComponent, privacy: .public)")
                 }
             }

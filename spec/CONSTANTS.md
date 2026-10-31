@@ -530,7 +530,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 
 | Constant | Value |
 |----------|-------|
-| Read buffer size | 64 KB (256 KB measured: no gain) |
+| Read buffer size | 64 KB (256 KB measured: no gain), ONE buffer reused for the whole file (`ChunkedFileReader`) |
 | Newline search | `memchr` via `Data.firstNewlineIndex(from:)`, resumed per chunk — both readers |
 | Max line size | 1 MB — an oversized line is counted as corrupt once and skipped through to its newline (malformed data protection) |
 | Pre-filter marker 1a | `"type":"assistant"` (no space) |

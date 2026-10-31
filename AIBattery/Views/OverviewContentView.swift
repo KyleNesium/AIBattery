@@ -17,13 +17,13 @@ struct OverviewContentView: View {
     static let clockInterval: TimeInterval = 10
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: Self.clockInterval)) { context in
+        PanelPeriodicView(every: Self.clockInterval) { now in
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
                     if index > 0 {
                         insetDivider
                     }
-                    AccountCardView(card: card, now: context.date, onSelect: { onSelect(card) })
+                    AccountCardView(card: card, now: now, onSelect: { onSelect(card) })
                 }
             }
         }
@@ -71,7 +71,7 @@ struct OverviewFooterView: View {
                         .scaleEffect(0.5)
                         .frame(width: Layout.spinnerSize, height: Layout.spinnerSize)
                 } else if let lastFreshFetch {
-                    TimelineView(.periodic(from: .now, by: 10)) { _ in
+                    PanelPeriodicView(every: 10) { _ in
                         // Just the elapsed time: "Updated" wrapped to a second line
                         // between Settings and Quit at 275pt, and the refresh icon
                         // beside it already says what the number is.

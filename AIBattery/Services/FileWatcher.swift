@@ -46,7 +46,7 @@ final class FileWatcher {
         watchCodexSessionsDirectory()
         // Start fallback timer if any attempted watcher failed — ensures changes are
         // picked up even if one of the FS event sources is unavailable.
-        if fileSource == nil || fsEventStream == nil || codexWatchFailed {
+        if needsFallbackTimer {
             startFallbackTimer()
         }
     }
@@ -60,8 +60,14 @@ final class FileWatcher {
 
     /// Resume the fallback timer if FSEvent watchers are absent.
     func resumeFallbackTimer() {
-        guard timer == nil, fileSource == nil || fsEventStream == nil || codexWatchFailed else { return }
+        guard timer == nil, needsFallbackTimer else { return }
         startFallbackTimer()
+    }
+
+    /// Whether any watched source is currently unavailable, i.e. whether polling is
+    /// standing in for something. One definition, used by start, resume and the tick.
+    private var needsFallbackTimer: Bool {
+        fileSource == nil || fsEventStream == nil || codexWatchFailed
     }
 
     func stopWatching() {
@@ -285,8 +291,21 @@ final class FileWatcher {
                     owed.codexSessionLog = true
                 }
                 // A tick that stands in for nothing — every watcher this one covers is
-                // healthy — must not make the caller re-aggregate anything.
-                guard owed != .none else { return }
+                // healthy — must not make the caller re-aggregate anything. It also has
+                // no reason to keep ticking: the timer is started when a watcher is
+                // missing at launch (common for a Codex-only user, whose stats-cache
+                // watcher binds later), and nothing used to stop it once that watcher
+                // recovered, so the app kept a 60 s wake-up on top of working FSEvents
+                // for the rest of the session. `resumeFallbackTimer` re-arms it if a
+                // watcher fails again.
+                guard owed != .none else {
+                    // Only stand down when every watcher the timer covers is healthy,
+                    // including the stats-cache source that binds on a later retry.
+                    if !self.needsFallbackTimer {
+                        self.suspendFallbackTimer()
+                    }
+                    return
+                }
                 self.onChange(owed)
             }
         }

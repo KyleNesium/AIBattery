@@ -69,7 +69,9 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     private var directoriesListedDuringLastDiscovery = 0
 
     /// Corrupt / skipped line count from the most recent `readAllUsageEntries()`.
-    private(set) var lastCorruptLineCount = 0
+    /// Written on the scan thread, read from MainActor — see `NSLock.AtomicInt`.
+    private let corruptLineCounter = NSLock.AtomicInt()
+    var lastCorruptLineCount: Int { corruptLineCounter.current }
 
     // MARK: - UsageEntrySource
 
@@ -90,7 +92,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     func readAllUsageEntries() -> [AssistantUsageEntry] {
         lock.lock()
         pendingInvalidation.set(false)
-        lastCorruptLineCount = 0
+        corruptLineCounter.set(0)
 
         if !isDirty, let cached = cachedAllEntries {
             lock.unlock()
@@ -349,12 +351,15 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
         }
 
+        // One reused buffer for the whole file: a `Data` per chunk was the launch
+        // footprint spike (see `ChunkedFileReader`).
+        var chunkReader = ChunkedFileReader(handle: handle, bufferSize: bufferSize)
+
         while true {
-            guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
             var alreadyScanned = leftover.count
-            leftover.append(chunk)
+            guard chunkReader.readChunk(into: &leftover) else { break }
 
             if skippingOversizedLine {
                 guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
@@ -365,7 +370,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
                 alreadyScanned = 0
                 skippingOversizedLine = false
             } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
-                lastCorruptLineCount += 1
+                corruptLineCounter.add(1)
                 AppLogger.files.debug("Skipping oversized Codex JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
                 skippingOversizedLine = true
@@ -395,7 +400,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             process(leftover)
         }
 
-        lastCorruptLineCount += parser.corruptLineCount
+        corruptLineCounter.add(parser.corruptLineCount)
         return entries
     }
 }

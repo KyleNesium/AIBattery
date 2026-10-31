@@ -86,6 +86,12 @@ struct MarqueeText: View {
         .onChange(of: texts) { _ in restart() }
         .onAppear { beginCycle() }
         .onDisappear { cancelAndStop() }
+        // `orderOut` never fires `onDisappear` (the reason `DeferredRenderState` exists),
+        // so without these the scroll→pause→scroll chain kept cycling on the main queue
+        // behind a closed popover — for the whole length of an incident, which is exactly
+        // when this view has something to say. The panel's own signals stop and restart it.
+        .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in cancelAndStop() }
+        .onReceive(NotificationCenter.default.publisher(for: .panelDidShow)) { _ in restart() }
     }
 
     // MARK: - Scheduling
