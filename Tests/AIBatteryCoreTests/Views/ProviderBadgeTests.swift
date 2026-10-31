@@ -36,29 +36,37 @@ struct ProviderBadgeTests {
 
     // MARK: - The bloom
 
-    /// The ghost rests *expanded and invisible* so one value drives both scale and fade
-    /// with no gating flag: at `bloom == 1` it must be fully transparent, or a second
-    /// logo would sit behind every Claude mark at rest.
-    @Test func theBloomGhostIsInvisibleAtRest() {
-        let restingOpacity = (1 - 1.0) * ThemeColors.markBloomGhostOpacity
-        #expect(restingOpacity == 0)
-        // ...and visible at the pulse's first frame, which is where it starts.
-        let startingOpacity = (1 - 0.0) * ThemeColors.markBloomGhostOpacity
-        #expect(startingOpacity == ThemeColors.markBloomGhostOpacity)
-        #expect(ThemeColors.markBloomGhostOpacity < 0.5)
+    /// The flare is driven by a *position* along the curve, not a brightness, so that a
+    /// single monotonic animation both surges and decays. `sin(flare · π)` has to be dark
+    /// at both ends — otherwise the unanimated reset to 0 would show as a jump — and
+    /// brightest in the middle.
+    @Test func theFlareCurveIsDarkAtBothEndsAndBrightestInTheMiddle() {
+        #expect(ProviderBadge.flareIntensity(at: 0) == 0)
+        #expect(abs(ProviderBadge.flareIntensity(at: 1) - 0) < 1e-12)
+        #expect(ProviderBadge.flareIntensity(at: 0.5) == 1)
+        // Monotonic up to the peak, monotonic down after it.
+        #expect(ProviderBadge.flareIntensity(at: 0.25) < ProviderBadge.flareIntensity(at: 0.5))
+        #expect(ProviderBadge.flareIntensity(at: 0.75) < ProviderBadge.flareIntensity(at: 0.5))
     }
 
-    /// The ghost has to actually clear the mark, or the pulse reads as a swell rather
-    /// than something leaving.
-    @Test func theBloomGhostTravelsPastTheMarksEdges() {
-        let reach = 1 + Layout.markBloomSpread
-        #expect(reach > Layout.markBloomScale)
+    /// The flare decays back onto the steady hover glow, never past it — a hover must not
+    /// end darker than it settles.
+    @Test func theFlareDecaysOntoTheSteadyGlowRatherThanToNothing() {
+        let peakRadius = Layout.markGlowRadius + 1.0 * Layout.markFlareRadius
+        let restingRadius = Layout.markGlowRadius + 0.0 * Layout.markFlareRadius
+        #expect(restingRadius == Layout.markGlowRadius)
+        #expect(peakRadius > Layout.markGlowRadius)
+
+        let peakOpacity = ThemeColors.markGlowOpacity + ThemeColors.markFlareOpacityBoost
+        #expect(peakOpacity > ThemeColors.markGlowOpacity)
+        // Never fully opaque: a solid halo reads as a disc behind the mark, not light.
+        #expect(peakOpacity < 1)
     }
 
-    /// `easeOut`, not `easeInOut`: light leaves fast and drifts to nothing. And the
-    /// ghost should be gone before the lift finishes settling.
-    @Test func theBloomEasesOutAndEndsBeforeTheTurnWould() {
-        #expect(MotionConstants.markBloom == .easeOut(duration: 1.1))
+    /// `easeOut` puts the peak early, so the star flares fast and calms slowly. An
+    /// `easeInOut` crept up to the peak and read as a pulse being inflated.
+    @Test func theFlareEasesOutSoThePeakComesEarly() {
+        #expect(MotionConstants.markBloom == .easeOut(duration: 1.0))
         #expect(MotionConstants.markBloom != MotionConstants.markSpin)
     }
 

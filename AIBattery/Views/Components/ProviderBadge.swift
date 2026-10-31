@@ -3,10 +3,16 @@ import SwiftUI
 /// How a brand mark reacts to hover. The two marks are different shapes and a single
 /// gesture flattered only one of them, so each gets the motion its own form implies.
 enum MarkHoverMotion {
-    /// Claude's sunburst: the rays push outward. The mark swells and a ghost of it
-    /// expands past the edges and dissipates, so the movement reads as radiating from
-    /// the centre — which is the one thing a starburst is drawing. Turning it did not
-    /// read at all: its rays are uneven, so a rotation looked like a wobble.
+    /// Claude's sunburst: it flares. The mark swells while its coloured glow surges
+    /// outward and then calms to a steady halo — a star putting out light, which is the
+    /// one thing a starburst is drawing.
+    ///
+    /// Two earlier attempts are worth not repeating. Turning it read as a *wobble*: the
+    /// rays are uneven, so a rotation has no symmetry to trace. Expanding a ghost copy of
+    /// the mark read as a *smudge*: the ghost sits behind an opaque logo, so it is hidden
+    /// for most of its travel and what escapes is a faint second starburst peeking
+    /// between the real rays. Light has neither problem — it is not a shape, so it cannot
+    /// double the logo, and it radiates whatever the mark's symmetry happens to be.
     case bloom
     /// OpenAI's knot: a single woven loop with no ends, so turning it traces the form
     /// instead of fighting it.
@@ -64,8 +70,12 @@ struct ProviderBadge: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selfHovered = false
     @State private var rotation: Double = 0
-    /// 0 = ghost at the mark's size and fully visible, 1 = expanded and gone. Rests at 1.
-    @State private var bloom: Double = 1
+    /// Drives the flare, as a position along it rather than its brightness. Brightness is
+    /// `sin(flare · π)`, which is 0 at both ends and 1 in the middle — so one monotonic
+    /// animation both surges and decays, with no timer, no delayed second animation and
+    /// no completion handler (macOS 13 has none). It rests at 1 and is snapped to 0
+    /// before each flare; both ends are dark, so the reset can never show a jump.
+    @State private var flare: Double = 1
 
     init(provider: AIProvider, isHovered: Bool? = nil, markSize: CGFloat = Layout.providerMarkSize) {
         self.provider = provider
@@ -86,17 +96,34 @@ struct ProviderBadge: View {
         }
     }
 
+    /// Brightness at a position along the flare curve, 0…1 — dark at both ends, brightest
+    /// in the middle. This shape is the whole trick: it turns one monotonic animation
+    /// into a surge *and* a decay, and it makes the unanimated reset invisible because
+    /// both ends of the sweep are dark.
+    nonisolated static func flareIntensity(at position: Double) -> Double {
+        sin(position * .pi)
+    }
+
+    /// How bright the flare is right now. Zero unless this mark blooms and is hovered.
+    private var flareIntensity: Double {
+        guard motion == .bloom, !reduceMotion, hovered else { return 0 }
+        return Self.flareIntensity(at: flare)
+    }
+
     var body: some View {
         mark
             .foregroundStyle(tint)
             // The glow is the part that survives Reduce Motion — a soft bloom in the
             // provider's own colour, so the mark looks lit from within rather than
             // outlined. Radius, not opacity alone: a flat halo reads as a selection ring.
+            // A blooming mark adds its flare on top of this steady halo and decays back
+            // onto it, so the hover never ends darker than it settles.
             .shadow(
-                color: tint.opacity(hovered ? ThemeColors.markGlowOpacity : 0),
-                radius: hovered ? Layout.markGlowRadius : 0
+                color: tint.opacity(
+                    hovered ? ThemeColors.markGlowOpacity + flareIntensity * ThemeColors.markFlareOpacityBoost : 0
+                ),
+                radius: hovered ? Layout.markGlowRadius + flareIntensity * Layout.markFlareRadius : 0
             )
-            .background(radiatingGhost)
             .scaleEffect(hovered && !reduceMotion ? liftScale : 1)
             .rotationEffect(.degrees(reduceMotion ? 0 : rotation))
             .frame(width: Layout.providerBadgeSize, height: Layout.providerBadgeSize)
@@ -134,19 +161,6 @@ struct ProviderBadge: View {
         }
     }
 
-    /// A copy of the mark pushing out past its own edges and fading — the rays
-    /// radiating. Behind the real mark, so it reads as light leaving it rather than a
-    /// second logo. Only the blooming providers ever draw it.
-    @ViewBuilder private var radiatingGhost: some View {
-        if motion == .bloom, !reduceMotion {
-            mark
-                .foregroundStyle(tint)
-                .scaleEffect(1 + bloom * Layout.markBloomSpread)
-                .opacity((1 - bloom) * ThemeColors.markBloomGhostOpacity)
-                .allowsHitTesting(false)
-        }
-    }
-
     /// One forward turn. Reset is deliberately unanimated so the angle returns to 0
     /// without visibly unwinding, then the turn animates to a full revolution.
     private func spinOnce() {
@@ -154,9 +168,10 @@ struct ProviderBadge: View {
         withAnimation(MotionConstants.markSpin) { rotation = Self.hoverRotationDegrees }
     }
 
-    /// One outward pulse. Snapped back to the mark's own size, then expanded away.
+    /// One surge of light. Snapped to the dark end of the curve, then run through it —
+    /// `flareIntensity` turns that single sweep into a rise and a decay.
     private func bloomOnce() {
-        withAnimation(.none) { bloom = 0 }
-        withAnimation(MotionConstants.markBloom) { bloom = 1 }
+        withAnimation(.none) { flare = 0 }
+        withAnimation(MotionConstants.markBloom) { flare = 1 }
     }
 }
