@@ -145,6 +145,13 @@ struct ModelPricing {
         // 4.5 is the only Haiku in the 4 generation.
         ("haiku 4", ModelPricing(inputPerMillion: 1, outputPerMillion: 5, cacheWritePerMillion: 1.25, cacheReadPerMillion: 0.10)),
         ("haiku 3.5", ModelPricing(inputPerMillion: 0.80, outputPerMillion: 4, cacheWritePerMillion: 1.00, cacheReadPerMillion: 0.08)),
+        // Claude 3 Haiku is retired (deprecated 2026-03-02) and Anthropic no longer
+        // publishes its rates on the live pricing page; $0.25 / $1.25 per MTok is its
+        // launch pricing, still reported consistently by third-party trackers, with the
+        // published $0.30 / $0.03 cache rates. Without this row it fell through to the
+        // Haiku family fallback and billed at Haiku 4.5's $1 / $5 — 4x too high for the
+        // oldest history. Must stay AFTER "haiku 3.5" — "Haiku 3.5" contains "haiku 3".
+        ("haiku 3", ModelPricing(inputPerMillion: 0.25, outputPerMillion: 1.25, cacheWritePerMillion: 0.30, cacheReadPerMillion: 0.03)),
     ]
 
     /// Match keys in table order — the `contains` scan is order-dependent, so the ordering

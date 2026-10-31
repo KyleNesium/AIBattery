@@ -255,14 +255,37 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 
 Pricing per million tokens:
 
-| Model | Input | Output | Cache Write | Cache Read |
+| Key (match order) | Input | Output | Cache Write | Cache Read |
 |-------|-------|--------|-------------|------------|
-| Opus 4 | $15 | $75 | $18.75 | $1.50 |
-| Sonnet 4 | $3 | $15 | $3.75 | $0.30 |
-| Haiku 4 | $0.80 | $4 | $1.00 | $0.08 |
-| Sonnet 3.5 | $3 | $15 | $3.75 | $0.30 |
-| Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
-| Opus 3 | $15 | $75 | $18.75 | $1.50 |
+| `fable 5.1` | $10 | $50 | $12.5 | $0.25 |
+| `mythos 5.1` | $10 | $50 | $12.5 | $0.25 |
+| `fable 5` | $10 | $50 | $12.5 | $1 |
+| `mythos 5` | $10 | $50 | $12.5 | $1 |
+| `opus 5.5` | $4 | $20 | $5 | $0.2 |
+| `opus 5` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4.8` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4.7` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4.6` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4.5` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4` | $15 | $75 | $18.75 | $1.5 |
+| `opus 3` | $15 | $75 | $18.75 | $1.5 |
+| `sonnet 5.5` | $2 | $10 | $2.5 | $0.1 |
+| `sonnet 5` | $2 | $10 | $2.5 | $0.2 |
+| `sonnet 4` | $3 | $15 | $3.75 | $0.3 |
+| `sonnet 3.5` | $3 | $15 | $3.75 | $0.3 |
+| `sonnet 3` | $3 | $15 | $3.75 | $0.3 |
+| `haiku 5.5` | $0.1 | $0.5 | $0.125 | $0.01 |
+| `haiku 4` | $1 | $5 | $1.25 | $0.1 |
+| `haiku 3.5` | $0.8 | $4 | $1 | $0.08 |
+| `haiku 3` | $0.25 | $1.25 | $0.3 | $0.03 |
+
+Keys are matched with `displayName(for:).lowercased().contains(key)` and the **first hit
+wins**, so each row must precede any shorter key that would swallow it (`opus 5.5` before
+`opus 5`, `haiku 3.5` before `haiku 3`); a test asserts that ordering structurally. A
+Claude model matching no row falls back to its family's current-generation rate
+(`familyFallback`: fable/mythos $10/$50, opus $5/$25, sonnet $2/$10, haiku $1/$5) rather
+than costing $0. Retired models keep their own published rates (Opus 3/4 $15/$75,
+Claude 3 Haiku $0.25/$1.25).
 
 OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29 and 2026-10-11; cache write billed at the input rate, longest prefix wins):
 
@@ -352,7 +375,7 @@ IDs absent from the pricing page fall through to their longest listed prefix (e.
 | Check interval | 0 (no scheduled checks — user-initiated only) |
 | Trigger | User clicks "Install Update" in banner (falls back to GitHub release if Sparkle not ready) |
 | Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after a 60s safety timeout (normally delegate-driven via `didFinishUpdateCycleFor`; LSUIElement workaround) |
-| Entitlement | `com.apple.security.cs.disable-library-validation` — required for ad-hoc signed builds to load Sparkle.framework |
+| Entitlement | `com.apple.security.cs.disable-library-validation` — required for **ad-hoc** signed builds to load Sparkle.framework (an ad-hoc signature has no Team ID, so library validation could never pass). `build-app.sh` strips it whenever `CODE_SIGN_IDENTITY` is a real identity, since the bundle re-signs Sparkle and its XPC services with that same identity; `KEEP_LIBRARY_VALIDATION_EXEMPTION=1` opts back out |
 | CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
 ## Idle Session Cutoff
