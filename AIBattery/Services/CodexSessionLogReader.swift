@@ -256,7 +256,9 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
 
             files.append(contentsOf: listing.files)
-            queue.append(contentsOf: listing.subdirectories)
+            queue.append(contentsOf: listing.subdirectories.filter {
+                Self.isWithinRetentionHorizon(directory: $0, under: sessionsURL, now: Date())
+            })
         }
 
         // Forget directories that no longer exist, so a deleted date folder cannot keep
@@ -270,6 +272,39 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         lastEnumerationDate = Date()
         rootModDateAtEnumeration = rootModDate
         return files
+    }
+
+    /// Months of history worth discovering. The aggregator never looks past 12 months
+    /// and Codex all-time figures are a `TokenLedger` high-water mark (so they survive a
+    /// file disappearing), but both readers retained and re-scanned everything — on this
+    /// machine the oldest retained rollout is 7 months old and the Codex CLI never
+    /// prunes. 13 rather than 12 so the boundary month is always read whole.
+    static let retentionHorizonMonths = 13
+
+    /// Whether a `~/.codex/sessions/YYYY[/MM[/DD]]` directory can still hold anything
+    /// worth reading. The date is in the path, so this costs no `stat`.
+    ///
+    /// Anything that does not parse as part of that skeleton is kept: an unrecognised
+    /// layout must not silently drop a user's data.
+    static func isWithinRetentionHorizon(directory: URL, under root: URL, now: Date) -> Bool {
+        let rootComponents = root.standardizedFileURL.pathComponents
+        let components = directory.standardizedFileURL.pathComponents
+        guard components.count > rootComponents.count,
+              Array(components.prefix(rootComponents.count)) == rootComponents else { return true }
+        let relative = Array(components.dropFirst(rootComponents.count))
+
+        guard let year = Int(relative[0]), (1_970...9_999).contains(year) else { return true }
+        var month = 12 // a bare year folder is kept if ANY of its months is in range
+        if relative.count >= 2 {
+            guard let parsed = Int(relative[1]), (1...12).contains(parsed) else { return true }
+            month = parsed
+        }
+
+        let calendar = Calendar.current
+        guard let cutoff = calendar.date(byAdding: .month, value: -retentionHorizonMonths, to: now) else { return true }
+        let cutoffYear = calendar.component(.year, from: cutoff)
+        let cutoffMonth = calendar.component(.month, from: cutoff)
+        return (year, month) >= (cutoffYear, cutoffMonth)
     }
 
     /// Read one directory: its `.jsonl` files and its subdirectories.

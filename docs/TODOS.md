@@ -110,6 +110,12 @@ at the end so they are not re-litigated.
   so `MarqueeText`'s scroll→pause→scroll chain cycles on the main queue during an incident and two
   10 s `TimelineView`s tick 24/7. **Approach:** pause on the panel-dismiss signal rather than moving
   the footer inside the gate — the gate defers heavy content and the footer should appear instantly.
+- [ ] **The Claude reader still has no date bound** (the Codex side now skips date folders
+  past `CodexSessionLogReader.retentionHorizonMonths`). Claude's all-time figures take a floor
+  from *every* JSONL date, not just the stats-cache's, so dropping files older than ~13 months
+  could visibly lower someone's all-time total — it needs the ledger high-water to be proven
+  sufficient first. Original item, for reference:
+
 - [ ] **Retained entries have no date bound.** The aggregator never looks past 12 months but both
   readers retain and re-scan everything (oldest retained Codex rollout is 7 months old; the Codex
   CLI never prunes). Skip files older than ~13 months at discovery. Safe because Codex all-time is
