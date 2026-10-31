@@ -85,7 +85,10 @@ enum MenuBarMultiAccountText {
         var currentParts: [String] = []
 
         for (i, id) in order.enumerated() {
-            let provider = providers[id] ?? .claude
+            // An id with no provider entry is skipped rather than drawn under Claude's
+            // mark. The map is built from every account, so this is defensive only —
+            // but mislabelling someone's Codex usage as Claude is worse than omitting it.
+            guard let provider = providers[id] else { continue }
             if currentProvider == nil {
                 currentProvider = provider
             }
@@ -183,7 +186,11 @@ enum MenuBarMultiAccountText {
         // broken star or a countdown — only the last-known percentage.
         let activeIsExhausted = confirmed && (activeRateLimits?.isThrottled ?? false)
 
-        let fetchedCount = perAccount.count + apiLimits.count
+        // Count only accounts that are BOTH displayed and have data. `perAccount` can
+        // hold entries `order` filters out, and gating on its raw count meant an empty
+        // `order` with two stale entries took the multi branch and rendered an empty
+        // string — the same class of bug as the v2.2.0 "— | —" regression, inverted.
+        let fetchedCount = order.filter { perAccount[$0] != nil || apiLimits[$0] != nil }.count
         let useMulti = shouldRender(toggleOn: toggleOn, fetchedAccountCount: fetchedCount)
         // With several accounts but the list turned off, the bar still has to agree with
         // the overview the popover opens on: one number, the worst account's headline.
@@ -296,14 +303,6 @@ enum MenuBarMultiAccountText {
             windows: limits[id], apiLimits: apiLimits[id],
             fetchedAt: .distantPast, isCached: false, source: nil
         ).worstPercent
-    }
-
-    private static func percent(for usage: RateLimitUsage, mode: MetricMode) -> Double {
-        switch mode {
-        case .fiveHour: usage.fiveHourPercent
-        case .sevenDay: usage.sevenDayPercent
-        case .contextHealth: usage.fiveHourPercent // belt-and-suspenders fallback
-        }
     }
 
     /// Genuine throttle only — 100% utilization is "at capacity", not exhausted.

@@ -19,4 +19,11 @@ struct DataNewlineTests {
         #expect(slice.firstNewlineIndex(from: 8) == nil)
         #expect(Data().firstNewlineIndex(from: 0) == nil)
     }
+
+    @Test func startBelowStartIndexReturnsNilInsteadOfReadingOutOfBounds() {
+        let data = Data("xxxx\nab\ncd".utf8)
+        let slice = data[5...] // startIndex == 5
+        #expect(slice.firstNewlineIndex(from: 0) == nil)
+        #expect(slice.firstNewlineIndex(from: 4) == nil)
+    }
 }

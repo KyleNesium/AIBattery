@@ -821,4 +821,40 @@ struct MenuBarMultiAccountTextTests {
         #expect(result.usedMultiAccount)
         #expect(result.percent == 80)
     }
+
+    // MARK: - Unknown provider / display gating
+
+    @Test("An id with no provider entry is skipped, not drawn under Claude's mark")
+    func unknownProviderIsSkipped() {
+        let limits: [String: RateLimitUsage] = [
+            "a": Self.usage(fiveHourUtilization: 0.42),
+            "ghost": Self.usage(fiveHourUtilization: 0.90),
+            "c": Self.usage(fiveHourUtilization: 0.23),
+        ]
+        let providers: [String: AIProvider] = ["a": .claude, "c": .codex]
+        let out = MenuBarMultiAccountText.build(order: ["a", "ghost", "c"], providers: providers, limits: limits)
+        // Two groups, each under its own glyph; the unmapped id contributes no slot.
+        #expect(out.text == "\(AIProvider.claude.glyph)\u{00A0}42%  \(AIProvider.codex.glyph)\u{00A0}23%")
+        #expect(!out.text.contains("90%"))
+    }
+
+    @Test("Multi branch is gated on displayed accounts with data, not on stale cache entries")
+    func emptyOrderDoesNotTakeMultiBranch() {
+        let stale: [String: RateLimitUsage] = [
+            "old-a": Self.usage(fiveHourUtilization: 0.42),
+            "old-b": Self.usage(fiveHourUtilization: 0.23),
+        ]
+        let display = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: stale,
+            order: [],
+            activeRateLimits: nil,
+            activePercent: 0.07,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: { _, _ in nil }
+        )
+        #expect(!display.usedMultiAccount)
+        #expect(display.text == PercentFormat.display(0.07))
+    }
 }

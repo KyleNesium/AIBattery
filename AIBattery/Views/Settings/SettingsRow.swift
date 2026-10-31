@@ -20,28 +20,31 @@ struct SettingsRow: View {
             }
 
             // One add link per provider, each gated on its own cap (spec §5:
-            // "up to 3 accounts per provider").
-            HStack(spacing: Spacing.section) {
-                Spacer().frame(width: Layout.settingsLabel)
-                if accountStore.canAddAccount(provider: .claude) {
-                    LinkActionButton(
-                        label: "Add Claude Account…",
-                        icon: "plus.circle",
-                        help: "Sign in with another Claude account",
-                        accessibilityLabel: "Add another Claude account",
-                        action: { onAddAccount(.claude) }
-                    )
+            // "up to 3 accounts per provider"). At both caps the whole row goes —
+            // otherwise it is two spacers, i.e. a bare gap above the caption.
+            if accountStore.canAddAccount(provider: .claude) || accountStore.canAddAccount(provider: .codex) {
+                HStack(spacing: Spacing.section) {
+                    Spacer().frame(width: Layout.settingsLabel)
+                    if accountStore.canAddAccount(provider: .claude) {
+                        LinkActionButton(
+                            label: "Add Claude Account…",
+                            icon: "plus.circle",
+                            help: "Sign in with another Claude account",
+                            accessibilityLabel: "Add another Claude account",
+                            action: { onAddAccount(.claude) }
+                        )
+                    }
+                    if accountStore.canAddAccount(provider: .codex) {
+                        LinkActionButton(
+                            label: "Add Codex Account…",
+                            icon: "plus.circle",
+                            help: "Sign in with a Codex (ChatGPT or OpenAI API key) account",
+                            accessibilityLabel: "Add a Codex account",
+                            action: { onAddAccount(.codex) }
+                        )
+                    }
+                    Spacer()
                 }
-                if accountStore.canAddAccount(provider: .codex) {
-                    LinkActionButton(
-                        label: "Add Codex Account…",
-                        icon: "plus.circle",
-                        help: "Sign in with a Codex (ChatGPT or OpenAI API key) account",
-                        accessibilityLabel: "Add a Codex account",
-                        action: { onAddAccount(.codex) }
-                    )
-                }
-                Spacer()
             }
             HStack(spacing: Spacing.section) {
                 Spacer().frame(width: Layout.settingsLabel)
@@ -53,7 +56,7 @@ struct SettingsRow: View {
             StyledDivider()
             RefreshSettingsSection(viewModel: viewModel)
             StyledDivider()
-            DisplaySettingsSection()
+            DisplaySettingsSection(hasCodexAccount: accountStore.accounts.contains { $0.provider == .codex })
             StyledDivider()
             AlertSettingsSection()
             StyledDivider()

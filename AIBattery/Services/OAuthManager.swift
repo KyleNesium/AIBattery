@@ -52,6 +52,11 @@ public final class OAuthManager: ObservableObject {
     /// and network-delay induced 401s that trigger unnecessary re-authentication.
     private static let expiryBuffer: TimeInterval = 300 // 5 minutes
 
+    /// Assumed lifetime when a token carries no decodable `exp` claim. Shared by the
+    /// Claude and Codex refresh paths (it was duplicated as a bare `3_600` in both),
+    /// and documented in `spec/CONSTANTS.md`.
+    static let fallbackTokenLifetime: TimeInterval = 3_600 // 1 hour
+
     /// Transport used by the refresh and code-exchange paths. Injectable so the refresh
     /// contract (cancellation, failure backoff) is testable without the live token
     /// endpoint; production keeps the `SecureNetworking` default.
@@ -565,7 +570,7 @@ public final class OAuthManager: ObservableObject {
                 AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
                 return nil
             }
-            let expires = JWTDecoder.expiry(set.accessToken) ?? Date().addingTimeInterval(3_600)
+            let expires = JWTDecoder.expiry(set.accessToken) ?? Date().addingTimeInterval(Self.fallbackTokenLifetime)
             tokens[accountId] = AccountTokens(
                 accessToken: set.accessToken,
                 refreshToken: set.refreshToken ?? refresh, // rotate only when a new one arrives

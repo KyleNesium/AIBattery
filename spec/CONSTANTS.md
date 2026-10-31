@@ -29,6 +29,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | OpenAI API-key shape check | `sk-` prefix + ≥ 20 chars (`OAuthManager.looksLikeOpenAIAPIKey`) — run locally before any network | OAuthManager+Codex / AuthView |
 | Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
+| Fallback token lifetime | 3600 sec (1 hour) — assumed when the access token carries no decodable `exp` claim (`OAuthManager.fallbackTokenLifetime`, shared by the Claude and Codex refresh paths) | OAuthManager / OAuthManager+Codex |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
 | Token refresh failure backoff | Same `RetryPolicy.statusCheck` curve (60 s → 300 s, ±20% jitter), per account. Armed only by a **transient** failure; an auth failure signs out instead. Cleared by any successful refresh and by `signOut`. While backing off, `getAccessToken(for:)` returns nil without touching the endpoint — previously every poll re-ran all 3 attempts with their 1 s + 2 s sleeps | OAuthManager |
 | Token endpoint timeout | 30 sec | OAuthManager |

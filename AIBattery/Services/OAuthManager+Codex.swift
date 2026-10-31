@@ -140,7 +140,7 @@ extension OAuthManager {
             provider: .codex,
             accessToken: tokenSet.accessToken,
             refreshToken: tokenSet.refreshToken,
-            expiresAt: JWTDecoder.expiry(tokenSet.accessToken) ?? Date().addingTimeInterval(3_600)
+            expiresAt: JWTDecoder.expiry(tokenSet.accessToken) ?? Date().addingTimeInterval(OAuthManager.fallbackTokenLifetime)
         )
         let record = Self.makeCodexAccountRecord(accountId: accountId, idToken: tokenSet.idToken)
         activateCodexAccount(record)

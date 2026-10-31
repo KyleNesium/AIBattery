@@ -2,6 +2,12 @@ import SwiftUI
 
 /// Display toggles + idle session cutoff slider.
 struct DisplaySettingsSection: View {
+    /// Whether any Codex account exists. The masking the full-email toggle controls
+    /// only ever applies to a Codex sign-in email — Claude's discovered identity is a
+    /// workspace name, which is deliberately never masked — so for a Claude-only user
+    /// the toggle does nothing and reads as broken. Hide it instead of qualifying it.
+    let hasCodexAccount: Bool
+
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
     @AppStorage(UserDefaultsKeys.showAllAccountsInMenuBar) private var showAllAccountsInMenuBar: Bool = false
@@ -67,14 +73,16 @@ struct DisplaySettingsSection: View {
                     .font(Typography.caption)
                     .help("List every account's usage in the menu bar (e.g. 42% | 23%). The popover already shows all accounts whenever you have more than one; this adds them to the menu bar too. Star color and countdown reflect the worst account.")
             }
-            HStack(spacing: Spacing.section) {
-                Text("")
-                    .font(Typography.caption)
-                    .frame(width: Layout.settingsLabel, alignment: .trailing)
-                Toggle("Full account email in popover", isOn: $showFullAccountIdentity)
-                    .toggleStyle(.checkbox)
-                    .font(Typography.caption)
-                    .help("Show the full sign-in email in the header chip and account menu. Off: masked as k•••@domain (safer when screen-sharing). Account names you set in Settings are always shown in full.")
+            if hasCodexAccount {
+                HStack(spacing: Spacing.section) {
+                    Text("")
+                        .font(Typography.caption)
+                        .frame(width: Layout.settingsLabel, alignment: .trailing)
+                    Toggle("Full account email in popover", isOn: $showFullAccountIdentity)
+                        .toggleStyle(.checkbox)
+                        .font(Typography.caption)
+                        .help("Show the full sign-in email in the header chip and account menu. Off: masked as k•••@domain (safer when screen-sharing). Account names you set in Settings are always shown in full.")
+                }
             }
         }
     }

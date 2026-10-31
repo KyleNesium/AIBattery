@@ -13,7 +13,7 @@ struct CodexUsageParserTests {
     """.utf8)
 
     @Test func parsesWhamUsage() throws {
-        let usage = try #require(CodexUsageParser.parseUsageResponse(whamBody))
+        let usage = try #require(CodexUsageParser.parseUsage(whamBody).rateLimits)
         #expect(usage.provider == .codex)
         #expect(abs(usage.fiveHourUtilization - 0.21) < 0.0001)
         #expect(abs(usage.sevenDayUtilization - 0.635) < 0.0001)
@@ -22,7 +22,7 @@ struct CodexUsageParserTests {
         #expect(usage.sevenDayWindowMinutes == 10_080)
         #expect(usage.representativeClaim == RateLimitUsage.sevenDayWindow) // 63.5 > 21
         #expect(usage.overallStatus == "allowed")
-        #expect(CodexUsageParser.planType(whamBody) == "team")
+        #expect(CodexUsageParser.parseUsage(whamBody).planType == "team")
     }
 
     /// 100% without `rate_limit_reached_type` is "at capacity", never a synthesized
@@ -33,7 +33,7 @@ struct CodexUsageParserTests {
         {"rate_limit":{"primary_window":{"used_percent":100,"reset_at":1788267090,"limit_window_seconds":18000},
                        "secondary_window":{"used_percent":10,"reset_at":1788853890,"limit_window_seconds":604800}}}
         """.utf8)
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         #expect(usage.fiveHourUtilization == 1.0)
         #expect(usage.fiveHourStatus == "allowed")
         #expect(usage.overallStatus == "allowed")
@@ -48,7 +48,7 @@ struct CodexUsageParserTests {
                        "secondary_window":{"used_percent":10,"reset_at":1788853890,"limit_window_seconds":604800}},
          "rate_limit_reached_type":"five_hour"}
         """.utf8)
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         #expect(usage.fiveHourStatus == "throttled")
         #expect(usage.overallStatus == "throttled")
         #expect(usage.sevenDayStatus == "allowed")
@@ -70,7 +70,7 @@ struct CodexUsageParserTests {
     }
 
     @Test func missingWindowsReturnNil() {
-        #expect(CodexUsageParser.parseUsageResponse(Data("{}".utf8)) == nil)
+        #expect(CodexUsageParser.parseUsage(Data("{}".utf8)).rateLimits == nil)
         #expect(CodexUsageParser.parseSessionRateLimits([:]) == nil)
     }
 

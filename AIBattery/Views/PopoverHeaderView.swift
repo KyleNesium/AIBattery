@@ -81,9 +81,4 @@ struct PopoverHeaderView: View {
     private var gearButton: some View {
         SettingsGearButton(showSettings: $showSettings)
     }
-
-    /// "plus" → "Plus", "api" → "API"; nil for empty/unknown. Forwarder kept for callers/tests.
-    nonisolated static func planLabel(_ billingType: String?) -> String? {
-        AccountStore.planLabel(billingType)
-    }
 }

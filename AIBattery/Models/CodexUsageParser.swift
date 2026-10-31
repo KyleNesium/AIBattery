@@ -3,11 +3,6 @@ import Foundation
 nonisolated enum CodexUsageParser {
     // MARK: - Public Interfaces
 
-    /// Parse wham/usage JSON response body.
-    nonisolated static func parseUsageResponse(_ data: Data) -> RateLimitUsage? {
-        parseUsage(data).rateLimits
-    }
-
     /// One-pass parse of the wham/usage body: rate limits (windows or credit budget)
     /// plus the plan name — callers that need both avoid decoding the JSON twice.
     nonisolated static func parseUsage(_ data: Data) -> (rateLimits: RateLimitUsage?, planType: String?) {
@@ -185,12 +180,6 @@ nonisolated enum CodexUsageParser {
             normalized["spend_control"] = spend
         }
         return normalized
-    }
-
-    /// Extract plan_type from wham/usage JSON.
-    nonisolated static func planType(_ data: Data) -> String? {
-        guard let json = try? JSONSerialization.jsonObject(with: data), let dict = json as? [String: Any] else { return nil }
-        return dict["plan_type"] as? String
     }
 
     // MARK: - Private Helpers
