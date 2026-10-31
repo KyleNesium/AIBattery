@@ -316,7 +316,7 @@ Padding: H 16, V 8
 
 ### ❹ Projects (`Views/ProjectUsageSection.swift`)
 
-The header carries a `BetaBadge` (`Typography.betaBadge` = 9pt mono regular, `tertiaryLabel` at `betaBadgeOpacity`) immediately after the title: per-project attribution is derived from session working directories and doesn't yet cover every case, so the totals are indicative. Deliberately the quietest label in the popover — smaller than a value badge and dimmed below the section title, so it qualifies the heading without competing with it; the caveat itself lives in the tooltip.
+The header carries a `BetaBadge` (`Typography.betaBadge` = 9pt mono regular, `tertiaryLabel` at `betaBadgeOpacity`) immediately after the title. **The badge is permanent, not a to-do** (decided 2026-10-31): the grouping itself is finished — `ProjectIdentityResolver` resolves symlinks and folds a git worktree into its parent repo — but two structural limits keep the totals indicative, and both are stated in the tooltip. (1) Local logs are machine-wide per provider, so a project's usage cannot be split per account; with more than one account the row covers all of them. (2) The CLIs prune their own session logs, so only sessions still on disk are counted. Deliberately the quietest label in the popover — smaller than a value badge and dimmed below the section title, so it qualifies the heading without competing with it; the caveat itself lives in the tooltip.
 
 Per-project token breakdown from JSONL `cwd` field. Same visual pattern as Token Usage section but without per-token-type breakdown rows.
 

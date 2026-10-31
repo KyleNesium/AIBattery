@@ -6,19 +6,9 @@ when the obvious fix is not the right one. Shipped items are removed rather than
 through; the history is in `CHANGELOG.md`.
 
 Triaged 2026-10-31 against source, and the queue was then worked top-down — everything
-the triage marked "do" is in `CHANGELOG.md` for the next release. What is left is below:
-one product decision, two blockers that need a certificate or a newer deployment target,
-and the verdicts kept so they are not re-litigated.
-
-## Open
-
-- [ ] **Decide the Projects "beta" badge.** The badge says per-project attribution "is still
-  being refined". Its concrete half shipped: rows now group by `ProjectIdentityResolver`
-  (symlinks resolved, a git worktree folded into its parent repo) and the full path is the
-  row's tooltip and VoiceOver hint. What remains is inherent rather than unfinished — local
-  logs are machine-wide per provider, so a project's usage cannot be split per account. Either
-  the badge comes off, or it stays with that sentence as its tooltip. **Kyle's call, not a
-  code change.**
+the triage marked "do" is in `CHANGELOG.md` for the next release. Nothing actionable is
+left: what remains below is two blockers that need a certificate or a newer deployment
+target, and the verdicts kept so they are not re-litigated.
 
 ## Blocked
 
@@ -38,6 +28,14 @@ and the verdicts kept so they are not re-litigated.
 ## Decided not to do
 
 Kept so they are not re-litigated.
+
+- **Removing the Projects "beta" badge.** Kyle's call, made 2026-10-31: it **stays**. The
+  grouping half is finished (`ProjectIdentityResolver` — symlinks resolved, a git worktree
+  folded into its parent repo), so the old "still being refined" copy was describing work
+  that had already shipped and is gone. The badge now marks two limits that are structural
+  rather than unfinished, and the tooltip says both: local logs are machine-wide per provider,
+  so a project's usage cannot be split per account; and the CLIs prune their own session logs,
+  so only sessions still on disk are counted. Do not re-open this as "the badge is stale".
 
 - **A retention horizon for the Claude reader**, mirroring `CodexSessionLogReader`. Measured on a
   real tree 2026-10-31 and the premise does not hold: Claude Code prunes its own session logs, so
