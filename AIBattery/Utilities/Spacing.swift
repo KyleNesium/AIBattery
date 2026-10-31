@@ -183,6 +183,12 @@ enum Layout {
     /// Bare brand mark, drawn in the provider's colour with no backing shape.
     static let providerMarkSize: CGFloat = 12
 
+    /// The mark on an overview card. Larger than the header chip's: a card is a wider,
+    /// quieter surface than a title row, and at 12pt the logo read as an afterthought
+    /// beside the headline percentage. Sized so the bloom's 1.28 lift still fits the
+    /// 18pt slot (14 × 1.28 = 17.9).
+    static let cardProviderMarkSize: CGFloat = 14
+
     /// How far a *turning* brand mark lifts on hover. Small on purpose: the mark sits
     /// inside a fixed `providerBadgeSize` slot, so anything larger would crowd the name
     /// beside it, and the turn is already carrying the movement.

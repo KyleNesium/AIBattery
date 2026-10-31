@@ -53,6 +53,9 @@ struct ProviderBadge: View {
     let provider: AIProvider
     /// Externally driven hover, or `nil` to track the mark's own.
     var isHovered: Bool?
+    /// Drawn size of the mark inside the fixed `providerBadgeSize` slot. Overview cards
+    /// pass a larger one; the slot stays put so every text column still lines up.
+    var markSize: CGFloat
 
     /// A whole revolution, and it must stay one. Nothing unwinds the angle when the
     /// hover ends, so any other value would leave the mark resting visibly rotated.
@@ -64,9 +67,10 @@ struct ProviderBadge: View {
     /// 0 = ghost at the mark's size and fully visible, 1 = expanded and gone. Rests at 1.
     @State private var bloom: Double = 1
 
-    init(provider: AIProvider, isHovered: Bool? = nil) {
+    init(provider: AIProvider, isHovered: Bool? = nil, markSize: CGFloat = Layout.providerMarkSize) {
         self.provider = provider
         self.isHovered = isHovered
+        self.markSize = markSize
     }
 
     private var hovered: Bool { isHovered ?? selfHovered }
@@ -119,7 +123,7 @@ struct ProviderBadge: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: Layout.providerMarkSize, height: Layout.providerMarkSize)
+                .frame(width: markSize, height: markSize)
         } else {
             Image(systemName: provider.symbolName)
                 .font(Typography.badgeSymbol)

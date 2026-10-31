@@ -515,6 +515,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.accountChipSpacing` | 6pt | Gap between the brand mark and the identity in the header chip (paired with the 3pt name→chevron gap) |
 | `Layout.capHeightBaselineOffset` | 4.3pt | Half the 12pt-semibold cap height: centres the header mark + chevron on the capitals via `firstTextBaseline` |
 | `Layout.providerMarkSize` | 12pt | Bare brand mark (bundled SVG) in the provider colour, no backing shape |
+| `Layout.cardProviderMarkSize` | 14pt | The same mark on an **overview card**. Larger than the chip's: a card is a wider, quieter surface than a title row, and at 12pt the logo read as an afterthought beside the headline percentage. The 18pt slot is unchanged, so text columns still line up; 14 × `markBloomScale` 1.28 = 17.9pt still fits it |
 | `Typography.badgeSymbol` | 10pt bold | Provider SF Symbol fallback in the mark slot (only if the SVG mark fails to load) |
 | `Typography.accountTitle` | 12pt semibold | Account identity in the header chip — 11pt read cramped, 13pt too big |
 | `Typography.switcherChevron` | 8pt semibold | `chevron.down` switcher glyph hugging the name in the header chip |

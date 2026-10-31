@@ -260,4 +260,16 @@ struct ThemeColorsTests {
         // off this token, and the visual result is calibrated against pure black.
         #expect(ThemeColors.shadowColor == .black)
     }
+
+    // MARK: - Panel translucency
+
+    /// The popover body lets a little of the desktop through — the panel is already
+    /// `isOpaque = false` with a `.clear` background, so this alpha is the only thing
+    /// standing between the content and the wallpaper. It has to stay *slightly*
+    /// translucent: there is no blur behind the panel, so anything lower stops reading
+    /// as frosted glass and starts costing text contrast over a busy wallpaper.
+    @Test func panelBody_isSlightlyTranslucentButStillNearlySolid() {
+        #expect(ThemeColors.panelBackgroundAlpha < 1.0)
+        #expect(ThemeColors.panelBackgroundAlpha >= 0.9)
+    }
 }

@@ -73,11 +73,26 @@ struct ProviderBadgeTests {
     }
 
     /// Both lifts have to stay inside the slot the mark is centred in, or they crowd the
-    /// identity next to them. The bloom's is the larger of the two.
-    @Test func bothLiftsStayInsideTheBadgeSlot() {
-        #expect(Layout.providerMarkSize * Layout.markHoverScale <= Layout.providerBadgeSize)
-        #expect(Layout.providerMarkSize * Layout.markBloomScale <= Layout.providerBadgeSize)
+    /// identity next to them. The bloom's is the larger of the two, and the overview
+    /// card's mark is the largest that is drawn — so that is the combination to pin.
+    @Test func bothLiftsStayInsideTheBadgeSlotAtEveryMarkSize() {
         #expect(Layout.markBloomScale > Layout.markHoverScale)
+        for size in [Layout.providerMarkSize, Layout.cardProviderMarkSize] {
+            #expect(size * Layout.markHoverScale <= Layout.providerBadgeSize)
+            #expect(size * Layout.markBloomScale <= Layout.providerBadgeSize)
+        }
+    }
+
+    /// The overview card draws a bigger mark than the header chip — a card is a wider,
+    /// quieter surface and at the chip's size the logo read as an afterthought. The
+    /// slot does not change with it, so every text column still lines up.
+    @Test func theOverviewCardDrawsALargerMarkThanTheChip() {
+        #expect(Layout.cardProviderMarkSize > Layout.providerMarkSize)
+        #expect(ProviderBadge(provider: .claude).markSize == Layout.providerMarkSize)
+        #expect(
+            ProviderBadge(provider: .claude, markSize: Layout.cardProviderMarkSize).markSize
+                == Layout.cardProviderMarkSize
+        )
     }
 
     /// The bloom is visible but never opaque — it sits behind a dense shape, not a

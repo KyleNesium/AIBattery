@@ -92,7 +92,7 @@ struct AccountCardView: View {
             // The whole card drives it. A 12pt mark is too small to aim at, and the
             // card is already the hover target for the stroke and chevron — so the
             // logo waking up is part of the card lighting up, not a separate hotspot.
-            ProviderBadge(provider: card.provider, isHovered: hovered)
+            ProviderBadge(provider: card.provider, isHovered: hovered, markSize: Layout.cardProviderMarkSize)
             Text(card.identity)
                 .font(Typography.accountTitle)
                 .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)

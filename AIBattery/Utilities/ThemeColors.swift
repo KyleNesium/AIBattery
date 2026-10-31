@@ -313,10 +313,21 @@ enum ThemeColors {
     /// Panel background that matches native macOS dark mode panels (Battery, Wi-Fi).
     /// Dark mode: rgb(28,28,30) — the standard system dark panel color.
     /// Light mode: rgb(246,246,246) — standard system light panel color.
+    ///
+    /// Slightly translucent (`panelBackgroundAlpha`): the panel is already
+    /// `isOpaque = false` with a `.clear` `backgroundColor`, so this alpha is what lets
+    /// a hint of the desktop through and stops the popover reading as a flat slab. Only
+    /// this body colour is translucent — the surfaces, hover fills and tooltip materials
+    /// layered on top of it keep their own opacity, or the whole stack would wash out.
     static let panelBackground: Color = adaptive(
-        light: NSColor(white: 0.965, alpha: 1.0),
-        dark: NSColor(red: 0.11, green: 0.11, blue: 0.118, alpha: 1.0)
+        light: NSColor(white: 0.965, alpha: panelBackgroundAlpha),
+        dark: NSColor(red: 0.11, green: 0.11, blue: 0.118, alpha: panelBackgroundAlpha)
     )
+
+    /// How solid the popover body is. Kept high: there is no blur behind the panel, so
+    /// everything below this reads as the desktop showing through rather than frosted
+    /// glass, and text contrast falls off fast against a busy wallpaper.
+    static let panelBackgroundAlpha: CGFloat = 0.93
 
     // MARK: - Surface elevation (dark mode depth hierarchy)
 
