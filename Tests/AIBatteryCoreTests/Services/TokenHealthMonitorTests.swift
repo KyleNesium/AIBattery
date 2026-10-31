@@ -429,12 +429,17 @@ struct TokenHealthMonitorTests {
         #expect(result?.contextWindow == 1_000_000)
     }
 
-    @Test func contextWindow_upwardAdjustment_1_2M_to_2M() {
-        // Model default: 1M. Observed 1.2M tokens → upward adjustment to 2M tier
+    @Test func contextWindow_noUpwardBump_overflowClampsAt100Percent() {
+        // Model default: 1M. Observed 1.2M tokens. The window is NOT widened to fit:
+        // the tier bump used to halve the percentage exactly when context was most
+        // critical. Over the window now reads as over the window — 100%, red.
         let entries = [makeEntry(sessionId: "s1", input: 1_199_000, output: 1_000)]
         let result = monitor.assessCurrentSession(entries: entries)
         #expect(result != nil)
-        #expect(result?.contextWindow == 2_000_000)
+        #expect(result?.contextWindow == 1_000_000)
+        #expect(result?.usagePercentage == 100)
+        #expect(result?.band == .red)
+        #expect(result?.remainingTokens == 0)
     }
 
     // MARK: - Division by zero safety
@@ -543,6 +548,33 @@ struct TokenHealthMonitorTests {
         )
     }
 
+    // MARK: - Synthetic entries
+
+    @Test func assess_ignoresTrailingSyntheticEntryForContext() {
+        // Claude Code writes `<synthetic>` with all-zero usage when a turn is
+        // interrupted. Reading context off it reported a nearly full session as empty.
+        let entries = [
+            makeEntry(sessionId: "s1", input: 700_000, output: 10_000),
+            makeEntry(sessionId: "s1", input: 0, output: 0, model: "<synthetic>"),
+        ]
+        let result = monitor.assessCurrentSession(entries: entries)
+        #expect(result?.model == "claude-opus-4-6")
+        #expect(result?.totalUsed == 710_000)
+        #expect((result?.usagePercentage ?? 0) > 70)
+    }
+
+    @Test func assess_syntheticOnlySessionStillAssesses() {
+        let entries = [makeEntry(sessionId: "s1", input: 0, output: 0, model: "<synthetic>")]
+        #expect(monitor.assessCurrentSession(entries: entries) != nil)
+    }
+
+    @Test func lastRealEntry_prefersAProviderModelOverSynthetic() {
+        let real = makeEntry(sessionId: "s1", input: 10, output: 1, model: "gpt-5")
+        let synthetic = makeEntry(sessionId: "s1", input: 0, output: 0, model: "<synthetic>")
+        #expect(TokenHealthMonitor.lastRealEntry(in: [real, synthetic])?.model == "gpt-5")
+        #expect(TokenHealthMonitor.lastRealEntry(in: [])?.model == nil)
+    }
+
     @Test func assess_usesPerRecordContextWindow() {
         let entries = [makeEntry(sessionId: "s1", input: 100_000, output: 1_000, contextWindow: 258_400)]
         let result = monitor.assessCurrentSession(entries: entries)
@@ -550,12 +582,14 @@ struct TokenHealthMonitorTests {
         #expect(result?.usableWindow == 258_400)
     }
 
-    @Test func assess_perRecordWindow_stillTierBumpsWhenExceeded() {
-        // Record claims 200K but the turn already used 300K → bump to the next tier (500K)
+    @Test func assess_perRecordWindow_isTrustedEvenWhenExceeded() {
+        // The record claims 200K and the turn already used 300K. The provider's own
+        // figure stands; the reading saturates rather than inventing a bigger window.
         let entries = [makeEntry(sessionId: "s1", input: 300_000, output: 1_000, contextWindow: 200_000)]
         let result = monitor.assessCurrentSession(entries: entries)
-        #expect(result?.contextWindow == 500_000)
-        #expect((result?.usagePercentage ?? 0) < 100)
+        #expect(result?.contextWindow == 200_000)
+        #expect(result?.usagePercentage == 100)
+        #expect(result?.band == .red)
     }
 
     @Test func assess_sumsReasoningAndCarriesLatestEffort() {

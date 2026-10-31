@@ -91,7 +91,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Provider glyphs | `✦` U+2726 (Claude), `⬡` U+2B21 (Codex) — `AIProvider.glyph` |
 | Secondary window label | "7-Day" / `7D` (Claude), "Weekly" / `WK` (Codex) — `AIProvider.secondaryWindowLabel` / `secondaryWindowShortCode`; "Credits" / `CR` for a Codex credit budget (`RateLimitUsage.isCreditBudget`) |
 | Codex credit budget source | `wham/usage` → `spend_control.individual_limit` (`limit`, `used`, `remaining`, `used_percent`, `reset_at`, `unit`), `spend_control.reached`, `credits.has_credits` / `unlimited`. `rate_limit: null` with **no** `individual_limit` → `CodexCreditBudget.uncapped = true` (rendered "no cap" / "—" / "No spend cap on this plan"); `RateLimitUsage.isCreditBudget = limit > 0 \|\| uncapped` |
-| Rollover-artifact filter scope | `isRolloverArtifact` is false when `elapsed < 0` (reset further away than the window length); `withClearedRolloverArtifacts` is a no-op when `isCreditBudget` |
+| Rollover-artifact filter scope | `isRolloverArtifact` is false when `elapsed < -RateLimitUsage.clockSkewTolerance` (reset further away than the window length plus the skew allowance); `withClearedRolloverArtifacts` is a no-op when `isCreditBudget` |
+| Clock-skew tolerance | 300 sec (5 min) — how far this Mac's clock may sit behind the provider's before a just-rolled window stops being recognised as one (`RateLimitUsage.clockSkewTolerance`) |
 | Codex model-ID prefix | `gpt-` (`UsageAggregator.isTrackedModel`); Claude `claude-` |
 | Codex API-key account id | `openai-api-` + first 24 hex chars of SHA-256(key) (`OAuthManager.apiKeyAccountId`) |
 | Codex plan label | `AccountRecord.billingType` ← `plan_type` (`"api"` for API-key accounts), rendered "· Plus" / "· ChatGPT Team" / "· API" in the picker menu rows and Settings rows (`AccountStore.planLabel`); omitted from the collapsed picker label |

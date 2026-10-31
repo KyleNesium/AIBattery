@@ -141,6 +141,7 @@ final class UsageAggregator: @unchecked Sendable {
         var fiveHourTokens = 0
         var sevenDayTokens = 0
         var fiveHourTokenBuckets: [Int: Int] = [:]
+        var sevenDayTokenBuckets: [Int: Int] = [:]
         var dailyTokenTotals: [String: Int] = [:]
         var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
         var uncachedModelTokensMap: TokenMap = [:]
@@ -227,6 +228,16 @@ final class UsageAggregator: @unchecked Sendable {
             }
             if ts >= sevenDayRateLimitCutoff {
                 sevenDayTokens += entryAllTokens
+                // Hourly bucket: offset 0 = 7 days ago, offset (count-1) = this hour.
+                // Day-keyed totals cannot express a window that starts mid-day.
+                let secondsAgo = now.timeIntervalSince(ts)
+                let bucket = min(
+                    UsageSnapshot.sevenDayBucketCount - 1,
+                    Int((UsageAggregator.sevenDayWindow - secondsAgo) / UsageSnapshot.sevenDayBucketDuration)
+                )
+                if bucket >= 0 {
+                    sevenDayTokenBuckets[bucket, default: 0] += entryAllTokens
+                }
             }
             // Daily token totals (all dates, for 7D and 12M charts)
             // Uses all token types to match 5h/7d summary totals and model breakdowns.
@@ -483,6 +494,7 @@ final class UsageAggregator: @unchecked Sendable {
                 sevenDayTokens: sevenDayTokens,
                 fiveHourTokenBuckets: fiveHourTokenBuckets,
                 dailyTokenTotals: dailyTokenTotals,
+                sevenDayTokenBuckets: sevenDayTokenBuckets,
                 todayModelTokens: todayModelTokens,
                 weekModelTokens: weekModelTokens,
                 monthModelTokens: monthModelTokens,

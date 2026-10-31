@@ -223,7 +223,7 @@ News-ticker style scrolling text view. Supports single or multiple texts.
 
 Each bar:
 - **Label row**: label (.subheadline.bold()) + `"binding"` badge if active constraint (`Typography.badgeLabel` = .system 10pt, monospaced, .tertiary, rounded background) + throttle warning icon + token total (monoCaption, `ThemeColors.tertiaryLabel`, tokenColumn-width trailing) + percentage (.headline, monospaced, semibold)
-  - Token total shows tokens consumed in the active rate limit window, aligned to the window boundary via `resetsAt`. Uses `fiveHourWindowTokens(resetsAt:)` / `sevenDayWindowTokens(resetsAt:)` — sums only buckets/days within the actual window so the count resets when the window resets.
+  - Token total shows tokens consumed in the active rate limit window, aligned to the window boundary via `resetsAt`. Uses `fiveHourWindowTokens(resetsAt:)` / `sevenDayWindowTokens(resetsAt:)` — sums only the buckets that lie **entirely** inside the window (`UsageSnapshot.firstInWindowBucket`, which rounds the remaining time up), so the count resets when the window resets and the bucket the window started inside contributes nothing. The 5-hour window uses the 15-minute buckets; the 7-day window uses `sevenDayTokenBuckets` (hourly), falling back to the day-keyed `dailyTokenTotals` only when a snapshot carries no buckets.
 - **Progress bar**: 8pt height, 3pt corner radius. Background: `ThemeColors.trackFill` (black 0.14 light / white 0.1 dark). Fill: color by percent.
 - **Detail row**: left status + reset countdown on right
   - Normal: `"X% remaining"` (.caption2, secondaryLabel) + `"Resets in Xh Ym"` (.caption2, .tertiary)

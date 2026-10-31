@@ -37,6 +37,7 @@ struct UsageSnapshot: Equatable {
             && lhs.sevenDayTokens == rhs.sevenDayTokens
             && lhs.fiveHourTokenBuckets == rhs.fiveHourTokenBuckets
             && lhs.dailyTokenTotals == rhs.dailyTokenTotals
+            && lhs.sevenDayTokenBuckets == rhs.sevenDayTokenBuckets
             && lhs.todayModelTokens == rhs.todayModelTokens
             && lhs.weekModelTokens == rhs.weekModelTokens
             && lhs.monthModelTokens == rhs.monthModelTokens
@@ -108,6 +109,15 @@ struct UsageSnapshot: Equatable {
     let fiveHourTokenBuckets: [Int: Int]
     /// Per-date token totals for 7D and 12M chart modes (date-key → all token types).
     let dailyTokenTotals: [String: Int]
+    /// 7-day hourly token buckets (bucket 0 = oldest, 167 = the current hour).
+    ///
+    /// `dailyTokenTotals` is day-granular, so a 7-day window that starts mid-day could
+    /// only ever be approximated by counting its first calendar day whole — up to 24 h
+    /// of pre-window tokens. These buckets are the same accumulation at hour resolution,
+    /// so the window can start where the provider says it starts. Declared with a
+    /// default so the memberwise init stays source-compatible; empty falls back to the
+    /// day-keyed sum.
+    var sevenDayTokenBuckets: [Int: Int] = [:]
 
     // Windowed model tokens for Insights cost breakdown (JSONL-only, not ledger-merged)
     let todayModelTokens: [ModelTokenSummary]
@@ -158,27 +168,51 @@ struct UsageSnapshot: Equatable {
         guard let resetsAt else { return fiveHourTokens }
         let remaining = resetsAt.timeIntervalSinceNow
         guard remaining > 0 else { return fiveHourTokens }
-        let elapsed = 5 * 3_600.0 - remaining
-        guard elapsed > 0 else { return 0 }
-        // Each bucket = 15 min. Bucket 19 = now, bucket 0 = 5h ago.
-        let bucketsElapsed = min(20, Int(elapsed / 900) + 1)
-        let startBucket = 20 - bucketsElapsed
-        return (startBucket..<20).reduce(0) { $0 + (fiveHourTokenBuckets[$1] ?? 0) }
+        let start = Self.firstInWindowBucket(remaining: remaining, bucketCount: 20, bucketDuration: 900)
+        return (start..<20).reduce(0) { $0 + (fiveHourTokenBuckets[$1] ?? 0) }
     }
 
     /// Token total for the 7-day rate limit window, aligned to the actual window boundary.
-    /// Sums daily token totals from the window start date onward.
+    /// Sums the hourly buckets from the window start; falls back to the day-keyed totals
+    /// when a snapshot carries no buckets (which over-counts the first day — see
+    /// `sevenDayTokenBuckets`).
     func sevenDayWindowTokens(resetsAt: Date?) -> Int {
         guard let resetsAt else { return sevenDayTokens }
         let remaining = resetsAt.timeIntervalSinceNow
         guard remaining > 0 else { return sevenDayTokens }
-        let elapsed = 7 * 24 * 3_600.0 - remaining
-        guard elapsed > 0 else { return 0 }
-        let windowStart = Date().addingTimeInterval(-elapsed)
-        let windowStartKey = DateFormatters.dateKey.string(from: windowStart)
-        return dailyTokenTotals.reduce(0) { total, entry in
-            entry.key >= windowStartKey ? total + entry.value : total
+        guard !sevenDayTokenBuckets.isEmpty else {
+            let elapsed = 7 * 24 * 3_600.0 - remaining
+            guard elapsed > 0 else { return 0 }
+            let windowStartKey = DateFormatters.dateKey.string(from: Date().addingTimeInterval(-elapsed))
+            return dailyTokenTotals.reduce(0) { total, entry in
+                entry.key >= windowStartKey ? total + entry.value : total
+            }
         }
+        let count = Self.sevenDayBucketCount
+        let start = Self.firstInWindowBucket(
+            remaining: remaining, bucketCount: count, bucketDuration: Self.sevenDayBucketDuration
+        )
+        return (start..<count).reduce(0) { $0 + (sevenDayTokenBuckets[$1] ?? 0) }
+    }
+
+    /// Hourly buckets spanning the 7-day window.
+    static let sevenDayBucketCount = 7 * 24
+    static let sevenDayBucketDuration: TimeInterval = 3_600
+
+    /// Index of the first bucket that lies **entirely** inside the window, given how
+    /// much of the window is left.
+    ///
+    /// Buckets run oldest-first and the last one is "now". The bucket the window
+    /// started inside straddles the boundary, so counting it added up to one bucket of
+    /// pre-window tokens to the figure under the bar — 15 minutes on the 5-hour window,
+    /// and a whole calendar day on the 7-day one before it had buckets of its own.
+    /// Rounding the remaining time up excludes that partial bucket instead.
+    static func firstInWindowBucket(
+        remaining: TimeInterval,
+        bucketCount: Int,
+        bucketDuration: TimeInterval
+    ) -> Int {
+        max(0, min(bucketCount, Int(ceil(remaining / bucketDuration))))
     }
 
     /// Whether the 5h/7d data comes from local token estimation (no API data).

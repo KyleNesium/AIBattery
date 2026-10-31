@@ -146,6 +146,43 @@ struct CodexCreditBudgetTests {
         #expect(abs(usage.withClearedRolloverArtifacts(now: now).fiveHourUtilization - 0.97) < 0.0001)
     }
 
+    /// A Mac whose clock is a couple of minutes behind the provider's makes the computed
+    /// elapsed time negative on a window that just rolled. That is exactly the case the
+    /// filter exists for, so it must still suppress the lagging near-full reading.
+    @Test func rolloverFilter_suppressesJustRolledWindowUnderClockSkew() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // Reset two minutes beyond a full window away: elapsed = -120 s.
+        let skewed = RateLimitUsage(
+            representativeClaim: RateLimitUsage.fiveHourWindow,
+            fiveHourUtilization: 0.99,
+            fiveHourReset: now.addingTimeInterval(RateLimitUsage.fiveHourWindowDuration + 120),
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1, sevenDayReset: now.addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let cleared = skewed.withClearedRolloverArtifacts(now: now)
+        #expect(cleared.fiveHourUtilization == 0)
+        #expect(cleared.fiveHourStatus == "allowed")
+        // The valid new-window reset is preserved — only the stale utilization goes.
+        #expect(cleared.fiveHourReset == skewed.fiveHourReset)
+    }
+
+    /// Skew beyond the tolerance is not skew: it is an unknown period, left alone.
+    @Test func rolloverFilter_leavesReadingsBeyondTheSkewToleranceAlone() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let beyond = RateLimitUsage(
+            representativeClaim: RateLimitUsage.fiveHourWindow,
+            fiveHourUtilization: 0.99,
+            fiveHourReset: now.addingTimeInterval(
+                RateLimitUsage.fiveHourWindowDuration + RateLimitUsage.clockSkewTolerance + 60
+            ),
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1, sevenDayReset: now.addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        #expect(abs(beyond.withClearedRolloverArtifacts(now: now).fiveHourUtilization - 0.99) < 0.0001)
+    }
+
     @Test func windowedPlan_hasNoCreditBudget() throws {
         let body = Data(#"{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":21,"reset_at":1788267090,"limit_window_seconds":18000},"secondary_window":{"used_percent":63.5,"reset_at":1788853890,"limit_window_seconds":604800}}}"#.utf8)
         let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)

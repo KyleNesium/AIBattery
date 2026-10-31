@@ -14,6 +14,9 @@ struct UsageSnapshotTests {
         todayMessages: Int = 0,
         fiveHourTokens: Int = 0,
         sevenDayTokens: Int = 0,
+        fiveHourTokenBuckets: [Int: Int] = [:],
+        sevenDayTokenBuckets: [Int: Int] = [:],
+        dailyTokenTotals: [String: Int] = [:],
         dailyActivity: [DailyActivity] = [],
         provider: AIProvider = .claude,
         standardLimits: StandardRateLimits? = nil,
@@ -45,8 +48,9 @@ struct UsageSnapshotTests {
             totalProjectCost: 0,
             fiveHourTokens: fiveHourTokens,
             sevenDayTokens: sevenDayTokens,
-            fiveHourTokenBuckets: [:],
-            dailyTokenTotals: [:],
+            fiveHourTokenBuckets: fiveHourTokenBuckets,
+            dailyTokenTotals: dailyTokenTotals,
+            sevenDayTokenBuckets: sevenDayTokenBuckets,
             todayModelTokens: [],
             weekModelTokens: [],
             monthModelTokens: [],
@@ -152,6 +156,49 @@ struct UsageSnapshotTests {
             topSessionHealths: []
         )
         #expect(lhs != rhs)
+    }
+
+    // MARK: - Window token totals
+
+    @Test func firstInWindowBucket_excludesTheBucketTheWindowStartedInside() {
+        // A window that just started: nothing is in it yet.
+        #expect(UsageSnapshot.firstInWindowBucket(remaining: 18_000, bucketCount: 20, bucketDuration: 900) == 20)
+        // Exactly one whole bucket elapsed → only the last bucket counts.
+        #expect(UsageSnapshot.firstInWindowBucket(remaining: 17_100, bucketCount: 20, bucketDuration: 900) == 19)
+        // Part-way into the next bucket → that straddling bucket is still excluded.
+        #expect(UsageSnapshot.firstInWindowBucket(remaining: 17_000, bucketCount: 20, bucketDuration: 900) == 19)
+        // A nearly spent window counts everything.
+        #expect(UsageSnapshot.firstInWindowBucket(remaining: 60, bucketCount: 20, bucketDuration: 900) == 1)
+    }
+
+    @Test func fiveHourWindowTokens_doesNotCountThePreWindowBucket() {
+        // Bucket 17 is the one the window started inside; 18 and 19 are fully inside.
+        let snapshot = makeSnapshot(
+            fiveHourTokens: 999,
+            fiveHourTokenBuckets: [17: 500, 18: 300, 19: 200]
+        )
+        // 30 minutes elapsed, so 4h30m remain: buckets 18 and 19 only.
+        let resetsAt = Date().addingTimeInterval(5 * 3_600 - 1_800)
+        #expect(snapshot.fiveHourWindowTokens(resetsAt: resetsAt) == 500)
+    }
+
+    @Test func sevenDayWindowTokens_startsOnTheWindowBoundaryNotTheCalendarDay() {
+        let count = UsageSnapshot.sevenDayBucketCount
+        let snapshot = makeSnapshot(
+            sevenDayTokens: 999,
+            sevenDayTokenBuckets: [count - 4: 400, count - 2: 200, count - 1: 100],
+            dailyTokenTotals: ["2020-01-01": 10_000]
+        )
+        // Three hours elapsed: the last three whole hourly buckets are in the window.
+        let resetsAt = Date().addingTimeInterval(7 * 24 * 3_600 - 3 * 3_600)
+        #expect(snapshot.sevenDayWindowTokens(resetsAt: resetsAt) == 300)
+    }
+
+    @Test func sevenDayWindowTokens_fallsBackToDailyTotalsWithoutBuckets() {
+        let today = DateFormatters.dateKey.string(from: Date())
+        let snapshot = makeSnapshot(sevenDayTokens: 999, dailyTokenTotals: [today: 1_234])
+        let resetsAt = Date().addingTimeInterval(7 * 24 * 3_600 - 3_600)
+        #expect(snapshot.sevenDayWindowTokens(resetsAt: resetsAt) == 1_234)
     }
 
     // MARK: - percent(for:)
@@ -974,9 +1021,9 @@ struct UsageSnapshotTests {
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 41 = 40 compared fields + lastUpdated.
+        // it) AND update this count. 42 = 41 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 41)
+        #expect(mirror.children.count == 42)
     }
 
     // MARK: - Provider (Plan 2)

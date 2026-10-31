@@ -63,7 +63,7 @@ final class TokenHealthMonitor: Sendable {
         for (sessionId, sessionEntries) in grouped {
             guard !sessionEntries.isEmpty, !sessionId.isEmpty else { continue }
 
-            let model = sessionEntries.last?.model ?? ""
+            let model = Self.lastRealEntry(in: sessionEntries)?.model ?? ""
             guard let status = assess(sessionEntries: sessionEntries, sessionId: sessionId, model: model, now: now) else { continue }
 
             if sessionId == currentSessionId {
@@ -116,11 +116,28 @@ final class TokenHealthMonitor: Sendable {
 
     // MARK: - Core Assessment
 
+    /// The last entry that actually carries a turn's usage.
+    ///
+    /// Claude Code writes `<synthetic>` pseudo-messages for interrupts and errors, and
+    /// they carry all-zero usage. Reading the context estimate off the literal last
+    /// entry meant a session at 700K/1M reported "0%, 1,000,000 remaining" — green, and
+    /// unable to escalate — the moment the user pressed Esc. Falls back to the last
+    /// entry when a session has nothing else, so a synthetic-only session still assesses.
+    static func lastRealEntry(in entries: [AssistantUsageEntry]) -> AssistantUsageEntry? {
+        entries.last(where: { isRealModel($0.model) }) ?? entries.last
+    }
+
+    /// A provider model id, as opposed to `<synthetic>` and friends. Provider-agnostic
+    /// on purpose: one monitor assesses both providers' sessions.
+    static func isRealModel(_ modelId: String) -> Bool {
+        modelId.hasPrefix("claude-") || modelId.hasPrefix("gpt-")
+    }
+
     private func assess(sessionEntries: [AssistantUsageEntry], sessionId: String = "", model: String, now: Date = Date()) -> TokenHealthStatus? {
-        guard let latestEntry = sessionEntries.last else { return nil }
+        guard let latestEntry = Self.lastRealEntry(in: sessionEntries) else { return nil }
         // The provider's own figure wins (Codex writes `model_context_window` on every
         // token_count); the table is the fallback (Claude logs carry no window).
-        var contextWindow = latestEntry.contextWindow ?? TokenHealthConfig.contextWindow(for: model)
+        let contextWindow = latestEntry.contextWindow ?? TokenHealthConfig.contextWindow(for: model)
         let turnCount = sessionEntries.count
 
         // Bind timestamps once — avoids repeated optional chain traversals
@@ -139,16 +156,13 @@ final class TokenHealthMonitor: Sendable {
         let totalOutputTokens = sessionEntries.reduce(0) { $0 + $1.outputTokens }
         let totalReasoningTokens = sessionEntries.reduce(0) { $0 + $1.reasoningTokens }
 
-        // Auto-detect context window from observed token usage (upward only).
-        // If observed tokens exceed the hardcoded window, the window was expanded
-        // upstream (e.g. Anthropic expanded from 200K to 1M). Adjust to avoid showing
-        // inflated percentages. Downward adjustment is intentionally omitted — low token
-        // counts don't imply a smaller window, they just mean an early/small session.
-        let observedTokens = inputTokens + cacheReadTokens + cacheWriteTokens + outputTokens
-        let tiers = [200_000, 500_000, 1_000_000, 2_000_000, 5_000_000]
-        if observedTokens > contextWindow {
-            contextWindow = tiers.first(where: { $0 > observedTokens }) ?? observedTokens * 2
-        }
+        // The window is NOT widened to fit what has been observed. That tier bump dates
+        // from the 200K era, when exceeding the table really did mean the table was
+        // stale; the default is 1M now, so the likelier reading of "over the window" is
+        // that the session is over the window. Bumping halved the percentage exactly
+        // when context was most critical — 199K/200K (red) became 201K/500K (green) and
+        // the warning vanished as the session got worse. Overflow clamps at 100%, red,
+        // via the `min(..., contextWindow)` caps below.
 
         let usableWindow = Int(Double(contextWindow) * TokenHealthConfig.usableContextRatio)
 
