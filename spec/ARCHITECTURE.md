@@ -124,7 +124,7 @@ AIBattery/
       CodexOAuthConstants.swift   — client-id, port 1455, scopes, authorize/token URLs lifted from codex-rs
       CodexAuthSession.swift      — In-flight PKCE state; awaits the redirect through `OneShotMailbox`
       OneShotMailbox.swift        — Main-actor one-shot mailbox (buffers a redirect that lands before the UI awaits it)
-      CodexCallbackServer.swift   — One-shot NWListener on 127.0.0.1:1455, parses the OAuth redirect (`CodexCallbackParser`)
+      CodexCallbackServer.swift   — One-shot NWListener on 127.0.0.1:1455, parses the OAuth redirect (`CodexCallbackParser`); delivers only on a constant-time state match (`disposition(for:expectedState:)`), 10 s per-connection deadline
       CodexTokenClient.swift      — Code exchange (form-encoded) + refresh (JSON) against auth.openai.com
       CodexAuthFileImporter.swift — Read-only import of `~/.codex/auth.json` (ChatGPT mode only) to seed the first Codex account
     CodexRateLimitFetcher.swift   — `chatgpt.com/backend-api/wham/usage` fetch, per-account cache/persistence (`aibattery_codexRateLimits_`), auth-failure counter, endpoint backoff, session-log fallback

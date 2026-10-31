@@ -27,6 +27,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex line pre-filter head | 512 bytes (`CodexSessionLogParser.relevanceHeadBytes`) | CodexSessionLogParser |
 | OpenAI API-key validation | `GET https://api.openai.com/v1/models`, 15 s timeout — **401** invalid, 2xx/429 valid, else (incl. 403) unknown → key added with an "it's checked on the first refresh" note | CodexRateLimitFetcher |
 | OpenAI API-key shape check | `sk-` prefix + ≥ 20 chars (`OAuthManager.looksLikeOpenAIAPIKey`) — run locally before any network | OAuthManager+Codex / AuthView |
+| Codex callback connection timeout | 10 sec per connection (`CodexCallbackServer.connectionTimeout`) — a connection that sends nothing is cancelled rather than held to the session timeout | CodexCallbackServer |
+| Codex sign-in abandon timeout | 180 sec (`CodexAuthSession.abandonTimeout`) — cancelled as soon as a callback is delivered | CodexAuthSession |
 | Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
 | Fallback token lifetime | 3600 sec (1 hour) — assumed when the access token carries no decodable `exp` claim (`OAuthManager.fallbackTokenLifetime`, shared by the Claude and Codex refresh paths) | OAuthManager / OAuthManager+Codex |

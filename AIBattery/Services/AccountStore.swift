@@ -105,6 +105,13 @@ public final class AccountStore: ObservableObject {
             if merged.discoveredIdentity == nil {
                 merged.discoveredIdentity = existing.discoveredIdentity
             }
+            // Dropping this one demotes an API-key account to ChatGPT OAuth, which
+            // sends an `sk-…` key to the token endpoint. Unreachable while only the
+            // Claude pending→org path produces a changed id; cheap insurance for the
+            // Codex id resolution that would make it reachable.
+            if merged.codexAccessMode == nil {
+                merged.codexAccessMode = existing.codexAccessMode
+            }
 
             AppLogger.oauth.info("Merging duplicate account \(oldId, privacy: .public) → \(newRecord.id, privacy: .public)")
 

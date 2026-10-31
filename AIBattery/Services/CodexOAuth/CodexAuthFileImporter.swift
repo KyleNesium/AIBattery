@@ -40,14 +40,30 @@ enum CodexAuthFileImporter {
     nonisolated static func parse(_ data: Data) -> CodexImportedAuth? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tokens = root["tokens"] as? [String: Any],
-              let accountId = tokens["account_id"] as? String,
-              isPlausibleAccountId(accountId),
               let idToken = tokens["id_token"] as? String,
               let accessToken = tokens["access_token"] as? String,
-              let refreshToken = tokens["refresh_token"] as? String else {
+              let refreshToken = tokens["refresh_token"] as? String,
+              let accountId = accountId(idToken: idToken, fileField: tokens["account_id"] as? String) else {
             return nil
         }
         return CodexImportedAuth(accountId: accountId, idToken: idToken, accessToken: accessToken, refreshToken: refreshToken)
+    }
+
+    /// The account id to import under: the `chatgpt_account_id` claim from the id_token
+    /// first, the file's own `account_id` field as the fallback.
+    ///
+    /// The OAuth flow has always used the claim, and the importer used the file field.
+    /// A workspace-scoped login where the two differ would land the same real account
+    /// twice — burning a cap slot, duplicating Keychain items and sending a header the
+    /// endpoint may reject. The claim is the one the provider signed, so it wins; the
+    /// file field still covers a token whose claim cannot be read. Either way the value
+    /// must pass `isPlausibleAccountId`.
+    nonisolated static func accountId(idToken: String, fileField: String?) -> String? {
+        if let claim = JWTDecoder.chatGPTAccountId(idToken: idToken), isPlausibleAccountId(claim) {
+            return claim
+        }
+        guard let fileField, isPlausibleAccountId(fileField) else { return nil }
+        return fileField
     }
 
     /// Whether the CLI has a login (ChatGPT or API key) to import.

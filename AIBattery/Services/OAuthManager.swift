@@ -321,7 +321,10 @@ public final class OAuthManager: ObservableObject {
                 return .failure(.unknownError("Missing state parameter. Please try again."))
             }
             let returnedState = String(parts[1])
-            guard !returnedState.isEmpty, returnedState == expectedState else {
+            // Constant-time, like the Codex path. There is no remote timing oracle for
+            // a value pasted into a local text field, so this is consistency with the
+            // project's own standard rather than a fix for a reachable attack.
+            guard !returnedState.isEmpty, OAuthPKCE.constantTimeEquals(returnedState, expectedState) else {
                 return .failure(.unknownError("State mismatch — possible CSRF attack. Please try again."))
             }
         }
@@ -615,9 +618,15 @@ public final class OAuthManager: ObservableObject {
         accountStore.provider(of: accountId)
     }
 
+    /// Where token sets are persisted. Production writes the Keychain (refresh token)
+    /// plus UserDefaults (expiry) through `OAuthTokenStorage`. Tests substitute a sink,
+    /// which is what makes the registration and sign-in paths — cap guards, malformed
+    /// keys, state mismatch — testable without touching the real Keychain.
+    var tokenPersistence: (AccountTokens, String) -> Void = { OAuthTokenStorage.save($0, for: $1) }
+
     private func saveTokens(for accountId: String) {
         guard let data = tokens[accountId] else { return }
-        OAuthTokenStorage.save(data, for: Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
+        tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
 
     private func loadTokens(for accountId: String) -> AccountTokens {
@@ -636,7 +645,7 @@ public final class OAuthManager: ObservableObject {
     func storeTokens(accountId: String, provider: AIProvider, accessToken: String?, refreshToken: String?, expiresAt: Date?) {
         let data = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
         tokens[accountId] = data
-        OAuthTokenStorage.save(data, for: Self.tokenStorageKey(accountId: accountId, provider: provider))
+        tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider))
     }
 
     /// Memory-only token seed for tests — nothing is written to the Keychain or

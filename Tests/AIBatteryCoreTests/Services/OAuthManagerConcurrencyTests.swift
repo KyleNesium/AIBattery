@@ -93,10 +93,10 @@ struct OAuthManagerConcurrencyTests {
     /// `getAccessToken(for:)` for an unknown account must all return `nil`
     /// quickly, never deadlocking and never crashing.
     ///
-    /// This is the lower-bound test of the serialization invariant; a full
-    /// stress test against a real refresh-in-flight scenario requires a
-    /// URLProtocol-based mock URLSession (TODO: lift into a separate test
-    /// utility once we add request-mocking infrastructure).
+    /// This is the lower-bound test of the serialization invariant; a full stress test
+    /// against a real refresh-in-flight scenario goes through `OAuthManager`'s injected
+    /// `tokenTransport` (and `CodexTokenClient`'s `transport` parameter) rather than a
+    /// URLProtocol mock — both are already seams, so no extra infrastructure is needed.
     @Test @MainActor func getAccessToken_concurrentCalls_unknownAccount_allReturnNil() async {
         let manager = OAuthManager()
         let unknownAccountId = "phase3c-test-no-such-account"

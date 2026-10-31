@@ -33,7 +33,13 @@ nonisolated enum CodexUsageParser {
         let budget: CodexCreditBudget
         if let parsedBudget, parsedBudget.limit > 0 {
             budget = parsedBudget
-        } else if dict["plan_type"] != nil || dict["credits"] != nil || dict["spend_control"] != nil {
+        } else if dict["spend_control"] != nil || dict["credits"] != nil || dict.keys.contains("rate_limit") {
+            // `plan_type` alone is not evidence of an uncapped account. JSON tells the
+            // two cases apart: an explicit `rate_limit: null` is the provider saying
+            // "this plan has no windows", while an absent key is a payload that never
+            // answered the question (schema change, truncation) — treat that as a parse
+            // failure so the cache keeps the last good reading instead of flipping a
+            // Plus/Pro popover to "Credits — no cap" at 0%.
             budget = uncappedBudget(dict, credits: parsedBudget)
         } else {
             return nil
@@ -77,15 +83,6 @@ nonisolated enum CodexUsageParser {
     /// spend-control limit, a subscription plan's purchased-credit `balance` yields a
     /// balance-only record (limit 0) so the UI can show it under the windows.
     nonisolated static func parseCreditBudget(_ dict: [String: Any]) -> CodexCreditBudget? {
-        func number(_ value: Any?) -> Double? {
-            if let n = value as? NSNumber {
-                return n.doubleValue
-            }
-            if let s = value as? String {
-                return Double(s)
-            }
-            return nil
-        }
         let credits = dict["credits"] as? [String: Any]
         let spend = dict["spend_control"] as? [String: Any]
         let planType = dict["plan_type"] as? String
@@ -184,6 +181,19 @@ nonisolated enum CodexUsageParser {
 
     // MARK: - Private Helpers
 
+    /// Numbers arrive as `NSNumber` or, occasionally, as a JSON string. One definition
+    /// for the whole parser: the credit path already tolerated strings while the window
+    /// path did not, so a string-encoded `used_percent` silently read as 0%.
+    nonisolated static func number(_ value: Any?) -> Double? {
+        if let n = value as? NSNumber {
+            return n.doubleValue
+        }
+        if let s = value as? String {
+            return Double(s)
+        }
+        return nil
+    }
+
     private struct WindowData {
         let utilization: Double
         let reset: Date?
@@ -196,56 +206,21 @@ nonisolated enum CodexUsageParser {
     /// - reset_at or resets_at (epoch seconds)
     /// - limit_window_seconds (→ /60) or window_minutes
     private nonisolated static func parseWindow(_ window: [String: Any]?) -> WindowData? {
-        guard let window else { return nil }
-
-        // Parse used_percent: accept Int or Double
-        let usedPercentRaw: Double? = if let intVal = window["used_percent"] as? Int {
-            Double(intVal)
-        } else if let doubleVal = window["used_percent"] as? Double {
-            doubleVal
-        } else {
-            nil
-        }
-
-        guard let usedPercentRaw else { return nil }
+        guard let window, let usedPercentRaw = number(window["used_percent"]) else { return nil }
         let utilization = min(max(usedPercentRaw / 100.0, 0), 1)
 
         // Parse reset timestamp: accept reset_at or resets_at (epoch seconds)
-        let resetTimestamp: TimeInterval? = {
-            if let val = window["reset_at"] as? TimeInterval {
-                return val
-            }
-            if let val = window["reset_at"] as? Int {
-                return TimeInterval(val)
-            }
-            if let val = window["resets_at"] as? TimeInterval {
-                return val
-            }
-            if let val = window["resets_at"] as? Int {
-                return TimeInterval(val)
-            }
-            return nil
-        }()
+        let resetTimestamp = number(window["reset_at"]) ?? number(window["resets_at"])
         let reset = resetTimestamp.map { Date(timeIntervalSince1970: $0) }
 
         // Parse window minutes: accept limit_window_seconds (→ /60) or window_minutes
-        let windowMinutes: Int? = {
-            // Try limit_window_seconds first
-            if let seconds = window["limit_window_seconds"] as? Int {
-                return seconds / 60
-            }
-            if let seconds = window["limit_window_seconds"] as? NSNumber {
-                return seconds.intValue / 60
-            }
-            // Then try window_minutes
-            if let minutes = window["window_minutes"] as? Int {
-                return minutes
-            }
-            if let minutes = window["window_minutes"] as? NSNumber {
-                return minutes.intValue
-            }
-            return nil
-        }()
+        let windowMinutes: Int? = if let seconds = number(window["limit_window_seconds"]) {
+            Int(seconds) / 60
+        } else if let minutes = number(window["window_minutes"]) {
+            Int(minutes)
+        } else {
+            nil
+        }
 
         return WindowData(utilization: utilization, reset: reset, windowMinutes: windowMinutes)
     }

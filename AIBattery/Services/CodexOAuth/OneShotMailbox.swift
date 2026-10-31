@@ -7,7 +7,10 @@ import Foundation
 @MainActor
 final class OneShotMailbox<Value: Sendable> {
     private var buffered: Value?
-    private var continuation: CheckedContinuation<Value, Never>?
+    /// Every waiter, not just the latest. A second `value()` call used to overwrite the
+    /// first continuation without resuming it, hanging that caller forever; there is one
+    /// caller today, which is the only reason it never bit.
+    private var continuations: [CheckedContinuation<Value, Never>] = []
     private var delivered = false
 
     /// - Returns: `false` when a value was already delivered (the call is ignored).
@@ -15,23 +18,30 @@ final class OneShotMailbox<Value: Sendable> {
     func deliver(_ value: Value) -> Bool {
         guard !delivered else { return false }
         delivered = true
-        if let continuation {
-            self.continuation = nil
-            continuation.resume(returning: value)
-        } else {
+        if continuations.isEmpty {
             buffered = value
+        } else {
+            let waiting = continuations
+            continuations = []
+            for continuation in waiting {
+                continuation.resume(returning: value)
+            }
         }
         return true
     }
 
     /// Await the (single) value — returns immediately if it was already delivered.
+    /// Several callers may await; they all receive the same value.
     func value() async -> Value {
         if let buffered {
-            self.buffered = nil
             return buffered
         }
         return await withCheckedContinuation { continuation in
-            self.continuation = continuation
+            if let buffered {
+                continuation.resume(returning: buffered)
+            } else {
+                continuations.append(continuation)
+            }
         }
     }
 }

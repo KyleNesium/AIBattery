@@ -146,6 +146,23 @@ struct CodexCreditBudgetTests {
         #expect(abs(usage.withClearedRolloverArtifacts(now: now).fiveHourUtilization - 0.97) < 0.0001)
     }
 
+    /// `plan_type` alone is not evidence of an uncapped account. An *absent* `rate_limit`
+    /// key is a payload that never answered the question (schema change, truncation);
+    /// parsing it as "uncapped, 0%" flipped a Plus/Pro popover to a single credits bar.
+    @Test func absentRateLimitKey_isAParseFailureNotAnUncappedReading() {
+        #expect(CodexUsageParser.parseUsage(Data(#"{"plan_type":"plus"}"#.utf8)).rateLimits == nil)
+        // The explicit null still parses — that is the provider saying "no windows".
+        #expect(CodexUsageParser.parseUsage(Data(#"{"plan_type":"business","rate_limit":null}"#.utf8)).rateLimits != nil)
+    }
+
+    @Test func usedPercentAsString_isReadAsANumber() throws {
+        let body = Data(#"{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":"21.5","reset_at":"1788267090","limit_window_seconds":"18000"}}}"#.utf8)
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
+        #expect(abs(usage.fiveHourUtilization - 0.215) < 0.0001)
+        #expect(usage.fiveHourReset == Date(timeIntervalSince1970: 1_788_267_090))
+        #expect(usage.fiveHourWindowMinutes == 300)
+    }
+
     /// A Mac whose clock is a couple of minutes behind the provider's makes the computed
     /// elapsed time negative on a window that just rolled. That is exactly the case the
     /// filter exists for, so it must still suppress the lagging near-full reading.
