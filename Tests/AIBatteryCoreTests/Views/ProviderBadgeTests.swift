@@ -10,8 +10,8 @@ struct ProviderBadgeTests {
     // MARK: - Which gesture each mark gets
 
     /// The two marks are different shapes and get different gestures: Claude's sunburst
-    /// radiates (its rays are uneven, so turning it looked like a wobble), the OpenAI
-    /// knot turns (one woven loop with no ends).
+    /// springs (its rays are uneven, so turning it looked like a wobble), the OpenAI knot
+    /// turns (one woven loop with no ends).
     @Test func eachMarkGetsTheGestureItsShapeImplies() {
         #expect(AIProvider.claude.markHoverMotion == .bloom)
         #expect(AIProvider.codex.markHoverMotion == .turn)
@@ -34,60 +34,61 @@ struct ProviderBadgeTests {
         #expect(MotionConstants.spin == .easeInOut(duration: 0.5))
     }
 
-    // MARK: - The bloom
-
-    /// The flare is driven by a *position* along the curve, not a brightness, so that a
-    /// single monotonic animation both surges and decays. `sin(flare · π)` has to be dark
-    /// at both ends — otherwise the unanimated reset to 0 would show as a jump — and
-    /// brightest in the middle.
-    @Test func theFlareCurveIsDarkAtBothEndsAndBrightestInTheMiddle() {
-        #expect(ProviderBadge.flareIntensity(at: 0) == 0)
-        #expect(abs(ProviderBadge.flareIntensity(at: 1) - 0) < 1e-12)
-        #expect(ProviderBadge.flareIntensity(at: 0.5) == 1)
-        // Monotonic up to the peak, monotonic down after it.
-        #expect(ProviderBadge.flareIntensity(at: 0.25) < ProviderBadge.flareIntensity(at: 0.5))
-        #expect(ProviderBadge.flareIntensity(at: 0.75) < ProviderBadge.flareIntensity(at: 0.5))
-    }
-
-    /// The flare decays back onto the steady hover glow, never past it — a hover must not
-    /// end darker than it settles.
-    @Test func theFlareDecaysOntoTheSteadyGlowRatherThanToNothing() {
-        let peakRadius = Layout.markGlowRadius + 1.0 * Layout.markFlareRadius
-        let restingRadius = Layout.markGlowRadius + 0.0 * Layout.markFlareRadius
-        #expect(restingRadius == Layout.markGlowRadius)
-        #expect(peakRadius > Layout.markGlowRadius)
-
-        let peakOpacity = ThemeColors.markGlowOpacity + ThemeColors.markFlareOpacityBoost
-        #expect(peakOpacity > ThemeColors.markGlowOpacity)
-        // Never fully opaque: a solid halo reads as a disc behind the mark, not light.
-        #expect(peakOpacity < 1)
-    }
-
-    /// `easeOut` puts the peak early, so the star flares fast and calms slowly. An
-    /// `easeInOut` crept up to the peak and read as a pulse being inflated.
-    @Test func theFlareEasesOutSoThePeakComesEarly() {
-        #expect(MotionConstants.markBloom == .easeOut(duration: 1.0))
-        #expect(MotionConstants.markBloom != MotionConstants.markSpin)
-    }
-
     // MARK: - Shared
 
     /// Reduce Motion swaps the spring for a plain ease — the mark stops moving and only
     /// the glow cross-fades. A spring would still overshoot, which is the movement the
     /// setting asks us not to make.
     @Test func markLift_dropsTheSpringUnderReduceMotion() {
-        #expect(MotionConstants.markLift(reduceMotion: true) != MotionConstants.markLift(reduceMotion: false))
-        #expect(MotionConstants.markLift(reduceMotion: true) == .easeOut(duration: 0.45))
+        for motion in [MarkHoverMotion.bloom, .turn] {
+            #expect(
+                MotionConstants.markLift(reduceMotion: true, motion: motion)
+                    != MotionConstants.markLift(reduceMotion: false, motion: motion)
+            )
+            #expect(MotionConstants.markLift(reduceMotion: true, motion: motion) == .easeOut(duration: 0.45))
+        }
     }
 
-    /// Both lifts have to stay inside the slot the mark is centred in, or they crowd the
-    /// identity next to them. The bloom's is the larger of the two, and the overview
-    /// card's mark is the largest that is drawn — so that is the combination to pin.
-    @Test func bothLiftsStayInsideTheBadgeSlotAtEveryMarkSize() {
+    /// The rubberiness has to live in the spring, because SwiftUI interpolates a
+    /// modifier's value between states rather than re-running `body` per frame — a
+    /// hand-shaped curve read from state only ever samples its endpoints. So the bloom's
+    /// spring must stay **under-damped** (bouncy) and distinctly bouncier than the turn's,
+    /// which settles quietly beneath a rotation that is already carrying the movement.
+    @Test func theBloomSpringIsUnderDampedAndBouncierThanTheTurns() {
+        #expect(
+            MotionConstants.markLift(reduceMotion: false, motion: .bloom)
+                == .spring(response: 0.45, dampingFraction: 0.3)
+        )
+        #expect(
+            MotionConstants.markLift(reduceMotion: false, motion: .turn)
+                == .spring(response: 0.75, dampingFraction: 0.7)
+        )
+        #expect(
+            MotionConstants.markLift(reduceMotion: false, motion: .bloom)
+                != MotionConstants.markLift(reduceMotion: false, motion: .turn)
+        )
+    }
+
+    /// A spring can only be as rubbery as the distance it covers, so the bloom needs
+    /// visibly more travel than the turn — too small a target and the overshoot never
+    /// registers, which is exactly how this read as "it just gets bigger".
+    @Test func theBloomHasEnoughTravelForItsOvershootToRegister() {
         #expect(Layout.markBloomScale > Layout.markHoverScale)
+        let bloomTravel = Layout.markBloomScale - 1
+        let turnTravel = Layout.markHoverScale - 1
+        #expect(bloomTravel > turnTravel * 1.5)
+    }
+
+    /// The turn's lift stays inside the slot the mark is centred in. The bloom's does
+    /// not, and must not — constraining it to the slot is what left too little travel for
+    /// the overshoot to read. What actually matters is that neither reaches the identity
+    /// beside it, so the real bound is the gap between badge and name, not the slot.
+    @Test func liftsNeverReachTheIdentityBesideThem() {
         for size in [Layout.providerMarkSize, Layout.cardProviderMarkSize] {
             #expect(size * Layout.markHoverScale <= Layout.providerBadgeSize)
-            #expect(size * Layout.markBloomScale <= Layout.providerBadgeSize)
+            let widest = size * Layout.markBloomScale
+            let overflowPerSide = max(0, (widest - Layout.providerBadgeSize) / 2)
+            #expect(overflowPerSide < Layout.accountChipSpacing)
         }
     }
 

@@ -278,4 +278,25 @@ struct ThemeColorsTests {
     @Test func rowHoverStroke_keepsItsWeight() {
         #expect(ThemeColors.rowHoverStrokeOpacity == 0.18)
     }
+
+    // MARK: - Provider tint strength
+
+    /// The terracotta and green are the only saturated colours in an otherwise
+    /// monochrome popover, so they are carried softened rather than at full strength —
+    /// at 1.0 they pulled the eye before the numbers did. Every provider-tinted element
+    /// (mark, glow, live dot, card wash, chevron) draws from `providerBadge`, so the one
+    /// opacity keeps them in step instead of drifting apart per call site.
+    @Test func providerTints_areSoftenedButStillPresent() {
+        #expect(ThemeColors.providerTintOpacity < 1.0)
+        // Not a fade: the tint has to survive on thin strokes and small marks.
+        #expect(ThemeColors.providerTintOpacity > 0.6)
+    }
+
+    /// The softened tints must still be told apart, and must still differ from the
+    /// full-strength pair they are derived from.
+    @Test func providerTints_stayDistinctAfterSoftening() {
+        #expect(ThemeColors.providerBadge(.claude) != ThemeColors.providerBadge(.codex))
+        #expect(ThemeColors.providerBadgeOpaque(.claude) != ThemeColors.providerBadgeOpaque(.codex))
+        #expect(ThemeColors.providerBadge(.claude) != ThemeColors.providerBadgeOpaque(.claude))
+    }
 }

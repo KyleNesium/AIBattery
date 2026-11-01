@@ -206,7 +206,24 @@ enum ThemeColors {
     /// Tint of the provider badge behind the header chip's symbol — Anthropic's
     /// terracotta for Claude, OpenAI's green for Codex. Plain literals (not dynamic
     /// NSColors) so they are safe to compare off-main in tests.
+    ///
+    /// Carried at `providerTintOpacity` rather than full strength: these are the only
+    /// saturated colours in an otherwise monochrome popover, and at 1.0 the terracotta
+    /// and green pulled the eye before the numbers did. Everything provider-tinted draws
+    /// from here — mark, glow, live dot, card wash, chevron — so softening it once keeps
+    /// them in step instead of drifting apart one call site at a time.
     static func providerBadge(_ provider: AIProvider) -> Color {
+        providerBadgeOpaque(provider).opacity(providerTintOpacity)
+    }
+
+    /// How present the provider colours are. Lower than it looks: the tint still has to
+    /// survive on the thin strokes and small marks that use it, so this is a softening,
+    /// not a fade.
+    static let providerTintOpacity: Double = 0.78
+
+    /// The tints at full strength. Use only where the colour is composited onto a known
+    /// background and needs no softening of its own — `providerBadge` is the default.
+    static func providerBadgeOpaque(_ provider: AIProvider) -> Color {
         switch provider {
         case .claude: Color(red: 0.85, green: 0.47, blue: 0.34)
         case .codex: Color(red: 0.06, green: 0.64, blue: 0.50)
@@ -287,11 +304,6 @@ enum ThemeColors {
     /// chevron's glow: the mark is a dense shape rather than a thin glyph, so the same
     /// strength would spill past it into a halo.
     static let markGlowOpacity: Double = 0.55
-
-    /// Extra glow opacity at the flare's peak, added to `markGlowOpacity` (0.55 → 0.80).
-    /// Kept under 1 deliberately: a fully opaque halo stops reading as light coming off
-    /// the mark and starts reading as a coloured disc sitting behind it.
-    static let markFlareOpacityBoost: Double = 0.25
 
     static let subtleElementOpacity: Double = 0.12
 

@@ -3,16 +3,21 @@ import SwiftUI
 /// How a brand mark reacts to hover. The two marks are different shapes and a single
 /// gesture flattered only one of them, so each gets the motion its own form implies.
 enum MarkHoverMotion {
-    /// Claude's sunburst: it flares. The mark swells while its coloured glow surges
-    /// outward and then calms to a steady halo — a star putting out light, which is the
-    /// one thing a starburst is drawing.
+    /// Claude's sunburst: it springs. The mark sails well past the size it is heading
+    /// for, snaps back under it, and wobbles onto it — rubbery rather than smooth.
     ///
-    /// Two earlier attempts are worth not repeating. Turning it read as a *wobble*: the
-    /// rays are uneven, so a rotation has no symmetry to trace. Expanding a ghost copy of
-    /// the mark read as a *smudge*: the ghost sits behind an opaque logo, so it is hidden
-    /// for most of its travel and what escapes is a faint second starburst peeking
-    /// between the real rays. Light has neither problem — it is not a shape, so it cannot
-    /// double the logo, and it radiates whatever the mark's symmetry happens to be.
+    /// Three earlier attempts are worth not repeating. Turning it read as a *wobble*:
+    /// the rays are uneven, so a rotation has no symmetry to trace. Expanding a ghost
+    /// copy read as a *smudge*: behind an opaque logo the ghost is hidden for most of its
+    /// travel, and what escapes is a faint second starburst between the real rays.
+    ///
+    /// The third failure is the instructive one. A hand-shaped curve — scale as some
+    /// `f(position)` with `position` animated 0→1 — **does not play at all**. SwiftUI
+    /// interpolates a modifier's value between its old and new state; it does not
+    /// re-evaluate `body` per frame. Only `f(0)` and `f(1)` are ever sampled, so a curve
+    /// that returns to its start value, as a pulse must, animates from one number to the
+    /// identical number: nothing moves. Rubberiness has to come from the animation's own
+    /// physics, which is why this case is simply an under-damped spring.
     case bloom
     /// OpenAI's knot: a single woven loop with no ends, so turning it traces the form
     /// instead of fighting it.
@@ -36,17 +41,18 @@ extension AIProvider {
 /// next to it, so the tint is a recognition aid, never the only signal.
 ///
 /// **Hover.** The mark lifts and glows, and then does whatever its shape asks for —
-/// `AIProvider.markHoverMotion`. Claude blooms, Codex turns.
+/// `AIProvider.markHoverMotion`. Claude springs, Codex turns.
 ///
 /// The turn is a *full* 360°, which matters: it lands on the exact pixels it started
 /// from, so the mark can never settle visibly rotated the way a partial turn would.
 /// Rotation resets without animation before each turn (the `RefreshButton` idiom) so the
 /// angle never accumulates unbounded while always moving forward.
 ///
-/// The bloom's ghost rests *expanded and invisible* (`bloom == 1`) and is snapped back to
-/// the mark's own size before each pulse. Resting at the end of the animation rather than
-/// the start is what lets one value drive both scale and fade with no gating flag and no
-/// timer — at rest it is simply transparent.
+/// The spring is the bloom's entire gesture — there is no second state to drive, and
+/// deliberately so. SwiftUI interpolates a modifier's value between states rather than
+/// re-running `body` per frame, so a hand-shaped curve read from `@State` only ever
+/// samples its endpoints; see `MarkHoverMotion.bloom` for the version of this that
+/// silently did nothing. Rubberiness lives in `MotionConstants.markLift`'s damping.
 ///
 /// `isHovered` lets a parent drive the animation from a **larger** target than the 12pt
 /// mark itself: an overview card animates its logo when the whole card is hovered, which
@@ -70,12 +76,6 @@ struct ProviderBadge: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selfHovered = false
     @State private var rotation: Double = 0
-    /// Drives the flare, as a position along it rather than its brightness. Brightness is
-    /// `sin(flare · π)`, which is 0 at both ends and 1 in the middle — so one monotonic
-    /// animation both surges and decays, with no timer, no delayed second animation and
-    /// no completion handler (macOS 13 has none). It rests at 1 and is snapped to 0
-    /// before each flare; both ends are dark, so the reset can never show a jump.
-    @State private var flare: Double = 1
 
     init(provider: AIProvider, isHovered: Bool? = nil, markSize: CGFloat = Layout.providerMarkSize) {
         self.provider = provider
@@ -96,18 +96,10 @@ struct ProviderBadge: View {
         }
     }
 
-    /// Brightness at a position along the flare curve, 0…1 — dark at both ends, brightest
-    /// in the middle. This shape is the whole trick: it turns one monotonic animation
-    /// into a surge *and* a decay, and it makes the unanimated reset invisible because
-    /// both ends of the sweep are dark.
-    nonisolated static func flareIntensity(at position: Double) -> Double {
-        sin(position * .pi)
-    }
-
-    /// How bright the flare is right now. Zero unless this mark blooms and is hovered.
-    private var flareIntensity: Double {
-        guard motion == .bloom, !reduceMotion, hovered else { return 0 }
-        return Self.flareIntensity(at: flare)
+    /// Where the mark sits while hovered. The *path* it takes to get here is the spring's
+    /// business, not this property's — see `MotionConstants.markLift`.
+    private var currentScale: CGFloat {
+        hovered && !reduceMotion ? liftScale : 1
     }
 
     var body: some View {
@@ -116,24 +108,19 @@ struct ProviderBadge: View {
             // The glow is the part that survives Reduce Motion — a soft bloom in the
             // provider's own colour, so the mark looks lit from within rather than
             // outlined. Radius, not opacity alone: a flat halo reads as a selection ring.
-            // A blooming mark adds its flare on top of this steady halo and decays back
-            // onto it, so the hover never ends darker than it settles.
+            // It rides the same spring as the scale, so on a blooming mark the halo
+            // overshoots with the logo instead of fading in flatly behind it.
             .shadow(
-                color: tint.opacity(
-                    hovered ? ThemeColors.markGlowOpacity + flareIntensity * ThemeColors.markFlareOpacityBoost : 0
-                ),
-                radius: hovered ? Layout.markGlowRadius + flareIntensity * Layout.markFlareRadius : 0
+                color: tint.opacity(hovered ? ThemeColors.markGlowOpacity : 0),
+                radius: hovered ? Layout.markGlowRadius : 0
             )
-            .scaleEffect(hovered && !reduceMotion ? liftScale : 1)
+            .scaleEffect(currentScale)
             .rotationEffect(.degrees(reduceMotion ? 0 : rotation))
             .frame(width: Layout.providerBadgeSize, height: Layout.providerBadgeSize)
-            .animation(MotionConstants.markLift(reduceMotion: reduceMotion), value: hovered)
+            .animation(MotionConstants.markLift(reduceMotion: reduceMotion, motion: motion), value: hovered)
             .onChange(of: hovered) { isHovering in
-                guard isHovering, !reduceMotion else { return }
-                switch motion {
-                case .bloom: bloomOnce()
-                case .turn: spinOnce()
-                }
+                guard isHovering, !reduceMotion, motion == .turn else { return }
+                spinOnce()
             }
             // Only bind a tracking area when nobody else is driving the state.
             .onHover {
@@ -166,12 +153,5 @@ struct ProviderBadge: View {
     private func spinOnce() {
         withAnimation(.none) { rotation = 0 }
         withAnimation(MotionConstants.markSpin) { rotation = Self.hoverRotationDegrees }
-    }
-
-    /// One surge of light. Snapped to the dark end of the curve, then run through it —
-    /// `flareIntensity` turns that single sweep into a rise and a decay.
-    private func bloomOnce() {
-        withAnimation(.none) { flare = 0 }
-        withAnimation(MotionConstants.markBloom) { flare = 1 }
     }
 }

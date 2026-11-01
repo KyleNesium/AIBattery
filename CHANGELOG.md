@@ -5,7 +5,8 @@
 ### Added
 - **The hover glow on a card is quieter.** The orange or green wash that fills a card under the pointer is fainter (0.07 → 0.04), so it no longer competes with the bars underneath it. Its hairline edge is unchanged — that outline, not the fill, is what gives the card its shape.
 - **Bigger logos on the overview cards.** 14pt instead of 12pt. The slot around them is unchanged, so every column still lines up; the header chip and Settings rows keep the smaller mark.
-- **The brand marks come alive on hover.** Point at an account card or the header chip and its logo lifts and glows in the provider's own colour — then does whatever its own shape asks for. Claude's sunburst flares — its glow surges outward and then calms; the OpenAI knot turns a full revolution. The whole card is the target, not the 12pt logo. Reduce Motion keeps the glow and drops the movement.
+- **The brand marks come alive on hover.** Point at an account card or the header chip and its logo lifts and glows in the provider's own colour — then does whatever its own shape asks for. Claude's sunburst springs: it sails past its size, snaps back and wobbles into place. The OpenAI knot turns a full revolution. The whole card is the target, not the 12pt logo. Reduce Motion keeps the glow and drops the movement.
+- **The provider colours are softer.** The terracotta and green are the only saturated colours in the popover, and at full strength they pulled the eye before the numbers did. Everything tinted with them — logo, glow, live dot, card highlight, chevron — softens together.
 
 ### Fixed
 - **A window that just reset no longer reads "Limit reached".** If this Mac's clock sits a few minutes behind the provider's — common right after wake — the rollover filter stopped recognising a window that had just rolled, and the lagging near-full reading was shown as a real limit. It now tolerates up to five minutes of skew; a reset further away than the window is long is still left alone.

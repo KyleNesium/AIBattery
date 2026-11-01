@@ -191,8 +191,8 @@ enum Layout {
 
     /// The mark on an overview card. Larger than the header chip's: a card is a wider,
     /// quieter surface than a title row, and at 12pt the logo read as an afterthought
-    /// beside the headline percentage. Sized so the bloom's 1.28 lift still fits the
-    /// 18pt slot (14 × 1.28 = 17.9).
+    /// beside the headline percentage. The resting lift still fits the 18pt slot; the
+    /// bloom's spring overshoot deliberately leaves it for a moment (see `markBloomScale`).
     static let cardProviderMarkSize: CGFloat = 14
 
     /// How far a *turning* brand mark lifts on hover. Small on purpose: the mark sits
@@ -200,17 +200,18 @@ enum Layout {
     /// beside it, and the turn is already carrying the movement.
     static let markHoverScale: CGFloat = 1.18
 
-    /// How far a *blooming* mark lifts. Larger than `markHoverScale` because scale is the
-    /// whole of its movement — there is no rotation to carry it — but still inside the slot.
-    static let markBloomScale: CGFloat = 1.28
+    /// Where a *blooming* mark comes to rest while hovered. The under-damped spring in
+    /// `MotionConstants.markLift` overshoots this by roughly 37% of the travel and wobbles
+    /// back onto it, so this is the settling point, not the peak — the mark passes through
+    /// about 1.48 on its way here.
+    ///
+    /// Larger than `markHoverScale` for a reason beyond size: a spring can only be as
+    /// rubbery as the distance it has to cover, and at a 1.18 target there was too little
+    /// travel for the overshoot to register at all.
+    static let markBloomScale: CGFloat = 1.35
 
     /// Blur radius of the hovered mark's coloured glow, at rest.
     static let markGlowRadius: CGFloat = 5
-
-    /// Extra blur the flare adds at its peak, on top of `markGlowRadius`. Nearly triples
-    /// the halo (5 → 14) so the surge is unmistakable, then decays back onto the steady
-    /// glow rather than to nothing — a hover never ends darker than it settles.
-    static let markFlareRadius: CGFloat = 9
 
     /// Clipboard icon trailing offset (negative for overlay positioning).
     static let clipboardIconOffset: CGFloat = 13
@@ -266,18 +267,26 @@ enum MotionConstants {
     /// turn read as a control reacting to a click.
     static let markSpin: Animation = .easeInOut(duration: 1.3)
 
-    /// The blooming mark's surge of light, as a sweep along the flare curve rather than
-    /// its brightness (see `ProviderBadge.flare`). `easeOut` puts the peak early, so the
-    /// star flares fast and then calms slowly — which is how light actually falls off.
-    /// An `easeInOut` here crept up to the peak and read as a pulse being inflated.
-    static let markBloom: Animation = .easeOut(duration: 1.0)
-
-    /// The hovered brand mark's lift and bloom. A long, lightly-damped spring: the scale
-    /// drifts up and settles rather than popping, which is what keeps it in step with the
-    /// slow turn above. Under Reduce Motion the mark does not move at all, so only the
-    /// glow is left to cross-fade — gently, for the same reason.
-    nonisolated static func markLift(reduceMotion: Bool) -> Animation {
-        reduceMotion ? .easeOut(duration: 0.45) : .spring(response: 0.75, dampingFraction: 0.7)
+    /// The hovered brand mark's lift. The spring *is* the gesture, which matters more
+    /// than it sounds: SwiftUI interpolates a modifier's value between the old and new
+    /// state, it does not re-evaluate `body` per frame. A hand-shaped curve read from
+    /// state therefore never plays — only its endpoints do. Anything rubbery here has to
+    /// come from the animation's own physics.
+    ///
+    /// - `.turn` (Codex) gets a well-damped spring: the rotation carries the movement, so
+    ///   the scale should settle quietly underneath it rather than compete.
+    /// - `.bloom` (Claude) gets a **deliberately under-damped** one. At `dampingFraction`
+    ///   0.3 the first overshoot is ~37% of the travel, so the mark sails past its target,
+    ///   springs back under, and wobbles onto it — the rubbery settle a starburst wants,
+    ///   and the only way to get it without a custom `Animatable`.
+    ///
+    /// Under Reduce Motion the mark does not move at all, so only the glow cross-fades.
+    nonisolated static func markLift(reduceMotion: Bool, motion: MarkHoverMotion) -> Animation {
+        guard !reduceMotion else { return .easeOut(duration: 0.45) }
+        switch motion {
+        case .bloom: return .spring(response: 0.45, dampingFraction: 0.3)
+        case .turn: return .spring(response: 0.75, dampingFraction: 0.7)
+        }
     }
 
     // MARK: - Marquee (footer incident ticker)
