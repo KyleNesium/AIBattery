@@ -284,12 +284,13 @@ enum ThemeColors {
     /// account instead of looking like a generic selection block. Kept to a whisper —
     /// the hairline stroke, not the fill, is what gives the row its shape.
     ///
-    /// The fill is the *body* of that wash and is deliberately fainter than the edge:
-    /// at 0.07 the orange and green read as a coloured panel laid over the card, which
-    /// competed with the bars inside it. The stroke stays where it is — dropping both
-    /// together would have cost the row its shape rather than just its weight.
-    static let rowHoverTintOpacity: Double = 0.04
-    static let rowHoverStrokeOpacity: Double = 0.18
+    /// The fill is the *body* of that wash and stays fainter than the edge: past about
+    /// 0.1 the orange and green read as a coloured panel laid over the card and compete
+    /// with the bars inside it. Both were lifted a step (0.04 → 0.07, 0.18 → 0.24) after
+    /// the quieter pair barely registered on a bright desktop; the gap between them is
+    /// what keeps the row shaped by its hairline rather than filled in.
+    static let rowHoverTintOpacity: Double = 0.07
+    static let rowHoverStrokeOpacity: Double = 0.24
     /// How far the "beta" label sits behind the tertiary label it is drawn in.
     static let betaBadgeOpacity: Double = 0.75
 

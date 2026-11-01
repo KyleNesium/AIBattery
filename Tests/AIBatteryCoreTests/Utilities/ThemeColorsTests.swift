@@ -276,7 +276,7 @@ struct ThemeColorsTests {
     /// The edge is what gives the row its shape — the fill alone is a blob. So a pass
     /// that quietens the glow must leave the hairline alone.
     @Test func rowHoverStroke_keepsItsWeight() {
-        #expect(ThemeColors.rowHoverStrokeOpacity == 0.18)
+        #expect(ThemeColors.rowHoverStrokeOpacity == 0.24)
     }
 
     // MARK: - Provider tint strength
