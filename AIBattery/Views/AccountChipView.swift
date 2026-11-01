@@ -67,7 +67,9 @@ struct AccountChipView: View {
         // separate widget.
         HStack(alignment: .firstTextBaseline, spacing: 0) {
             if let active {
-                ProviderBadge(provider: active.provider)
+                // Driven by the chip's hover, not the mark's own: the chip is the
+                // control, so the mark comes alive wherever you enter it.
+                ProviderBadge(provider: active.provider, isHovered: hovered)
                     .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + Layout.capHeightBaselineOffset }
                 Text(AccountStore.identityLabel(
                     for: active,
@@ -188,7 +190,7 @@ struct AccountChipView: View {
             "\(account.provider.displayName) account",
             AccountStore.identityLabel(for: account, providerIndex: providerIndex, maskEmail: maskEmail),
         ]
-        if account.provider == .codex, let plan = AccountStore.planLabel(account.billingType) {
+        if let plan = AccountStore.planLabel(for: account) {
             parts.append(plan)
         }
         if isActive {
@@ -205,35 +207,6 @@ struct AccountChipView: View {
             includePlan: true,
             maskEmail: !showFullAccountIdentity
         )
-    }
-}
-
-/// Rounded-square tinted badge with the provider's real brand mark in white
-/// (`AIProvider.markImage`, bundled SVG) — the kind of mark macOS uses for
-/// accounts in System Settings. The name sits next to it, so the tint is a
-/// recognition aid, never the only signal.
-struct ProviderBadge: View {
-    let provider: AIProvider
-
-    var body: some View {
-        Group {
-            if let mark = provider.markImage {
-                Image(nsImage: mark)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: Layout.providerMarkSize, height: Layout.providerMarkSize)
-            } else {
-                Image(systemName: provider.symbolName)
-                    .font(Typography.badgeSymbol)
-            }
-        }
-        // Bare mark in the provider's colour — no filled square. The tinted tile was
-        // the one saturated block in an otherwise monochrome header and made the chip
-        // read as a foreign control; a logo-style mark reads as part of the title.
-        .foregroundStyle(ThemeColors.providerBadge(provider))
-        .frame(width: Layout.providerBadgeSize, height: Layout.providerBadgeSize)
-        .accessibilityHidden(true)
     }
 }
 

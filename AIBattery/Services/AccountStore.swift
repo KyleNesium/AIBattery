@@ -105,6 +105,13 @@ public final class AccountStore: ObservableObject {
             if merged.discoveredIdentity == nil {
                 merged.discoveredIdentity = existing.discoveredIdentity
             }
+            // Dropping this one demotes an API-key account to ChatGPT OAuth, which
+            // sends an `sk-…` key to the token endpoint. Unreachable while only the
+            // Claude pending→org path produces a changed id; cheap insurance for the
+            // Codex id resolution that would make it reachable.
+            if merged.codexAccessMode == nil {
+                merged.codexAccessMode = existing.codexAccessMode
+            }
 
             AppLogger.oauth.info("Merging duplicate account \(oldId, privacy: .public) → \(newRecord.id, privacy: .public)")
 
@@ -266,7 +273,7 @@ public final class AccountStore: ObservableObject {
 
     /// The one label an account gets everywhere it is listed (chip menu rows, Settings
     /// rows): `identityLabel`, prefixed with the provider glyph when `showsProviderGlyph`
-    /// and, for Codex, optionally suffixed with the plan ("· Business", "· API").
+    /// and optionally suffixed with the plan ("· Business", "· API", "· Max 20×").
     nonisolated static func displayLabel(
         for account: AccountRecord,
         providerIndex: Int,
@@ -276,10 +283,20 @@ public final class AccountStore: ObservableObject {
     ) -> String {
         let base = identityLabel(for: account, providerIndex: providerIndex, maskEmail: maskEmail)
         let labelled = showsProviderGlyph ? "\(account.provider.glyph) \(base)" : base
-        if includePlan, account.provider == .codex, let plan = planLabel(account.billingType) {
+        if includePlan, let plan = planLabel(for: account) {
             return "\(labelled) · \(plan)"
         }
         return labelled
+    }
+
+    /// An account's plan in its provider's own words — Codex `plan_type` ("Business",
+    /// "Plus", "API"), Claude profile plan ("Max 20×", "Pro") — or nil when unknown.
+    /// The one place the card, the chip menu and Settings all read the plan from.
+    nonisolated static func planLabel(for account: AccountRecord) -> String? {
+        switch account.provider {
+        case .codex: planLabel(account.billingType)
+        case .claude: ClaudePlan.label(account.billingType)
+        }
     }
 
     /// "plus" → "Plus", "api" → "API", "chatgpt_team" → "ChatGPT Team"; nil for empty/unknown.

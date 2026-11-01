@@ -462,10 +462,12 @@ public struct AuthView: View {
                 errorMessage = error.userMessage
             } else {
                 apiKeyInput = ""
-                if validation == .unknown {
-                    // Not a failure — say so, since the first refresh will do the real check.
-                    errorMessage = "Couldn't verify the key right now (offline?). Added anyway — it's checked on the first refresh."
-                }
+                // `.unknown` (offline, inconclusive probe) says nothing here. The account
+                // is already registered, so `AccountStore.$accounts` tears this overlay
+                // down immediately — a message written now is very likely never read, and
+                // it used to land in the red error surface for something that is not a
+                // failure. The next poll surfaces the real state on the popover's own
+                // error surfaces.
             }
             // Success auto-dismisses via AccountStore, like the OAuth flow.
         }

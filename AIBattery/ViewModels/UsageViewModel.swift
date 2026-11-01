@@ -258,8 +258,15 @@ public final class UsageViewModel: ObservableObject {
         applySideEffects: Bool = true,
         providerWide: Bool = false
     ) async -> UsageSnapshot {
-        if let inflight = inflightAggregation {
+        // Loop, don't check once: N callers queued behind one in-flight task all resumed
+        // together, each started its own detached task, and the last assignment won —
+        // the others became untracked. The locks inside `UsageAggregator` / `TokenLedger`
+        // kept that safe, but it was wasted work under a comment claiming serialization.
+        while let inflight = inflightAggregation {
             _ = await inflight.value
+            if inflightAggregation == inflight {
+                break // the owner finished without clearing the slot — take it
+            }
         }
         let accounts = OAuthManager.shared.accountStore.accounts
         // Decided here, once, for all seven callers: the detail view gets per-account data
@@ -304,7 +311,11 @@ public final class UsageViewModel: ObservableObject {
                 RateLimitFetcher.shared.setObservedModels(result.effects.observedModels, accountId: id)
             }
         }
-        inflightAggregation = nil
+        // Only the owner clears the slot: an unconditional nil could drop a newer
+        // caller's task and let a third caller run alongside it.
+        if inflightAggregation == task {
+            inflightAggregation = nil
+        }
         return result.detail
     }
 

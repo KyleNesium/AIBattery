@@ -24,6 +24,33 @@ extension NSLock {
             return old
         }
     }
+
+    /// Lock-protected counter for a value written on a scan thread and read from
+    /// MainActor. Its own lock, deliberately: the reader's scan lock is held for the
+    /// whole of a cold scan, so reading through it would park the UI thread behind
+    /// seconds of file I/O — the thing these readers exist to avoid.
+    final class AtomicInt: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        var current: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+
+        func set(_ newValue: Int) {
+            lock.lock()
+            value = newValue
+            lock.unlock()
+        }
+
+        func add(_ delta: Int) {
+            lock.lock()
+            value += delta
+            lock.unlock()
+        }
+    }
 }
 
 /// Reads and caches JSONL session log files. NOT MainActor — file I/O must not block the UI.
@@ -55,7 +82,19 @@ final class SessionLogReader: @unchecked Sendable {
         /// Message IDs contributed by this file — retained after eviction so stale entries
         /// can be removed from cachedAllEntries when the file is re-parsed.
         var messageIds: Set<String>
+        /// Byte offset the next parse of this file can resume from, and what the previous
+        /// parse's unterminated trailing line contributed. Both are only usable while
+        /// `entries` is live; an evicted file re-parses in full.
+        var resumeOffset: UInt64 = 0
+        var trailing: FileParse.TrailingContribution?
+        /// First bytes of the file as last parsed. A changed head means the file was
+        /// rewritten or rotated rather than appended to, so the offset is meaningless.
+        var headFingerprint: Data = .init()
     }
+
+    /// Bytes compared to decide "same file, just longer". Enough to cover the first
+    /// JSONL line's session metadata; a rewrite changes it immediately.
+    static let headFingerprintLength = 256
 
     // Cache: filePath -> FileCacheEntry (entries may be nil after eviction)
     private var cache: [String: FileCacheEntry] = [:]
@@ -98,8 +137,11 @@ final class SessionLogReader: @unchecked Sendable {
     /// Shared decoder — avoids allocating a new one per JSONL file.
     private static let jsonDecoder = JSONDecoder()
 
-    /// Number of corrupt/skipped lines from the most recent file parse cycle.
-    private(set) var lastCorruptLineCount = 0
+    /// Number of corrupt/skipped lines from the most recent file parse cycle. Written
+    /// on the scan thread, read from MainActor (`UsageViewModel.logCorruptionMetrics`) —
+    /// so it is an atomic rather than a plain `Int` guarded by nothing.
+    private let corruptLineCounter = NSLock.AtomicInt()
+    var lastCorruptLineCount: Int { corruptLineCounter.current }
 
     /// Called by FileWatcher when files change — marks caches dirty so the next read re-scans.
     /// Non-blocking: if a scan is in progress, sets a flag so the scan result is discarded.
@@ -130,7 +172,7 @@ final class SessionLogReader: @unchecked Sendable {
     func readAllUsageEntries() -> [AssistantUsageEntry] {
         lock.lock()
         pendingInvalidation.set(false)
-        lastCorruptLineCount = 0
+        corruptLineCounter.set(0)
 
         // Fast path: not dirty, return cached result
         if !isDirty, let cached = cachedAllEntries {
@@ -235,16 +277,46 @@ final class SessionLogReader: @unchecked Sendable {
                 changed = true
             }
 
-            // Re-parse (or first-parse for new files).
-            let entries = readSessionFile(at: fileURL)
-            let newIds = Set(entries.map(\.messageId))
+            // Re-parse — from the top, or from where the last parse stopped when the
+            // file has simply grown (the active session file is 7-10 MB and is rewritten
+            // from byte 0 on every debounced write otherwise).
+            let head = Self.headBytes(of: fileURL)
+            let resumeFrom = Self.tailParseOffset(cached: cache[path], newSize: fileSize, head: head)
+            let parse = readSessionFile(at: fileURL, from: resumeFrom ?? 0)
+            let merged: [AssistantUsageEntry] = if let resumeFrom, let previous = cache[path]?.entries {
+                Self.mergingTail(
+                    parse.entries, into: previous, undoing: cache[path]?.trailing
+                )
+            } else {
+                parse.entries
+            }
+            let newIds = Set(merged.map(\.messageId))
             cache[path] = FileCacheEntry(
                 modDate: modDate ?? Date(),
                 fileSize: fileSize ?? 0,
-                entries: entries,
-                messageIds: newIds
+                entries: merged,
+                messageIds: newIds,
+                resumeOffset: parse.resumeOffset,
+                trailing: parse.trailing,
+                headFingerprint: head
             )
-            for entry in entries {
+            // A tail parse coalesces into entries that are already in the result, so the
+            // result's copies have to be refreshed rather than skipped as "already seen".
+            // Tool calls are the only field a continuation line changes.
+            if resumeFrom != nil {
+                let toolCallsById = Dictionary(
+                    merged.map { ($0.messageId, $0.toolCallCount) }, uniquingKeysWith: { _, last in last }
+                )
+                for index in resultEntries.indices {
+                    guard let fresh = toolCallsById[resultEntries[index].messageId],
+                          fresh != resultEntries[index].toolCallCount else { continue }
+                    resultEntries[index] = Self.addingToolCalls(
+                        fresh - resultEntries[index].toolCallCount, to: resultEntries[index]
+                    )
+                    changed = true
+                }
+            }
+            for entry in merged {
                 if seenIds.insert(entry.messageId).inserted {
                     resultEntries.append(entry)
                     changed = true
@@ -256,6 +328,66 @@ final class SessionLogReader: @unchecked Sendable {
             resultEntries.sort { $0.timestamp < $1.timestamp }
         }
         return (resultEntries, seenIds)
+    }
+
+    // MARK: - Incremental tail parse
+
+    /// First `headFingerprintLength` bytes of a file, or empty when unreadable.
+    static func headBytes(of url: URL) -> Data {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return Data() }
+        defer { try? handle.close() }
+        return (try? handle.read(upToCount: headFingerprintLength)) ?? Data()
+    }
+
+    /// Where a re-parse of this file may resume, or nil when it must start from the top.
+    ///
+    /// Only an append qualifies: same head bytes, a size at least as large as what was
+    /// already consumed, and the previous parse's entries still in memory (an evicted
+    /// file has nothing to merge the tail into). A truncation, a rotation, or an edit
+    /// anywhere before the offset all change one of those and fall back to a full parse.
+    static func tailParseOffset(cached: FileCacheEntry?, newSize: UInt64?, head: Data) -> UInt64? {
+        guard let cached, cached.entries != nil, cached.resumeOffset > 0, !cached.headFingerprint.isEmpty, cached.headFingerprint == head, let newSize, newSize >= cached.resumeOffset else { return nil }
+        return cached.resumeOffset
+    }
+
+    /// Merge a tail parse into the entries a previous parse of the same file produced.
+    ///
+    /// - The previous pass's unterminated trailing line is undone first: the tail re-reads
+    ///   that line, so without this its tool calls would be counted twice (or its entry
+    ///   duplicated).
+    /// - A tail entry whose message id is already known is a continuation of that message
+    ///   (Claude Code writes one line per content block, all sharing `message.id` and
+    ///   carrying identical usage), so only its tool calls are added — never its tokens.
+    static func mergingTail(
+        _ tail: [AssistantUsageEntry],
+        into previous: [AssistantUsageEntry],
+        undoing trailing: FileParse.TrailingContribution?
+    ) -> [AssistantUsageEntry] {
+        var merged = previous
+        if let trailing {
+            if trailing.createdEntry {
+                merged.removeAll { $0.messageId == trailing.messageId }
+            } else if trailing.toolCalls > 0,
+                      let index = merged.firstIndex(where: { $0.messageId == trailing.messageId }) {
+                merged[index] = addingToolCalls(-trailing.toolCalls, to: merged[index])
+            }
+        }
+
+        var indexById = Dictionary(
+            merged.enumerated().map { ($0.element.messageId, $0.offset) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        for entry in tail {
+            if let index = indexById[entry.messageId] {
+                if entry.toolCallCount > 0 {
+                    merged[index] = addingToolCalls(entry.toolCallCount, to: merged[index])
+                }
+            } else {
+                indexById[entry.messageId] = merged.count
+                merged.append(entry)
+            }
+        }
+        return merged
     }
 
     /// Release raw entry arrays from per-file cache for files not modified today.
@@ -408,9 +540,41 @@ final class SessionLogReader: @unchecked Sendable {
 
     // MARK: - Streaming line reader
 
-    private func readSessionFile(at url: URL) -> [AssistantUsageEntry] {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return [] }
+    /// What one parse of a session file produced.
+    struct FileParse {
+        var entries: [AssistantUsageEntry] = []
+        /// Byte offset of the first line this parse did NOT fully consume — i.e. just
+        /// past the last newline. A later parse resumes here.
+        var resumeOffset: UInt64 = 0
+        /// The entry produced by a final line with no trailing newline, if any.
+        ///
+        /// Claude Code is mid-write on that line: it is parsed (so the newest turn shows
+        /// immediately) but `resumeOffset` stops *before* it, so the next parse sees it
+        /// again. Recording what it contributed is what lets that contribution be undone
+        /// before the re-parse, instead of counting the same tool calls twice.
+        var trailing: TrailingContribution?
+
+        struct TrailingContribution: Equatable {
+            let messageId: String
+            let toolCalls: Int
+            /// True when the trailing line created the entry rather than coalescing into
+            /// one an earlier line had already produced.
+            let createdEntry: Bool
+        }
+    }
+
+    /// Parse a session file, optionally resuming at a byte offset.
+    ///
+    /// `from` > 0 is the incremental path: only the bytes appended since the last parse
+    /// are read. The caller is responsible for establishing that the file really is the
+    /// same file, grown (see `tailParseOffset`).
+    private func readSessionFile(at url: URL, from offset: UInt64 = 0) -> FileParse {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return FileParse() }
         defer { try? handle.close() }
+        if offset > 0 {
+            guard (try? handle.seek(toOffset: offset)) != nil else { return FileParse() }
+        }
+        var consumed = offset
 
         var entries: [AssistantUsageEntry] = []
         // Claude Code writes one JSONL line per content block, all sharing `message.id`
@@ -421,15 +585,18 @@ final class SessionLogReader: @unchecked Sendable {
         var indexById: [String: Int] = [:]
         let decoder = Self.jsonDecoder
 
-        func collect(_ entry: AssistantUsageEntry) {
+        /// - Returns: whether this call created a new entry (rather than coalescing).
+        @discardableResult
+        func collect(_ entry: AssistantUsageEntry) -> Bool {
             if let index = indexById[entry.messageId] {
                 if entry.toolCallCount > 0 {
                     entries[index] = Self.addingToolCalls(entry.toolCallCount, to: entries[index])
                 }
-            } else {
-                indexById[entry.messageId] = entries.count
-                entries.append(entry)
+                return false
             }
+            indexById[entry.messageId] = entries.count
+            entries.append(entry)
+            return true
         }
 
         let bufferSize = 64 * 1_024 // 64KB chunks
@@ -440,25 +607,31 @@ final class SessionLogReader: @unchecked Sendable {
         /// re-counted as corrupt once per MB and its tail parsed as a new line.
         var skippingOversizedLine = false
 
+        // One reused buffer for the whole file: a `Data` per chunk was the launch
+        // footprint spike (see `ChunkedFileReader`).
+        var chunkReader = ChunkedFileReader(handle: handle, bufferSize: bufferSize)
+
         while true {
-            guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
             var alreadyScanned = leftover.count
-            leftover.append(chunk)
+            guard chunkReader.readChunk(into: &leftover) else { break }
 
             if skippingOversizedLine {
                 guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
+                    consumed += UInt64(leftover.count)
                     leftover.removeAll()
                     continue
                 }
+                consumed += UInt64(newlineIndex - leftover.startIndex + 1)
                 leftover = Data(leftover[(newlineIndex + 1)...])
                 alreadyScanned = 0
                 skippingOversizedLine = false
             } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
                 // Malformed / unexpectedly large line — count once, skip to its newline.
-                lastCorruptLineCount += 1
+                corruptLineCounter.add(1)
                 AppLogger.files.debug("Skipping oversized JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
+                consumed += UInt64(leftover.count)
                 leftover.removeAll()
                 skippingOversizedLine = true
                 continue
@@ -468,6 +641,8 @@ final class SessionLogReader: @unchecked Sendable {
             var searchFrom = leftover.startIndex + alreadyScanned
             while let newlineIndex = leftover.firstNewlineIndex(from: searchFrom) {
                 let lineData = leftover[leftover.startIndex..<newlineIndex]
+                // Everything up to and including this newline is now accounted for.
+                consumed += UInt64(lineData.count + 1)
                 leftover = leftover[(newlineIndex + 1)...]
                 searchFrom = leftover.startIndex
 
@@ -481,14 +656,14 @@ final class SessionLogReader: @unchecked Sendable {
                 do {
                     decoded = try decoder.decode(SessionEntry.self, from: Data(lineData))
                 } catch {
-                    lastCorruptLineCount += 1
+                    corruptLineCounter.add(1)
                     AppLogger.files.debug("JSONL decode failed in \(url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
                     continue
                 }
                 if let usageEntry = Self.makeUsageEntry(from: decoded) {
                     collect(usageEntry)
                 } else if Self.hasCorruptTimestamp(decoded) {
-                    lastCorruptLineCount += 1
+                    corruptLineCounter.add(1)
                     AppLogger.files.debug("JSONL line without a parseable timestamp skipped in \(url.lastPathComponent, privacy: .public)")
                 }
             }
@@ -502,6 +677,7 @@ final class SessionLogReader: @unchecked Sendable {
 
         // Process any remaining data without trailing newline.
         // Skip incomplete lines (no closing brace = partial write, likely still being written).
+        var trailing: FileParse.TrailingContribution?
         if !skippingOversizedLine, !leftover.isEmpty,
            leftover.last == UInt8(ascii: "}") {
             let hasAssistant = Self.assistantMarkers.contains { leftover.range(of: $0) != nil }
@@ -514,12 +690,17 @@ final class SessionLogReader: @unchecked Sendable {
                     decoded = nil
                 }
                 if let entry = decoded, let usageEntry = Self.makeUsageEntry(from: entry) {
-                    collect(usageEntry)
+                    let created = collect(usageEntry)
+                    trailing = FileParse.TrailingContribution(
+                        messageId: usageEntry.messageId,
+                        toolCalls: usageEntry.toolCallCount,
+                        createdEntry: created
+                    )
                 }
             }
         }
 
-        return entries
+        return FileParse(entries: entries, resumeOffset: consumed, trailing: trailing)
     }
 
     /// The line's top-level ISO 8601 timestamp (fractional or whole seconds), or nil.
@@ -536,7 +717,8 @@ final class SessionLogReader: @unchecked Sendable {
 
     /// Copy of `entry` with `count` more tool calls — used to fold a later content-block
     /// line of the same message into the entry built from its first line.
-    private static func addingToolCalls(_ count: Int, to entry: AssistantUsageEntry) -> AssistantUsageEntry {
+    /// `count` may be negative: undoing a trailing line's contribution before re-reading it.
+    static func addingToolCalls(_ count: Int, to entry: AssistantUsageEntry) -> AssistantUsageEntry {
         AssistantUsageEntry(
             timestamp: entry.timestamp,
             model: entry.model,

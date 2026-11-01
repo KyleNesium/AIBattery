@@ -81,4 +81,27 @@ struct MetricModeTests {
         let std = StandardRateLimits(requestsLimit: 1, requestsRemaining: 1, requestsReset: nil, tokensLimit: 1, tokensRemaining: 1, tokensReset: nil)
         #expect(CodexDisplayKind.of(rateLimits: nil, standardLimits: std, apiKeyAccount: false) == .apiLimits)
     }
+
+    // MARK: - inForce (single-budget kinds have no 7-day tab)
+
+    @Test func inForce_keepsStoredModeOnWindowedAccounts() {
+        #expect(MetricMode.inForce(storedRaw: "7d", kind: .windows) == .sevenDay)
+        #expect(MetricMode.inForce(storedRaw: "5h", kind: .windows) == .fiveHour)
+        #expect(MetricMode.inForce(storedRaw: "context", kind: .windows) == .contextHealth)
+    }
+
+    @Test func inForce_collapsesSevenDayOntoFiveHourSlotForSingleBudgetKinds() {
+        #expect(MetricMode.inForce(storedRaw: "7d", kind: .credits) == .fiveHour)
+        #expect(MetricMode.inForce(storedRaw: "7d", kind: .apiLimits) == .fiveHour)
+    }
+
+    @Test func inForce_leavesContextAloneOnSingleBudgetKinds() {
+        #expect(MetricMode.inForce(storedRaw: "context", kind: .credits) == .contextHealth)
+        #expect(MetricMode.inForce(storedRaw: "context", kind: .apiLimits) == .contextHealth)
+    }
+
+    @Test func inForce_unknownRawFallsBackToFiveHour() {
+        #expect(MetricMode.inForce(storedRaw: "nonsense", kind: .windows) == .fiveHour)
+        #expect(MetricMode.inForce(storedRaw: "", kind: .credits) == .fiveHour)
+    }
 }

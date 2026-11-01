@@ -75,11 +75,11 @@ struct PopoverFooterStatusSymbolTests {
     }
 
     @Test func planLabel_capitalisesPlans_andUppercasesAPI() {
-        #expect(PopoverHeaderView.planLabel("plus") == "Plus")
-        #expect(PopoverHeaderView.planLabel("business") == "Business")
-        #expect(PopoverHeaderView.planLabel("api") == "API")
-        #expect(PopoverHeaderView.planLabel("") == nil)
-        #expect(PopoverHeaderView.planLabel(nil) == nil)
+        #expect(AccountStore.planLabel("plus") == "Plus")
+        #expect(AccountStore.planLabel("business") == "Business")
+        #expect(AccountStore.planLabel("api") == "API")
+        #expect(AccountStore.planLabel("") == nil)
+        #expect(AccountStore.planLabel(nil) == nil)
     }
 
     /// "Cached" explains itself in the active provider's terms — a Codex user is never

@@ -24,12 +24,17 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex session-log tail scan | 256 KB of the newest rollout | CodexSessionRateLimitScanner |
 | Codex newest-rollout walk TTL | 60 s (`newestFileCacheTTL`) — the fallback runs on every poll for the whole endpoint backoff, so the directory walk is memoized; invalidated by FileWatcher on a Codex write | CodexSessionRateLimitScanner |
 | Codex reader discovery TTL | 60 sec (+ root-dir mtime check) | CodexSessionLogReader |
+| Codex reader retention horizon | 13 months (`CodexSessionLogReader.retentionHorizonMonths`) — one past the aggregator's 12-month reach so the boundary month is read whole; skips older `YYYY`/`YYYY/MM` folders at discovery. No Claude counterpart: the Codex CLI never prunes, Claude Code prunes at ~45 days | CodexSessionLogReader |
 | Codex line pre-filter head | 512 bytes (`CodexSessionLogParser.relevanceHeadBytes`) | CodexSessionLogParser |
 | OpenAI API-key validation | `GET https://api.openai.com/v1/models`, 15 s timeout — **401** invalid, 2xx/429 valid, else (incl. 403) unknown → key added with an "it's checked on the first refresh" note | CodexRateLimitFetcher |
 | OpenAI API-key shape check | `sk-` prefix + ≥ 20 chars (`OAuthManager.looksLikeOpenAIAPIKey`) — run locally before any network | OAuthManager+Codex / AuthView |
+| Codex callback connection timeout | 10 sec per connection (`CodexCallbackServer.connectionTimeout`) — a connection that sends nothing is cancelled rather than held to the session timeout | CodexCallbackServer |
+| Codex sign-in abandon timeout | 180 sec (`CodexAuthSession.abandonTimeout`) — cancelled as soon as a callback is delivered | CodexAuthSession |
 | Rate limit cache expiry | Never expires (stale data preferred over empty bars; individual windows cleared at their reset via `withClearedExpiredWindows`) | RateLimitFetcher |
 | Token expiry buffer | 300 sec (5 min) — refresh early to avoid clock-skew 401s | OAuthManager |
+| Fallback token lifetime | 3600 sec (1 hour) — assumed when the access token carries no decodable `exp` claim (`OAuthManager.fallbackTokenLifetime`, shared by the Claude and Codex refresh paths) | OAuthManager / OAuthManager+Codex |
 | Token endpoint retry | 2 retries, exponential backoff (1s, 2s) on 5xx, ±20% jitter — `RetryPolicy.oauth` | OAuthManager |
+| Keychain read retry | A failed launch read (any status but `errSecUserCanceled` -128 / `errSecAuthFailed` -25293) keeps the account signed in and is re-read off main from `getAccessToken(for:)`, one read in flight per account; a read that fails again arms the token refresh failure backoff below | OAuthManager |
 | Token refresh failure backoff | Same `RetryPolicy.statusCheck` curve (60 s → 300 s, ±20% jitter), per account. Armed only by a **transient** failure; an auth failure signs out instead. Cleared by any successful refresh and by `signOut`. While backing off, `getAccessToken(for:)` returns nil without touching the endpoint — previously every poll re-ran all 3 attempts with their 1 s + 2 s sleeps | OAuthManager |
 | Token endpoint timeout | 30 sec | OAuthManager |
 | Adaptive polling threshold | 3 unchanged cycles | AdaptivePollingState |
@@ -56,6 +61,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | OAuth Usage (primary) | `https://api.anthropic.com/api/oauth/usage` |
 | Messages API (fallback) | `https://api.anthropic.com/v1/messages?beta=true` |
 | Claude Code Client Data | `https://api.anthropic.com/api/oauth/claude_cli/client_data` |
+| OAuth Profile (Claude plan) | `https://api.anthropic.com/api/oauth/profile` — `ClaudePlanFetcher`, once per Claude account per launch |
 | Status API | `https://status.claude.com/api/v2/summary.json` |
 | Usage Dashboard | `https://claude.ai/settings/usage` |
 | Status Page | `https://status.claude.com` |
@@ -90,10 +96,13 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Provider glyphs | `✦` U+2726 (Claude), `⬡` U+2B21 (Codex) — `AIProvider.glyph` |
 | Secondary window label | "7-Day" / `7D` (Claude), "Weekly" / `WK` (Codex) — `AIProvider.secondaryWindowLabel` / `secondaryWindowShortCode`; "Credits" / `CR` for a Codex credit budget (`RateLimitUsage.isCreditBudget`) |
 | Codex credit budget source | `wham/usage` → `spend_control.individual_limit` (`limit`, `used`, `remaining`, `used_percent`, `reset_at`, `unit`), `spend_control.reached`, `credits.has_credits` / `unlimited`. `rate_limit: null` with **no** `individual_limit` → `CodexCreditBudget.uncapped = true` (rendered "no cap" / "—" / "No spend cap on this plan"); `RateLimitUsage.isCreditBudget = limit > 0 \|\| uncapped` |
-| Rollover-artifact filter scope | `isRolloverArtifact` is false when `elapsed < 0` (reset further away than the window length); `withClearedRolloverArtifacts` is a no-op when `isCreditBudget` |
+| Rollover-artifact filter scope | `isRolloverArtifact` is false when `elapsed < -RateLimitUsage.clockSkewTolerance` (reset further away than the window length plus the skew allowance); `withClearedRolloverArtifacts` is a no-op when `isCreditBudget` |
+| Clock-skew tolerance | 300 sec (5 min) — how far this Mac's clock may sit behind the provider's before a just-rolled window stops being recognised as one (`RateLimitUsage.clockSkewTolerance`) |
 | Codex model-ID prefix | `gpt-` (`UsageAggregator.isTrackedModel`); Claude `claude-` |
 | Codex API-key account id | `openai-api-` + first 24 hex chars of SHA-256(key) (`OAuthManager.apiKeyAccountId`) |
 | Codex plan label | `AccountRecord.billingType` ← `plan_type` (`"api"` for API-key accounts), rendered "· Plus" / "· ChatGPT Team" / "· API" in the picker menu rows and Settings rows (`AccountStore.planLabel`); omitted from the collapsed picker label |
+| Claude plan label | `AccountRecord.billingType` ← `/api/oauth/profile` `organization.organization_type` (+ `rate_limit_tier` for Max), the mapping Claude Code itself uses: `claude_pro` → `"pro"` ("Pro"), `claude_max` + `default_claude_max_5x` → `"max_5x"` ("Max 5×"), `claude_max` + `default_claude_max_20x` → `"max_20x"` ("Max 20×"), other `claude_max` → `"max"` ("Max"), `claude_team` → `"team"` ("Team"), `claude_enterprise` → `"enterprise"` ("Enterprise"); anything else → no plan. Labels via `ClaudePlan.label`, which shows only those six values (a legacy `aibattery_plan` string is never displayed). Shown wherever the Codex plan is: overview card suffix, chip menu rows, Settings rows, VoiceOver label (`AccountStore.planLabel(for:)`) |
+| Claude plan lookup cadence | Once per account per launch (`ClaudePlanFetcher`, fire-and-forget from the fan-out tail). 2xx and 401/403/404 settle it; 429/5xx/no response retry next cycle. Only a recognised plan is written (an unrecognised answer never erases a stored one) |
 | Quota throttle threshold | `0.95` (`RateLimitFetcher.quotaExhaustionThreshold`) — binding utilization at/above which a header-less 429 is still treated as a quota throttle. Below this, headers reporting `"allowed"` are trusted and the 429 is presumed upstream / per-minute / IP-block. |
 | Rollover artifact utilization threshold | `0.95` (`RateLimitUsage.rolloverArtifactUtilizationThreshold`) — dual role. (1) Rollover artifacts: a window reading at/above this is treated as a stale rollover artifact (not a genuine limit) when the window also just started (see grace period below). (2) Spike filter near-full threshold: `UsageViewModel.spikeConfirmedRateLimits` treats a fresh reading at/above this as "near-full" — held at the previous displayed value until the spike sequence is confirmed (see minimum age below; no window-age condition). Tuning this value changes both behaviors. |
 | Spike-filter confirmation minimum age | `600` sec / 10 min (`UsageViewModel.spikeConfirmationMinimumAge`) — an unconfirmed (non-throttled) near-full spike is held at the previous displayed value until the SAME window instance has stayed near-full for this much wall-clock time of consecutive fresh polls (`NearFullMemory.firstSeen` is preserved across held polls). Time-based, not poll-count-based: the 2026-08-11 incident showed the server's eventual-consistency glitch spanning multiple polls, which defeated the old 2-consecutive-polls rule. Genuine throttles bypass the hold entirely; an accepted reading marks its memory `confirmed` so continuations never re-hold. Cost: a genuine limit crossing (reported as 100% + `"allowed"`) alarms up to this much later. |
@@ -251,14 +260,37 @@ Single toggle: `aibattery_alertStatus` (Bool, default false). When enabled, aler
 
 Pricing per million tokens:
 
-| Model | Input | Output | Cache Write | Cache Read |
+| Key (match order) | Input | Output | Cache Write | Cache Read |
 |-------|-------|--------|-------------|------------|
-| Opus 4 | $15 | $75 | $18.75 | $1.50 |
-| Sonnet 4 | $3 | $15 | $3.75 | $0.30 |
-| Haiku 4 | $0.80 | $4 | $1.00 | $0.08 |
-| Sonnet 3.5 | $3 | $15 | $3.75 | $0.30 |
-| Haiku 3.5 | $0.80 | $4 | $1.00 | $0.08 |
-| Opus 3 | $15 | $75 | $18.75 | $1.50 |
+| `fable 5.1` | $10 | $50 | $12.5 | $0.25 |
+| `mythos 5.1` | $10 | $50 | $12.5 | $0.25 |
+| `fable 5` | $10 | $50 | $12.5 | $1 |
+| `mythos 5` | $10 | $50 | $12.5 | $1 |
+| `opus 5.5` | $4 | $20 | $5 | $0.2 |
+| `opus 5` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4.8` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4.7` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4.6` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4.5` | $5 | $25 | $6.25 | $0.5 |
+| `opus 4` | $15 | $75 | $18.75 | $1.5 |
+| `opus 3` | $15 | $75 | $18.75 | $1.5 |
+| `sonnet 5.5` | $2 | $10 | $2.5 | $0.1 |
+| `sonnet 5` | $2 | $10 | $2.5 | $0.2 |
+| `sonnet 4` | $3 | $15 | $3.75 | $0.3 |
+| `sonnet 3.5` | $3 | $15 | $3.75 | $0.3 |
+| `sonnet 3` | $3 | $15 | $3.75 | $0.3 |
+| `haiku 5.5` | $0.1 | $0.5 | $0.125 | $0.01 |
+| `haiku 4` | $1 | $5 | $1.25 | $0.1 |
+| `haiku 3.5` | $0.8 | $4 | $1 | $0.08 |
+| `haiku 3` | $0.25 | $1.25 | $0.3 | $0.03 |
+
+Keys are matched with `displayName(for:).lowercased().contains(key)` and the **first hit
+wins**, so each row must precede any shorter key that would swallow it (`opus 5.5` before
+`opus 5`, `haiku 3.5` before `haiku 3`); a test asserts that ordering structurally. A
+Claude model matching no row falls back to its family's current-generation rate
+(`familyFallback`: fable/mythos $10/$50, opus $5/$25, sonnet $2/$10, haiku $1/$5) rather
+than costing $0. Retired models keep their own published rates (Opus 3/4 $15/$75,
+Claude 3 Haiku $0.25/$1.25).
 
 OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29 and 2026-10-11; cache write billed at the input rate, longest prefix wins):
 
@@ -314,7 +346,7 @@ IDs absent from the pricing page fall through to their longest listed prefix (e.
 
 | Constant | Value |
 |----------|-------|
-| Throttle timestamps key | `aibattery_throttleTimestamps` ([Any] — Unix epoch doubles; legacy entries may be stored as String or Int) |
+| Throttle timestamps key | `aibattery_throttleTimestampsByAccount` (`[accountId: [Any]]` — Unix epoch doubles; String/Int entries still parse). The unscoped `aibattery_throttleTimestamps` array it replaces is NOT migrated: a 30-day rolling trend refills itself, and one global array cannot be attributed to an account |
 | Pruning window | 30 days (entries older than 30 days pruned on each append) |
 
 ## Launch at Login
@@ -348,7 +380,7 @@ IDs absent from the pricing page fall through to their longest listed prefix (e.
 | Check interval | 0 (no scheduled checks — user-initiated only) |
 | Trigger | User clicks "Install Update" in banner (falls back to GitHub release if Sparkle not ready) |
 | Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after a 60s safety timeout (normally delegate-driven via `didFinishUpdateCycleFor`; LSUIElement workaround) |
-| Entitlement | `com.apple.security.cs.disable-library-validation` — required for ad-hoc signed builds to load Sparkle.framework |
+| Entitlement | `com.apple.security.cs.disable-library-validation` — required for **ad-hoc** signed builds to load Sparkle.framework (an ad-hoc signature has no Team ID, so library validation could never pass). `build-app.sh` strips it whenever `CODE_SIGN_IDENTITY` is a real identity, since the bundle re-signs Sparkle and its XPC services with that same identity; `KEEP_LIBRARY_VALIDATION_EXEMPTION=1` opts back out |
 | CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
 ## Idle Session Cutoff
@@ -412,6 +444,7 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.15) background, `NSCursor.pointingHand` |
 | Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
 | MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
+| Brand mark hover | Shared by both marks: a spring lift (`MotionConstants.markLift`) and a `Layout.markGlowRadius` (5) glow at `ThemeColors.markGlowOpacity` (0.55) in the provider's colour, the glow riding the same spring as the scale. The gesture then splits by `AIProvider.markHoverMotion`. **Claude `.bloom`** — an under-damped spring to `Layout.markBloomScale` (1.35), overshooting to roughly 1.48 before wobbling back onto it. The target is larger than the turn's on purpose: a spring can only be as rubbery as the distance it covers, and at 1.18 the overshoot did not register. **Codex `.turn`** — a damped spring to `Layout.markHoverScale` (1.18) plus one full turn (`ProviderBadge.hoverRotationDegrees` = 360) over `MotionConstants.markSpin` (1.3s); a whole turn on purpose, since nothing unwinds the angle on hover-out. Both are driven by the parent's hover (chip, card) so the target is bigger than the 12pt mark. Reduce Motion: glow only. **Rejected, do not retry:** rotating the sunburst (uneven rays → reads as a wobble); an expanding ghost copy (hidden behind an opaque logo → reads as a smudge); and any hand-shaped `f(position)` curve — see `markLift` for why those silently do nothing |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
 | MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
 
@@ -486,11 +519,15 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.accountChipSpacing` | 6pt | Gap between the brand mark and the identity in the header chip (paired with the 3pt name→chevron gap) |
 | `Layout.capHeightBaselineOffset` | 4.3pt | Half the 12pt-semibold cap height: centres the header mark + chevron on the capitals via `firstTextBaseline` |
 | `Layout.providerMarkSize` | 12pt | Bare brand mark (bundled SVG) in the provider colour, no backing shape |
+| `Layout.cardProviderMarkSize` | 14pt | The same mark on an **overview card**. Larger than the chip's: a card is a wider, quieter surface than a title row, and at 12pt the logo read as an afterthought beside the headline percentage. The 18pt slot is unchanged, so text columns still line up; 14 × `markBloomScale` 1.28 = 17.9pt still fits it |
+| `Layout.fallbackSymbolRatio` | 10/12 (≈ 0.833) | How big the SF Symbol fallback runs relative to the mark it replaces when a bundled SVG fails to load. Under 1 because a symbol carries internal padding the SVGs do not; expressing it as a ratio keeps the fallback in step with whichever `markSize` the badge was given |
 | `Typography.badgeSymbol` | 10pt bold | Provider SF Symbol fallback in the mark slot (only if the SVG mark fails to load) |
 | `Typography.accountTitle` | 12pt semibold | Account identity in the header chip — 11pt read cramped, 13pt too big |
 | `Typography.switcherChevron` | 8pt semibold | `chevron.down` switcher glyph hugging the name in the header chip |
 | `Typography.headerGear` | 12pt regular | Header Settings gear — same weight/tone as the chip chevron (was `bodyLabel`, visibly heavier) |
-| `ThemeColors.providerBadge(_:)` | Claude `(0.85, 0.47, 0.34)`, Codex `(0.06, 0.64, 0.50)` | Brand-mark colour per provider (plain literals, not dynamic NSColors) |
+| `ThemeColors.providerBadge(_:)` | Claude `(0.85, 0.47, 0.34)`, Codex `(0.06, 0.64, 0.50)`, each at `providerTintOpacity` | The provider tint, **softened**. Plain literals, not dynamic NSColors, so they are safe to compare off-main in tests. Everything provider-tinted draws from here — mark, glow, live dot, card hover wash, drill-in chevron — so the one opacity keeps them in step instead of drifting apart per call site |
+| `ThemeColors.providerTintOpacity` | 0.78 | How present the provider colours are. These are the only saturated colours in an otherwise monochrome popover, and at full strength the terracotta and green pulled the eye before the numbers did. Not lower: the tint still has to survive on thin strokes and small marks, so this is a softening, not a fade |
+| `ThemeColors.providerBadgeOpaque(_:)` | The same pair at full strength | Escape hatch for a call site that composites onto a known background and needs no softening of its own. `providerBadge` is the default; prefer it |
 | `Layout.clipboardIconOffset` | 13pt | Clipboard icon trailing offset (negative for overlay) |
 
 ### MotionConstants (`Utilities/Spacing.swift`, co-located)
@@ -500,6 +537,8 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `MotionConstants.standard` | `.easeOut(duration: 0.15)` | Standard section expand/collapse, settings toggle, account switch |
 | `MotionConstants.snappy` | `.easeOut(duration: 0.1)` | Session navigation, metric mode change |
 | `MotionConstants.smooth` | `.easeInOut(duration: 0.4)` | Gauge bar fill, chart transitions |
+| `MotionConstants.markSpin` | `.easeInOut(duration: 1.3)` | The hovered brand mark's single turn (Codex). Deliberately slow — more than 2x `spin` — because it is an ornament, not feedback: it should unfold while you look at the card, not snap when the cursor lands |
+| `MotionConstants.markLift(reduceMotion:motion:)` | `.bloom`: `.spring(response: 0.45, dampingFraction: 0.3)`; `.turn`: `.spring(response: 0.75, dampingFraction: 0.7)`; either under Reduce Motion: `.easeOut(duration: 0.45)` | The hovered brand mark's lift, **and its entire character**. The bloom's spring is deliberately under-damped — first overshoot ≈ 37% of the travel — so the mark sails past its target, snaps back under and wobbles onto it. The turn's is well damped: the rotation is already carrying the movement, so the scale settles quietly beneath it. This must stay in the spring: SwiftUI interpolates a modifier's value between states rather than re-running `body` per frame, so a hand-shaped curve read from `@State` only samples its endpoints and never plays |
 | `MotionConstants.expandTransition` | `.opacity` (plain cross-fade) | Section / settings expand-collapse content transition. `.move(edge:)` is banned inside the popover — see token doc-comment for the NSPanel resize-race rationale. |
 | `MotionConstants.fadeIn` | `.easeIn(duration: 0.3)` | Marquee text fade-in, generic incoming-content fade |
 | `MotionConstants.marqueePauseSeconds` | `0.5` seconds | Pause at each end of a marquee scroll; also initial geometry-settle delay |
@@ -526,7 +565,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 
 | Constant | Value |
 |----------|-------|
-| Read buffer size | 64 KB (256 KB measured: no gain) |
+| Read buffer size | 64 KB (256 KB measured: no gain), ONE buffer reused for the whole file (`ChunkedFileReader`) |
 | Newline search | `memchr` via `Data.firstNewlineIndex(from:)`, resumed per chunk — both readers |
 | Max line size | 1 MB — an oversized line is counted as corrupt once and skipped through to its newline (malformed data protection) |
 | Pre-filter marker 1a | `"type":"assistant"` (no space) |

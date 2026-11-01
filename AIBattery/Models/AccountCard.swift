@@ -81,7 +81,7 @@ struct AccountCard: Identifiable, Equatable {
             .map { account in
                 let index = AccountStore.providerIndex(of: account, in: accounts)
                 let identity = AccountStore.identityLabel(for: account, providerIndex: index, maskEmail: maskEmail)
-                let plan = account.provider == .codex ? AccountStore.planLabel(account.billingType) : nil
+                let plan = AccountStore.planLabel(for: account)
                 let status = alertingStatus(statuses[account.provider]?.indicator)
                 guard isAuthenticated(account.id) else {
                     return AccountCard(

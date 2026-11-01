@@ -61,6 +61,8 @@ extension UsageViewModel {
         }
         await fetchOtherProviderStatuses()
         await aggregateOtherProviders()
+        // Claude plans ("· Max 20×"): once per account per launch, off this path.
+        ClaudePlanFetcher.shared.syncPlans(oauthManager: OAuthManager.shared)
     }
 
     /// Aggregate the local session logs of every provider that has an eligible account

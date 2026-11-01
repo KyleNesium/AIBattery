@@ -31,12 +31,11 @@ struct UsageSnapshot: Equatable {
             && lhs.longestSessionMessages == rhs.longestSessionMessages
             && lhs.firstSessionDate == rhs.firstSessionDate
             && lhs.ledgerSince == rhs.ledgerSince
-            && lhs.dailyAverage == rhs.dailyAverage
-            && lhs.trendDirection == rhs.trendDirection
             && lhs.fiveHourTokens == rhs.fiveHourTokens
             && lhs.sevenDayTokens == rhs.sevenDayTokens
             && lhs.fiveHourTokenBuckets == rhs.fiveHourTokenBuckets
             && lhs.dailyTokenTotals == rhs.dailyTokenTotals
+            && lhs.sevenDayTokenBuckets == rhs.sevenDayTokenBuckets
             && lhs.todayModelTokens == rhs.todayModelTokens
             && lhs.weekModelTokens == rhs.weekModelTokens
             && lhs.monthModelTokens == rhs.monthModelTokens
@@ -108,6 +107,15 @@ struct UsageSnapshot: Equatable {
     let fiveHourTokenBuckets: [Int: Int]
     /// Per-date token totals for 7D and 12M chart modes (date-key → all token types).
     let dailyTokenTotals: [String: Int]
+    /// 7-day hourly token buckets (bucket 0 = oldest, 167 = the current hour).
+    ///
+    /// `dailyTokenTotals` is day-granular, so a 7-day window that starts mid-day could
+    /// only ever be approximated by counting its first calendar day whole — up to 24 h
+    /// of pre-window tokens. These buckets are the same accumulation at hour resolution,
+    /// so the window can start where the provider says it starts. Declared with a
+    /// default so the memberwise init stays source-compatible; empty falls back to the
+    /// day-keyed sum.
+    var sevenDayTokenBuckets: [Int: Int] = [:]
 
     // Windowed model tokens for Insights cost breakdown (JSONL-only, not ledger-merged)
     let todayModelTokens: [ModelTokenSummary]
@@ -158,27 +166,51 @@ struct UsageSnapshot: Equatable {
         guard let resetsAt else { return fiveHourTokens }
         let remaining = resetsAt.timeIntervalSinceNow
         guard remaining > 0 else { return fiveHourTokens }
-        let elapsed = 5 * 3_600.0 - remaining
-        guard elapsed > 0 else { return 0 }
-        // Each bucket = 15 min. Bucket 19 = now, bucket 0 = 5h ago.
-        let bucketsElapsed = min(20, Int(elapsed / 900) + 1)
-        let startBucket = 20 - bucketsElapsed
-        return (startBucket..<20).reduce(0) { $0 + (fiveHourTokenBuckets[$1] ?? 0) }
+        let start = Self.firstInWindowBucket(remaining: remaining, bucketCount: 20, bucketDuration: 900)
+        return (start..<20).reduce(0) { $0 + (fiveHourTokenBuckets[$1] ?? 0) }
     }
 
     /// Token total for the 7-day rate limit window, aligned to the actual window boundary.
-    /// Sums daily token totals from the window start date onward.
+    /// Sums the hourly buckets from the window start; falls back to the day-keyed totals
+    /// when a snapshot carries no buckets (which over-counts the first day — see
+    /// `sevenDayTokenBuckets`).
     func sevenDayWindowTokens(resetsAt: Date?) -> Int {
         guard let resetsAt else { return sevenDayTokens }
         let remaining = resetsAt.timeIntervalSinceNow
         guard remaining > 0 else { return sevenDayTokens }
-        let elapsed = 7 * 24 * 3_600.0 - remaining
-        guard elapsed > 0 else { return 0 }
-        let windowStart = Date().addingTimeInterval(-elapsed)
-        let windowStartKey = DateFormatters.dateKey.string(from: windowStart)
-        return dailyTokenTotals.reduce(0) { total, entry in
-            entry.key >= windowStartKey ? total + entry.value : total
+        guard !sevenDayTokenBuckets.isEmpty else {
+            let elapsed = 7 * 24 * 3_600.0 - remaining
+            guard elapsed > 0 else { return 0 }
+            let windowStartKey = DateFormatters.dateKey.string(from: Date().addingTimeInterval(-elapsed))
+            return dailyTokenTotals.reduce(0) { total, entry in
+                entry.key >= windowStartKey ? total + entry.value : total
+            }
         }
+        let count = Self.sevenDayBucketCount
+        let start = Self.firstInWindowBucket(
+            remaining: remaining, bucketCount: count, bucketDuration: Self.sevenDayBucketDuration
+        )
+        return (start..<count).reduce(0) { $0 + (sevenDayTokenBuckets[$1] ?? 0) }
+    }
+
+    /// Hourly buckets spanning the 7-day window.
+    static let sevenDayBucketCount = 7 * 24
+    static let sevenDayBucketDuration: TimeInterval = 3_600
+
+    /// Index of the first bucket that lies **entirely** inside the window, given how
+    /// much of the window is left.
+    ///
+    /// Buckets run oldest-first and the last one is "now". The bucket the window
+    /// started inside straddles the boundary, so counting it added up to one bucket of
+    /// pre-window tokens to the figure under the bar — 15 minutes on the 5-hour window,
+    /// and a whole calendar day on the 7-day one before it had buckets of its own.
+    /// Rounding the remaining time up excludes that partial bucket instead.
+    static func firstInWindowBucket(
+        remaining: TimeInterval,
+        bucketCount: Int,
+        bucketDuration: TimeInterval
+    ) -> Int {
+        max(0, min(bucketCount, Int(ceil(remaining / bucketDuration))))
     }
 
     /// Whether the 5h/7d data comes from local token estimation (no API data).
@@ -290,108 +322,49 @@ struct UsageSnapshot: Equatable {
 
     // MARK: - Projections & trends
 
-    /// Average messages per day over the last 7 days of activity.
-    /// Pre-computed at construction to avoid per-render iteration.
-    let dailyAverage: Int
-
-    /// Trend direction comparing this week's average to last week's.
-    /// Pre-computed at construction to avoid per-render iteration.
-    let trendDirection: TrendDirection
+    // `dailyAverage` and `trendDirection` used to live here. Both were computed on every
+    // aggregation cycle, reached no view, and were index-based — so they would have been
+    // wrong on sparse history had anything ever shown them. The trend the Insights row
+    // does show is `ActivityTrendComputation`, which works off `dailyTokenTotals`.
 
     /// Busiest day of the week based on daily activity history.
     /// Pre-computed at construction to avoid iterating all dailyActivity on every view render.
     let busiestDayOfWeek: (name: String, averageCount: Int)?
 
-    /// Compute daily average, trend direction, and busiest day in a single pass.
-    static func computeActivityStats(_ dailyActivity: [DailyActivity])
-        -> (average: Int, trend: TrendDirection, busiestDay: (name: String, averageCount: Int)?) {
-        guard !dailyActivity.isEmpty else { return (0, .flat, nil) }
+    /// The weekday with the highest average message count, or nil when there is nothing
+    /// to average. Pre-computed at construction so no view iterates `dailyActivity`.
+    ///
+    /// This used to also produce a daily average and a week-over-week trend; both reached
+    /// no view and were index-based rather than date-based, so they would have been wrong
+    /// on sparse history. The trend the Insights row shows is `ActivityTrendComputation`.
+    static func computeBusiestDay(_ dailyActivity: [DailyActivity]) -> (name: String, averageCount: Int)? {
+        guard !dailyActivity.isEmpty else { return nil }
 
-        let count = dailyActivity.count
         let calendar = Calendar.current
-
-        // Accumulators for all three metrics
-        var recentTotal = 0
-        var thisWeekTotal = 0
-        var lastWeekTotal = 0
         var weekdayTotals = [Int: Int]()
         var weekdayCounts = [Int: Int]()
 
-        let recentStart = max(0, count - 7)
-        let thisWeekStart = max(0, count - 7)
-        let lastWeekStart = max(0, count - 14)
-        let lastWeekEnd = max(0, count - 7)
-
-        for (i, day) in dailyActivity.enumerated() {
-            // Daily average (last 7)
-            if i >= recentStart {
-                recentTotal += day.messageCount
-            }
-            // Trend: this week vs last week (need >= 14 days)
-            if count >= 14 {
-                if i >= thisWeekStart {
-                    thisWeekTotal += day.messageCount
-                } else if i >= lastWeekStart && i < lastWeekEnd {
-                    lastWeekTotal += day.messageCount
-                }
-            }
-            // Busiest day
-            if let date = day.parsedDate {
-                let weekday = calendar.component(.weekday, from: date)
-                weekdayTotals[weekday, default: 0] += day.messageCount
-                weekdayCounts[weekday, default: 0] += 1
-            }
+        for day in dailyActivity {
+            guard let date = day.parsedDate else { continue }
+            let weekday = calendar.component(.weekday, from: date)
+            weekdayTotals[weekday, default: 0] += day.messageCount
+            weekdayCounts[weekday, default: 0] += 1
         }
 
-        // Average
-        let recentCount = count - recentStart
-        let average = recentCount > 0 ? recentTotal / recentCount : 0
-
-        // Trend
-        let trend: TrendDirection
-        if count < 14 {
-            trend = .flat
-        } else {
-            let thisWeekDays = count - thisWeekStart
-            let lastWeekDays = lastWeekEnd - lastWeekStart
-            let thisAvg = Double(thisWeekTotal) / Double(thisWeekDays)
-            let lastAvg = Double(lastWeekTotal) / Double(max(lastWeekDays, 1))
-            if lastAvg <= 0 {
-                trend = thisAvg > 0 ? .up : .flat
-            } else {
-                let change = (thisAvg - lastAvg) / lastAvg
-                if change > 0.10 {
-                    trend = .up
-                } else if change < -0.10 {
-                    trend = .down
-                } else {
-                    trend = .flat
-                }
-            }
-        }
-
-        // Busiest day
-        let busiestDay: (name: String, averageCount: Int)?
-        if let (weekday, total) = weekdayTotals.max(by: { a, b in
+        guard let (weekday, total) = weekdayTotals.max(by: { a, b in
             let avgA = Double(a.value) / Double(weekdayCounts[a.key] ?? 1)
             let avgB = Double(b.value) / Double(weekdayCounts[b.key] ?? 1)
-            return avgA < avgB
-        }) {
-            let avg = total / max(weekdayCounts[weekday] ?? 1, 1)
-            let index = weekday - 1
-            if avg > 0, index >= 0, index < weekdaySymbols.count {
-                busiestDay = (weekdaySymbols[index], avg)
-            } else {
-                busiestDay = nil
-            }
-        } else {
-            busiestDay = nil
-        }
+            // Equal averages break on the weekday index, so the answer is stable between
+            // polls instead of following dictionary order.
+            return avgA == avgB ? a.key > b.key : avgA < avgB
+        }) else { return nil }
 
-        return (average, trend, busiestDay)
+        let average = total / max(weekdayCounts[weekday] ?? 1, 1)
+        let index = weekday - 1
+        guard average > 0, index >= 0, index < weekdaySymbols.count else { return nil }
+        return (weekdaySymbols[index], average)
     }
 
-    // Hourly message distribution (hour "0"-"23" → count, all-time merged)
     let hourCounts: [String: Int]
 
     // Trailing 24-hour breakdown (hour "0"-"23" → count, from JSONL only)

@@ -53,7 +53,10 @@ struct CreditBudgetSection: View {
             percent: alarm.displayPercent,
             barColor: ThemeColors.barColor(percent: alarm.displayPercent),
             accessibilityLabel: "Codex credits \(PercentFormat.spoken(alarm.displayPercent)) used",
-            accessibilityValue: alarm.throttled ? "Credits exhausted" : (budget.isUncapped ? "No spend cap" : "\(CodexCreditBudget.formatCredits(budget.remaining)) credits remaining"),
+            accessibilityValue: alarm.throttled ? "Credit budget reached" : (budget.isUncapped ? "No spend cap" : "\(CodexCreditBudget.formatCredits(budget.remaining)) credits remaining"),
+            // The plan name, reset time and provenance live only in the tooltip, which
+            // VoiceOver never sees.
+            accessibilityHint: headerTooltip.replacingOccurrences(of: "\n", with: ", "),
             headerLeading: {
                 HStack(spacing: Spacing.inner) {
                     Text("Credits")
@@ -76,8 +79,8 @@ struct CreditBudgetSection: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
-                            .accessibilityLabel("Credits exhausted")
-                            .help("Your Codex credit budget is exhausted")
+                            .accessibilityLabel("Credit budget reached")
+                            .help("Your Codex credit budget has been reached")
                     }
                 }
             },
@@ -103,7 +106,9 @@ struct CreditBudgetSection: View {
                 let resetDiff = budget.resetsAt.map { $0.timeIntervalSince(now) }
                 HStack {
                     if alarm.throttled {
-                        Text(budget.hasCredits ? "Budget reached" : "Credits depleted")
+                        // One verb for one state: a limit is "reached". "Depleted"/"exhausted" said the
+                        // same thing in two other words elsewhere in the same popover.
+                        Text(budget.hasCredits ? "Budget reached" : "No credits left")
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.danger)
                     } else if budget.isUncapped {

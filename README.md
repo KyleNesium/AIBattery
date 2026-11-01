@@ -260,15 +260,15 @@ AI Battery is free and open source. If it helps you get more out of your subscri
 
 ## Test Coverage
 
-**1577 tests** across 120 test files.
+**1671 tests** across 127 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 412 | Rate-limit parsing for Claude and Codex (including spend-control credits and credit-budget runway), usage snapshots, spike and rollover filters, account readings and the fan-out gate, overview cards, popover mode and Escape routing, pricing tables, provider and account records |
-| Services | 591 | Session-log readers for both providers (streaming, caching, oversized lines, concurrency), Codex per-account attribution and fallback gating, token ledger high-water marks and key migration, aggregation (one pass, two snapshots), OAuth managers (PKCE, refresh, error classification), rate-limit fetchers and backoff, Keychain, secure networking, status checker, notifications, Sparkle updates |
-| Views | 222 | Menu-bar text and headline percent, panel refit trigger, header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner |
-| ViewModels | 101 | Multi-account fan-out (routing, carry-forward, generation stamp), refresh interval and adaptive polling, throttle tracking per account, stale rate-limit expiry, auth-error reconnect, cross-account refresh races, provider switching, off-main aggregation |
-| Utilities | 251 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette), menu-bar icon rendering and cache, date formatters, JSONL newline scanning, email masking, logging redaction |
+| Models | 423 | Rate-limit parsing for Claude and Codex (including spend-control credits and credit-budget runway), usage snapshots, spike and rollover filters, account readings and the fan-out gate, overview cards, popover mode and Escape routing, pricing tables (retired-model rows included, with real model ids driven through them), provider and account records, Claude plan labels from the OAuth profile, window-token bucketing, the clock-skew rollover guard |
+| Services | 645 | Session-log readers for both providers (streaming, caching, oversized lines, concurrency), Codex per-account attribution and fallback gating, token ledger high-water marks and key migration, aggregation (one pass, two snapshots), OAuth managers (PKCE, refresh, error classification), rate-limit fetchers and backoff, Keychain, secure networking, status checker, notifications, Sparkle updates, the Codex callback server's CSRF and one-shot rules, account-id-keyed storage migration, project identity (symlinks and worktrees), the incremental tail parse, the Claude plan fetcher, Keychain read failures and the signed-in retry |
+| Views | 242 | Menu-bar text and headline percent, panel refit trigger, header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner, the menu bar's spoken description, each brand mark's own hover gesture (Claude's under-damped spring, Codex's full turn) and the Reduce Motion fallback |
+| ViewModels | 102 | Multi-account fan-out (routing, carry-forward, generation stamp), refresh interval and adaptive polling, throttle tracking per account, stale rate-limit expiry, auth-error reconnect, cross-account refresh races, provider switching, off-main aggregation |
+| Utilities | 259 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette, the hover wash's fill-vs-edge balance, provider-tint softening), menu-bar icon rendering and cache, date formatters, JSONL newline scanning and the reused read buffer, email masking, logging redaction |
 
 ## License
 

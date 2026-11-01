@@ -21,8 +21,6 @@ struct DeferredRenderState {
 public struct UsagePopoverView: View {
     @ObservedObject var viewModel: UsageViewModel
     @ObservedObject private var accountStore: AccountStore
-    /// Popover width scales with system text size, capped to avoid overflow.
-    @ScaledMetric(relativeTo: .body) private var scaledWidth: CGFloat = Layout.popoverWidth
     @State private var showSettings = false
     /// Overview (all accounts) vs detail (the active account). Decided on every
     /// panel open from the eligible account count; never remembered across opens.
@@ -80,11 +78,16 @@ public struct UsagePopoverView: View {
         return "Local token usage"
     }
 
+    /// Quota shape of the active account, or `.windows` before the first snapshot.
+    private var activeKind: CodexDisplayKind {
+        viewModel.snapshot.map(displayKind) ?? .windows
+    }
+
     private var metricMode: MetricMode {
         if autoMetricMode {
-            return viewModel.resolvedMetricMode
+            return MetricMode.inForce(storedRaw: viewModel.resolvedMetricMode.rawValue, kind: activeKind)
         }
-        return MetricMode(rawValue: metricModeRaw) ?? .fiveHour
+        return MetricMode.inForce(storedRaw: metricModeRaw, kind: activeKind)
     }
 
     /// Single stable binding for the metric mode picker.
@@ -96,9 +99,9 @@ public struct UsagePopoverView: View {
         Binding(
             get: {
                 if autoMetricMode {
-                    return viewModel.resolvedMetricMode.rawValue
+                    return MetricMode.inForce(storedRaw: viewModel.resolvedMetricMode.rawValue, kind: activeKind).rawValue
                 }
-                return metricModeRaw
+                return MetricMode.inForce(storedRaw: metricModeRaw, kind: activeKind).rawValue
             },
             set: { newValue in
                 if !autoMetricMode {
@@ -251,7 +254,10 @@ public struct UsagePopoverView: View {
                 onRefresh: { Task { await viewModel.refresh() } }
             )
         }
-        .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
+        // Fixed width, deliberately. The hosting panel's frame is a hard
+        // `Layout.popoverWidth`, so a width that scaled with the system text size only
+        // ever got clipped by the panel edge — it never reflowed. Own the one number.
+        .frame(width: Layout.popoverWidth)
         .contentShape(Rectangle())
     }
 
@@ -381,9 +387,7 @@ public struct UsagePopoverView: View {
                             EmptyView()
                         } else if let limits = snapshot.rateLimits {
                             SevenDayBarSection(limits: limits, source: snapshot.rateLimitSource, tokenTotal: snapshot.sevenDayWindowTokens(resetsAt: limits.sevenDayReset), confirmed: snapshot.rateLimitPercentConfirmed(for: RateLimitUsage.sevenDayWindow))
-                            if let balance = limits.creditBalance {
-                                CreditBalanceRow(balance: balance, unlimited: limits.creditBudget?.unlimited ?? false)
-                            }
+                            CreditBalanceRow(balance: limits.creditBalance, unlimited: limits.creditBudget?.unlimited ?? false)
                             StyledDivider()
                         } else if snapshot.isUsingLocalEstimate {
                             LocalEstimateSection(
@@ -447,7 +451,10 @@ public struct UsagePopoverView: View {
             StyledDivider()
             footerView
         }
-        .frame(width: min(scaledWidth, Layout.popoverWidth * 1.3))
+        // Fixed width, deliberately. The hosting panel's frame is a hard
+        // `Layout.popoverWidth`, so a width that scaled with the system text size only
+        // ever got clipped by the panel edge — it never reflowed. Own the one number.
+        .frame(width: Layout.popoverWidth)
         .contentShape(Rectangle())
         .overlay {
             TutorialOverlay(hasData: viewModel.snapshot != nil, kind: viewModel.snapshot.map(displayKind) ?? .windows)
@@ -529,8 +536,7 @@ public struct UsagePopoverView: View {
             viewModel.resetHysteresis()
             // Single-budget kinds (Credits / API Limits) have no second window tab — "2"
             // selects the one budget tab instead of a hidden mode.
-            let collapsed = viewModel.snapshot.map { displayKind($0) != .windows } ?? false
-            let target: MetricMode = collapsed ? .fiveHour : .sevenDay
+            let target = MetricMode.inForce(storedRaw: MetricMode.sevenDay.rawValue, kind: activeKind)
             withAnimation(MotionConstants.snappy) { metricModeRaw = target.rawValue }
         case "3":
             viewModel.resetHysteresis()

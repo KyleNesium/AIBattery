@@ -100,9 +100,14 @@ struct ProjectUsageSection: View {
                 collapsed: $collapsed,
                 tooltip: "Token usage grouped by project directory (recent sessions)"
             )
-            // Per-project attribution is derived from session working directories and
-            // doesn't yet account for every case, so the numbers are indicative.
-            BetaBadge(tooltip: "Per-project attribution is still being refined — treat these totals as indicative.")
+            // The badge stays, but not because the grouping is unfinished — rows now
+            // resolve symlinks and fold a git worktree into its parent repo. What keeps
+            // these totals indicative is structural: local logs are machine-wide per
+            // provider (so they cannot be split per account), and the CLI prunes its own
+            // session logs, so only what is still on disk is counted.
+            BetaBadge(
+                tooltip: "Grouped by the folder each session ran in. Local logs are machine-wide per provider, so with more than one account these totals cover all of them — and only sessions still on disk are counted."
+            )
             Spacer()
             Text(costText)
                 .font(Typography.monoCaption)
@@ -179,6 +184,9 @@ struct ProjectUsageSection: View {
                 .font(Typography.caption)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                // The row shows the folder's name, which two different checkouts can
+                // share; the tooltip says which one this is.
+                .help(project.id)
 
             Spacer()
 
@@ -195,6 +203,8 @@ struct ProjectUsageSection: View {
         .copyable(copyText)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(project.projectName), \(tokensText) tokens")
+        // `.help` does not reach VoiceOver, so the full path goes in the hint.
+        .accessibilityHint(project.id == "Other" ? "" : project.id)
     }
 
     // MARK: - Search field

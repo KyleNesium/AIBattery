@@ -22,6 +22,11 @@ struct MarqueeText: View {
     /// reachable through the `.help()` tooltip and the accessibility label below.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The row's height scales with the system text size. Fixed at 14 pt it clipped the
+    /// incident text at the larger accessibility sizes — the one place in the popover
+    /// where the text is the whole point of the row.
+    @ScaledMetric(relativeTo: .caption) private var scaledHeight: CGFloat = Layout.marqueeHeight
+
     private var currentText: String {
         texts.isEmpty ? "" : texts[currentIndex % texts.count]
     }
@@ -79,13 +84,19 @@ struct MarqueeText: View {
                 .onChange(of: geo.size.width) { updateContainerWidth($0) }
         }
         .clipped()
-        .frame(height: Layout.marqueeHeight)
+        .frame(height: scaledHeight)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(texts.joined(separator: ", "))
         .accessibilityHint(texts.count > 1 ? "Cycles through \(texts.count) items" : "")
         .onChange(of: texts) { _ in restart() }
         .onAppear { beginCycle() }
         .onDisappear { cancelAndStop() }
+        // `orderOut` never fires `onDisappear` (the reason `DeferredRenderState` exists),
+        // so without these the scroll→pause→scroll chain kept cycling on the main queue
+        // behind a closed popover — for the whole length of an incident, which is exactly
+        // when this view has something to say. The panel's own signals stop and restart it.
+        .onReceive(NotificationCenter.default.publisher(for: .panelDidDismiss)) { _ in cancelAndStop() }
+        .onReceive(NotificationCenter.default.publisher(for: .panelDidShow)) { _ in restart() }
     }
 
     // MARK: - Scheduling

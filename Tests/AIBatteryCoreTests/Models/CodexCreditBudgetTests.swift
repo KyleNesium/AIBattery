@@ -18,7 +18,7 @@ struct CodexCreditBudgetTests {
     """.utf8)
 
     @Test func parsesSpendControlBudgetIntoSingleWindowUsage() throws {
-        let usage = try #require(CodexUsageParser.parseUsageResponse(businessBody))
+        let usage = try #require(CodexUsageParser.parseUsage(businessBody).rateLimits)
         let budget = try #require(usage.creditBudget)
         #expect(usage.provider == .codex)
         #expect(usage.isCreditBudget)
@@ -44,7 +44,7 @@ struct CodexCreditBudgetTests {
         let body = try Data(#require(String(data: businessBody, encoding: .utf8)?
                 .replacingOccurrences(of: "\"reached\":false", with: "\"reached\":true")
                 .replacingOccurrences(of: "\"used_percent\":21", with: "\"used_percent\":100").utf8))
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         #expect(usage.isThrottled)
         #expect(usage.creditBudget?.reached == true)
     }
@@ -52,7 +52,7 @@ struct CodexCreditBudgetTests {
     @Test func creditsDepletedReachedType_isThrottled() throws {
         let body = try Data(#require(String(data: businessBody, encoding: .utf8)?
                 .replacingOccurrences(of: "\"rate_limit_reached_type\":null", with: "\"rate_limit_reached_type\":\"workspace_owner_credits_depleted\"").utf8))
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         #expect(usage.isThrottled)
     }
 
@@ -62,7 +62,7 @@ struct CodexCreditBudgetTests {
     /// fetcher never backs off / falls back on a valid answer.
     @Test func noWindowsNoSpendControl_isUncappedCreditReading() throws {
         let body = Data(#"{"plan_type":"business","rate_limit":null,"credits":{"has_credits":true,"unlimited":false}}"#.utf8)
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         let budget = try #require(usage.creditBudget)
         #expect(usage.isCreditBudget)
         #expect(budget.isUncapped)
@@ -76,16 +76,16 @@ struct CodexCreditBudgetTests {
 
     @Test func noWindowsNoSpendControl_creditsDepleted_isThrottled() throws {
         let body = Data(#"{"plan_type":"business","rate_limit":null,"credits":{"has_credits":false,"unlimited":false}}"#.utf8)
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         #expect(usage.creditBudget?.isUncapped == true)
         #expect(usage.isThrottled)
     }
 
     @Test func unparseableAndEmptyBodies_stillReturnNil() {
-        #expect(CodexUsageParser.parseUsageResponse(Data("junk".utf8)) == nil)
-        #expect(CodexUsageParser.parseUsageResponse(Data("{}".utf8)) == nil)
+        #expect(CodexUsageParser.parseUsage(Data("junk".utf8)).rateLimits == nil)
+        #expect(CodexUsageParser.parseUsage(Data("{}".utf8)).rateLimits == nil)
         // A subscription plan whose windows are missing is still "no data", not uncapped.
-        #expect(CodexUsageParser.parseUsageResponse(Data(#"{"plan_type":"plus","rate_limit":{}}"#.utf8)) == nil)
+        #expect(CodexUsageParser.parseUsage(Data(#"{"plan_type":"plus","rate_limit":{}}"#.utf8)).rateLimits == nil)
     }
 
     /// The rollover-artifact filter reasons in 5h / 7-day window lengths. A credit budget
@@ -94,7 +94,7 @@ struct CodexCreditBudgetTests {
     @Test func rolloverFilter_neverZeroesCreditBudget() throws {
         let body = try Data(#require(String(data: businessBody, encoding: .utf8)?
                 .replacingOccurrences(of: "\"used_percent\":21", with: "\"used_percent\":96").utf8))
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         let now = Date(timeIntervalSince1970: 1_790_812_800 - 484_869) // 5.6 days before the reset
         let filtered = usage.withClearedRolloverArtifacts(now: now)
         #expect(abs(filtered.fiveHourUtilization - 0.96) < 0.0001)
@@ -110,7 +110,7 @@ struct CodexCreditBudgetTests {
         let body = try Data(#require(String(data: businessBody, encoding: .utf8)?
                 .replacingOccurrences(of: "\"used_percent\":21", with: "\"used_percent\":100")
                 .replacingOccurrences(of: "\"reached\":false", with: "\"reached\":true").utf8))
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         #expect(usage.creditBudget?.reached == true)
         #expect(usage.isThrottled)
 
@@ -146,9 +146,63 @@ struct CodexCreditBudgetTests {
         #expect(abs(usage.withClearedRolloverArtifacts(now: now).fiveHourUtilization - 0.97) < 0.0001)
     }
 
+    /// `plan_type` alone is not evidence of an uncapped account. An *absent* `rate_limit`
+    /// key is a payload that never answered the question (schema change, truncation);
+    /// parsing it as "uncapped, 0%" flipped a Plus/Pro popover to a single credits bar.
+    @Test func absentRateLimitKey_isAParseFailureNotAnUncappedReading() {
+        #expect(CodexUsageParser.parseUsage(Data(#"{"plan_type":"plus"}"#.utf8)).rateLimits == nil)
+        // The explicit null still parses — that is the provider saying "no windows".
+        #expect(CodexUsageParser.parseUsage(Data(#"{"plan_type":"business","rate_limit":null}"#.utf8)).rateLimits != nil)
+    }
+
+    @Test func usedPercentAsString_isReadAsANumber() throws {
+        let body = Data(#"{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":"21.5","reset_at":"1788267090","limit_window_seconds":"18000"}}}"#.utf8)
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
+        #expect(abs(usage.fiveHourUtilization - 0.215) < 0.0001)
+        #expect(usage.fiveHourReset == Date(timeIntervalSince1970: 1_788_267_090))
+        #expect(usage.fiveHourWindowMinutes == 300)
+    }
+
+    /// A Mac whose clock is a couple of minutes behind the provider's makes the computed
+    /// elapsed time negative on a window that just rolled. That is exactly the case the
+    /// filter exists for, so it must still suppress the lagging near-full reading.
+    @Test func rolloverFilter_suppressesJustRolledWindowUnderClockSkew() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // Reset two minutes beyond a full window away: elapsed = -120 s.
+        let skewed = RateLimitUsage(
+            representativeClaim: RateLimitUsage.fiveHourWindow,
+            fiveHourUtilization: 0.99,
+            fiveHourReset: now.addingTimeInterval(RateLimitUsage.fiveHourWindowDuration + 120),
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1, sevenDayReset: now.addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        let cleared = skewed.withClearedRolloverArtifacts(now: now)
+        #expect(cleared.fiveHourUtilization == 0)
+        #expect(cleared.fiveHourStatus == "allowed")
+        // The valid new-window reset is preserved — only the stale utilization goes.
+        #expect(cleared.fiveHourReset == skewed.fiveHourReset)
+    }
+
+    /// Skew beyond the tolerance is not skew: it is an unknown period, left alone.
+    @Test func rolloverFilter_leavesReadingsBeyondTheSkewToleranceAlone() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let beyond = RateLimitUsage(
+            representativeClaim: RateLimitUsage.fiveHourWindow,
+            fiveHourUtilization: 0.99,
+            fiveHourReset: now.addingTimeInterval(
+                RateLimitUsage.fiveHourWindowDuration + RateLimitUsage.clockSkewTolerance + 60
+            ),
+            fiveHourStatus: "throttled",
+            sevenDayUtilization: 0.1, sevenDayReset: now.addingTimeInterval(86_400), sevenDayStatus: "allowed",
+            overallStatus: "throttled"
+        )
+        #expect(abs(beyond.withClearedRolloverArtifacts(now: now).fiveHourUtilization - 0.99) < 0.0001)
+    }
+
     @Test func windowedPlan_hasNoCreditBudget() throws {
         let body = Data(#"{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":21,"reset_at":1788267090,"limit_window_seconds":18000},"secondary_window":{"used_percent":63.5,"reset_at":1788853890,"limit_window_seconds":604800}}}"#.utf8)
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         #expect(usage.creditBudget == nil)
         #expect(!usage.isCreditBudget)
     }
@@ -164,7 +218,7 @@ struct CodexCreditBudgetTests {
     }
 
     @Test func creditBudget_survivesCopiesAndPersistence() throws {
-        let usage = try #require(CodexUsageParser.parseUsageResponse(businessBody))
+        let usage = try #require(CodexUsageParser.parseUsage(businessBody).rateLimits)
         #expect(usage.markedThrottled().creditBudget == usage.creditBudget)
         #expect(usage.withClearedExpiredWindows(now: Date(timeIntervalSince1970: 1_790_000_000)).creditBudget == usage.creditBudget)
         #expect(usage.withClearedRolloverArtifacts(now: Date(timeIntervalSince1970: 1_790_000_000)).creditBudget == usage.creditBudget)
@@ -175,7 +229,7 @@ struct CodexCreditBudgetTests {
     }
 
     @Test func creditBudget_vocabulary() throws {
-        let usage = try #require(CodexUsageParser.parseUsageResponse(businessBody))
+        let usage = try #require(CodexUsageParser.parseUsage(businessBody).rateLimits)
         #expect(usage.bindingWindowLabel == "Credits")
         #expect(usage.bindingWindowShortCode == "CR")
         #expect(usage.sevenDayDisplayLabel == "Credits")
@@ -183,7 +237,7 @@ struct CodexCreditBudgetTests {
     }
 
     @Test func spikeFilter_preservesCreditBudget() throws {
-        let fresh = try #require(CodexUsageParser.parseUsageResponse(businessBody))
+        let fresh = try #require(CodexUsageParser.parseUsage(businessBody).rateLimits)
         let result = UsageViewModel.spikeConfirmedRateLimits(fresh: fresh, previousDisplayed: nil, previouslyNearFull: [:])
         #expect(result.display.creditBudget == fresh.creditBudget)
     }
@@ -193,7 +247,7 @@ struct CodexCreditBudgetTests {
     /// "Budget reached" in the popover beside a held 20% in the menu bar — the same
     /// inconsistency `withClearedExpiredWindows` rolls the budget over to prevent.
     @Test func spikeFilter_holdsTheCreditBudgetWithItsWindows() throws {
-        let spike = try #require(CodexUsageParser.parseUsageResponse(businessBody))
+        let spike = try #require(CodexUsageParser.parseUsage(businessBody).rateLimits)
         let previous = RateLimitUsage(
             representativeClaim: spike.representativeClaim,
             fiveHourUtilization: 20,
@@ -223,7 +277,7 @@ struct CodexCreditBudgetTests {
     /// Cold start: no previous budget to hold at, so the fresh reading stands — the same
     /// rule the windows follow rather than fabricating a 0%.
     @Test func spikeFilter_withoutPreviousBudget_keepsTheFreshOne() throws {
-        let fresh = try #require(CodexUsageParser.parseUsageResponse(businessBody))
+        let fresh = try #require(CodexUsageParser.parseUsage(businessBody).rateLimits)
         #expect(UsageViewModel.heldBudget(fresh: fresh, previousDisplayed: nil) == fresh.creditBudget)
     }
 
@@ -242,7 +296,7 @@ struct CodexCreditBudgetTests {
           "secondary_window":{"used_percent":63.5,"reset_at":1788853890,"limit_window_seconds":604800}},
          "credits":{"has_credits":true,"unlimited":false,"balance":"3944.1197930574417"}}
         """.utf8)
-        let usage = try #require(CodexUsageParser.parseUsageResponse(body))
+        let usage = try #require(CodexUsageParser.parseUsage(body).rateLimits)
         #expect(!usage.isCreditBudget) // windows still drive the bars
         #expect(abs((usage.creditBalance ?? 0) - 3_944.12) < 0.01)
         #expect(usage.creditBudget?.planType == "plus")

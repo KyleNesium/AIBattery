@@ -112,6 +112,10 @@ enum Typography {
     /// Trend change symbol (↑/↓) — semibold monospaced for visual weight.
     static let trendSymbol: Font = .system(size: 11, weight: .semibold, design: .monospaced)
 
+    /// The severity glyph inset in the footer's status dot. Sized against
+    /// `Layout.dotSizeSmall` (6pt) so the two stay in proportion.
+    static let statusDotSymbol: Font = .system(size: Layout.dotSizeSmall * 0.72, weight: .bold)
+
     /// Collapsed trend label — compact monospaced at 10pt.
     static let trendLabelSmall: Font = .system(size: 10, weight: .semibold, design: .monospaced)
 

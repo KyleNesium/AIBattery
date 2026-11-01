@@ -271,4 +271,64 @@ struct CodexSessionLogReaderTests {
         let reader = CodexSessionLogReader(sessionsURL: root)
         #expect(reader.readAllUsageEntries().count == 1, "the escaping symlink must be skipped")
     }
+
+    // MARK: - Retention horizon
+
+    /// Walks the `YYYY/MM/DD` skeleton from a fixed "now" (2027-01-15), so the boundary
+    /// is pinned rather than drifting with the calendar.
+    @Test func retentionHorizon_keepsRecentDateFoldersAndSkipsOldOnes() {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sessions")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func within(_ path: String) -> Bool {
+            CodexSessionLogReader.isWithinRetentionHorizon(
+                directory: root.appendingPathComponent(path), under: root, now: now
+            )
+        }
+        #expect(within("2027"))
+        #expect(within("2027/01"))
+        #expect(within("2026/12/31"))
+        // 13 months back from 2027-01 is 2025-12, which is kept whole.
+        #expect(within("2025/12"))
+        #expect(!within("2025/11"))
+        #expect(!within("2024"))
+        // A bare year folder is kept whenever any of its months is in range, so the walk
+        // can still reach the recent months inside it.
+        #expect(within("2025"))
+    }
+
+    /// An unrecognised layout is never dropped: silently skipping a user's data is far
+    /// worse than listing a directory that turns out to hold nothing current.
+    @Test func retentionHorizon_keepsUnparseableDirectories() {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("sessions")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func within(_ path: String) -> Bool {
+            CodexSessionLogReader.isWithinRetentionHorizon(
+                directory: root.appendingPathComponent(path), under: root, now: now
+            )
+        }
+        #expect(within("archive"))
+        #expect(within("2025/notamonth"))
+        #expect(within("2025/13"))
+        // A directory outside the sessions root is none of this function's business.
+        #expect(CodexSessionLogReader.isWithinRetentionHorizon(
+            directory: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("elsewhere/2019"),
+            under: root, now: now
+        ))
+    }
+
+    @Test func retentionHorizon_skipsOldRolloutsDuringDiscovery() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let thisYear = Calendar.current.component(.year, from: Date())
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 2, timestamp: "2026-09-21T08:00:01.000Z")],
+            datePath: "\(thisYear)/01/01", name: "rollout-recent", root: root
+        )
+        try writeRollout(
+            [turnContext(), tokenCount(ordinal: 2, timestamp: "2019-01-01T08:00:01.000Z")],
+            datePath: "2019/01/01", name: "rollout-ancient", root: root
+        )
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        #expect(reader.readAllUsageEntries().count == 1, "the 2019 rollout is past the retention horizon")
+    }
 }

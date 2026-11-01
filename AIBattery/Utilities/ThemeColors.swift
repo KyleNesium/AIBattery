@@ -13,7 +13,15 @@ enum ThemeColors {
     /// `nonisolated(unsafe)` is acceptable here: writes happen exclusively from the
     /// main-queue observer closure below, and reads are a Bool (atomic on aligned memory)
     /// used only as a UI palette hint.
-    nonisolated(unsafe) private(set) static var isColorblind: Bool = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+    nonisolated(unsafe) private(set) static var isColorblind: Bool = Self.resolveColorblind()
+
+    /// The manual toggle OR the system's own "Differentiate without colour" setting.
+    /// Someone who has already turned that on system-wide should not have to find a
+    /// checkbox in this app's Settings to get the colourblind-safe palette.
+    static func resolveColorblind(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: UserDefaultsKeys.colorblindMode)
+            || NSWorkspace.shared.accessibilityDisplayShouldDifferentiateWithoutColor
+    }
 
     /// One-time KVO registration to keep isColorblind in sync with UserDefaults.
     /// `nonisolated(unsafe)` is fine — the value is set once at init and treated as
@@ -23,7 +31,7 @@ enum ThemeColors {
         object: nil,
         queue: .main
     ) { _ in
-        isColorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+        isColorblind = Self.resolveColorblind()
     }
 
     /// Call once at app launch to ensure the observer is registered.
@@ -31,9 +39,9 @@ enum ThemeColors {
         _ = observer
     }
 
-    /// Re-read the colorblind flag from UserDefaults. Used by tests after changing the preference.
+    /// Re-read the colorblind flag. Used by tests after changing the preference.
     static func refreshColorblindFlag() {
-        isColorblind = UserDefaults.standard.bool(forKey: UserDefaultsKeys.colorblindMode)
+        isColorblind = resolveColorblind()
     }
 
     /// Amber color constant used across both colorblind palettes.
@@ -198,7 +206,24 @@ enum ThemeColors {
     /// Tint of the provider badge behind the header chip's symbol — Anthropic's
     /// terracotta for Claude, OpenAI's green for Codex. Plain literals (not dynamic
     /// NSColors) so they are safe to compare off-main in tests.
+    ///
+    /// Carried at `providerTintOpacity` rather than full strength: these are the only
+    /// saturated colours in an otherwise monochrome popover, and at 1.0 the terracotta
+    /// and green pulled the eye before the numbers did. Everything provider-tinted draws
+    /// from here — mark, glow, live dot, card wash, chevron — so softening it once keeps
+    /// them in step instead of drifting apart one call site at a time.
     static func providerBadge(_ provider: AIProvider) -> Color {
+        providerBadgeOpaque(provider).opacity(providerTintOpacity)
+    }
+
+    /// How present the provider colours are. Lower than it looks: the tint still has to
+    /// survive on the thin strokes and small marks that use it, so this is a softening,
+    /// not a fade.
+    static let providerTintOpacity: Double = 0.78
+
+    /// The tints at full strength. Use only where the colour is composited onto a known
+    /// background and needs no softening of its own — `providerBadge` is the default.
+    static func providerBadgeOpaque(_ provider: AIProvider) -> Color {
         switch provider {
         case .claude: Color(red: 0.85, green: 0.47, blue: 0.34)
         case .codex: Color(red: 0.06, green: 0.64, blue: 0.50)
@@ -258,8 +283,14 @@ enum ThemeColors {
     /// flat grey: the brand mark is already on the row, so the highlight belongs to that
     /// account instead of looking like a generic selection block. Kept to a whisper —
     /// the hairline stroke, not the fill, is what gives the row its shape.
+    ///
+    /// The fill is the *body* of that wash and stays fainter than the edge: past about
+    /// 0.1 the orange and green read as a coloured panel laid over the card and compete
+    /// with the bars inside it. Both were lifted a step (0.04 → 0.07, 0.18 → 0.24) after
+    /// the quieter pair barely registered on a bright desktop; the gap between them is
+    /// what keeps the row shaped by its hairline rather than filled in.
     static let rowHoverTintOpacity: Double = 0.07
-    static let rowHoverStrokeOpacity: Double = 0.18
+    static let rowHoverStrokeOpacity: Double = 0.24
     /// How far the "beta" label sits behind the tertiary label it is drawn in.
     static let betaBadgeOpacity: Double = 0.75
 
@@ -269,6 +300,11 @@ enum ThemeColors {
 
     /// Low point of the live dot's breath. High enough that it never looks switched off.
     static let liveDotDimOpacity: Double = 0.55
+
+    /// Bloom behind a hovered brand mark, in the provider's own colour. Lower than the
+    /// chevron's glow: the mark is a dense shape rather than a thin glyph, so the same
+    /// strength would spill past it into a halo.
+    static let markGlowOpacity: Double = 0.55
 
     static let subtleElementOpacity: Double = 0.12
 
@@ -295,6 +331,11 @@ enum ThemeColors {
     /// Panel background that matches native macOS dark mode panels (Battery, Wi-Fi).
     /// Dark mode: rgb(28,28,30) — the standard system dark panel color.
     /// Light mode: rgb(246,246,246) — standard system light panel color.
+    ///
+    /// Deliberately **opaque**. Translucency was tried here and reverted: the panel has
+    /// no `NSVisualEffectView` behind it, so a lower alpha is the raw desktop showing
+    /// through rather than frosted glass, and it costs text contrast over a busy
+    /// wallpaper for no gain.
     static let panelBackground: Color = adaptive(
         light: NSColor(white: 0.965, alpha: 1.0),
         dark: NSColor(red: 0.11, green: 0.11, blue: 0.118, alpha: 1.0)
@@ -316,9 +357,15 @@ enum ThemeColors {
 
     // MARK: - Track & background colors
 
-    /// Background for bar gauge tracks. Slightly higher contrast in light mode.
+    /// Background for bar gauge tracks.
+    ///
+    /// The light value is 0.30, not 0.14: at 0.14 every bar fill measured under 3:1
+    /// against its own track (green 1.47, orange 1.48, red 2.39), so the boundary
+    /// between "used" and "remaining" failed WCAG's non-text contrast minimum for a
+    /// sighted user in daylight. Darkening the track lifts all four past 3:1 without
+    /// touching the palette. Dark mode already passed.
     static let trackFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.14),
+        light: NSColor(white: 0.0, alpha: 0.30),
         dark: NSColor(white: 1.0, alpha: 0.1)
     )
 

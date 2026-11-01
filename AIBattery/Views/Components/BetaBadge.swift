@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// Marks a section whose numbers are not yet trustworthy enough to read as fact.
+/// Marks a section whose numbers should be read as indicative rather than exact —
+/// whether because the feature is still settling or, as with Projects, because a
+/// structural limit of the data source means they always will be.
 ///
 /// Deliberately the quietest label in the popover — smaller than a value badge and
 /// dimmed well below the section title, so it qualifies the heading without competing

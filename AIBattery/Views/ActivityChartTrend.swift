@@ -4,9 +4,15 @@ import SwiftUI
 
 /// Change indicator for vs-yesterday / vs-last-week / vs-last-month comparisons.
 struct ActivityChangeInfo {
-    let symbol: String
+    /// The direction itself, not a glyph: `TrendDirection` already owns both the arrow
+    /// and its spoken form, and the view used to hard-code the arrows while
+    /// `TrendDirection.accessibilityLabel` sat unused.
+    let direction: TrendDirection
     let label: String
     let color: Color
+
+    var symbol: String { direction.symbol }
+    var accessibilityLabel: String { "\(direction.accessibilityLabel), \(label)" }
 }
 
 /// Precomputed trend data — avoids duplicate Date()/Calendar/throttleCount calls.
@@ -146,20 +152,29 @@ enum ActivityTrendComputation {
 
     private static func changeInfo(diff: Int, suffix: String) -> ActivityChangeInfo {
         if diff > 0 {
-            ActivityChangeInfo(symbol: "↑", label: "+\(diff) \(suffix)", color: ThemeColors.trendColor(.up))
+            ActivityChangeInfo(direction: .up, label: "+\(diff) \(suffix)", color: ThemeColors.trendColor(.up))
         } else if diff < 0 {
-            ActivityChangeInfo(symbol: "↓", label: "\(diff) \(suffix)", color: ThemeColors.trendColor(.down))
+            ActivityChangeInfo(direction: .down, label: "\(diff) \(suffix)", color: ThemeColors.trendColor(.down))
         } else {
-            ActivityChangeInfo(symbol: "→", label: "same as \(suffix.replacingOccurrences(of: "vs ", with: ""))", color: ThemeColors.secondaryLabel)
+            ActivityChangeInfo(direction: .flat, label: "same as \(suffix.replacingOccurrences(of: "vs ", with: ""))", color: ThemeColors.secondaryLabel)
         }
     }
 
-    /// Minimum token count in the `previous` period for a percentage comparison to be
-    /// meaningful. Below this, a typical day vs a trivially small previous period
-    /// (e.g. 100 stray tokens from a background hook fire over the weekend) produces
-    /// absurd percentages like `+47999%` that mislead more than they inform —
-    /// suppress the trend entirely so the user just sees today's absolute usage.
-    private static let meaningfulPreviousThreshold = 1_000
+    /// Absolute floor for the `previous` period: below this there is nothing to compare
+    /// against at all.
+    private static let meaningfulPreviousFloor = 1_000
+
+    /// ...and `previous` must also be at least this share of `current`. A fixed token
+    /// floor is calibrated to one machine: 1 000 tokens is 0.003% of a normal day here,
+    /// so a single stray hook session cleared it and the row read ">999% vs yesterday"
+    /// — exactly the noise the floor exists to suppress. Making it relative keeps the
+    /// threshold meaningful whatever a user's daily volume is.
+    private static let meaningfulPreviousShare = 0.05
+
+    /// The `previous` value below which a comparison is noise rather than a trend.
+    static func meaningfulPreviousThreshold(current: Int) -> Int {
+        max(meaningfulPreviousFloor, Int(Double(current) * meaningfulPreviousShare))
+    }
 
     /// Cap the displayed positive percentage. Above the cap, the label shows
     /// `>999%` so the spike is still visible without rendering a number that's
@@ -171,7 +186,7 @@ enum ActivityTrendComputation {
         // Suppress trend when previous is missing or below the meaningful threshold.
         // The user reads the absolute numbers from the chart; a noisy multi-thousand-
         // percent comparison helps nobody.
-        guard previous >= meaningfulPreviousThreshold else { return nil }
+        guard previous >= meaningfulPreviousThreshold(current: current) else { return nil }
 
         let diff = current - previous
         let pct = Int(round(Double(diff) / Double(previous) * 100))
@@ -179,11 +194,11 @@ enum ActivityTrendComputation {
             let label = pct > maxDisplayedPercent
                 ? ">\(maxDisplayedPercent)% \(suffix)"
                 : "+\(pct)% \(suffix)"
-            return ActivityChangeInfo(symbol: "↑", label: label, color: ThemeColors.trendColor(.up))
+            return ActivityChangeInfo(direction: .up, label: label, color: ThemeColors.trendColor(.up))
         } else if pct < -10 {
-            return ActivityChangeInfo(symbol: "↓", label: "\(pct)% \(suffix)", color: ThemeColors.trendColor(.down))
+            return ActivityChangeInfo(direction: .down, label: "\(pct)% \(suffix)", color: ThemeColors.trendColor(.down))
         } else {
-            return ActivityChangeInfo(symbol: "→", label: "~same as \(suffix.replacingOccurrences(of: "vs ", with: ""))", color: ThemeColors.secondaryLabel)
+            return ActivityChangeInfo(direction: .flat, label: "~same as \(suffix.replacingOccurrences(of: "vs ", with: ""))", color: ThemeColors.secondaryLabel)
         }
     }
 }

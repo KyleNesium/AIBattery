@@ -115,6 +115,22 @@ if [ -n "${APP_STORE_BUILD:-}" ]; then
   ENTITLEMENTS="AIBattery/AIBattery-AppStore.entitlements"
 fi
 
+# `com.apple.security.cs.disable-library-validation` lets the process holding live
+# tokens load libraries signed by ANY identity — worth removing, and the bundle meets
+# the condition for doing so (Sparkle.framework and its XPC services are re-signed
+# above with this same identity). It can only come off a REAL identity, though: an
+# ad-hoc signature ("-") has no Team ID, so library validation could never pass and
+# Sparkle would fail to load at launch. So: strip it when signing for real, keep it
+# for ad-hoc local builds.
+if [ "$SIGN_IDENTITY" != "-" ] && [ -z "${KEEP_LIBRARY_VALIDATION_EXEMPTION:-}" ]; then
+  HARDENED_ENTITLEMENTS=".build/AIBattery-hardened.entitlements"
+  cp "$ENTITLEMENTS" "$HARDENED_ENTITLEMENTS"
+  /usr/libexec/PlistBuddy -c "Delete :com.apple.security.cs.disable-library-validation" \
+    "$HARDENED_ENTITLEMENTS" >/dev/null 2>&1 || true
+  ENTITLEMENTS="$HARDENED_ENTITLEMENTS"
+  echo "Signing with library validation ENABLED (set KEEP_LIBRARY_VALIDATION_EXEMPTION=1 to opt out)"
+fi
+
 # Codesign the outer bundle (without --deep — inner bundles already signed)
 codesign --sign "$SIGN_IDENTITY" --force \
   --entitlements "$ENTITLEMENTS" \

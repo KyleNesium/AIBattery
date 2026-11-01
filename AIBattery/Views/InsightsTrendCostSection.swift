@@ -27,12 +27,17 @@ extension InsightsView {
     func trendRowTop(change: ActivityChangeInfo?, stat: String?) -> some View {
         HStack(spacing: Spacing.gap) {
             if let change {
-                Text(change.symbol)
-                    .font(Typography.trendSymbol)
-                    .foregroundStyle(change.color)
-                Text(change.label)
-                    .font(Typography.monoCaption)
-                    .foregroundStyle(change.color)
+                HStack(spacing: Spacing.gap) {
+                    Text(change.symbol)
+                        .font(Typography.trendSymbol)
+                        .foregroundStyle(change.color)
+                    Text(change.label)
+                        .font(Typography.monoCaption)
+                        .foregroundStyle(change.color)
+                }
+                // The arrow is decoration; VoiceOver gets the direction in words.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(change.accessibilityLabel)
             }
             Spacer()
             if let stat {
