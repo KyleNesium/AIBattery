@@ -2,12 +2,12 @@ import SwiftUI
 
 /// Display toggles + idle session cutoff slider.
 struct DisplaySettingsSection: View {
-    /// Whether the toggle has anything to reveal for some account
-    /// (`AccountStore.hasRevealableIdentity`) — otherwise the row is hidden rather than
-    /// offered as a control that visibly does nothing. Gating on "has a Codex account"
-    /// wasn't enough: it stayed visible for accounts whose identity was never
-    /// discovered, and read as broken.
-    let hasRevealableIdentity: Bool
+    /// Whether some account's visible label is a maskable email
+    /// (`AccountStore.hasMaskableIdentity`). Gating on "has a Codex account" wasn't
+    /// enough: an alias outranks the discovered email and is never masked, so a user
+    /// who names their Codex account sees the toggle do nothing at all. Hide the row
+    /// unless unmasking would change something on screen.
+    let hasMaskableIdentity: Bool
 
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
@@ -74,15 +74,15 @@ struct DisplaySettingsSection: View {
                     .font(Typography.caption)
                     .help("List every account's usage in the menu bar (e.g. 42% | 23%). The popover already shows all accounts whenever you have more than one; this adds them to the menu bar too. Star color and countdown reflect the worst account.")
             }
-            if hasRevealableIdentity {
+            if hasMaskableIdentity {
                 HStack(spacing: Spacing.section) {
                     Text("")
                         .font(Typography.caption)
                         .frame(width: Layout.settingsLabel, alignment: .trailing)
-                    Toggle("Show which account is which", isOn: $showFullAccountIdentity)
+                    Toggle("Full account email in popover", isOn: $showFullAccountIdentity)
                         .toggleStyle(.checkbox)
                         .font(Typography.caption)
-                        .help("Show each account's sign-in identity — the Codex email or Claude workspace — on its card, in the header chip and in the account menu. A name you set above is kept and the identity goes beside it: API Rates (you@example.com). Off: the name stands alone and a bare email is masked as y•••@example.com, which is safer when screen-sharing.")
+                        .help("Show the full sign-in email in the header chip and account menu. Off: masked as k•••@domain (safer when screen-sharing). Account names you set in Settings are always shown in full.")
                 }
             }
         }

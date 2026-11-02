@@ -255,32 +255,12 @@ public final class AccountStore: ObservableObject {
         return "\(identity[identity.startIndex])•••\(identity[at...])"
     }
 
-    /// The provider-discovered identity an alias is covering — the Codex sign-in email
-    /// or the Claude workspace name — or nil when nothing is hidden.
-    ///
-    /// An alias outranks the discovered identity in `identityLabel`, which is what the
-    /// user wants day to day ("API Rates" beats an email). But a name you chose says
-    /// nothing about *which login* it is, and with several accounts open that is exactly
-    /// the question. This is what the Display toggle reveals.
-    nonisolated static func hiddenIdentity(for account: AccountRecord) -> String? {
-        guard let alias = account.displayName?.trimmingCharacters(in: .whitespaces), !alias.isEmpty,
-              let discovered = account.discoveredIdentity?.trimmingCharacters(in: .whitespaces),
-              !discovered.isEmpty, discovered != alias else { return nil }
-        return discovered
-    }
-
     /// The bare identity (no glyph, no plan) by precedence: the user's alias, then the
     /// provider-discovered identity (email masked when `maskEmail`), then
     /// "<Provider> N". A pending record without an alias reads `connectingLabel`.
-    ///
-    /// `maskEmail` is the Display toggle inverted, and it does two jobs with one switch:
-    /// off, an unaliased email shows in full; off, an alias also gains the identity it
-    /// is covering — "API Rates (kyle@example.com)". Both are the same question ("which
-    /// account is this?") and so answer to the same control.
     nonisolated static func identityLabel(for account: AccountRecord, providerIndex: Int, maskEmail: Bool) -> String {
         if let alias = account.displayName?.trimmingCharacters(in: .whitespaces), !alias.isEmpty {
-            guard !maskEmail, let hidden = hiddenIdentity(for: account) else { return alias }
-            return "\(alias) (\(hidden))"
+            return alias
         }
         if account.isPendingIdentity {
             return connectingLabel
@@ -291,15 +271,14 @@ public final class AccountStore: ObservableObject {
         return "\(account.provider.displayName) \(providerIndex + 1)"
     }
 
-    /// Whether the Display toggle could change anything the user actually sees — an
-    /// email to unmask, or a discovered identity an alias is covering.
-    ///
-    /// Rather than restate those rules and let them drift, ask the labeller: if masked
-    /// and unmasked agree for every account, the toggle cannot do anything and Settings
-    /// hides it instead of offering a dead control. That leaves it hidden exactly when
-    /// there is no identity to show — no accounts, a pending "Connecting…" record, or an
-    /// account the provider never named.
-    nonisolated static func hasRevealableIdentity(in accounts: [AccountRecord]) -> Bool {
+    /// Whether unmasking could change anything the user actually sees. Masking only
+    /// bites on an account whose label *is* its discovered email: an alias outranks the
+    /// email and is never masked, Claude's workspace name isn't email-shaped so
+    /// `maskedEmail` returns it untouched, and a pending record reads "Connecting…".
+    /// Rather than restate those rules and let them drift, ask the labeller — if masked
+    /// and unmasked agree for every account, the full-email toggle cannot do anything
+    /// and Settings hides it instead of offering a dead control.
+    nonisolated static func hasMaskableIdentity(in accounts: [AccountRecord]) -> Bool {
         accounts.enumerated().contains { index, account in
             identityLabel(for: account, providerIndex: index, maskEmail: true)
                 != identityLabel(for: account, providerIndex: index, maskEmail: false)
