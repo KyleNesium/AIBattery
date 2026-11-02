@@ -190,6 +190,11 @@ struct AccountChipView: View {
             "\(account.provider.displayName) account",
             AccountStore.identityLabel(for: account, providerIndex: providerIndex, maskEmail: maskEmail),
         ]
+        // Speech has no 275pt limit, so the identity an alias covers is spoken here even
+        // though the chip's own face leaves it out.
+        if !maskEmail, let hidden = AccountStore.hiddenIdentity(for: account) {
+            parts.append(hidden)
+        }
         if let plan = AccountStore.planLabel(for: account) {
             parts.append(plan)
         }

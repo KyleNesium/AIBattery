@@ -30,7 +30,7 @@ struct ProviderBadgeTests {
     /// refresh button's spin — which *is* feedback and should feel immediate.
     @Test func theMarkTurnsSlowerThanTheRefreshButtonSpins() {
         #expect(MotionConstants.markSpin != MotionConstants.spin)
-        #expect(MotionConstants.markSpin == .easeInOut(duration: 1.3))
+        #expect(MotionConstants.markSpin == .easeInOut(duration: 1.6))
         #expect(MotionConstants.spin == .easeInOut(duration: 0.5))
     }
 

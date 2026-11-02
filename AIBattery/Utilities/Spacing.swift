@@ -261,11 +261,12 @@ enum MotionConstants {
     /// Full-rotation spin (refresh button): 0.5s easeInOut.
     static let spin: Animation = .easeInOut(duration: 0.5)
 
-    /// The hovered brand mark's single turn. Deliberately slow — more than twice `spin` —
-    /// and eased at both ends: this is an ornament, not feedback, so it should unfold
-    /// while you look at the card rather than snap the moment the cursor lands. A faster
-    /// turn read as a control reacting to a click.
-    static let markSpin: Animation = .easeInOut(duration: 1.3)
+    /// The hovered brand mark's single turn (Codex's knot — Claude's sunburst blooms
+    /// instead, so this constant is the OpenAI mark's alone). Deliberately slow — over
+    /// three times `spin` — and eased at both ends: this is an ornament, not feedback,
+    /// so it should unfold while you look at the card rather than snap the moment the
+    /// cursor lands. A faster turn read as a control reacting to a click.
+    static let markSpin: Animation = .easeInOut(duration: 1.6)
 
     /// The hovered brand mark's lift. The spring *is* the gesture, which matters more
     /// than it sounds: SwiftUI interpolates a modifier's value between the old and new
