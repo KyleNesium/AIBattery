@@ -175,7 +175,9 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 | Claude Code | `yyzkbfz2thpt` | `claudeCode` |
 | Claude for Gov | `0scnb50nvy53` | `claudeForGov` |
 
-**Codex** (`status.openai.com`, read 2026-09-21; **filtered** — only these five drive the indicator, incidents count only when they name one of them):
+**Codex** (`status.openai.com`, read 2026-09-21; **filtered** — only these five drive the indicator, incidents count only when they name one of them).
+
+> **Four of these five ids were gone when the live page was re-read on 2026-11-02.** It had reorganised to 25 components carrying exactly one Codex row, `Codex in ChatGPT Desktop` (`01KMKFAMWKQ81YWSE1Z18R6VHR`). A vanished id is handled rather than fatal — `parseStatus` filters it out, and a filtered feed whose components have all disappeared reports `.unknown` rather than the page's unrelated overall indicator — so the feed under-reports instead of breaking. Which surfaces should stand for "Codex is degraded" now is a product call and the list is left as recorded until it is made.
 
 | Component | ID | Alert Key |
 |-----------|-----|-----------|

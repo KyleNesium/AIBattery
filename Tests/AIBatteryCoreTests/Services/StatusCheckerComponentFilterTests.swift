@@ -95,4 +95,82 @@ struct StatusCheckerComponentFilterTests {
         #expect(StatusChecker.shared(for: .codex) === StatusChecker.codex)
         #expect(StatusChecker.codex.config.statusPageBaseURL == "https://status.openai.com")
     }
+
+    // MARK: - Decoding a page that does not model incidents
+
+    /// `status.openai.com` is Statuspage-shaped but is not Atlassian Statuspage: it omits
+    /// `incidents` and `scheduled_maintenances` **entirely** rather than sending empty
+    /// arrays. While `incidents` was decoded as required, every Codex status poll threw
+    /// `keyNotFound` and backed off to the 5-minute cap, so the feed never once produced
+    /// a reading — no dot, no outage notification. This payload is trimmed from the live
+    /// response (2026-11-02), keys and nesting intact.
+    @Test func decode_openAIShapedSummaryWithNoIncidentsKey() throws {
+        let json = Data("""
+        {
+          "page": {
+            "id": "01JMDK9XYNY6RXSED6SDWW50WY",
+            "name": "OpenAI",
+            "url": "https://status.openai.com/",
+            "updated_at": "2026-10-16T20:01:40Z"
+          },
+          "status": { "description": "All Systems Operational", "indicator": "none" },
+          "components": [
+            { "id": "01KMKFAMWKQ81YWSE1Z18R6VHR", "name": "Codex in ChatGPT Desktop", "status": "operational" },
+            { "id": "01JMDK9XYQ8R4MSFW8FM3RTBSS", "name": "Images", "status": "operational" }
+          ]
+        }
+        """.utf8)
+
+        let summary = try JSONDecoder().decode(StatusPageSummary.self, from: json)
+
+        #expect(summary.incidents.isEmpty)
+        #expect(summary.components.count == 2)
+        #expect(summary.status.indicator == "none")
+    }
+
+    /// The Claude feed does send `incidents`, and that must still decode into the array
+    /// the parser reads — the tolerance above is a default, not a discard.
+    @Test func decode_statuspageSummaryKeepsItsIncidents() throws {
+        let json = Data("""
+        {
+          "status": { "description": "Partial System Outage", "indicator": "major" },
+          "components": [{ "id": "c1", "name": "API", "status": "partial_outage" }],
+          "incidents": [
+            { "id": "i1", "name": "Elevated error rates", "status": "identified", "impact": "major" }
+          ]
+        }
+        """.utf8)
+
+        let summary = try JSONDecoder().decode(StatusPageSummary.self, from: json)
+
+        #expect(summary.incidents.map(\.id) == ["i1"])
+        #expect(summary.incidents.first?.impact == "major")
+    }
+
+    /// With the decode fixed, the live page's single surviving Codex component is what
+    /// the filter matches — the other four configured ids were removed when the page was
+    /// reorganised, and a vanished id must drop out of the filter rather than break it.
+    @Test func codexFilter_toleratesComponentsThatLeftThePage() {
+        let live = StatusPageComponent(
+            id: "01KMKFAMWKQ81YWSE1Z18R6VHR", name: "Codex in ChatGPT Desktop", status: "partial_outage"
+        )
+        let status = StatusChecker.parseStatus(
+            summary(components: [live, sora]), config: StatusFeedConfig.codex
+        )
+
+        #expect(status.indicator == .partialOutage)
+        #expect(status.componentStatuses["01KMKFAMWKQ81YWSE1Z18R6VHR"] == .partialOutage)
+        #expect(status.componentStatuses["sora"] == nil)
+    }
+
+    /// And when *every* configured id has gone, the feed says it does not know rather
+    /// than borrowing the page's overall indicator, which covers Sora, Images and 20-odd
+    /// other products that say nothing about Codex.
+    @Test func codexFilter_reportsUnknownWhenNoConfiguredComponentRemains() {
+        let status = StatusChecker.parseStatus(
+            summary(components: [sora]), config: StatusFeedConfig.codex
+        )
+
+        #expect(status.indicator == .unknown)
+    }
 }

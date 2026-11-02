@@ -248,7 +248,33 @@ final class StatusChecker {
 struct StatusPageSummary: Codable {
     let status: StatusPageStatus
     let components: [StatusPageComponent]
+
+    /// Active incidents, **empty when the key is absent entirely**.
+    ///
+    /// Required decoding here is what kept the Codex feed dead: `status.openai.com` is
+    /// not Atlassian Statuspage and omits `incidents` and `scheduled_maintenances`
+    /// altogether, so every poll threw `keyNotFound` ("The data couldn't be read because
+    /// it is missing"), backed off to the 5-minute cap and never produced a reading.
+    /// A page that reports no incidents and a page that does not model incidents are the
+    /// same thing to this parser, so neither is worth failing a fetch over.
     let incidents: [StatusPageIncident]
+
+    init(
+        status: StatusPageStatus,
+        components: [StatusPageComponent],
+        incidents: [StatusPageIncident] = []
+    ) {
+        self.status = status
+        self.components = components
+        self.incidents = incidents
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        status = try container.decode(StatusPageStatus.self, forKey: .status)
+        components = try container.decode([StatusPageComponent].self, forKey: .components)
+        incidents = try container.decodeIfPresent([StatusPageIncident].self, forKey: .incidents) ?? []
+    }
 }
 
 struct StatusPageStatus: Codable {
