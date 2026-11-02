@@ -24,6 +24,17 @@ struct AccountCardView: View {
                     ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
                         AccountCardBarRow(bar: bar)
                     }
+                    // Who this account actually is, when the Display toggle asks for it.
+                    // Below the gauges and sharing the state line's left edge and size:
+                    // these two are the card's footnotes, and the identity is the quieter
+                    // of them — the state line is the one that can be urgent.
+                    if let hidden = card.hiddenIdentity {
+                        Text(hidden)
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                     if let text = AccountCard.stateLine(card, now: now) {
                         Text(text)
                             .font(Typography.tinyLabel)
@@ -151,7 +162,10 @@ struct AccountCardBarRow: View {
             Text(bar.uncapped ? "No cap" : bar.label)
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.secondaryLabel)
-                .frame(width: Layout.cardBarLabelWidth, alignment: .trailing)
+                // Leading, not trailing: right-aligning the column made "7-Day" start a
+                // few points in from "5-Hour" and the two labels read as misaligned. The
+                // column is a fixed width either way, so the gauges still line up.
+                .frame(width: Layout.cardBarLabelWidth, alignment: .leading)
             GaugeBar(percent: bar.percent ?? 0, barColor: ThemeColors.barColor(percent: bar.percent ?? 0))
             // Tokens spent in the window, the same figure the detail bars lead with. The
             // reset moved to the card's state line so this column fits at 275pt.

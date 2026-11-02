@@ -56,6 +56,14 @@ struct AccountCard: Identifiable, Equatable {
     /// within `liveActivityWindow`: the one thing a list of accounts can't otherwise say
     /// is which one your CLI is using right now. Per provider.
     let lastActivity: Date?
+    /// The sign-in identity an alias is covering, when "Full account email in popover"
+    /// is on — nil when masked, or when the card's name already *is* the identity.
+    ///
+    /// It gets its own line rather than riding `identity`: appended in the header it
+    /// truncated mid-domain at 275pt ("API Rates (kyl…@ringier.co.za)"), which answers
+    /// "which account is this?" worse than the alias alone. A line of its own has the
+    /// whole card width.
+    var hiddenIdentity: String?
 
     /// How recent activity has to be to count as "now".
     static let liveActivityWindow: TimeInterval = 5 * 60
@@ -83,11 +91,13 @@ struct AccountCard: Identifiable, Equatable {
                 let identity = AccountStore.identityLabel(for: account, providerIndex: index, maskEmail: maskEmail)
                 let plan = AccountStore.planLabel(for: account)
                 let status = alertingStatus(statuses[account.provider]?.indicator)
+                let hidden = maskEmail ? nil : AccountStore.hiddenIdentity(for: account)
                 guard isAuthenticated(account.id) else {
                     return AccountCard(
                         id: account.id, provider: account.provider, identity: identity, plan: plan,
                         status: status, worstPercent: nil, bars: [],
-                        state: .signedOut, reset: nil, tokensToday: nil, lastActivity: nil
+                        state: .signedOut, reset: nil, tokensToday: nil, lastActivity: nil,
+                        hiddenIdentity: hidden
                     )
                 }
                 let reading = readings[account.id]
@@ -97,7 +107,8 @@ struct AccountCard: Identifiable, Equatable {
                     status: status, worstPercent: reading?.worstPercent,
                     bars: bars, state: state(for: reading, now: now), reset: bindingReset(bars: bars, reading: reading),
                     tokensToday: tokensToday(bars: bars, snapshot: snapshots[account.provider]),
-                    lastActivity: lastActivity(snapshots[account.provider])
+                    lastActivity: lastActivity(snapshots[account.provider]),
+                    hiddenIdentity: hidden
                 )
             }
     }
@@ -278,6 +289,9 @@ struct AccountCard: Identifiable, Equatable {
 
     var accessibilityLabel: String {
         var parts = ["\(provider.displayName) account \(identity)"]
+        if let hiddenIdentity {
+            parts.append(hiddenIdentity)
+        }
         if let plan {
             parts.append(plan)
         }

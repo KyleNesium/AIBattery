@@ -79,7 +79,7 @@ struct DisplaySettingsSection: View {
                 Toggle("Full account email in popover", isOn: $showFullAccountIdentity)
                     .toggleStyle(.checkbox)
                     .font(Typography.caption)
-                    .help("Show each account's sign-in identity in full. An unmasked email replaces k•••@domain in the header chip; in the account menu, a name you set here also gains the identity behind it — API Rates (you@example.com) — so you can tell several accounts apart. Off is safer when screen-sharing.")
+                    .help("Show each account's sign-in identity in full. An unmasked email replaces k•••@domain in the header chip; a name you set here also gains the identity behind it — on its own line under each overview card, and as API Rates (you@example.com) in the account menu — so you can tell several accounts apart. Off is safer when screen-sharing.")
             }
         }
     }
