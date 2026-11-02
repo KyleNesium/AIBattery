@@ -52,6 +52,8 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | 24-hour trailing window | 86400 sec | UsageAggregator |
 | Insights chart bucket count | 20 (fifteen-minute buckets over 5 hours) | UsageAggregator |
 | Insights chart bucket duration | 900 sec (15 min) | UsageAggregator |
+| 7-day window bucket count | 168 (`UsageSnapshot.sevenDayBucketCount` = 7 × 24) — hourly, so `sevenDayWindowTokens(resetsAt:)` can drop only the partial bucket the window started inside instead of a whole calendar day | UsageAggregator / UsageSnapshot |
+| 7-day window bucket duration | 3600 sec (1 hour) — `UsageSnapshot.sevenDayBucketDuration` | UsageAggregator / UsageSnapshot |
 | Aggregation fingerprint time bucket | 900 sec (15 min) — `fingerprintTimeBucket`; `now` quantised to this is part of the redundant-aggregation fingerprint, so an idle provider re-aggregates at most once per bucket instead of serving a time-stale snapshot indefinitely | UsageAggregator |
 
 ## URLs
@@ -441,7 +443,7 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Copy clipboard icon display | 1.5 seconds (`MotionConstants.clipboardFeedbackNs`), `MotionConstants.standard` (.easeOut 0.15) for both show and hide; `.scale`+`.opacity` transition |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
-| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.15) background, `NSCursor.pointingHand` |
+| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.10) background, `NSCursor.pointingHand` |
 | Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
 | MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
 | Brand mark hover | Shared by both marks: a spring lift (`MotionConstants.markLift`) and a `Layout.markGlowRadius` (5) glow at `ThemeColors.markGlowOpacity` (0.55) in the provider's colour, the glow riding the same spring as the scale. The gesture then splits by `AIProvider.markHoverMotion`. **Claude `.bloom`** — an under-damped spring to `Layout.markBloomScale` (1.35), overshooting to roughly 1.48 before wobbling back onto it. The target is larger than the turn's on purpose: a spring can only be as rubbery as the distance it covers, and at 1.18 the overshoot did not register. **Codex `.turn`** — a damped spring to `Layout.markHoverScale` (1.18) plus one full turn (`ProviderBadge.hoverRotationDegrees` = 360) over `MotionConstants.markSpin` (1.6s); a whole turn on purpose, since nothing unwinds the angle on hover-out. Both are driven by the parent's hover (chip, card) so the target is bigger than the 12pt mark. Reduce Motion: glow only. **Rejected, do not retry:** rotating the sunburst (uneven rays → reads as a wobble); an expanding ghost copy (hidden behind an opaque logo → reads as a smudge); and any hand-shaped `f(position)` curve — see `markLift` for why those silently do nothing |
@@ -519,7 +521,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `Layout.accountChipSpacing` | 6pt | Gap between the brand mark and the identity in the header chip (paired with the 3pt name→chevron gap) |
 | `Layout.capHeightBaselineOffset` | 4.3pt | Half the 12pt-semibold cap height: centres the header mark + chevron on the capitals via `firstTextBaseline` |
 | `Layout.providerMarkSize` | 12pt | Bare brand mark (bundled SVG) in the provider colour, no backing shape |
-| `Layout.cardProviderMarkSize` | 14pt | The same mark on an **overview card**. Larger than the chip's: a card is a wider, quieter surface than a title row, and at 12pt the logo read as an afterthought beside the headline percentage. The 18pt slot is unchanged, so text columns still line up; 14 × `markBloomScale` 1.28 = 17.9pt still fits it |
+| `Layout.cardProviderMarkSize` | 14pt | The same mark on an **overview card**. Larger than the chip's: a card is a wider, quieter surface than a title row, and at 12pt the logo read as an afterthought beside the headline percentage. The 18pt slot is unchanged, so text columns still line up. The **resting** mark fits that slot; the bloom does not and must not — 14 × `markBloomScale` 1.35 = 18.9pt, and its spring overshoots past even that. Constraining the bloom to the slot is exactly what left it too little travel to read as a spring, so the real bound is the gap to the identity beside it (`accountChipSpacing`), which `ProviderBadgeTests` pins at both mark sizes |
 | `Layout.fallbackSymbolRatio` | 10/12 (≈ 0.833) | How big the SF Symbol fallback runs relative to the mark it replaces when a bundled SVG fails to load. Under 1 because a symbol carries internal padding the SVGs do not; expressing it as a ratio keeps the fallback in step with whichever `markSize` the badge was given |
 | `Typography.badgeSymbol` | 10pt bold | Provider SF Symbol fallback in the mark slot (only if the SVG mark fails to load) |
 | `Typography.accountTitle` | 12pt semibold | Account identity in the header chip — 11pt read cramped, 13pt too big |
@@ -660,9 +662,10 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Menu bar orange | `.systemOrange` | `.systemOrange` |
 | Secondary label | black 70% | white 55% |
 | Tertiary label | black 55% | white 35% |
-| Track fill | black 14% opacity | white 10% opacity |
+| Track fill | black 30% opacity (was 14%: every bar fill measured under 3:1 against its own track) | white 10% opacity |
 | Badge fill | black 9% opacity | white 6% opacity |
-| Hover fill | black 6% opacity | white 6% opacity |
+| Hover fill | black 4% opacity (`hoverFill`, was 6%) | white 4% opacity |
+| Hover stroke | black 8% opacity (`hoverStroke`, was 12%) | white 8% opacity |
 | Disabled opacity | 0.55 | 0.55 |
 | Disabled deep opacity | 0.25 | 0.25 |
 | Popover background | `controlBackgroundColor` (opaque white) | `controlBackgroundColor` (opaque dark) |

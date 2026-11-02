@@ -38,6 +38,7 @@ Main aggregated data struct consumed by all views.
 | `fiveHourTokens` | `Int` | Local token total for 5h window estimation |
 | `sevenDayTokens` | `Int` | Local token total for 7d window estimation |
 | `fiveHourTokenBuckets` | `[Int: Int]` | 20 × 15-min token buckets for 5H chart (0=oldest, 19=now) |
+| `sevenDayTokenBuckets` | `[Int: Int]` | 168 × 1-hour token buckets (0=oldest, 167=now) backing `sevenDayWindowTokens(resetsAt:)`. Hourly rather than daily so the bucket the window started inside costs at most an hour, not a calendar day; empty on snapshots built before this existed, which is why the reader falls back to `dailyTokenTotals` |
 | `dailyTokenTotals` | `[String: Int]` | Per-date token totals for 7D/12M chart modes |
 | `todayModelTokens` | `[ModelTokenSummary]` | JSONL entries from today (cost breakdown) |
 | `weekModelTokens` | `[ModelTokenSummary]` | Last 7 days (cost breakdown) |
