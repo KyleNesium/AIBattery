@@ -1031,6 +1031,56 @@ struct SessionLogReaderTests {
         #expect(rebuilt.map(\.messageId).sorted() == ["new-1", "new-2", "new-3"])
     }
 
+    /// `consumed` is accumulated chunk by chunk through the 64KB reader, so a file whose
+    /// lines span many chunks — and an append that does too — is where a byte-accounting
+    /// slip would show up. Both sides of the boundary are multi-chunk here.
+    @Test func tailParse_offsetSurvivesManyChunkBoundaries() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // ~8KB of padding per line: 40 lines is ~320KB, i.e. five 64KB chunks either side.
+        func fatLine(_ id: String) -> String {
+            assistantLineWithTools(messageId: id, toolCalls: 2)
+                .replacingOccurrences(of: #""name":"Read""#, with: #""name":"\#(String(repeating: "R", count: 4_000))""#)
+        }
+
+        try writeJSONL((0..<40).map { fatLine("pre-\($0)") }, to: projectsDir)
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        #expect(reader.readAllUsageEntries().count == 40)
+
+        try append((0..<40).map { fatLine("post-\($0)") }, to: projectsDir)
+        reader.invalidate()
+        let incremental = reader.readAllUsageEntries()
+
+        let fresh = SessionLogReader(projectsURL: projectsDir).readAllUsageEntries()
+        #expect(incremental.count == 80)
+        #expect(incremental.map(\.messageId).sorted() == fresh.map(\.messageId).sorted())
+        #expect(incremental.reduce(0) { $0 + $1.toolCallCount } == fresh.reduce(0) { $0 + $1.toolCallCount })
+    }
+
+    /// An oversized line is skipped by consuming bytes without emitting an entry, on a
+    /// path of its own. The offset it leaves behind still has to land on a line boundary,
+    /// or every later append is parsed from the wrong place.
+    @Test func tailParse_offsetSurvivesAnOversizedLineBeforeIt() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        // > the 1MB maxLineSize, so it takes the skip path rather than a decode failure.
+        let oversized = #"{"type":"assistant","junk":"\#(String(repeating: "x", count: 1_200_000))"}"#
+        try writeJSONL([assistantLine(messageId: "before"), oversized, assistantLine(messageId: "after")], to: projectsDir)
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+        #expect(reader.readAllUsageEntries().map(\.messageId).sorted() == ["after", "before"])
+
+        try append([assistantLine(messageId: "appended")], to: projectsDir)
+        reader.invalidate()
+        let incremental = reader.readAllUsageEntries()
+
+        let fresh = SessionLogReader(projectsURL: projectsDir).readAllUsageEntries()
+        #expect(incremental.map(\.messageId).sorted() == ["after", "appended", "before"])
+        #expect(incremental.map(\.messageId).sorted() == fresh.map(\.messageId).sorted())
+    }
+
     @Test func tailParseOffset_onlyAcceptsAnAppendToTheSameFile() {
         let head = Data("head bytes".utf8)
         let cached = SessionLogReader.FileCacheEntry(

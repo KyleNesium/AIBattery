@@ -104,7 +104,10 @@ AIBattery/
     SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry (`creatorAccountId` from `session_meta`, context window, reasoning tokens, effort)
     UsageSnapshot.swift           — UsageSnapshot (carries `provider`), ModelTokenSummary
     ProjectTokenSummary.swift     — Per-project token totals + cost from JSONL cwd
-    MetricMode.swift              — MetricMode enum (5h / 7d / context)
+    MetricMode.swift              — MetricMode enum (5h / 7d / context); `inForce` collapses a persisted 7d mode onto the one budget tab
+    AccountCard.swift             — One overview card's reading: identity, plan, windows, `isLive(lastActivity:now:)`, `hiddenIdentity`; pure
+    AccountReading.swift          — Per-account fan-out result (windows | per-minute API limits, `isCached`, `worstPercent`)
+    PopoverMode.swift             — Overview / detail face selector + `onShow(remembered:)` and Escape routing
     TrendDirection.swift          — TrendDirection enum (up / down / flat)
     ClaudeSystemStatus.swift      — ClaudeSystemStatus (provider-neutral despite the name), StatusIndicator, StatusComponent
     TokenHealthConfig.swift       — Health thresholds + context window lookup
@@ -180,6 +183,9 @@ AIBattery/
     UpdateArrowButton.swift       — Header/overview-footer arrow shown only when `availableUpdate` is set; click installs via Sparkle, right-click opens a context menu (release notes / check for updates); replaces the old update banner + gear badge
     SettingsGearButton.swift      — Gear icon opening Settings
     AccountChipView.swift         — Compact account chip (brand badge + provider + identity) whose click pops the AppKit switch/add NSMenu
+    OverviewContentView.swift     — The multi-account face: one card per account, inset dividers, its own footer
+    AccountCardView.swift         — One overview card: whole row is a Button, provider-tinted hover wash, brand-mark gesture, live dot, bar columns
+    CreditBudgetSection.swift     — Codex credit-budget bar (spend-control plans) + Credits | Context toggle
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
     PopoverFooterView.swift       — Footer links (provider-aware Usage/Status targets), logout confirm, status indicator, timestamp
@@ -197,6 +203,9 @@ AIBattery/
       GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
       GaugeRow.swift              — Shared "labelled gauge row" shell: VStack[Header HStack + GaugeBar + TimelineView footer]. Accepts headerLeading / headerTrailing / footer ViewBuilders. Owns accessibility wiring and timeline schedule. Backs UsageBar (5h/7d) and StandardLimitBar.
       PanelPeriodicView.swift     — `TimelineView(.periodic)` that ticks only while the panel is on screen (`orderOut` never fires `onDisappear`); renders once with the current date while hidden
+      ProviderBadge.swift         — The provider's bare brand mark, centred in an 18pt slot; owns the hover gesture per `AIProvider.markHoverMotion` (Claude blooms, Codex turns) and the Reduce Motion fallback
+      LiveDot.swift               — Breathing provider-coloured dot shown while a provider's CLI is active (static under Reduce Motion)
+      BetaBadge.swift             — Small "beta" chip with an explanatory tooltip (Projects section)
       LinkActionButton.swift      — Inline link-styled action button (Size.standard for settings, .compact for in-banner). One canonical implementation for Add Account, Test, Download, Install Update — all routed through ThemeColors.action with consistent icon/label spacing.
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars; UsageBar.AlarmState gates throttle/limit alarm on confirmed (fresh) data
     LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable (window label follows provider vocabulary)
@@ -225,6 +234,9 @@ AIBattery/
     Data+Newline.swift            — `firstNewlineIndex(from:)`: memchr-backed newline search shared by both JSONL readers
     ChunkedFileReader.swift       — `read(2)` into ONE reused 64KB buffer, shared by both JSONL readers (a `Data` per chunk was the launch footprint spike)
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
+    EndpointBackoff.swift         — Per-endpoint, per-account failure backoff on `RetryPolicy.statusCheck` (60s → 120s → 240s, 5 min cap, jitter); `shouldSkip` tolerates a backward clock jump
+    FileStat.swift                — Modification date via `resourceValues` (9× cheaper than `attributesOfItem`), dropping NSURL's value cache first so a changed file never keeps its old fingerprint
+    PercentFormat.swift           — Percent display rules for the bars and the menu bar (`display(_:)`)
     AppLogger.swift               — Structured os.Logger instances by category
     AlertThreshold.swift          — The rate limit alert slider's stops (60/70/80/90) + `snapped()` for pre-v3.4 values
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
