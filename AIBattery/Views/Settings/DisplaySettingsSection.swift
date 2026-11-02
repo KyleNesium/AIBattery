@@ -2,13 +2,6 @@ import SwiftUI
 
 /// Display toggles + idle session cutoff slider.
 struct DisplaySettingsSection: View {
-    /// Whether some account's visible label is a maskable email
-    /// (`AccountStore.hasMaskableIdentity`). Gating on "has a Codex account" wasn't
-    /// enough: an alias outranks the discovered email and is never masked, so a user
-    /// who names their Codex account sees the toggle do nothing at all. Hide the row
-    /// unless unmasking would change something on screen.
-    let hasMaskableIdentity: Bool
-
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
     @AppStorage(UserDefaultsKeys.showAllAccountsInMenuBar) private var showAllAccountsInMenuBar: Bool = false
@@ -74,16 +67,19 @@ struct DisplaySettingsSection: View {
                     .font(Typography.caption)
                     .help("List every account's usage in the menu bar (e.g. 42% | 23%). The popover already shows all accounts whenever you have more than one; this adds them to the menu bar too. Star color and countdown reflect the worst account.")
             }
-            if hasMaskableIdentity {
-                HStack(spacing: Spacing.section) {
-                    Text("")
-                        .font(Typography.caption)
-                        .frame(width: Layout.settingsLabel, alignment: .trailing)
-                    Toggle("Full account email in popover", isOn: $showFullAccountIdentity)
-                        .toggleStyle(.checkbox)
-                        .font(Typography.caption)
-                        .help("Show the full sign-in email in the header chip and account menu. Off: masked as k•••@domain (safer when screen-sharing). Account names you set in Settings are always shown in full.")
-                }
+            // No gate on this row. It was hidden when no account had a maskable email,
+            // which meant the one setting that controls how accounts are identified
+            // vanished from Settings — and a setting you cannot find reads as a missing
+            // feature, which is worse than one that happens to be a no-op today. It
+            // comes back the moment an account loses its alias or a new one is added.
+            HStack(spacing: Spacing.section) {
+                Text("")
+                    .font(Typography.caption)
+                    .frame(width: Layout.settingsLabel, alignment: .trailing)
+                Toggle("Full account email in popover", isOn: $showFullAccountIdentity)
+                    .toggleStyle(.checkbox)
+                    .font(Typography.caption)
+                    .help("Show the full sign-in email in the header chip and account menu. Off: masked as k•••@domain (safer when screen-sharing). Account names you set in Settings are always shown in full, so this changes nothing for an account you have named.")
             }
         }
     }

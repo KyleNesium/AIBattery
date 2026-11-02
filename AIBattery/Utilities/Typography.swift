@@ -81,10 +81,11 @@ enum Typography {
     /// these are controls you aim at. The two share a size and weight so going in and
     /// coming back feel like one gesture reversed.
     ///
-    /// Semibold, not medium: at 11pt a medium chevron is a hairline next to the card's
-    /// bars and reads as decoration. One step up gives the stroke enough body to say
-    /// "this goes somewhere" at rest, without becoming the heaviest thing on the card.
-    static let navChevron: Font = .system(size: 11, weight: .semibold)
+    /// Bold, not medium: at 11pt in `tertiaryLabel` grey a medium chevron is a hairline
+    /// next to the card's bars and reads as decoration. Semibold was tried first and the
+    /// step was invisible at this size and tone — the glyph is six thin strokes' worth of
+    /// ink, so the weight has to move two steps to register at all.
+    static let navChevron: Font = .system(size: 11, weight: .bold)
 
     /// Header Settings gear — 12pt regular. `bodyLabel` (11pt medium) rendered the
     /// stroked gear visibly heavier than the chip's 8pt chevron; both header controls
