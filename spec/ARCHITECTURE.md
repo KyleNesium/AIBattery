@@ -399,7 +399,7 @@ CHANGELOG.md                      — Release notes per version
 **Codex accounts** (only when a Codex account exists / is active)
 
 9. `GET https://chatgpt.com/backend-api/wham/usage` — Codex rate limits (`Authorization: Bearer`, `ChatGPT-Account-Id`); per-account exponential backoff on failure, session-log fallback
-10. `GET https://status.openai.com/api/v2/summary.json` — OpenAI system status, filtered to Codex components (every refresh interval while a Codex account is active)
+10. `GET https://status.openai.com/api/v2/components.json` — OpenAI system status, filtered to Codex components (every refresh interval while a Codex account is active). **Not `summary.json`**: it truncates to 25 components and every Codex row falls outside that window.
 11. `GET https://auth.openai.com/oauth/authorize` — Codex OAuth login (opens in browser, one-time; redirects to `http://localhost:1455/auth/callback`)
 12. `POST https://auth.openai.com/oauth/token` — Codex token exchange + auto-refresh
 13. `POST https://api.openai.com/v1/responses` — **API-key Codex accounts only**: a 16-token nano probe whose response headers carry the per-minute `x-ratelimit-*` limits (the Codex mirror of the Claude Messages probe; no ChatGPT windows exist for API keys)

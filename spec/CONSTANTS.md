@@ -70,7 +70,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Codex usage endpoint | `https://chatgpt.com/backend-api/wham/usage` (headers `Authorization: Bearer`, `ChatGPT-Account-Id`) |
 | Codex OAuth authorize | `https://auth.openai.com/oauth/authorize` — redirect `http://localhost:1455/auth/callback` |
 | Codex OAuth token | `https://auth.openai.com/oauth/token` |
-| OpenAI Status API | `https://status.openai.com/api/v2/summary.json` |
+| OpenAI Status API | `https://status.openai.com/api/v2/components.json` — **not** `summary.json`, which truncates to 25 components and omits every Codex row (see Statuspage Component IDs) |
 | OpenAI Status Page | `https://status.openai.com` |
 | Codex Usage Dashboard | `https://chatgpt.com/codex/settings/usage` (ChatGPT accounts) / `https://platform.openai.com/usage` (API-key accounts) |
 | OpenAI API-key probe | `POST https://api.openai.com/v1/responses` — `{"model": <gpt-5-nano → gpt-5-mini → gpt-5>, "input": ".", "max_output_tokens": 16, "reasoning": {"effort": "minimal"}, "store": false}` (minimal effort so reasoning doesn't eat the cap; `store: false` keeps probes out of the user's dashboard logs; ≈ $0.000007 per probe); limits read from `x-ratelimit-limit/remaining/reset-requests|tokens` (Go-duration resets incl. `ms`/`µs`/`ns`). Next probe model on a header-less **400 / 403 / 404** (`probeShouldTryNextModel`); **401 only** is an auth failure |
@@ -177,7 +177,8 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 
 **Codex** (`status.openai.com`, read 2026-09-21; **filtered** — only these five drive the indicator, incidents count only when they name one of them).
 
-> **Four of these five ids were gone when the live page was re-read on 2026-11-02.** It had reorganised to 25 components carrying exactly one Codex row, `Codex in ChatGPT Desktop` (`01KMKFAMWKQ81YWSE1Z18R6VHR`). A vanished id is handled rather than fatal — `parseStatus` filters it out, and a filtered feed whose components have all disappeared reports `.unknown` rather than the page's unrelated overall indicator — so the feed under-reports instead of breaking. Which surfaces should stand for "Codex is degraded" now is a product call and the list is left as recorded until it is made.
+> **All five ids re-verified against the live page on 2026-11-02 — but only via `components.json`.**
+> `summary.json` is capped at the first **25** components by `position` and every Codex row sits at 30–33, so four of the five were absent from every response that endpoint could return. That is why the Codex feed reads `components.json` (37 components) and the Claude feed still reads `summary.json`. The Codex `name`s above are the ones the settings alert list shows and stay qualified where the API's own are bare — it returns `"CLI"` and `"VS Code extension"`, which read as unrelated products in a list that also carries Claude components. Matching is by id, so the difference is cosmetic.
 
 | Component | ID | Alert Key |
 |-----------|-----|-----------|
