@@ -337,8 +337,14 @@ final class SessionLogReader: @unchecked Sendable {
     ///
     /// Only an append qualifies: same head bytes, a size at least as large as what was
     /// already consumed, and the previous parse's entries still in memory (an evicted
-    /// file has nothing to merge the tail into). A truncation, a rotation, or an edit
-    /// anywhere before the offset all change one of those and fall back to a full parse.
+    /// file has nothing to merge the tail into). A truncation shrinks the size and a
+    /// rotation changes the head, so both fall back to a full parse.
+    ///
+    /// What this deliberately does **not** detect is an in-place edit before the offset
+    /// that preserves the total size and the first 256 bytes — those bytes are a cheap
+    /// identity check, not a content hash. It is sound here only because both CLIs append
+    /// to their session logs and never rewrite a line; a writer that edited in place would
+    /// need the whole prefix hashed, which is the cost this path exists to avoid.
     static func tailParseOffset(cached: FileCacheEntry?, newSize: UInt64?, head: Data) -> UInt64? {
         guard let cached, cached.entries != nil, cached.resumeOffset > 0, !cached.headFingerprint.isEmpty, cached.headFingerprint == head, let newSize, newSize >= cached.resumeOffset else { return nil }
         return cached.resumeOffset
