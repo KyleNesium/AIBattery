@@ -380,7 +380,7 @@ IDs absent from the pricing page fall through to their longest listed prefix (e.
 | Check interval | 0 (no scheduled checks — user-initiated only) |
 | Trigger | User clicks "Install Update" in banner (falls back to GitHub release if Sparkle not ready) |
 | Pre-activation | `NSApp.setActivationPolicy(.regular)` + `activate(ignoringOtherApps:)`, reverts to `.accessory` after a 60s safety timeout (normally delegate-driven via `didFinishUpdateCycleFor`; LSUIElement workaround) |
-| Entitlement | `com.apple.security.cs.disable-library-validation` — required for **ad-hoc** signed builds to load Sparkle.framework (an ad-hoc signature has no Team ID, so library validation could never pass). `build-app.sh` strips it whenever `CODE_SIGN_IDENTITY` is a real identity, since the bundle re-signs Sparkle and its XPC services with that same identity; `KEEP_LIBRARY_VALIDATION_EXEMPTION=1` opts back out |
+| Entitlement | `com.apple.security.cs.disable-library-validation` — required for **ad-hoc** signed builds to load Sparkle.framework (an ad-hoc signature has no Team ID, so library validation could never pass). `build-app.sh` strips it whenever `CODE_SIGN_IDENTITY` is a real identity, since the bundle re-signs Sparkle and its XPC services with that same identity; `KEEP_LIBRARY_VALIDATION_EXEMPTION=1` opts back out. When it is stripped the script **asserts** what the strip relies on — entitlement actually absent, app Team ID present, every nested signed bundle on that same Team ID — and fails the build otherwise, because the failure mode is otherwise a notarized app that cannot load Sparkle at launch |
 | CI secrets | `SPARKLE_EDDSA_KEY` (private signing key), `SPARKLE_EDDSA_PUBLIC_KEY` (public verification key injected into Info.plist) |
 
 ## Idle Session Cutoff

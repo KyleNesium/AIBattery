@@ -26,6 +26,21 @@ final class ClaudePlanFetcher {
         case rejected
         /// Throttled, a server error or no response. Retried on a later cycle.
         case unavailable
+
+        /// What may be written to the log. **Never the identity itself**: it is the
+        /// account's sign-in email, and the default `description` of the associated
+        /// `ClaudeProfileFacts` would print it in full — a `privacy: .public`
+        /// interpolation of this outcome put it in the unified log in the clear. The
+        /// plan is not a secret and is the half worth having; whether an email was
+        /// found is enough to debug the other half.
+        var logDescription: String {
+            switch self {
+            case let .answered(facts):
+                "answered(plan: \(facts.billingType ?? "none"), identity: \(facts.identity == nil ? "none" : "present"))"
+            case .rejected: "rejected"
+            case .unavailable: "unavailable"
+            }
+        }
     }
 
     /// Accounts whose lookup finished this launch (answered or rejected).
@@ -94,7 +109,7 @@ final class ClaudePlanFetcher {
         case .unavailable:
             break
         }
-        AppLogger.network.info("claude plan lookup \(accountId, privacy: .public): \(String(describing: outcome), privacy: .public)")
+        AppLogger.network.info("claude plan lookup \(accountId, privacy: .public): \(outcome.logDescription, privacy: .public)")
     }
 
     private func fetch(accessToken: String) async -> Outcome {

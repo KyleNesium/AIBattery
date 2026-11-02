@@ -300,22 +300,16 @@ final class SessionLogReader: @unchecked Sendable {
                 trailing: parse.trailing,
                 headFingerprint: head
             )
-            // A tail parse coalesces into entries that are already in the result, so the
-            // result's copies have to be refreshed rather than skipped as "already seen".
-            // Tool calls are the only field a continuation line changes.
-            if resumeFrom != nil {
-                let toolCallsById = Dictionary(
-                    merged.map { ($0.messageId, $0.toolCallCount) }, uniquingKeysWith: { _, last in last }
-                )
-                for index in resultEntries.indices {
-                    guard let fresh = toolCallsById[resultEntries[index].messageId],
-                          fresh != resultEntries[index].toolCallCount else { continue }
-                    resultEntries[index] = Self.addingToolCalls(
-                        fresh - resultEntries[index].toolCallCount, to: resultEntries[index]
-                    )
-                    changed = true
-                }
-            }
+            // No tool-call "refresh" pass over `resultEntries` here, deliberately. A tail
+            // parse does coalesce into entries an earlier parse of THIS file produced —
+            // but `mergingTail` folds that into `merged`, and the stale-id removal above
+            // has already dropped this file's previous copies from `resultEntries`, so
+            // the re-append below carries the fresh counts. The only ids such a pass
+            // could still match belong to a *different* file, i.e. a message id that two
+            // session files share; there it would overwrite the surviving deduped entry's
+            // count with the other file's figure, which is not more correct than leaving
+            // it, and it cost a dictionary build plus a full scan of every entry (17k on
+            // the real tree) on the path the tail parse exists to keep at ~0.4 ms.
             for entry in merged {
                 if seenIds.insert(entry.messageId).inserted {
                     resultEntries.append(entry)

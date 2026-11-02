@@ -74,4 +74,27 @@ struct ClaudePlanFetcherTests {
     @Test func profileURL_isTheOAuthProfileEndpoint() {
         #expect(ClaudePlanFetcher.profileURL.absoluteString == "https://api.anthropic.com/api/oauth/profile")
     }
+
+    /// The outcome is interpolated into a `privacy: .public` log line, and its payload
+    /// carries the account's sign-in email. Anything that reproduces that email — which
+    /// the synthesised `description` does — puts it in the unified log in the clear.
+    @Test func logDescription_namesThePlanButNeverTheEmail() {
+        let facts = ClaudeProfileFacts(billingType: "max_20x", identity: "someone@example.com")
+        let answered = ClaudePlanFetcher.Outcome.answered(facts)
+
+        #expect(!answered.logDescription.contains("someone@example.com"))
+        #expect(!answered.logDescription.contains("example.com"))
+        #expect(answered.logDescription.contains("max_20x"))
+        #expect(answered.logDescription.contains("present"))
+        // The default description is exactly what must not be logged — guards against
+        // someone "simplifying" this back to String(describing:).
+        #expect(String(describing: answered).contains("someone@example.com"))
+
+        let noIdentity = ClaudePlanFetcher.Outcome.answered(
+            ClaudeProfileFacts(billingType: nil, identity: nil)
+        )
+        #expect(noIdentity.logDescription == "answered(plan: none, identity: none)")
+        #expect(ClaudePlanFetcher.Outcome.rejected.logDescription == "rejected")
+        #expect(ClaudePlanFetcher.Outcome.unavailable.logDescription == "unavailable")
+    }
 }
