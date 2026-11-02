@@ -1,7 +1,12 @@
 import Foundation
 
-/// Looks up each Claude account's plan from Anthropic's OAuth profile, once per launch,
-/// so a Claude card can say "· Max 20×" the way a Codex card says "· Business".
+/// Looks up each Claude account's plan **and sign-in email** from Anthropic's OAuth
+/// profile, once per launch, so a Claude card can say "· Max 20×" the way a Codex card
+/// says "· Business", and can name who it belongs to the way a Codex card does.
+///
+/// The email is here because this is the only Anthropic response that carries one — no
+/// usage endpoint does, which is why a Claude account previously had nothing but a
+/// workspace name, and nothing at all when the usage payload named no workspace.
 ///
 /// Codex gets its plan for free on every usage poll (`plan_type`); none of the Claude
 /// usage endpoints carry one, so this is a separate request. A plan almost never
@@ -15,8 +20,8 @@ final class ClaudePlanFetcher {
     nonisolated static let profileURL = URL(string: "https://api.anthropic.com/api/oauth/profile")!
 
     enum Outcome: Equatable {
-        /// The profile answered. `nil` means it named no plan this app recognises.
-        case answered(String?)
+        /// The profile answered. Either field may be nil when the body names neither.
+        case answered(ClaudeProfileFacts)
         /// The request was refused (401/403/404). Not retried this launch.
         case rejected
         /// Throttled, a server error or no response. Retried on a later cycle.
@@ -43,7 +48,7 @@ final class ClaudePlanFetcher {
     /// Pure interpretation of a profile response, testable without the network.
     nonisolated static func interpret(statusCode: Int, data: Data) -> Outcome {
         switch statusCode {
-        case 200..<300: .answered(ClaudePlan.billingType(fromProfile: data))
+        case 200..<300: .answered(ClaudePlan.facts(fromProfile: data))
         case 401, 403, 404: .rejected
         default: .unavailable
         }
@@ -71,12 +76,18 @@ final class ClaudePlanFetcher {
         guard let token = await oauthManager.getAccessToken(for: accountId) else { return }
         let outcome = await fetch(accessToken: token)
         switch outcome {
-        case let .answered(plan):
+        case let .answered(facts):
             settled.insert(accountId)
             // Only a recognised plan is written. An unrecognised answer leaves the stored
             // value alone rather than erasing a plan the profile merely failed to name.
-            if let plan, oauthManager.accountStore.account(id: accountId)?.billingType != plan {
+            if let plan = facts.billingType, oauthManager.accountStore.account(id: accountId)?.billingType != plan {
                 oauthManager.updateAccountMetadata(accountId: accountId, billingType: plan)
+            }
+            // Same request, same rule: this is where a Claude account finally gets a
+            // sign-in email. Nothing else in Anthropic's OAuth surface carries one, so
+            // without it "Show account email" had nothing to show for Claude.
+            if let identity = facts.identity, oauthManager.accountStore.account(id: accountId)?.discoveredIdentity != identity {
+                oauthManager.updateAccountMetadata(accountId: accountId, discoveredIdentity: identity)
             }
         case .rejected:
             settled.insert(accountId)

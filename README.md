@@ -87,7 +87,7 @@ OAuth 2.0 with PKCE for both providers, the same flows Claude Code and the Codex
 
 **Codex plans.** ChatGPT subscriptions (Free, Plus, Pro, Team) show 5-hour and weekly windows plus any purchased-credit balance. Business and Enterprise spend-control plans show one **Credits** budget bar. API-key mode (`codex login --api-key`, or paste a key in the app) shows OpenAI's per-minute request and token limits and your real spend at API rates.
 
-**Which account am I looking at?** The header chip shows the provider mark and the account identity: the alias you set in Settings, otherwise your sign-in email (Codex) or workspace name (Claude), otherwise "Claude 1" or "Codex 2". Emails are masked by default (`k•••@domain`; **Settings → Display → Full account email in popover** shows them in full). Click the chip to switch accounts or add one. Rate limits and identity are per account. Local token data (Insights, Projects, Context Health) is per provider, because every Codex account reads the same `~/.codex/sessions` and every Claude account the same `~/.claude`.
+**Which account am I looking at?** The header chip shows the provider mark and the account identity: the alias you set in Settings, otherwise your sign-in email (both providers; Claude's comes from the OAuth profile, with the workspace name as a fallback), otherwise "Claude 1" or "Codex 2". Emails are masked by default (`k•••@domain`; **Settings → Display → Show account email** shows them in full). Click the chip to switch accounts or add one. Rate limits and identity are per account. Local token data (Insights, Projects, Context Health) is per provider, because every Codex account reads the same `~/.codex/sessions` and every Claude account the same `~/.claude`.
 
 ## All accounts at a glance
 
@@ -197,7 +197,7 @@ Open Settings from the gear in the header, or **Settings** in the overview foote
 | **Auto mode** | Always show the most urgent metric |
 | **Refresh** | Poll interval from 30 s to 5 min, per account. Claude costs about 3 tokens per refresh; Codex ChatGPT accounts cost nothing; Codex API keys spend about 16 output tokens per refresh at API rates |
 | **Idle** | Hide sessions idle longer than 30 min to 8 h from Context Health, or never |
-| **Full account email in popover** | Show sign-in emails unmasked (masked by default, safer when screen-sharing) |
+| **Show account email** | Show sign-in emails unmasked (masked by default, safer when screen-sharing) |
 | **Colorblind** | Blue, cyan, amber and purple palette |
 | **All accounts in menu bar** | List every account's percent in the menu bar (`42% \| 23%`). Colour and countdown follow the worst account |
 | **Alerts** | Notify on provider status-page outages |
@@ -260,12 +260,12 @@ AI Battery is free and open source. If it helps you get more out of your subscri
 
 ## Test Coverage
 
-**1704 tests** across 129 test files.
+**1714 tests** across 130 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
-| Models | 429 | Rate-limit parsing for Claude and Codex (including spend-control credits and credit-budget runway), usage snapshots, spike and rollover filters, account readings and the fan-out gate, overview cards, popover mode and Escape routing, pricing tables (retired-model rows included, with real model ids driven through them), provider and account records, Claude plan labels from the OAuth profile, window-token bucketing, the clock-skew rollover guard, the sign-in identity a card shows under its gauges |
-| Services | 660 | Session-log readers for both providers (streaming, caching, oversized lines, concurrency), Codex per-account attribution and fallback gating, token ledger high-water marks and key migration, aggregation (one pass, two snapshots), OAuth managers (PKCE, refresh, error classification), rate-limit fetchers and backoff, Keychain, secure networking, status checker, notifications, Sparkle updates, the Codex callback server's CSRF and one-shot rules, account-id-keyed storage migration, project identity (symlinks and worktrees), the incremental tail parse, the Claude plan fetcher, Keychain read failures and the signed-in retry, the sign-in identity an alias covers and where it is revealed |
+| Models | 438 | Rate-limit parsing for Claude and Codex (including spend-control credits and credit-budget runway), usage snapshots, spike and rollover filters, account readings and the fan-out gate, overview cards, popover mode and Escape routing, pricing tables (retired-model rows included, with real model ids driven through them), provider and account records, Claude plan labels from the OAuth profile, window-token bucketing, the clock-skew rollover guard, the sign-in identity a card shows under its gauges, the Claude OAuth profile's plan and email |
+| Services | 661 | Session-log readers for both providers (streaming, caching, oversized lines, concurrency), Codex per-account attribution and fallback gating, token ledger high-water marks and key migration, aggregation (one pass, two snapshots), OAuth managers (PKCE, refresh, error classification), rate-limit fetchers and backoff, Keychain, secure networking, status checker, notifications, Sparkle updates, the Codex callback server's CSRF and one-shot rules, account-id-keyed storage migration, project identity (symlinks and worktrees), the incremental tail parse, the Claude plan fetcher, Keychain read failures and the signed-in retry, the sign-in identity an alias covers and where it is revealed |
 | Views | 242 | Menu-bar text and headline percent, panel refit trigger, header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner, the menu bar's spoken description, each brand mark's own hover gesture (Claude's under-damped spring, Codex's full turn) and the Reduce Motion fallback |
 | ViewModels | 102 | Multi-account fan-out (routing, carry-forward, generation stamp), refresh interval and adaptive polling, throttle tracking per account, stale rate-limit expiry, auth-error reconnect, cross-account refresh races, provider switching, off-main aggregation |
 | Utilities | 271 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette, the hover wash's fill-vs-edge balance, provider-tint softening), the rate limit alert stops and the snap that carries legacy thresholds onto them, menu-bar icon rendering and cache, date formatters, JSONL newline scanning and the reused read buffer, email masking, logging redaction |

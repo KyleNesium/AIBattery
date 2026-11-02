@@ -56,7 +56,7 @@ struct AccountCard: Identifiable, Equatable {
     /// within `liveActivityWindow`: the one thing a list of accounts can't otherwise say
     /// is which one your CLI is using right now. Per provider.
     let lastActivity: Date?
-    /// The sign-in identity an alias is covering, when "Full account email in popover"
+    /// The sign-in identity an alias is covering, when "Show account email"
     /// is on — nil when masked, or when the card's name already *is* the identity.
     ///
     /// It gets its own line rather than riding `identity`: appended in the header it

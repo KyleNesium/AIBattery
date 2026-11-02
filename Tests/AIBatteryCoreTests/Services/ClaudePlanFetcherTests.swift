@@ -13,12 +13,25 @@ struct ClaudePlanFetcherTests {
     // MARK: - Response interpretation
 
     @Test func success_answersWithThePlan() {
-        #expect(ClaudePlanFetcher.interpret(statusCode: 200, data: maxBody) == .answered("max_20x"))
+        #expect(
+            ClaudePlanFetcher.interpret(statusCode: 200, data: maxBody)
+                == .answered(ClaudeProfileFacts(billingType: "max_20x", identity: nil))
+        )
     }
 
     /// A 2xx that names no known plan still settles the lookup — asking again won't help.
     @Test func success_withUnknownPlan_answersNil() {
-        #expect(ClaudePlanFetcher.interpret(statusCode: 200, data: Data("{}".utf8)) == .answered(nil))
+        #expect(ClaudePlanFetcher.interpret(statusCode: 200, data: Data("{}".utf8)) == .answered(.none))
+    }
+
+    /// The whole reason this request exists for identity: no Anthropic *usage* endpoint
+    /// carries an email, so without the profile a Claude account has nothing to show.
+    @Test func success_carriesTheSignInEmail() {
+        let body = Data(#"{"account":{"email_address":"kyle@example.com"},"organization":{"organization_type":"claude_team","name":"Ringier"}}"#.utf8)
+        #expect(
+            ClaudePlanFetcher.interpret(statusCode: 200, data: body)
+                == .answered(ClaudeProfileFacts(billingType: "team", identity: "kyle@example.com"))
+        )
     }
 
     /// Refusals are final for this launch: retrying a 403 every cycle would only spam.

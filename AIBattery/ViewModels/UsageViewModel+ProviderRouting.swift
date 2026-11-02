@@ -83,10 +83,12 @@ extension UsageViewModel {
             return
         }
 
-        // The workspace name is the only identity Anthropic exposes (no email): it
-        // becomes the account's discovered identity until the user sets an alias.
-        if let workspace = api.profile?.workspaceName, !api.isCached, account.discoveredIdentity != workspace {
-            oauthManager.updateAccountMetadata(accountId: id, discoveredIdentity: workspace)
+        // The workspace name is a **fallback** identity, filled only when the account
+        // has none: `ClaudePlanFetcher` reads the real sign-in email off the OAuth
+        // profile, and this path runs on every poll — overwriting here put the
+        // workspace name back over the email a few seconds after it arrived.
+        if let workspace = api.profile?.workspaceName, !api.isCached {
+            oauthManager.accountStore.backfillDiscoveredIdentity(accountId: id, identity: workspace)
         }
 
         if account.isPendingIdentity {

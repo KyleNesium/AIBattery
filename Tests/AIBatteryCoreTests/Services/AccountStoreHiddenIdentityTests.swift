@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AIBatteryCore
 
-/// The "Full account email in popover" toggle answers one question — "which account is
+/// The "Show account email" toggle answers one question — "which account is
 /// this?" — and an alias is what usually stands in the way of answering it. The reveal
 /// lives in `displayLabel` (menu rows, Settings) and deliberately **not** in
 /// `identityLabel`, which feeds the 275pt overview card and header chip.
