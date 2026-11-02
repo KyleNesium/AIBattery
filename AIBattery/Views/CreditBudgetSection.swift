@@ -98,7 +98,7 @@ struct CreditBudgetSection: View {
                         Text("\(CodexCreditBudget.formatCredits(budget.used)) / \(CodexCreditBudget.formatCredits(budget.limit))")
                             .font(Typography.monoValue)
                             .foregroundStyle(ThemeColors.secondaryLabel)
-                            .copyable("\(Int(budget.used)) / \(Int(budget.limit)) \(budget.unit)s")
+                            .copyable("\(Int(budget.used)) / \(Int(budget.limit)) \(budget.unit)s", bleed: .trailing)
                     }
                 }
             },
@@ -124,14 +124,14 @@ struct CreditBudgetSection: View {
                         Text(runwayText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.caution)
-                            .copyable(runwayText)
+                            .copyable(runwayText, bleed: .leading)
                             .help("Estimated time until the credit cap at the pace observed this period")
                     } else {
                         let remainingText = "\(CodexCreditBudget.formatCredits(budget.remaining)) remaining"
                         Text(remainingText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
-                            .copyable(remainingText)
+                            .copyable(remainingText, bleed: .leading)
                     }
                     Spacer()
                     if let diff = resetDiff, diff > 0 {
@@ -139,7 +139,7 @@ struct CreditBudgetSection: View {
                         Text(resetText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.tertiaryLabel)
-                            .copyable(resetText)
+                            .copyable(resetText, bleed: .trailing)
                     }
                 }
             }

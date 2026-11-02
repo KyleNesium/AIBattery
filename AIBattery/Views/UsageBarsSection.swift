@@ -216,7 +216,7 @@ struct UsageBar: View {
                     }
                     Text(PercentFormat.display(displayPercent))
                         .font(Typography.monoValue)
-                        .copyable(PercentFormat.display(displayPercent))
+                        .copyable(PercentFormat.display(displayPercent), bleed: .trailing)
                 }
             },
             footer: { now in
@@ -249,7 +249,7 @@ struct UsageBar: View {
                         Text(estimateText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.caution)
-                            .copyable(estimateText)
+                            .copyable(estimateText, bleed: .leading)
                             .help("Estimated time until rate limit based on current burn rate")
                     } else {
                         // No burn rate estimate yet — show remaining percentage
@@ -257,7 +257,7 @@ struct UsageBar: View {
                         Text(remainingText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
-                            .copyable(remainingText)
+                            .copyable(remainingText, bleed: .leading)
                     }
 
                     Spacer()
@@ -269,7 +269,7 @@ struct UsageBar: View {
                             Text(resetText)
                                 .font(Typography.tinyLabel)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
-                                .copyable(resetText)
+                                .copyable(resetText, bleed: .trailing)
                         } else if wasExhausted {
                             // Reset time is in the past — window is rolling over
                             Text("Resetting…")

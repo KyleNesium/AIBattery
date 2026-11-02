@@ -230,22 +230,26 @@ enum ThemeColors {
         }
     }
 
+    /// Hover highlight for interactive elements (buttons, chevrons, headers).
+    /// Deliberately faint (4%): a hover hints that something is clickable and should not
+    /// paint a block over the panel. Far under the selected tab's `surfaceLevel2`.
     static let hoverFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.06),
-        dark: NSColor(white: 1.0, alpha: 0.06)
+        light: NSColor(white: 0.0, alpha: 0.04),
+        dark: NSColor(white: 1.0, alpha: 0.04)
     )
 
     /// Hairline edge for a neutral hover highlight. Every highlight in the popover is a
     /// fill plus this edge; a fill on its own reads as a smudge rather than a shape.
     static let hoverStroke: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.12),
-        dark: NSColor(white: 1.0, alpha: 0.12)
+        light: NSColor(white: 0.0, alpha: 0.08),
+        dark: NSColor(white: 1.0, alpha: 0.08)
     )
 
-    /// Stronger hover highlight for copyable elements (signals "click to copy").
+    /// Stronger hover highlight for copyable elements (signals "click to copy"). Kept a
+    /// step above `hoverFill`.
     static let copyableHoverFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.15),
-        dark: NSColor(white: 1.0, alpha: 0.15)
+        light: NSColor(white: 0.0, alpha: 0.10),
+        dark: NSColor(white: 1.0, alpha: 0.10)
     )
 
     /// Divider opacity (StyledDivider).
@@ -261,7 +265,7 @@ enum ThemeColors {
     static let subtleBorderOpacity: Double = 0.2
 
     /// Medium border opacity for hovered outlines.
-    static let hoverBorderOpacity: Double = 0.4
+    static let hoverBorderOpacity: Double = 0.3
 
     /// Active-state label opacity for secondary text.
     static let activeLabelOpacity: Double = 0.5
