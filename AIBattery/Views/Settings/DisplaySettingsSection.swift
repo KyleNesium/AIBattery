@@ -2,11 +2,12 @@ import SwiftUI
 
 /// Display toggles + idle session cutoff slider.
 struct DisplaySettingsSection: View {
-    /// Whether any Codex account exists. The masking the full-email toggle controls
-    /// only ever applies to a Codex sign-in email — Claude's discovered identity is a
-    /// workspace name, which is deliberately never masked — so for a Claude-only user
-    /// the toggle does nothing and reads as broken. Hide it instead of qualifying it.
-    let hasCodexAccount: Bool
+    /// Whether some account's visible label is a maskable email
+    /// (`AccountStore.hasMaskableIdentity`). Gating on "has a Codex account" wasn't
+    /// enough: an alias outranks the discovered email and is never masked, so a user
+    /// who names their Codex account sees the toggle do nothing at all. Hide the row
+    /// unless unmasking would change something on screen.
+    let hasMaskableIdentity: Bool
 
     @AppStorage(UserDefaultsKeys.idleSessionMinutes) private var idleSessionMinutes: Double = 0
     @AppStorage(UserDefaultsKeys.colorblindMode) private var colorblindMode: Bool = false
@@ -73,7 +74,7 @@ struct DisplaySettingsSection: View {
                     .font(Typography.caption)
                     .help("List every account's usage in the menu bar (e.g. 42% | 23%). The popover already shows all accounts whenever you have more than one; this adds them to the menu bar too. Star color and countdown reflect the worst account.")
             }
-            if hasCodexAccount {
+            if hasMaskableIdentity {
                 HStack(spacing: Spacing.section) {
                     Text("")
                         .font(Typography.caption)

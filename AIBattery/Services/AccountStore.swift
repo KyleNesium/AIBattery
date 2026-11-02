@@ -271,6 +271,20 @@ public final class AccountStore: ObservableObject {
         return "\(account.provider.displayName) \(providerIndex + 1)"
     }
 
+    /// Whether unmasking could change anything the user actually sees. Masking only
+    /// bites on an account whose label *is* its discovered email: an alias outranks the
+    /// email and is never masked, Claude's workspace name isn't email-shaped so
+    /// `maskedEmail` returns it untouched, and a pending record reads "Connecting…".
+    /// Rather than restate those rules and let them drift, ask the labeller — if masked
+    /// and unmasked agree for every account, the full-email toggle cannot do anything
+    /// and Settings hides it instead of offering a dead control.
+    nonisolated static func hasMaskableIdentity(in accounts: [AccountRecord]) -> Bool {
+        accounts.enumerated().contains { index, account in
+            identityLabel(for: account, providerIndex: index, maskEmail: true)
+                != identityLabel(for: account, providerIndex: index, maskEmail: false)
+        }
+    }
+
     /// The one label an account gets everywhere it is listed (chip menu rows, Settings
     /// rows): `identityLabel`, prefixed with the provider glyph when `showsProviderGlyph`
     /// and optionally suffixed with the plan ("· Business", "· API", "· Max 20×").

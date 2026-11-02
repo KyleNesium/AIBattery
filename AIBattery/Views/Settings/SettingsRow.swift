@@ -56,7 +56,7 @@ struct SettingsRow: View {
             StyledDivider()
             RefreshSettingsSection(viewModel: viewModel)
             StyledDivider()
-            DisplaySettingsSection(hasCodexAccount: accountStore.accounts.contains { $0.provider == .codex })
+            DisplaySettingsSection(hasMaskableIdentity: AccountStore.hasMaskableIdentity(in: accountStore.accounts))
             StyledDivider()
             AlertSettingsSection()
             StyledDivider()
