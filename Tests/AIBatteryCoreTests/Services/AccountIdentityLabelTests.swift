@@ -41,10 +41,15 @@ struct AccountIdentityLabelTests {
         #expect(AccountStore.identityLabel(for: record("x1", .codex), providerIndex: 2, maskEmail: true) == "Codex 3")
     }
 
+    /// The alias always leads. Revealing adds the identity beside it rather than
+    /// replacing it, so the name the user chose never loses its place.
     @Test func identityLabel_prefersUserAliasOverDiscoveredIdentity() {
         let account = record("x1", .codex, name: "Work", discovered: "kyle@example.com")
         #expect(AccountStore.identityLabel(for: account, providerIndex: 0, maskEmail: true) == "Work")
-        #expect(AccountStore.identityLabel(for: account, providerIndex: 0, maskEmail: false) == "Work")
+        #expect(
+            AccountStore.identityLabel(for: account, providerIndex: 0, maskEmail: false)
+                == "Work (kyle@example.com)"
+        )
     }
 
     @Test func identityLabel_blankAliasFallsThroughToDiscovered() {

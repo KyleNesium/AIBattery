@@ -56,7 +56,7 @@ struct SettingsRow: View {
             StyledDivider()
             RefreshSettingsSection(viewModel: viewModel)
             StyledDivider()
-            DisplaySettingsSection(hasMaskableIdentity: AccountStore.hasMaskableIdentity(in: accountStore.accounts))
+            DisplaySettingsSection(hasRevealableIdentity: AccountStore.hasRevealableIdentity(in: accountStore.accounts))
             StyledDivider()
             AlertSettingsSection()
             StyledDivider()
