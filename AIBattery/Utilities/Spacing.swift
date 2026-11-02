@@ -163,6 +163,11 @@ enum Layout {
 
     /// Overview card bar row: fixed columns so every card's gauges line up.
     static let cardBarLabelWidth: CGFloat = 52
+    /// How far the gauge rows step in from the card's other lines. The name, the
+    /// identity and the state line all sit on the card's left edge; with the window
+    /// labels flush against them too, four lines started at one x and the card read as
+    /// a block of text. The step makes the gauges a group you can find without reading.
+    static let cardBarLabelIndent: CGFloat = 8
     static let cardPercentWidth: CGFloat = 34
     static let cardTokensWidth: CGFloat = 40
     static let cardResetWidth: CGFloat = 46

@@ -163,9 +163,12 @@ struct AccountCardBarRow: View {
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 // Leading, not trailing: right-aligning the column made "7-Day" start a
-                // few points in from "5-Hour" and the two labels read as misaligned. The
-                // column is a fixed width either way, so the gauges still line up.
-                .frame(width: Layout.cardBarLabelWidth, alignment: .leading)
+                // few points in from "5-Hour" and the two labels read as misaligned.
+                // Indented, not flush: the column is widened by the indent rather than
+                // the row being offset, so the gauge, token and percent columns stay
+                // exactly where they are across every card.
+                .padding(.leading, Layout.cardBarLabelIndent)
+                .frame(width: Layout.cardBarLabelWidth + Layout.cardBarLabelIndent, alignment: .leading)
             GaugeBar(percent: bar.percent ?? 0, barColor: ThemeColors.barColor(percent: bar.percent ?? 0))
             // Tokens spent in the window, the same figure the detail bars lead with. The
             // reset moved to the card's state line so this column fits at 275pt.
