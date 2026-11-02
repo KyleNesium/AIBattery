@@ -228,7 +228,7 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 | Constant | Value |
 |----------|-------|
 | Rate limit alert | `aibattery_alertRateLimit` (Bool, default false) |
-| Threshold | `aibattery_rateLimitThreshold` (Double, default 80, range 50–95, step 5) |
+| Threshold | `aibattery_rateLimitThreshold` (Double, default 80, stops 60/70/80/90, step 10; legacy values snap to the nearest stop via `AlertThreshold.snapped`) |
 | Dedup keys | `rateLimit5h`, `rateLimit7d` (provider-neutral); `rateLimitCredits` — the single alert for a Codex credit budget (label "Credits", `sevenDayPercent`) |
 | Window labels | `NotificationManager.windowLabels(for:)` — "5-Hour" + "7-Day" (Claude) / "Weekly" (Codex) |
 | Delivery | Same `UNUserNotificationCenter` mechanism as status alerts |

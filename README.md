@@ -201,7 +201,7 @@ Open Settings from the gear in the header, or **Settings** in the overview foote
 | **Colorblind** | Blue, cyan, amber and purple palette |
 | **All accounts in menu bar** | List every account's percent in the menu bar (`42% \| 23%`). Colour and countdown follow the worst account |
 | **Alerts** | Notify on provider status-page outages |
-| **Rate limit** | Notify when usage crosses a threshold (50–95%) |
+| **Rate limit** | Notify when usage crosses a threshold (60/70/80/90%) |
 | **Launch at login** | Start automatically |
 | **About** | App version, **Check for Updates**, **Install**, **Release notes** |
 
@@ -260,7 +260,7 @@ AI Battery is free and open source. If it helps you get more out of your subscri
 
 ## Test Coverage
 
-**1671 tests** across 127 test files.
+**1683 tests** across 128 test files.
 
 | Area | Tests | What's covered |
 |------|-------|----------------|
@@ -268,7 +268,7 @@ AI Battery is free and open source. If it helps you get more out of your subscri
 | Services | 645 | Session-log readers for both providers (streaming, caching, oversized lines, concurrency), Codex per-account attribution and fallback gating, token ledger high-water marks and key migration, aggregation (one pass, two snapshots), OAuth managers (PKCE, refresh, error classification), rate-limit fetchers and backoff, Keychain, secure networking, status checker, notifications, Sparkle updates, the Codex callback server's CSRF and one-shot rules, account-id-keyed storage migration, project identity (symlinks and worktrees), the incremental tail parse, the Claude plan fetcher, Keychain read failures and the signed-in retry |
 | Views | 242 | Menu-bar text and headline percent, panel refit trigger, header and back control, overview content, footer, activity chart transforms and trends, context-health display including thinking and effort text, Codex all-time captions, collapsible sections, settings hints, update arrow and About button states, transition bans for the headless runner, the menu bar's spoken description, each brand mark's own hover gesture (Claude's under-damped spring, Codex's full turn) and the Reduce Motion fallback |
 | ViewModels | 102 | Multi-account fan-out (routing, carry-forward, generation stamp), refresh interval and adaptive polling, throttle tracking per account, stale rate-limit expiry, auth-error reconnect, cross-account refresh races, provider switching, off-main aggregation |
-| Utilities | 259 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette, the hover wash's fill-vs-edge balance, provider-tint softening), menu-bar icon rendering and cache, date formatters, JSONL newline scanning and the reused read buffer, email masking, logging redaction |
+| Utilities | 271 | Token and duration formatting, percent display, model-name mapping, reasoning vocabulary, theme colours (provider tints, colorblind palette, the hover wash's fill-vs-edge balance, provider-tint softening), the rate limit alert stops and the snap that carries legacy thresholds onto them, menu-bar icon rendering and cache, date formatters, JSONL newline scanning and the reused read buffer, email masking, logging redaction |
 
 ## License
 

@@ -704,7 +704,7 @@ Describes where displayed rate-limit values came from. `Equatable`, `Codable`.
 - `checkRateLimitAlerts(rateLimits:)` labels windows via `windowLabels(for: rateLimits)` → `("5-Hour", "7-Day")` for Claude, `("5-Hour", "Weekly")` for Codex windowed plans. Dedup keys (`rateLimit5h`, `rateLimit7d`) are provider-neutral. A Codex **credit budget** (`isCreditBudget`) short-circuits to a **single** check — key `rateLimitCredits`, label "Credits", percent `sevenDayPercent` — because the budget mirrors one number onto both windows and two identical alerts were being batched into "Multiple alerts".
 
 #### Rate Limit Alerts
-- `checkRateLimitAlerts(rateLimits:)` — reads `aibattery_alertRateLimit` (Bool) and `aibattery_rateLimitThreshold` (Double, default 80)
+- `checkRateLimitAlerts(rateLimits:)` — reads `aibattery_alertRateLimit` (Bool) and `aibattery_rateLimitThreshold` (Double, default 80), the stored threshold passed through `AlertThreshold.snapped` so a pre-v3.4 value (50, 55, … 95) alerts at the nearest surviving stop rather than its old one
 - Checks both 5h and 7d windows independently against threshold
 - Same dedup pattern: `hasFired` set per window, removes when dropping below threshold
 - `shouldAlert(percent:threshold:previouslyFired:)` — static pure function for testability

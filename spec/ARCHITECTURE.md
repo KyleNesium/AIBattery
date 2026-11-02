@@ -226,6 +226,7 @@ AIBattery/
     ChunkedFileReader.swift       — `read(2)` into ONE reused 64KB buffer, shared by both JSONL readers (a `Data` per chunk was the launch footprint spike)
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
     AppLogger.swift               — Structured os.Logger instances by category
+    AlertThreshold.swift          — The rate limit alert slider's stops (60/70/80/90) + `snapped()` for pre-v3.4 values
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
     CodexPaths.swift              — `~/.codex/sessions`, `~/.codex/auth.json` (read-only)
     JWTDecoder.swift              — Unverified-claims decode of the Codex ID/access token (account id, email, expiry)

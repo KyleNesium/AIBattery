@@ -49,8 +49,11 @@ public final class NotificationManager {
         let enabled = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertRateLimit)
         guard enabled else { return }
 
+        // Snapped, not read raw: a setting saved before the slider shrank to 60/70/80/90
+        // would otherwise go on firing at its old value (95, 55, …) no matter what the
+        // slider shows, and only a visit to Settings would reconcile the two.
         let threshold = UserDefaults.standard.double(forKey: UserDefaultsKeys.rateLimitThreshold)
-        let effectiveThreshold = threshold > 0 ? threshold : 80.0
+        let effectiveThreshold = AlertThreshold.snapped(threshold)
 
         // A credit budget mirrors one number onto both windows — one alert, not two
         // identical ones batched into "Multiple alerts".

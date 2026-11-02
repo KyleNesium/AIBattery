@@ -149,7 +149,7 @@ Collapsible panel toggled by gear icon. Decomposed into sub-views so each `@AppS
 - **Alerts row**: "Status" checkbox + "Rate Limit" checkbox + "Test" button (when Status enabled)
   - Status: notifies on any of the 5 tracked status page components of the active provider's feed
   - Test: `NotificationManager.testAlerts(components:)` with the **active provider's** components (`StatusChecker.shared(for:).config.knownComponents`) — a Codex user sees "Codex API is down", not "claude.ai is down"
-  - Rate Limit: threshold slider (50–95%, step 5, default 80%) appears below when enabled
+  - Rate Limit: threshold slider (60/70/80/90%, step 10, default 80%) appears below when enabled
 
 **`LaunchAtLoginSection`** (owns `launchAtLogin`):
 - **Startup**: "Launch at Login" checkbox → `aibattery_launchAtLogin`
