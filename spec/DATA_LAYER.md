@@ -33,6 +33,8 @@ Main aggregated data struct consumed by all views.
 | `totalProjectTokens` | `Int` | Sum of all `projectTokens.totalTokens` |
 | `totalProjectUsageTokens` | `Int` | Input + output only — excludes cache tokens |
 | `totalProjectCost` | `Double` | Sum of all `projectTokens.estimatedCost` |
+
+**Every row order and every `Double` sum in a snapshot is deterministic, on purpose.** `UsageSnapshot ==` is the change gate in five refresh paths (`result != snapshot`), so anything that varies between two passes over identical entries makes the popover republish for nothing. Three sources of that were found and closed: `sorted` is **not stable**, so `projectTokens` and `modelTokens` break ties on `id` (four projects level on tokens came out `alpha, bravo, zulu, mike` without it); `peakHour` breaks ties on the hour key; and per-project `estimatedCost` is summed over **sorted** model ids, because `Double` addition is not associative and dictionary order is not a contract — two passes over the same real tree landed 2.8e-14 apart, invisible at two decimal places but not to `==`. Pinned by `UsageAggregatorTests.twoAggregatorsOverTheSameEntriesAgree` / `rowsLevelOnTokensOrderByIdentifier` (hermetic) and `UsageAggregatorRealDataTests.twoAggregationPassesOverTheRealTreeAgreeExactly` (opt-in, 17k real entries).
 | `fiveHourTokens` | `Int` | Local token total for 5h window estimation |
 | `sevenDayTokens` | `Int` | Local token total for 7d window estimation |
 | `fiveHourTokenBuckets` | `[Int: Int]` | 20 × 15-min token buckets for 5H chart (0=oldest, 19=now) |

@@ -689,7 +689,16 @@ final class UsageAggregator: @unchecked Sendable {
         projectMap.map { key, proj in
             var totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheWrite = 0
             var totalCost: Double = 0
-            for (modelId, tokens) in proj.byModel {
+            // Sorted, because `totalCost` is a `Double` sum and Double addition is not
+            // associative: iterating `byModel` in dictionary order summed the same
+            // per-model costs in a different order on two passes over *identical*
+            // entries and landed 2.8e-14 apart (measured on the real tree). Invisible at
+            // two decimal places, but `UsageSnapshot ==` compares `estimatedCost`
+            // exactly and five refresh paths gate on `result != snapshot`, so the
+            // popover republished a snapshot that differed in nothing a user could see.
+            // The token sums are `Int` and need no such care.
+            for modelId in proj.byModel.keys.sorted() {
+                guard let tokens = proj.byModel[modelId] else { continue }
                 totalInput += tokens.input
                 totalOutput += tokens.output
                 totalCacheRead += tokens.cacheRead
@@ -710,7 +719,12 @@ final class UsageAggregator: @unchecked Sendable {
                 cacheWriteTokens: totalCacheWrite,
                 estimatedCost: totalCost
             )
-        }.sorted { $0.totalTokens > $1.totalTokens }
+        }
+        // Tie-break on the key: `sorted` is not stable, and projects level on tokens
+        // (two quiet checkouts, or several at zero) otherwise swapped places between
+        // polls with nothing behind the change — the same reason peak hour and the
+        // session-health list break their ties explicitly.
+        .sorted { $0.totalTokens == $1.totalTokens ? $0.id < $1.id : $0.totalTokens > $1.totalTokens }
     }
 
     private static func buildModelTokens(from map: TokenMap, provider: AIProvider) -> [ModelTokenSummary] {
@@ -730,6 +744,7 @@ final class UsageAggregator: @unchecked Sendable {
                 estimatedCost: cost,
                 reasoningTokens: tokens.reasoning
             )
-        }.sorted { $0.totalTokens > $1.totalTokens }
+        }
+        .sorted { $0.totalTokens == $1.totalTokens ? $0.id < $1.id : $0.totalTokens > $1.totalTokens }
     }
 }
