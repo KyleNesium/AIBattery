@@ -61,8 +61,10 @@ struct AccountRecordTests {
         #expect(decoded.discoveredIdentity == "kyle@example.com")
 
         // Records persisted before the identity field existed decode with nil, no migration.
+        // The fixture carries no `provider` either — a v2.6.1 blob predates both fields,
+        // and including `provider` made this read as a pre-v3 shape it was not.
         let legacy = Data("""
-        [{"id":"org-1","addedAt":0,"provider":"claude"}]
+        [{"id":"org-1","addedAt":0}]
         """.utf8)
         let legacyDecoded = try JSONDecoder().decode([AccountRecord].self, from: legacy)
         #expect(legacyDecoded[0].discoveredIdentity == nil)

@@ -4,9 +4,12 @@ import Testing
 
 @Suite("OpenAI status feed")
 struct OpenAIStatusFeedTests {
+    /// Reads `components.json`, not `summary.json`: that endpoint truncates to the first
+    /// 25 components by position and every Codex row sits at 30-33, so four of the five
+    /// configured ids were absent from every response it could return.
     @Test func codexFeed_pointsAtOpenAIStatuspage() {
         let config = StatusFeedConfig.codex
-        #expect(config.summaryURL.absoluteString == "https://status.openai.com/api/v2/summary.json")
+        #expect(config.summaryURL.absoluteString == "https://status.openai.com/api/v2/components.json")
         #expect(config.statusPageBaseURL == "https://status.openai.com")
     }
 

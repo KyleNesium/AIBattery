@@ -169,9 +169,15 @@ final class StatusChecker {
             if config.componentFilter != nil {
                 return .unknown(statusPageURL: config.statusPageBaseURL)
             }
+            // An unfiltered feed falls back to the page roll-up — when the payload has
+            // one. `components.json` does not, and no page-level status is "we don't
+            // know", never "operational".
+            guard let pageStatus = summary.status else {
+                return .unknown(statusPageURL: config.statusPageBaseURL)
+            }
             return ClaudeSystemStatus(
-                indicator: StatusIndicator.from(summary.status.indicator),
-                description: summary.status.description,
+                indicator: StatusIndicator.from(pageStatus.indicator),
+                description: pageStatus.description,
                 incidentNames: [],
                 statusPageURL: config.statusPageBaseURL
             )
@@ -245,10 +251,52 @@ final class StatusChecker {
 
 // MARK: - Statuspage JSON models (internal so tests can build summaries directly)
 
+/// A Statuspage-shaped payload. **`components` is the only part every endpoint we read
+/// actually carries**, so the other two decode as optional rather than failing the fetch.
+///
+/// This is what kept the Codex feed dead. `status.openai.com` is Statuspage-*shaped* but
+/// is not Atlassian Statuspage, and its endpoints are each missing something:
+/// `summary.json` has no `incidents` key at all, and `components.json` — the only one
+/// that lists every component (see `StatusFeedConfig.codex`) — has neither `incidents`
+/// nor a page-level `status`. With both required, every single poll threw
+/// `DecodingError.keyNotFound` ("The data couldn't be read because it is missing"),
+/// climbed the backoff curve to its 5-minute cap and never produced a reading.
+///
+/// Nothing is lost by tolerating their absence. A page that reports no incidents and a
+/// page that does not model incidents are the same thing to `parseStatus`; and a filtered
+/// feed never reads `status` at all, because the page-level indicator covers products
+/// that say nothing about the components it cares about.
 struct StatusPageSummary: Codable {
-    let status: StatusPageStatus
+    /// Page-level roll-up. Absent from `components.json`, and **unused by any filtered
+    /// feed** — `parseStatus` returns `.unknown` rather than borrow it.
+    let status: StatusPageStatus?
+
     let components: [StatusPageComponent]
+
+    /// Active incidents, empty when the key is absent.
+    ///
+    /// For the Codex feed these are empty in practice even from `incidents.json`:
+    /// OpenAI's incidents carry no `components` array, and a filtered feed only counts an
+    /// incident that explicitly names one of its components. So the component statuses
+    /// are the whole signal there.
     let incidents: [StatusPageIncident]
+
+    init(
+        status: StatusPageStatus?,
+        components: [StatusPageComponent],
+        incidents: [StatusPageIncident] = []
+    ) {
+        self.status = status
+        self.components = components
+        self.incidents = incidents
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        status = try container.decodeIfPresent(StatusPageStatus.self, forKey: .status)
+        components = try container.decode([StatusPageComponent].self, forKey: .components)
+        incidents = try container.decodeIfPresent([StatusPageIncident].self, forKey: .incidents) ?? []
+    }
 }
 
 struct StatusPageStatus: Codable {

@@ -11,6 +11,9 @@ final class CodexAuthSession {
     let state: String
     let server: CodexCallbackServer
     private let mailbox = OneShotMailbox<CallbackResult>()
+    /// The 180 s abandonment timer, so `deliver` can stop the clock. It used to run to
+    /// completion on every path, including a cancelled flow.
+    private var timeoutTask: Task<Void, Never>?
 
     private init(verifier: String, state: String, server: CodexCallbackServer) {
         self.verifier = verifier
@@ -26,8 +29,10 @@ final class CodexAuthSession {
         let state = OAuthPKCE.generateState()
         let server = CodexCallbackServer()
         let session = CodexAuthSession(verifier: verifier, state: state, server: server)
-        try server.start { result in
-            Task { @MainActor in session.deliver(result) }
+        // `[weak session]`: the strong form made session → server → handler → session.
+        // The server only delivers while the session is alive, which is the whole point.
+        try server.start(expectedState: state) { [weak session] result in
+            Task { @MainActor in session?.deliver(result) }
         }
         return (session, CodexOAuthConstants.buildAuthorizeURL(codeChallenge: challenge, state: state))
     }
@@ -35,15 +40,22 @@ final class CodexAuthSession {
     /// Await the browser redirect. Times out after 180 s so an abandoned
     /// sign-in can't hold port 1455 forever.
     func awaitCallback() async -> CallbackResult {
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(180))
+        timeoutTask?.cancel()
+        timeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(CodexAuthSession.abandonTimeout))
+            guard !Task.isCancelled else { return }
             self?.deliver(.failure(.providerError("timeout")))
         }
         return await mailbox.value()
     }
 
+    /// Seconds an abandoned sign-in may hold port 1455.
+    static let abandonTimeout: TimeInterval = 180
+
     private func deliver(_ result: CallbackResult) {
         guard mailbox.deliver(result) else { return } // already delivered
+        timeoutTask?.cancel()
+        timeoutTask = nil
         server.stop()
     }
 

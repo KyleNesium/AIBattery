@@ -49,14 +49,16 @@ jobs:
           # hatch below starts accepting runs where the tail of the suite never
           # executed — the exact failure it exists to catch. Bump it with the
           # suite (README's Test Coverage section has the live number).
-          MIN_PASSES=1450
+          MIN_PASSES=1600
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
             set +e
             # Use perl alarm for the per-attempt timeout — `gtimeout` isn't preinstalled
             # on macos-15 runners but perl is. `alarm` schedules SIGALRM, then `exec`
             # replaces perl with swift test; default SIGALRM action is to terminate.
-            perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build 2>&1 | tee test-output.txt
+            # `--no-parallel` for the same reason as ci.yml: AppKit's one-time init
+            # deadlocks when raced from the parallel pool. A tag push must not hang on it.
+            perl -e 'alarm shift @ARGV; exec @ARGV' "$per_attempt_timeout" swift test --skip-build --no-parallel 2>&1 | tee test-output.txt
             exit_code=${PIPESTATUS[0]}
             set -e
             echo "::endgroup::"

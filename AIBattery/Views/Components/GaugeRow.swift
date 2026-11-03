@@ -13,6 +13,10 @@ struct GaugeRow<HeaderLeading: View, HeaderTrailing: View, Footer: View>: View {
     let barColor: Color
     let accessibilityLabel: String
     let accessibilityValue: String
+    /// The detail that otherwise lives only in a `.help()` tooltip — reset time, plan,
+    /// where the reading came from. `.help` does not populate the accessibility
+    /// description, so without this VoiceOver simply never heard any of it.
+    var accessibilityHint: String?
     var tickInterval: TimeInterval = 10
     @ViewBuilder var headerLeading: () -> HeaderLeading
     @ViewBuilder var headerTrailing: () -> HeaderTrailing
@@ -30,9 +34,12 @@ struct GaugeRow<HeaderLeading: View, HeaderTrailing: View, Footer: View>: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityValue(accessibilityValue)
+                .accessibilityHint(accessibilityHint ?? "")
 
-            TimelineView(.periodic(from: .now, by: tickInterval)) { context in
-                footer(context.date)
+            // Ticks only while the panel is on screen — these rows are outside the
+            // deferred-render gate, so a plain TimelineView ran around the clock.
+            PanelPeriodicView(every: tickInterval) { now in
+                footer(now)
             }
         }
     }

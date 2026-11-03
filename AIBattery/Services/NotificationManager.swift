@@ -49,8 +49,11 @@ public final class NotificationManager {
         let enabled = UserDefaults.standard.bool(forKey: UserDefaultsKeys.alertRateLimit)
         guard enabled else { return }
 
+        // Snapped, not read raw: a setting saved before the slider shrank to 60/70/80/90
+        // would otherwise go on firing at its old value (95, 55, …) no matter what the
+        // slider shows, and only a visit to Settings would reconcile the two.
         let threshold = UserDefaults.standard.double(forKey: UserDefaultsKeys.rateLimitThreshold)
-        let effectiveThreshold = threshold > 0 ? threshold : 80.0
+        let effectiveThreshold = AlertThreshold.snapped(threshold)
 
         // A credit budget mirrors one number onto both windows — one alert, not two
         // identical ones batched into "Multiple alerts".
@@ -92,6 +95,16 @@ public final class NotificationManager {
 
     /// Drop an account's latched rate-limit keys. Called when an account is removed so a
     /// re-added account starts clean rather than inheriting a stale "already fired".
+    /// Re-key the in-memory alert latches when a pending account id resolves, so a
+    /// threshold that already fired does not fire again under the new id.
+    func migrateAlertLatches(from oldId: String, to newId: String) {
+        guard oldId != newId else { return }
+        let suffix = "_\(oldId)"
+        hasFired = Set(hasFired.map { key in
+            key.hasSuffix(suffix) ? String(key.dropLast(suffix.count)) + "_\(newId)" : key
+        })
+    }
+
     func clearRateLimitAlerts(accountId: String) {
         hasFired = hasFired.filter { !$0.hasSuffix("_\(accountId)") }
     }

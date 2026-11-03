@@ -39,17 +39,38 @@ enum KeychainHelper {
         return true
     }
 
-    static func get(account: String) -> String? {
+    /// Outcome of a Keychain read. `failed` is not "no item": the item may well exist but
+    /// couldn't be read right now (a prompt cancelled by sleep, a locked keychain), so a
+    /// caller holding a sign-in must not treat it as signed out.
+    enum ReadResult: Equatable, Sendable {
+        case found(String)
+        case notFound
+        case failed(OSStatus)
+    }
+
+    static func read(account: String) -> ReadResult {
         var query = baseQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status != errSecSuccess && status != errSecItemNotFound {
+        switch status {
+        case errSecSuccess:
+            guard let data = result as? Data, let value = String(data: data, encoding: .utf8) else { return .notFound }
+            return .found(value)
+        case errSecItemNotFound:
+            return .notFound
+        default:
             AppLogger.oauth.error("Keychain read failed for \(account, privacy: .public): \(status)")
+            return .failed(status)
         }
-        guard status == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+    }
+
+    static func get(account: String) -> String? {
+        if case let .found(value) = read(account: account) {
+            return value
+        }
+        return nil
     }
 
     static func delete(account: String) {

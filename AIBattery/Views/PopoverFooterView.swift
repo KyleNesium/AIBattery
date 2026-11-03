@@ -155,11 +155,13 @@ struct PopoverFooterView: View {
                 .frame(width: Layout.dotSizeSmall, height: Layout.dotSizeSmall)
             if let symbol = statusSymbol {
                 Image(systemName: symbol)
-                    .font(.system(size: Layout.dotSizeSmall * 0.72, weight: .bold))
+                    .font(Typography.statusDotSymbol)
                     .foregroundStyle(Color.white)
             }
         }
-        .accessibilityLabel(statusTooltip)
+        // The enclosing FooterLink already announces "System status: …"; labelling the
+        // dot as well made VoiceOver read the status twice for one control.
+        .accessibilityHidden(true)
     }
 
     private var statusSymbol: String? {
@@ -241,16 +243,22 @@ private struct RelativeTimeText: View {
     var isStale: Bool = false
     var staleTooltip: String? = nil
 
+    /// The 10 s tick is only worth paying while the panel is on screen — see
+    /// `PanelPeriodicView`.
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 10)) { _ in
-            Text(isStale
-                ? "Cached \(PopoverFooterView.relativeTime(date))"
-                : "Updated \(PopoverFooterView.relativeTime(date))")
-                .font(Typography.monoTiny)
-                .foregroundStyle(isStale ? ThemeColors.caution : ThemeColors.tertiaryLabel)
-                .help(isStale
-                    ? (staleTooltip ?? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))")
-                    : "Last fetched: \(PopoverFooterView.absoluteTime(date))")
+        PanelPeriodicView(every: 10) { _ in
+            label
         }
+    }
+
+    private var label: some View {
+        Text(isStale
+            ? "Cached \(PopoverFooterView.relativeTime(date))"
+            : "Updated \(PopoverFooterView.relativeTime(date))")
+            .font(Typography.monoTiny)
+            .foregroundStyle(isStale ? ThemeColors.caution : ThemeColors.tertiaryLabel)
+            .help(isStale
+                ? (staleTooltip ?? "Rate limits may be stale — API is rate-limiting probes. Last fresh: \(PopoverFooterView.absoluteTime(date))")
+                : "Last fetched: \(PopoverFooterView.absoluteTime(date))")
     }
 }

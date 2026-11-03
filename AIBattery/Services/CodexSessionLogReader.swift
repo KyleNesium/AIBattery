@@ -69,7 +69,9 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     private var directoriesListedDuringLastDiscovery = 0
 
     /// Corrupt / skipped line count from the most recent `readAllUsageEntries()`.
-    private(set) var lastCorruptLineCount = 0
+    /// Written on the scan thread, read from MainActor — see `NSLock.AtomicInt`.
+    private let corruptLineCounter = NSLock.AtomicInt()
+    var lastCorruptLineCount: Int { corruptLineCounter.current }
 
     // MARK: - UsageEntrySource
 
@@ -90,7 +92,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     func readAllUsageEntries() -> [AssistantUsageEntry] {
         lock.lock()
         pendingInvalidation.set(false)
-        lastCorruptLineCount = 0
+        corruptLineCounter.set(0)
 
         if !isDirty, let cached = cachedAllEntries {
             lock.unlock()
@@ -254,7 +256,9 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
 
             files.append(contentsOf: listing.files)
-            queue.append(contentsOf: listing.subdirectories)
+            queue.append(contentsOf: listing.subdirectories.filter {
+                Self.isWithinRetentionHorizon(directory: $0, under: sessionsURL, now: Date())
+            })
         }
 
         // Forget directories that no longer exist, so a deleted date folder cannot keep
@@ -268,6 +272,44 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         lastEnumerationDate = Date()
         rootModDateAtEnumeration = rootModDate
         return files
+    }
+
+    /// Months of history worth discovering. The aggregator never looks past 12 months
+    /// and Codex all-time figures are a `TokenLedger` high-water mark (so they survive a
+    /// file disappearing), but the Codex CLI never prunes its rollouts, so the tree grows
+    /// without bound — measured 2026-10-31: 1734 files, 105 of them already past 90 days.
+    /// 13 rather than 12 so the boundary month is always read whole.
+    ///
+    /// `SessionLogReader` deliberately has no equivalent: Claude Code prunes its own
+    /// session logs at ~45 days (same machine, same day: 2700 files, oldest 46 days), so a
+    /// horizon there would skip nothing and only cost a date prefetch per discovery pass.
+    /// See `docs/TODOS.md` → "Decided not to do".
+    static let retentionHorizonMonths = 13
+
+    /// Whether a `~/.codex/sessions/YYYY[/MM[/DD]]` directory can still hold anything
+    /// worth reading. The date is in the path, so this costs no `stat`.
+    ///
+    /// Anything that does not parse as part of that skeleton is kept: an unrecognised
+    /// layout must not silently drop a user's data.
+    static func isWithinRetentionHorizon(directory: URL, under root: URL, now: Date) -> Bool {
+        let rootComponents = root.standardizedFileURL.pathComponents
+        let components = directory.standardizedFileURL.pathComponents
+        guard components.count > rootComponents.count,
+              Array(components.prefix(rootComponents.count)) == rootComponents else { return true }
+        let relative = Array(components.dropFirst(rootComponents.count))
+
+        guard let year = Int(relative[0]), (1_970...9_999).contains(year) else { return true }
+        var month = 12 // a bare year folder is kept if ANY of its months is in range
+        if relative.count >= 2 {
+            guard let parsed = Int(relative[1]), (1...12).contains(parsed) else { return true }
+            month = parsed
+        }
+
+        let calendar = Calendar.current
+        guard let cutoff = calendar.date(byAdding: .month, value: -retentionHorizonMonths, to: now) else { return true }
+        let cutoffYear = calendar.component(.year, from: cutoff)
+        let cutoffMonth = calendar.component(.month, from: cutoff)
+        return (year, month) >= (cutoffYear, cutoffMonth)
     }
 
     /// Read one directory: its `.jsonl` files and its subdirectories.
@@ -349,12 +391,15 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
         }
 
+        // One reused buffer for the whole file: a `Data` per chunk was the launch
+        // footprint spike (see `ChunkedFileReader`).
+        var chunkReader = ChunkedFileReader(handle: handle, bufferSize: bufferSize)
+
         while true {
-            guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
             var alreadyScanned = leftover.count
-            leftover.append(chunk)
+            guard chunkReader.readChunk(into: &leftover) else { break }
 
             if skippingOversizedLine {
                 guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
@@ -365,7 +410,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
                 alreadyScanned = 0
                 skippingOversizedLine = false
             } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
-                lastCorruptLineCount += 1
+                corruptLineCounter.add(1)
                 AppLogger.files.debug("Skipping oversized Codex JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
                 leftover.removeAll()
                 skippingOversizedLine = true
@@ -395,7 +440,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             process(leftover)
         }
 
-        lastCorruptLineCount += parser.corruptLineCount
+        corruptLineCounter.add(parser.corruptLineCount)
         return entries
     }
 }

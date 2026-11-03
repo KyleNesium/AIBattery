@@ -291,6 +291,42 @@ struct ModelPricingTests {
         #expect(try #require(ModelPricing.pricing(for: "claude-3-opus-20240229")).inputPerMillion == 15)
     }
 
+    /// The ordering test compares table keys only, so it cannot catch a key that swallows a
+    /// display name with no row of its own. Drive real model ids through `pricing(for:)` for
+    /// the two families the Opus test does not cover.
+    @Test func sonnetAndHaikuMinors_resolveToTheirOwnPublishedRates() throws {
+        let expected: [(id: String, input: Double, output: Double)] = [
+            ("claude-sonnet-3-20240229", 3, 15),
+            ("claude-3-5-sonnet-20241022", 3, 15),
+            ("claude-sonnet-3-7-20250219", 3, 15),
+            ("claude-sonnet-4-20250514", 3, 15),
+            ("claude-sonnet-4-5-20250929", 3, 15),
+            ("claude-sonnet-5", 2, 10),
+            ("claude-sonnet-5-5", 2, 10),
+            ("claude-3-haiku-20240307", 0.25, 1.25),
+            ("claude-3-5-haiku-20241022", 0.80, 4),
+            ("claude-haiku-4-5-20251001", 1, 5),
+            ("claude-haiku-5-5", 0.10, 0.50),
+        ]
+        for case let (id, input, output) in expected {
+            let pricing = try #require(ModelPricing.pricing(for: id), "\(id) must have a price")
+            #expect(pricing.inputPerMillion == input, "\(id) input")
+            #expect(pricing.outputPerMillion == output, "\(id) output")
+        }
+    }
+
+    /// Claude 3 Haiku is retired and billed at the Haiku family rate ($1/$5) until it got
+    /// its own row — 4x its real cost on the oldest history anyone still has.
+    @Test func claudeThreeHaiku_usesItsOwnRetiredRate() throws {
+        let pricing = try #require(ModelPricing.pricing(for: "claude-3-haiku-20240307"))
+        #expect(pricing.inputPerMillion == 0.25)
+        #expect(pricing.outputPerMillion == 1.25)
+        #expect(pricing.cacheWritePerMillion == 0.30)
+        #expect(pricing.cacheReadPerMillion == 0.03)
+        // Haiku 3.5 keeps its own, different rate — the two must not collapse together.
+        #expect(try #require(ModelPricing.pricing(for: "claude-3-5-haiku-20241022")).inputPerMillion == 0.80)
+    }
+
     /// A Claude model released after this table was last updated must still cost something —
     /// returning nil here is what produced the $0.00 bug in the first place.
     @Test func unknownMinorVersion_fallsBackToFamilyRate() throws {

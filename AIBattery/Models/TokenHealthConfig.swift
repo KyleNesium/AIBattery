@@ -6,6 +6,11 @@ struct TokenHealthConfig {
     /// Claude 4.x models have 1M context windows (updated March 2026).
     /// Older Claude 3.x models retain 200K windows.
     static let contextWindows: [String: Int] = [
+        // Claude 5 family — explicit rather than relying on `defaultContextWindow`,
+        // so the prefix lookup resolves them without falling through to the default.
+        "claude-opus-5": 1_000_000,
+        "claude-sonnet-5": 1_000_000,
+        "claude-fable-5-1": 1_000_000,
         "claude-opus-4-6": 1_000_000,
         "claude-sonnet-4-6-20250929": 1_000_000,
         "claude-sonnet-4-5-20250929": 1_000_000,

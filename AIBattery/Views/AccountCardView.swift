@@ -24,6 +24,17 @@ struct AccountCardView: View {
                     ForEach(Array(card.bars.enumerated()), id: \.offset) { _, bar in
                         AccountCardBarRow(bar: bar)
                     }
+                    // Who this account actually is, when the Display toggle asks for it.
+                    // Below the gauges and sharing the state line's left edge and size:
+                    // these two are the card's footnotes, and the identity is the quieter
+                    // of them — the state line is the one that can be urgent.
+                    if let hidden = card.hiddenIdentity {
+                        Text(hidden)
+                            .font(Typography.tinyLabel)
+                            .foregroundStyle(ThemeColors.tertiaryLabel)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                     if let text = AccountCard.stateLine(card, now: now) {
                         Text(text)
                             .font(Typography.tinyLabel)
@@ -55,10 +66,11 @@ struct AccountCardView: View {
         .onHover { hovered = $0 }
         .help(helpText)
         .accessibilityElement(children: .ignore)
-        // `children: .ignore` replaces the Button's own representation, which drops the
-        // button trait with it — the card then exposed no actionable element at all to
-        // VoiceOver or to automation. Put the trait back explicitly.
+        // `children: .ignore` replaces the Button's own representation, dropping both its
+        // trait and its press action. The trait alone made the card look actionable while
+        // VoiceOver's activate (AXPress) did nothing, so put both back explicitly.
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onSelect() }
         .accessibilityLabel(card.accessibilityLabel)
         // The state line ("Throttled", "~2h to limit · resets in 3d", "Cached 3m ago") is
         // the card's value. `children: .ignore` hides the on-screen Text from VoiceOver,
@@ -89,7 +101,10 @@ struct AccountCardView: View {
 
     private var header: some View {
         HStack(spacing: Spacing.xsmall) {
-            ProviderBadge(provider: card.provider)
+            // The whole card drives it. A 12pt mark is too small to aim at, and the
+            // card is already the hover target for the stroke and chevron — so the
+            // logo waking up is part of the card lighting up, not a separate hotspot.
+            ProviderBadge(provider: card.provider, isHovered: hovered, markSize: Layout.cardProviderMarkSize)
             Text(card.identity)
                 .font(Typography.accountTitle)
                 .foregroundStyle(hovered ? .primary : ThemeColors.secondaryLabel)
@@ -97,17 +112,19 @@ struct AccountCardView: View {
                 .truncationMode(.middle)
                 // The name is the row; the badge and the plan yield before it does.
                 .layoutPriority(1)
-            if AccountCard.isLive(lastActivity: card.lastActivity, now: now) {
-                // Breathes only while the provider is actually being used.
-                LiveDot(color: tint)
-                    .padding(.leading, Spacing.tight)
-            }
             if let plan = card.plan {
                 Text("\u{00B7} \(plan)")
                     .font(Typography.tinyLabel)
                     .foregroundStyle(ThemeColors.tertiaryLabel)
                     .lineLimit(1)
                     .layoutPriority(-1)
+            }
+            // After the plan, not between the name and it: a dot beside the "·" read as a
+            // stray double separator ("Claude ● · Team").
+            if AccountCard.isLive(lastActivity: card.lastActivity, now: now) {
+                // Breathes only while the provider is actually being used.
+                LiveDot(color: tint)
+                    .padding(.leading, Spacing.tight)
             }
             Spacer(minLength: Spacing.inner)
             if let status = card.status {
@@ -148,7 +165,13 @@ struct AccountCardBarRow: View {
             Text(bar.uncapped ? "No cap" : bar.label)
                 .font(Typography.tinyLabel)
                 .foregroundStyle(ThemeColors.secondaryLabel)
-                .frame(width: Layout.cardBarLabelWidth, alignment: .trailing)
+                // Leading, not trailing: right-aligning the column made "7-Day" start a
+                // few points in from "5-Hour" and the two labels read as misaligned.
+                // Indented, not flush: the column is widened by the indent rather than
+                // the row being offset, so the gauge, token and percent columns stay
+                // exactly where they are across every card.
+                .padding(.leading, Layout.cardBarLabelIndent)
+                .frame(width: Layout.cardBarLabelWidth + Layout.cardBarLabelIndent, alignment: .leading)
             GaugeBar(percent: bar.percent ?? 0, barColor: ThemeColors.barColor(percent: bar.percent ?? 0))
             // Tokens spent in the window, the same figure the detail bars lead with. The
             // reset moved to the card's state line so this column fits at 275pt.

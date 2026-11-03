@@ -47,11 +47,25 @@ final class CodexCallbackServer: @unchecked Sendable {
     private var hasDelivered = false // queue-confined: every access happens on `queue`
     private let queue = DispatchQueue(label: "codex-oauth-callback")
 
+    /// How long one connection may stay open without sending a request line.
+    static let connectionTimeout: TimeInterval = 10
+
     init(port: UInt16 = CodexOAuthConstants.callbackPort) {
         self.port = port
     }
 
-    func start(onRequest: @escaping @Sendable (Result<(code: String, state: String), CodexCallbackError>) -> Void) throws {
+    /// - Parameters:
+    ///   - expectedState: the CSRF state this flow issued. A callback whose state does
+    ///     not match is answered 400 and **not** delivered, and the listener keeps
+    ///     waiting. Any local process could otherwise abort a sign-in by hitting
+    ///     `127.0.0.1:1455/auth/callback` with junk first: the one-shot mailbox
+    ///     delivered and stopped the listener before the state was ever compared (that
+    ///     happens in `OAuthManager+Codex`), so the real redirect landed on a dead port.
+    ///   - onRequest: called once, with the matching callback or a failure.
+    func start(
+        expectedState: String,
+        onRequest: @escaping @Sendable (Result<(code: String, state: String), CodexCallbackError>) -> Void
+    ) throws {
         let parameters = NWParameters.tcp
         // Loopback-only bind: the redirect URI is `http://localhost:1455/...`, and this
         // app is unsandboxed, so a wildcard (all-interfaces) bind — NWListener's default —
@@ -93,16 +107,30 @@ final class CodexCallbackServer: @unchecked Sendable {
 
         listener.newConnectionHandler = { [weak self] connection in
             connection.start(queue: queue)
+            // A connection that sends nothing held an NWConnection until the 180 s
+            // session timeout. Arm a per-connection deadline and disarm it on receive.
+            let deadline = DispatchWorkItem { connection.cancel() }
+            queue.asyncAfter(deadline: .now() + Self.connectionTimeout, execute: deadline)
             connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { data, _, _, _ in
+                deadline.cancel()
                 guard let data, let head = String(data: data, encoding: .utf8)?
                     .components(separatedBy: "\r\n").first else {
                     connection.cancel()
                     return
                 }
                 let result = CodexCallbackParser.parse(requestHead: head)
-                if case .failure(.notCallbackPath) = result {
+                switch Self.disposition(for: result, expectedState: expectedState) {
+                case .notForUs:
                     Self.respond(connection, status: "404 Not Found", body: "Not found") {}
                     return // keep listening — this was favicon or noise; flag untouched
+                case .stateMismatch:
+                    // Not this flow's callback. Answer, keep listening, deliver nothing —
+                    // the genuine redirect still has a live port to land on.
+                    AppLogger.oauth.error("Codex callback with a mismatched state ignored")
+                    Self.respond(connection, status: "400 Bad Request", body: "Bad request") {}
+                    return
+                case .deliver:
+                    break
                 }
                 // For callback-path results, enforce one-shot delivery (runs on queue, so check-and-set is serialized)
                 guard let self else { return }
@@ -122,6 +150,33 @@ final class CodexCallbackServer: @unchecked Sendable {
             }
         }
         listener.start(queue: queue)
+    }
+
+    /// What a parsed request should do to the listener. Pure, so the one-shot and
+    /// CSRF rules are testable without sockets.
+    enum Disposition: Equatable {
+        /// Noise on the port (favicon, a probe): answer 404 and keep waiting.
+        case notForUs
+        /// A callback for some other flow — or a forgery: answer 400 and keep waiting.
+        case stateMismatch
+        /// This flow's callback (or its provider error): hand it to the waiter.
+        case deliver
+    }
+
+    static func disposition(
+        for result: Result<(code: String, state: String), CodexCallbackError>,
+        expectedState: String
+    ) -> Disposition {
+        switch result {
+        case .failure(.notCallbackPath):
+            .notForUs
+        case .failure:
+            // A provider error or a malformed callback on our path is this flow's
+            // answer: the browser is sitting on the redirect and the user needs to know.
+            .deliver
+        case .success(let payload):
+            OAuthPKCE.constantTimeEquals(payload.state, expectedState) ? .deliver : .stateMismatch
+        }
     }
 
     func stop() {
