@@ -139,7 +139,11 @@ final class TokenLedger: @unchecked Sendable {
             save()
         }
 
-        return result.sorted { $0.totalTokens > $1.totalTokens }
+        // Tie-break on id: this array becomes `UsageSnapshot.modelTokens`, which `==`
+        // compares exactly and five refresh paths gate on, and `sorted` is not stable —
+        // so two models level on tokens could swap places between polls and republish a
+        // snapshot that had not changed. Same rule as `buildProjectTokensFromMap`.
+        return result.sorted { $0.totalTokens == $1.totalTokens ? $0.id < $1.id : $0.totalTokens > $1.totalTokens }
     }
 
     /// The date the ledger first recorded a merge for `ledgerKey` — the earliest AI

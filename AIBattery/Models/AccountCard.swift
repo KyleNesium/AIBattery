@@ -60,7 +60,7 @@ struct AccountCard: Identifiable, Equatable {
     /// is on — nil when masked, or when the card's name already *is* the identity.
     ///
     /// It gets its own line rather than riding `identity`: appended in the header it
-    /// truncated mid-domain at 275pt ("API Rates (kyl…@ringier.co.za)"), which answers
+    /// truncated mid-domain at 275pt ("API Rates (kyl…@example.com)"), which answers
     /// "which account is this?" worse than the alias alone. A line of its own has the
     /// whole card width.
     var hiddenIdentity: String?

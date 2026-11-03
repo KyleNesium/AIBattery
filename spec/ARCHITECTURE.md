@@ -146,7 +146,7 @@ AIBattery/
     ClaudePlanFetcher.swift       — Once-per-launch `GET /api/oauth/profile` per Claude account → `billingType`; `interpret` + `accountsNeedingPlan` are pure
     RateLimitFetcher+Persistence.swift    — UserDefaults-backed per-account cache: `PersistedRateLimits` (file-private), `persistRateLimits` (called by `fetch` on success), `restorePersistedRateLimits` (called from init; runs `withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence is dropped)
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
-    SessionLogReader.swift        — Claude JSONL streaming reader (`ChunkedFileReader`, one reused 64KB buffer)
+    SessionLogReader.swift        — Claude JSONL streaming reader (`ChunkedFileReader`, one reused 64KB buffer; incremental tail parse keyed on a SHA-256 head digest)
     FileWatcher.swift             — DispatchSource + two FSEventStreams (~/.claude/projects, ~/.codex/sessions) for live updates
     UsageAggregator.swift         — Merges a provider's data sources → UsageSnapshot (one instance per provider); one pass (`AggregationPass`) yields an `AggregateResult` with both an attributed/detail snapshot and a provider-wide snapshot, keyed by `Attribution`
     Attribution.swift             — `Attribution` enum (`.all` / `.account(_:)`) + `partition(_:)`: splits a provider's entries into the active account's turns and everyone else's (Codex `creatorAccountId` only; Claude entries are always `.all`)

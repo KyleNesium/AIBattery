@@ -1067,6 +1067,54 @@ struct SessionLogReaderTests {
     /// cycle's dangling line, so the undo has to be exactly right *every* time — an
     /// error of one tool call per cycle is invisible in a single-cycle test and
     /// accumulates without bound in a real session.
+    /// A dangling line that *continues a message an earlier cycle already wrote* must not
+    /// take that message's earlier tool calls with it when the undo runs.
+    ///
+    /// Claude Code writes one line per content block, all sharing `message.id`, so a turn
+    /// whose second block is mid-write is this exact shape — not a corner case. The undo
+    /// keys off `TrailingContribution.createdEntry`, and that flag is computed while
+    /// parsing the **tail**, whose entry array starts empty on an incremental parse. So a
+    /// continuation line looks like it created the message even though the merge only
+    /// coalesced it, and the next cycle's `removeAll` deletes the whole message — the
+    /// earlier block's tool calls included.
+    @Test func tailParse_danglingContinuationOfAKnownMessageKeepsItsEarlierToolCalls() throws {
+        let projectsDir = try makeTempProjectsDir()
+        defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }
+
+        let fileURL = projectsDir.appendingPathComponent("-test-project").appendingPathComponent("session.jsonl")
+        // Both lines are message "msg-a": 3 tool calls in the first block, 0 in the second.
+        // A mis-applied undo loses the 3, which no re-read of the second block restores.
+        let first = assistantLineWithTools(messageId: "msg-a", toolCalls: 3)
+        let second = assistantLineWithTools(messageId: "msg-a", toolCalls: 0)
+        let third = assistantLineWithTools(messageId: "msg-c", toolCalls: 1)
+
+        let reader = SessionLogReader(projectsURL: projectsDir)
+
+        func toolCalls(_ entries: [AssistantUsageEntry], _ id: String) -> Int {
+            entries.filter { $0.messageId == id }.reduce(0) { $0 + $1.toolCallCount }
+        }
+
+        // Cycle 1 — first block terminated.
+        try Data("\(first)\n".utf8).write(to: fileURL)
+        reader.invalidate()
+        #expect(toolCalls(reader.readAllUsageEntries(), "msg-a") == 3)
+
+        // Cycle 2 — second block of the same message, still being written.
+        try Data("\(first)\n\(second)".utf8).write(to: fileURL)
+        reader.invalidate()
+        #expect(toolCalls(reader.readAllUsageEntries(), "msg-a") == 3)
+
+        // Cycle 3 — that block is terminated and the next turn lands.
+        try Data("\(first)\n\(second)\n\(third)\n".utf8).write(to: fileURL)
+        reader.invalidate()
+        let incremental = reader.readAllUsageEntries()
+
+        let fresh = SessionLogReader(projectsURL: projectsDir).readAllUsageEntries()
+        #expect(toolCalls(incremental, "msg-a") == toolCalls(fresh, "msg-a"))
+        #expect(toolCalls(incremental, "msg-a") == 3)
+        #expect(incremental.count == fresh.count)
+    }
+
     @Test func tailParse_repeatedDanglingLinesNeverAccumulate() throws {
         let projectsDir = try makeTempProjectsDir()
         defer { try? FileManager.default.removeItem(at: projectsDir.deletingLastPathComponent()) }

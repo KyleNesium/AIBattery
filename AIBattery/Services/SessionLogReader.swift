@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import os
 
@@ -283,13 +284,17 @@ final class SessionLogReader: @unchecked Sendable {
             let head = Self.headBytes(of: fileURL)
             let resumeFrom = Self.tailParseOffset(cached: cache[path], newSize: fileSize, head: head)
             let parse = readSessionFile(at: fileURL, from: resumeFrom ?? 0)
-            let merged: [AssistantUsageEntry] = if let resumeFrom, let previous = cache[path]?.entries {
+            let tailMerge: SessionLogReader.TailMerge? = if let resumeFrom, let previous = cache[path]?.entries {
                 Self.mergingTail(
-                    parse.entries, into: previous, undoing: cache[path]?.trailing
+                    parse.entries,
+                    into: previous,
+                    undoing: cache[path]?.trailing,
+                    recording: parse.trailing
                 )
             } else {
-                parse.entries
+                nil
             }
+            let merged: [AssistantUsageEntry] = tailMerge?.entries ?? parse.entries
             let newIds = Set(merged.map(\.messageId))
             cache[path] = FileCacheEntry(
                 modDate: modDate ?? Date(),
@@ -297,7 +302,10 @@ final class SessionLogReader: @unchecked Sendable {
                 entries: merged,
                 messageIds: newIds,
                 resumeOffset: parse.resumeOffset,
-                trailing: parse.trailing,
+                // On a tail parse this is the contribution re-expressed against `merged`;
+                // a full parse built its entries from scratch, so its own flag is already
+                // in those terms.
+                trailing: tailMerge.map { $0.trailing } ?? parse.trailing,
                 headFingerprint: head
             )
             // No tool-call "refresh" pass over `resultEntries` here, deliberately. A tail
@@ -326,11 +334,19 @@ final class SessionLogReader: @unchecked Sendable {
 
     // MARK: - Incremental tail parse
 
-    /// First `headFingerprintLength` bytes of a file, or empty when unreadable.
+    /// A digest of the first `headFingerprintLength` bytes of a file, or empty when
+    /// unreadable.
+    ///
+    /// Hashed rather than kept verbatim: those bytes are JSONL, so for a file whose first
+    /// line is long enough they include the start of a message, and the per-file cache
+    /// would then hold conversation text for every tracked session. It is only ever
+    /// compared for equality, so a digest does the same job and keeps the rule that these
+    /// reads are token-counts only.
     static func headBytes(of url: URL) -> Data {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return Data() }
         defer { try? handle.close() }
-        return (try? handle.read(upToCount: headFingerprintLength)) ?? Data()
+        guard let head = try? handle.read(upToCount: headFingerprintLength), !head.isEmpty else { return Data() }
+        return Data(SHA256.hash(data: head))
     }
 
     /// Where a re-parse of this file may resume, or nil when it must start from the top.
@@ -350,6 +366,15 @@ final class SessionLogReader: @unchecked Sendable {
         return cached.resumeOffset
     }
 
+    /// The result of folding a tail parse into the previous entries for a file.
+    struct TailMerge {
+        let entries: [AssistantUsageEntry]
+        /// The new dangling line's contribution **re-expressed against `entries`**, which
+        /// is what the next cycle must undo. See `mergingTail` for why it is not simply
+        /// the parse's own `trailing`.
+        let trailing: FileParse.TrailingContribution?
+    }
+
     /// Merge a tail parse into the entries a previous parse of the same file produced.
     ///
     /// - The previous pass's unterminated trailing line is undone first: the tail re-reads
@@ -358,11 +383,25 @@ final class SessionLogReader: @unchecked Sendable {
     /// - A tail entry whose message id is already known is a continuation of that message
     ///   (Claude Code writes one line per content block, all sharing `message.id` and
     ///   carrying identical usage), so only its tool calls are added — never its tokens.
+    ///
+    /// **`createdEntry` has to be recomputed here, and that is the subtle part.** The
+    /// parser sets it by asking whether the dangling line created an entry in the array
+    /// *it* was building — and on an incremental parse that array starts empty, holding
+    /// only the handful of lines after the resume offset. A line continuing a message an
+    /// earlier cycle already wrote therefore reports `createdEntry: true` while the merge
+    /// below only coalesces it. Caching that unadjusted flag made the next cycle's undo
+    /// `removeAll` the whole message, taking the earlier blocks' tool calls with it: a
+    /// turn whose first block carried 3 tool calls and whose second was mid-write read
+    /// back 0 once the second block was terminated. The flag the next undo needs is
+    /// whether the dangling line is the **sole** contributor to its entry here, which
+    /// holds only when it created one within the tail *and* no surviving entry already
+    /// carried that id.
     static func mergingTail(
         _ tail: [AssistantUsageEntry],
         into previous: [AssistantUsageEntry],
-        undoing trailing: FileParse.TrailingContribution?
-    ) -> [AssistantUsageEntry] {
+        undoing trailing: FileParse.TrailingContribution?,
+        recording newTrailing: FileParse.TrailingContribution? = nil
+    ) -> TailMerge {
         var merged = previous
         if let trailing {
             if trailing.createdEntry {
@@ -372,6 +411,11 @@ final class SessionLogReader: @unchecked Sendable {
                 merged[index] = addingToolCalls(-trailing.toolCalls, to: merged[index])
             }
         }
+
+        // Read *after* the undo and *before* the tail is folded in: an id still present
+        // here belongs to a line the tail will not re-read, so the dangling line can only
+        // be coalescing into it.
+        let survivingIds = Set(merged.map { $0.messageId })
 
         var indexById = Dictionary(
             merged.enumerated().map { ($0.element.messageId, $0.offset) },
@@ -387,7 +431,15 @@ final class SessionLogReader: @unchecked Sendable {
                 merged.append(entry)
             }
         }
-        return merged
+
+        let adjusted = newTrailing.map {
+            FileParse.TrailingContribution(
+                messageId: $0.messageId,
+                toolCalls: $0.toolCalls,
+                createdEntry: $0.createdEntry && !survivingIds.contains($0.messageId)
+            )
+        }
+        return TailMerge(entries: merged, trailing: adjusted)
     }
 
     /// Release raw entry arrays from per-file cache for files not modified today.

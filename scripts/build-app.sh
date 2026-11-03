@@ -115,6 +115,23 @@ if [ -d "$APP_DIR/Contents/Frameworks" ]; then
       echo "  Signing nested app: $(basename "$nested")"
       codesign --sign "$SIGN_IDENTITY" --force --options runtime "$nested"
     done
+    # Loose helper executables (Sparkle's `Autoupdate`). Same trap as the nested app
+    # above, one level meaner: these are bare Mach-O files, not bundles, so a glob over
+    # *.app or *.xpc never sees them and signing the framework only seals them. Sparkle
+    # launches Autoupdate as its own process to install an update, and notarization
+    # requires every executable in the bundle to carry the Developer ID — an ad-hoc one
+    # in here fails the notary, after the build has otherwise succeeded. Loop rather
+    # than name it, so a future Sparkle helper is covered without this being rediscovered.
+    FRAMEWORK_BINARY=$(basename "$item" .framework)
+    for helper in "$item"/Versions/Current/*; do
+      [ -f "$helper" ] || continue
+      [ -x "$helper" ] || continue
+      file "$helper" | grep -q "Mach-O" || continue
+      # Skip the framework's own binary — signing the framework below covers it.
+      [ "$(basename "$helper")" = "$FRAMEWORK_BINARY" ] && continue
+      echo "  Signing helper executable: $(basename "$helper")"
+      codesign --sign "$SIGN_IDENTITY" --force --options runtime "$helper"
+    done
     # Sign framework (without --deep — XPCs already signed)
     echo "  Signing: $(basename "$item")"
     codesign --sign "$SIGN_IDENTITY" --force --options runtime "$item"
@@ -186,7 +203,8 @@ if [ "$ENTITLEMENTS" = ".build/AIBattery-hardened.entitlements" ]; then
   for nested in \
     "$APP_DIR"/Contents/Frameworks/*.framework \
     "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/*.xpc \
-    "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/*.app; do
+    "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/*.app \
+    "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate; do
     [ -e "$nested" ] || continue
     NESTED_TEAM_ID=$(team_id_of "$nested")
     if [ "$NESTED_TEAM_ID" != "$APP_TEAM_ID" ]; then

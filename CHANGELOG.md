@@ -3,7 +3,8 @@
 ## [3.4.0] — 2026-11-03
 
 ### Added
-- **The hover glow on a card is quieter.** The orange or green wash that fills a card under the pointer is fainter (0.07 → 0.04), so it no longer competes with the bars underneath it. Its hairline edge is unchanged — that outline, not the fill, is what gives the card its shape.
+- **A hovered account card has a crisper edge.** The orange or green wash that fills the card under the pointer is unchanged — past a certain strength it reads as a coloured panel laid over the bars rather than a highlight under them — but its hairline outline is stronger, and that outline, not the fill, is what gives the card its shape.
+- **Hover highlights elsewhere are fainter.** Buttons, chevrons, section headers and the click-to-copy highlight all sit on a lighter wash now. A hover should hint that something is clickable, not paint a block over the panel.
 - **Bigger logos on the overview cards.** 14pt instead of 12pt. The slot around them is unchanged, so every column still lines up; the header chip and Settings rows keep the smaller mark.
 - **The brand marks come alive on hover.** Point at an account card or the header chip and its logo lifts and glows in the provider's own colour — then does whatever its own shape asks for. Claude's sunburst springs: it sails past its size, snaps back and wobbles into place. The OpenAI knot turns a full revolution. The whole card is the target, not the 12pt logo. Reduce Motion keeps the glow and drops the movement.
 - **The provider colours are softer.** The terracotta and green are the only saturated colours in the popover, and at full strength they pulled the eye before the numbers did. Everything tinted with them — logo, glow, live dot, card highlight, chevron — softens together.
@@ -23,7 +24,7 @@
 - **An uncapped Codex plan shows "Credits: unlimited"** even when the provider reports no balance.
 - **Adding an API key offline no longer flashes a red error.** An inconclusive check is not a failure; the next poll reports the real state.
 - **Claude 3 Haiku bills at its own retired rate** ($0.25/$1.25 per million) instead of the current Haiku rate, which was 4× too high on the oldest history.
-- **A Codex sign-in cannot be aborted by another local process.** The callback listener delivers only on a matching CSRF state, times out idle connections, and stops its 180-second clock as soon as the browser comes back.
+- **A Codex sign-in cannot be hijacked by another local process.** The callback listener accepts an authorization code only when the CSRF state matches, compares it in constant time before anything else happens, binds to the loopback address alone, times out idle connections, and stops its 180-second clock as soon as the browser comes back.
 - **The Codex status indicator works.** Every check of OpenAI's status page had been failing since Codex support shipped, so the dot never appeared and no OpenAI outage ever raised a notification — the page omits fields the app insisted on, and the summary it was reading lists only the first 25 components while all five Codex entries sit past that cut-off. It now reads the endpoint that carries them.
 - **The sign-in email is no longer written to the system log.** Looking up a Claude account's plan logged the whole profile, which included the account's email address, where any app able to read the unified log could see it. The line now names the plan only.
 - **The popover stops redrawing when nothing changed.** Two reads of identical data could disagree in the last decimal place of a cost, which counted as a change and republished everything behind it.

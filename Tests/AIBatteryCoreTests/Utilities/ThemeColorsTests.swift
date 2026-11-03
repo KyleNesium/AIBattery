@@ -279,6 +279,14 @@ struct ThemeColorsTests {
         #expect(ThemeColors.rowHoverStrokeOpacity == 0.24)
     }
 
+    /// The fill is pinned too, not just the relation. An earlier pass took the pair to
+    /// 0.04 / 0.18 and it was lifted back out of a whisper; with only `fill < stroke`
+    /// asserted, a future quietening pass could drop the fill again and stay green —
+    /// and the CHANGELOG shipped describing exactly that reverted value.
+    @Test func rowHoverFill_keepsItsWeight() {
+        #expect(ThemeColors.rowHoverTintOpacity == 0.07)
+    }
+
     // MARK: - Provider tint strength
 
     /// The terracotta and green are the only saturated colours in an otherwise

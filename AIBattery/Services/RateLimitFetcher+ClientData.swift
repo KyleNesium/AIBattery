@@ -99,7 +99,11 @@ extension RateLimitFetcher {
                     let keys = json.keys.sorted().joined(separator: ", ")
                     AppLogger.network.warning("client_data: no rate limits parsed. Top-level keys: [\(keys, privacy: .public)]")
                 } else if let bodyStr = String(data: data.prefix(256), encoding: .utf8) {
-                    AppLogger.network.warning("client_data: not a JSON object. Body: \(bodyStr, privacy: .public)")
+                    // `.private`: this is an uncontrolled upstream payload. Normally it is
+                    // an error page, but a proxy or a changed endpoint could put anything
+                    // here, and a `.public` body is readable by anything that can open the
+                    // unified log — the same shape as the plan-fetcher leak.
+                    AppLogger.network.warning("client_data: not a JSON object (\(data.count, privacy: .public) bytes). Body: \(bodyStr, privacy: .private)")
                 } else {
                     AppLogger.network.warning("client_data: response is not a JSON object")
                 }
