@@ -327,7 +327,11 @@ final class SessionLogReader: @unchecked Sendable {
         }
 
         if changed || base == nil {
-            resultEntries.sort { $0.timestamp < $1.timestamp }
+            // Tie on `messageId`: entries arrive per file from a dictionary, so two
+            // with the same timestamp have no inherent order, and `sort` is not stable.
+            // `TokenHealthMonitor` reads a session's *last* entry for its model and
+            // context, so an unstable tail can change what the gauge reports.
+            resultEntries.sort { $0.timestamp == $1.timestamp ? $0.messageId < $1.messageId : $0.timestamp < $1.timestamp }
         }
         return (resultEntries, seenIds)
     }

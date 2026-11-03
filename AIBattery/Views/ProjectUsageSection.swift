@@ -23,12 +23,24 @@ struct ProjectUsageSection: View {
         switch sortMode {
         case .tokensDesc:
             cachedSorted = snapshot.projectTokens // already sorted by totalTokens desc
+        // Every branch breaks ties on `id`. The aggregator hands over a deterministic
+        // order, but `sorted` is not stable, so re-sorting on a key with duplicates
+        // throws that away — and several projects sitting at exactly 0.0 cost, or two
+        // worktrees of one repo sharing a display name, are the ordinary cases here,
+        // not rare ones. Without it the list reshuffles between polls on its own.
         case .costDesc:
-            cachedSorted = snapshot.projectTokens.sorted { $0.estimatedCost > $1.estimatedCost }
+            cachedSorted = snapshot.projectTokens.sorted {
+                $0.estimatedCost == $1.estimatedCost ? $0.id < $1.id : $0.estimatedCost > $1.estimatedCost
+            }
         case .costAsc:
-            cachedSorted = snapshot.projectTokens.sorted { $0.estimatedCost < $1.estimatedCost }
+            cachedSorted = snapshot.projectTokens.sorted {
+                $0.estimatedCost == $1.estimatedCost ? $0.id < $1.id : $0.estimatedCost < $1.estimatedCost
+            }
         case .name:
-            cachedSorted = snapshot.projectTokens.sorted { $0.projectName.localizedCaseInsensitiveCompare($1.projectName) == .orderedAscending }
+            cachedSorted = snapshot.projectTokens.sorted {
+                let order = $0.projectName.localizedCaseInsensitiveCompare($1.projectName)
+                return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
+            }
         }
     }
 

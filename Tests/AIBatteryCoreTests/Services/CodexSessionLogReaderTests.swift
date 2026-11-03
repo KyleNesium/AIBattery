@@ -32,6 +32,147 @@ struct CodexSessionLogReaderTests {
         return url
     }
 
+    // MARK: - Incremental tail parse
+
+    /// The active rollout is 20-25 MB and the CLI writes to it continuously, so a changed
+    /// file resumes at the last newline instead of re-reading from byte 0. Every test
+    /// here compares the incremental result against a **fresh full parse of the same
+    /// bytes** — the only assertion that can catch a merge that silently drops or
+    /// double-counts a turn.
+    private func fullParse(_ root: URL) -> [AssistantUsageEntry] {
+        CodexSessionLogReader(sessionsURL: root).readAllUsageEntries()
+    }
+
+    private func tokenSum(_ entries: [AssistantUsageEntry]) -> Int {
+        var total = 0
+        for entry in entries {
+            total += entry.inputTokens + entry.outputTokens + entry.cacheReadTokens + entry.cacheWriteTokens
+        }
+        return total
+    }
+
+    @Test func tailParse_appendedTurnsMatchAFullReparse() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        var lines = [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-21T09:00:00.000Z")]
+        try writeRollout(lines, datePath: "2026/09/21", name: "rollout-a", root: root)
+        #expect(reader.readAllUsageEntries().count == 1)
+
+        for ordinal in 2...6 {
+            lines.append(tokenCount(ordinal: ordinal, timestamp: "2026-09-21T09:0\(ordinal):00.000Z"))
+            try writeRollout(lines, datePath: "2026/09/21", name: "rollout-a", root: root)
+            reader.invalidate()
+            let incremental = reader.readAllUsageEntries()
+            let fresh = fullParse(root)
+            #expect(incremental.map(\.messageId) == fresh.map(\.messageId), "after ordinal \(ordinal)")
+            #expect(tokenSum(incremental) == tokenSum(fresh))
+        }
+    }
+
+    /// The resumed parser must carry the model forward. `turn_context` appears once near
+    /// the top of a rollout; a tail parse that restarted cold would see `token_count`
+    /// lines with no model in effect and drop every one of them.
+    @Test func tailParse_keepsTheModelFromBeforeTheResumeOffset() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        var lines = [turnContext(model: "gpt-5.4-codex"), tokenCount(ordinal: 1, timestamp: "2026-09-21T09:00:00.000Z")]
+        try writeRollout(lines, datePath: "2026/09/21", name: "rollout-a", root: root)
+        #expect(reader.readAllUsageEntries().count == 1)
+
+        // Appended turns are far past the single `turn_context` line.
+        lines.append(tokenCount(ordinal: 2, timestamp: "2026-09-21T09:02:00.000Z"))
+        try writeRollout(lines, datePath: "2026/09/21", name: "rollout-a", root: root)
+        reader.invalidate()
+        let incremental = reader.readAllUsageEntries()
+
+        #expect(incremental.count == 2)
+        #expect(incremental.allSatisfy { $0.model == "gpt-5.4-codex" })
+        #expect(incremental.map(\.messageId) == fullParse(root).map(\.messageId))
+    }
+
+    /// A turn still being written has no trailing newline. It is parsed so the newest
+    /// usage shows immediately, but the resume offset stops before it, so the next pass
+    /// re-reads it — and must not count it twice.
+    @Test func tailParse_danglingTurnIsNotCountedTwiceWhenTerminated() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        let base = [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-21T09:00:00.000Z")]
+        try writeRollout(base, datePath: "2026/09/21", name: "rollout-a", root: root)
+        #expect(reader.readAllUsageEntries().count == 1)
+
+        // Dangling second turn.
+        let withDangling = base + [tokenCount(ordinal: 2, timestamp: "2026-09-21T09:02:00.000Z")]
+        try writeRollout(withDangling, datePath: "2026/09/21", name: "rollout-a", root: root, trailingNewline: false)
+        reader.invalidate()
+        let mid = reader.readAllUsageEntries()
+        #expect(mid.count == 2)
+        #expect(tokenSum(mid) == tokenSum(fullParse(root)))
+
+        // Terminated, plus the next turn.
+        let terminated = withDangling + [tokenCount(ordinal: 3, timestamp: "2026-09-21T09:03:00.000Z")]
+        try writeRollout(terminated, datePath: "2026/09/21", name: "rollout-a", root: root)
+        reader.invalidate()
+        let after = reader.readAllUsageEntries()
+        let fresh = fullParse(root)
+        #expect(after.count == 3)
+        #expect(after.map(\.messageId) == fresh.map(\.messageId))
+        #expect(tokenSum(after) == tokenSum(fresh))
+    }
+
+    /// Seven write cycles, each terminating the previous dangling turn and leaving a new
+    /// one. A one-cycle test cannot see an undo that is off by one *per cycle*, and a
+    /// live session does this for hours.
+    @Test func tailParse_repeatedDanglingTurnsNeverAccumulate() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        var terminated = [turnContext()]
+
+        for ordinal in 1...7 {
+            let dangling = tokenCount(ordinal: ordinal, timestamp: "2026-09-21T09:0\(ordinal):00.000Z")
+            try writeRollout(terminated + [dangling], datePath: "2026/09/21", name: "rollout-a",
+                             root: root, trailingNewline: false)
+            reader.invalidate()
+            let incremental = reader.readAllUsageEntries()
+            let fresh = fullParse(root)
+            #expect(incremental.map(\.messageId) == fresh.map(\.messageId), "cycle \(ordinal)")
+            #expect(tokenSum(incremental) == tokenSum(fresh), "cycle \(ordinal) tokens")
+            terminated.append(dangling)
+        }
+    }
+
+    /// A rewritten (not appended) file must fall back to a full parse: the head digest
+    /// no longer matches, so the resume offset is refused.
+    @Test func tailParse_aRewrittenRolloutFallsBackToAFullParse() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        try writeRollout([turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-21T09:00:00.000Z")],
+                         datePath: "2026/09/21", name: "rollout-a", root: root)
+        #expect(reader.readAllUsageEntries().count == 1)
+
+        // Different session entirely, same path — longer, so size alone would pass.
+        try writeRollout([
+            turnContext(model: "gpt-5.4-mini"),
+            tokenCount(ordinal: 1, timestamp: "2026-09-22T10:00:00.000Z", input: 7, output: 3),
+            tokenCount(ordinal: 2, timestamp: "2026-09-22T10:01:00.000Z", input: 7, output: 3),
+        ], datePath: "2026/09/21", name: "rollout-a", root: root)
+        reader.invalidate()
+
+        let incremental = reader.readAllUsageEntries()
+        let fresh = fullParse(root)
+        #expect(incremental.map(\.messageId) == fresh.map(\.messageId))
+        #expect(incremental.allSatisfy { $0.model == "gpt-5.4-mini" })
+    }
+
     // MARK: - Tests
 
     @Test func readsEntriesAcrossNestedDateDirs_sortedAscending() throws {

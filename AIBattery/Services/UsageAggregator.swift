@@ -322,7 +322,13 @@ final class UsageAggregator: @unchecked Sendable {
             ledgerKey: String?
         ) -> (snapshot: UsageSnapshot, observedModels: [String]) {
             // Build observed model list sorted by recency (most recent first) for dynamic probe fallback.
-            let observedModels = lastSeenByModel.sorted { $0.value > $1.value }.map(\.key)
+            // Tie on the model id: this list is persisted per account
+            // (`aibattery_observedModels_`) and drives the Claude probe order, so two
+            // models last seen in the same second must not swap places between polls
+            // and rewrite the stored value for nothing.
+            let observedModels = lastSeenByModel
+                .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+                .map(\.key)
 
             let todayMessages = todayEntries.count
             let todaySessions = entriesByDate[todayDate]?.sessions.count ?? 0

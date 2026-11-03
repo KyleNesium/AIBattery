@@ -47,17 +47,27 @@ final class ClaudePlanFetcher {
     private var settled: Set<String> = []
     private var inFlight: Set<String> = []
 
+    /// Per-account backoff for the one outcome that is *not* settled.
+    ///
+    /// `.unavailable` (429, 5xx, transport) leaves the account eligible, and `syncPlans`
+    /// runs at the tail of every fan-out — so without this an Anthropic incident costs
+    /// one extra profile GET per Claude account per poll for the rest of the launch,
+    /// against an endpoint that is already failing. Every other network caller in the app
+    /// sits on this same curve (60s → 300s cap, jittered).
+    private var backoff: [String: EndpointBackoff] = [:]
+
     /// Claude accounts that still need a lookup: identity resolved (a pending id is
     /// about to change), signed in, and not already settled this launch.
     nonisolated static func accountsNeedingPlan(
         _ accounts: [AccountRecord],
         settled: Set<String>,
-        isAuthenticated: (String) -> Bool
+        isAuthenticated: (String) -> Bool,
+        isBackingOff: (String) -> Bool = { _ in false }
     ) -> [String] {
         accounts
             .filter { $0.provider == .claude && !$0.isPendingIdentity }
             .map(\.id)
-            .filter { !settled.contains($0) && isAuthenticated($0) }
+            .filter { !settled.contains($0) && isAuthenticated($0) && !isBackingOff($0) }
     }
 
     /// Pure interpretation of a profile response, testable without the network.
@@ -72,10 +82,12 @@ final class ClaudePlanFetcher {
     /// Fire-and-forget from the refresh tail: never delays a refresh, and a second call
     /// while one is running skips the accounts already being looked up.
     func syncPlans(oauthManager: OAuthManager) {
+        let now = Date()
         let ids = Self.accountsNeedingPlan(
             oauthManager.accountStore.accounts,
             settled: settled.union(inFlight),
-            isAuthenticated: { oauthManager.isAuthenticated(accountId: $0) }
+            isAuthenticated: { oauthManager.isAuthenticated(accountId: $0) },
+            isBackingOff: { [backoff] in EndpointBackoff.shouldSkip(backoff[$0] ?? EndpointBackoff(), now: now) }
         )
         guard !ids.isEmpty else { return }
         inFlight.formUnion(ids)
@@ -93,6 +105,7 @@ final class ClaudePlanFetcher {
         switch outcome {
         case let .answered(facts):
             settled.insert(accountId)
+            backoff[accountId] = nil
             // Only a recognised plan is written. An unrecognised answer leaves the stored
             // value alone rather than erasing a plan the profile merely failed to name.
             if let plan = facts.billingType, oauthManager.accountStore.account(id: accountId)?.billingType != plan {
@@ -106,8 +119,13 @@ final class ClaudePlanFetcher {
             }
         case .rejected:
             settled.insert(accountId)
+            backoff[accountId] = nil
         case .unavailable:
-            break
+            // Not settled — the plan is still unknown and worth another try — but not on
+            // the very next poll.
+            backoff[accountId] = EndpointBackoff.recordingFailure(
+                backoff[accountId] ?? EndpointBackoff(), now: Date()
+            )
         }
         AppLogger.network.info("claude plan lookup \(accountId, privacy: .public): \(outcome.logDescription, privacy: .public)")
     }

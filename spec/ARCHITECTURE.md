@@ -137,7 +137,7 @@ AIBattery/
     CodexSessionRateLimitScanner.swift — Tail-scans the newest rollout for the last `rate_limits` snapshot (fallback source, always `isCached`)
     UsageEntrySource.swift        — Protocol both session-log readers implement (readAllUsageEntries / invalidate / lastCorruptLineCount)
     CodexSessionLogParser.swift   — Per-file state machine: session_meta → identity, turn_context → model, token_count.last_token_usage → AssistantUsageEntry
-    CodexSessionLogReader.swift   — Streaming reader over `~/.codex/sessions/YYYY/MM/DD/*.jsonl` (fingerprint cache, eviction, symlink boundary)
+    CodexSessionLogReader.swift   — (incremental tail parse: resumes at the last newline, restoring the parser state snapshotted before the trailing line) Streaming reader over `~/.codex/sessions/YYYY/MM/DD/*.jsonl` (fingerprint cache, eviction, symlink boundary)
     StatusFeedConfig+Codex.swift  — `StatusFeedConfig.codex`: status.openai.com filtered to the five Codex components
     OAuthTokenStorage.swift       — Keychain (refresh token) + UserDefaults (expiry) persistence layer extracted from OAuthManager
     RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)

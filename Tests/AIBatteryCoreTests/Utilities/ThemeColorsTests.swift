@@ -287,6 +287,40 @@ struct ThemeColorsTests {
         #expect(ThemeColors.rowHoverTintOpacity == 0.07)
     }
 
+    // MARK: - Adaptive wash alphas
+
+    /// These are the values that actually drifted. They sat inline inside
+    /// `adaptive(light:dark:)` where nothing could read them back — resolving a dynamic
+    /// NSColor off the main thread deadlocks the headless runner — so six spec entries
+    /// went stale without a single test noticing. Named `Double`s are just numbers.
+    @Test func washAlphas_keepTheirValues() {
+        #expect(ThemeColors.hoverFillAlpha == 0.04)
+        #expect(ThemeColors.hoverStrokeAlpha == 0.08)
+        #expect(ThemeColors.copyableHoverFillAlpha == 0.10)
+        #expect(ThemeColors.trackFillLightAlpha == 0.30)
+        #expect(ThemeColors.trackFillDarkAlpha == 0.1)
+        #expect(ThemeColors.badgeFillLightAlpha == 0.09)
+        #expect(ThemeColors.badgeFillDarkAlpha == 0.06)
+    }
+
+    /// The ordering between them is the design rule, and it outlives any one value: a
+    /// hover hint stays under the stronger click-to-copy affordance, and both stay well
+    /// under the bar track they sit beside.
+    @Test func washAlphas_keepTheirOrdering() {
+        #expect(ThemeColors.hoverFillAlpha < ThemeColors.copyableHoverFillAlpha)
+        #expect(ThemeColors.hoverFillAlpha < ThemeColors.hoverStrokeAlpha)
+        #expect(ThemeColors.copyableHoverFillAlpha < ThemeColors.trackFillLightAlpha)
+    }
+
+    /// The light track is deliberately much darker than the dark-mode one: at the old
+    /// 0.14 every bar fill measured under 3:1 against its own track in light mode, which
+    /// fails WCAG non-text contrast. Dark mode already passed, so the two are not
+    /// mirror images and must not be "tidied" into one value.
+    @Test func trackFill_lightIsDarkerThanDarkMode_forContrast() {
+        #expect(ThemeColors.trackFillLightAlpha > ThemeColors.trackFillDarkAlpha)
+        #expect(ThemeColors.trackFillLightAlpha >= 0.30)
+    }
+
     // MARK: - Provider tint strength
 
     /// The terracotta and green are the only saturated colours in an otherwise

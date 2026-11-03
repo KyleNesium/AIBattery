@@ -71,6 +71,38 @@ struct ClaudePlanFetcherTests {
         #expect(ClaudePlanFetcher.accountsNeedingPlan(accounts, settled: ["c1", "c2"], isAuthenticated: { _ in true }).isEmpty)
     }
 
+    /// An account inside its backoff window is skipped. `.unavailable` (429/5xx/transport)
+    /// does not settle the account — the plan is still unknown and worth retrying — so
+    /// without this the fan-out tail would re-request it on every single poll, against an
+    /// endpoint that is already failing.
+    @Test func accountsNeedingPlan_skipsAnAccountInsideItsBackoffWindow() {
+        let accounts = [
+            record("c1", .claude),
+            record("c2", .claude),
+        ]
+        let ids = ClaudePlanFetcher.accountsNeedingPlan(
+            accounts,
+            settled: [],
+            isAuthenticated: { _ in true },
+            isBackingOff: { $0 == "c1" }
+        )
+        #expect(ids == ["c2"])
+    }
+
+    /// Backoff is a delay, not a verdict: once the window passes the account is eligible
+    /// again, because its plan was never learned.
+    @Test func accountsNeedingPlan_returnsAnAccountOnceItsBackoffExpires() {
+        let accounts = [record("c1", .claude)]
+        let failed = EndpointBackoff.recordingFailure(EndpointBackoff(), now: Date())
+        let stillBacking = EndpointBackoff.shouldSkip(failed, now: Date())
+        let expired = EndpointBackoff.shouldSkip(failed, now: Date().addingTimeInterval(600))
+        #expect(stillBacking)
+        #expect(!expired)
+        #expect(ClaudePlanFetcher.accountsNeedingPlan(
+            accounts, settled: [], isAuthenticated: { _ in true }, isBackingOff: { _ in expired }
+        ) == ["c1"])
+    }
+
     @Test func profileURL_isTheOAuthProfileEndpoint() {
         #expect(ClaudePlanFetcher.profileURL.absoluteString == "https://api.anthropic.com/api/oauth/profile")
     }

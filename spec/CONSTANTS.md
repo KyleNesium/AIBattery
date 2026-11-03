@@ -446,7 +446,7 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Copy clipboard icon display | 1.5 seconds (`MotionConstants.clipboardFeedbackNs`), `MotionConstants.standard` (.easeOut 0.15) for both show and hide; `.scale`+`.opacity` transition |
 | Progress bar fill | `.easeInOut(duration: 0.4)` on width (UsageBar + TokenHealthSection) |
 | Numeric text transition | `.contentTransition(.numericText())`, `.easeInOut(duration: 0.4)` on percentages |
-| Copy hover highlight | `ThemeColors.copyableHoverFill` (adaptive black/white 0.10) background, `NSCursor.pointingHand` |
+| Copy hover highlight | `ThemeColors.copyableHoverFill` (`copyableHoverFillAlpha`) background, `NSCursor.pointingHand` |
 | Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
 | MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
 | Brand mark hover | Shared by both marks: a spring lift (`MotionConstants.markLift`) and a `Layout.markGlowRadius` (5) glow at `ThemeColors.markGlowOpacity` (0.55) in the provider's colour, the glow riding the same spring as the scale. The gesture then splits by `AIProvider.markHoverMotion`. **Claude `.bloom`** — an under-damped spring to `Layout.markBloomScale` (1.35), overshooting to roughly 1.48 before wobbling back onto it. The target is larger than the turn's on purpose: a spring can only be as rubbery as the distance it covers, and at 1.18 the overshoot did not register. **Codex `.turn`** — a damped spring to `Layout.markHoverScale` (1.18) plus one full turn (`ProviderBadge.hoverRotationDegrees` = 360) over `MotionConstants.markSpin` (1.6s); a whole turn on purpose, since nothing unwinds the angle on hover-out. Both are driven by the parent's hover (chip, card) so the target is bigger than the 12pt mark. Reduce Motion: glow only. **Rejected, do not retry:** rotating the sunburst (uneven rays → reads as a wobble); an expanding ghost copy (hidden behind an opaque logo → reads as a smudge); and any hand-shaped `f(position)` curve — see `markLift` for why those silently do nothing |
@@ -666,13 +666,15 @@ Most bar and accent colors use system palette in both modes (the opaque light-mo
 | Menu bar orange | `.systemOrange` | `.systemOrange` |
 | Secondary label | black 70% | white 55% |
 | Tertiary label | black 55% | white 35% |
-| Track fill | black 30% opacity (was 14%: every bar fill measured under 3:1 against its own track) | white 10% opacity |
-| Badge fill | black 9% opacity | white 6% opacity |
-| Hover fill | black 4% opacity (`hoverFill`, was 6%) | white 4% opacity |
-| Hover stroke | black 8% opacity (`hoverStroke`, was 12%) | white 8% opacity |
+| Track fill | `ThemeColors.trackFillLightAlpha` (raised from 0.14: every bar fill measured under 3:1 against its own track) | `trackFillDarkAlpha` |
+| Badge fill | `ThemeColors.badgeFillLightAlpha` | `badgeFillDarkAlpha` |
+| Hover fill | `ThemeColors.hoverFillAlpha` | same |
+| Hover stroke | `ThemeColors.hoverStrokeAlpha` | same |
 | Disabled opacity | 0.55 | 0.55 |
 | Disabled deep opacity | 0.25 | 0.25 |
 | Popover background | `controlBackgroundColor` (opaque white) | `controlBackgroundColor` (opaque dark) |
+
+The adaptive wash alphas above are **named constants** (`ThemeColors.<name>Alpha`, or `…LightAlpha` / `…DarkAlpha` where the two appearances differ) rather than literals written inline in `adaptive(light:dark:)`. That is deliberate and load-bearing: an inline literal exists only inside a dynamic `NSColor`, resolving one of those off the main thread deadlocks the headless test runner, and so nothing could assert them — six entries in this file drifted out of step with the code before the values had names. `ThemeColorsTests` pins each value and their ordering. Quote the constant here, not the number.
 
 ### Context health bands
 

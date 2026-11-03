@@ -202,7 +202,6 @@ enum ThemeColors {
 
     // MARK: - Interactive state colors
 
-    /// Hover highlight for interactive elements (buttons, chevrons, headers).
     /// Tint of the provider badge behind the header chip's symbol — Anthropic's
     /// terracotta for Claude, OpenAI's green for Codex. Plain literals (not dynamic
     /// NSColors) so they are safe to compare off-main in tests.
@@ -230,26 +229,58 @@ enum ThemeColors {
         }
     }
 
+    // MARK: - Adaptive wash alphas
+
+    //
+    // Named rather than written inline in the `adaptive(light:dark:)` calls below,
+    // because an inline literal cannot be asserted: it only exists inside a dynamic
+    // NSColor, and resolving one of those off the main thread deadlocks the headless
+    // test runner. These are plain `Double`s, so `ThemeColorsTests` can pin them — and
+    // CONSTANTS.md can name the constant instead of a number that goes stale. Six of
+    // these drifted out of the spec before they had names.
+
+    /// Neutral hover wash. Faint on purpose: a hover hints that something is clickable and
+    /// should not paint a block over the panel.
+    static let hoverFillAlpha: Double = 0.04
+
+    /// Hairline edge of the neutral hover wash. Every highlight is a fill plus this edge;
+    /// a fill on its own reads as a smudge rather than a shape.
+    static let hoverStrokeAlpha: Double = 0.08
+
+    /// Hover wash for a click-to-copy element — one step above `hoverFillAlpha`, so the
+    /// stronger affordance reads as stronger.
+    static let copyableHoverFillAlpha: Double = 0.10
+
+    /// Bar-gauge track. The light value is 0.30, not the original 0.14: at 0.14 every bar
+    /// fill measured under 3:1 against its own track (green 1.47, orange 1.48, red
+    /// 2.39), failing WCAG non-text contrast in daylight. Dark mode already passed.
+    static let trackFillLightAlpha: Double = 0.30
+    static let trackFillDarkAlpha: Double = 0.1
+
+    /// Subtle badge background (e.g. the "beta" label).
+    static let badgeFillLightAlpha: Double = 0.09
+    static let badgeFillDarkAlpha: Double = 0.06
+
     /// Hover highlight for interactive elements (buttons, chevrons, headers).
     /// Deliberately faint (4%): a hover hints that something is clickable and should not
     /// paint a block over the panel. Far under the selected tab's `surfaceLevel2`.
     static let hoverFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.04),
-        dark: NSColor(white: 1.0, alpha: 0.04)
+        light: NSColor(white: 0.0, alpha: hoverFillAlpha),
+        dark: NSColor(white: 1.0, alpha: hoverFillAlpha)
     )
 
     /// Hairline edge for a neutral hover highlight. Every highlight in the popover is a
     /// fill plus this edge; a fill on its own reads as a smudge rather than a shape.
     static let hoverStroke: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.08),
-        dark: NSColor(white: 1.0, alpha: 0.08)
+        light: NSColor(white: 0.0, alpha: hoverStrokeAlpha),
+        dark: NSColor(white: 1.0, alpha: hoverStrokeAlpha)
     )
 
     /// Stronger hover highlight for copyable elements (signals "click to copy"). Kept a
     /// step above `hoverFill`.
     static let copyableHoverFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.10),
-        dark: NSColor(white: 1.0, alpha: 0.10)
+        light: NSColor(white: 0.0, alpha: copyableHoverFillAlpha),
+        dark: NSColor(white: 1.0, alpha: copyableHoverFillAlpha)
     )
 
     /// Divider opacity (StyledDivider).
@@ -369,14 +400,14 @@ enum ThemeColors {
     /// sighted user in daylight. Darkening the track lifts all four past 3:1 without
     /// touching the palette. Dark mode already passed.
     static let trackFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.30),
-        dark: NSColor(white: 1.0, alpha: 0.1)
+        light: NSColor(white: 0.0, alpha: trackFillLightAlpha),
+        dark: NSColor(white: 1.0, alpha: trackFillDarkAlpha)
     )
 
     /// Subtle badge background (e.g., "binding" label).
     static let badgeFill: Color = adaptive(
-        light: NSColor(white: 0.0, alpha: 0.09),
-        dark: NSColor(white: 1.0, alpha: 0.06)
+        light: NSColor(white: 0.0, alpha: badgeFillLightAlpha),
+        dark: NSColor(white: 1.0, alpha: badgeFillDarkAlpha)
     )
 
     /// Deep gold for the menu bar star on light backgrounds where systemYellow washes out.
