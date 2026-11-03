@@ -18,7 +18,7 @@
 - **Projects shows one row per project.** Rows group by the resolved path, with git worktrees folded into their parent repository, so a worktree no longer splits a project in two; the full path is in the tooltip and in what VoiceOver reads.
 - **The 12-month chart marks its projection.** The current month is extrapolated to full-month pace; it is drawn dashed and the tooltip says "(projected)" instead of stating tokens that have not been spent.
 - **A trivially small previous day no longer prints ">999% vs yesterday".** The threshold that suppresses meaningless comparisons is relative to the day's own volume instead of a fixed token count.
-- **Peak hour, busiest weekday and the session list stop reshuffling.** All three had ties broken by dictionary order and visibly changed between polls.
+- **Peak hour, busiest weekday, the session list and the Projects list stop reshuffling.** Rows that tied — and several projects sitting at zero cost is the ordinary case, not an edge one — had the tie broken by dictionary order, so they visibly swapped places between polls.
 - **An unreadable `token-ledger.json` is kept, not overwritten.** It is renamed `.corrupt-<timestamp>` with a warning — it is the only copy of the all-time high-water history.
 - **Settings no longer shows an empty row at the account cap**, and the full-email toggle is hidden for Claude-only users (it only ever masks a Codex sign-in email).
 - **An uncapped Codex plan shows "Credits: unlimited"** even when the provider reports no balance.
@@ -35,7 +35,8 @@
 
 ### Changed
 - **Cold scans use a fraction of the memory.** Both session-log readers read through one reused buffer instead of allocating per 64 KB chunk — the measured launch footprint peak came almost entirely from that.
-- **A growing session file is read from where the last read stopped.** The active file (7–28 MB) was re-read from the start on every write; appending to a 28 MB file now costs 0.4 ms instead of 28 ms. Anything that is not a plain append still re-reads in full.
+- **A growing session file is read from where the last read stopped.** The file your current session is writing to was re-read from the start every time it changed, for both Claude and Codex. Appending to it now costs about a millisecond instead of tens of them — 0.4 ms against 25 ms on a 28 MB Claude log, and 1.1 ms against 36 ms on a 69 MB Codex rollout, which is the larger of the two in everyday use. Anything that is not a plain append still re-reads in full.
+- **A provider outage no longer means a request every poll.** Looking up a Claude account’s plan retried on every refresh for the whole launch while the endpoint was down. It now backs off on the same curve as the usage and status checks, and clears the moment a lookup succeeds.
 - **The app goes quiet when the popover is closed.** The incident ticker and the "Updated N ago" clocks kept running behind a hidden panel; they stop and resume with it. Codex rollouts older than 13 months are no longer re-scanned.
 - **VoiceOver says what the menu-bar number means.** It reads the metric name, the account list as a list, "no data" instead of a dash, and announces a reached limit — and the countdown carries its window code on multi-account bars, the only non-colour cue that the bar has switched away from percentages.
 - **Usage bars pass WCAG non-text contrast in light mode.** Every bar fill was under 3:1 against its own track; the track is darker.
