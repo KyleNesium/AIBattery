@@ -104,7 +104,10 @@ AIBattery/
     SessionEntry.swift            — Codable for JSONL lines + AssistantUsageEntry (`creatorAccountId` from `session_meta`, context window, reasoning tokens, effort)
     UsageSnapshot.swift           — UsageSnapshot (carries `provider`), ModelTokenSummary
     ProjectTokenSummary.swift     — Per-project token totals + cost from JSONL cwd
-    MetricMode.swift              — MetricMode enum (5h / 7d / context)
+    MetricMode.swift              — MetricMode enum (5h / 7d / context); `inForce` collapses a persisted 7d mode onto the one budget tab
+    AccountCard.swift             — One overview card's reading: identity, plan, windows, `isLive(lastActivity:now:)`, `hiddenIdentity`; pure
+    AccountReading.swift          — Per-account fan-out result (windows | per-minute API limits, `isCached`, `worstPercent`)
+    PopoverMode.swift             — Overview / detail face selector + `onShow(remembered:)` and Escape routing
     TrendDirection.swift          — TrendDirection enum (up / down / flat)
     ClaudeSystemStatus.swift      — ClaudeSystemStatus (provider-neutral despite the name), StatusIndicator, StatusComponent
     TokenHealthConfig.swift       — Health thresholds + context window lookup
@@ -112,6 +115,7 @@ AIBattery/
     ModelPricing.swift            — Per-model pricing lookup + cost calculation
     LocalUsageEstimate.swift      — Fallback token estimation when unified headers unavailable (calibration + plan tier)
     PlanTier.swift                — Claude plan tiers (Pro/Max 5×/Max 20×/Team) with estimated 5h/7d limits
+    ClaudePlan.swift              — Anthropic OAuth profile → Claude plan (`billingType` "max_20x" etc.) + its label ("Max 20×"); pure
     RateLimitSource.swift         — Enum tracking where rate limit data came from (API / local estimate / standard)
     StandardRateLimits.swift      — Standard per-model request/token rate limits from API headers
   Services/
@@ -119,12 +123,14 @@ AIBattery/
     OAuthManager.swift            — OAuth 2.0 PKCE flow, auto-refresh; `postToken` is `nonisolated static` so the network call releases MainActor cleanly. Concurrent-refresh serialization preserved via `refreshTasks[accountId]`
     OAuthManager+Codex.swift      — Codex provider routing: `tokenStorageKey`, `startCodexAuthFlow` / `completeCodexAuthFlow` / `cancelCodexAuthFlow`, `registerCodexAccount` (cap-guarded, returns Result)
     OAuthManagerTokenEndpoint.swift — The Anthropic token endpoint: `TokenResult` and `postToken`, which performs the exchange and classifies the outcome (`nonisolated static`, so the network suspension stays off the main actor; transport + retry policy injected)
+    ProjectIdentity.swift         — `ProjectIdentityResolver`: cwd → project (symlink-resolved; a worktree folds into its parent repo by reading its `.git` file). Process-cached
+    AccountIdentityRegistry.swift — The one list of account-id-keyed UserDefaults key shapes (calibration bases, observed-model and probe-model prefixes, the Codex rate-limit prefix) plus `migrate(from:to:)`, called from `resolveAccountIdentity` so a resolved id leaves no orphans. Stores with in-memory state keep their own `migrate`
     OAuthManagerMigrations.swift  — The three one-time launch Keychain migrations (legacy single-account layout → prefixed per-account entries, stale `accessToken_`/`expiresAt_` sweep, `ThisDeviceOnly` accessibility re-create). Each is gated by its own done-flag so a launch costs no Keychain calls once applied. Split out when `OAuthManager.swift` passed the 800-line ceiling
     CodexOAuth/
       CodexOAuthConstants.swift   — client-id, port 1455, scopes, authorize/token URLs lifted from codex-rs
       CodexAuthSession.swift      — In-flight PKCE state; awaits the redirect through `OneShotMailbox`
       OneShotMailbox.swift        — Main-actor one-shot mailbox (buffers a redirect that lands before the UI awaits it)
-      CodexCallbackServer.swift   — One-shot NWListener on 127.0.0.1:1455, parses the OAuth redirect (`CodexCallbackParser`)
+      CodexCallbackServer.swift   — One-shot NWListener on 127.0.0.1:1455, parses the OAuth redirect (`CodexCallbackParser`); delivers only on a constant-time state match (`disposition(for:expectedState:)`), 10 s per-connection deadline
       CodexTokenClient.swift      — Code exchange (form-encoded) + refresh (JSON) against auth.openai.com
       CodexAuthFileImporter.swift — Read-only import of `~/.codex/auth.json` (ChatGPT mode only) to seed the first Codex account
     CodexRateLimitFetcher.swift   — `chatgpt.com/backend-api/wham/usage` fetch, per-account cache/persistence (`aibattery_codexRateLimits_`), auth-failure counter, endpoint backoff, session-log fallback
@@ -137,9 +143,10 @@ AIBattery/
     RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)
     RateLimitFetcher+UsageEndpoint.swift  — Dedicated `/api/oauth/usage` primary path: `interpretUsageEndpoint` (pure) + async `fetchUsageEndpoint` wrapper
     RateLimitFetcher+ClientData.swift     — Claude Code `/api/oauth/claude_cli/client_data` fallback path: `interpretClaudeCodeClientData` (pure), async `fetchClaudeCodeClientData` wrapper, and `containsStandardRateLimitHeaders` (`nonisolated static`, called from the Messages path too)
+    ClaudePlanFetcher.swift       — Once-per-launch `GET /api/oauth/profile` per Claude account → `billingType`; `interpret` + `accountsNeedingPlan` are pure
     RateLimitFetcher+Persistence.swift    — UserDefaults-backed per-account cache: `PersistedRateLimits` (file-private), `persistRateLimits` (called by `fetch` on success), `restorePersistedRateLimits` (called from init; runs `withClearedExpiredWindows()` so a stale `"throttled"` flag from before a long absence is dropped)
     StatsCacheReader.swift        — Reads + decodes stats-cache.json
-    SessionLogReader.swift        — Claude JSONL streaming reader (FileHandle, 64KB chunks)
+    SessionLogReader.swift        — Claude JSONL streaming reader (`ChunkedFileReader`, one reused 64KB buffer)
     FileWatcher.swift             — DispatchSource + two FSEventStreams (~/.claude/projects, ~/.codex/sessions) for live updates
     UsageAggregator.swift         — Merges a provider's data sources → UsageSnapshot (one instance per provider); one pass (`AggregationPass`) yields an `AggregateResult` with both an attributed/detail snapshot and a provider-wide snapshot, keyed by `Attribution`
     Attribution.swift             — `Attribution` enum (`.all` / `.account(_:)`) + `partition(_:)`: splits a provider's entries into the active account's turns and everyone else's (Codex `creatorAccountId` only; Claude entries are always `.all`)
@@ -176,6 +183,9 @@ AIBattery/
     UpdateArrowButton.swift       — Header/overview-footer arrow shown only when `availableUpdate` is set; click installs via Sparkle, right-click opens a context menu (release notes / check for updates); replaces the old update banner + gear badge
     SettingsGearButton.swift      — Gear icon opening Settings
     AccountChipView.swift         — Compact account chip (brand badge + provider + identity) whose click pops the AppKit switch/add NSMenu
+    OverviewContentView.swift     — The multi-account face: one card per account, inset dividers, its own footer
+    AccountCardView.swift         — One overview card: whole row is a Button, provider-tinted hover wash, brand-mark gesture, live dot, bar columns
+    CreditBudgetSection.swift     — Codex credit-budget bar (spend-control plans) + Credits | Context toggle
     MetricToggleView.swift        — Segmented metric picker + auto mode button + ordered modes cache
     PopoverStateViews.swift       — PopoverErrorView, PopoverEmptyView, PopoverIdleFilteredView
     PopoverFooterView.swift       — Footer links (provider-aware Usage/Status targets), logout confirm, status indicator, timestamp
@@ -192,6 +202,10 @@ AIBattery/
     Components/
       GaugeBar.swift              — Reusable progress gauge bar (single GeometryReader, clamps percent 0–100, uses Layout + ThemeColors)
       GaugeRow.swift              — Shared "labelled gauge row" shell: VStack[Header HStack + GaugeBar + TimelineView footer]. Accepts headerLeading / headerTrailing / footer ViewBuilders. Owns accessibility wiring and timeline schedule. Backs UsageBar (5h/7d) and StandardLimitBar.
+      PanelPeriodicView.swift     — `TimelineView(.periodic)` that ticks only while the panel is on screen (`orderOut` never fires `onDisappear`); renders once with the current date while hidden
+      ProviderBadge.swift         — The provider's bare brand mark, centred in an 18pt slot; owns the hover gesture per `AIProvider.markHoverMotion` (Claude blooms, Codex turns) and the Reduce Motion fallback
+      LiveDot.swift               — Breathing provider-coloured dot shown while a provider's CLI is active (static under Reduce Motion)
+      BetaBadge.swift             — Small "beta" chip with an explanatory tooltip (Projects section)
       LinkActionButton.swift      — Inline link-styled action button (Size.standard for settings, .compact for in-banner). One canonical implementation for Add Account, Test, Download, Install Update — all routed through ThemeColors.action with consistent icon/label spacing.
     UsageBarsSection.swift        — FiveHourBarSection + SevenDayBarSection rate limit bars; UsageBar.AlarmState gates throttle/limit alarm on confirmed (fresh) data
     LocalEstimateSection.swift    — Local token estimate display when unified headers unavailable (window label follows provider vocabulary)
@@ -218,8 +232,13 @@ AIBattery/
     UserDefaultsKeys.swift        — Centralized @AppStorage / UserDefaults key constants
     DateFormatters.swift          — Shared DateFormatter / ISO8601DateFormatter instances (allocated once)
     Data+Newline.swift            — `firstNewlineIndex(from:)`: memchr-backed newline search shared by both JSONL readers
+    ChunkedFileReader.swift       — `read(2)` into ONE reused 64KB buffer, shared by both JSONL readers (a `Data` per chunk was the launch footprint spike)
     AdaptivePollingState.swift    — Pure struct state machine for adaptive polling interval logic
+    EndpointBackoff.swift         — Per-endpoint, per-account failure backoff on `RetryPolicy.statusCheck` (60s → 120s → 240s, 5 min cap, jitter); `shouldSkip` tolerates a backward clock jump
+    FileStat.swift                — Modification date via `resourceValues` (9× cheaper than `attributesOfItem`), dropping NSURL's value cache first so a changed file never keeps its old fingerprint
+    PercentFormat.swift           — Percent display rules for the bars and the menu bar (`display(_:)`)
     AppLogger.swift               — Structured os.Logger instances by category
+    AlertThreshold.swift          — The rate limit alert slider's stops (60/70/80/90) + `snapped()` for pre-v3.4 values
     ClaudePaths.swift             — Centralized file paths for all Claude Code data locations
     CodexPaths.swift              — `~/.codex/sessions`, `~/.codex/auth.json` (read-only)
     JWTDecoder.swift              — Unverified-claims decode of the Codex ID/access token (account id, email, expiry)
@@ -232,7 +251,7 @@ AIBattery/
     IdleSuspendPolicy.swift       — Pure idle-suspension policy (5-min threshold) — used by UsageViewModel to skip polling when machine idle
     Typography.swift              — Named font style tokens (sectionHeader, monoValue, tinyLabel, decorativeIcon, etc.) — caseless enum namespace
     Spacing.swift                 — Spacing/Layout/MotionConstants enums — caseless enum namespaces co-located
-    KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager)
+    KeychainHelper.swift          — Low-level macOS Keychain CRUD (extracted from OAuthManager); `read` tells found / not found / failed apart
     RetryPolicy.swift             — Pure value-type exponential-backoff + jitter policy with `nonisolated static` API. 4 presets (`oauth`, `statusCheck`, `fileWatch`, `rateLimit`) carry historical values from CONSTANTS.md. Used by OAuthManager, StatusChecker, FileWatcher, RateLimitFetcher
     ReasoningVocabulary.swift     — "Thinking" vs "Reasoning" label by model prefix (Claude vs Codex/GPT)
 Tests/AIBatteryCoreTests/
@@ -319,7 +338,7 @@ Tests/AIBatteryCoreTests/
     MoveTransitionBanTests.swift  — Guards against `.move(edge:)` transitions in the popover
 docs/
   FAQ.md                          — Troubleshooting, context-health explainer, Gatekeeper/Keychain notes
-  TODOS.md                        — Deferred work, grouped by the review that deferred it
+  TODOS.md                        — Deferred work, grouped by area and ordered by priority
 .github/workflows/
   ci.yml                          — Build + test + bundle on push/PR (macos-15)
   lint.yml                        — SwiftFormat + SwiftLint on PRs targeting main (macos-15)
@@ -340,6 +359,8 @@ CHANGELOG.md                      — Release notes per version
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
 - **Codesigning**: Ad-hoc by default (`codesign --sign -`), parameterized via `CODE_SIGN_IDENTITY` env var for Developer ID signing. Hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting. Entitlements file selected automatically (`AIBattery-AppStore.entitlements` when `APP_STORE_BUILD` is set)
+- **Signed inside-out, every nested bundle included**: Sparkle's XPC services (`Downloader.xpc`, `Installer.xpc`) **and its nested `Updater.app`**, then the framework, then the app. Never `--deep` on the outer bundle — it would rewrite nested identifiers, and macOS requires an XPC service's codesign identifier to equal its `CFBundleIdentifier` (verified after signing, for the helper app too). Signing the framework only *seals* its nested app, so `Updater.app` needs its own `codesign` call: without it the bundle verified fine locally (everything ad-hoc) and would have carried a nested foreign signature into notarization on the first real-identity build
+- **Library-validation preflight**: when the exemption has been stripped (any real identity, see CONSTANTS.md), the script asserts the condition that strip depends on rather than assuming it — the signed app must really lack the entitlement, must have a Team ID at all, and every nested signed bundle must report the *same* Team ID. Any mismatch fails the build with the `KEEP_LIBRARY_VALIDATION_EXEMPTION=1` escape hatch named. Without this a non-Apple identity (no Team ID) produced a bundle whose Sparkle could never load, and nothing before launch said so
 - **Notarization**: Optional — when `APPLE_ID` + `APPLE_TEAM_ID` + `APPLE_APP_PASSWORD` env vars are set, `build-app.sh` submits to `notarytool`, staples the ticket, and re-packages zip/DMG. Skipped when unset (current default)
 - **App icon**: Generated at build time via `scripts/generate-icon.swift` (sparkle star, all macOS sizes). Embedded in `Contents/Resources/AppIcon.icns` and used as DMG volume icon.
 - **Dock icon**: None (LSUIElement = true)
@@ -368,6 +389,7 @@ CHANGELOG.md                      — Release notes per version
 1. `GET https://api.anthropic.com/api/oauth/usage` — **primary** rate-limit fetch (dedicated usage endpoint, no model probe needed; first call every cycle)
 2. `GET https://api.anthropic.com/api/oauth/claude_cli/client_data` — Claude Code usage windows + account metadata (fallback)
 3. `POST https://api.anthropic.com/v1/messages?beta=true` — legacy unified/public rate-limit headers + org profile (probe fallback, ~10% hit rate)
+3a. `GET https://api.anthropic.com/api/oauth/profile` — the account's plan (`organization_type` + `rate_limit_tier`), once per Claude account per launch (`ClaudePlanFetcher`)
 4. `GET https://status.claude.com/api/v2/summary.json` — system status (every refresh interval)
 5. `POST https://console.anthropic.com/v1/oauth/token` — OAuth token exchange + auto-refresh
 6. `GET https://claude.ai/oauth/authorize` — OAuth login (opens in browser, one-time)
@@ -377,7 +399,7 @@ CHANGELOG.md                      — Release notes per version
 **Codex accounts** (only when a Codex account exists / is active)
 
 9. `GET https://chatgpt.com/backend-api/wham/usage` — Codex rate limits (`Authorization: Bearer`, `ChatGPT-Account-Id`); per-account exponential backoff on failure, session-log fallback
-10. `GET https://status.openai.com/api/v2/summary.json` — OpenAI system status, filtered to Codex components (every refresh interval while a Codex account is active)
+10. `GET https://status.openai.com/api/v2/components.json` — OpenAI system status, filtered to Codex components (every refresh interval while a Codex account is active). **Not `summary.json`**: it truncates to 25 components and every Codex row falls outside that window.
 11. `GET https://auth.openai.com/oauth/authorize` — Codex OAuth login (opens in browser, one-time; redirects to `http://localhost:1455/auth/callback`)
 12. `POST https://auth.openai.com/oauth/token` — Codex token exchange + auto-refresh
 13. `POST https://api.openai.com/v1/responses` — **API-key Codex accounts only**: a 16-token nano probe whose response headers carry the per-minute `x-ratelimit-*` limits (the Codex mirror of the Claude Messages probe; no ChatGPT windows exist for API keys)

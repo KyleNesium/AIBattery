@@ -103,6 +103,18 @@ if [ -d "$APP_DIR/Contents/Frameworks" ]; then
       echo "  Signing XPC: $(basename "$xpc")"
       codesign --sign "$SIGN_IDENTITY" --force --options runtime "$xpc"
     done
+    # Nested helper apps (Sparkle's Updater.app). Signing the framework does NOT
+    # re-sign these — it only seals them — so without this they keep whatever
+    # signature the Sparkle build produced. Everything is ad-hoc on a local build, so
+    # it verifies either way; against a real identity the app would have carried a
+    # nested foreign signature into notarization. No --identifier, for the same
+    # reason as the XPC services: the codesign identifier must stay the bundle's own
+    # (verified below).
+    for nested in "$item"/Versions/Current/*.app; do
+      [ -e "$nested" ] || continue
+      echo "  Signing nested app: $(basename "$nested")"
+      codesign --sign "$SIGN_IDENTITY" --force --options runtime "$nested"
+    done
     # Sign framework (without --deep — XPCs already signed)
     echo "  Signing: $(basename "$item")"
     codesign --sign "$SIGN_IDENTITY" --force --options runtime "$item"
@@ -115,6 +127,22 @@ if [ -n "${APP_STORE_BUILD:-}" ]; then
   ENTITLEMENTS="AIBattery/AIBattery-AppStore.entitlements"
 fi
 
+# `com.apple.security.cs.disable-library-validation` lets the process holding live
+# tokens load libraries signed by ANY identity — worth removing, and the bundle meets
+# the condition for doing so (Sparkle.framework and its XPC services are re-signed
+# above with this same identity). It can only come off a REAL identity, though: an
+# ad-hoc signature ("-") has no Team ID, so library validation could never pass and
+# Sparkle would fail to load at launch. So: strip it when signing for real, keep it
+# for ad-hoc local builds.
+if [ "$SIGN_IDENTITY" != "-" ] && [ -z "${KEEP_LIBRARY_VALIDATION_EXEMPTION:-}" ]; then
+  HARDENED_ENTITLEMENTS=".build/AIBattery-hardened.entitlements"
+  cp "$ENTITLEMENTS" "$HARDENED_ENTITLEMENTS"
+  /usr/libexec/PlistBuddy -c "Delete :com.apple.security.cs.disable-library-validation" \
+    "$HARDENED_ENTITLEMENTS" >/dev/null 2>&1 || true
+  ENTITLEMENTS="$HARDENED_ENTITLEMENTS"
+  echo "Signing with library validation ENABLED (set KEEP_LIBRARY_VALIDATION_EXEMPTION=1 to opt out)"
+fi
+
 # Codesign the outer bundle (without --deep — inner bundles already signed)
 codesign --sign "$SIGN_IDENTITY" --force \
   --entitlements "$ENTITLEMENTS" \
@@ -122,17 +150,53 @@ codesign --sign "$SIGN_IDENTITY" --force \
   --options runtime \
   "$APP_DIR"
 
-# Verify XPC services retained their original bundle identifiers
-for xpc in "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/*.xpc; do
-  [ -e "$xpc" ] || continue
-  EXPECTED_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$xpc/Contents/Info.plist")
-  ACTUAL_ID=$(codesign -dv "$xpc" 2>&1 | grep "^Identifier=" | cut -d= -f2)
+# Verify nested bundles retained their original bundle identifiers
+for nested in \
+  "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/*.xpc \
+  "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/*.app; do
+  [ -e "$nested" ] || continue
+  EXPECTED_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$nested/Contents/Info.plist")
+  ACTUAL_ID=$(codesign -dv "$nested" 2>&1 | grep "^Identifier=" | cut -d= -f2)
   if [ "$EXPECTED_ID" != "$ACTUAL_ID" ]; then
-    echo "ERROR: $(basename "$xpc") identifier mismatch: expected=$EXPECTED_ID actual=$ACTUAL_ID"
+    echo "ERROR: $(basename "$nested") identifier mismatch: expected=$EXPECTED_ID actual=$ACTUAL_ID"
     exit 1
   fi
-  echo "  Verified: $(basename "$xpc") → $ACTUAL_ID"
+  echo "  Verified: $(basename "$nested") → $ACTUAL_ID"
 done
+
+# Library validation makes the loader require every library the app loads to carry the
+# app's own Team ID. Stripping the exemption without that holding means Sparkle fails to
+# load at launch — on the shipped build, after notarization, with nothing earlier in the
+# pipeline to catch it. So when the exemption is gone, assert the condition it depends on
+# rather than assuming it: the app must really lack the entitlement, and every nested
+# signed bundle must report the app's Team ID.
+if [ "$ENTITLEMENTS" = ".build/AIBattery-hardened.entitlements" ]; then
+  if codesign -d --entitlements - "$APP_DIR" 2>/dev/null | grep -q "disable-library-validation"; then
+    echo "ERROR: library-validation exemption still present on the signed app"
+    exit 1
+  fi
+  team_id_of() { codesign -dvvv "$1" 2>&1 | sed -n 's/^TeamIdentifier=//p'; }
+  APP_TEAM_ID=$(team_id_of "$APP_DIR")
+  echo "  Library validation ENABLED — app Team ID: ${APP_TEAM_ID:-<none>}"
+  if [ -z "$APP_TEAM_ID" ] || [ "$APP_TEAM_ID" = "not set" ]; then
+    echo "ERROR: library validation is enabled but the app has no Team ID — Sparkle could never load."
+    echo "       Re-run with KEEP_LIBRARY_VALIDATION_EXEMPTION=1, or sign with a Developer ID identity."
+    exit 1
+  fi
+  for nested in \
+    "$APP_DIR"/Contents/Frameworks/*.framework \
+    "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/*.xpc \
+    "$APP_DIR"/Contents/Frameworks/Sparkle.framework/Versions/Current/*.app; do
+    [ -e "$nested" ] || continue
+    NESTED_TEAM_ID=$(team_id_of "$nested")
+    if [ "$NESTED_TEAM_ID" != "$APP_TEAM_ID" ]; then
+      echo "ERROR: $(basename "$nested") Team ID '${NESTED_TEAM_ID:-<none>}' != app Team ID '$APP_TEAM_ID'"
+      echo "       Library validation would refuse to load it. Re-run with KEEP_LIBRARY_VALIDATION_EXEMPTION=1."
+      exit 1
+    fi
+    echo "  Verified Team ID: $(basename "$nested") → $NESTED_TEAM_ID"
+  done
+fi
 
 echo "Done! App bundle at: $APP_DIR"
 

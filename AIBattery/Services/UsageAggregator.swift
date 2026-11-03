@@ -141,12 +141,15 @@ final class UsageAggregator: @unchecked Sendable {
         var fiveHourTokens = 0
         var sevenDayTokens = 0
         var fiveHourTokenBuckets: [Int: Int] = [:]
+        var sevenDayTokenBuckets: [Int: Int] = [:]
         var dailyTokenTotals: [String: Int] = [:]
         var entriesByDate: [String: (messages: Int, sessions: Set<String>)] = [:]
         var uncachedModelTokensMap: TokenMap = [:]
         var allJsonlModelTokensMap: TokenMap = [:]
         var jsonlTodayToolCalls = 0
         var projectMap: [String: ProjectAccum] = [:]
+        /// cwd → project key, so the identity work happens once per distinct cwd per pass.
+        var projectKeyByCwd: [String: String] = [:]
         /// Feeds the Claude Messages-probe model list (`SideEffects.observedModels`,
         /// sorted most-recent-first in `finish`).
         var lastSeenByModel: [String: Date] = [:]
@@ -227,6 +230,16 @@ final class UsageAggregator: @unchecked Sendable {
             }
             if ts >= sevenDayRateLimitCutoff {
                 sevenDayTokens += entryAllTokens
+                // Hourly bucket: offset 0 = 7 days ago, offset (count-1) = this hour.
+                // Day-keyed totals cannot express a window that starts mid-day.
+                let secondsAgo = now.timeIntervalSince(ts)
+                let bucket = min(
+                    UsageSnapshot.sevenDayBucketCount - 1,
+                    Int((UsageAggregator.sevenDayWindow - secondsAgo) / UsageSnapshot.sevenDayBucketDuration)
+                )
+                if bucket >= 0 {
+                    sevenDayTokenBuckets[bucket, default: 0] += entryAllTokens
+                }
             }
             // Daily token totals (all dates, for 7D and 12M charts)
             // Uses all token types to match 5h/7d summary totals and model breakdowns.
@@ -251,15 +264,18 @@ final class UsageAggregator: @unchecked Sendable {
                 // results. Now it runs once per distinct cwd.
                 var projKey = "Other"
                 if let cwd = entry.cwd, !cwd.isEmpty {
-                    if projectMap[cwd] != nil {
-                        projKey = cwd
-                    } else {
-                        let name = (cwd as NSString).lastPathComponent
-                        // A cwd whose last component is "/" carries no project name.
-                        if name != "/" {
-                            projKey = cwd
-                            projectMap[cwd] = ProjectAccum(displayName: name)
+                    if let seen = projectKeyByCwd[cwd] {
+                        projKey = seen
+                    } else if let identity = ProjectIdentityResolver.shared.identity(for: cwd) {
+                        // Symlink-resolved, and a worktree folds into its parent repo —
+                        // see `ProjectIdentityResolver`.
+                        projKey = identity.key
+                        projectKeyByCwd[cwd] = identity.key
+                        if projectMap[identity.key] == nil {
+                            projectMap[identity.key] = ProjectAccum(displayName: identity.displayName)
                         }
+                    } else {
+                        projectKeyByCwd[cwd] = "Other"
                     }
                 }
                 var proj = projectMap[projKey] ?? ProjectAccum(displayName: "Other")
@@ -445,7 +461,11 @@ final class UsageAggregator: @unchecked Sendable {
             }
 
             // Peak hour (computed after hourly merge to reflect live data)
-            let peakEntry = hourCounts.max(by: { $0.value < $1.value })
+            // Ties break on the hour key, not on dictionary order — an unordered `max`
+            // visibly shuffled the peak between polls when two hours were level.
+            let peakEntry = hourCounts.max { lhs, rhs in
+                lhs.value == rhs.value ? lhs.key > rhs.key : lhs.value < rhs.value
+            }
             let peakHour = peakEntry.flatMap { Int($0.key) }
             let peakHourCount = peakEntry?.value ?? 0
 
@@ -454,7 +474,7 @@ final class UsageAggregator: @unchecked Sendable {
             // in arbitrary dictionary iteration order.
             activity.sort { $0.date < $1.date }
 
-            let activityStats = UsageSnapshot.computeActivityStats(activity)
+            let busiestDay = UsageSnapshot.computeBusiestDay(activity)
 
             var snapshot = UsageSnapshot(
                 lastUpdated: now,
@@ -483,13 +503,12 @@ final class UsageAggregator: @unchecked Sendable {
                 sevenDayTokens: sevenDayTokens,
                 fiveHourTokenBuckets: fiveHourTokenBuckets,
                 dailyTokenTotals: dailyTokenTotals,
+                sevenDayTokenBuckets: sevenDayTokenBuckets,
                 todayModelTokens: todayModelTokens,
                 weekModelTokens: weekModelTokens,
                 monthModelTokens: monthModelTokens,
                 dailyActivity: activity,
-                dailyAverage: activityStats.average,
-                trendDirection: activityStats.trend,
-                busiestDayOfWeek: activityStats.busiestDay,
+                busiestDayOfWeek: busiestDay,
                 hourCounts: hourCounts,
                 todayHourCounts: todayHourCounts,
                 tokenHealth: tokenHealth,
@@ -670,7 +689,16 @@ final class UsageAggregator: @unchecked Sendable {
         projectMap.map { key, proj in
             var totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheWrite = 0
             var totalCost: Double = 0
-            for (modelId, tokens) in proj.byModel {
+            // Sorted, because `totalCost` is a `Double` sum and Double addition is not
+            // associative: iterating `byModel` in dictionary order summed the same
+            // per-model costs in a different order on two passes over *identical*
+            // entries and landed 2.8e-14 apart (measured on the real tree). Invisible at
+            // two decimal places, but `UsageSnapshot ==` compares `estimatedCost`
+            // exactly and five refresh paths gate on `result != snapshot`, so the
+            // popover republished a snapshot that differed in nothing a user could see.
+            // The token sums are `Int` and need no such care.
+            for modelId in proj.byModel.keys.sorted() {
+                guard let tokens = proj.byModel[modelId] else { continue }
                 totalInput += tokens.input
                 totalOutput += tokens.output
                 totalCacheRead += tokens.cacheRead
@@ -691,7 +719,12 @@ final class UsageAggregator: @unchecked Sendable {
                 cacheWriteTokens: totalCacheWrite,
                 estimatedCost: totalCost
             )
-        }.sorted { $0.totalTokens > $1.totalTokens }
+        }
+        // Tie-break on the key: `sorted` is not stable, and projects level on tokens
+        // (two quiet checkouts, or several at zero) otherwise swapped places between
+        // polls with nothing behind the change — the same reason peak hour and the
+        // session-health list break their ties explicitly.
+        .sorted { $0.totalTokens == $1.totalTokens ? $0.id < $1.id : $0.totalTokens > $1.totalTokens }
     }
 
     private static func buildModelTokens(from map: TokenMap, provider: AIProvider) -> [ModelTokenSummary] {
@@ -711,6 +744,7 @@ final class UsageAggregator: @unchecked Sendable {
                 estimatedCost: cost,
                 reasoningTokens: tokens.reasoning
             )
-        }.sorted { $0.totalTokens > $1.totalTokens }
+        }
+        .sorted { $0.totalTokens == $1.totalTokens ? $0.id < $1.id : $0.totalTokens > $1.totalTokens }
     }
 }

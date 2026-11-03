@@ -14,12 +14,15 @@ struct UsageSnapshotTests {
         todayMessages: Int = 0,
         fiveHourTokens: Int = 0,
         sevenDayTokens: Int = 0,
+        fiveHourTokenBuckets: [Int: Int] = [:],
+        sevenDayTokenBuckets: [Int: Int] = [:],
+        dailyTokenTotals: [String: Int] = [:],
         dailyActivity: [DailyActivity] = [],
         provider: AIProvider = .claude,
         standardLimits: StandardRateLimits? = nil,
         costIsBilled: Bool = false
     ) -> UsageSnapshot {
-        let activityStats = UsageSnapshot.computeActivityStats(dailyActivity)
+        let busiestDay = UsageSnapshot.computeBusiestDay(dailyActivity)
         return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: rateLimits,
@@ -45,15 +48,14 @@ struct UsageSnapshotTests {
             totalProjectCost: 0,
             fiveHourTokens: fiveHourTokens,
             sevenDayTokens: sevenDayTokens,
-            fiveHourTokenBuckets: [:],
-            dailyTokenTotals: [:],
+            fiveHourTokenBuckets: fiveHourTokenBuckets,
+            dailyTokenTotals: dailyTokenTotals,
+            sevenDayTokenBuckets: sevenDayTokenBuckets,
             todayModelTokens: [],
             weekModelTokens: [],
             monthModelTokens: [],
             dailyActivity: dailyActivity,
-            dailyAverage: activityStats.average,
-            trendDirection: activityStats.trend,
-            busiestDayOfWeek: activityStats.busiestDay,
+            busiestDayOfWeek: busiestDay,
             hourCounts: [:],
             todayHourCounts: [:],
             tokenHealth: tokenHealth,
@@ -143,8 +145,6 @@ struct UsageSnapshotTests {
             weekModelTokens: [],
             monthModelTokens: [],
             dailyActivity: [],
-            dailyAverage: 0,
-            trendDirection: .flat,
             busiestDayOfWeek: nil,
             hourCounts: [:],
             todayHourCounts: [:],
@@ -152,6 +152,49 @@ struct UsageSnapshotTests {
             topSessionHealths: []
         )
         #expect(lhs != rhs)
+    }
+
+    // MARK: - Window token totals
+
+    @Test func firstInWindowBucket_excludesTheBucketTheWindowStartedInside() {
+        // A window that just started: nothing is in it yet.
+        #expect(UsageSnapshot.firstInWindowBucket(remaining: 18_000, bucketCount: 20, bucketDuration: 900) == 20)
+        // Exactly one whole bucket elapsed → only the last bucket counts.
+        #expect(UsageSnapshot.firstInWindowBucket(remaining: 17_100, bucketCount: 20, bucketDuration: 900) == 19)
+        // Part-way into the next bucket → that straddling bucket is still excluded.
+        #expect(UsageSnapshot.firstInWindowBucket(remaining: 17_000, bucketCount: 20, bucketDuration: 900) == 19)
+        // A nearly spent window counts everything.
+        #expect(UsageSnapshot.firstInWindowBucket(remaining: 60, bucketCount: 20, bucketDuration: 900) == 1)
+    }
+
+    @Test func fiveHourWindowTokens_doesNotCountThePreWindowBucket() {
+        // Bucket 17 is the one the window started inside; 18 and 19 are fully inside.
+        let snapshot = makeSnapshot(
+            fiveHourTokens: 999,
+            fiveHourTokenBuckets: [17: 500, 18: 300, 19: 200]
+        )
+        // 30 minutes elapsed, so 4h30m remain: buckets 18 and 19 only.
+        let resetsAt = Date().addingTimeInterval(5 * 3_600 - 1_800)
+        #expect(snapshot.fiveHourWindowTokens(resetsAt: resetsAt) == 500)
+    }
+
+    @Test func sevenDayWindowTokens_startsOnTheWindowBoundaryNotTheCalendarDay() {
+        let count = UsageSnapshot.sevenDayBucketCount
+        let snapshot = makeSnapshot(
+            sevenDayTokens: 999,
+            sevenDayTokenBuckets: [count - 4: 400, count - 2: 200, count - 1: 100],
+            dailyTokenTotals: ["2020-01-01": 10_000]
+        )
+        // Three hours elapsed: the last three whole hourly buckets are in the window.
+        let resetsAt = Date().addingTimeInterval(7 * 24 * 3_600 - 3 * 3_600)
+        #expect(snapshot.sevenDayWindowTokens(resetsAt: resetsAt) == 300)
+    }
+
+    @Test func sevenDayWindowTokens_fallsBackToDailyTotalsWithoutBuckets() {
+        let today = DateFormatters.dateKey.string(from: Date())
+        let snapshot = makeSnapshot(sevenDayTokens: 999, dailyTokenTotals: [today: 1_234])
+        let resetsAt = Date().addingTimeInterval(7 * 24 * 3_600 - 3_600)
+        #expect(snapshot.sevenDayWindowTokens(resetsAt: resetsAt) == 1_234)
     }
 
     // MARK: - percent(for:)
@@ -823,71 +866,6 @@ struct UsageSnapshotTests {
         #expect(result == .fiveHour)
     }
 
-    // MARK: - dailyAverage
-
-    @Test func dailyAverage_emptyActivity() {
-        let snapshot = makeSnapshot()
-        #expect(snapshot.dailyAverage == 0)
-    }
-
-    @Test func dailyAverage_sevenDays() {
-        let activity = makeDailyActivity(daysBack: 7, messages: [10, 20, 30, 40, 50, 60, 70])
-        let snapshot = makeSnapshot(dailyActivity: activity)
-        #expect(snapshot.dailyAverage == 40) // 280 / 7
-    }
-
-    @Test func dailyAverage_moreThanSevenDays_usesLastSeven() {
-        let activity = makeDailyActivity(daysBack: 10, messages: [100, 100, 100, 10, 20, 30, 40, 50, 60, 70])
-        let snapshot = makeSnapshot(dailyActivity: activity)
-        #expect(snapshot.dailyAverage == 40) // last 7: 10+20+30+40+50+60+70 = 280 / 7
-    }
-
-    // MARK: - trendDirection
-
-    @Test func trendDirection_insufficientData() {
-        let activity = makeDailyActivity(daysBack: 5, messages: [10, 20, 30, 40, 50])
-        let snapshot = makeSnapshot(dailyActivity: activity)
-        #expect(snapshot.trendDirection == .flat)
-    }
-
-    @Test func trendDirection_13days_insufficientForSymmetricComparison() {
-        // 13 days is not enough for a full 7-vs-7 comparison
-        let activity = makeDailyActivity(daysBack: 13, messages: [
-            10, 10, 10, 10, 10, 10, // 6 days of "last week"
-            50, 50, 50, 50, 50, 50, 50, // 7 days of "this week"
-        ])
-        let snapshot = makeSnapshot(dailyActivity: activity)
-        #expect(snapshot.trendDirection == .flat)
-    }
-
-    @Test func trendDirection_upWhenThisWeekHigher() {
-        // Last week: 10/day avg, This week: 50/day avg → clearly up
-        let activity = makeDailyActivity(daysBack: 14, messages: [
-            10, 10, 10, 10, 10, 10, 10, // last week
-            50, 50, 50, 50, 50, 50, 50, // this week
-        ])
-        let snapshot = makeSnapshot(dailyActivity: activity)
-        #expect(snapshot.trendDirection == .up)
-    }
-
-    @Test func trendDirection_downWhenThisWeekLower() {
-        let activity = makeDailyActivity(daysBack: 14, messages: [
-            50, 50, 50, 50, 50, 50, 50, // last week
-            10, 10, 10, 10, 10, 10, 10, // this week
-        ])
-        let snapshot = makeSnapshot(dailyActivity: activity)
-        #expect(snapshot.trendDirection == .down)
-    }
-
-    @Test func trendDirection_flatWhenSimilar() {
-        let activity = makeDailyActivity(daysBack: 14, messages: [
-            50, 50, 50, 50, 50, 50, 50,
-            50, 50, 50, 50, 50, 50, 50,
-        ])
-        let snapshot = makeSnapshot(dailyActivity: activity)
-        #expect(snapshot.trendDirection == .flat)
-    }
-
     // MARK: - busiestDayOfWeek
 
     @Test func busiestDayOfWeek_emptyActivity() {
@@ -912,71 +890,39 @@ struct UsageSnapshotTests {
         #expect(TrendDirection.up.symbol != TrendDirection.down.symbol)
     }
 
-    // MARK: - computeActivityStats (single-pass)
+    // MARK: - computeBusiestDay
 
-    @Test func activityStats_emptyActivity() {
-        let stats = UsageSnapshot.computeActivityStats([])
-        #expect(stats.average == 0)
-        #expect(stats.trend == .flat)
-        #expect(stats.busiestDay == nil)
+    @Test func busiestDay_emptyActivityIsNil() {
+        #expect(UsageSnapshot.computeBusiestDay([]) == nil)
     }
 
-    @Test func activityStats_singleWeek() throws {
+    @Test func busiestDay_picksTheHighestAverageWeekday() throws {
         let activity = makeDailyActivity(daysBack: 7, messages: [10, 20, 30, 40, 50, 60, 70])
-        let stats = UsageSnapshot.computeActivityStats(activity)
-        #expect(stats.average == 40) // 280 / 7
-        #expect(stats.trend == .flat) // < 14 days
-        #expect(stats.busiestDay != nil)
-        #expect(try #require(stats.busiestDay?.averageCount) > 0)
+        let busiest = try #require(UsageSnapshot.computeBusiestDay(activity))
+        #expect(busiest.averageCount == 70)
+        #expect(!busiest.name.isEmpty)
     }
 
-    @Test func activityStats_multiWeek_trendUp() {
-        let activity = makeDailyActivity(daysBack: 14, messages: [
-            10, 10, 10, 10, 10, 10, 10, // last week
-            50, 50, 50, 50, 50, 50, 50, // this week
-        ])
-        let stats = UsageSnapshot.computeActivityStats(activity)
-        #expect(stats.average == 50) // last 7: all 50
-        #expect(stats.trend == .up)
-        #expect(stats.busiestDay != nil)
-    }
-
-    @Test func activityStats_multiWeek_trendDown() {
-        let activity = makeDailyActivity(daysBack: 14, messages: [
-            50, 50, 50, 50, 50, 50, 50,
-            10, 10, 10, 10, 10, 10, 10,
-        ])
-        let stats = UsageSnapshot.computeActivityStats(activity)
-        #expect(stats.average == 10)
-        #expect(stats.trend == .down)
-    }
-
-    @Test func activityStats_matchesSnapshotProperties() {
-        // Verify computeActivityStats produces same results as snapshot pre-computation.
-        // Use asymmetric counts so one weekday is clearly the busiest (avoids tie-breaking nondeterminism).
+    @Test func busiestDay_matchesTheSnapshotProperty() {
+        // Asymmetric counts so one weekday is clearly busiest.
         let activity = makeDailyActivity(daysBack: 14, messages: [
             10, 10, 10, 10, 10, 10, 10,
             50, 50, 50, 50, 50, 50, 99,
         ])
         let snapshot = makeSnapshot(dailyActivity: activity)
-        let stats = UsageSnapshot.computeActivityStats(activity)
-        #expect(snapshot.dailyAverage == stats.average)
-        #expect(snapshot.trendDirection == stats.trend)
-        // Busiest day name should match (both non-nil)
-        #expect(snapshot.busiestDayOfWeek?.name == stats.busiestDay?.name)
-        #expect(snapshot.busiestDayOfWeek?.averageCount == stats.busiestDay?.averageCount)
+        let busiest = UsageSnapshot.computeBusiestDay(activity)
+        #expect(snapshot.busiestDayOfWeek?.name == busiest?.name)
+        #expect(snapshot.busiestDayOfWeek?.averageCount == busiest?.averageCount)
     }
-
-    // MARK: - Stored-property tripwire for the hand-written ==
 
     @Test func storedPropertyCount_pinsHandWrittenEquality() {
         // UsageSnapshot's == is hand-written and intentionally skips ONLY
         // `lastUpdated` (it always changes; comparing it would defeat the
         // SwiftUI diff suppression). If this test fails, you added or removed
         // a stored property — update `==` to compare it (or consciously skip
-        // it) AND update this count. 41 = 40 compared fields + lastUpdated.
+        // it) AND update this count. 40 = 39 compared fields + lastUpdated.
         let mirror = Mirror(reflecting: makeSnapshot())
-        #expect(mirror.children.count == 41)
+        #expect(mirror.children.count == 40)
     }
 
     // MARK: - Provider (Plan 2)

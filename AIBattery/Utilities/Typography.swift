@@ -77,10 +77,15 @@ enum Typography {
     static let switcherChevron: Font = .system(size: 8, weight: .semibold)
 
     /// Navigation chevrons: the card's drill-in arrow and the detail header's back
-    /// arrow. Deliberately larger and lighter than `switcherChevron` — that one is a
-    /// hint attached to a title, these are controls you aim at. The two share a size
-    /// so going in and coming back feel like one gesture reversed.
-    static let navChevron: Font = .system(size: 11, weight: .medium)
+    /// arrow. Larger than `switcherChevron` — that one is a hint attached to a title,
+    /// these are controls you aim at. The two share a size and weight so going in and
+    /// coming back feel like one gesture reversed.
+    ///
+    /// Bold, not medium: at 11pt in `tertiaryLabel` grey a medium chevron is a hairline
+    /// next to the card's bars and reads as decoration. Semibold was tried first and the
+    /// step was invisible at this size and tone — the glyph is six thin strokes' worth of
+    /// ink, so the weight has to move two steps to register at all.
+    static let navChevron: Font = .system(size: 11, weight: .bold)
 
     /// Header Settings gear — 12pt regular. `bodyLabel` (11pt medium) rendered the
     /// stroked gear visibly heavier than the chip's 8pt chevron; both header controls
@@ -111,6 +116,10 @@ enum Typography {
 
     /// Trend change symbol (↑/↓) — semibold monospaced for visual weight.
     static let trendSymbol: Font = .system(size: 11, weight: .semibold, design: .monospaced)
+
+    /// The severity glyph inset in the footer's status dot. Sized against
+    /// `Layout.dotSizeSmall` (6pt) so the two stay in proportion.
+    static let statusDotSymbol: Font = .system(size: Layout.dotSizeSmall * 0.72, weight: .bold)
 
     /// Collapsed trend label — compact monospaced at 10pt.
     static let trendLabelSmall: Font = .system(size: 10, weight: .semibold, design: .monospaced)

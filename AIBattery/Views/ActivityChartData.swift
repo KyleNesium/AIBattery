@@ -21,6 +21,12 @@ enum ActivityChartData {
         let key: String
         let date: Date
         let count: Int
+        /// True for the current month once its total is extrapolated to full-month pace.
+        /// The chart dashes that segment and the tooltip says so — rendered like the 11
+        /// real months, it stated tokens that have not been spent, could tower over every
+        /// actual month and squash the shared Y axis, and disagreed with the unprojected
+        /// stat beside it.
+        var isProjected: Bool = false
     }
 
     // MARK: - 5-Hour (20 × 15-minute buckets)
@@ -100,16 +106,18 @@ enum ActivityChartData {
 
             // Project current month to full-month pace so it's comparable.
             // Skip projection in the first 3 days — too few data points to extrapolate.
-            let count: Int
+            var count = total
+            var isProjected = false
             if key == thisMonthKey, total > 0,
                let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count {
                 let dayOfMonth = cal.component(.day, from: now)
-                count = dayOfMonth >= 4 ? total * daysInMonth / dayOfMonth : total
-            } else {
-                count = total
+                if dayOfMonth >= 4 {
+                    count = total * daysInMonth / dayOfMonth
+                    isProjected = true
+                }
             }
 
-            return MonthlyPoint(key: key, date: date, count: count)
+            return MonthlyPoint(key: key, date: date, count: count, isProjected: isProjected)
         }
     }
 }

@@ -1367,6 +1367,95 @@ struct UsageAggregatorTests {
         )
     }
 
+    // MARK: - Determinism
+
+    /// An entry with a chosen project and awkward cache figures, so per-model costs land
+    /// on long decimals rather than round numbers.
+    private func projectEntry(
+        model: String,
+        cwd: String,
+        timestamp: Date,
+        input: Int = 1_337,
+        output: Int = 7_919,
+        cacheRead: Int = 1_299_709,
+        cacheWrite: Int = 104_729
+    ) -> AssistantUsageEntry {
+        AssistantUsageEntry(
+            timestamp: timestamp, model: model, messageId: UUID().uuidString,
+            inputTokens: input, outputTokens: output, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite,
+            sessionId: "s-\(cwd)", cwd: cwd, gitBranch: nil, toolCallCount: 0, creatorAccountId: nil
+        )
+    }
+
+    /// Two aggregators over the *same* entries must produce the same snapshot.
+    ///
+    /// The project rows and their costs are built by walking a `[String: ProjectAccum]`
+    /// and summing `Double` costs per model. Dictionary order is not a contract, and
+    /// Double addition is not associative, so that sum landed 2.8e-14 apart on two passes
+    /// over identical real entries — enough for `UsageSnapshot ==` to report a change,
+    /// which five refresh paths treat as "republish". The cost loop now walks sorted
+    /// model ids. (The real-tree counterpart is
+    /// `UsageAggregatorRealDataTests.twoAggregationPassesOverTheRealTreeAgreeExactly`;
+    /// this one keeps the guard in CI, which has no logs.)
+    @Test func twoAggregatorsOverTheSameEntriesAgree() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-09-21T12:00:00Z"))
+        let models = ["claude-opus-4-6", "claude-sonnet-4-6-20250929", "claude-haiku-4-5-20251001"]
+        let projects = ["/work/alpha", "/work/beta", "/work/gamma", "/work/delta"]
+        // Every project carries every model, so each project's cost is a multi-term sum.
+        let entries = projects.enumerated().flatMap { index, cwd in
+            models.enumerated().map { modelIndex, model in
+                projectEntry(model: model, cwd: cwd, timestamp: now.addingTimeInterval(TimeInterval(-60 * (index * 10 + modelIndex + 1))))
+            }
+        }
+
+        func snapshot(_ name: String) -> UsageSnapshot {
+            UsageAggregator(
+                statsCacheReader: nil,
+                sessionLogReader: StubEntrySource(entries),
+                ledger: TokenLedger(fileURL: dir.appendingPathComponent("\(name).json"))
+            ).aggregate(rateLimits: nil, now: now).detail
+        }
+
+        let first = snapshot("first")
+        let second = snapshot("second")
+
+        #expect(first == second)
+        #expect(first.projectTokens.map(\.estimatedCost) == second.projectTokens.map(\.estimatedCost))
+        #expect(first.totalProjectCost == second.totalProjectCost)
+        #expect(first.projectTokens.map(\.id) == second.projectTokens.map(\.id))
+        #expect(first.modelTokens.map(\.id) == second.modelTokens.map(\.id))
+    }
+
+    /// Rows level on tokens must order by id, not by whatever `sorted` happened to do —
+    /// `sorted` is not stable, so equal rows otherwise swap between polls with nothing
+    /// behind the change.
+    @Test func rowsLevelOnTokensOrderByIdentifier() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-09-21T12:00:00Z"))
+        // One identical entry per project: same model, same tokens, so every project row
+        // ties exactly. Declared out of alphabetical order on purpose.
+        let projects = ["/work/zulu", "/work/alpha", "/work/mike", "/work/bravo"]
+        let entries = projects.enumerated().map { index, cwd in
+            projectEntry(
+                model: "claude-sonnet-4-6-20250929",
+                cwd: cwd,
+                timestamp: now.addingTimeInterval(TimeInterval(-60 * (index + 1)))
+            )
+        }
+        let snapshot = UsageAggregator(
+            statsCacheReader: nil,
+            sessionLogReader: StubEntrySource(entries),
+            ledger: TokenLedger(fileURL: dir.appendingPathComponent("ledger.json"))
+        ).aggregate(rateLimits: nil, now: now).detail
+
+        let tokenTotals = Set(snapshot.projectTokens.map { $0.totalTokens })
+        #expect(tokenTotals.count == 1, "the fixture must actually tie: \(tokenTotals)")
+        #expect(snapshot.projectTokens.map { $0.id } == projects.sorted())
+    }
+
     // MARK: - Attribution (Plan 2, Task 7)
 
     private func codexAggregator(_ entries: [AssistantUsageEntry]) -> (UsageAggregator, URL, TokenLedger) {
