@@ -26,7 +26,11 @@ enum UserDefaultsKeys {
     /// so a Codex-only user isn't dropped onto the Claude sign-in after a sign-out.
     static let signedOutProvider = "aibattery_signedOutProvider"
     static let idleSessionMinutes = "aibattery_idleSessionMinutes"
-    static let throttleTimestamps = "aibattery_throttleTimestamps"
+    /// Per-account throttle timestamps: `[accountId: [epochSeconds]]`. Replaces the
+    /// unscoped `aibattery_throttleTimestamps` array, which reported a Claude account's
+    /// throttles on a Codex account's Insights panel. The legacy key is not migrated —
+    /// it is a 30-day rolling trend, so it refills itself.
+    static let throttleTimestampsByAccount = "aibattery_throttleTimestampsByAccount"
     static let planTier = "aibattery_planTier"
     static let contextCollapsed = "aibattery_contextCollapsed"
     // tokensCollapsed removed — Tokens section merged into Insights since v1.9.0

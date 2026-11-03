@@ -18,6 +18,12 @@ struct PopoverErrorView: View {
                 .foregroundStyle(ThemeColors.secondaryLabel)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
+                // The container is a fixed height, so a long provider error truncates
+                // at three lines. Without these the user could neither read the rest nor
+                // copy it into a bug report.
+                .textSelection(.enabled)
+                .help(message)
+                .copyable(message)
             Button(action: onRetry) {
                 HStack(spacing: Spacing.inner) {
                     Image(systemName: "arrow.clockwise")

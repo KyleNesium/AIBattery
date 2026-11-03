@@ -24,6 +24,15 @@ struct RateLimitUsage: Equatable, Codable {
     static let rolloverArtifactUtilizationThreshold = 0.95
     static let rolloverArtifactGracePeriod: TimeInterval = 600 // 10 minutes
 
+    /// How far the local clock may run behind the provider's before a just-rolled
+    /// window stops being recognised as one. A Mac that wakes a couple of minutes
+    /// behind makes the computed elapsed time slightly negative on a window that has
+    /// only just started; without this tolerance the lagging near-full reading was
+    /// shown as "Limit reached" on a freshly reset window — the v2.4.2 bug class.
+    /// A reset *further* away than the window is long is still never treated as a
+    /// rollover: that is a period this filter knows nothing about (a monthly budget).
+    static let clockSkewTolerance: TimeInterval = 300 // 5 minutes
+
     /// Minimum observation window before a credit budget's runway estimate
     /// (`CodexCreditBudget.estimatedTimeToExhaustion`) is shown — need a meaningful
     /// burn rate, same rationale as the windowed estimate's 60s minimum elapsed time.
@@ -281,8 +290,10 @@ struct RateLimitUsage: Equatable, Codable {
         let elapsed = windowDuration - timeUntilReset
         // A reset further away than the window is long is not "a window that just
         // started" — it's a period this filter knows nothing about (e.g. a monthly
-        // credit budget). Never clear those.
-        guard elapsed >= 0 else { return false }
+        // credit budget). Never clear those. Slightly negative is a different story:
+        // that is this machine's clock sitting behind the provider's on a window that
+        // genuinely just rolled, so allow `clockSkewTolerance` of it.
+        guard elapsed >= -clockSkewTolerance else { return false }
         return elapsed < rolloverArtifactGracePeriod
     }
 

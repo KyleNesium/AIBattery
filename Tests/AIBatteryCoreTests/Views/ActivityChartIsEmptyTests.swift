@@ -106,8 +106,6 @@ struct ActivityChartIsEmptyTests {
             weekModelTokens: [],
             monthModelTokens: [],
             dailyActivity: [],
-            dailyAverage: 0,
-            trendDirection: .flat,
             busiestDayOfWeek: nil,
             hourCounts: [:],
             todayHourCounts: [:],

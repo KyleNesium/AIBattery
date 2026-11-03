@@ -52,11 +52,28 @@ struct AccountCardTests {
         #expect(cards.map(\.id) == ["c1", "x1"])
         #expect(cards[0].identity == "Claude Team")
         #expect(cards[0].worstPercent == 34)
-        #expect(cards[0].plan == nil) // plan label is Codex-only
+        #expect(cards[0].plan == nil) // no plan looked up yet for this Claude account
         #expect(cards[1].plan == "Business")
         #expect(cards[0].bars.map(\.label) == ["5-Hour", "7-Day"])
         #expect(cards[1].bars.map(\.label) == ["5-Hour", "Weekly"])
         #expect(cards[0].state == .none)
+    }
+
+    /// Claude and Codex cards carry their plan the same way: "Claude · Max 20×" beside
+    /// "Codex · Business". A legacy, unrecognised Claude billing string shows nothing.
+    @Test func rows_claudePlan_alignsWithCodex() {
+        let accounts = [
+            rec("c1", .claude, billing: "max_20x"),
+            rec("c2", .claude, billing: "stripe_subscription"),
+            rec("x1", .codex, billing: "business"),
+        ]
+        let cards = AccountCard.rows(
+            accounts: accounts, readings: [:], statuses: [:],
+            isAuthenticated: { _ in true }, maskEmail: true
+        )
+        #expect(cards.first { $0.id == "c1" }?.plan == "Max 20×")
+        #expect(cards.first { $0.id == "c2" }?.plan == nil)
+        #expect(cards.first { $0.id == "x1" }?.plan == "Business")
     }
 
     @Test func rows_carryProviderStatusOntoEveryCard() {
@@ -412,5 +429,63 @@ struct AccountCardTests {
         )
         #expect(cards[0].lastActivity == now)
         #expect(cards[1].lastActivity == nil)
+    }
+
+    // MARK: - The identity an alias covers
+
+    private func aliased(_ id: String, name: String?, identity: String?, provider: AIProvider = .codex) -> AccountRecord {
+        AccountRecord(id: id, displayName: name, addedAt: now, provider: provider, discoveredIdentity: identity)
+    }
+
+    private func identityCards(_ accounts: [AccountRecord], maskEmail: Bool) -> [AccountCard] {
+        AccountCard.rows(
+            accounts: accounts,
+            readings: Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, windowReading(0.1, 0.1, provider: $0.provider)) }),
+            statuses: [:], isAuthenticated: { _ in true }, maskEmail: maskEmail
+        )
+    }
+
+    /// The card's name stays the alias — it is the header line at 275pt. The identity
+    /// behind it comes back separately, for its own line under the gauges.
+    @Test func rows_carryTheIdentityAnAliasCovers_whenUnmasked() {
+        let cards = identityCards([aliased("x1", name: "API Rates", identity: "kyle@example.com")], maskEmail: false)
+        #expect(cards[0].identity == "API Rates")
+        #expect(cards[0].hiddenIdentity == "kyle@example.com")
+    }
+
+    @Test func rows_dropTheIdentityWhenMasked() {
+        let cards = identityCards([aliased("x1", name: "API Rates", identity: "kyle@example.com")], maskEmail: true)
+        #expect(cards[0].hiddenIdentity == nil)
+    }
+
+    /// Without an alias the header already *is* the identity; a second line would
+    /// print it twice.
+    @Test func rows_haveNoHiddenIdentityWithoutAnAlias() {
+        let cards = identityCards([aliased("x1", name: nil, identity: "kyle@example.com")], maskEmail: false)
+        #expect(cards[0].identity == "kyle@example.com")
+        #expect(cards[0].hiddenIdentity == nil)
+    }
+
+    /// Claude's discovered identity is a workspace name, not an email — never masked by
+    /// `maskedEmail`, but still the answer to "which account is this?".
+    @Test func rows_coverAClaudeWorkspaceToo() {
+        let cards = identityCards([aliased("c1", name: "Work", identity: "Ringier Workspace", provider: .claude)], maskEmail: false)
+        #expect(cards[0].hiddenIdentity == "Ringier Workspace")
+    }
+
+    /// A signed-out card is exactly where "which account is this?" bites hardest — it
+    /// is the one you are about to sign back in.
+    @Test func rows_keepTheIdentityOnASignedOutCard() {
+        let cards = AccountCard.rows(
+            accounts: [aliased("x1", name: "API Rates", identity: "kyle@example.com")],
+            readings: [:], statuses: [:], isAuthenticated: { _ in false }, maskEmail: false
+        )
+        #expect(cards[0].state == .signedOut)
+        #expect(cards[0].hiddenIdentity == "kyle@example.com")
+    }
+
+    @Test func accessibilityLabel_speaksTheIdentityAfterTheName() {
+        let cards = identityCards([aliased("x1", name: "API Rates", identity: "kyle@example.com")], maskEmail: false)
+        #expect(cards[0].accessibilityLabel.hasPrefix("Codex account API Rates, kyle@example.com"))
     }
 }

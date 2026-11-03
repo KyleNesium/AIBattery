@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import os
 
@@ -29,7 +30,30 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         let fileSize: UInt64
         var entries: [AssistantUsageEntry]?
         var messageIds: Set<String>
+        /// Byte just past the last newline of the previous parse — where the next one
+        /// may resume. Zero when the file has never been tail-parsed.
+        var resumeOffset: UInt64 = 0
+        /// SHA-256 of the file's first `headFingerprintLength` bytes: cheap proof that
+        /// this is still the same file rather than a rotated one. Hashed, not kept, so
+        /// no message bytes are retained (`SessionLogReader` does the same).
+        var headFingerprint: Data = .init()
+        /// The parser's running state as of `resumeOffset`. Unlike the Claude reader,
+        /// a Codex parse cannot restart cold at an offset — session id, cwd, the current
+        /// model and effort, the creator account and the cumulative-usage guard all
+        /// accumulate across lines, and a turn parsed without them is dropped or
+        /// mis-attributed.
+        var parser: CodexSessionLogParser?
+        /// `lineIndex` as of `resumeOffset`. It is the fallback ordinal for a line that
+        /// carries none, and the ordinal is half the message id — so a resumed parse has
+        /// to keep counting rather than restart at zero.
+        var lineIndex: Int = 0
+        /// Message id of the entry produced by the unterminated final line, if it made
+        /// one. That line is re-read next pass, so its entry is removed before merging.
+        var trailingMessageId: String?
     }
+
+    /// First bytes of a file, hashed as the identity check for a resumed parse.
+    static let headFingerprintLength = 256
 
     private var cache: [String: FileCacheEntry] = [:]
     /// Starts true so the first read performs a full scan.
@@ -69,7 +93,9 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     private var directoriesListedDuringLastDiscovery = 0
 
     /// Corrupt / skipped line count from the most recent `readAllUsageEntries()`.
-    private(set) var lastCorruptLineCount = 0
+    /// Written on the scan thread, read from MainActor — see `NSLock.AtomicInt`.
+    private let corruptLineCounter = NSLock.AtomicInt()
+    var lastCorruptLineCount: Int { corruptLineCounter.current }
 
     // MARK: - UsageEntrySource
 
@@ -90,7 +116,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
     func readAllUsageEntries() -> [AssistantUsageEntry] {
         lock.lock()
         pendingInvalidation.set(false)
-        lastCorruptLineCount = 0
+        corruptLineCounter.set(0)
 
         if !isDirty, let cached = cachedAllEntries {
             lock.unlock()
@@ -173,12 +199,36 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
                 changed = true
             }
 
-            let entries = readSessionFile(at: fileURL)
+            // Resume where the last parse stopped when the file has only grown. The
+            // active rollout is 20-25 MB and the CLI writes to it continuously, so a
+            // full re-read on every FSEvent is the dominant cost on this path.
+            let head = Self.headBytes(of: fileURL)
+            let resumeFrom = Self.tailParseOffset(cached: cache[path], newSize: fileSize, head: head)
+            let parse = readSessionFile(at: fileURL, from: resumeFrom ?? 0, resuming: resumeFrom == nil ? nil : cache[path])
+            var entries: [AssistantUsageEntry]
+            if resumeFrom != nil, let previous = cache[path]?.entries {
+                // The previous pass's unterminated line is re-read by this one, so drop
+                // the entry it produced before appending. Codex ordinals are unique
+                // within a rollout, so removing by id cannot take anything else with it.
+                entries = previous
+                if let staleTrailing = cache[path]?.trailingMessageId {
+                    entries.removeAll { $0.messageId == staleTrailing }
+                }
+                let known = Set(entries.map(\.messageId))
+                entries.append(contentsOf: parse.entries.filter { !known.contains($0.messageId) })
+            } else {
+                entries = parse.entries
+            }
             cache[path] = FileCacheEntry(
                 modDate: modDate ?? Date(),
                 fileSize: fileSize ?? 0,
                 entries: entries,
-                messageIds: Set(entries.map(\.messageId))
+                messageIds: Set(entries.map(\.messageId)),
+                resumeOffset: parse.resumeOffset,
+                headFingerprint: head,
+                parser: parse.parser,
+                lineIndex: parse.lineIndex,
+                trailingMessageId: parse.trailingMessageId
             )
             for entry in entries where seenIds.insert(entry.messageId).inserted {
                 resultEntries.append(entry)
@@ -187,7 +237,11 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         }
 
         if changed || base == nil {
-            resultEntries.sort { $0.timestamp < $1.timestamp }
+            // Tie on `messageId`: entries arrive per file from a dictionary, so two
+            // with the same timestamp have no inherent order, and `sort` is not stable.
+            // `TokenHealthMonitor` reads a session's *last* entry for its model and
+            // context, so an unstable tail can change what the gauge reports.
+            resultEntries.sort { $0.timestamp == $1.timestamp ? $0.messageId < $1.messageId : $0.timestamp < $1.timestamp }
         }
         return (resultEntries, seenIds)
     }
@@ -254,7 +308,9 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
 
             files.append(contentsOf: listing.files)
-            queue.append(contentsOf: listing.subdirectories)
+            queue.append(contentsOf: listing.subdirectories.filter {
+                Self.isWithinRetentionHorizon(directory: $0, under: sessionsURL, now: Date())
+            })
         }
 
         // Forget directories that no longer exist, so a deleted date folder cannot keep
@@ -268,6 +324,44 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         lastEnumerationDate = Date()
         rootModDateAtEnumeration = rootModDate
         return files
+    }
+
+    /// Months of history worth discovering. The aggregator never looks past 12 months
+    /// and Codex all-time figures are a `TokenLedger` high-water mark (so they survive a
+    /// file disappearing), but the Codex CLI never prunes its rollouts, so the tree grows
+    /// without bound — measured 2026-10-31: 1734 files, 105 of them already past 90 days.
+    /// 13 rather than 12 so the boundary month is always read whole.
+    ///
+    /// `SessionLogReader` deliberately has no equivalent: Claude Code prunes its own
+    /// session logs at ~45 days (same machine, same day: 2700 files, oldest 46 days), so a
+    /// horizon there would skip nothing and only cost a date prefetch per discovery pass.
+    /// See `docs/TODOS.md` → "Decided not to do".
+    static let retentionHorizonMonths = 13
+
+    /// Whether a `~/.codex/sessions/YYYY[/MM[/DD]]` directory can still hold anything
+    /// worth reading. The date is in the path, so this costs no `stat`.
+    ///
+    /// Anything that does not parse as part of that skeleton is kept: an unrecognised
+    /// layout must not silently drop a user's data.
+    static func isWithinRetentionHorizon(directory: URL, under root: URL, now: Date) -> Bool {
+        let rootComponents = root.standardizedFileURL.pathComponents
+        let components = directory.standardizedFileURL.pathComponents
+        guard components.count > rootComponents.count,
+              Array(components.prefix(rootComponents.count)) == rootComponents else { return true }
+        let relative = Array(components.dropFirst(rootComponents.count))
+
+        guard let year = Int(relative[0]), (1_970...9_999).contains(year) else { return true }
+        var month = 12 // a bare year folder is kept if ANY of its months is in range
+        if relative.count >= 2 {
+            guard let parsed = Int(relative[1]), (1...12).contains(parsed) else { return true }
+            month = parsed
+        }
+
+        let calendar = Calendar.current
+        guard let cutoff = calendar.date(byAdding: .month, value: -retentionHorizonMonths, to: now) else { return true }
+        let cutoffYear = calendar.component(.year, from: cutoff)
+        let cutoffMonth = calendar.component(.month, from: cutoff)
+        return (year, month) >= (cutoffYear, cutoffMonth)
     }
 
     /// Read one directory: its `.jsonl` files and its subdirectories.
@@ -326,13 +420,55 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
 
     // MARK: - Streaming line reader
 
-    private func readSessionFile(at url: URL) -> [AssistantUsageEntry] {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return [] }
-        defer { try? handle.close() }
-
-        var parser = CodexSessionLogParser(fallbackSessionId: url.deletingPathExtension().lastPathComponent)
+    /// Everything a parse of one rollout file yields, including what a later parse
+    /// needs in order to resume where this one stopped.
+    struct FileParse {
         var entries: [AssistantUsageEntry] = []
+        var resumeOffset: UInt64 = 0
+        var parser: CodexSessionLogParser?
         var lineIndex = 0
+        var trailingMessageId: String?
+    }
+
+    /// Where a re-parse of this file may resume, or nil when it must start from the top.
+    ///
+    /// Only an append qualifies: same head digest, a size at least as large as what was
+    /// already consumed, the previous entries still in memory, and the parser state that
+    /// went with them. A truncation shrinks the size and a rotation changes the digest,
+    /// so both fall back to a full parse. As on the Claude side this is an identity
+    /// check, not a content hash: an in-place edit before the offset that preserves both
+    /// size and the first 256 bytes would be resumed over, which is sound only because
+    /// the CLI appends to rollouts and never rewrites a line.
+    static func tailParseOffset(cached: FileCacheEntry?, newSize: UInt64?, head: Data) -> UInt64? {
+        guard let cached, cached.entries != nil, cached.parser != nil, cached.resumeOffset > 0,
+              !cached.headFingerprint.isEmpty, cached.headFingerprint == head,
+              let newSize, newSize >= cached.resumeOffset else { return nil }
+        return cached.resumeOffset
+    }
+
+    /// A digest of the first `headFingerprintLength` bytes, or empty when unreadable.
+    static func headBytes(of url: URL) -> Data {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return Data() }
+        defer { try? handle.close() }
+        guard let head = try? handle.read(upToCount: headFingerprintLength), !head.isEmpty else { return Data() }
+        return Data(SHA256.hash(data: head))
+    }
+
+    private func readSessionFile(at url: URL, from offset: UInt64 = 0, resuming resumed: FileCacheEntry? = nil) -> FileParse {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return FileParse() }
+        defer { try? handle.close() }
+        if offset > 0 {
+            guard (try? handle.seek(toOffset: offset)) != nil else { return FileParse() }
+        }
+
+        var parser = resumed?.parser
+            ?? CodexSessionLogParser(fallbackSessionId: url.deletingPathExtension().lastPathComponent)
+        // Corruption is tallied into the shared counter at the end, so a resumed parser
+        // must only contribute what the *new* bytes added.
+        let corruptBaseline = resumed?.parser?.corruptLineCount ?? 0
+        var entries: [AssistantUsageEntry] = []
+        var lineIndex = resumed?.lineIndex ?? 0
+        var consumed = offset
 
         let bufferSize = 64 * 1_024
         let maxLineSize = 1_048_576 // 1 MB — discard oversized (malformed) lines
@@ -349,24 +485,30 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
         }
 
+        // One reused buffer for the whole file: a `Data` per chunk was the launch
+        // footprint spike (see `ChunkedFileReader`).
+        var chunkReader = ChunkedFileReader(handle: handle, bufferSize: bufferSize)
+
         while true {
-            guard let chunk = try? handle.read(upToCount: bufferSize), !chunk.isEmpty else { break }
             // Bytes already searched for a newline on a previous pass — a multi-megabyte
             // line arrives in many chunks and must not be rescanned from its start each time.
             var alreadyScanned = leftover.count
-            leftover.append(chunk)
+            guard chunkReader.readChunk(into: &leftover) else { break }
 
             if skippingOversizedLine {
                 guard let newlineIndex = leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) else {
+                    consumed += UInt64(leftover.count)
                     leftover.removeAll()
                     continue
                 }
+                consumed += UInt64(newlineIndex - leftover.startIndex + 1)
                 leftover = Data(leftover[(newlineIndex + 1)...])
                 alreadyScanned = 0
                 skippingOversizedLine = false
             } else if leftover.count > maxLineSize, leftover.firstNewlineIndex(from: leftover.startIndex + alreadyScanned) == nil {
-                lastCorruptLineCount += 1
+                corruptLineCounter.add(1)
                 AppLogger.files.debug("Skipping oversized Codex JSONL line (>\(leftover.count) bytes) in \(url.lastPathComponent, privacy: .public)")
+                consumed += UInt64(leftover.count)
                 leftover.removeAll()
                 skippingOversizedLine = true
                 continue
@@ -380,6 +522,7 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
                 let lineData = leftover[leftover.startIndex..<newlineIndex]
                 leftover = leftover[(newlineIndex + 1)...]
                 searchFrom = leftover.startIndex
+                consumed += UInt64(lineData.count + 1)
                 process(lineData)
             }
 
@@ -389,13 +532,30 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
             }
         }
 
+        // Snapshot BEFORE the trailing line. `consumed` stops at the last newline, so
+        // the next parse re-reads that line and must start from the state that preceded
+        // it — restoring post-trailing state would apply its `turn_context` twice.
+        let stateAtResume = parser
+        let lineIndexAtResume = lineIndex
+
         // Trailing data without a newline: only a complete object (ends with `}`) is a
         // finished line — anything else is a partial write still in progress.
+        var trailingMessageId: String?
         if !skippingOversizedLine, !leftover.isEmpty, leftover.last == UInt8(ascii: "}") {
+            let before = entries.count
             process(leftover)
+            if entries.count > before {
+                trailingMessageId = entries[before].messageId
+            }
         }
 
-        lastCorruptLineCount += parser.corruptLineCount
-        return entries
+        corruptLineCounter.add(parser.corruptLineCount - corruptBaseline)
+        return FileParse(
+            entries: entries,
+            resumeOffset: consumed,
+            parser: stateAtResume,
+            lineIndex: lineIndexAtResume,
+            trailingMessageId: trailingMessageId
+        )
     }
 }

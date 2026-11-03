@@ -7,7 +7,10 @@ extension Data {
     /// dominated the cold scan of both JSONL readers (Codex tree: 5.8 s → 1.6 s after
     /// switching). Index arithmetic honours slices whose `startIndex` is non-zero.
     func firstNewlineIndex(from start: Data.Index) -> Data.Index? {
-        guard start < endIndex else { return nil }
+        // Both bounds. A `start` below `startIndex` would make `offset` negative and
+        // hand `memchr` a base pointer outside the buffer — unreachable from today's
+        // call sites (all pass `startIndex + n`, n >= 0), and free to rule out.
+        guard start >= startIndex, start < endIndex else { return nil }
         return withUnsafeBytes { raw -> Data.Index? in
             let offset = start - startIndex
             let length = raw.count - offset

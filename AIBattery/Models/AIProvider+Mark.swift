@@ -75,7 +75,11 @@ extension NSImage {
 /// One-time SVG decode per provider; `NSImage` is immutable once `isTemplate` is set.
 private final class MarkCache: @unchecked Sendable {
     private let lock = NSLock()
-    private var images: [AIProvider: NSImage] = [:]
+    /// `.some(nil)` is a cached miss. Caching only hits meant that on a bundle whose
+    /// resources are missing, every `ProviderBadge` body re-ran three `Bundle` lookups
+    /// and up to three `fileExists` calls — filesystem work inside a SwiftUI `body`,
+    /// on the one path where the app is already degraded.
+    private var images: [AIProvider: NSImage?] = [:]
 
     func image(for provider: AIProvider) -> NSImage? {
         lock.lock()
@@ -84,6 +88,7 @@ private final class MarkCache: @unchecked Sendable {
             return cached
         }
         guard let url = AIProvider.markURL(for: provider), let image = NSImage(contentsOf: url) else {
+            images[provider] = NSImage?.none
             return nil
         }
         image.isTemplate = true

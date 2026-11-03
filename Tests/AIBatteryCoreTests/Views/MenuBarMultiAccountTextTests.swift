@@ -821,4 +821,130 @@ struct MenuBarMultiAccountTextTests {
         #expect(result.usedMultiAccount)
         #expect(result.percent == 80)
     }
+
+    // MARK: - Unknown provider / display gating
+
+    @Test("An id with no provider entry is skipped, not drawn under Claude's mark")
+    func unknownProviderIsSkipped() {
+        let limits: [String: RateLimitUsage] = [
+            "a": Self.usage(fiveHourUtilization: 0.42),
+            "ghost": Self.usage(fiveHourUtilization: 0.90),
+            "c": Self.usage(fiveHourUtilization: 0.23),
+        ]
+        let providers: [String: AIProvider] = ["a": .claude, "c": .codex]
+        let out = MenuBarMultiAccountText.build(order: ["a", "ghost", "c"], providers: providers, limits: limits)
+        // Two groups, each under its own glyph; the unmapped id contributes no slot.
+        #expect(out.text == "\(AIProvider.claude.glyph)\u{00A0}42%  \(AIProvider.codex.glyph)\u{00A0}23%")
+        #expect(!out.text.contains("90%"))
+    }
+
+    @Test("Multi branch is gated on displayed accounts with data, not on stale cache entries")
+    func emptyOrderDoesNotTakeMultiBranch() {
+        let stale: [String: RateLimitUsage] = [
+            "old-a": Self.usage(fiveHourUtilization: 0.42),
+            "old-b": Self.usage(fiveHourUtilization: 0.23),
+        ]
+        let display = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: stale,
+            order: [],
+            activeRateLimits: nil,
+            activePercent: 0.07,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: { _, _ in nil }
+        )
+        #expect(!display.usedMultiAccount)
+        #expect(display.text == PercentFormat.display(0.07))
+    }
+
+    // MARK: - Spoken description (VoiceOver)
+
+    private static func display(
+        text: String,
+        percent: Double = 0.5,
+        isExhausted: Bool = false,
+        countdownReset: Date? = nil,
+        usedMultiAccount: Bool = false
+    ) -> MenuBarMultiAccountText.Display {
+        MenuBarMultiAccountText.Display(
+            text: text, percent: percent, isExhausted: isExhausted,
+            countdownReset: countdownReset, usedMultiAccount: usedMultiAccount
+        )
+    }
+
+    @Test("Single account: the number is named, not just read")
+    func spoken_singleAccountNamesTheMetric() {
+        let spoken = MenuBarMultiAccountText.spokenDescription(
+            display: Self.display(text: "63%"), metricLabel: "5 Hour"
+        )
+        #expect(spoken == "AI Battery, 5 Hour, 63%")
+    }
+
+    @Test("Multi account: the separator is spoken as a pause and no-data is a word")
+    func spoken_multiAccountReadsAsAList() {
+        let text = "42%\u{00A0}|\u{00A0}—"
+        let spoken = MenuBarMultiAccountText.spokenDescription(
+            display: Self.display(text: text, usedMultiAccount: true), metricLabel: "5 Hour"
+        )
+        #expect(spoken == "AI Battery, usage by account, 42%, no data")
+        #expect(!spoken.contains("|"))
+        #expect(!spoken.contains("\u{2014}"))
+    }
+
+    @Test("Exhausted is announced on the multi-account bar too")
+    func spoken_multiAccountAnnouncesExhausted() {
+        let spoken = MenuBarMultiAccountText.spokenDescription(
+            display: Self.display(text: "100%\u{00A0}|\u{00A0}42%", isExhausted: true, usedMultiAccount: true),
+            metricLabel: "5 Hour"
+        )
+        #expect(spoken.hasSuffix("limit reached"))
+    }
+
+    @Test("A countdown is spoken as a reset time, not as a percentage")
+    func spoken_countdownSaysWhatItIs() {
+        let spoken = MenuBarMultiAccountText.spokenDescription(
+            display: Self.display(text: "5H 2h 15m", isExhausted: true, countdownReset: Date().addingTimeInterval(8_100)),
+            metricLabel: "5 Hour"
+        )
+        #expect(spoken == "AI Battery, limit reached, resets in 5H 2h 15m")
+    }
+
+    @Test("Provider glyphs are spoken as provider names")
+    func spoken_glyphsBecomeNames() {
+        let text = "\(AIProvider.claude.glyph)\u{00A0}42%  \(AIProvider.codex.glyph)\u{00A0}57%"
+        let spoken = MenuBarMultiAccountText.spokenDescription(
+            display: Self.display(text: text, usedMultiAccount: true),
+            metricLabel: "5 Hour",
+            providerNames: MenuBarIcon.spokenMenuBarText
+        )
+        #expect(spoken.contains(AIProvider.claude.displayName))
+        #expect(spoken.contains(AIProvider.codex.displayName))
+        #expect(!spoken.contains(AIProvider.claude.glyph))
+    }
+
+    /// A colour-blind user with two accounts had no non-colour cue that the bar had
+    /// switched from percentages to a countdown: the window-code prefix existed only in
+    /// the single-account branch.
+    @Test("Multi-account countdown carries the binding window code")
+    func multiAccountCountdownIsPrefixed() {
+        let reset = Date().addingTimeInterval(3_600)
+        let throttled = Self.usage(
+            fiveHourUtilization: 1.0, fiveHourReset: reset,
+            fiveHourStatus: "throttled", overallStatus: "throttled"
+        )
+        let healthy = Self.usage(fiveHourUtilization: 0.2)
+        let display = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": throttled, "b": healthy],
+            order: ["a", "b"],
+            activeRateLimits: nil,
+            activePercent: 0.2,
+            metricMode: .fiveHour,
+            now: Date(),
+            countdownResetDate: { usage, _ in usage.isThrottled ? usage.fiveHourReset : nil }
+        )
+        #expect(display.usedMultiAccount)
+        #expect(display.text.hasPrefix(throttled.bindingWindowShortCode))
+    }
 }

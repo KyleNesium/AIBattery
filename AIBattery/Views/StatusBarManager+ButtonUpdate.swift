@@ -122,7 +122,17 @@ extension StatusBarManager {
             // Title is baked into the image — leaving it set would add AppKit's bezel padding
             // back around the text, which is exactly what we're avoiding here.
             button.title = ""
-            button.setAccessibilityValue(MenuBarIcon.spokenMenuBarText(displayText))
+            let kind = CodexDisplayKind.of(
+                rateLimits: activeRateLimits,
+                standardLimits: viewModel.snapshot?.standardLimits,
+                apiKeyAccount: OAuthManager.shared.accountStore.activeAccount?.isAPIKeyAccount ?? false
+            )
+            let activeProvider = viewModel.snapshot?.provider ?? .claude
+            button.setAccessibilityValue(MenuBarMultiAccountText.spokenDescription(
+                display: display,
+                metricLabel: metricMode.shortLabel(provider: activeProvider, kind: kind),
+                providerNames: MenuBarIcon.spokenMenuBarText
+            ))
             updateStatusItemWidth(button: button)
             // Never grey out — the icon always shows the last known state.
             // Other menu bar apps (Battery, WiFi) don't dim on stale data.

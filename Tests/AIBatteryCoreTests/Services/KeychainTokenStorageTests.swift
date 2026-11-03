@@ -64,7 +64,7 @@ struct KeychainTokenStorageTests {
             for: accountId
         )
 
-        let loaded = OAuthTokenStorage.load(for: accountId)
+        let loaded = OAuthTokenStorage.load(for: accountId).tokens
         #expect(loaded.refreshToken == "refresh-1")
         // Access token is memory-only by design — load must never return one.
         #expect(loaded.accessToken == nil)
@@ -91,13 +91,13 @@ struct KeychainTokenStorageTests {
             for: accountB
         )
 
-        #expect(OAuthTokenStorage.load(for: accountA).refreshToken == "refresh-a")
-        #expect(OAuthTokenStorage.load(for: accountB).refreshToken == "refresh-b")
+        #expect(OAuthTokenStorage.load(for: accountA).tokens.refreshToken == "refresh-a")
+        #expect(OAuthTokenStorage.load(for: accountB).tokens.refreshToken == "refresh-b")
 
         // Deleting one account must not touch the other.
         OAuthTokenStorage.delete(for: accountA)
-        #expect(OAuthTokenStorage.load(for: accountA).refreshToken == nil)
-        #expect(OAuthTokenStorage.load(for: accountB).refreshToken == "refresh-b")
+        #expect(OAuthTokenStorage.load(for: accountA).tokens.refreshToken == nil)
+        #expect(OAuthTokenStorage.load(for: accountB).tokens.refreshToken == "refresh-b")
     }
 
     @Test func delete_clearsRefreshTokenAndExpiry() {
@@ -113,7 +113,7 @@ struct KeychainTokenStorageTests {
         )
         OAuthTokenStorage.delete(for: accountId)
 
-        let loaded = OAuthTokenStorage.load(for: accountId)
+        let loaded = OAuthTokenStorage.load(for: accountId).tokens
         #expect(loaded.refreshToken == nil)
         #expect(loaded.expiresAt == nil)
     }
@@ -134,6 +134,6 @@ struct KeychainTokenStorageTests {
             for: accountId
         )
 
-        #expect(OAuthTokenStorage.load(for: accountId).refreshToken == "refresh-keep")
+        #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == "refresh-keep")
     }
 }

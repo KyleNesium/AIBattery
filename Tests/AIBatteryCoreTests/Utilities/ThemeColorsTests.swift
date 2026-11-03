@@ -260,4 +260,85 @@ struct ThemeColorsTests {
         // off this token, and the visual result is calibrated against pure black.
         #expect(ThemeColors.shadowColor == .black)
     }
+
+    // MARK: - Overview row hover wash
+
+    /// The hovered card's provider-tinted wash is two layers, and they are not
+    /// interchangeable: the fill is the *body* of the glow and the stroke is its edge.
+    /// The fill must stay the fainter of the two — it covers the whole card, including
+    /// the bars, so at the stroke's weight it reads as a coloured panel laid over the
+    /// content rather than a highlight under it.
+    @Test func rowHoverFill_staysFainterThanItsEdge() {
+        #expect(ThemeColors.rowHoverTintOpacity < ThemeColors.rowHoverStrokeOpacity)
+        #expect(ThemeColors.rowHoverTintOpacity > 0)
+    }
+
+    /// The edge is what gives the row its shape — the fill alone is a blob. So a pass
+    /// that quietens the glow must leave the hairline alone.
+    @Test func rowHoverStroke_keepsItsWeight() {
+        #expect(ThemeColors.rowHoverStrokeOpacity == 0.24)
+    }
+
+    /// The fill is pinned too, not just the relation. An earlier pass took the pair to
+    /// 0.04 / 0.18 and it was lifted back out of a whisper; with only `fill < stroke`
+    /// asserted, a future quietening pass could drop the fill again and stay green —
+    /// and the CHANGELOG shipped describing exactly that reverted value.
+    @Test func rowHoverFill_keepsItsWeight() {
+        #expect(ThemeColors.rowHoverTintOpacity == 0.07)
+    }
+
+    // MARK: - Adaptive wash alphas
+
+    /// These are the values that actually drifted. They sat inline inside
+    /// `adaptive(light:dark:)` where nothing could read them back — resolving a dynamic
+    /// NSColor off the main thread deadlocks the headless runner — so six spec entries
+    /// went stale without a single test noticing. Named `Double`s are just numbers.
+    @Test func washAlphas_keepTheirValues() {
+        #expect(ThemeColors.hoverFillAlpha == 0.04)
+        #expect(ThemeColors.hoverStrokeAlpha == 0.08)
+        #expect(ThemeColors.copyableHoverFillAlpha == 0.10)
+        #expect(ThemeColors.trackFillLightAlpha == 0.30)
+        #expect(ThemeColors.trackFillDarkAlpha == 0.1)
+        #expect(ThemeColors.badgeFillLightAlpha == 0.09)
+        #expect(ThemeColors.badgeFillDarkAlpha == 0.06)
+    }
+
+    /// The ordering between them is the design rule, and it outlives any one value: a
+    /// hover hint stays under the stronger click-to-copy affordance, and both stay well
+    /// under the bar track they sit beside.
+    @Test func washAlphas_keepTheirOrdering() {
+        #expect(ThemeColors.hoverFillAlpha < ThemeColors.copyableHoverFillAlpha)
+        #expect(ThemeColors.hoverFillAlpha < ThemeColors.hoverStrokeAlpha)
+        #expect(ThemeColors.copyableHoverFillAlpha < ThemeColors.trackFillLightAlpha)
+    }
+
+    /// The light track is deliberately much darker than the dark-mode one: at the old
+    /// 0.14 every bar fill measured under 3:1 against its own track in light mode, which
+    /// fails WCAG non-text contrast. Dark mode already passed, so the two are not
+    /// mirror images and must not be "tidied" into one value.
+    @Test func trackFill_lightIsDarkerThanDarkMode_forContrast() {
+        #expect(ThemeColors.trackFillLightAlpha > ThemeColors.trackFillDarkAlpha)
+        #expect(ThemeColors.trackFillLightAlpha >= 0.30)
+    }
+
+    // MARK: - Provider tint strength
+
+    /// The terracotta and green are the only saturated colours in an otherwise
+    /// monochrome popover, so they are carried softened rather than at full strength —
+    /// at 1.0 they pulled the eye before the numbers did. Every provider-tinted element
+    /// (mark, glow, live dot, card wash, chevron) draws from `providerBadge`, so the one
+    /// opacity keeps them in step instead of drifting apart per call site.
+    @Test func providerTints_areSoftenedButStillPresent() {
+        #expect(ThemeColors.providerTintOpacity < 1.0)
+        // Not a fade: the tint has to survive on thin strokes and small marks.
+        #expect(ThemeColors.providerTintOpacity > 0.6)
+    }
+
+    /// The softened tints must still be told apart, and must still differ from the
+    /// full-strength pair they are derived from.
+    @Test func providerTints_stayDistinctAfterSoftening() {
+        #expect(ThemeColors.providerBadge(.claude) != ThemeColors.providerBadge(.codex))
+        #expect(ThemeColors.providerBadgeOpaque(.claude) != ThemeColors.providerBadgeOpaque(.codex))
+        #expect(ThemeColors.providerBadge(.claude) != ThemeColors.providerBadgeOpaque(.claude))
+    }
 }

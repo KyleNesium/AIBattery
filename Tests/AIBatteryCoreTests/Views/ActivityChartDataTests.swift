@@ -114,6 +114,11 @@ struct ActivityChartDataTests {
 
         // Total is 30000, projected = 30000 * 31 / 10 = 93000
         #expect(march.count == 93_000)
+        // ...and it says so: the chart dashes that segment and the tooltip suffixes it.
+        #expect(march.isProjected)
+        for point in data where point.key != "2026-03" {
+            #expect(!point.isProjected)
+        }
     }
 
     @Test func monthlyData_noProjectionFirstThreeDays() throws {
@@ -125,8 +130,9 @@ struct ActivityChartDataTests {
         let data = ActivityChartData.monthlyData(from: monthTotals, now: fixedDate)
         let march = try #require(data.first(where: { $0.key == "2026-03" }))
 
-        // Day 2 < 4, so no projection — raw total
+        // Day 2 < 4, so no projection — raw total, and not flagged as projected
         #expect(march.count == 10_000)
+        #expect(!march.isProjected)
     }
 
     @Test func monthlyData_pastMonthsNotProjected() throws {

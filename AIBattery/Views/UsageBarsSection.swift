@@ -57,11 +57,28 @@ struct SevenDayBarSection: View {
 /// Purchased-credit balance on a Codex subscription plan — spent only after the
 /// 5-hour / weekly windows run out. Shown beneath the Weekly bar.
 struct CreditBalanceRow: View {
-    let balance: Double
+    /// Nil when the provider reports no purchased-credit balance. An uncapped plan can
+    /// report `unlimited: true` with no balance at all — gating the whole row on a
+    /// balance meant "Credits are unlimited" then appeared nowhere, since the badge it
+    /// used to share the budget header with was (correctly) removed.
+    let balance: Double?
     var unlimited: Bool = false
 
     var body: some View {
-        let text = unlimited ? "Credits: unlimited" : "Credits balance: \(CodexCreditBudget.formatCredits(balance))"
+        if let text = Self.text(balance: balance, unlimited: unlimited) {
+            row(text)
+        }
+    }
+
+    static func text(balance: Double?, unlimited: Bool) -> String? {
+        if unlimited {
+            return "Credits: unlimited"
+        }
+        guard let balance else { return nil }
+        return "Credits balance: \(CodexCreditBudget.formatCredits(balance))"
+    }
+
+    private func row(_ text: String) -> some View {
         HStack(spacing: Spacing.inner) {
             Image(systemName: "creditcard")
                 .font(Typography.tinyLabel)
@@ -160,6 +177,8 @@ struct UsageBar: View {
             barColor: ThemeColors.barColor(percent: displayPercent),
             accessibilityLabel: "\(label) rate limit usage \(PercentFormat.spoken(displayPercent))",
             accessibilityValue: alarm.throttled ? "Rate limited" : "\(PercentFormat.remaining(displayPercent)) percent remaining",
+            // Same text as the header tooltip: reset time, binding window, provenance.
+            accessibilityHint: headerTooltip.replacingOccurrences(of: "\n", with: ", "),
             tickInterval: resetTickInterval,
             headerLeading: {
                 HStack(spacing: Spacing.inner) {
@@ -197,7 +216,7 @@ struct UsageBar: View {
                     }
                     Text(PercentFormat.display(displayPercent))
                         .font(Typography.monoValue)
-                        .copyable(PercentFormat.display(displayPercent))
+                        .copyable(PercentFormat.display(displayPercent), bleed: .trailing)
                 }
             },
             footer: { now in
@@ -230,7 +249,7 @@ struct UsageBar: View {
                         Text(estimateText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.caution)
-                            .copyable(estimateText)
+                            .copyable(estimateText, bleed: .leading)
                             .help("Estimated time until rate limit based on current burn rate")
                     } else {
                         // No burn rate estimate yet — show remaining percentage
@@ -238,7 +257,7 @@ struct UsageBar: View {
                         Text(remainingText)
                             .font(Typography.tinyLabel)
                             .foregroundStyle(ThemeColors.secondaryLabel)
-                            .copyable(remainingText)
+                            .copyable(remainingText, bleed: .leading)
                     }
 
                     Spacer()
@@ -250,7 +269,7 @@ struct UsageBar: View {
                             Text(resetText)
                                 .font(Typography.tinyLabel)
                                 .foregroundStyle(ThemeColors.tertiaryLabel)
-                                .copyable(resetText)
+                                .copyable(resetText, bleed: .trailing)
                         } else if wasExhausted {
                             // Reset time is in the past — window is rolling over
                             Text("Resetting…")

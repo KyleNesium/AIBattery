@@ -67,14 +67,19 @@ struct DisplaySettingsSection: View {
                     .font(Typography.caption)
                     .help("List every account's usage in the menu bar (e.g. 42% | 23%). The popover already shows all accounts whenever you have more than one; this adds them to the menu bar too. Star color and countdown reflect the worst account.")
             }
+            // No gate on this row. It was hidden when no account had a maskable email,
+            // which meant the one setting that controls how accounts are identified
+            // vanished from Settings — and a setting you cannot find reads as a missing
+            // feature, which is worse than one that happens to be a no-op today. It
+            // comes back the moment an account loses its alias or a new one is added.
             HStack(spacing: Spacing.section) {
                 Text("")
                     .font(Typography.caption)
                     .frame(width: Layout.settingsLabel, alignment: .trailing)
-                Toggle("Full account email in popover", isOn: $showFullAccountIdentity)
+                Toggle("Show account email", isOn: $showFullAccountIdentity)
                     .toggleStyle(.checkbox)
                     .font(Typography.caption)
-                    .help("Show the full sign-in email in the header chip and account menu. Off: masked as k•••@domain (safer when screen-sharing). Account names you set in Settings are always shown in full.")
+                    .help("Show each account's sign-in identity in full. An unmasked email replaces k•••@domain in the header chip; a name you set here also gains the identity behind it — on its own line under each overview card, and as API Rates (you@example.com) in the account menu — so you can tell several accounts apart. Off is safer when screen-sharing.")
             }
         }
     }

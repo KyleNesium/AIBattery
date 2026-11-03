@@ -163,6 +163,11 @@ enum Layout {
 
     /// Overview card bar row: fixed columns so every card's gauges line up.
     static let cardBarLabelWidth: CGFloat = 52
+    /// How far the gauge rows step in from the card's other lines. The name, the
+    /// identity and the state line all sit on the card's left edge; with the window
+    /// labels flush against them too, four lines started at one x and the card read as
+    /// a block of text. The step makes the gauges a group you can find without reading.
+    static let cardBarLabelIndent: CGFloat = 8
     static let cardPercentWidth: CGFloat = 34
     static let cardTokensWidth: CGFloat = 40
     static let cardResetWidth: CGFloat = 46
@@ -182,6 +187,36 @@ enum Layout {
 
     /// Bare brand mark, drawn in the provider's colour with no backing shape.
     static let providerMarkSize: CGFloat = 12
+
+    /// How big the SF Symbol fallback runs relative to the brand mark it replaces when a
+    /// bundled SVG fails to load. Under 1 because a symbol carries internal padding the
+    /// SVGs do not — 10pt against the 12pt default mark is the pair this was calibrated
+    /// on, and expressing it as a ratio keeps the fallback in step with `markSize`.
+    static let fallbackSymbolRatio: CGFloat = 10.0 / 12.0
+
+    /// The mark on an overview card. Larger than the header chip's: a card is a wider,
+    /// quieter surface than a title row, and at 12pt the logo read as an afterthought
+    /// beside the headline percentage. The resting lift still fits the 18pt slot; the
+    /// bloom's spring overshoot deliberately leaves it for a moment (see `markBloomScale`).
+    static let cardProviderMarkSize: CGFloat = 14
+
+    /// How far a *turning* brand mark lifts on hover. Small on purpose: the mark sits
+    /// inside a fixed `providerBadgeSize` slot, so anything larger would crowd the name
+    /// beside it, and the turn is already carrying the movement.
+    static let markHoverScale: CGFloat = 1.18
+
+    /// Where a *blooming* mark comes to rest while hovered. The under-damped spring in
+    /// `MotionConstants.markLift` overshoots this by roughly 37% of the travel and wobbles
+    /// back onto it, so this is the settling point, not the peak — the mark passes through
+    /// about 1.48 on its way here.
+    ///
+    /// Larger than `markHoverScale` for a reason beyond size: a spring can only be as
+    /// rubbery as the distance it has to cover, and at a 1.18 target there was too little
+    /// travel for the overshoot to register at all.
+    static let markBloomScale: CGFloat = 1.35
+
+    /// Blur radius of the hovered mark's coloured glow, at rest.
+    static let markGlowRadius: CGFloat = 5
 
     /// Clipboard icon trailing offset (negative for overlay positioning).
     static let clipboardIconOffset: CGFloat = 13
@@ -230,6 +265,35 @@ enum MotionConstants {
 
     /// Full-rotation spin (refresh button): 0.5s easeInOut.
     static let spin: Animation = .easeInOut(duration: 0.5)
+
+    /// The hovered brand mark's single turn (Codex's knot — Claude's sunburst blooms
+    /// instead, so this constant is the OpenAI mark's alone). Deliberately slow — over
+    /// three times `spin` — and eased at both ends: this is an ornament, not feedback,
+    /// so it should unfold while you look at the card rather than snap the moment the
+    /// cursor lands. A faster turn read as a control reacting to a click.
+    static let markSpin: Animation = .easeInOut(duration: 1.6)
+
+    /// The hovered brand mark's lift. The spring *is* the gesture, which matters more
+    /// than it sounds: SwiftUI interpolates a modifier's value between the old and new
+    /// state, it does not re-evaluate `body` per frame. A hand-shaped curve read from
+    /// state therefore never plays — only its endpoints do. Anything rubbery here has to
+    /// come from the animation's own physics.
+    ///
+    /// - `.turn` (Codex) gets a well-damped spring: the rotation carries the movement, so
+    ///   the scale should settle quietly underneath it rather than compete.
+    /// - `.bloom` (Claude) gets a **deliberately under-damped** one. At `dampingFraction`
+    ///   0.3 the first overshoot is ~37% of the travel, so the mark sails past its target,
+    ///   springs back under, and wobbles onto it — the rubbery settle a starburst wants,
+    ///   and the only way to get it without a custom `Animatable`.
+    ///
+    /// Under Reduce Motion the mark does not move at all, so only the glow cross-fades.
+    nonisolated static func markLift(reduceMotion: Bool, motion: MarkHoverMotion) -> Animation {
+        guard !reduceMotion else { return .easeOut(duration: 0.45) }
+        switch motion {
+        case .bloom: return .spring(response: 0.45, dampingFraction: 0.3)
+        case .turn: return .spring(response: 0.75, dampingFraction: 0.7)
+        }
+    }
 
     // MARK: - Marquee (footer incident ticker)
 

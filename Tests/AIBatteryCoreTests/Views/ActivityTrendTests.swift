@@ -81,10 +81,27 @@ struct ActivityTrendTests {
         let now = Date()
         let todayStr = DateFormatters.dateKey.string(from: now)
         let yesterdayStr = try DateFormatters.dateKey.string(from: #require(cal.date(byAdding: .day, value: -1, to: now)))
-        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 500_000, yesterdayStr: 1_000])
+        // Yesterday is 6% of today: above the relative threshold, so a real (huge) spike.
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 500_000, yesterdayStr: 30_000])
         let change = ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now)
         #expect(change?.symbol == "↑")
         #expect(change?.label == ">999% vs yesterday")
+    }
+
+    /// The threshold is relative, not a fixed token count: 1 000 tokens is 0.003% of a
+    /// 30M-token day, so a stray hook session used to clear the old fixed floor and
+    /// print ">999% vs yesterday" instead of being suppressed.
+    @Test func changeVsYesterday_relativeThreshold_suppressesStrayPreviousDay() throws {
+        let cal = Calendar.current
+        let now = Date()
+        let todayStr = DateFormatters.dateKey.string(from: now)
+        let yesterdayStr = try DateFormatters.dateKey.string(from: #require(cal.date(byAdding: .day, value: -1, to: now)))
+        let snapshot = makeSnapshot(dailyTokenTotals: [todayStr: 30_000_000, yesterdayStr: 5_000])
+        #expect(ActivityTrendComputation.changeVsYesterday(snapshot, cal: cal, now: now) == nil)
+
+        // The absolute floor still applies to small volumes.
+        #expect(ActivityTrendComputation.meaningfulPreviousThreshold(current: 100) == 1_000)
+        #expect(ActivityTrendComputation.meaningfulPreviousThreshold(current: 30_000_000) == 1_500_000)
     }
 
     // MARK: - monthChangeInfo
@@ -115,7 +132,7 @@ struct ActivityTrendTests {
 
     @Test func copyText_includesAllParts() {
         let data = ActivityTrendData(
-            change: ActivityChangeInfo(symbol: "↑", label: "+5 vs yesterday", color: .orange),
+            change: ActivityChangeInfo(direction: .up, label: "+5 vs yesterday", color: .orange),
             stat: "15 msgs today",
             throttleCount: 2,
             peak: "Peak: 14:00",
@@ -194,7 +211,7 @@ struct ActivityTrendTests {
         dailyActivity: [DailyActivity] = [],
         dailyTokenTotals: [String: Int] = [:]
     ) -> UsageSnapshot {
-        let stats = UsageSnapshot.computeActivityStats(dailyActivity)
+        let busiestDay = UsageSnapshot.computeBusiestDay(dailyActivity)
         return UsageSnapshot(
             lastUpdated: Date(),
             rateLimits: nil,
@@ -226,9 +243,7 @@ struct ActivityTrendTests {
             weekModelTokens: [],
             monthModelTokens: [],
             dailyActivity: dailyActivity,
-            dailyAverage: stats.average,
-            trendDirection: stats.trend,
-            busiestDayOfWeek: stats.busiestDay,
+            busiestDayOfWeek: busiestDay,
             hourCounts: [:],
             todayHourCounts: [:],
             tokenHealth: nil,
