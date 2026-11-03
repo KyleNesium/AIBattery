@@ -20,7 +20,8 @@
 - **A trivially small previous day no longer prints ">999% vs yesterday".** The threshold that suppresses meaningless comparisons is relative to the day's own volume instead of a fixed token count.
 - **Peak hour, busiest weekday, the session list and the Projects list stop reshuffling.** Rows that tied — and several projects sitting at zero cost is the ordinary case, not an edge one — had the tie broken by dictionary order, so they visibly swapped places between polls.
 - **An unreadable `token-ledger.json` is kept, not overwritten.** It is renamed `.corrupt-<timestamp>` with a warning — it is the only copy of the all-time high-water history.
-- **Settings no longer shows an empty row at the account cap**, and the full-email toggle is hidden for Claude-only users (it only ever masks a Codex sign-in email).
+- **Settings no longer shows an empty row at the account cap.** With both providers full, the whole add-account row goes rather than leaving a bare gap above the caption.
+- **The email toggle is named for what it does.** "Full account email in popover" is now **Show account email**, and it covers both providers: a Claude account's sign-in email is masked in the popover like a Codex one, since the plan lookup now discovers it.
 - **An uncapped Codex plan shows "Credits: unlimited"** even when the provider reports no balance.
 - **Adding an API key offline no longer flashes a red error.** An inconclusive check is not a failure; the next poll reports the real state.
 - **Claude 3 Haiku bills at its own retired rate** ($0.25/$1.25 per million) instead of the current Haiku rate, which was 4× too high on the oldest history.
