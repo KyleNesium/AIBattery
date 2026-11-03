@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.4.0] — 2026-11-03
 
 ### Added
 - **The hover glow on a card is quieter.** The orange or green wash that fills a card under the pointer is fainter (0.07 → 0.04), so it no longer competes with the bars underneath it. Its hairline edge is unchanged — that outline, not the fill, is what gives the card its shape.
@@ -24,6 +24,13 @@
 - **Adding an API key offline no longer flashes a red error.** An inconclusive check is not a failure; the next poll reports the real state.
 - **Claude 3 Haiku bills at its own retired rate** ($0.25/$1.25 per million) instead of the current Haiku rate, which was 4× too high on the oldest history.
 - **A Codex sign-in cannot be aborted by another local process.** The callback listener delivers only on a matching CSRF state, times out idle connections, and stops its 180-second clock as soon as the browser comes back.
+- **The Codex status indicator works.** Every check of OpenAI's status page had been failing since Codex support shipped, so the dot never appeared and no OpenAI outage ever raised a notification — the page omits fields the app insisted on, and the summary it was reading lists only the first 25 components while all five Codex entries sit past that cut-off. It now reads the endpoint that carries them.
+- **The sign-in email is no longer written to the system log.** Looking up a Claude account's plan logged the whole profile, which included the account's email address, where any app able to read the unified log could see it. The line now names the plan only.
+- **The popover stops redrawing when nothing changed.** Two reads of identical data could disagree in the last decimal place of a cost, which counted as a change and republished everything behind it.
+- **VoiceOver can open an account card again.** The overview cards announced themselves as buttons but did nothing when activated.
+- **Settings action rows no longer collide.** "Add Claude Account…", "Add Codex Account…" and "Check for Updates" each wrapped to two lines when shown side by side.
+- **Values on the edge of a bar line up with it.** The click-to-copy highlight pushed "96% remaining", "Resets in 3h" and each headline percentage a few points inside the bar they label, and out of line with the states that share that slot.
+- **The live dot sits after the plan** instead of between the account name and it, where it read as a second separator.
 
 ### Changed
 - **Cold scans use a fraction of the memory.** Both session-log readers read through one reused buffer instead of allocating per 64 KB chunk — the measured launch footprint peak came almost entirely from that.
@@ -34,6 +41,7 @@
 - **The colourblind palette follows the system setting.** Turning on "Differentiate without colour" in macOS is enough; the app's own checkbox still works.
 - **The Projects "beta" badge says what it actually means.** It used to read "per-project attribution is still being refined", which described work that has now shipped. The badge stays, because two limits are structural rather than unfinished, and the tooltip now names them: local logs are machine-wide per provider, so a project's usage cannot be split per account; and the CLIs prune their own session logs, so only sessions still on disk are counted.
 - **Release builds will enable library validation** once a Developer ID certificate is configured; ad-hoc builds keep the exemption they need.
+- **The updater inside the app is signed with the app.** Sparkle's nested helper was left on its original signature by the packaging script — signing the framework around it only seals it in place. Local builds are unaffected, but a signed release would have carried a component that did not match the rest of the bundle.
 - **Repository cleanup.** Agent planning scratch (`.planning/`, `.superpowers/`, `.wrangler/`), internal review reports and session plans (`docs/reviews/`, `docs/superpowers/`), the unused XcodeGen `project.yml` and the 1024 px icon export are removed from the tree; all of it remains in history (`git show 8f3d600:<path>`). `AGENTS.md` is a symlink to `CLAUDE.md`. `TODOS.md` moved to `docs/TODOS.md` with completed items dropped. The README is shorter, with plain headings; troubleshooting, the context explainer and the Gatekeeper/Keychain notes moved to `docs/FAQ.md`. GitHub releases older than v2.6 were deleted (tags kept; every version stays in this changelog).
 
 ## [3.3.0] — 2026-10-22
