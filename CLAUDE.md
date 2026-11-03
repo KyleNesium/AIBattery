@@ -36,8 +36,11 @@ swift build -c release
 ## Testing
 
 ```bash
-# Run all tests (requires Xcode for the Swift Testing framework)
-swift test
+# Run all tests (requires Xcode for the Swift Testing framework).
+# `--no-parallel` is NOT optional: AppKit's one-time init deadlocks when raced
+# from Swift Testing's parallel pool, so a bare `swift test` hangs until it is
+# killed rather than failing. Both CI workflows pass it for the same reason.
+swift test --no-parallel
 ```
 
 1743 tests across 132 files, using `import Testing` + `@testable import AIBatteryCore`.
@@ -49,7 +52,7 @@ The package has 3 SPM targets:
 
 CI (`macos-15`): build → test → verify signed bundle. Runs on push to `main`, and once when a PR leaves draft — **not** on later pushes to that PR (force a re-run via `workflow_dispatch`). A separate Lint job (SwiftLint + SwiftFormat) runs on every PR push touching `.swift`/lint-config files; run `swiftformat AIBattery/ AIBatteryApp/ Tests/` and `swiftlint` locally before pushing to avoid a red check.
 
-Suites that render NSImages or read dynamic NSColors are `@MainActor` and `.serialized` — AppKit's one-time init deadlocks when raced from the parallel pool (seen locally 2026-10-21).
+Suites that render NSImages or read dynamic NSColors are `@MainActor` and `.serialized` — AppKit's one-time init deadlocks when raced from the parallel pool (seen locally 2026-10-21). That is belt-and-braces on top of `--no-parallel`, not a substitute for it. The same hazard is why no test asserts on an adaptive `ThemeColors` token directly: resolving a dynamic `NSColor` off the main thread hangs the headless runner, so the wash alphas are named `Double` constants (`ThemeColors.<name>Alpha`) and the tests pin those.
 
 ## Code Conventions
 
