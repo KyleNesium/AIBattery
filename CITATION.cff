@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+title: AI Battery
+message: If you reference AI Battery in writing, software or research, please cite it using these metadata.
+type: software
+authors:
+  - alias: KyleNesium
+    website: https://github.com/KyleNesium
+abstract: >-
+  AI Battery is a free, open-source macOS menu bar app that shows rate limits,
+  context health and token usage for Claude Code and OpenAI Codex, for up to
+  three accounts per provider. It reads local session logs for token counts and
+  context-window fullness, never message content, and makes minimal requests to
+  the provider for rate limits. No analytics, no telemetry.
+repository-code: https://github.com/KyleNesium/AIBattery
+url: https://aibattery.dev
+repository-artifact: https://github.com/KyleNesium/AIBattery/releases
+license: MIT
+version: 3.4.0
+date-released: '2026-11-03'
+keywords:
+  - claude-code
+  - codex
+  - anthropic
+  - openai
+  - rate-limits
+  - context-window
+  - token-usage
+  - macos
+  - menu-bar
+  - swiftui
+  - developer-tools

@@ -260,6 +260,23 @@ Read the [contributing guide](CONTRIBUTING.md) first. Version history is in [CHA
 
 AI Battery is free and open source. If it helps you get more out of your subscription, consider [sponsoring the project](https://github.com/sponsors/KyleNesium).
 
+## For AI agents
+
+Everything an agent needs is machine-readable and versioned — nothing here requires scraping a
+rendered page.
+
+| Want | Read |
+|---|---|
+| **This repository, indexed** | [`llms.txt`](llms.txt) — what the project is, where the specs and docs live, how to build and test |
+| **To work on the code** | [`AGENTS.md`](AGENTS.md), then the relevant file in [`spec/`](spec/) — the spec is the source of truth, change it first |
+| **To install the app** | The [install runbook](https://aibattery.dev/install.md) — a check per step, and it names the two things only a person can do (the macOS launch prompt and the provider sign-in) |
+| **Version, downloads, checksums** | [`app.json`](https://aibattery.dev/app.json) — version, download URLs, byte sizes, SHA-256, install commands |
+| **The product documentation** | [`llms.txt`](https://aibattery.dev/llms.txt) for the index, [`llms-full.txt`](https://aibattery.dev/llms-full.txt) for every page in one file |
+| **To cite the project** | [`CITATION.cff`](CITATION.cff) |
+
+Every page on [aibattery.dev](https://aibattery.dev) has a Markdown twin: append `.md` to the
+path, or request the HTML URL with `Accept: text/markdown`.
+
 ## Test Coverage
 
 **1743 tests** across 132 test files.
