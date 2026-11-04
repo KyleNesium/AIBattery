@@ -155,9 +155,9 @@ Interactive charts across three windows:
 |---|---|---|
 | **5H** | Trailing 5 hours | 15-minute token buckets, vs-yesterday trend, throttle count, peak hour |
 | **7D** | Rolling 7 days | Daily activity, weekly trend, busiest day |
-| **12M** | Rolling 12 months | Monthly activity, month-over-month trend, busiest month |
+| **12M** | Rolling 12 months | Monthly activity, month-over-month trend, busiest month. The current month is extrapolated to full-month pace, drawn dashed and labelled *(projected)* |
 
-Below the chart: API-equivalent cost per model, throttle count and all-time totals (messages, sessions, longest session, date range).
+Below the chart: API-equivalent cost per model, throttle count (counted per account) and all-time totals (messages, sessions, longest session, date range).
 
 With two or more ChatGPT-backed Codex accounts, each account's charts, Projects and Context Health show that account's own turns, attributed by the account id the Codex CLI stamps on each rollout. Turns from older CLI versions carry no stamp and are hidden rather than guessed; the caption says how many. Overview cards always show the provider's full totals.
 
@@ -182,7 +182,7 @@ AI Battery reads Claude Code's session logs (`~/.claude/projects/`) and stats ca
 
 A persistent ledger (`~/Library/Application Support/AIBattery/token-ledger.json`) keeps a high-water mark per model so totals never drop when Claude Code rebuilds its cache. Codex has no stats cache, so its all-time figures start from the date AI Battery first scanned the logs.
 
-**Projects** groups usage by the directory you ran the CLI in: every `.jsonl` log is scanned, deduplicated by message id, grouped by working directory and priced per project. Project data appears after your first session.
+**Projects** groups usage by the directory you ran the CLI in: every `.jsonl` log is scanned, deduplicated by message id, grouped by working directory and priced per project. Paths are resolved through symlinks, and a worktree folds into the repository it belongs to, so one project is one row. Project data appears after your first session.
 
 </details>
 
@@ -198,7 +198,7 @@ Open Settings from the gear in the header, or **Settings** in the overview foote
 | **Refresh** | Poll interval from 30 s to 5 min, per account. Claude costs about 3 tokens per refresh; Codex ChatGPT accounts cost nothing; Codex API keys spend about 16 output tokens per refresh at API rates |
 | **Idle** | Hide sessions idle longer than 30 min to 8 h from Context Health, or never |
 | **Show account email** | Show sign-in emails unmasked (masked by default, safer when screen-sharing) |
-| **Colorblind** | Blue, cyan, amber and purple palette |
+| **Colorblind** | Blue, cyan, amber and purple palette. macOS's own **Differentiate without colour** switches it on by itself |
 | **All accounts in menu bar** | List every account's percent in the menu bar (`42% \| 23%`). Colour and countdown follow the worst account |
 | **Alerts** | Notify on provider status-page outages |
 | **Rate limit** | Notify when usage crosses a threshold (60/70/80/90%) |
@@ -227,7 +227,9 @@ Vulnerability reports: see [SECURITY.md](SECURITY.md).
 
 ## Accessibility
 
-VoiceOver labels and hints on every interactive element, full keyboard navigation, a colorblind palette in Settings, and a three-step walkthrough on first launch.
+VoiceOver labels and hints on every interactive element, full keyboard navigation and a three-step walkthrough on first launch. The menu-bar item speaks what its number means: the metric name, each account as a list item, "no data" rather than a dash, and a reached limit announced as one.
+
+macOS accessibility settings are followed without you having to find a preference of its own. **Differentiate without colour** turns on the colorblind palette; **Reduce Motion** drops the brand-mark hover gesture, the live dot's breathing and the marquee scroll while keeping the glow and the full text. Usage bars meet the WCAG 3:1 non-text contrast ratio against their own track in light mode, and the **Colorblind** checkbox in Settings is still there for turning the palette on by itself.
 
 ## Architecture
 
