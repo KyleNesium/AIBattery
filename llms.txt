@@ -14,6 +14,8 @@ covering the product rather than the source, is <https://aibattery.dev/llms.txt>
 - **License**: MIT
 - **Dependencies**: Sparkle 2 (auto-update) and Apple frameworks only
 - **Tests**: 1743 tests across 132 test files (Swift Testing)
+- **Agent access**: an MCP server lets Claude Code read this data in-conversation —
+  <https://github.com/KyleNesium/AIBattery-MCP> (Claude accounts only, not Codex)
 - **Website**: <https://aibattery.dev>
 - **Install**: `brew tap KyleNesium/tap && brew install --cask aibattery`
 - **Privacy**: reads Claude Code and Codex CLI JSONL session logs for token counts and context
@@ -24,7 +26,7 @@ covering the product rather than the source, is <https://aibattery.dev/llms.txt>
 
 - [README.md](README.md): what the app does, install methods, every feature, privacy and architecture
 - [AGENTS.md](AGENTS.md): the agent and contributor guide — build, test, conventions and the
-  non-obvious design decisions. Read this before changing code. `CLAUDE.md` is a copy of it.
+  non-obvious design decisions. Read this before changing code. It is a symlink to `CLAUDE.md`.
 - [CHANGELOG.md](CHANGELOG.md): version history, newest first
 - [docs/FAQ.md](docs/FAQ.md): troubleshooting, including how to uninstall completely
 - [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
@@ -58,6 +60,18 @@ what only a person can do (the macOS launch prompt and the provider sign-in):
 - [install.sh](https://aibattery.dev/install.sh): pinned to the current release and SHA-256 verified
 - [app.json](https://aibattery.dev/app.json): version, download URLs, byte sizes, SHA-256
   checksums, install commands and the guide index, as JSON
+
+## Using AI Battery from an agent
+
+The app is a menu bar UI with no CLI. To let an agent read the same data inside a
+conversation, use the companion MCP server:
+
+- [AIBattery-MCP](https://github.com/KyleNesium/AIBattery-MCP): a Model Context Protocol
+  server over stdio, with six read-only tools — `get_dashboard`, `get_rate_limits`,
+  `get_token_usage`, `get_health`, `get_status`, `get_stats`. It reads this app's stored
+  credentials, so the app has to be installed and signed in.
+  Its own index: <https://raw.githubusercontent.com/KyleNesium/AIBattery-MCP/main/llms.txt>
+- Scope: **Claude accounts only.** It has no Codex tools, even though this app supports Codex.
 
 ## Product documentation
 

@@ -273,6 +273,7 @@ rendered page.
 | **Version, downloads, checksums** | [`app.json`](https://aibattery.dev/app.json) — version, download URLs, byte sizes, SHA-256, install commands |
 | **The product documentation** | [`llms.txt`](https://aibattery.dev/llms.txt) for the index, [`llms-full.txt`](https://aibattery.dev/llms-full.txt) for every page in one file |
 | **To cite the project** | [`CITATION.cff`](CITATION.cff) |
+| **To read this data from an agent** | [AIBattery-MCP](https://github.com/KyleNesium/AIBattery-MCP) — an MCP server giving Claude Code six read-only tools over your usage. Claude accounts only, not Codex |
 
 Every page on [aibattery.dev](https://aibattery.dev) has a Markdown twin: append `.md` to the
 path, or request the HTML URL with `Accept: text/markdown`.
