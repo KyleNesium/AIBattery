@@ -30,6 +30,30 @@ else
   fail "CHANGELOG.md missing entry for v${VERSION}"
 fi
 
+# Check CITATION.cff — it carries the version and release date for GitHub's
+# "Cite this repository" box. Nothing at build time reads it, so without this
+# check it goes stale silently and every citation points at an old release.
+CITATION_VERSION=$(grep '^version:' CITATION.cff | sed 's/^version: *//' || true)
+if [ -z "$CITATION_VERSION" ]; then
+  fail "CITATION.cff has no version: line"
+elif [ "$CITATION_VERSION" = "$VERSION" ]; then
+  pass "CITATION.cff version: $CITATION_VERSION"
+else
+  fail "CITATION.cff version ($CITATION_VERSION) does not match expected ($VERSION)"
+fi
+
+# The expected date comes from the CHANGELOG heading (## [x.y.z] — YYYY-MM-DD),
+# so the two cannot disagree about when the release happened.
+CHANGELOG_DATE=$(grep "## \[${VERSION}\]" CHANGELOG.md | sed 's/.*— *//' || true)
+CITATION_DATE=$(grep '^date-released:' CITATION.cff | sed "s/^date-released: *'\{0,1\}//; s/'\{0,1\}$//" || true)
+if [ -z "$CHANGELOG_DATE" ]; then
+  fail "Could not read a release date from the CHANGELOG heading for v${VERSION}"
+elif [ "$CITATION_DATE" = "$CHANGELOG_DATE" ]; then
+  pass "CITATION.cff date-released: $CITATION_DATE"
+else
+  fail "CITATION.cff date-released ($CITATION_DATE) does not match the CHANGELOG date for v${VERSION} ($CHANGELOG_DATE)"
+fi
+
 # 2. Check build artifacts exist
 echo ""
 echo "── Build artifacts"
