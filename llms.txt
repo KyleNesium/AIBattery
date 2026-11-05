@@ -1,0 +1,80 @@
+# AI Battery
+
+> AI Battery is a free, open-source macOS menu bar app that shows rate limits, context health and token usage for Claude Code and OpenAI Codex — up to 3 accounts per provider. It reads local session logs for token counts and makes minimal requests to your provider for rate limits. No analytics, no telemetry.
+
+This file is the machine-readable index of **this repository**. The website's equivalent,
+covering the product rather than the source, is <https://aibattery.dev/llms.txt>.
+
+## Key facts
+
+- **What it is**: a macOS menu bar app (not a CLI, not a library) for Claude Code and Codex CLI users
+- **Platform**: macOS 13 (Ventura) or later, Apple Silicon only — the release binary is arm64-only
+- **Language**: Swift 6 / SwiftUI, built with SwiftPM
+- **Current version**: 3.4.0, released 2026-11-03 — <https://github.com/KyleNesium/AIBattery/releases/tag/v3.4.0>
+- **License**: MIT
+- **Dependencies**: Sparkle 2 (auto-update) and Apple frameworks only
+- **Tests**: 1743 tests across 132 test files (Swift Testing)
+- **Website**: <https://aibattery.dev>
+- **Install**: `brew tap KyleNesium/tap && brew install --cask aibattery`
+- **Privacy**: reads Claude Code and Codex CLI JSONL session logs for token counts and context
+  health, never message content. No analytics, no telemetry. OAuth refresh tokens live in the
+  macOS Keychain; access tokens are memory-only.
+
+## Start here
+
+- [README.md](README.md): what the app does, install methods, every feature, privacy and architecture
+- [AGENTS.md](AGENTS.md): the agent and contributor guide — build, test, conventions and the
+  non-obvious design decisions. Read this before changing code. `CLAUDE.md` is a copy of it.
+- [CHANGELOG.md](CHANGELOG.md): version history, newest first
+- [docs/FAQ.md](docs/FAQ.md): troubleshooting, including how to uninstall completely
+- [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
+## Specs — the source of truth
+
+Code follows `spec/`, not the other way round. Change the spec first, then the code.
+
+- [spec/ARCHITECTURE.md](spec/ARCHITECTURE.md): app structure, data flow, project tree, build config
+- [spec/DATA_LAYER.md](spec/DATA_LAYER.md): models, services, algorithms, the ViewModel
+- [spec/UI_SPEC.md](spec/UI_SPEC.md): views, layout, colours, typography
+- [spec/CONSTANTS.md](spec/CONSTANTS.md): every hardcoded value — thresholds, URLs, timings
+
+## Build and test
+
+```bash
+swift build -c release          # build
+./scripts/build-app.sh          # the signed .app bundle CI ships (never hand-assemble one)
+swift test --no-parallel        # --no-parallel is required; a bare `swift test` deadlocks
+```
+
+Three SwiftPM targets: `AIBatteryCore` (all logic, path `AIBattery/`), `AIBattery`
+(the `@main` entry point, path `AIBatteryApp/`), `AIBatteryCoreTests`.
+
+## Installing the app with an agent
+
+Do not build from source to install. Use the runbook, which has a check per step and names
+what only a person can do (the macOS launch prompt and the provider sign-in):
+
+- [Install runbook](https://aibattery.dev/install.md) (HTML: <https://aibattery.dev/install>)
+- [install.sh](https://aibattery.dev/install.sh): pinned to the current release and SHA-256 verified
+- [app.json](https://aibattery.dev/app.json): version, download URLs, byte sizes, SHA-256
+  checksums, install commands and the guide index, as JSON
+
+## Product documentation
+
+Every page on the website has a Markdown twin — append `.md` to the path, or request the HTML
+URL with `Accept: text/markdown`.
+
+- [Site index for LLMs](https://aibattery.dev/llms.txt) · [every page in one file](https://aibattery.dev/llms-full.txt)
+- [Guides](https://aibattery.dev/guides/index.md): rate limits, context health, token usage, settings
+- [Privacy policy](https://aibattery.dev/privacy.md): what the app reads and every host it contacts
+
+## Downloads and updates
+
+- [Releases](https://github.com/KyleNesium/AIBattery/releases): signed zip + DMG with SHA-256 per version
+- [Homebrew cask](https://github.com/KyleNesium/homebrew-tap/blob/main/Casks/aibattery.rb)
+- [Sparkle appcast](https://kylenesium.github.io/AIBattery/appcast.xml): the in-app update feed
+
+## Optional
+
+- [Deferred work and open questions](docs/TODOS.md)
+- [LICENSE](LICENSE) (MIT) · [Sponsor](https://github.com/sponsors/KyleNesium)

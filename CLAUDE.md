@@ -2,6 +2,10 @@
 
 macOS menu bar app showing Claude and Codex (OpenAI) usage at a glance — up to 3 accounts per provider. Built with Swift 6 / SwiftUI, SPM, macOS 13+.
 
+This file is for working **on** the code. If you only need to describe or install AI Battery,
+read [`llms.txt`](llms.txt) instead — it indexes the repo, and
+<https://aibattery.dev/install.md> is the install runbook. Don't build from source to install.
+
 ## Spec-Driven Workflow
 
 The `spec/` folder is the single source of truth.
