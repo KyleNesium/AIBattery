@@ -50,4 +50,30 @@ struct SessionLogReaderSymlinkTests {
 
         #expect(!files.contains(where: { $0.lastPathComponent == "linked.jsonl" }))
     }
+
+    /// A symlinked file is skipped even when it points inside the projects directory. The
+    /// regular-file check reads the link itself (lstat semantics), so every link fails it;
+    /// the boundary check above is a second guard, not the one that decides. Neither CLI
+    /// writes symlinked logs, so nothing real is lost.
+    @Test func discoverFiles_skipsSymlinkEvenInsideProjectsDir() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("symlink-test-\(UUID().uuidString)")
+        let projectsDir = tmpDir.appendingPathComponent("projects")
+        let projectDir = projectsDir.appendingPathComponent("test-project")
+        let otherProject = projectsDir.appendingPathComponent("other-project")
+
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: otherProject, withIntermediateDirectories: true)
+        let realFile = projectDir.appendingPathComponent("session.jsonl")
+        try Data("{}".utf8).write(to: realFile)
+        try FileManager.default.createSymbolicLink(
+            at: otherProject.appendingPathComponent("linked.jsonl"), withDestinationURL: realFile
+        )
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let files = SessionLogReader(projectsURL: projectsDir).discoverJSONLFilesForTesting()
+
+        #expect(files.map(\.lastPathComponent) == ["session.jsonl"])
+    }
 }

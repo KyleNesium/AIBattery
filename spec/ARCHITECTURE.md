@@ -295,12 +295,14 @@ Tests/AIBatteryCoreTests/
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
     StatusCheckerConcurrencyTests.swift — nonisolated `fetchAndParse` callable from detached task; doesn't block MainActor
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
-    SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
+    SessionLogReaderSymlinkTests.swift — Symlinked logs skipped (outside the tree and inside it); regular files kept
     SessionLogReaderDiscoveryTests.swift — TTL-based discovery fallback, cache expiry
     SessionLogReaderIntegrationTests.swift — End-to-end JSONL scanning + merge behavior
     SessionLogReaderRealDataTests.swift / CodexSessionLogReaderRealDataTests.swift — Opt-in (env-gated) full-scale scans of the developer's real trees: timing + ordering/uniqueness/cache invariants
     CodexSessionLogParserTests.swift — Codex rollout line state machine + AssistantUsageEntry field mapping (real-fixture lines)
-    CodexSessionLogReaderTests.swift — Nested date-dir discovery, fingerprint cache, eviction, deletion, partial tail, symlink boundary
+    CodexSessionLogReaderTests.swift — Nested date-dir discovery (exact warm-walk cost, TTL expiry), fingerprint cache, eviction, deletion, partial tail, symlinked rollouts skipped
+    ReaderIncrementalCacheTests.swift — Both readers: two files changed in one dirty cycle merge without duplicates; a deleted file's ids can come back from a new file (Claude)
+    CodexTestDates.swift          — Helper, not tests: `thisMonth` (`YYYY/MM`) for rollout fixtures, so they never age past the retention horizon
     CodexRateLimitFetcherTests.swift / CodexRateLimitFetcherBackoffTests.swift — wham/usage interpretation, spike write-back, endpoint backoff
     CodexSessionRateLimitScannerTests.swift — session-log rate_limits fallback
     CodexAuthFileImporterTests / CodexCallbackParserTests / CodexOAuthConstantsTests / CodexTokenClientTests / OAuthManagerCodexRoutingTests / OneShotMailboxTests — Codex auth pieces
