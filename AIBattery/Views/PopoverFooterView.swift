@@ -194,14 +194,15 @@ struct PopoverFooterView: View {
         return "\(Int(elapsed / 3_600))h ago"
     }
 
-    static let absoluteFormatter: DateFormatter = {
+    /// `DateFormatter` is `Sendable`, so the nonisolated `staleTooltip` can share it.
+    nonisolated static let absoluteFormatter: DateFormatter = {
         let f = DateFormatter()
         f.timeStyle = .medium
         f.dateStyle = .none
         return f
     }()
 
-    static func absoluteTime(_ date: Date) -> String {
+    nonisolated static func absoluteTime(_ date: Date) -> String {
         absoluteFormatter.string(from: date)
     }
 

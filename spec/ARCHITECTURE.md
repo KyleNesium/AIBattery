@@ -357,7 +357,7 @@ CHANGELOG.md                      — Release notes per version
 
 ## Build Configuration
 
-- **SPM**: swift-tools-version 6.0, Swift 5 language mode (`.swiftLanguageMode(.v5)`) with the `StrictConcurrency` upcoming feature on all targets, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests). (The `.v6` language-mode flip is deferred — it surfaces SDK-version-dependent isolation/data-race errors on the CI runner that don't appear on newer local SDKs, so it needs iterative CI validation in its own PR.)
+- **SPM**: swift-tools-version 6.0, Swift 6 language mode (`.swiftLanguageMode(.v6)`) on all targets, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests). No isolated `deinit` is needed, so the macOS 13 target doesn't block it: state that a `@MainActor` class's `deinit` tears down is `nonisolated(unsafe)` (`UsageViewModel`, `StatusBarManager`). CI compiles with an older toolchain than a current local Xcode (Swift 6.1.2 on `macos-15`), and the first flip, in May 2026, was reverted for isolation errors only that SDK raised. So a clean local Swift 6 build doesn't prove CI is green.
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
 - **Codesigning**: Ad-hoc by default (`codesign --sign -`), parameterized via `CODE_SIGN_IDENTITY` env var for Developer ID signing. Hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting. Entitlements file selected automatically (`AIBattery-AppStore.entitlements` when `APP_STORE_BUILD` is set)

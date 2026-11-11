@@ -7,8 +7,8 @@ through; the history is in `CHANGELOG.md`.
 
 Triaged 2026-10-31 against source, and the queue was then worked top-down — everything
 the triage marked "do" is in `CHANGELOG.md` for the next release. Nothing actionable is
-left: what remains below is two blockers that need a certificate or a newer deployment
-target, and the verdicts kept so they are not re-litigated.
+left: what remains below is one blocker that needs the Developer ID certificate, and the
+verdicts kept so they are not re-litigated.
 
 ## Blocked
 
@@ -19,11 +19,6 @@ target, and the verdicts kept so they are not re-litigated.
   verified; the signed path cannot be tested without the certificate. When it arrives: build a
   signed bundle, confirm Sparkle still loads and an update still installs, then delete this
   item. `KEEP_LIBRARY_VALIDATION_EXEMPTION=1` is the escape hatch if it turns out to be needed.
-
-- [ ] **Swift 6 language-mode flip** (all three targets are `.v5` + strict concurrency) —
-  blocked by the macOS 13 deployment target: isolated `deinit` needs newer runtime
-  availability. Revisit when the target moves. One warning is already visible in every build
-  (`MenuBarIcon.markScale` referenced from a nonisolated context).
 
 ## Decided not to do
 

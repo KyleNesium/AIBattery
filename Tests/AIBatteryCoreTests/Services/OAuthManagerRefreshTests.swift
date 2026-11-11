@@ -10,7 +10,7 @@ import Testing
 @Suite("OAuthManager — refresh path")
 @MainActor
 struct OAuthManagerRefreshTests {
-    private static let validTokenBody = #"{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}"#
+    nonisolated private static let validTokenBody = #"{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}"#
     private static let noDelay = RetryPolicy(baseDelay: 0, maxDelay: 0)
 
     /// Lets a stubbed transport park until the test says go, and lets the test wait

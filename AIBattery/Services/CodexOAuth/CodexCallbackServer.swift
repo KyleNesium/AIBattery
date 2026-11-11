@@ -109,9 +109,11 @@ final class CodexCallbackServer: @unchecked Sendable {
             connection.start(queue: queue)
             // A connection that sends nothing held an NWConnection until the 180 s
             // session timeout. Arm a per-connection deadline and disarm it on receive.
-            let deadline = DispatchWorkItem { connection.cancel() }
+            // `DispatchWorkItem` isn't `Sendable`, but `cancel()` is thread-safe, and the
+            // receive handler below only ever cancels it.
+            nonisolated(unsafe) let deadline = DispatchWorkItem { connection.cancel() }
             queue.asyncAfter(deadline: .now() + Self.connectionTimeout, execute: deadline)
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { data, _, _, _ in
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { [weak self] data, _, _, _ in
                 deadline.cancel()
                 guard let data, let head = String(data: data, encoding: .utf8)?
                     .components(separatedBy: "\r\n").first else {

@@ -8,7 +8,7 @@ import Testing
 @Suite("OAuthManager — Keychain read retry", .serialized)
 @MainActor
 struct OAuthManagerKeychainRetryTests {
-    private static let validTokenBody = #"{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}"#
+    nonisolated private static let validTokenBody = #"{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}"#
 
     /// Scripted Keychain reader: hands out results in order, counts reads, and can hold
     /// the first read until the test releases it (a prompt still waiting for an answer).
