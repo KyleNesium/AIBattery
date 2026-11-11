@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **Sparkle 2.10.0 → 2.10.1** — patch update within the existing `2.6.0..<3.0.0` range. It fixes an update being installed early when the app sits in an NFC-encoded path, and adds translations. Its appcast fixes don't apply: AI Battery writes its own appcast (`scripts/generate-appcast.sh`) and uses no `releaseNotesLink`. No app-facing change. (#213)
+
 ## [3.4.0] — 2026-11-03
 
 ### Added
