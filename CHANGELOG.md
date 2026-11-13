@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **The Codex status tooltip says what it covers.** The Codex dot follows only the five Codex components on OpenAI's status page, so an incident elsewhere (on 2026-11-13, the ChatGPT Microsoft 365 connector) correctly leaves it green. The tooltip still read "All systems operational" while OpenAI's page said "Partial System Degradation". It now reads "Codex: All systems operational". (#213)
+
 ### Changed
 - **Sparkle 2.10.0 → 2.10.1** — patch update within the existing `2.6.0..<3.0.0` range. It fixes an update being installed early when the app sits in an NFC-encoded path, and adds translations. Its appcast fixes don't apply: AI Battery writes its own appcast (`scripts/generate-appcast.sh`) and uses no `releaseNotesLink`. No app-facing change. (#213)
 - **Swift 6 language mode** on all three targets (was Swift 5 with strict concurrency). The macOS 13 target didn't block it after all: no isolated `deinit` is needed. Fixes were few: `nonisolated` on five constants and pure helpers (and two test fixtures), and `Sendable`-safe captures in the Codex sign-in listener. The build is now warning-free. Swift 6 also checks actor isolation at runtime, so a main-actor callback the system invokes off the main thread now stops the app instead of running. Every system callback (dispatch sources, FSEvents, notification observers, KVO, the network monitor) already runs on `.main` or hops there explicitly. (#213)

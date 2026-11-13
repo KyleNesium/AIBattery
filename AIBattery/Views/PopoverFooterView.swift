@@ -207,7 +207,14 @@ struct PopoverFooterView: View {
     }
 
     private var statusTooltip: String {
-        switch systemIndicator {
+        Self.statusTooltip(for: systemIndicator, provider: provider)
+    }
+
+    /// The Codex feed reads only the five Codex components (`StatusFeedConfig.codex`), so an
+    /// incident elsewhere on status.openai.com — a ChatGPT connector, Sora — leaves it green.
+    /// It names its scope; a bare "All systems operational" contradicts OpenAI's own page.
+    nonisolated static func statusTooltip(for indicator: StatusIndicator?, provider: AIProvider) -> String {
+        let state = switch indicator {
         case .operational: "All systems operational"
         case .degradedPerformance: "Degraded performance"
         case .partialOutage: "Partial outage"
@@ -215,6 +222,7 @@ struct PopoverFooterView: View {
         case .maintenance: "Under maintenance"
         case .unknown, .none: "Check system status"
         }
+        return provider == .codex ? "Codex: \(state)" : state
     }
 }
 

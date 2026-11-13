@@ -336,7 +336,7 @@ Tests/AIBatteryCoreTests/
     StatusBarCountdownResetDateTests.swift — Countdown reset-date selection (throttle/100%)
     MenuBarMultiAccountTextTests.swift — Multi-account text builder + display resolver
     LinkActionButtonTests.swift   — Link action button behavior
-    PopoverFooterStatusSymbolTests.swift — Footer status symbol mapping
+    PopoverFooterStatusSymbolTests.swift — Footer status symbol mapping and the provider-scoped status tooltip
     MoveTransitionBanTests.swift  — Guards against `.move(edge:)` transitions in the popover
 docs/
   FAQ.md                          — Troubleshooting, context-health explainer, Gatekeeper/Keychain notes

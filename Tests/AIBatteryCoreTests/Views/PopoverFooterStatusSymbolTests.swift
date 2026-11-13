@@ -97,6 +97,16 @@ struct PopoverFooterStatusSymbolTests {
         #expect(claude.contains("Last fresh:"))
     }
 
+    /// The Codex feed watches only the Codex components, so an unrelated OpenAI incident
+    /// (the Microsoft 365 connector, 2026-11-13) leaves its dot green. The tooltip names
+    /// the scope, or it reads as contradicting status.openai.com.
+    @Test func statusTooltip_namesTheCodexScope() {
+        #expect(PopoverFooterView.statusTooltip(for: .operational, provider: .claude) == "All systems operational")
+        #expect(PopoverFooterView.statusTooltip(for: .operational, provider: .codex) == "Codex: All systems operational")
+        #expect(PopoverFooterView.statusTooltip(for: .majorOutage, provider: .codex) == "Codex: Major outage")
+        #expect(PopoverFooterView.statusTooltip(for: nil, provider: .claude) == "Check system status")
+    }
+
     @Test func tutorialFirstStep_matchesQuotaShape() {
         #expect(TutorialOverlay.rateLimitStep(kind: .windows).title == "Rate Limits")
         #expect(TutorialOverlay.rateLimitStep(kind: .credits).title == "Credits")
