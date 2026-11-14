@@ -166,3 +166,11 @@ jobs:
             fi
           done
           echo "XPC identity check OK"
+
+      # codesign and the unit tests both pass on a bundle that dies at launch: dyld
+      # cannot load Sparkle.framework, or (Swift 6 language mode) a main-actor callback
+      # the system invokes off the main thread traps. The runner has no accounts and no
+      # Keychain items, so this covers the launch path only — not sign-in, polling with
+      # real data, or sleep/wake.
+      - name: Launch smoke test
+        run: ./scripts/smoke-launch.sh

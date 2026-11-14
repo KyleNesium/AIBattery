@@ -8,6 +8,7 @@
 ### Changed
 - **Sparkle 2.10.0 → 2.10.1** — patch update within the existing `2.6.0..<3.0.0` range. It fixes an update being installed early when the app sits in an NFC-encoded path, and adds translations. Its appcast fixes don't apply: AI Battery writes its own appcast (`scripts/generate-appcast.sh`) and uses no `releaseNotesLink`. No app-facing change. (#213)
 - **Swift 6 language mode** on all three targets (was Swift 5 with strict concurrency). The macOS 13 target didn't block it after all: no isolated `deinit` is needed. Fixes were few: `nonisolated` on five constants and pure helpers (and two test fixtures), and `Sendable`-safe captures in the Codex sign-in listener. The build is now warning-free. Swift 6 also checks actor isolation at runtime, so a main-actor callback the system invokes off the main thread now stops the app instead of running. Every system callback (dispatch sources, FSEvents, notification observers, KVO, the network monitor) already runs on `.main` or hops there explicitly. (#213)
+- CI: the built app is launched and must stay up for 20 seconds (`scripts/smoke-launch.sh`). A signed bundle that died at launch — a missing `Sparkle.framework`, or a Swift 6 isolation trap in a launch-path callback — used to pass every check. (#213)
 
 ## [3.4.0] — 2026-11-03
 

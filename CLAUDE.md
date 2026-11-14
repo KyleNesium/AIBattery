@@ -54,7 +54,7 @@ The package has 3 SPM targets:
 - **AIBattery** (`.executableTarget`, path `AIBatteryApp/`) — thin `@main` entry point, imports AIBatteryCore
 - **AIBatteryCoreTests** (`.testTarget`) — unit tests, `@testable import AIBatteryCore`
 
-CI (`macos-15`): build → test → verify signed bundle. Runs on push to `main`, and once when a PR leaves draft — **not** on later pushes to that PR (force a re-run via `workflow_dispatch`). A separate Lint job (SwiftLint + SwiftFormat) runs on every PR push touching `.swift`/lint-config files; run `swiftformat AIBattery/ AIBatteryApp/ Tests/` and `swiftlint` locally before pushing to avoid a red check.
+CI (`macos-15`): build → test → verify signed bundle → launch it (`scripts/smoke-launch.sh`: the app must stay up 20 s). Runs on push to `main`, and once when a PR leaves draft — **not** on later pushes to that PR (force a re-run via `workflow_dispatch`). A separate Lint job (SwiftLint + SwiftFormat) runs on every PR push touching `.swift`/lint-config files; run `swiftformat AIBattery/ AIBatteryApp/ Tests/` and `swiftlint` locally before pushing to avoid a red check.
 
 Suites that render NSImages or read dynamic NSColors are `@MainActor` and `.serialized` — AppKit's one-time init deadlocks when raced from the parallel pool (seen locally 2026-10-21). That is belt-and-braces on top of `--no-parallel`, not a substitute for it. The same hazard is why no test asserts on an adaptive `ThemeColors` token directly: resolving a dynamic `NSColor` off the main thread hangs the headless runner, so the wash alphas are named `Double` constants (`ThemeColors.<name>Alpha`) and the tests pin those.
 

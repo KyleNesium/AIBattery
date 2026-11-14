@@ -342,7 +342,7 @@ docs/
   FAQ.md                          — Troubleshooting, context-health explainer, Gatekeeper/Keychain notes
   TODOS.md                        — Deferred work, grouped by area and ordered by priority
 .github/workflows/
-  ci.yml                          — Build + test + bundle on push/PR (macos-15)
+  ci.yml                          — Build + test + bundle + launch smoke test on push/PR (macos-15)
   lint.yml                        — SwiftFormat + SwiftLint on PRs targeting main (macos-15)
   release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)
 scripts/
@@ -351,6 +351,7 @@ scripts/
   generate-appcast.sh            — Generate appcast.xml for Sparkle update feed
   generate-icon.swift             — Generate AppIcon.icns (sparkle star, all macOS sizes)
   verify-release.sh               — Pre-release verification checks
+  smoke-launch.sh                 — Start the built app, fail if it exits within 20 s (CI; see its header before running locally)
 Package.swift                     — SPM manifest: AIBatteryCore, AIBattery, AIBatteryCoreTests
 CHANGELOG.md                      — Release notes per version
 ```
