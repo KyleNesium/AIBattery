@@ -231,6 +231,11 @@ struct ModelPricingTests {
         #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-6-sol")).inputPerMillion == 2.00)
         // gpt-6.1-sol has its own row: cached input is $0.10, not the gpt-6 family's $0.20.
         #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-6.1-sol")).cacheReadPerMillion == 0.10)
+        // gpt-6.1-terra is half the gpt-6 family rate; without a row it billed at $2/$10.
+        let terra = try #require(OpenAIModelPricing.pricing(for: "gpt-6.1-terra"))
+        #expect(terra.inputPerMillion == 1.00)
+        #expect(terra.outputPerMillion == 5.00)
+        #expect(terra.cacheReadPerMillion == 0.05)
         #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-6-luna")).cacheReadPerMillion == 0.01)
         #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4.1-mini")).inputPerMillion == 0.40)
         #expect(try #require(OpenAIModelPricing.pricing(for: "gpt-4.1")).outputPerMillion == 8.00)
@@ -277,6 +282,26 @@ struct ModelPricingTests {
         #expect(try #require(ModelPricing.pricing(for: "claude-fable-5-1")).cacheReadPerMillion == 0.25)
         #expect(try #require(ModelPricing.pricing(for: "claude-sonnet-5")).cacheReadPerMillion == 0.20)
         #expect(try #require(ModelPricing.pricing(for: "claude-sonnet-5-5")).cacheReadPerMillion == 0.10)
+    }
+
+    /// Regression (3.4.1): Fable 5.2 had no row, so "fable 5.2" matched the shorter "fable 5"
+    /// key and was billed at Fable 5's rates — $10/$50 with $1.00 cache reads, against a
+    /// published $8/$40 with $0.20. Cache reads dominate a Claude Code session, so the cost
+    /// shown was about double the real one.
+    @Test func fableFivePointTwo_usesItsOwnPublishedRate() throws {
+        for id in ["claude-fable-5-2", "claude-mythos-5-2"] {
+            let pricing = try #require(ModelPricing.pricing(for: id))
+            #expect(pricing.inputPerMillion == 8, "\(id) input")
+            #expect(pricing.outputPerMillion == 40, "\(id) output")
+            #expect(pricing.cacheWritePerMillion == 10, "\(id) cache write")
+            #expect(pricing.cacheReadPerMillion == 0.20, "\(id) cache read")
+        }
+        // The earlier Fable releases keep their own rates.
+        #expect(try #require(ModelPricing.pricing(for: "claude-fable-5-1")).inputPerMillion == 10)
+        #expect(try #require(ModelPricing.pricing(for: "claude-fable-5")).cacheReadPerMillion == 1.00)
+        // The bare alias and a later generation with no row bill at the current one.
+        #expect(try #require(ModelPricing.pricing(for: "fable")).inputPerMillion == 8)
+        #expect(try #require(ModelPricing.pricing(for: "claude-fable-6")).cacheReadPerMillion == 0.20)
     }
 
     /// Opus 4.5-4.8 are $5/$25, not the retired Opus 4/4.1 rate of $15/$75. The old single

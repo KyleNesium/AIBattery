@@ -4,6 +4,8 @@
 
 ### Fixed
 - **The Codex status tooltip says what it covers.** The Codex dot follows only the five Codex components on OpenAI's status page, so an incident elsewhere (on 2026-11-13, the ChatGPT Microsoft 365 connector) correctly leaves it green. The tooltip still read "All systems operational" while OpenAI's page said "Partial System Degradation". It now reads "Codex: All systems operational". (#213)
+- **Claude Fable 5.2 is billed at its own rate.** It had no row in the price table, so it was costed as Fable 5: $10 / $50 per million tokens with cache reads at $1.00, against a published $8 / $40 and $0.20. Cache reads make up most of a Claude Code session, so the API-equivalent cost shown for Fable 5.2 was about double the published one (2.1× on ten days of real logs). Claude Mythos 5.2 gets the same row, and the bare `fable` alias bills at the 5.2 rate. Costs are recomputed from token counts, so past and all-time figures correct themselves. (#213)
+- **`gpt-6.1-terra` is billed at its own rate** — $1 / $5 per million tokens with cached input at $0.05 — instead of the gpt-6 family rate, which is double. (#213)
 
 ### Changed
 - **Sparkle 2.10.0 → 2.10.1** — patch update within the existing `2.6.0..<3.0.0` range. It fixes an update being installed early when the app sits in an NFC-encoded path, and adds translations. Its appcast fixes don't apply: AI Battery writes its own appcast (`scripts/generate-appcast.sh`) and uses no `releaseNotesLink`. No app-facing change. (#213)

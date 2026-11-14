@@ -267,6 +267,8 @@ Pricing per million tokens:
 
 | Key (match order) | Input | Output | Cache Write | Cache Read |
 |-------|-------|--------|-------------|------------|
+| `fable 5.2` | $8 | $40 | $10 | $0.2 |
+| `mythos 5.2` | $8 | $40 | $10 | $0.2 |
 | `fable 5.1` | $10 | $50 | $12.5 | $0.25 |
 | `mythos 5.1` | $10 | $50 | $12.5 | $0.25 |
 | `fable 5` | $10 | $50 | $12.5 | $1 |
@@ -291,18 +293,22 @@ Pricing per million tokens:
 
 Keys are matched with `displayName(for:).lowercased().contains(key)` and the **first hit
 wins**, so each row must precede any shorter key that would swallow it (`opus 5.5` before
-`opus 5`, `haiku 3.5` before `haiku 3`); a test asserts that ordering structurally. A
+`opus 5`, `haiku 3.5` before `haiku 3`); a test asserts that ordering structurally. The
+same matching means a new minor version with no row of its own is billed by its base row
+— until 3.4.1 Fable 5.2 was billed as Fable 5, about double its published cost — so a new
+model needs its row in the release that follows it. A
 Claude model matching no row falls back to its family's current-generation rate
-(`familyFallback`: fable/mythos $10/$50, opus $5/$25, sonnet $2/$10, haiku $1/$5) rather
+(`familyFallback`: fable/mythos $8/$40, opus $5/$25, sonnet $2/$10, haiku $1/$5) rather
 than costing $0. Retired models keep their own published rates (Opus 3/4 $15/$75,
 Claude 3 Haiku $0.25/$1.25).
 
-OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29 and 2026-10-11; cache write billed at the input rate, longest prefix wins):
+OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29, 2026-10-11 and 2026-11-14; cache write billed at the input rate, longest prefix wins):
 
 | Model prefix | Input | Output | Cache Read |
 |-------|-------|--------|------------|
 | gpt-6-astra | $10.00 | $50.00 | $1.00 |
 | gpt-6.1-sol | $2.00 | $10.00 | $0.10 |
+| gpt-6.1-terra | $1.00 | $5.00 | $0.05 |
 | gpt-6-sol | $2.00 | $10.00 | $0.20 |
 | gpt-6-luna | $0.10 | $0.50 | $0.01 |
 | gpt-5.6-sol | $4.00 | $20.00 | $0.40 |

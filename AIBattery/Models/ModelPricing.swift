@@ -105,18 +105,24 @@ struct ModelPricing {
     // MARK: - Pricing Table
 
     // Anthropic's published per-million API rates
-    // (platform.claude.com/docs/en/about-claude/pricing, checked 2026-10-10).
+    // (platform.claude.com/docs/en/about-claude/pricing, checked 2026-11-14).
     //
     // Matching is `displayName(for:).lowercased().contains(key)` and the FIRST hit wins, so
     // every entry must precede any shorter key that would otherwise swallow it — "opus 5.5"
-    // before "opus 5", "fable 5.1" before "fable 5", the "opus 4.5"…"4.8" rows before the
-    // retired-generation "opus 4".
+    // before "opus 5", "fable 5.2" and "fable 5.1" before "fable 5", the "opus 4.5"…"4.8" rows
+    // before the retired-generation "opus 4".
+    //
+    // The same matching means a NEW MINOR VERSION with no row is billed by its base row, not
+    // by `familyFallback`: until 3.4.1 "fable 5.2" matched "fable 5" and cost about double its
+    // published rate. Add the row in the release that follows a new model.
     //
     // Cache write is the 5-minute rate; cache read is the "cache hits and refreshes" rate.
     // These stopped being a fixed multiple of input with the 5 family — Fable 5.1 reads at
     // $0.25/MTok while Fable 5 reads at $1.00 on the same $10 input — so copy the published
     // figures, never re-derive them as 1.25x / 0.1x input.
     private static let pricingTable: [(String, ModelPricing)] = [
+        ("fable 5.2", ModelPricing(inputPerMillion: 8, outputPerMillion: 40, cacheWritePerMillion: 10, cacheReadPerMillion: 0.20)),
+        ("mythos 5.2", ModelPricing(inputPerMillion: 8, outputPerMillion: 40, cacheWritePerMillion: 10, cacheReadPerMillion: 0.20)),
         ("fable 5.1", ModelPricing(inputPerMillion: 10, outputPerMillion: 50, cacheWritePerMillion: 12.50, cacheReadPerMillion: 0.25)),
         ("mythos 5.1", ModelPricing(inputPerMillion: 10, outputPerMillion: 50, cacheWritePerMillion: 12.50, cacheReadPerMillion: 0.25)),
         ("fable 5", ModelPricing(inputPerMillion: 10, outputPerMillion: 50, cacheWritePerMillion: 12.50, cacheReadPerMillion: 1.00)),
@@ -167,8 +173,8 @@ struct ModelPricing {
     /// the right family beats a confidently wrong zero, so an unknown minor version now bills
     /// at its family's current-generation rate.
     private static let familyFallback: [(String, ModelPricing)] = [
-        ("fable", ModelPricing(inputPerMillion: 10, outputPerMillion: 50, cacheWritePerMillion: 12.50, cacheReadPerMillion: 0.25)),
-        ("mythos", ModelPricing(inputPerMillion: 10, outputPerMillion: 50, cacheWritePerMillion: 12.50, cacheReadPerMillion: 0.25)),
+        ("fable", ModelPricing(inputPerMillion: 8, outputPerMillion: 40, cacheWritePerMillion: 10, cacheReadPerMillion: 0.20)),
+        ("mythos", ModelPricing(inputPerMillion: 8, outputPerMillion: 40, cacheWritePerMillion: 10, cacheReadPerMillion: 0.20)),
         ("opus", ModelPricing(inputPerMillion: 5, outputPerMillion: 25, cacheWritePerMillion: 6.25, cacheReadPerMillion: 0.50)),
         ("sonnet", ModelPricing(inputPerMillion: 2, outputPerMillion: 10, cacheWritePerMillion: 2.50, cacheReadPerMillion: 0.20)),
         ("haiku", ModelPricing(inputPerMillion: 1, outputPerMillion: 5, cacheWritePerMillion: 1.25, cacheReadPerMillion: 0.10)),
