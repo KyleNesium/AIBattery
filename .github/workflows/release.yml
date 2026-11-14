@@ -128,7 +128,8 @@ jobs:
           cat checksums-sha256.txt
 
       # Gates the release on the checks that actually break auto-update if wrong:
-      # Info.plist / bundle / CHANGELOG version agreement, zip + dmg present, the
+      # Info.plist / bundle / CHANGELOG / CITATION.cff / llms.txt version agreement,
+      # zip + dmg present, the
       # Sparkle edSignature's declared length matching the real ZIP size, SUFeedURL
       # and SUPublicEDKey present in the shipped Info.plist, and codesign validity.
       # Runs BEFORE the GitHub Release so a broken artifact is never published.

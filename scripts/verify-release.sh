@@ -54,6 +54,16 @@ else
   fail "CITATION.cff date-released ($CITATION_DATE) does not match the CHANGELOG date for v${VERSION} ($CHANGELOG_DATE)"
 fi
 
+# llms.txt is what agents read to describe AI Battery; its "Current version" line names the
+# version, the date and the release tag. Like CITATION.cff, nothing at build time reads it.
+LLMS_LINE=$(grep '^- \*\*Current version\*\*:' llms.txt || true)
+LLMS_EXPECTED="- **Current version**: ${VERSION}, released ${CHANGELOG_DATE} — <https://github.com/KyleNesium/AIBattery/releases/tag/v${VERSION}>"
+if [ "$LLMS_LINE" = "$LLMS_EXPECTED" ]; then
+  pass "llms.txt current version: ${VERSION}, ${CHANGELOG_DATE}"
+else
+  fail "llms.txt 'Current version' line is stale: '${LLMS_LINE}' (expected '${LLMS_EXPECTED}')"
+fi
+
 # 2. Check build artifacts exist
 echo ""
 echo "── Build artifacts"
