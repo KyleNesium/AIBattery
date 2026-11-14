@@ -71,25 +71,11 @@ struct ModelPricing {
         }
 
         // Compute outside the lock — avoids nested lock with ModelNameMapper.
-        var result: ModelPricing?
-        if modelId.lowercased().hasPrefix("gpt-") {
+        let result: ModelPricing? = if modelId.lowercased().hasPrefix("gpt-") {
             // Codex / OpenAI models — matched on the raw ID (see OpenAIModelPricing).
-            result = OpenAIModelPricing.pricing(for: modelId)
+            OpenAIModelPricing.pricing(for: modelId)
         } else {
-            // Linear scan over 6 entries is fine — result is cached per modelId above.
-            let display = ModelNameMapper.displayName(for: modelId).lowercased()
-            for (key, pricing) in pricingTable where display.contains(key) {
-                result = pricing
-                break
-            }
-            if result == nil {
-                // Unknown minor version of a known family — bill at the family rate rather
-                // than returning nil, which costs the model's whole usage at $0.
-                for (family, pricing) in familyFallback where display.contains(family) {
-                    result = pricing
-                    break
-                }
-            }
+            claudePricing(named: ModelNameMapper.displayName(for: modelId).lowercased())
         }
 
         // Store in cache (including nil for unknown models)
@@ -107,14 +93,13 @@ struct ModelPricing {
     // Anthropic's published per-million API rates
     // (platform.claude.com/docs/en/about-claude/pricing, checked 2026-11-14).
     //
-    // Matching is `displayName(for:).lowercased().contains(key)` and the FIRST hit wins, so
-    // every entry must precede any shorter key that would otherwise swallow it — "opus 5.5"
-    // before "opus 5", "fable 5.2" and "fable 5.1" before "fable 5", the "opus 4.5"…"4.8" rows
-    // before the retired-generation "opus 4".
+    // A key is a family and a version. Within a family the rows run NEWEST FIRST, because
+    // `claudePricing(named:)` takes the first row that is not newer than the model; a test
+    // asserts the order.
     //
-    // The same matching means a NEW MINOR VERSION with no row is billed by its base row, not
-    // by `familyFallback`: until 3.4.1 "fable 5.2" matched "fable 5" and cost about double its
-    // published rate. Add the row in the release that follows a new model.
+    // A model with no row is billed at its nearest predecessor, so the cost is approximate
+    // until its row is added: "fable 5.3" would bill as 5.2. Add the row in the release that
+    // follows a new model.
     //
     // Cache write is the 5-minute rate; cache read is the "cache hits and refreshes" rate.
     // These stopped being a fixed multiple of input with the 5 family — Fable 5.1 reads at
@@ -160,23 +145,43 @@ struct ModelPricing {
         ("haiku 3", ModelPricing(inputPerMillion: 0.25, outputPerMillion: 1.25, cacheWritePerMillion: 0.30, cacheReadPerMillion: 0.03)),
     ]
 
-    /// Match keys in table order — the `contains` scan is order-dependent, so the ordering
-    /// invariant is asserted in tests rather than left to review.
-    static var tableKeys: [String] { pricingTable.map(\.0) }
+    /// `pricingTable` with each key split into family and version: "fable 5.2" → ("fable", [5, 2]).
+    static let rows: [(family: String, version: [Int], pricing: ModelPricing)] = pricingTable.map { key, pricing in
+        let words = key.split(separator: " ")
+        return (String(words[0]), versionNumbers(in: words.dropFirst().joined()), pricing)
+    }
 
-    /// Family-level rates for a Claude model whose exact version is not in `pricingTable`.
+    /// A Claude model is billed at the newest row of its family that is not newer than it.
     ///
-    /// Without this, a model released after the table was last updated matches nothing,
-    /// `pricing(for:)` returns nil, and every token it used is costed at **$0** — silently
-    /// dropping it out of the Insights cost, the per-project cost and the all-time total.
-    /// That is exactly what happened to the whole Claude 5 family. An approximate rate from
-    /// the right family beats a confidently wrong zero, so an unknown minor version now bills
-    /// at its family's current-generation rate.
-    private static let familyFallback: [(String, ModelPricing)] = [
-        ("fable", ModelPricing(inputPerMillion: 8, outputPerMillion: 40, cacheWritePerMillion: 10, cacheReadPerMillion: 0.20)),
-        ("mythos", ModelPricing(inputPerMillion: 8, outputPerMillion: 40, cacheWritePerMillion: 10, cacheReadPerMillion: 0.20)),
-        ("opus", ModelPricing(inputPerMillion: 5, outputPerMillion: 25, cacheWritePerMillion: 6.25, cacheReadPerMillion: 0.50)),
-        ("sonnet", ModelPricing(inputPerMillion: 2, outputPerMillion: 10, cacheWritePerMillion: 2.50, cacheReadPerMillion: 0.20)),
-        ("haiku", ModelPricing(inputPerMillion: 1, outputPerMillion: 5, cacheWritePerMillion: 1.25, cacheReadPerMillion: 0.10)),
-    ]
+    /// - A listed version uses its own row.
+    /// - A version released after the table was written uses its nearest predecessor:
+    ///   "fable 5.3" → 5.2, "opus 6" → 5.5. Prices have moved a little between neighbours and
+    ///   a lot between a generation's first and latest release, so this is the closest guess.
+    /// - A retired minor uses its generation's row: "opus 4.1" → "opus 4".
+    /// - A name with no version uses the family's newest row; one older than every row, the oldest.
+    /// - A name with no known family has no price.
+    ///
+    /// Until 3.4.1 this was a substring scan with a table of family constants behind it. A new
+    /// minor matched its generation's base row ("fable 5.2" billed as "fable 5", about double),
+    /// or no row at all and a constant nobody had updated ("haiku 5.6" at ten times Haiku 5.5).
+    private static func claudePricing(named name: String) -> ModelPricing? {
+        guard let family = rows.first(where: { name.contains($0.family) })?.family,
+              let familyEnd = name.range(of: family)?.upperBound
+        else {
+            return nil
+        }
+        let ofFamily = rows.filter { $0.family == family }
+        let version = versionNumbers(in: name[familyEnd...])
+        if version.isEmpty {
+            return ofFamily.first?.pricing
+        }
+        return (ofFamily.first { !version.lexicographicallyPrecedes($0.version) } ?? ofFamily.last)?.pricing
+    }
+
+    /// The first dotted number in `text`: " 4.6[1m]" → [4, 6], ".5.2" → [5, 2], "" → [].
+    private static func versionNumbers(in text: some StringProtocol) -> [Int] {
+        let isDigit: (Character) -> Bool = { ("0"..."9").contains($0) }
+        return text.drop { !isDigit($0) }.prefix { isDigit($0) || $0 == "." }
+            .split(separator: ".").compactMap { Int($0) }
+    }
 }

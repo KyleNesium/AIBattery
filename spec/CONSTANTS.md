@@ -291,15 +291,30 @@ Pricing per million tokens:
 | `haiku 3.5` | $0.8 | $4 | $1 | $0.08 |
 | `haiku 3` | $0.25 | $1.25 | $0.3 | $0.03 |
 
-Keys are matched with `displayName(for:).lowercased().contains(key)` and the **first hit
-wins**, so each row must precede any shorter key that would swallow it (`opus 5.5` before
-`opus 5`, `haiku 3.5` before `haiku 3`); a test asserts that ordering structurally. The
-same matching means a new minor version with no row of its own is billed by its base row
-— until 3.4.1 Fable 5.2 was billed as Fable 5, about double its published cost — so a new
-model needs its row in the release that follows it. A
-Claude model matching no row falls back to its family's current-generation rate
-(`familyFallback`: fable/mythos $8/$40, opus $5/$25, sonnet $2/$10, haiku $1/$5) rather
-than costing $0. Retired models keep their own published rates (Opus 3/4 $15/$75,
+A key is a family and a version. A Claude model is billed at **the newest row of its family
+that is not newer than it** (`ModelPricing.claudePricing(named:)`, on the lowercased
+`displayName(for:)`):
+
+| Model | Row used | Why |
+|-------|----------|-----|
+| A listed version (`claude-opus-5-5`) | its own | |
+| A later minor (`claude-fable-5-3`) | `fable 5.2` | nearest predecessor, never the generation's base row |
+| A later generation (`claude-opus-6`) | `opus 5.5` | the family's newest row |
+| A retired minor (`claude-opus-4-1`) | `opus 4` | its generation's row |
+| No version (`fable`) | `fable 5.2` | the family's newest row |
+| Older than every row (`claude-opus-2`) | `opus 3` | the oldest row |
+| No known family | none | no cost shown rather than a made-up one |
+
+The version is the first dotted number after the family name, so a suffix does not disturb
+it, and a Bedrock id (`global.anthropic.claude-fable-5-2`) resolves to the same row. Within
+a family the rows must run **newest first**; a test asserts it.
+
+A model with no row is therefore approximate, not exact, until its row is added: prices
+have moved between neighbouring versions (Fable 5.1 → 5.2 fell 20%). Add the row in the
+release that follows a new model. Until 3.4.1 the lookup was a substring scan with a table
+of family constants behind it: Fable 5.2 matched the `fable 5` base row and showed about
+double its published cost, and an unlisted Haiku 5.x would have fallen to a $1/$5 constant,
+ten times Haiku 5.5's rate. Retired models keep their own published rates (Opus 3/4 $15/$75,
 Claude 3 Haiku $0.25/$1.25).
 
 OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29, 2026-10-11 and 2026-11-14; cache write billed at the input rate, longest prefix wins):

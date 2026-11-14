@@ -5,6 +5,14 @@
 ### Fixed
 - **The Codex status tooltip says what it covers.** The Codex dot follows only the five Codex components on OpenAI's status page, so an incident elsewhere (on 2026-11-13, the ChatGPT Microsoft 365 connector) correctly leaves it green. The tooltip still read "All systems operational" while OpenAI's page said "Partial System Degradation". It now reads "Codex: All systems operational". (#213)
 - **Claude Fable 5.2 is billed at its own rate.** It had no row in the price table, so it was costed as Fable 5: $10 / $50 per million tokens with cache reads at $1.00, against a published $8 / $40 and $0.20. Cache reads make up most of a Claude Code session, so the API-equivalent cost shown for Fable 5.2 was about double the published one (2.1× on ten days of real logs). Claude Mythos 5.2 gets the same row, and the bare `fable` alias bills at the 5.2 rate. Costs are recomputed from token counts, so past and all-time figures correct themselves. (#213)
+- **A Claude model newer than the app is billed at its nearest known predecessor.** The price
+  lookup was a substring scan, which is how Fable 5.2 came to be costed as Fable 5: any new
+  minor version matched its generation's first release, and a version matching nothing fell
+  to a per-family constant that had not been updated (an unlisted Haiku 5.x would have cost
+  ten times Haiku 5.5). A model is now billed at the newest listed version of its family
+  that is not newer than it, so the next release from Anthropic shows a close figure until
+  the app adds its exact rate, instead of a figure that can be several times off. Amazon
+  Bedrock model ids resolve to their exact rate too. (#213)
 - **`gpt-6.1-terra` is billed at its own rate** — $1 / $5 per million tokens with cached input at $0.05 — instead of the gpt-6 family rate, which is double. (#213)
 
 ### Changed
