@@ -35,12 +35,17 @@
     until the next launch, where it used to sign out one.
   - A copy of AI Battery older than 3.5.0 will show those accounts as signed out afterwards:
     it looks for the old per-account items, which are gone.
-  - Three older code paths deleted a token before writing its replacement, so a crash
-    between the two steps lost it: a one-time accessibility migration, the fallback after
-    a failed Keychain update, and the move of a new account from its temporary id to its
-    real one. The migration is gone (the move into the single item does its job by writing
-    the new copy first), a failed update now leaves the existing item alone, and the id
-    move saves before it removes.
+  - Four older code paths deleted a token before its replacement was safely in place, so
+    a crash between the two steps lost it: a one-time accessibility migration, the fallback
+    after a failed Keychain update, the move of a new account from its temporary id to its
+    real one, and the migration from the original single-account layout. The first is gone
+    (the move into the single item does its job by writing the new copy first), a failed
+    update now leaves the existing item alone, and the other two write the new copy and
+    register the account before they remove anything.
+  - A Keychain write that fails is retried on its own, 30 seconds later and then at
+    longer intervals. Before, the new token stayed in memory until some later token change
+    happened to save it, and a quit in between lost the sign-in. This matters most for a
+    token that rotates while the Mac is in dark wake, when the Keychain cannot be used.
   - We tested whether signing releases with our own certificate would remove the prompt
     altogether. It does not: macOS keys the item to the build, not the certificate, unless
     the certificate is an Apple Developer ID. (#213)

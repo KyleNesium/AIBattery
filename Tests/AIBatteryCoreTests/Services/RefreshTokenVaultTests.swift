@@ -8,7 +8,7 @@ private final class FakeKeychain: @unchecked Sendable {
     private var items: [String: String] = [:]
     private var readFailures: [String: OSStatus] = [:]
     private var readCounts: [String: Int] = [:]
-    private var writesFail = false
+    private var writeFailure: OSStatus?
     private var writesAreCorrupted = false
     private var refusedDeletes: Set<String> = []
     private var onRead: (@Sendable (String) -> Void)?
@@ -30,9 +30,11 @@ private final class FakeKeychain: @unchecked Sendable {
             set: { [self] name, value in
                 lock.withLock { onWrite }?()
                 return lock.withLock {
-                    guard !writesFail else { return false }
+                    if let writeFailure {
+                        return writeFailure
+                    }
                     items[name] = writesAreCorrupted ? String(value.dropLast()) : value
-                    return true
+                    return errSecSuccess
                 }
             },
             delete: { [self] name in
@@ -65,8 +67,9 @@ private final class FakeKeychain: @unchecked Sendable {
         lock.withLock { readFailures[name] = status }
     }
 
-    func failWrites(_ fail: Bool) {
-        lock.withLock { writesFail = fail }
+    /// `status` defaults to what the Keychain returns when it cannot show a prompt (dark wake).
+    func failWrites(_ fail: Bool, status: OSStatus = errSecInteractionNotAllowed) {
+        lock.withLock { writeFailure = fail ? status : nil }
     }
 
     /// A write that reports success and stores something else.
@@ -111,6 +114,26 @@ private final class TestClock: @unchecked Sendable {
     }
 }
 
+/// Stands in for the retry timer: collects what the vault schedules so a test can run it.
+private final class RetryQueue: @unchecked Sendable {
+    private let lock = NSLock()
+    private var scheduled: [(delay: TimeInterval, work: @Sendable () -> Void)] = []
+
+    func add(_ delay: TimeInterval, _ work: @escaping @Sendable () -> Void) {
+        lock.withLock { scheduled.append((delay, work)) }
+    }
+
+    var delays: [TimeInterval] {
+        lock.withLock { scheduled.map(\.delay) }
+    }
+
+    /// Runs the oldest scheduled retry, as the timer would.
+    func fireNext() {
+        let next = lock.withLock { scheduled.isEmpty ? nil : scheduled.removeFirst() }
+        next?.work()
+    }
+}
+
 private final class ResultBox: @unchecked Sendable {
     private let lock = NSLock()
     private var stored: KeychainHelper.ReadResult?
@@ -125,10 +148,15 @@ private final class ResultBox: @unchecked Sendable {
 struct RefreshTokenVaultTests {
     private let keychain = FakeKeychain()
     private let clock = TestClock()
+    private let retries = RetryQueue()
     private let item = RefreshTokenVault.itemName
 
     private func makeVault() -> RefreshTokenVault {
-        RefreshTokenVault(keychain: keychain.access, now: { [clock] in clock.now() })
+        RefreshTokenVault(
+            keychain: keychain.access,
+            now: { [clock] in clock.now() },
+            schedule: { [retries] delay, work in retries.add(delay, work) }
+        )
     }
 
     // MARK: - One item
@@ -304,7 +332,7 @@ struct RefreshTokenVaultTests {
         keychain.holdReads { [item] name in
             guard name == item else { return }
             entered.signal()
-            release.wait()
+            _ = release.wait(timeout: .now() + 10)
         }
         let vault = makeVault()
 
@@ -313,7 +341,7 @@ struct RefreshTokenVaultTests {
             _ = vault.token(for: "a")
             readDone.signal()
         }.start()
-        entered.wait()
+        #expect(entered.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
 
         let changeDone = DispatchSemaphore(value: 0)
         Thread { [vault] in
@@ -325,7 +353,7 @@ struct RefreshTokenVaultTests {
 
         keychain.holdReads(nil)
         release.signal()
-        readDone.wait()
+        #expect(readDone.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
         #expect(vault.token(for: "b") == .found("B"))
         #expect(keychain.vault() == ["a": "A", "b": "B"])
     }
@@ -339,7 +367,7 @@ struct RefreshTokenVaultTests {
         keychain.holdReads { read in
             guard read == name else { return }
             entered.signal()
-            release.wait()
+            _ = release.wait(timeout: .now() + 10)
         }
         return (entered, release)
     }
@@ -368,14 +396,14 @@ struct RefreshTokenVaultTests {
             result.value = vault.token(for: "a")
             readDone.signal()
         }.start()
-        gate.entered.wait()
+        #expect(gate.entered.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
 
         let signedIn = returnsPromptly { [vault] in vault.set("NEW", for: "a") }
         #expect(signedIn, "set() blocked behind the prompting read")
 
         keychain.holdReads(nil)
         gate.release.signal()
-        readDone.wait()
+        #expect(readDone.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
 
         #expect(result.value == .found("NEW"))
         #expect(keychain.vault() == ["a": "NEW"], "written before the read returns, not at some later operation")
@@ -393,14 +421,14 @@ struct RefreshTokenVaultTests {
             result.value = vault.token(for: "a")
             readDone.signal()
         }.start()
-        gate.entered.wait()
+        #expect(gate.entered.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
 
         let signedOut = returnsPromptly { [vault] in vault.remove("a") }
         #expect(signedOut, "remove() blocked behind the prompting read")
 
         keychain.holdReads(nil)
         gate.release.signal()
-        readDone.wait()
+        #expect(readDone.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
 
         #expect(result.value == .notFound)
         #expect(makeVault().token(for: "a") == .notFound, "the next launch must not find the signed-out account")
@@ -418,10 +446,10 @@ struct RefreshTokenVaultTests {
         let release = DispatchSemaphore(value: 0)
         keychain.holdWrites {
             entered.signal()
-            release.wait()
+            _ = release.wait(timeout: .now() + 10)
         }
         Thread { [vault] in vault.set("B", for: "b") }.start()
-        entered.wait()
+        #expect(entered.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
 
         // The first write is in progress and has already emptied the queue.
         let queued = returnsPromptly { [vault] in vault.set("C", for: "c") }
@@ -469,6 +497,64 @@ struct RefreshTokenVaultTests {
 
         #expect(keychain.vault() == [:], "the item is still there, with no token in it")
         #expect(makeVault().token(for: "a") == .notFound, "the next launch must not find the signed-out account")
+    }
+
+    /// Found in the third review: a write that failed was logged and forgotten. A sign-in on
+    /// an account whose token never rotates (an API key) was then never saved, however long
+    /// the app ran, and a quit lost it.
+    @Test func aFailedWriteIsRetriedOnItsOwn() throws {
+        try keychain.putVault(["a": "A"])
+        let vault = makeVault()
+        #expect(vault.token(for: "a") == .found("A"))
+
+        keychain.failWrites(true)
+        vault.set("B", for: "b")
+        #expect(keychain.vault() == ["a": "A"])
+        #expect(retries.delays == [RefreshTokenVault.firstRetryDelay], "one retry is scheduled")
+
+        // Still failing: the retry backs off instead of giving up.
+        retries.fireNext()
+        #expect(keychain.vault() == ["a": "A"])
+        #expect(retries.delays == [RefreshTokenVault.firstRetryDelay * 2])
+
+        // The Keychain recovers. No token changes; the retry alone saves the sign-in.
+        keychain.failWrites(false)
+        retries.fireNext()
+        #expect(keychain.vault() == ["a": "A", "b": "B"])
+        #expect(retries.delays.isEmpty, "nothing left to retry")
+        #expect(makeVault().token(for: "b") == .found("B"), "the next launch has the sign-in")
+    }
+
+    /// A cancelled or denied prompt is a refusal. A timer that wrote again would raise that
+    /// prompt again, every few minutes, on its own. The next vault call still retries.
+    @Test func aRefusedWriteIsNotRetriedOnATimer() throws {
+        try keychain.putVault(["a": "A"])
+        let vault = makeVault()
+        #expect(vault.token(for: "a") == .found("A"))
+
+        for refusal in [errSecUserCanceled, errSecAuthFailed] {
+            keychain.failWrites(true, status: refusal)
+            vault.set("B", for: "b")
+            #expect(retries.delays.isEmpty, "status \(refusal) must not start a timer")
+        }
+
+        keychain.failWrites(false)
+        #expect(vault.token(for: "a") == .found("A"))
+        #expect(keychain.vault() == ["a": "A", "b": "B"], "the next vault call saves it")
+    }
+
+    /// Any later visit to the vault is also a chance to save what an earlier write missed.
+    @Test func aFailedWriteIsRetriedByTheNextRead() throws {
+        try keychain.putVault(["a": "A"])
+        let vault = makeVault()
+        #expect(vault.token(for: "a") == .found("A"))
+
+        keychain.failWrites(true)
+        vault.set("B", for: "b")
+        keychain.failWrites(false)
+
+        #expect(vault.token(for: "a") == .found("A"))
+        #expect(keychain.vault() == ["a": "A", "b": "B"])
     }
 
     /// A write that reports success is not enough to delete the only other copy.

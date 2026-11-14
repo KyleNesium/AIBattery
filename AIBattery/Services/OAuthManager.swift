@@ -410,17 +410,20 @@ public final class OAuthManager: ObservableObject {
             updated.billingType = billing
         }
 
-        // Move the tokens from the temp id to the real org id: save first, then remove, so
-        // a crash between the two leaves the sign-in under the id the record still carries.
+        // Move the tokens from the temp id to the real org id in an order that never leaves
+        // the account record pointing at an id with no token: save under the new id, then
+        // point the record at it, and only then remove the old copy. A crash after any step
+        // leaves a sign-in the next launch can find.
         if let data = tokens[tempId] {
             tokens[realOrgId] = data
             saveTokens(for: realOrgId)
         }
-        deleteTokens(for: tempId)
-        tokens.removeValue(forKey: tempId)
 
         // Update account store (handles duplicate detection/merge internally)
         accountStore.update(oldId: tempId, with: updated)
+
+        deleteTokens(for: tempId)
+        tokens.removeValue(forKey: tempId)
 
         // Move the token-ledger high-water marks from the pending id to the real org id
         // so the account's accumulated history follows it instead of orphaning.

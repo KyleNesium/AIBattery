@@ -91,6 +91,7 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
 | Keychain service (OAuth) | `"AIBattery"` — one item, account `refreshTokens` (`RefreshTokenVault.itemName`): a JSON object `{storage key: refresh token}`, storage key `<accountId>` (Claude) / `codex_<accountId>` (Codex). Pre-3.5 items `refreshToken_<storage key>` are adopted into it and deleted |
 | `RefreshTokenVault.failureShareWindow` | 5 sec — a failed read of the item is reused for this long, so one Deny or one cancelled prompt answers every account instead of raising a prompt for each |
+| `RefreshTokenVault.firstRetryDelay` / `maxRetryDelay` | 30 sec, doubling to 300 sec — how long after a failed write of the item the vault tries again on its own. No timer after a refusal (`errSecUserCanceled`, `errSecAuthFailed`) |
 | `RefreshTokenVault.appBundleIdentifier` | `com.KyleNesium.AIBattery` — only a process with this bundle id opens the real item; any other (the test runner) gets an in-memory store. Pinned to `Info.plist` by a test and to the built bundle by `verify-release.sh` |
 | Max accounts | 3 **per provider** (`AccountStore.maxAccountsPerProvider`) |
 | Codex OAuth client-id | `app_EMoamEEZ73f0CkXaXp7hrann` (Codex CLI's public client, from `codex-rs`) |

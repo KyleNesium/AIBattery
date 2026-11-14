@@ -17,13 +17,22 @@ extension OAuthManager {
     // MARK: - Migration from Single-Account Format
 
     /// One-time migration: moves legacy Keychain entries (unprefixed) to the new prefixed format.
+    ///
+    /// The order matters, because each step can be the last one that runs: write and verify
+    /// the new entry, register the account, mark the migration done, and only then delete
+    /// the old entries. A crash at any point leaves a sign-in the next launch can find. The
+    /// done-flag is what makes a leftover old entry harmless: without it, a user who later
+    /// signed out of every account would have that stale token migrated back in.
     func migrateFromLegacy() {
+        let migrationKey = "aibattery_legacyKeychainLayoutMigrated"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
         // Already migrated — accounts exist
         guard accountStore.accounts.isEmpty else { return }
 
-        // Check for legacy (unprefixed) Keychain entries
-        let legacyRefresh = KeychainHelper.get(account: "refreshToken")
-        guard legacyRefresh != nil else { return }
+        // Read the legacy (unprefixed) entry once. A second read could fail where the first
+        // succeeded (a prompt answered differently), and the migration then registered an
+        // account with no token.
+        guard let value = KeychainHelper.get(account: "refreshToken") else { return }
 
         AppLogger.oauth.info("Migrating legacy single-account Keychain entries")
 
@@ -36,13 +45,10 @@ extension OAuthManager {
         )
 
         // Only persist the refresh token (access token will be re-derived on launch).
-        // Verify the new entry before deleting the legacy one — if the write fails,
-        // keep the legacy entries intact and retry the migration next launch.
-        if let value = KeychainHelper.get(account: "refreshToken") {
-            guard Self.setAndVerify(account: "refreshToken_\(tempId)", value: value) else {
-                AppLogger.oauth.error("Legacy Keychain migration failed — keeping legacy entries for retry next launch")
-                return
-            }
+        // If the write does not verify, keep everything as it was and retry next launch.
+        guard Self.setAndVerify(account: "refreshToken_\(tempId)", value: value) else {
+            AppLogger.oauth.error("Legacy Keychain migration failed — keeping legacy entries for retry next launch")
+            return
         }
         // expiresAt goes to UserDefaults (not a secret)
         if let expiresStr = KeychainHelper.get(account: "expiresAt"),
@@ -50,13 +56,15 @@ extension OAuthManager {
             UserDefaults.standard.set(interval,
                                       forKey: UserDefaultsKeys.tokenExpiresAtPrefix + tempId)
         }
+
+        accountStore.add(record)
+        accountStore.setActive(id: tempId)
+        UserDefaults.standard.set(true, forKey: migrationKey)
+
         // Clean up all legacy unprefixed entries
         for key in ["accessToken", "refreshToken", "expiresAt"] {
             KeychainHelper.delete(account: key)
         }
-
-        accountStore.add(record)
-        accountStore.setActive(id: tempId)
     }
 
     // MARK: - Migration: Remove Stale Keychain Items

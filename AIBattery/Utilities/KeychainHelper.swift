@@ -15,12 +15,18 @@ enum KeychainHelper {
     }
 
     /// Returns whether the value actually landed in the Keychain.
+    @discardableResult
+    static func set(account: String, value: String) -> Bool {
+        store(account: account, value: value) == errSecSuccess
+    }
+
+    /// Writes the value and returns the Keychain status, so a caller can tell a refusal
+    /// (`errSecUserCanceled`, `errSecAuthFailed`) from a failure worth retrying.
     ///
     /// A failed update leaves the existing item as it was. Until 3.5.0 it was deleted and
     /// added again; a crash between the two, or a failed add, lost the value. That value is
     /// now every account's refresh token, so the old copy stays and the caller retries.
-    @discardableResult
-    static func set(account: String, value: String) -> Bool {
+    static func store(account: String, value: String) -> OSStatus {
         let data = Data(value.utf8)
 
         // Try to update existing item first
@@ -31,12 +37,19 @@ enum KeychainHelper {
         let updateStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttrs as CFDictionary)
 
         if updateStatus == errSecItemNotFound {
-            return add(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain")
-        } else if updateStatus != errSecSuccess {
-            AppLogger.oauth.error("Keychain update failed for \(account, privacy: .public): \(updateStatus)")
-            return false
+            var addQuery = searchQuery
+            addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            if addStatus != errSecSuccess {
+                AppLogger.oauth.error("Keychain add failed for \(account, privacy: .public): \(addStatus)")
+            }
+            return addStatus
         }
-        return true
+        if updateStatus != errSecSuccess {
+            AppLogger.oauth.error("Keychain update failed for \(account, privacy: .public): \(updateStatus)")
+        }
+        return updateStatus
     }
 
     /// Outcome of a Keychain read. `failed` is not "no item": the item may well exist but
@@ -79,18 +92,5 @@ enum KeychainHelper {
     static func delete(account: String) -> Bool {
         let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
         return status == errSecSuccess || status == errSecItemNotFound
-    }
-
-    // MARK: - Internal
-
-    private static func add(searchQuery: [String: Any], data: Data, account: String, logPrefix: String) -> Bool {
-        var addQuery = searchQuery
-        addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        if status != errSecSuccess {
-            AppLogger.oauth.error("\(logPrefix, privacy: .public) add failed for \(account, privacy: .public): \(status)")
-        }
-        return status == errSecSuccess
     }
 }

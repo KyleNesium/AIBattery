@@ -4,13 +4,14 @@ import os
 /// The three Keychain operations the vault needs, so a test can substitute a fake.
 struct KeychainAccess: Sendable {
     var read: @Sendable (String) -> KeychainHelper.ReadResult
-    var set: @Sendable (String, String) -> Bool
+    /// Returns the Keychain status; `errSecSuccess` when the value was stored.
+    var set: @Sendable (String, String) -> OSStatus
     /// Returns whether the item is gone (deleted, or never there).
     var delete: @Sendable (String) -> Bool
 
     static let system = KeychainAccess(
         read: { KeychainHelper.read(account: $0) },
-        set: { KeychainHelper.set(account: $0, value: $1) },
+        set: { KeychainHelper.store(account: $0, value: $1) },
         delete: { KeychainHelper.delete(account: $0) }
     )
 
@@ -21,7 +22,7 @@ struct KeychainAccess: Sendable {
             read: { name in store.withItems { $0[name].map { .found($0) } ?? .notFound } },
             set: { name, value in
                 store.withItems { $0[name] = value }
-                return true
+                return errSecSuccess
             },
             delete: { name in
                 store.withItems { $0[name] = nil }
@@ -77,6 +78,9 @@ final class RefreshTokenVault: @unchecked Sendable {
     private static let removedMarker = ""
     /// Written when the last token is removed and the item itself cannot be deleted.
     private static let emptyItem = "{}"
+    /// A failed write is retried after this long, doubling up to `maxRetryDelay`.
+    static let firstRetryDelay: TimeInterval = 30
+    static let maxRetryDelay: TimeInterval = 300
     static let appBundleIdentifier = "com.KyleNesium.AIBattery"
 
     /// The real Keychain item is opened only by the app itself. Any other process that
@@ -94,12 +98,19 @@ final class RefreshTokenVault: @unchecked Sendable {
     private let keychain: KeychainAccess
     private let itemName: String
     private let now: @Sendable () -> Date
+    /// Runs a block after a delay. Injected so a test can run the retry itself.
+    private let schedule: @Sendable (TimeInterval, @escaping @Sendable () -> Void) -> Void
 
     /// Held across Keychain calls, which can block on a prompt. Guards `entries` and `lastFailure`.
     private let ioLock = NSLock()
     /// nil until a read has succeeded.
     private var entries: [String: String]?
     private var lastFailure: (status: OSStatus, at: Date)?
+    /// True while `entries` holds something the Keychain does not, because a write failed.
+    /// Guarded by `ioLock`, like the retry state below it.
+    private var unsaved = false
+    private var retryDelay: TimeInterval = 0
+    private var retryScheduled = false
 
     /// Changes not yet in `entries`: a token to store, or nil to remove one. It has its own
     /// lock, never held across a Keychain call, so the main thread can record a change
@@ -107,10 +118,18 @@ final class RefreshTokenVault: @unchecked Sendable {
     private let pendingLock = NSLock()
     private var pending: [String: String?] = [:]
 
-    init(keychain: KeychainAccess, itemName: String = RefreshTokenVault.itemName, now: @escaping @Sendable () -> Date = { Date() }) {
+    init(
+        keychain: KeychainAccess,
+        itemName: String = RefreshTokenVault.itemName,
+        now: @escaping @Sendable () -> Date = { Date() },
+        schedule: @escaping @Sendable (TimeInterval, @escaping @Sendable () -> Void) -> Void = { delay, work in
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay, execute: work)
+        }
+    ) {
         self.keychain = keychain
         self.itemName = itemName
         self.now = now
+        self.schedule = schedule
     }
 
     static func legacyItemName(for key: String) -> String {
@@ -206,7 +225,8 @@ final class RefreshTokenVault: @unchecked Sendable {
             pending = [:]
             return waiting
         }
-        guard !changes.isEmpty, var updated = entries else { return }
+        // `unsaved`: an earlier write failed, so any visit to the vault is a chance to retry.
+        guard !changes.isEmpty || unsaved, var updated = entries else { return }
         for (key, token) in changes {
             updated[key] = token
         }
@@ -215,25 +235,52 @@ final class RefreshTokenVault: @unchecked Sendable {
     }
 
     /// Writes `entries` as the item and returns the JSON written, or nil if the write failed.
-    /// A failed write leaves `entries` ahead of the Keychain; the next write catches up.
+    ///
+    /// A failed write leaves `entries` ahead of the Keychain, and a quit then loses that
+    /// change. So it is retried: by the next vault call, and on a timer, which is what saves
+    /// a token that rotated while the Mac was in dark wake once the Keychain is usable again,
+    /// without waiting for another token to change. A refusal (Deny or Cancel on a prompt)
+    /// gets no timer: retrying would only raise the prompt again.
     @discardableResult
     private func write() -> String? {
         guard let entries else { return nil }
-        if entries.isEmpty {
-            // No tokens left: remove the item rather than keep an empty one to prompt for.
-            // macOS refuses the delete from a build the item has not approved, and the
-            // last token would then still be in it; an update is allowed, so empty it.
-            if !keychain.delete(itemName), !keychain.set(itemName, Self.emptyItem) {
-                AppLogger.oauth.error("Keychain: could not clear the refresh-token item")
-                return nil
+        let json = entries.isEmpty ? "" : Self.encode(entries)
+        let status = json.map { store($0, clearing: entries.isEmpty) } ?? errSecParam
+        guard status == errSecSuccess else {
+            AppLogger.oauth.error("Keychain: writing the refresh-token item failed (\(status))")
+            unsaved = true
+            if status != errSecUserCanceled, status != errSecAuthFailed {
+                scheduleRetry()
             }
-            return ""
-        }
-        guard let json = Self.encode(entries), keychain.set(itemName, json) else {
-            AppLogger.oauth.error("Keychain: writing the refresh-token item failed")
             return nil
         }
+        unsaved = false
+        retryDelay = 0
         return json
+    }
+
+    private func store(_ json: String, clearing: Bool) -> OSStatus {
+        guard clearing else { return keychain.set(itemName, json) }
+        // No tokens left: remove the item rather than keep an empty one to prompt for.
+        // macOS refuses the delete from a build the item has not approved, and the last
+        // token would then still be in it; an update is allowed, so empty it.
+        return keychain.delete(itemName) ? errSecSuccess : keychain.set(itemName, Self.emptyItem)
+    }
+
+    /// One retry is outstanding at a time. Needs `ioLock`.
+    private func scheduleRetry() {
+        guard !retryScheduled else { return }
+        retryScheduled = true
+        retryDelay = min(max(retryDelay * 2, Self.firstRetryDelay), Self.maxRetryDelay)
+        schedule(retryDelay) { [weak self] in
+            guard let self else { return }
+            ioLock.withLock {
+                self.retryScheduled = false
+                if self.unsaved {
+                    self.write()
+                }
+            }
+        }
     }
 
     /// The old item is deleted only after the vault write has read back correctly: this is

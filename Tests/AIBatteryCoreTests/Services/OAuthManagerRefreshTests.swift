@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Testing
 @testable import AIBatteryCore
@@ -79,9 +80,10 @@ struct OAuthManagerRefreshTests {
     }
 
     /// A new Claude account starts under a temporary id and moves to its organisation id
-    /// after the first API call. The token must be saved under the new id before the old
-    /// one is removed: a crash between the two then leaves a sign-in, not a lost one.
-    @Test func resolvingAnAccountId_savesTheTokenBeforeRemovingTheTemporaryOne() {
+    /// after the first API call. Three things change: the token is saved under the new id,
+    /// the account record is pointed at it, and the old copy is removed. They must happen in
+    /// that order, so that a crash after any one of them leaves a record whose id has a token.
+    @Test func resolvingAnAccountId_neverLeavesTheRecordWithoutAToken() {
         let manager = OAuthManager()
         let tempId = "pending-\(UUID().uuidString)"
         let realId = "org-\(UUID().uuidString)"
@@ -92,18 +94,32 @@ struct OAuthManagerRefreshTests {
         }
         manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-move", expiresAt: nil)
 
-        final class Flag: @unchecked Sendable { var value = false }
-        let temporaryCopyStillStored = Flag()
+        final class Observed: @unchecked Sendable {
+            var temporaryCopyAtSave: String?
+            var copiesWhenTheRecordMoved: (temporary: String?, real: String?)?
+        }
+        let observed = Observed()
         manager.tokenPersistence = { tokens, storageKey in
             if storageKey == realId {
-                temporaryCopyStillStored.value = OAuthTokenStorage.load(for: tempId).tokens.refreshToken == "rt-move"
+                observed.temporaryCopyAtSave = OAuthTokenStorage.load(for: tempId).tokens.refreshToken
             }
             OAuthTokenStorage.save(tokens, for: storageKey)
         }
+        // `$accounts` publishes the new list as it is assigned, so this runs inside the update.
+        let watching = manager.accountStore.$accounts.sink { accounts in
+            guard observed.copiesWhenTheRecordMoved == nil, accounts.contains(where: { $0.id == realId }) else { return }
+            observed.copiesWhenTheRecordMoved = (
+                OAuthTokenStorage.load(for: tempId).tokens.refreshToken,
+                OAuthTokenStorage.load(for: realId).tokens.refreshToken
+            )
+        }
+        defer { watching.cancel() }
 
         manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
 
-        #expect(temporaryCopyStillStored.value, "the temporary copy was removed before the new one was saved")
+        #expect(observed.temporaryCopyAtSave == "rt-move", "the temporary copy was removed before the new one was saved")
+        #expect(observed.copiesWhenTheRecordMoved?.real == "rt-move", "the record moved before its new id had a token")
+        #expect(observed.copiesWhenTheRecordMoved?.temporary == "rt-move", "the temporary copy was removed before the record moved")
         #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-move")
         #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
     }
