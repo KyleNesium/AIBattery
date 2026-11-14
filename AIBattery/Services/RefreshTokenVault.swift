@@ -5,7 +5,8 @@ import os
 struct KeychainAccess: Sendable {
     var read: @Sendable (String) -> KeychainHelper.ReadResult
     var set: @Sendable (String, String) -> Bool
-    var delete: @Sendable (String) -> Void
+    /// Returns whether the item is gone (deleted, or never there).
+    var delete: @Sendable (String) -> Bool
 
     static let system = KeychainAccess(
         read: { KeychainHelper.read(account: $0) },
@@ -22,7 +23,10 @@ struct KeychainAccess: Sendable {
                 store.withItems { $0[name] = value }
                 return true
             },
-            delete: { name in store.withItems { $0[name] = nil } }
+            delete: { name in
+                store.withItems { $0[name] = nil }
+                return true
+            }
         )
     }
 
@@ -59,9 +63,18 @@ struct KeychainAccess: Sendable {
 /// - **One answer per failure.** A failed read is reused for `failureShareWindow`, so one
 ///   Deny, or one prompt cancelled by sleep, answers every account instead of raising a
 ///   prompt for each.
+/// - **A removal sticks.** `remove` deletes the old item too. If macOS refuses that delete,
+///   the key stays in the vault with an empty value, so the leftover is never adopted.
+///
+/// A user who clicks "Allow" instead of "Always Allow" approves one read only. A later
+/// write from this build still stores the new tokens, but macOS then asks again before
+/// anyone reads the item (tested 2026-11-14: the data is intact once approved). That is
+/// the prompt this user gets at every launch anyway; nothing is lost.
 final class RefreshTokenVault: @unchecked Sendable {
     static let itemName = "refreshTokens"
     static let failureShareWindow: TimeInterval = 5
+    /// Stored for a removed key whose old item could not be deleted.
+    private static let removedMarker = ""
     static let appBundleIdentifier = "com.KyleNesium.AIBattery"
 
     /// The real Keychain item is opened only by the app itself. Any other process that
@@ -110,10 +123,20 @@ final class RefreshTokenVault: @unchecked Sendable {
             return .failed(status)
         }
         applyPending()
-        if let token = entries?[key] {
-            return .found(token)
+        var adoption = KeychainHelper.ReadResult.notFound
+        if entries?[key] == nil {
+            adoption = adoptLegacyItem(for: key)
+            // Reading the old item can wait on a prompt. A sign-in or sign-out made
+            // meanwhile was only queued, and must not be left behind the token just adopted.
+            applyPending()
         }
-        return adoptLegacyItem(for: key)
+        if let token = entries?[key] {
+            return token == Self.removedMarker ? .notFound : .found(token)
+        }
+        if case .found = adoption {
+            return .notFound // removed while its old item was being read
+        }
+        return adoption
     }
 
     func set(_ token: String, for key: String) {
@@ -121,18 +144,29 @@ final class RefreshTokenVault: @unchecked Sendable {
     }
 
     func remove(_ key: String) {
-        // The old item goes too, or a sign-out could leave a token that the next launch adopts.
-        keychain.delete(Self.legacyItemName(for: key))
-        change(key, to: nil)
+        // The old item goes too, or the next lookup would adopt it and undo the removal.
+        // When macOS refuses the delete, a marker in the vault keeps the leftover unread.
+        let oldItemGone = keychain.delete(Self.legacyItemName(for: key))
+        change(key, to: oldItemGone ? nil : Self.removedMarker)
     }
 
     // MARK: - Internal
 
     private func change(_ key: String, to token: String?) {
         pendingLock.withLock { _ = pending.updateValue(token, forKey: key) }
-        // Busy means a read is waiting on a prompt. The change stays in `pending`, and
-        // whoever holds the lock next applies it.
-        guard ioLock.try() else { return }
+        guard ioLock.try() else {
+            // Busy: a read is waiting on a prompt, and this thread must not wait with it.
+            // The reader applies queued changes before it lets go; this flush catches a
+            // change that arrives after the reader's last look.
+            DispatchQueue.global(qos: .utility).async { [self] in
+                ioLock.withLock {
+                    if entries != nil {
+                        applyPending()
+                    }
+                }
+            }
+            return
+        }
         defer { ioLock.unlock() }
         if load(retryingFailure: false) == nil {
             applyPending()
@@ -185,7 +219,7 @@ final class RefreshTokenVault: @unchecked Sendable {
         guard let entries else { return nil }
         if entries.isEmpty {
             // No tokens left: remove the item rather than keep an empty one to prompt for.
-            keychain.delete(itemName)
+            _ = keychain.delete(itemName)
             return ""
         }
         guard let json = Self.encode(entries), keychain.set(itemName, json) else {
@@ -203,7 +237,8 @@ final class RefreshTokenVault: @unchecked Sendable {
         guard case let .found(token) = result else { return result }
         entries?[key] = token
         if let json = write(), keychain.read(itemName) == .found(json) {
-            keychain.delete(legacyName)
+            // A refused delete leaves a leftover that is never read: the vault wins.
+            _ = keychain.delete(legacyName)
             AppLogger.oauth.info("Keychain: moved \(key, privacy: .public) into the single refresh-token item")
         } else {
             AppLogger.oauth.error("Keychain: could not move \(key, privacy: .public); its old item is kept")

@@ -4,10 +4,14 @@ import Foundation
 ///
 /// Split out of `OAuthManager.swift`, which had grown past the 800-line ceiling in
 /// CLAUDE.md. These run from `init` and each is gated so it does its work once: the
-/// account layout moved from a single unprefixed entry to one per account, stale
-/// `accessToken_` / `expiresAt_` items had to be swept, and the remaining items were
-/// re-created with `ThisDeviceOnly` accessibility so iCloud Keychain stops syncing
-/// refresh tokens to other devices.
+/// account layout moved from a single unprefixed entry to one per account, and stale
+/// `accessToken_` / `expiresAt_` items had to be swept.
+///
+/// A third migration re-created each per-account item with `ThisDeviceOnly` accessibility
+/// by deleting it and adding it back. It was removed in 3.5.0: a crash between the two
+/// steps destroyed the only copy of the token, and it is no longer needed. `RefreshTokenVault`
+/// moves each token into an item that is created `ThisDeviceOnly`, and deletes the old
+/// item only after the new one has read back.
 @MainActor
 extension OAuthManager {
     // MARK: - Migration from Single-Account Format
@@ -60,7 +64,7 @@ extension OAuthManager {
     /// Removes accessToken and expiresAt from Keychain (they're no longer stored
     /// there). Moves expiresAt to UserDefaults if not already present.
     ///
-    /// Runs once, like `migrateKeychainAccessibility`. It used to run on every launch,
+    /// Runs once. It used to run on every launch,
     /// spending two `SecItemDelete` calls and a `SecItemCopyMatching` per account to
     /// re-delete items that had been gone since the first launch after the upgrade.
     /// Keychain calls are slow and can prompt, which is exactly what keeping every token in
@@ -84,39 +88,6 @@ extension OAuthManager {
             KeychainHelper.delete(account: "accessToken_\(accountId)")
             KeychainHelper.delete(account: "expiresAt_\(accountId)")
         }
-    }
-
-    // MARK: - Migration: Keychain ThisDeviceOnly Accessibility
-
-    /// One-time migration: re-creates Keychain items with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
-    /// The old flag (`kSecAttrAccessibleWhenUnlocked`) allows iCloud Keychain to sync refresh tokens
-    /// to other Apple devices. Keychain doesn't support updating `kSecAttrAccessible` in-place, so
-    /// we delete and re-add each item. Only runs once (tracked via UserDefaults flag).
-    func migrateKeychainAccessibility() {
-        let migrationKey = "aibattery_keychainThisDeviceOnlyMigrated"
-        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-
-        // Accessibility can't be updated in place, so each item must be deleted and
-        // re-added — a window where a failed re-add would destroy the refresh token.
-        // Hardening: verify the re-add by reading the value back, retry once on
-        // failure, and only mark the migration done when EVERY account verified.
-        // Leaving the flag unset means the next launch retries instead of silently
-        // signing the user out forever.
-        var allVerified = true
-        for account in accountStore.accounts {
-            let keychainAccount = "refreshToken_\(account.id)"
-            guard let value = KeychainHelper.get(account: keychainAccount) else { continue }
-            KeychainHelper.delete(account: keychainAccount)
-            if !Self.setAndVerify(account: keychainAccount, value: value),
-               !Self.setAndVerify(account: keychainAccount, value: value) {
-                allVerified = false
-                AppLogger.oauth.error("Keychain accessibility migration failed for \(account.id, privacy: .public) — will retry next launch")
-            }
-        }
-
-        guard allVerified else { return }
-        UserDefaults.standard.set(true, forKey: migrationKey)
-        AppLogger.oauth.info("Migrated Keychain items to ThisDeviceOnly accessibility")
     }
 
     /// Write a Keychain value and confirm it round-trips. A `set` that reports

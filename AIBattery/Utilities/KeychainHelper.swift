@@ -73,8 +73,12 @@ enum KeychainHelper {
         return nil
     }
 
-    static func delete(account: String) {
-        SecItemDelete(baseQuery(account: account) as CFDictionary)
+    /// Returns whether the item is gone: deleted, or never there. macOS refuses a delete
+    /// from a build the item has not approved, so false means it is still in the Keychain.
+    @discardableResult
+    static func delete(account: String) -> Bool {
+        let status = SecItemDelete(baseQuery(account: account) as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 
     // MARK: - Internal

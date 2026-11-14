@@ -35,6 +35,9 @@
     until the next launch, where it used to sign out one.
   - A copy of AI Battery older than 3.5.0 will show those accounts as signed out afterwards:
     it looks for the old per-account items, which are gone.
+  - An older one-time migration that deleted each token and added it back is gone. A crash
+    between its two steps lost the token, and the move into the single item does the same
+    job by writing the new copy first.
   - We tested whether signing releases with our own certificate would remove the prompt
     altogether. It does not: macOS keys the item to the build, not the certificate, unless
     the certificate is an Apple Developer ID. (#213)

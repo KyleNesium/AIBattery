@@ -9,7 +9,10 @@ private final class FakeKeychain: @unchecked Sendable {
     private var readFailures: [String: OSStatus] = [:]
     private var readCounts: [String: Int] = [:]
     private var writesFail = false
+    private var writesAreCorrupted = false
+    private var refusedDeletes: Set<String> = []
     private var onRead: (@Sendable (String) -> Void)?
+    private var onWrite: (@Sendable () -> Void)?
 
     var access: KeychainAccess {
         KeychainAccess(
@@ -25,13 +28,20 @@ private final class FakeKeychain: @unchecked Sendable {
                 return value.map { .found($0) } ?? .notFound
             },
             set: { [self] name, value in
-                lock.withLock {
+                lock.withLock { onWrite }?()
+                return lock.withLock {
                     guard !writesFail else { return false }
-                    items[name] = value
+                    items[name] = writesAreCorrupted ? String(value.dropLast()) : value
                     return true
                 }
             },
-            delete: { [self] name in lock.withLock { items[name] = nil } }
+            delete: { [self] name in
+                lock.withLock {
+                    guard !refusedDeletes.contains(name) else { return false }
+                    items[name] = nil
+                    return true
+                }
+            }
         )
     }
 
@@ -59,8 +69,22 @@ private final class FakeKeychain: @unchecked Sendable {
         lock.withLock { writesFail = fail }
     }
 
+    /// A write that reports success and stores something else.
+    func corruptWrites(_ corrupt: Bool) {
+        lock.withLock { writesAreCorrupted = corrupt }
+    }
+
+    /// What macOS does to a build the item has not approved.
+    func refuseDeletes(of name: String) {
+        lock.withLock { _ = refusedDeletes.insert(name) }
+    }
+
     func holdReads(_ hook: (@Sendable (String) -> Void)?) {
         lock.withLock { onRead = hook }
+    }
+
+    func holdWrites(_ hook: (@Sendable () -> Void)?) {
+        lock.withLock { onWrite = hook }
     }
 
     /// The vault item decoded, or nil when there is no item.
@@ -84,6 +108,16 @@ private final class TestClock: @unchecked Sendable {
 
     func advance(_ seconds: TimeInterval) {
         lock.withLock { date += seconds }
+    }
+}
+
+private final class ResultBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: KeychainHelper.ReadResult?
+
+    var value: KeychainHelper.ReadResult? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }
 
@@ -296,23 +330,183 @@ struct RefreshTokenVaultTests {
         #expect(keychain.vault() == ["a": "A", "b": "B"])
     }
 
+    // MARK: - Found in review
+
+    /// Blocks the first read of `name` until `release` is signalled; `entered` fires when it starts.
+    private func hold(_ name: String) -> (entered: DispatchSemaphore, release: DispatchSemaphore) {
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        keychain.holdReads { read in
+            guard read == name else { return }
+            entered.signal()
+            release.wait()
+        }
+        return (entered, release)
+    }
+
+    /// Runs `change` on its own thread and reports whether it returned within five seconds.
+    private func returnsPromptly(_ change: @escaping @Sendable () -> Void) -> Bool {
+        let done = DispatchSemaphore(value: 0)
+        Thread {
+            change()
+            done.signal()
+        }.start()
+        return done.wait(timeout: .now() + 5) == .success
+    }
+
+    /// The old item's read can sit on a prompt while the user signs in afresh. That sign-in
+    /// was only queued, the old token was then written, and a quit before the next vault
+    /// operation brought the old token back on the next launch.
+    @Test func aSignInMadeWhileAnOldItemIsBeingReadIsNotOverwrittenByIt() {
+        keychain.put("old", in: "refreshToken_a")
+        let gate = hold("refreshToken_a")
+        let vault = makeVault()
+
+        let result = ResultBox()
+        let readDone = DispatchSemaphore(value: 0)
+        Thread { [vault] in
+            result.value = vault.token(for: "a")
+            readDone.signal()
+        }.start()
+        gate.entered.wait()
+
+        let signedIn = returnsPromptly { [vault] in vault.set("NEW", for: "a") }
+        #expect(signedIn, "set() blocked behind the prompting read")
+
+        keychain.holdReads(nil)
+        gate.release.signal()
+        readDone.wait()
+
+        #expect(result.value == .found("NEW"))
+        #expect(keychain.vault() == ["a": "NEW"], "written before the read returns, not at some later operation")
+        #expect(makeVault().token(for: "a") == .found("NEW"), "the next launch sees the new sign-in")
+    }
+
+    @Test func aSignOutMadeWhileAnOldItemIsBeingReadWins() {
+        keychain.put("old", in: "refreshToken_a")
+        let gate = hold("refreshToken_a")
+        let vault = makeVault()
+
+        let result = ResultBox()
+        let readDone = DispatchSemaphore(value: 0)
+        Thread { [vault] in
+            result.value = vault.token(for: "a")
+            readDone.signal()
+        }.start()
+        gate.entered.wait()
+
+        let signedOut = returnsPromptly { [vault] in vault.remove("a") }
+        #expect(signedOut, "remove() blocked behind the prompting read")
+
+        keychain.holdReads(nil)
+        gate.release.signal()
+        readDone.wait()
+
+        #expect(result.value == .notFound)
+        #expect(makeVault().token(for: "a") == .notFound, "the next launch must not find the signed-out account")
+    }
+
+    /// A change that finds the vault busy is queued. If the busy operation has already taken
+    /// its last look at the queue, nothing else would ever write the change: the app could
+    /// quit hours later with a sign-in that was never saved.
+    @Test func aQueuedChangeIsWrittenAsSoonAsTheVaultIsFree() throws {
+        try keychain.putVault(["a": "A"])
+        let vault = makeVault()
+        #expect(vault.token(for: "a") == .found("A"))
+
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        keychain.holdWrites {
+            entered.signal()
+            release.wait()
+        }
+        Thread { [vault] in vault.set("B", for: "b") }.start()
+        entered.wait()
+
+        // The first write is in progress and has already emptied the queue.
+        let queued = returnsPromptly { [vault] in vault.set("C", for: "c") }
+        #expect(queued, "set() blocked behind a write in progress")
+
+        keychain.holdWrites(nil)
+        release.signal()
+
+        let expected = ["a": "A", "b": "B", "c": "C"]
+        for _ in 0..<500 where keychain.vault() != expected {
+            usleep(10_000)
+        }
+        #expect(keychain.vault() == expected, "no further call was made on the vault")
+    }
+
+    /// macOS refuses a delete from a build the old item has not approved. The vault entry
+    /// went, the leftover stayed, and the next lookup adopted it.
+    @Test func aRemovalSticksWhenTheOldItemCannotBeDeleted() throws {
+        try keychain.putVault(["a": "current", "b": "B"])
+        keychain.put("stale", in: "refreshToken_a")
+        keychain.refuseDeletes(of: "refreshToken_a")
+        let vault = makeVault()
+
+        vault.remove("a")
+
+        #expect(vault.token(for: "a") == .notFound)
+        #expect(makeVault().token(for: "a") == .notFound, "nor on the next launch")
+        #expect(keychain.item("refreshToken_a") == "stale", "the leftover is still there")
+        #expect(keychain.reads(of: "refreshToken_a") == 0, "and is never read")
+        #expect(vault.token(for: "b") == .found("B"))
+
+        // Signing in again replaces the marker.
+        vault.set("fresh", for: "a")
+        #expect(makeVault().token(for: "a") == .found("fresh"))
+    }
+
+    /// A write that reports success is not enough to delete the only other copy.
+    @Test func theOldItemIsKeptWhenTheVaultDoesNotReadBackWhatWasWritten() {
+        keychain.put("old-a", in: "refreshToken_a")
+        keychain.corruptWrites(true)
+        let vault = makeVault()
+
+        #expect(vault.token(for: "a") == .found("old-a"))
+        #expect(keychain.item("refreshToken_a") == "old-a")
+    }
+
+    /// A failed write loses that one change if the app quits, and nothing else. The next
+    /// write that succeeds carries everything in memory.
+    @Test func aFailedWriteIsCaughtUpByTheNextOne() throws {
+        try keychain.putVault(["a": "A"])
+        let vault = makeVault()
+        #expect(vault.token(for: "a") == .found("A"))
+
+        keychain.failWrites(true)
+        vault.set("A2", for: "a")
+        #expect(keychain.vault() == ["a": "A"])
+        #expect(makeVault().token(for: "a") == .found("A"), "a quit now would lose the rotation, as it always has")
+
+        keychain.failWrites(false)
+        vault.set("B", for: "b")
+        #expect(keychain.vault() == ["a": "A2", "b": "B"])
+    }
+
     // MARK: - The real Keychain, and who may open the app's item
 
     /// One round trip through the real Keychain under a throwaway item name.
     @Test func roundTripThroughTheRealKeychain() {
-        let name = "test-vault-\(UUID().uuidString)"
+        // Unique item and key names: `remove` also deletes `refreshToken_<key>`, and that
+        // must never be the name of an item the installed app owns.
+        let run = UUID().uuidString
+        let name = "test-vault-\(run)"
+        let keyA = "test-key-a-\(run)"
+        let keyB = "test-key-b-\(run)"
         defer { KeychainHelper.delete(account: name) }
 
         let vault = RefreshTokenVault(keychain: .system, itemName: name)
-        vault.set("token-a", for: "a")
-        vault.set("token-b", for: "b")
+        vault.set("token-a", for: keyA)
+        vault.set("token-b", for: keyB)
 
         let reopened = RefreshTokenVault(keychain: .system, itemName: name)
-        #expect(reopened.token(for: "a") == .found("token-a"))
-        #expect(reopened.token(for: "b") == .found("token-b"))
+        #expect(reopened.token(for: keyA) == .found("token-a"))
+        #expect(reopened.token(for: keyB) == .found("token-b"))
 
-        reopened.remove("a")
-        reopened.remove("b")
+        reopened.remove(keyA)
+        reopened.remove(keyB)
         #expect(KeychainHelper.read(account: name) == .notFound)
     }
 

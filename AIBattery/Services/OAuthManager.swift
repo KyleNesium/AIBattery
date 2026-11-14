@@ -115,7 +115,6 @@ public final class OAuthManager: ObservableObject {
     public init() {
         migrateFromLegacy()
         migrateStaleKeychainItems()
-        migrateKeychainAccessibility()
         loadAllTokens()
         updateAuthState()
     }
