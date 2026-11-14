@@ -410,15 +410,14 @@ public final class OAuthManager: ObservableObject {
             updated.billingType = billing
         }
 
-        // Move Keychain entries from temp ID to real org ID
-        let tokenData = tokens[tempId]
-        deleteTokens(for: tempId)
-        tokens.removeValue(forKey: tempId)
-
-        if let data = tokenData {
+        // Move the tokens from the temp id to the real org id: save first, then remove, so
+        // a crash between the two leaves the sign-in under the id the record still carries.
+        if let data = tokens[tempId] {
             tokens[realOrgId] = data
             saveTokens(for: realOrgId)
         }
+        deleteTokens(for: tempId)
+        tokens.removeValue(forKey: tempId)
 
         // Update account store (handles duplicate detection/merge internally)
         accountStore.update(oldId: tempId, with: updated)

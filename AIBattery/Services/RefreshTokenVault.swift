@@ -75,6 +75,8 @@ final class RefreshTokenVault: @unchecked Sendable {
     static let failureShareWindow: TimeInterval = 5
     /// Stored for a removed key whose old item could not be deleted.
     private static let removedMarker = ""
+    /// Written when the last token is removed and the item itself cannot be deleted.
+    private static let emptyItem = "{}"
     static let appBundleIdentifier = "com.KyleNesium.AIBattery"
 
     /// The real Keychain item is opened only by the app itself. Any other process that
@@ -219,7 +221,12 @@ final class RefreshTokenVault: @unchecked Sendable {
         guard let entries else { return nil }
         if entries.isEmpty {
             // No tokens left: remove the item rather than keep an empty one to prompt for.
-            _ = keychain.delete(itemName)
+            // macOS refuses the delete from a build the item has not approved, and the
+            // last token would then still be in it; an update is allowed, so empty it.
+            if !keychain.delete(itemName), !keychain.set(itemName, Self.emptyItem) {
+                AppLogger.oauth.error("Keychain: could not clear the refresh-token item")
+                return nil
+            }
             return ""
         }
         guard let json = Self.encode(entries), keychain.set(itemName, json) else {

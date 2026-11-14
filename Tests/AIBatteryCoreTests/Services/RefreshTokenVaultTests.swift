@@ -458,6 +458,19 @@ struct RefreshTokenVaultTests {
         #expect(makeVault().token(for: "a") == .found("fresh"))
     }
 
+    /// Found in the second review: with one account left, a refused delete of the item
+    /// itself left that account's token in it, and the next launch read it back.
+    @Test func removingTheLastTokenEmptiesAnItemThatCannotBeDeleted() throws {
+        try keychain.putVault(["a": "A"])
+        keychain.refuseDeletes(of: item)
+        let vault = makeVault()
+
+        vault.remove("a")
+
+        #expect(keychain.vault() == [:], "the item is still there, with no token in it")
+        #expect(makeVault().token(for: "a") == .notFound, "the next launch must not find the signed-out account")
+    }
+
     /// A write that reports success is not enough to delete the only other copy.
     @Test func theOldItemIsKeptWhenTheVaultDoesNotReadBackWhatWasWritten() {
         keychain.put("old-a", in: "refreshToken_a")

@@ -14,9 +14,11 @@ enum KeychainHelper {
         ]
     }
 
-    /// Returns whether the value actually landed in the Keychain. Callers that
-    /// delete-then-set (the accessibility migration) MUST check this — treating
-    /// a failed set as success after a delete destroys the stored token.
+    /// Returns whether the value actually landed in the Keychain.
+    ///
+    /// A failed update leaves the existing item as it was. Until 3.5.0 it was deleted and
+    /// added again; a crash between the two, or a failed add, lost the value. That value is
+    /// now every account's refresh token, so the old copy stays and the caller retries.
     @discardableResult
     static func set(account: String, value: String) -> Bool {
         let data = Data(value.utf8)
@@ -32,9 +34,7 @@ enum KeychainHelper {
             return add(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain")
         } else if updateStatus != errSecSuccess {
             AppLogger.oauth.error("Keychain update failed for \(account, privacy: .public): \(updateStatus)")
-            // Fallback: delete and re-add
-            SecItemDelete(searchQuery as CFDictionary)
-            return add(searchQuery: searchQuery, data: data, account: account, logPrefix: "Keychain fallback")
+            return false
         }
         return true
     }

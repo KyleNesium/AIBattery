@@ -78,6 +78,36 @@ struct OAuthManagerRefreshTests {
         #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == nil, "sign-out must win: no Keychain write")
     }
 
+    /// A new Claude account starts under a temporary id and moves to its organisation id
+    /// after the first API call. The token must be saved under the new id before the old
+    /// one is removed: a crash between the two then leaves a sign-in, not a lost one.
+    @Test func resolvingAnAccountId_savesTheTokenBeforeRemovingTheTemporaryOne() {
+        let manager = OAuthManager()
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
+        defer {
+            manager.signOut(accountId: realId)
+            manager.signOut(accountId: tempId)
+        }
+        manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-move", expiresAt: nil)
+
+        final class Flag: @unchecked Sendable { var value = false }
+        let temporaryCopyStillStored = Flag()
+        manager.tokenPersistence = { tokens, storageKey in
+            if storageKey == realId {
+                temporaryCopyStillStored.value = OAuthTokenStorage.load(for: tempId).tokens.refreshToken == "rt-move"
+            }
+            OAuthTokenStorage.save(tokens, for: storageKey)
+        }
+
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(temporaryCopyStillStored.value, "the temporary copy was removed before the new one was saved")
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-move")
+        #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
+    }
+
     /// Control for the test above: the same transport with no sign-out stores the token.
     @Test func refresh_withoutSignOut_installsNewTokens() async {
         let manager = OAuthManager()
