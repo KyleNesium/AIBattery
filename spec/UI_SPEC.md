@@ -416,7 +416,7 @@ Padding: H 16, V 8
 
 Links row in HStack (spacing 10):
 1. **Usage**: chart.bar icon (`Typography.monoTiny`, 10pt) + "Usage" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `usageDashboardURL(for: provider)`: `claude.ai/settings/usage` (Claude) / `chatgpt.com/codex/settings/usage` (Codex)
-2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `statusPageURL(systemStatus:provider:)` — the live status's own page URL, else the provider's default (`status.claude.com` / `status.openai.com`)
+2. **Status**: colored circle (6pt) + "Status" + arrow.up.right (`Typography.decorativeIcon`, 9pt) → opens `statusPageURL(systemStatus:provider:)` — the live status's own page URL, else the provider's default (`status.claude.com` / `status.openai.com`). Tooltip `statusTooltip(for:provider:otherAffectedServices:)`: the indicator in words ("All systems operational", "Degraded performance", …). Codex prefixes it with "Codex: " because its feed reads only the five Codex components, so an incident elsewhere on status.openai.com (a ChatGPT connector) leaves the dot green, and an unprefixed tooltip would contradict OpenAI's page. When other OpenAI services are degraded or down (`ClaudeSystemStatus.otherAffectedServices`) the Codex tooltip names up to three and counts the rest: "Codex: All systems operational. Also affected at OpenAI: Sora, Images, Realtime and 2 more." The dot colour still follows Codex only
 
 `PopoverFooterView` takes `provider: AIProvider` (the active account's; `.claude` default). The logout hint reads "Sign out of active {Provider} account".
 3. _(Spacer)_

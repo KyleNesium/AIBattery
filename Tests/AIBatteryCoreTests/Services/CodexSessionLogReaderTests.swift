@@ -57,12 +57,12 @@ struct CodexSessionLogReaderTests {
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         var lines = [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-21T09:00:00.000Z")]
-        try writeRollout(lines, datePath: "2026/09/21", name: "rollout-a", root: root)
+        try writeRollout(lines, datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         #expect(reader.readAllUsageEntries().count == 1)
 
         for ordinal in 2...6 {
             lines.append(tokenCount(ordinal: ordinal, timestamp: "2026-09-21T09:0\(ordinal):00.000Z"))
-            try writeRollout(lines, datePath: "2026/09/21", name: "rollout-a", root: root)
+            try writeRollout(lines, datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
             reader.invalidate()
             let incremental = reader.readAllUsageEntries()
             let fresh = fullParse(root)
@@ -80,12 +80,12 @@ struct CodexSessionLogReaderTests {
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         var lines = [turnContext(model: "gpt-5.4-codex"), tokenCount(ordinal: 1, timestamp: "2026-09-21T09:00:00.000Z")]
-        try writeRollout(lines, datePath: "2026/09/21", name: "rollout-a", root: root)
+        try writeRollout(lines, datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         #expect(reader.readAllUsageEntries().count == 1)
 
         // Appended turns are far past the single `turn_context` line.
         lines.append(tokenCount(ordinal: 2, timestamp: "2026-09-21T09:02:00.000Z"))
-        try writeRollout(lines, datePath: "2026/09/21", name: "rollout-a", root: root)
+        try writeRollout(lines, datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         reader.invalidate()
         let incremental = reader.readAllUsageEntries()
 
@@ -103,12 +103,12 @@ struct CodexSessionLogReaderTests {
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         let base = [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-21T09:00:00.000Z")]
-        try writeRollout(base, datePath: "2026/09/21", name: "rollout-a", root: root)
+        try writeRollout(base, datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         #expect(reader.readAllUsageEntries().count == 1)
 
         // Dangling second turn.
         let withDangling = base + [tokenCount(ordinal: 2, timestamp: "2026-09-21T09:02:00.000Z")]
-        try writeRollout(withDangling, datePath: "2026/09/21", name: "rollout-a", root: root, trailingNewline: false)
+        try writeRollout(withDangling, datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root, trailingNewline: false)
         reader.invalidate()
         let mid = reader.readAllUsageEntries()
         #expect(mid.count == 2)
@@ -116,7 +116,7 @@ struct CodexSessionLogReaderTests {
 
         // Terminated, plus the next turn.
         let terminated = withDangling + [tokenCount(ordinal: 3, timestamp: "2026-09-21T09:03:00.000Z")]
-        try writeRollout(terminated, datePath: "2026/09/21", name: "rollout-a", root: root)
+        try writeRollout(terminated, datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         reader.invalidate()
         let after = reader.readAllUsageEntries()
         let fresh = fullParse(root)
@@ -137,7 +137,7 @@ struct CodexSessionLogReaderTests {
 
         for ordinal in 1...7 {
             let dangling = tokenCount(ordinal: ordinal, timestamp: "2026-09-21T09:0\(ordinal):00.000Z")
-            try writeRollout(terminated + [dangling], datePath: "2026/09/21", name: "rollout-a",
+            try writeRollout(terminated + [dangling], datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a",
                              root: root, trailingNewline: false)
             reader.invalidate()
             let incremental = reader.readAllUsageEntries()
@@ -156,7 +156,7 @@ struct CodexSessionLogReaderTests {
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         try writeRollout([turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-21T09:00:00.000Z")],
-                         datePath: "2026/09/21", name: "rollout-a", root: root)
+                         datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         #expect(reader.readAllUsageEntries().count == 1)
 
         // Different session entirely, same path — longer, so size alone would pass.
@@ -164,7 +164,7 @@ struct CodexSessionLogReaderTests {
             turnContext(model: "gpt-5.4-mini"),
             tokenCount(ordinal: 1, timestamp: "2026-09-22T10:00:00.000Z", input: 7, output: 3),
             tokenCount(ordinal: 2, timestamp: "2026-09-22T10:01:00.000Z", input: 7, output: 3),
-        ], datePath: "2026/09/21", name: "rollout-a", root: root)
+        ], datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         reader.invalidate()
 
         let incremental = reader.readAllUsageEntries()
@@ -179,13 +179,13 @@ struct CodexSessionLogReaderTests {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         try writeRollout([turnContext(), tokenCount(ordinal: 5, timestamp: "2026-09-20T10:00:00.000Z")],
-                         datePath: "2026/09/20", name: "rollout-a", root: root)
+                         datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-a", root: root)
         try writeRollout([
             turnContext(),
             tokenCount(ordinal: 5, timestamp: "2026-09-21T09:00:00.000Z"),
             tokenCount(ordinal: 9, timestamp: "2026-09-21T09:05:00.000Z"),
         ],
-        datePath: "2026/09/21", name: "rollout-b", root: root)
+        datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-b", root: root)
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         let entries = reader.readAllUsageEntries()
@@ -202,7 +202,7 @@ struct CodexSessionLogReaderTests {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let url = try writeRollout([turnContext(), tokenCount(ordinal: 5, timestamp: "2026-09-21T09:00:00.000Z")],
-                                   datePath: "2026/09/21", name: "rollout-a", root: root)
+                                   datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         let reader = CodexSessionLogReader(sessionsURL: root)
 
         #expect(reader.readAllUsageEntries().count == 1)
@@ -223,9 +223,9 @@ struct CodexSessionLogReaderTests {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         try writeRollout([turnContext(), tokenCount(ordinal: 5, timestamp: "2026-09-21T09:00:00.000Z")],
-                         datePath: "2026/09/21", name: "rollout-a", root: root)
+                         datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         let gone = try writeRollout([turnContext(), tokenCount(ordinal: 5, timestamp: "2026-09-21T10:00:00.000Z")],
-                                    datePath: "2026/09/21", name: "rollout-b", root: root)
+                                    datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-b", root: root)
         let reader = CodexSessionLogReader(sessionsURL: root)
         #expect(reader.readAllUsageEntries().count == 2)
 
@@ -241,10 +241,10 @@ struct CodexSessionLogReaderTests {
         let root = try makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let old = try writeRollout([turnContext(), tokenCount(ordinal: 5, timestamp: "2026-09-20T09:00:00.000Z")],
-                                   datePath: "2026/09/20", name: "rollout-old", root: root)
+                                   datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-old", root: root)
         try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -2 * 86_400)], ofItemAtPath: old.path)
         try writeRollout([turnContext(), tokenCount(ordinal: 5, timestamp: "2026-09-21T09:00:00.000Z")],
-                         datePath: "2026/09/21", name: "rollout-today", root: root)
+                         datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-today", root: root)
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         #expect(reader.readAllUsageEntries().count == 2)
@@ -259,7 +259,7 @@ struct CodexSessionLogReaderTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let partial = String(tokenCount(ordinal: 9, timestamp: "2026-09-21T09:05:00.000Z").dropLast(20))
         try writeRollout([turnContext(), tokenCount(ordinal: 5, timestamp: "2026-09-21T09:00:00.000Z"), partial],
-                         datePath: "2026/09/21", name: "rollout-a", root: root, trailingNewline: false)
+                         datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root, trailingNewline: false)
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         #expect(reader.readAllUsageEntries().count == 1)
@@ -272,12 +272,79 @@ struct CodexSessionLogReaderTests {
         let outside = FileManager.default.temporaryDirectory.appendingPathComponent("codex-outside-\(UUID().uuidString).jsonl")
         try Data((turnContext() + "\n" + tokenCount(ordinal: 5, timestamp: "2026-09-21T09:00:00.000Z") + "\n").utf8).write(to: outside)
         defer { try? FileManager.default.removeItem(at: outside) }
-        let dir = root.appendingPathComponent("2026/09/21")
+        let dir = root.appendingPathComponent("\(CodexTestDates.thisMonth)/21")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(at: dir.appendingPathComponent("rollout-link.jsonl"), withDestinationURL: outside)
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         #expect(reader.readAllUsageEntries().isEmpty)
+    }
+
+    // MARK: - Discovery cache, exact costs
+
+    /// `newRolloutInOneLeafIsFound_withoutRereadingUnchangedLeaves` only bounds the warm
+    /// cost ("fewer than the cold walk"). This pins it: nothing changed → no directory is
+    /// read; one new rollout → only the leaf it landed in.
+    @Test func discovery_warmTree_relistsOnlyTheLeafThatChanged() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writeRollout([turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
+                         datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-a", root: root)
+        try writeRollout([turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-21T10:00:00.000Z")],
+                         datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-b", root: root)
+        let reader = CodexSessionLogReader(sessionsURL: root)
+
+        #expect(reader.discoverJSONLFilesForTesting().count == 2)
+        #expect(reader.directoriesListedDuringLastDiscoveryForTesting() == 5, "root, year, month and two days")
+
+        reader.invalidate()
+        #expect(reader.discoverJSONLFilesForTesting().count == 2)
+        #expect(reader.directoriesListedDuringLastDiscoveryForTesting() == 0, "no mtime moved, so nothing is re-read")
+
+        try writeRollout([turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-21T11:00:00.000Z")],
+                         datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-c", root: root)
+        reader.invalidate()
+        let files = reader.discoverJSONLFilesForTesting()
+        #expect(files.map(\.lastPathComponent).sorted() == ["rollout-a.jsonl", "rollout-b.jsonl", "rollout-c.jsonl"])
+        #expect(reader.directoriesListedDuringLastDiscoveryForTesting() == 1, "only the leaf that gained a file")
+    }
+
+    /// A new rollout in an existing leaf does not move the root's mtime, so without a
+    /// FileWatcher invalidation only the TTL brings it in. The re-walk after expiry still
+    /// serves every unchanged directory from its cached listing.
+    @Test func discovery_ttlExpiry_findsANewRolloutWithoutAnInvalidation() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try writeRollout([turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
+                         datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-a", root: root)
+        let reader = CodexSessionLogReader(sessionsURL: root)
+        #expect(reader.discoverJSONLFilesForTesting().count == 1)
+
+        try writeRollout([turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T11:00:00.000Z")],
+                         datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-b", root: root)
+        #expect(reader.discoverJSONLFilesForTesting().count == 1, "inside the TTL the cached list is served")
+
+        reader.expireDiscoveryTTLForTesting()
+        #expect(reader.discoverJSONLFilesForTesting().count == 2)
+        #expect(reader.directoriesListedDuringLastDiscoveryForTesting() == 1, "only the leaf that gained a file")
+    }
+
+    /// A symlinked rollout is skipped even when it points inside the tree. The listing's
+    /// regular-file check reads the link itself (lstat semantics), so every link fails it;
+    /// the boundary check in `listDirectory` is a second guard, not the one that decides.
+    /// The Codex CLI never writes symlinks, so nothing real is lost.
+    @Test func discovery_symlinkedRollout_isSkippedEvenInsideTheTree() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let real = try writeRollout([turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
+                                    datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-a", root: root)
+        let otherDay = root.appendingPathComponent("\(CodexTestDates.thisMonth)/21")
+        try FileManager.default.createDirectory(at: otherDay, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: otherDay.appendingPathComponent("link.jsonl"), withDestinationURL: real)
+
+        let files = CodexSessionLogReader(sessionsURL: root).discoverJSONLFilesForTesting()
+
+        #expect(files.map(\.lastPathComponent) == ["rollout-a.jsonl"])
     }
 
     @Test func missingRoot_returnsEmpty() {
@@ -298,7 +365,7 @@ struct CodexSessionLogReaderTests {
             #"{"pad":""# + pad + #""}"# + ghost,
             tokenCount(ordinal: 9, timestamp: "2026-09-21T09:00:00.000Z"),
         ],
-        datePath: "2026/09/21", name: "rollout-a", root: root)
+        datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
 
         let reader = CodexSessionLogReader(sessionsURL: root)
         let entries = reader.readAllUsageEntries()
@@ -315,7 +382,7 @@ struct CodexSessionLogReaderTests {
             #"{"type":"turn_context","payload":{"model":"#,
             tokenCount(ordinal: 5, timestamp: "2026-09-21T09:00:00.000Z"),
         ],
-        datePath: "2026/09/21", name: "rollout-a", root: root)
+        datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-a", root: root)
         let reader = CodexSessionLogReader(sessionsURL: root)
         #expect(reader.readAllUsageEntries().count == 1)
         #expect(reader.lastCorruptLineCount == 1)
@@ -332,11 +399,11 @@ struct CodexSessionLogReaderTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try writeRollout(
             [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
-            datePath: "2026/09/20", name: "rollout-a", root: root
+            datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-a", root: root
         )
         try writeRollout(
             [turnContext(), tokenCount(ordinal: 2, timestamp: "2026-09-21T10:00:00.000Z")],
-            datePath: "2026/09/21", name: "rollout-b", root: root
+            datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-b", root: root
         )
 
         let reader = CodexSessionLogReader(sessionsURL: root)
@@ -347,7 +414,7 @@ struct CodexSessionLogReaderTests {
         // A new file in an existing leaf: that leaf's mtime moves, the others do not.
         try writeRollout(
             [turnContext(), tokenCount(ordinal: 3, timestamp: "2026-09-21T11:00:00.000Z")],
-            datePath: "2026/09/21", name: "rollout-c", root: root
+            datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-c", root: root
         )
         reader.invalidate()
         #expect(reader.readAllUsageEntries().count == 3)
@@ -359,7 +426,7 @@ struct CodexSessionLogReaderTests {
         // A whole new date directory still has to be discovered.
         try writeRollout(
             [turnContext(), tokenCount(ordinal: 4, timestamp: "2026-09-22T10:00:00.000Z")],
-            datePath: "2026/09/22", name: "rollout-d", root: root
+            datePath: "\(CodexTestDates.thisMonth)/22", name: "rollout-d", root: root
         )
         reader.invalidate()
         #expect(reader.readAllUsageEntries().count == 4)
@@ -371,16 +438,16 @@ struct CodexSessionLogReaderTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try writeRollout(
             [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
-            datePath: "2026/09/20", name: "rollout-a", root: root
+            datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-a", root: root
         )
         try writeRollout(
             [turnContext(), tokenCount(ordinal: 2, timestamp: "2026-09-21T10:00:00.000Z")],
-            datePath: "2026/09/21", name: "rollout-b", root: root
+            datePath: "\(CodexTestDates.thisMonth)/21", name: "rollout-b", root: root
         )
         let reader = CodexSessionLogReader(sessionsURL: root)
         #expect(reader.readAllUsageEntries().count == 2)
 
-        try FileManager.default.removeItem(at: root.appendingPathComponent("2026/09/21"))
+        try FileManager.default.removeItem(at: root.appendingPathComponent("\(CodexTestDates.thisMonth)/21"))
         reader.invalidate()
         #expect(reader.readAllUsageEntries().count == 1)
     }
@@ -402,10 +469,10 @@ struct CodexSessionLogReaderTests {
 
         try writeRollout(
             [turnContext(), tokenCount(ordinal: 1, timestamp: "2026-09-20T10:00:00.000Z")],
-            datePath: "2026/09/20", name: "rollout-a", root: root
+            datePath: "\(CodexTestDates.thisMonth)/20", name: "rollout-a", root: root
         )
         try FileManager.default.createSymbolicLink(
-            at: root.appendingPathComponent("2026/09/20/rollout-link.jsonl"),
+            at: root.appendingPathComponent("\(CodexTestDates.thisMonth)/20/rollout-link.jsonl"),
             withDestinationURL: smuggled
         )
 

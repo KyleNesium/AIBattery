@@ -63,8 +63,8 @@ extension OAuthManager {
     /// Runs once, like `migrateKeychainAccessibility`. It used to run on every launch,
     /// spending two `SecItemDelete` calls and a `SecItemCopyMatching` per account to
     /// re-delete items that had been gone since the first launch after the upgrade.
-    /// Keychain calls are slow and can prompt, which is exactly what the one-item-per-
-    /// account rule elsewhere in this file exists to avoid.
+    /// Keychain calls are slow and can prompt, which is exactly what keeping every token in
+    /// one item (`RefreshTokenVault`) exists to avoid.
     func migrateStaleKeychainItems() {
         let migrationKey = "aibattery_staleKeychainItemsMigrated"
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }

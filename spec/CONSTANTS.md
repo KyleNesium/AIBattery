@@ -89,7 +89,9 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Probe content | `"."` |
 | Probe max_tokens | `1` |
 | User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
-| Keychain service (OAuth) | `"AIBattery"` — items `refreshToken_<accountId>` (Claude) / `refreshToken_codex_<accountId>` (Codex) |
+| Keychain service (OAuth) | `"AIBattery"` — one item, account `refreshTokens` (`RefreshTokenVault.itemName`): a JSON object `{storage key: refresh token}`, storage key `<accountId>` (Claude) / `codex_<accountId>` (Codex). Pre-3.5 items `refreshToken_<storage key>` are adopted into it and deleted |
+| `RefreshTokenVault.failureShareWindow` | 5 sec — a failed read of the item is reused for this long, so one Deny or one cancelled prompt answers every account instead of raising a prompt for each |
+| `RefreshTokenVault.appBundleIdentifier` | `com.KyleNesium.AIBattery` — only a process with this bundle id opens the real item; any other (the test runner) gets an in-memory store. Pinned to `Info.plist` by a test and to the built bundle by `verify-release.sh` |
 | Max accounts | 3 **per provider** (`AccountStore.maxAccountsPerProvider`) |
 | Codex OAuth client-id | `app_EMoamEEZ73f0CkXaXp7hrann` (Codex CLI's public client, from `codex-rs`) |
 | Codex OAuth callback port | `1455` (127.0.0.1 only) |
@@ -194,18 +196,13 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 
 | Model | Window |
 |-------|--------|
-| claude-opus-4-6 | 1,000,000 |
-| claude-sonnet-4-6-20250929 | 1,000,000 |
-| claude-sonnet-4-5-20250929 | 1,000,000 |
-| claude-haiku-4-5-20251001 | 1,000,000 |
-| claude-3-5-sonnet-20241022 | 200,000 |
-| claude-3-5-haiku-20241022 | 200,000 |
-| claude-haiku-3-5-20241022 | 200,000 |
-| claude-3-opus-20240229 | 200,000 |
-| claude-3-sonnet-20240229 | 200,000 |
-| claude-3-haiku-20240307 | 200,000 |
+| Any Claude model from the 4.6 generation on (Opus 4.6+, Sonnet 4.6+, Haiku 5.5, Fable / Mythos, and any later model) | 1,000,000 — `TokenHealthConfig.defaultContextWindow` |
+| Any Claude model before 4.6 (Opus 4.5 / 4.1 / 4, Sonnet 4.5 / 4, Haiku 4.5, every 3.x) | 200,000 — `TokenHealthConfig.legacyContextWindow` |
+| A Claude id with no recognisable family or version | 1,000,000 |
 | `gpt-*` (any) | 258,400 — `TokenHealthConfig.openAIDefaultContextWindow`, the **fallback** used only when a record has no `contextWindow`; normally superseded by the per-record `model_context_window` Codex CLI 0.152 reports in `token_count` events for the gpt-5.x family |
 | Default fallback | 1,000,000 |
+
+The Claude rows are one rule, `version < TokenHealthConfig.longContextFromVersion` (`[4, 6]`), on the version `ModelNameMapper.claudeFamilyAndVersion(of:)` reads from the model id — the same parsing the price lookup uses — so a new model needs no entry. Source: Anthropic's models overview (platform.claude.com/docs/en/about-claude/models/overview), checked 2026-11-14. Until 3.5.0 a table of ids gave every 4.x model 1M, so a Haiku 4.5 or Sonnet 4.5 session read as a fifth as full as it was.
 
 ## Health Thresholds
 
@@ -267,6 +264,8 @@ Pricing per million tokens:
 
 | Key (match order) | Input | Output | Cache Write | Cache Read |
 |-------|-------|--------|-------------|------------|
+| `fable 5.2` | $8 | $40 | $10 | $0.2 |
+| `mythos 5.2` | $8 | $40 | $10 | $0.2 |
 | `fable 5.1` | $10 | $50 | $12.5 | $0.25 |
 | `mythos 5.1` | $10 | $50 | $12.5 | $0.25 |
 | `fable 5` | $10 | $50 | $12.5 | $1 |
@@ -289,20 +288,39 @@ Pricing per million tokens:
 | `haiku 3.5` | $0.8 | $4 | $1 | $0.08 |
 | `haiku 3` | $0.25 | $1.25 | $0.3 | $0.03 |
 
-Keys are matched with `displayName(for:).lowercased().contains(key)` and the **first hit
-wins**, so each row must precede any shorter key that would swallow it (`opus 5.5` before
-`opus 5`, `haiku 3.5` before `haiku 3`); a test asserts that ordering structurally. A
-Claude model matching no row falls back to its family's current-generation rate
-(`familyFallback`: fable/mythos $10/$50, opus $5/$25, sonnet $2/$10, haiku $1/$5) rather
-than costing $0. Retired models keep their own published rates (Opus 3/4 $15/$75,
+A key is a family and a version. A Claude model is billed at **the newest row of its family
+that is not newer than it** (`ModelPricing.claudePricing(for:)`, on the family and version
+`ModelNameMapper.claudeFamilyAndVersion(of:)` reads from the id):
+
+| Model | Row used | Why |
+|-------|----------|-----|
+| A listed version (`claude-opus-5-5`) | its own | |
+| A later minor (`claude-fable-5-3`) | `fable 5.2` | nearest predecessor, never the generation's base row |
+| A later generation (`claude-opus-6`) | `opus 5.5` | the family's newest row |
+| A retired minor (`claude-opus-4-1`) | `opus 4` | its generation's row |
+| No version (`fable`) | `fable 5.2` | the family's newest row |
+| Older than every row (`claude-opus-2`) | `opus 3` | the oldest row |
+| No known family | none | no cost shown rather than a made-up one |
+
+The version is the first dotted number after the family name, so a suffix does not disturb
+it, and a Bedrock id (`global.anthropic.claude-fable-5-2`) resolves to the same row. Within
+a family the rows must run **newest first**; a test asserts it.
+
+A model with no row is therefore approximate, not exact, until its row is added: prices
+have moved between neighbouring versions (Fable 5.1 → 5.2 fell 20%). Add the row in the
+release that follows a new model. Until 3.5.0 the lookup was a substring scan with a table
+of family constants behind it: Fable 5.2 matched the `fable 5` base row and showed about
+double its published cost, and an unlisted Haiku 5.x would have fallen to a $1/$5 constant,
+ten times Haiku 5.5's rate. Retired models keep their own published rates (Opus 3/4 $15/$75,
 Claude 3 Haiku $0.25/$1.25).
 
-OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29 and 2026-10-11; cache write billed at the input rate, longest prefix wins):
+OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29, 2026-10-11 and 2026-11-14; cache write billed at the input rate, longest prefix wins):
 
 | Model prefix | Input | Output | Cache Read |
 |-------|-------|--------|------------|
 | gpt-6-astra | $10.00 | $50.00 | $1.00 |
 | gpt-6.1-sol | $2.00 | $10.00 | $0.10 |
+| gpt-6.1-terra | $1.00 | $5.00 | $0.05 |
 | gpt-6-sol | $2.00 | $10.00 | $0.20 |
 | gpt-6-luna | $0.10 | $0.50 | $0.01 |
 | gpt-5.6-sol | $4.00 | $20.00 | $0.40 |
@@ -596,7 +614,7 @@ Codex rollouts (`CodexSessionLogReader` / `CodexSessionLogParser`) reuse the 64 
 
 | Path | Purpose |
 |------|---------|
-| macOS Keychain, service `"AIBattery"` | OAuth refresh token only (`refreshToken_{accountId}` Claude / `refreshToken_codex_{accountId}` Codex); access token in memory, expiry in UserDefaults (`aibattery_expiresAt_{storageKey}`) |
+| macOS Keychain, service `"AIBattery"` | OAuth refresh tokens only, all accounts in the one item `refreshTokens`; access token in memory, expiry in UserDefaults (`aibattery_expiresAt_{storageKey}`) |
 | `~/Library/Application Support/AIBattery/aibattery.lock` | Single-instance POSIX file lock |
 | `~/Library/Application Support/AIBattery/token-ledger.json` | Persistent per-model token high-water ledger (`TokenLedger`); keeps totals from dropping on a stats-cache rebuild |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |

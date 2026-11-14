@@ -54,6 +54,16 @@ else
   fail "CITATION.cff date-released ($CITATION_DATE) does not match the CHANGELOG date for v${VERSION} ($CHANGELOG_DATE)"
 fi
 
+# llms.txt is what agents read to describe AI Battery; its "Current version" line names the
+# version, the date and the release tag. Like CITATION.cff, nothing at build time reads it.
+LLMS_LINE=$(grep '^- \*\*Current version\*\*:' llms.txt || true)
+LLMS_EXPECTED="- **Current version**: ${VERSION}, released ${CHANGELOG_DATE} — <https://github.com/KyleNesium/AIBattery/releases/tag/v${VERSION}>"
+if [ "$LLMS_LINE" = "$LLMS_EXPECTED" ]; then
+  pass "llms.txt current version: ${VERSION}, ${CHANGELOG_DATE}"
+else
+  fail "llms.txt 'Current version' line is stale: '${LLMS_LINE}' (expected '${LLMS_EXPECTED}')"
+fi
+
 # 2. Check build artifacts exist
 echo ""
 echo "── Build artifacts"
@@ -128,6 +138,17 @@ if [ -d "$APP_BUNDLE" ]; then
     pass "Bundle version: $BUNDLE_VERSION"
   else
     fail "Bundle version ($BUNDLE_VERSION) does not match expected ($VERSION)"
+  fi
+
+  # The app opens its real Keychain item only when its bundle id is the one named in
+  # RefreshTokenVault.swift. A mismatch would keep every token in memory and sign every
+  # user out at each launch, and nothing else in the pipeline would notice.
+  VAULT_ID=$(sed -n 's/.*static let appBundleIdentifier = "\(.*\)"/\1/p' AIBattery/Services/RefreshTokenVault.swift)
+  BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$BUNDLE_PLIST")
+  if [ -n "$VAULT_ID" ] && [ "$BUNDLE_ID" = "$VAULT_ID" ]; then
+    pass "Bundle id matches the Keychain vault's: $BUNDLE_ID"
+  else
+    fail "Bundle id ($BUNDLE_ID) does not match RefreshTokenVault.appBundleIdentifier ($VAULT_ID)"
   fi
 
   # Check codesign

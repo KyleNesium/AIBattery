@@ -10,7 +10,7 @@ import Testing
 @Suite("OAuthManager — refresh path")
 @MainActor
 struct OAuthManagerRefreshTests {
-    private static let validTokenBody = #"{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}"#
+    nonisolated private static let validTokenBody = #"{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}"#
     private static let noDelay = RetryPolicy(baseDelay: 0, maxDelay: 0)
 
     /// Lets a stubbed transport park until the test says go, and lets the test wait
@@ -52,8 +52,7 @@ struct OAuthManagerRefreshTests {
     @Test func signOutDuringInFlightRefresh_doesNotResurrectTokens() async {
         let manager = OAuthManager()
         let accountId = "a4-refresh-\(UUID().uuidString)"
-        let keychainAccount = "refreshToken_\(accountId)"
-        defer { KeychainHelper.delete(account: keychainAccount) }
+        defer { OAuthTokenStorage.delete(for: accountId) }
 
         manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
         #expect(manager.isAuthenticated(accountId: accountId))
@@ -76,17 +75,16 @@ struct OAuthManagerRefreshTests {
         let token = await refresh.value
         #expect(token == nil, "a refresh finishing after sign-out must not hand out a token")
         #expect(!manager.isAuthenticated(accountId: accountId))
-        #expect(KeychainHelper.get(account: keychainAccount) == nil, "sign-out must win: no Keychain write")
+        #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == nil, "sign-out must win: no Keychain write")
     }
 
     /// Control for the test above: the same transport with no sign-out stores the token.
     @Test func refresh_withoutSignOut_installsNewTokens() async {
         let manager = OAuthManager()
         let accountId = "a4-control-\(UUID().uuidString)"
-        let keychainAccount = "refreshToken_\(accountId)"
         defer {
             manager.signOut(accountId: accountId)
-            KeychainHelper.delete(account: keychainAccount)
+            OAuthTokenStorage.delete(for: accountId)
         }
 
         manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
@@ -106,10 +104,9 @@ struct OAuthManagerRefreshTests {
     @Test func transientFailure_backsOffAndSkipsTheNextAttempt() async {
         let manager = OAuthManager()
         let accountId = "a4-backoff-\(UUID().uuidString)"
-        let keychainAccount = "refreshToken_\(accountId)"
         defer {
             manager.signOut(accountId: accountId)
-            KeychainHelper.delete(account: keychainAccount)
+            OAuthTokenStorage.delete(for: accountId)
         }
 
         manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
@@ -143,8 +140,8 @@ struct OAuthManagerRefreshTests {
         defer {
             manager.signOut(accountId: failing)
             manager.signOut(accountId: healthy)
-            KeychainHelper.delete(account: "refreshToken_\(failing)")
-            KeychainHelper.delete(account: "refreshToken_\(healthy)")
+            OAuthTokenStorage.delete(for: failing)
+            OAuthTokenStorage.delete(for: healthy)
         }
 
         // Distinct refresh tokens so the stub can fail one and serve the other.
@@ -170,7 +167,7 @@ struct OAuthManagerRefreshTests {
         let accountId = "a4-recover-\(UUID().uuidString)"
         defer {
             manager.signOut(accountId: accountId)
-            KeychainHelper.delete(account: "refreshToken_\(accountId)")
+            OAuthTokenStorage.delete(for: accountId)
         }
 
         manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)

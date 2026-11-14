@@ -23,7 +23,9 @@ Alternatively: **System Settings → Privacy & Security → Open Anyway**. Eithe
 
 ### macOS asks about Keychain access
 
-AI Battery stores each account's OAuth refresh token in the macOS Keychain (one item per account). Click **Always Allow**. The prompt appears once on first launch and once after each in-app update, because the updated binary carries a new ad-hoc signature.
+AI Battery stores your accounts' OAuth refresh tokens in the macOS Keychain, all in one item. Click **Always Allow**. The prompt appears once after each update, because macOS ties a Keychain item to the exact build that wrote it and an update is a new build. "Allow" without "Always" works too, but macOS then asks again on every launch.
+
+Before v3.5.0 each account had its own item, so an update asked once per account. The first launch of v3.5.0 moves them into the single item and asks once per account one last time.
 
 ## Accounts and sessions
 

@@ -95,7 +95,7 @@ public final class OAuthManager: ObservableObject {
     /// One in-flight retry read per account, so concurrent callers raise one prompt.
     private var keychainRetries: [String: Task<Void, Never>] = [:]
     /// Reader for the retry; tests swap in a stub. The launch read always uses the Keychain.
-    var keychainRead: @Sendable (String) -> KeychainHelper.ReadResult = { KeychainHelper.read(account: $0) }
+    var keychainRead: @Sendable (String) -> KeychainHelper.ReadResult = { RefreshTokenVault.shared.token(for: $0) }
 
     /// Whether a failed read is worth retrying. Deny / Cancel on the prompt is a refusal,
     /// and retrying would only raise the prompt again, so that account signs out as before.

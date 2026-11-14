@@ -14,7 +14,7 @@ struct OverviewContentView: View {
     /// How often the cards' relative text ("Cached 3m ago", "resets in 2h", the live
     /// dot) is re-read. One `TimelineView` here drives every card; a ticker per card
     /// re-evaluated N whole card bodies every tick for two lines that read the clock.
-    static let clockInterval: TimeInterval = 10
+    nonisolated static let clockInterval: TimeInterval = 10
 
     var body: some View {
         PanelPeriodicView(every: Self.clockInterval) { now in

@@ -23,7 +23,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 | Boundary | Claude | Codex |
 |---|---|---|
 | Auth | `OAuthManager` paste-code PKCE flow | ChatGPT: `CodexAuthSession` + `CodexCallbackServer` (localhost:1455 redirect) + `CodexTokenClient`; API key: `registerCodexAPIKey` (Keychain, no refresh); one-click `CodexAuthFileImporter` from `~/.codex/auth.json` (either mode) |
-| Token storage | Keychain `refreshToken_<accountId>` | Keychain `refreshToken_codex_<accountId>` (`OAuthManager.tokenStorageKey`) |
+| Token storage | The one Keychain item `refreshTokens`, key `<accountId>` | Same item, key `codex_<accountId>` (`OAuthManager.tokenStorageKey`) |
 | Rate limits | `RateLimitFetcher` (`/api/oauth/usage` → probes) | `CodexRateLimitFetcher`: subscriptions → windows, Business/Enterprise → credit budget (`chatgpt.com/backend-api/wham/usage` → session-log fallback); API keys → per-minute `x-ratelimit-*` via `api.openai.com/v1/responses` probe; per-account endpoint backoff |
 | Local data | `SessionLogReader` (`~/.claude/projects`) + `StatsCacheReader` | `CodexSessionLogReader` (`~/.codex/sessions`, no stats cache) — both implement `UsageEntrySource` |
 | Aggregation | `UsageAggregator(provider: .claude)` | `UsageAggregator(provider: .codex)` — same class, `gpt-` model filter, JSONL-derived `firstSessionDate` |
@@ -140,6 +140,7 @@ AIBattery/
     CodexSessionLogReader.swift   — (incremental tail parse: resumes at the last newline, restoring the parser state snapshotted before the trailing line) Streaming reader over `~/.codex/sessions/YYYY/MM/DD/*.jsonl` (fingerprint cache, eviction, symlink boundary)
     StatusFeedConfig+Codex.swift  — `StatusFeedConfig.codex`: status.openai.com filtered to the five Codex components
     OAuthTokenStorage.swift       — Keychain (refresh token) + UserDefaults (expiry) persistence layer extracted from OAuthManager
+    RefreshTokenVault.swift       — Every account's refresh token in one Keychain item: read once, never written unread, adopts the pre-3.5 per-account items
     RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)
     RateLimitFetcher+UsageEndpoint.swift  — Dedicated `/api/oauth/usage` primary path: `interpretUsageEndpoint` (pure) + async `fetchUsageEndpoint` wrapper
     RateLimitFetcher+ClientData.swift     — Claude Code `/api/oauth/claude_cli/client_data` fallback path: `interpretClaudeCodeClientData` (pure), async `fetchClaudeCodeClientData` wrapper, and `containsStandardRateLimitHeaders` (`nonisolated static`, called from the Messages path too)
@@ -295,12 +296,14 @@ Tests/AIBatteryCoreTests/
     StatusCheckerParsingTests.swift — incident impact escalation, component ID constants
     StatusCheckerConcurrencyTests.swift — nonisolated `fetchAndParse` callable from detached task; doesn't block MainActor
     SessionLogReaderTests.swift   — SessionEntry decoding, AssistantUsageEntry construction
-    SessionLogReaderSymlinkTests.swift — Symlink boundary check (exclude outside, include inside)
+    SessionLogReaderSymlinkTests.swift — Symlinked logs skipped (outside the tree and inside it); regular files kept
     SessionLogReaderDiscoveryTests.swift — TTL-based discovery fallback, cache expiry
     SessionLogReaderIntegrationTests.swift — End-to-end JSONL scanning + merge behavior
     SessionLogReaderRealDataTests.swift / CodexSessionLogReaderRealDataTests.swift — Opt-in (env-gated) full-scale scans of the developer's real trees: timing + ordering/uniqueness/cache invariants
     CodexSessionLogParserTests.swift — Codex rollout line state machine + AssistantUsageEntry field mapping (real-fixture lines)
-    CodexSessionLogReaderTests.swift — Nested date-dir discovery, fingerprint cache, eviction, deletion, partial tail, symlink boundary
+    CodexSessionLogReaderTests.swift — Nested date-dir discovery (exact warm-walk cost, TTL expiry), fingerprint cache, eviction, deletion, partial tail, symlinked rollouts skipped
+    ReaderIncrementalCacheTests.swift — Both readers: two files changed in one dirty cycle merge without duplicates; a deleted file's ids can come back from a new file (Claude)
+    CodexTestDates.swift          — Helper, not tests: `thisMonth` (`YYYY/MM`) for rollout fixtures, so they never age past the retention horizon
     CodexRateLimitFetcherTests.swift / CodexRateLimitFetcherBackoffTests.swift — wham/usage interpretation, spike write-back, endpoint backoff
     CodexSessionRateLimitScannerTests.swift — session-log rate_limits fallback
     CodexAuthFileImporterTests / CodexCallbackParserTests / CodexOAuthConstantsTests / CodexTokenClientTests / OAuthManagerCodexRoutingTests / OneShotMailboxTests — Codex auth pieces
@@ -334,28 +337,31 @@ Tests/AIBatteryCoreTests/
     StatusBarCountdownResetDateTests.swift — Countdown reset-date selection (throttle/100%)
     MenuBarMultiAccountTextTests.swift — Multi-account text builder + display resolver
     LinkActionButtonTests.swift   — Link action button behavior
-    PopoverFooterStatusSymbolTests.swift — Footer status symbol mapping
+    PopoverFooterStatusSymbolTests.swift — Footer status symbol mapping and the provider-scoped status tooltip
     MoveTransitionBanTests.swift  — Guards against `.move(edge:)` transitions in the popover
 docs/
   FAQ.md                          — Troubleshooting, context-health explainer, Gatekeeper/Keychain notes
   TODOS.md                        — Deferred work, grouped by area and ordered by priority
+.github/
+  dependabot.yml                  — Monthly PRs for the pinned Actions and the Swift package; ci.yml does not run on them, dispatch it by hand
 .github/workflows/
-  ci.yml                          — Build + test + bundle on push/PR (macos-15)
+  ci.yml                          — Build + test + bundle + launch smoke test on push/PR (macos-15)
   lint.yml                        — SwiftFormat + SwiftLint on PRs targeting main (macos-15)
-  release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)
+  release.yml                     — Release: build → launch smoke test → verify → GitHub Release → update Homebrew cask (macos-15)
 scripts/
   build-app.sh                    — Build release binary + .app bundle + zip/dmg
   update-homebrew.sh              — Auto-update KyleNesium/homebrew-tap cask (version + SHA256)
   generate-appcast.sh            — Generate appcast.xml for Sparkle update feed
   generate-icon.swift             — Generate AppIcon.icns (sparkle star, all macOS sizes)
   verify-release.sh               — Pre-release verification checks
+  smoke-launch.sh                 — Start the built app, fail if it exits within 20 s (CI; see its header before running locally)
 Package.swift                     — SPM manifest: AIBatteryCore, AIBattery, AIBatteryCoreTests
 CHANGELOG.md                      — Release notes per version
 ```
 
 ## Build Configuration
 
-- **SPM**: swift-tools-version 6.0, Swift 5 language mode (`.swiftLanguageMode(.v5)`) with the `StrictConcurrency` upcoming feature on all targets, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests). (The `.v6` language-mode flip is deferred — it surfaces SDK-version-dependent isolation/data-race errors on the CI runner that don't appear on newer local SDKs, so it needs iterative CI validation in its own PR.)
+- **SPM**: swift-tools-version 6.0, Swift 6 language mode (`.swiftLanguageMode(.v6)`) on all targets, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests). No isolated `deinit` is needed, so the macOS 13 target doesn't block it: state that a `@MainActor` class's `deinit` tears down is `nonisolated(unsafe)` (`UsageViewModel`, `StatusBarManager`). CI compiles with an older toolchain than a current local Xcode (Swift 6.1.2 on `macos-15`), and the first flip, in May 2026, was reverted for isolation errors only that SDK raised. So a clean local Swift 6 build doesn't prove CI is green.
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
 - **Codesigning**: Ad-hoc by default (`codesign --sign -`), parameterized via `CODE_SIGN_IDENTITY` env var for Developer ID signing. Hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting. Entitlements file selected automatically (`AIBattery-AppStore.entitlements` when `APP_STORE_BUILD` is set)
@@ -407,7 +413,7 @@ CHANGELOG.md                      — Release notes per version
 
 ## Local File Access (exhaustive)
 
-1. macOS Keychain, service `"AIBattery"` — Per-account OAuth refresh token only (`refreshToken_{accountId}` for Claude, `refreshToken_codex_{accountId}` for Codex); access token held in memory, expiry in UserDefaults
+1. macOS Keychain, service `"AIBattery"` — one item, `refreshTokens`, holding every account's OAuth refresh token as JSON (`RefreshTokenVault`; keys `{accountId}` for Claude, `codex_{accountId}` for Codex); access token held in memory, expiry in UserDefaults
 2. UserDefaults `aibattery_accounts` + `aibattery_activeAccountId` — Multi-account registry (JSON-encoded [AccountRecord])
 3. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
 4. `~/.claude/projects/*/[session-id].jsonl` — per-message token data

@@ -2,40 +2,17 @@ import Foundation
 
 /// Configurable thresholds for token health monitoring.
 struct TokenHealthConfig {
-    /// Context window limits per model (in tokens).
-    /// Claude 4.x models have 1M context windows (updated March 2026).
-    /// Older Claude 3.x models retain 200K windows.
-    static let contextWindows: [String: Int] = [
-        // Claude 5 family — explicit rather than relying on `defaultContextWindow`,
-        // so the prefix lookup resolves them without falling through to the default.
-        "claude-opus-5": 1_000_000,
-        "claude-sonnet-5": 1_000_000,
-        "claude-fable-5-1": 1_000_000,
-        "claude-opus-4-6": 1_000_000,
-        "claude-sonnet-4-6-20250929": 1_000_000,
-        "claude-sonnet-4-5-20250929": 1_000_000,
-        "claude-haiku-4-5-20251001": 1_000_000,
-        // Older models (both naming formats for Claude 3.5)
-        "claude-3-5-sonnet-20241022": 200_000,
-        "claude-3-5-haiku-20241022": 200_000,
-        "claude-haiku-3-5-20241022": 200_000,
-        "claude-3-opus-20240229": 200_000,
-        "claude-3-sonnet-20240229": 200_000,
-        "claude-3-haiku-20240307": 200_000,
-    ]
+    /// Claude context windows, from Anthropic's models overview (checked 2026-11-14): every
+    /// model from the 4.6 generation on has 1M tokens, and everything before it — Opus 4.5,
+    /// Sonnet 4.5, Haiku 4.5 and all earlier models — has 200K.
+    ///
+    /// A version rule rather than a table of ids, so a new model needs no entry. Until 3.5.0
+    /// a table gave every 4.x model 1M, which made a Haiku 4.5 or Sonnet 4.5 session read as
+    /// a fifth as full as it was.
+    static let longContextFromVersion = [4, 6]
+    static let legacyContextWindow = 200_000
 
-    /// Pre-computed 3-part prefix lookup for fuzzy model matching.
-    /// Built once at load time — avoids repeated string splitting in the hot path.
-    private static let prefixLookup: [String: Int] = {
-        var lookup: [String: Int] = [:]
-        for (key, value) in contextWindows {
-            let prefix = key.split(separator: "-").prefix(3).joined(separator: "-")
-            lookup[prefix] = value
-        }
-        return lookup
-    }()
-
-    /// Default context window if model not found (assumes newer model with 1M window).
+    /// Window for a model newer than 4.6, and for an id with no recognisable version.
     static let defaultContextWindow = 1_000_000
 
     /// Codex (`gpt-*`) models: `model_context_window` as reported in Codex CLI
@@ -86,17 +63,12 @@ struct TokenHealthConfig {
     static let `default` = TokenHealthConfig()
 
     static func contextWindow(for model: String) -> Int {
-        // Try exact match first (O(1) dictionary lookup)
-        if let window = contextWindows[model] {
-            return window
-        }
-        // Try prefix match via pre-computed lookup (no string allocations per key)
-        let modelPrefix = model.split(separator: "-").prefix(3).joined(separator: "-")
-        if let window = prefixLookup[modelPrefix] {
-            return window
-        }
         if model.hasPrefix("gpt-") {
             return openAIDefaultContextWindow
+        }
+        if let version = ModelNameMapper.claudeFamilyAndVersion(of: model)?.version, !version.isEmpty,
+           version.lexicographicallyPrecedes(longContextFromVersion) {
+            return legacyContextWindow
         }
         return defaultContextWindow
     }

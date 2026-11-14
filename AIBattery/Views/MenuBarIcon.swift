@@ -81,7 +81,7 @@ enum MenuBarIcon {
     /// The inline provider mark is drawn a little larger than the text's cap height so
     /// it reads at menu-bar size; it stays vertically centred on the cap height, so the
     /// overflow splits evenly above and below the digits.
-    static let markScale: CGFloat = 1.2
+    nonisolated static let markScale: CGFloat = 1.2
 
     nonisolated static func markSize(forCapHeight capHeight: CGFloat) -> CGFloat {
         ceil(capHeight * markScale)
@@ -123,7 +123,7 @@ enum MenuBarIcon {
     }
 
     /// Accessibility value for the status item: provider names in place of glyphs.
-    static func spokenMenuBarText(_ text: String) -> String {
+    nonisolated static func spokenMenuBarText(_ text: String) -> String {
         AIProvider.allCases.reduce(text) { $0.replacingOccurrences(of: $1.glyph, with: $1.displayName) }
     }
 

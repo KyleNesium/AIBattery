@@ -319,7 +319,7 @@ public final class StatusBarManager: NSObject {
         // KVO callbacks for `effectiveAppearance` are not contractually main-thread, so
         // hop explicitly via `Task { @MainActor in ... }` rather than asserting isolation.
         appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak panel] _, _ in
-            // Re-capture weakly inside the Task body: Swift 5 mode's checker
+            // Re-capture weakly inside the Task body: the concurrency checker
             // rejects accessing the outer closure's `weak` captures from a
             // concurrent task (they're `var` semantically).
             Task { @MainActor [weak panel] in

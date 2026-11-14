@@ -67,7 +67,7 @@ struct CodexSessionLogReaderRealDataTests {
 
         // Copy it into an isolated tree, keeping the date-directory shape the reader walks.
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent("codex-tail-\(UUID().uuidString)")
-        let dateDir = temp.appendingPathComponent("2026/01/01")
+        let dateDir = temp.appendingPathComponent("\(CodexTestDates.thisMonth)/01")
         try FileManager.default.createDirectory(at: dateDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temp) }
         let copy = dateDir.appendingPathComponent(source.url.lastPathComponent)

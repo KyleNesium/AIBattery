@@ -47,14 +47,14 @@ swift build -c release
 swift test --no-parallel
 ```
 
-1743 tests across 132 files, using `import Testing` + `@testable import AIBatteryCore`.
+1772 tests across 135 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities
 - **AIBattery** (`.executableTarget`, path `AIBatteryApp/`) — thin `@main` entry point, imports AIBatteryCore
 - **AIBatteryCoreTests** (`.testTarget`) — unit tests, `@testable import AIBatteryCore`
 
-CI (`macos-15`): build → test → verify signed bundle. Runs on push to `main`, and once when a PR leaves draft — **not** on later pushes to that PR (force a re-run via `workflow_dispatch`). A separate Lint job (SwiftLint + SwiftFormat) runs on every PR push touching `.swift`/lint-config files; run `swiftformat AIBattery/ AIBatteryApp/ Tests/` and `swiftlint` locally before pushing to avoid a red check.
+CI (`macos-15`): build → test → verify signed bundle → launch it (`scripts/smoke-launch.sh`: the app must stay up 20 s). Runs on push to `main`, and once when a PR leaves draft — **not** on later pushes to that PR (force a re-run via `workflow_dispatch`). A separate Lint job (SwiftLint + SwiftFormat) runs on every PR push touching `.swift`/lint-config files; run `swiftformat AIBattery/ AIBatteryApp/ Tests/` and `swiftlint` locally before pushing to avoid a red check.
 
 Suites that render NSImages or read dynamic NSColors are `@MainActor` and `.serialized` — AppKit's one-time init deadlocks when raced from the parallel pool (seen locally 2026-10-21). That is belt-and-braces on top of `--no-parallel`, not a substitute for it. The same hazard is why no test asserts on an adaptive `ThemeColors` token directly: resolving a dynamic `NSColor` off the main thread hangs the headless runner, so the wash alphas are named `Double` constants (`ThemeColors.<name>Alpha`) and the tests pin those.
 
@@ -93,7 +93,7 @@ These aren't obvious from reading the code — know them before making changes:
 
 ## Security
 
-- OAuth refresh token lives in macOS Keychain under service `"AIBattery"` (`refreshToken_<id>` Claude, `refreshToken_codex_<id>` Codex) — access token is memory-only (re-derived from refresh on launch), expiry timestamp in UserDefaults. Only 1 Keychain item per account to minimize Sparkle update prompts.
+- Every account's OAuth refresh token lives in **one** macOS Keychain item: service `"AIBattery"`, account `refreshTokens`, a JSON object keyed by storage key (`<id>` Claude, `codex_<id>` Codex) — `RefreshTokenVault`. Access tokens are memory-only (re-derived from refresh on launch), expiry timestamps in UserDefaults. One item because macOS ties an item to the exact build that wrote it, so each item costs one password prompt after every update. The vault is never written before it has been read (a write replaces the whole item), and the pre-3.5 per-account items (`refreshToken_<key>`) are adopted into it on first read. Only the app's own process opens the real item; a test process gets an in-memory store. Never read the item `refreshTokens` from a test or a script: on a Mac with the app installed that raises a prompt.
 - `AccountRecord.discoveredIdentity` (Codex sign-in email / Claude sign-in email or workspace name) is persisted in the `aibattery_accounts` UserDefaults blob, not Keychain — deliberate: it is not a credential, is already readable in `~/.codex/auth.json`, and the popover masks it by default. Never log it unmasked.
 - Codex OAuth binds a one-shot listener on **127.0.0.1:1455 only** (never wildcard); `~/.codex` is read-only (`auth.json` is read once on the user's explicit import click)
 - Never log token values — mask or redact in error messages
