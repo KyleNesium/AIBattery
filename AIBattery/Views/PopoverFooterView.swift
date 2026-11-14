@@ -207,13 +207,23 @@ struct PopoverFooterView: View {
     }
 
     private var statusTooltip: String {
-        Self.statusTooltip(for: systemIndicator, provider: provider)
+        Self.statusTooltip(
+            for: systemIndicator,
+            provider: provider,
+            otherAffectedServices: systemStatus?.otherAffectedServices ?? []
+        )
     }
 
     /// The Codex feed reads only the five Codex components (`StatusFeedConfig.codex`), so an
     /// incident elsewhere on status.openai.com — a ChatGPT connector, Sora — leaves it green.
     /// It names its scope; a bare "All systems operational" contradicts OpenAI's own page.
-    nonisolated static func statusTooltip(for indicator: StatusIndicator?, provider: AIProvider) -> String {
+    /// When other OpenAI services are degraded or down it names up to three of them, so a
+    /// green Codex dot during an OpenAI incident explains itself.
+    nonisolated static func statusTooltip(
+        for indicator: StatusIndicator?,
+        provider: AIProvider,
+        otherAffectedServices: [String] = []
+    ) -> String {
         let state = switch indicator {
         case .operational: "All systems operational"
         case .degradedPerformance: "Degraded performance"
@@ -222,7 +232,11 @@ struct PopoverFooterView: View {
         case .maintenance: "Under maintenance"
         case .unknown, .none: "Check system status"
         }
-        return provider == .codex ? "Codex: \(state)" : state
+        guard provider == .codex else { return state }
+        guard !otherAffectedServices.isEmpty else { return "Codex: \(state)" }
+        let named = otherAffectedServices.prefix(3).joined(separator: ", ")
+        let rest = otherAffectedServices.count - 3
+        return "Codex: \(state). Also affected at OpenAI: \(named)\(rest > 0 ? " and \(rest) more" : "")."
     }
 }
 

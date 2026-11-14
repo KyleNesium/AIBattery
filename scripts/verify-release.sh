@@ -140,6 +140,17 @@ if [ -d "$APP_BUNDLE" ]; then
     fail "Bundle version ($BUNDLE_VERSION) does not match expected ($VERSION)"
   fi
 
+  # The app opens its real Keychain item only when its bundle id is the one named in
+  # RefreshTokenVault.swift. A mismatch would keep every token in memory and sign every
+  # user out at each launch, and nothing else in the pipeline would notice.
+  VAULT_ID=$(sed -n 's/.*static let appBundleIdentifier = "\(.*\)"/\1/p' AIBattery/Services/RefreshTokenVault.swift)
+  BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$BUNDLE_PLIST")
+  if [ -n "$VAULT_ID" ] && [ "$BUNDLE_ID" = "$VAULT_ID" ]; then
+    pass "Bundle id matches the Keychain vault's: $BUNDLE_ID"
+  else
+    fail "Bundle id ($BUNDLE_ID) does not match RefreshTokenVault.appBundleIdentifier ($VAULT_ID)"
+  fi
+
   # Check codesign
   if codesign --verify --deep --strict "$APP_BUNDLE" 2>/dev/null; then
     pass "Codesign verification passed"

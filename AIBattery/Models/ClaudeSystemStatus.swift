@@ -17,6 +17,10 @@ struct ClaudeSystemStatus: Equatable {
     let statusPageURL: String
     /// Per-component statuses keyed by Statuspage component ID.
     var componentStatuses: [String: StatusIndicator] = [:]
+    /// Components on the same status page that this feed does not watch and that are
+    /// degraded or down. Only a filtered feed fills it: for Codex, the rest of
+    /// status.openai.com. They never colour the dot; the tooltip names them.
+    var otherAffectedServices: [String] = []
 
     /// Convenience for single-incident access.
     var incidentName: String? { incidentNames.first }

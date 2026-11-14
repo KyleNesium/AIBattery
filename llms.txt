@@ -10,10 +10,10 @@ covering the product rather than the source, is <https://aibattery.dev/llms.txt>
 - **What it is**: a macOS menu bar app (not a CLI, not a library) for Claude Code and Codex CLI users
 - **Platform**: macOS 13 (Ventura) or later, Apple Silicon only — the release binary is arm64-only
 - **Language**: Swift 6 / SwiftUI, built with SwiftPM
-- **Current version**: 3.4.1, released 2026-11-14 — <https://github.com/KyleNesium/AIBattery/releases/tag/v3.4.1>
+- **Current version**: 3.5.0, released 2026-11-14 — <https://github.com/KyleNesium/AIBattery/releases/tag/v3.5.0>
 - **License**: MIT
 - **Dependencies**: Sparkle 2 (auto-update) and Apple frameworks only
-- **Tests**: 1752 tests across 134 test files (Swift Testing)
+- **Tests**: 1772 tests across 135 test files (Swift Testing)
 - **Website**: <https://aibattery.dev>
 - **Install**: `brew tap KyleNesium/tap && brew install --cask aibattery`
 - **Privacy**: reads Claude Code and Codex CLI JSONL session logs for token counts and context

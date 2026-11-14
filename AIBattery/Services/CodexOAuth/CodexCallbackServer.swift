@@ -73,7 +73,7 @@ final class CodexCallbackServer: @unchecked Sendable {
         // the listener is up. Setting `requiredLocalEndpoint` restricts the bind to
         // 127.0.0.1 while keeping the exact configured port.
         parameters.requiredLocalEndpoint = NWEndpoint.hostPort(
-            host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!
+            host: "127.0.0.1", port: NWEndpoint.Port(integerLiteral: port)
         )
         let listener = try NWListener(using: parameters)
         self.listener = listener

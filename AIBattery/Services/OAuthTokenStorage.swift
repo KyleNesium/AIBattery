@@ -6,15 +6,12 @@ import Foundation
 /// the storage-concerns surface separate from the auth-flow logic.
 ///
 /// Storage layout:
-/// - **Refresh token** → macOS Keychain under `refreshToken_<accountId>`
+/// - **Refresh token** → macOS Keychain, in the one item `RefreshTokenVault` keeps for
+///   every account (see that type for why it is one item and how old items move in)
 /// - **Access token** → not persisted; re-derived from the refresh token on
 ///   next launch (short-lived ~1h secret, no value in persisting)
 /// - **Expiry timestamp** → `UserDefaults` under `tokenExpiresAtPrefix +
 ///   accountId` (not a secret; survives device locks/sleep)
-///
-/// Keychain footprint is intentionally minimal — only one item per account —
-/// to keep the Sparkle update prompt count at most 1 per account when the
-/// ad-hoc signing identity changes.
 enum OAuthTokenStorage {
     /// In-memory representation of an account's token state.
     struct AccountTokens {
@@ -27,7 +24,7 @@ enum OAuthTokenStorage {
     /// The access token is intentionally NOT persisted.
     static func save(_ tokens: AccountTokens, for accountId: String) {
         if let refresh = tokens.refreshToken {
-            KeychainHelper.set(account: "refreshToken_\(accountId)", value: refresh)
+            RefreshTokenVault.shared.set(refresh, for: accountId)
         }
         if let expires = tokens.expiresAt {
             UserDefaults.standard.set(
@@ -48,14 +45,15 @@ enum OAuthTokenStorage {
 
     /// Load the persisted state for an account. The returned `accessToken` is
     /// always `nil` — callers must refresh via the refresh token on first use.
-    /// Safe off the main actor; `readKeychain` is injectable for tests.
+    /// Safe off the main actor. `readKeychain` takes the account's storage key and is
+    /// injectable for tests.
     static func load(
         for accountId: String,
-        readKeychain: (String) -> KeychainHelper.ReadResult = KeychainHelper.read(account:)
+        readKeychain: (String) -> KeychainHelper.ReadResult = { RefreshTokenVault.shared.token(for: $0) }
     ) -> Loaded {
         var refresh: String?
         var readFailure: OSStatus?
-        switch readKeychain("refreshToken_\(accountId)") {
+        switch readKeychain(accountId) {
         case let .found(value): refresh = value
         case .notFound: break
         case let .failed(status): readFailure = status
@@ -77,7 +75,7 @@ enum OAuthTokenStorage {
     /// that earlier versions may have stored under `accessToken_*` or
     /// `expiresAt_*` Keychain keys.
     static func delete(for accountId: String) {
-        KeychainHelper.delete(account: "refreshToken_\(accountId)")
+        RefreshTokenVault.shared.remove(accountId)
         UserDefaults.standard.removeObject(
             forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId
         )

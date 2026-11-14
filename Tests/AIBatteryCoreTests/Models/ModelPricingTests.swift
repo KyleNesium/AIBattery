@@ -284,7 +284,7 @@ struct ModelPricingTests {
         #expect(try #require(ModelPricing.pricing(for: "claude-sonnet-5-5")).cacheReadPerMillion == 0.10)
     }
 
-    /// Regression (3.4.1): Fable 5.2 had no row, so "fable 5.2" matched the shorter "fable 5"
+    /// Regression (3.5.0): Fable 5.2 had no row, so "fable 5.2" matched the shorter "fable 5"
     /// key and was billed at Fable 5's rates — $10/$50 with $1.00 cache reads, against a
     /// published $8/$40 with $0.20. Cache reads dominate a Claude Code session, so the cost
     /// shown was about double the real one.
@@ -353,7 +353,7 @@ struct ModelPricingTests {
     }
 
     /// A model the table has no row for bills at its nearest known predecessor.
-    /// Regression (3.4.1): the lookup was a substring scan, so "fable 5.3" would have matched
+    /// Regression (3.5.0): the lookup was a substring scan, so "fable 5.3" would have matched
     /// the "fable 5" base row — the mistake that billed Fable 5.2 at double — and "haiku 5.6"
     /// matched no row at all and fell to a $1/$5 family constant, ten times Haiku 5.5's rate.
     @Test func unlistedVersion_billsAtItsNearestKnownPredecessor() throws {
@@ -389,6 +389,8 @@ struct ModelPricingTests {
     /// family's rows must run newest first. Asserted structurally so a row inserted in the
     /// wrong place fails here rather than silently mispricing.
     @Test func claudeTable_eachFamilyRunsNewestFirst() {
+        // A key whose first word is not a known family would never be matched.
+        #expect(ModelPricing.rows.allSatisfy { ModelNameMapper.claudeFamilies.contains($0.family) })
         for family in Set(ModelPricing.rows.map(\.family)) {
             let versions = ModelPricing.rows.filter { $0.family == family }.map(\.version)
             for (newer, older) in zip(versions, versions.dropFirst()) {

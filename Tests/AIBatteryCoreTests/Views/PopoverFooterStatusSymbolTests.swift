@@ -107,6 +107,20 @@ struct PopoverFooterStatusSymbolTests {
         #expect(PopoverFooterView.statusTooltip(for: nil, provider: .claude) == "Check system status")
     }
 
+    /// A green Codex dot during an OpenAI incident elsewhere must explain itself.
+    @Test func statusTooltip_namesOtherAffectedOpenAIServices() {
+        #expect(
+            PopoverFooterView.statusTooltip(for: .operational, provider: .codex, otherAffectedServices: ["Sora"])
+                == "Codex: All systems operational. Also affected at OpenAI: Sora."
+        )
+        #expect(
+            PopoverFooterView.statusTooltip(for: .partialOutage, provider: .codex, otherAffectedServices: ["A", "B", "C", "D", "E"])
+                == "Codex: Partial outage. Also affected at OpenAI: A, B, C and 2 more."
+        )
+        // The Claude feed is unfiltered, so it never has "other" services to name.
+        #expect(PopoverFooterView.statusTooltip(for: .operational, provider: .claude, otherAffectedServices: ["X"]) == "All systems operational")
+    }
+
     @Test func tutorialFirstStep_matchesQuotaShape() {
         #expect(TutorialOverlay.rateLimitStep(kind: .windows).title == "Rate Limits")
         #expect(TutorialOverlay.rateLimitStep(kind: .credits).title == "Credits")

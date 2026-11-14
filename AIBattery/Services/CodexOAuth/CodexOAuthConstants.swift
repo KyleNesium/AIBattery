@@ -9,9 +9,12 @@ enum CodexOAuthConstants {
     static var redirectURI: String { "http://localhost:\(callbackPort)/auth/callback" }
     static let scope = "openid profile email offline_access api.connectors.read api.connectors.invoke"
     static let originator = "codex_cli_rs"
+    // `issuer` is a constant, so these URLs always parse.
+    // swiftlint:disable:next force_unwrapping
     static var tokenURL: URL { URL(string: "\(issuer)/oauth/token")! }
 
     static func buildAuthorizeURL(codeChallenge: String, state: String) -> URL {
+        // swiftlint:disable:next force_unwrapping
         var comps = URLComponents(string: "\(issuer)/oauth/authorize")!
         comps.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
@@ -25,6 +28,8 @@ enum CodexOAuthConstants {
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "originator", value: originator),
         ]
+        // Query items cannot make a URL with a scheme and host unbuildable.
+        // swiftlint:disable:next force_unwrapping
         return comps.url!
     }
 }

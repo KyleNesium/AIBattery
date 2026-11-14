@@ -126,7 +126,7 @@ enum CodexSessionRateLimitScanner {
             let resolved = url.resolvingSymlinksInPath().path
             guard resolved == resolvedBase || resolved.hasPrefix(resolvedBaseSlash), (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
             let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            if newest == nil || date > newest!.date {
+            if newest.map({ date > $0.date }) ?? true {
                 newest = (url.standardizedFileURL, date)
             }
         }

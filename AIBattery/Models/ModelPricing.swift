@@ -75,7 +75,7 @@ struct ModelPricing {
             // Codex / OpenAI models — matched on the raw ID (see OpenAIModelPricing).
             OpenAIModelPricing.pricing(for: modelId)
         } else {
-            claudePricing(named: ModelNameMapper.displayName(for: modelId).lowercased())
+            claudePricing(for: modelId)
         }
 
         // Store in cache (including nil for unknown models)
@@ -94,7 +94,7 @@ struct ModelPricing {
     // (platform.claude.com/docs/en/about-claude/pricing, checked 2026-11-14).
     //
     // A key is a family and a version. Within a family the rows run NEWEST FIRST, because
-    // `claudePricing(named:)` takes the first row that is not newer than the model; a test
+    // `claudePricing(for:)` takes the first row that is not newer than the model; a test
     // asserts the order.
     //
     // A model with no row is billed at its nearest predecessor, so the cost is approximate
@@ -148,7 +148,7 @@ struct ModelPricing {
     /// `pricingTable` with each key split into family and version: "fable 5.2" → ("fable", [5, 2]).
     static let rows: [(family: String, version: [Int], pricing: ModelPricing)] = pricingTable.map { key, pricing in
         let words = key.split(separator: " ")
-        return (String(words[0]), versionNumbers(in: words.dropFirst().joined()), pricing)
+        return (String(words[0]), ModelNameMapper.versionNumbers(in: words.dropFirst().joined()), pricing)
     }
 
     /// A Claude model is billed at the newest row of its family that is not newer than it.
@@ -161,27 +161,15 @@ struct ModelPricing {
     /// - A name with no version uses the family's newest row; one older than every row, the oldest.
     /// - A name with no known family has no price.
     ///
-    /// Until 3.4.1 this was a substring scan with a table of family constants behind it. A new
+    /// Until 3.5.0 this was a substring scan with a table of family constants behind it. A new
     /// minor matched its generation's base row ("fable 5.2" billed as "fable 5", about double),
     /// or no row at all and a constant nobody had updated ("haiku 5.6" at ten times Haiku 5.5).
-    private static func claudePricing(named name: String) -> ModelPricing? {
-        guard let family = rows.first(where: { name.contains($0.family) })?.family,
-              let familyEnd = name.range(of: family)?.upperBound
-        else {
-            return nil
-        }
-        let ofFamily = rows.filter { $0.family == family }
-        let version = versionNumbers(in: name[familyEnd...])
-        if version.isEmpty {
+    private static func claudePricing(for modelId: String) -> ModelPricing? {
+        guard let model = ModelNameMapper.claudeFamilyAndVersion(of: modelId) else { return nil }
+        let ofFamily = rows.filter { $0.family == model.family }
+        if model.version.isEmpty {
             return ofFamily.first?.pricing
         }
-        return (ofFamily.first { !version.lexicographicallyPrecedes($0.version) } ?? ofFamily.last)?.pricing
-    }
-
-    /// The first dotted number in `text`: " 4.6[1m]" → [4, 6], ".5.2" → [5, 2], "" → [].
-    private static func versionNumbers(in text: some StringProtocol) -> [Int] {
-        let isDigit: (Character) -> Bool = { ("0"..."9").contains($0) }
-        return text.drop { !isDigit($0) }.prefix { isDigit($0) || $0 == "." }
-            .split(separator: ".").compactMap { Int($0) }
+        return (ofFamily.first { !model.version.lexicographicallyPrecedes($0.version) } ?? ofFamily.last)?.pricing
     }
 }

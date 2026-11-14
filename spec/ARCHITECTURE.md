@@ -23,7 +23,7 @@ Auth gating: `isAuthenticated` drives whether UsagePopoverView or AuthView is sh
 | Boundary | Claude | Codex |
 |---|---|---|
 | Auth | `OAuthManager` paste-code PKCE flow | ChatGPT: `CodexAuthSession` + `CodexCallbackServer` (localhost:1455 redirect) + `CodexTokenClient`; API key: `registerCodexAPIKey` (Keychain, no refresh); one-click `CodexAuthFileImporter` from `~/.codex/auth.json` (either mode) |
-| Token storage | Keychain `refreshToken_<accountId>` | Keychain `refreshToken_codex_<accountId>` (`OAuthManager.tokenStorageKey`) |
+| Token storage | The one Keychain item `refreshTokens`, key `<accountId>` | Same item, key `codex_<accountId>` (`OAuthManager.tokenStorageKey`) |
 | Rate limits | `RateLimitFetcher` (`/api/oauth/usage` → probes) | `CodexRateLimitFetcher`: subscriptions → windows, Business/Enterprise → credit budget (`chatgpt.com/backend-api/wham/usage` → session-log fallback); API keys → per-minute `x-ratelimit-*` via `api.openai.com/v1/responses` probe; per-account endpoint backoff |
 | Local data | `SessionLogReader` (`~/.claude/projects`) + `StatsCacheReader` | `CodexSessionLogReader` (`~/.codex/sessions`, no stats cache) — both implement `UsageEntrySource` |
 | Aggregation | `UsageAggregator(provider: .claude)` | `UsageAggregator(provider: .codex)` — same class, `gpt-` model filter, JSONL-derived `firstSessionDate` |
@@ -140,6 +140,7 @@ AIBattery/
     CodexSessionLogReader.swift   — (incremental tail parse: resumes at the last newline, restoring the parser state snapshotted before the trailing line) Streaming reader over `~/.codex/sessions/YYYY/MM/DD/*.jsonl` (fingerprint cache, eviction, symlink boundary)
     StatusFeedConfig+Codex.swift  — `StatusFeedConfig.codex`: status.openai.com filtered to the five Codex components
     OAuthTokenStorage.swift       — Keychain (refresh token) + UserDefaults (expiry) persistence layer extracted from OAuthManager
+    RefreshTokenVault.swift       — Every account's refresh token in one Keychain item: read once, never written unread, adopts the pre-3.5 per-account items
     RateLimitFetcher.swift        — Main orchestration: `fetch()` entry point, `cachedOrEmpty` / `setCachedResult` public API, observed/working-model bookkeeping, Messages-API path (`buildHeaderResult` + `tryFetch`), and the pure helpers `parseRetryAfter` / `quotaThrottleLikely` (`nonisolated static`)
     RateLimitFetcher+UsageEndpoint.swift  — Dedicated `/api/oauth/usage` primary path: `interpretUsageEndpoint` (pure) + async `fetchUsageEndpoint` wrapper
     RateLimitFetcher+ClientData.swift     — Claude Code `/api/oauth/claude_cli/client_data` fallback path: `interpretClaudeCodeClientData` (pure), async `fetchClaudeCodeClientData` wrapper, and `containsStandardRateLimitHeaders` (`nonisolated static`, called from the Messages path too)
@@ -341,10 +342,12 @@ Tests/AIBatteryCoreTests/
 docs/
   FAQ.md                          — Troubleshooting, context-health explainer, Gatekeeper/Keychain notes
   TODOS.md                        — Deferred work, grouped by area and ordered by priority
+.github/
+  dependabot.yml                  — Monthly PRs for the pinned Actions and the Swift package; ci.yml does not run on them, dispatch it by hand
 .github/workflows/
   ci.yml                          — Build + test + bundle + launch smoke test on push/PR (macos-15)
   lint.yml                        — SwiftFormat + SwiftLint on PRs targeting main (macos-15)
-  release.yml                     — Release: build → GitHub Release → update Homebrew cask (macos-15)
+  release.yml                     — Release: build → launch smoke test → verify → GitHub Release → update Homebrew cask (macos-15)
 scripts/
   build-app.sh                    — Build release binary + .app bundle + zip/dmg
   update-homebrew.sh              — Auto-update KyleNesium/homebrew-tap cask (version + SHA256)
@@ -410,7 +413,7 @@ CHANGELOG.md                      — Release notes per version
 
 ## Local File Access (exhaustive)
 
-1. macOS Keychain, service `"AIBattery"` — Per-account OAuth refresh token only (`refreshToken_{accountId}` for Claude, `refreshToken_codex_{accountId}` for Codex); access token held in memory, expiry in UserDefaults
+1. macOS Keychain, service `"AIBattery"` — one item, `refreshTokens`, holding every account's OAuth refresh token as JSON (`RefreshTokenVault`; keys `{accountId}` for Claude, `codex_{accountId}` for Codex); access token held in memory, expiry in UserDefaults
 2. UserDefaults `aibattery_accounts` + `aibattery_activeAccountId` — Multi-account registry (JSON-encoded [AccountRecord])
 3. `~/.claude/stats-cache.json` — historical usage (daily activity, model totals, peak hours)
 4. `~/.claude/projects/*/[session-id].jsonl` — per-message token data

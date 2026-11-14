@@ -3,12 +3,12 @@ import Foundation
 /// Centralized date formatters — single source of truth.
 /// DateFormatter is expensive to create; these are allocated once and reused.
 enum DateFormatters {
-    /// "yyyy-MM-dd" — date keys for daily activity, stats cache lookups.
     // DateFormatter/ISO8601DateFormatter aren't Sendable, but Foundation guarantees
     // they're safe to use for read-only formatting once configured. Each `static let`
     // is configured exactly once in its initializer and never mutated afterwards.
     // Foundation marks DateFormatter / ISO8601DateFormatter Sendable; they're safe
     // to share for read-only formatting after configuration.
+    /// "yyyy-MM-dd" — date keys for daily activity, stats cache lookups.
     static let dateKey: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -16,9 +16,9 @@ enum DateFormatters {
         return f
     }()
 
-    /// ISO 8601 with fractional seconds — JSONL timestamps, firstSessionDate.
     // ISO8601DateFormatter isn't marked Sendable by Foundation (unlike DateFormatter),
     // but it is documented thread-safe for formatting once configured.
+    /// ISO 8601 with fractional seconds — JSONL timestamps, firstSessionDate.
     nonisolated(unsafe) static let iso8601: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

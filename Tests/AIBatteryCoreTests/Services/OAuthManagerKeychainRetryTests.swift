@@ -58,7 +58,7 @@ struct OAuthManagerKeychainRetryTests {
     @Test func failedRead_staysSignedIn_thenRestoresTheSavedToken() async {
         let manager = OAuthManager()
         let accountId = unreadableAccount(manager)
-        defer { KeychainHelper.delete(account: "refreshToken_\(accountId)") }
+        defer { OAuthTokenStorage.delete(for: accountId) }
         #expect(manager.isAuthenticated(accountId: accountId), "a sign-in we couldn't read is not a sign-out")
 
         let reader = ScriptedReader(.found("rt-saved"))
@@ -139,7 +139,7 @@ struct OAuthManagerKeychainRetryTests {
         await retry?.value
 
         #expect(!manager.isAuthenticated(accountId: accountId))
-        #expect(KeychainHelper.get(account: "refreshToken_\(accountId)") == nil)
+        #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == nil)
     }
 
     @Test func onlyRefusalsAreFinal() {

@@ -53,14 +53,14 @@ jobs:
           # The arithmetic, written down so the next bump need not re-derive it
           # (it has been left behind three times now, once in this very PR —
           # release.yml was bumped and this file was not):
-          #   1743 tests in the suite
+          #   1772 tests in the suite
           #  −   6 opt-in real-data tests, `.enabled(if:)` on
           #       AIBATTERY_REAL_CLAUDE_LOGS / AIBATTERY_REAL_CODEX_LOGS, which
           #       are never set on CI and print as "skipped", not ✔
-          #   = 1737 ✔ markers expected on a clean run.
-          # 1700 leaves a little room for suite churn between bumps while still
+          #   = 1766 ✔ markers expected on a clean run.
+          # 1730 leaves a little room for suite churn between bumps while still
           # catching a crash in the last few hundred tests.
-          MIN_PASSES=1700
+          MIN_PASSES=1730
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
             set +e
@@ -121,6 +121,13 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: ./scripts/build-app.sh
 
+      # The same check ci.yml runs, on the bundle that is about to be published: start the
+      # app and require it to stay up. A bundle that dies at launch passes codesign and the
+      # unit tests. The runner has no accounts and no Keychain items, so this covers the
+      # launch path only.
+      - name: Launch smoke test
+        run: ./scripts/smoke-launch.sh
+
       - name: Generate checksums
         run: |
           cd .build
@@ -131,7 +138,8 @@ jobs:
       # Info.plist / bundle / CHANGELOG / CITATION.cff / llms.txt version agreement,
       # zip + dmg present, the
       # Sparkle edSignature's declared length matching the real ZIP size, SUFeedURL
-      # and SUPublicEDKey present in the shipped Info.plist, and codesign validity.
+      # and SUPublicEDKey present in the shipped Info.plist, the bundle id matching the
+      # one the Keychain vault checks for, and codesign validity.
       # Runs BEFORE the GitHub Release so a broken artifact is never published.
       # The appcast does not exist yet at this point — the script only warns about
       # that, it is generated and checked two steps later.
