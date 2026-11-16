@@ -191,8 +191,9 @@ final class RefreshTokenVault: @unchecked Sendable {
             // The reader applies queued changes before it lets go. This catches the two
             // cases it cannot: a change that arrives after its last look, and a read that
             // ends in failure, which leaves the change waiting with nothing to retry it.
-            DispatchQueue.global(qos: .utility).async { [self] in
-                ioLock.withLock { recover() }
+            schedule(0) { [weak self] in
+                guard let self else { return }
+                ioLock.withLock { self.recover() }
             }
             return false
         }

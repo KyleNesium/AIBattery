@@ -127,8 +127,12 @@ struct OAuthManagerRefreshTests {
     /// Found in the fourth review: the record was pointed at the real id whether or not the
     /// Keychain had taken the token under it. If the write had failed and the app then quit,
     /// the next launch found a record for the real id and a token only under the temporary one.
+    ///
+    /// The stub stores the token and then says it is not in the Keychain, which is the state
+    /// a failed write leaves: the change is in the vault's memory, queued for a retry.
     @Test func resolvingAnAccountId_waitsUntilTheTokenIsStored() {
         let manager = OAuthManager()
+        manager.identityMoveRetryInterval = 0
         let tempId = "pending-\(UUID().uuidString)"
         let realId = "org-\(UUID().uuidString)"
         manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
@@ -138,22 +142,83 @@ struct OAuthManagerRefreshTests {
         }
         manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-wait", expiresAt: nil)
 
-        // The Keychain does not take the write.
-        manager.tokenPersistence = { _, _ in false }
+        manager.tokenPersistence = { tokens, storageKey in
+            OAuthTokenStorage.save(tokens, for: storageKey)
+            return false
+        }
         manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
 
         #expect(manager.accountStore.accounts.contains { $0.id == tempId }, "the record must keep the id its stored token is under")
         #expect(!manager.accountStore.accounts.contains { $0.id == realId })
         #expect(manager.isAuthenticated(accountId: tempId), "and the account is still signed in")
         #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == "rt-wait")
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == nil, "the attempt left a token queued under the real id")
 
-        // It runs again after the next API call; this time the write lands.
+        // It runs again after a later API call; this time the write lands.
         manager.tokenPersistence = { OAuthTokenStorage.save($0, for: $1) }
         manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
 
         #expect(manager.accountStore.accounts.contains { $0.id == realId })
         #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-wait")
         #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
+    }
+
+    /// Found in the fifth review. The same organisation signed in twice: account A is
+    /// registered under the real id, and B is still under a temporary one. B's move fails.
+    /// The failed write stayed queued under A's id, so it later replaced A's token with B's,
+    /// even after B had been signed out.
+    @Test func aFailedAccountIdMove_leavesTheOtherAccountsTokenAlone() {
+        let manager = OAuthManager()
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: realId, addedAt: Date()))
+        manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
+        defer {
+            manager.signOut(accountId: realId)
+            manager.signOut(accountId: tempId)
+        }
+        manager.storeTokens(accountId: realId, provider: .claude, accessToken: nil, refreshToken: "rt-A", expiresAt: nil)
+        manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-B", expiresAt: nil)
+
+        manager.tokenPersistence = { tokens, storageKey in
+            OAuthTokenStorage.save(tokens, for: storageKey)
+            return false
+        }
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-A", "B's token was left queued under A's id")
+
+        manager.signOut(accountId: tempId)
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-A")
+        #expect(manager.isAuthenticated(accountId: realId))
+        #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
+    }
+
+    /// The move is retried after every API call while the account is pending. Without a
+    /// wait, a Keychain that prompts for each write would prompt on every poll.
+    @Test func aFailedAccountIdMove_isNotRetriedStraightAway() {
+        let manager = OAuthManager()
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
+        defer {
+            manager.signOut(accountId: realId)
+            manager.signOut(accountId: tempId)
+        }
+        manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-later", expiresAt: nil)
+
+        final class Count: @unchecked Sendable { var value = 0 }
+        let attempts = Count()
+        manager.tokenPersistence = { _, storageKey in
+            if storageKey == realId {
+                attempts.value += 1
+            }
+            return false
+        }
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(attempts.value == 1, "the next polls must wait out the retry interval")
     }
 
     /// Control for the test above: the same transport with no sign-out stores the token.

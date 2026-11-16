@@ -398,11 +398,20 @@ public final class OAuthManager: ObservableObject {
         }
     }
 
+    /// How long to wait before trying an account-id move again after the Keychain did not
+    /// take the token. This function is called after every API call while an account is
+    /// pending; without a wait, a Keychain that prompts would prompt on every poll.
+    var identityMoveRetryInterval: TimeInterval = 300
+    private var identityMoveRetryAfter: [String: Date] = [:]
+
     /// Resolve a pending account identity after the first API call returns the real org ID.
     /// Idempotent — skips if the account is already resolved.
     func resolveAccountIdentity(tempId: String, realOrgId: String, billingType: String? = nil) {
         guard let account = accountStore.accounts.first(where: { $0.id == tempId }),
               account.isPendingIdentity else { return }
+        if let retryAfter = identityMoveRetryAfter[tempId], Date() < retryAfter {
+            return
+        }
 
         var updated = account
         updated.id = realOrgId
@@ -419,14 +428,26 @@ public final class OAuthManager: ObservableObject {
             tokens[realOrgId] = data
             guard saveTokens(for: realOrgId) else {
                 // The Keychain does not hold the new copy yet. Leave the account under its
-                // temporary id, where its stored token is; this runs again after the next
-                // API call. Moving the record now would strand that token if the app quit
-                // before the write went through.
+                // temporary id, where its stored token is, and try again later. Moving the
+                // record now would strand that token if the app quit before the write went
+                // through.
+                //
+                // Undo the attempt in storage as well as in memory. The failed write is
+                // still queued there under the real id; if that id belongs to another
+                // account (the same organisation signed in twice), it would later replace
+                // that account's token with this one, even after this one was signed out.
                 tokens[realOrgId] = previous
+                if previous != nil {
+                    saveTokens(for: realOrgId)
+                } else {
+                    deleteTokens(for: realOrgId)
+                }
+                identityMoveRetryAfter[tempId] = Date().addingTimeInterval(identityMoveRetryInterval)
                 AppLogger.oauth.info("resolveAccountIdentity: token not stored yet, keeping the temporary id")
                 return
             }
         }
+        identityMoveRetryAfter[tempId] = nil
 
         // Update account store (handles duplicate detection/merge internally)
         accountStore.update(oldId: tempId, with: updated)

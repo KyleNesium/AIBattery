@@ -455,21 +455,25 @@ struct RefreshTokenVaultTests {
             entered.signal()
             _ = release.wait(timeout: .now() + 10)
         }
-        Thread { [vault] in vault.set("B", for: "b") }.start()
+        let firstWriteDone = DispatchSemaphore(value: 0)
+        Thread { [vault] in
+            vault.set("B", for: "b")
+            firstWriteDone.signal()
+        }.start()
         #expect(entered.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
 
         // The first write is in progress and has already emptied the queue.
         let queued = returnsPromptly { [vault] in vault.set("C", for: "c") }
         #expect(queued, "set() blocked behind a write in progress")
+        #expect(retries.delays == [0], "a flush is scheduled for when the vault is free")
 
         keychain.holdWrites(nil)
         release.signal()
+        #expect(firstWriteDone.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
+        #expect(keychain.vault() == ["a": "A", "b": "B"])
 
-        let expected = ["a": "A", "b": "B", "c": "C"]
-        for _ in 0..<500 where keychain.vault() != expected {
-            usleep(10_000)
-        }
-        #expect(keychain.vault() == expected, "no further call was made on the vault")
+        retries.fireNext()
+        #expect(keychain.vault() == ["a": "A", "b": "B", "c": "C"], "no further call was made on the vault")
     }
 
     /// macOS refuses a delete from a build the old item has not approved. The vault entry
@@ -617,10 +621,9 @@ struct RefreshTokenVaultTests {
         gate.release.signal()
         #expect(readDone.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
 
-        for _ in 0..<500 where retries.delays.isEmpty {
-            usleep(10_000)
-        }
-        #expect(retries.delays.count == 1, "the queued sign-in was left with nothing to retry it")
+        #expect(retries.delays == [0], "a flush is scheduled for when the vault is free")
+        retries.fireNext()
+        #expect(retries.delays == [RefreshTokenVault.firstRetryDelay], "the queued sign-in was left with nothing to retry it")
         #expect(keychain.vault() == ["a": "A"], "and nothing was written to a vault that was never read")
     }
 
