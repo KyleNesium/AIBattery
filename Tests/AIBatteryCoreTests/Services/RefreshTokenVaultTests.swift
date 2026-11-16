@@ -141,6 +141,16 @@ private final class RetryQueue: @unchecked Sendable {
     }
 }
 
+private final class CopyResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Bool?
+
+    var value: Bool? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
+}
+
 private final class ResultBox: @unchecked Sendable {
     private let lock = NSLock()
     private var stored: KeychainHelper.ReadResult?
@@ -730,7 +740,48 @@ struct RefreshTokenVaultTests {
         #expect(keychain.vault() == ["org": "ORIGINAL"])
     }
 
+    /// Found in the seventh review: a copy whose write the user refused did not count as a
+    /// refusal, so the flush for a change made meanwhile wrote straight after it.
+    @Test func aRefusedCopyIsARefusal() throws {
+        try keychain.putVault(["pending": "T"])
+        let vault = makeVault()
+        #expect(vault.token(for: "pending") == .found("T"))
+
+        keychain.failWrites(true, status: errSecUserCanceled)
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        keychain.holdWrites {
+            entered.signal()
+            _ = release.wait(timeout: .now() + 10)
+        }
+        let result = CopyResult()
+        let copyDone = DispatchSemaphore(value: 0)
+        Thread { [vault] in
+            result.value = vault.copy(from: "pending", to: "org")
+            copyDone.signal()
+        }.start()
+        #expect(entered.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
+
+        let queued = returnsPromptly { [vault] in vault.set("C", for: "c") }
+        #expect(queued, "set() blocked behind the copy")
+
+        keychain.holdWrites(nil)
+        release.signal()
+        #expect(copyDone.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
+        #expect(result.value == false)
+        let writesAfterTheRefusal = keychain.writes
+
+        retries.fireNext()
+        #expect(keychain.writes == writesAfterTheRefusal, "the flush wrote straight after a refused copy")
+    }
+
     @Test func copyRefusesRatherThanWaits() throws {
+        // Never read yet: no read is made on the caller's behalf (found in the seventh review).
+        try keychain.putVault(["pending": "T"])
+        let fresh = makeVault()
+        #expect(fresh.copy(from: "pending", to: "org") == false)
+        #expect(keychain.reads(of: item) == 0, "copy read the item, which can block on a prompt")
+
         // Unread: no read is made on the caller's behalf, and nothing is queued.
         try keychain.putVault(["pending": "T"])
         keychain.failReads(of: item, with: errSecInteractionNotAllowed)

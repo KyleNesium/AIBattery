@@ -13,6 +13,10 @@
   that is not newer than it, so the next release from Anthropic shows a close figure until
   the app adds its exact rate, instead of a figure that can be several times off. Amazon
   Bedrock model ids resolve to their exact rate too. (#213)
+- **Signing in again while a sign-in renewal is still in progress no longer signs you out.**
+  Renewing a session can take a minute when the network is slow. If you signed in again to
+  the same account in that time and the old renewal then failed, the app signed out the
+  new sign-in and deleted it. A renewal now acts only on the sign-in it started with. (#213)
 - **The Context bar uses the right window for Claude 4.5-generation models.** Every 4.x model
   was assumed to have a 1M-token context window. Anthropic lists 200K for Opus 4.5, Sonnet
   4.5, Haiku 4.5 and everything earlier, so a session on one of them read as a fifth as full

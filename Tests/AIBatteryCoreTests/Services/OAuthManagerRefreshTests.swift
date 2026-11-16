@@ -214,6 +214,92 @@ struct OAuthManagerRefreshTests {
         #expect(attempts.value == 1, "the next polls must wait out the retry interval")
     }
 
+    /// Found in the seventh review. A refresh request can take a minute and more. If the
+    /// user signs in again to the same account meanwhile (same id), the old request's
+    /// "invalid grant" is about a token that is already gone. It signed out the new sign-in
+    /// and deleted its fresh token.
+    @Test func aRefreshFailingAfterANewSignIn_leavesTheNewSignInAlone() async {
+        let manager = OAuthManager()
+        let accountId = "a4-relogin-\(UUID().uuidString)"
+        defer {
+            manager.signOut(accountId: accountId)
+            OAuthTokenStorage.delete(for: accountId)
+        }
+        manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
+
+        let gate = Gate()
+        manager.tokenRetryPolicy = Self.noDelay
+        manager.tokenTransport = { request in
+            await gate.enter()
+            return try Self.response(request, status: 400, body: #"{"error":"invalid_grant"}"#)
+        }
+        let refresh = Task { await manager.getAccessToken(for: accountId) }
+        while await !gate.hasBeenEntered() {
+            await Task.yield()
+        }
+
+        manager.storeTokens(accountId: accountId, provider: .claude, accessToken: "at-fresh", refreshToken: "rt-fresh", expiresAt: Date().addingTimeInterval(3_600))
+        await gate.open()
+        _ = await refresh.value
+
+        #expect(manager.isAuthenticated(accountId: accountId), "the old request's failure signed out the new sign-in")
+        #expect(manager.lastSignOutReason == nil)
+        #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == "rt-fresh")
+        #expect(!manager.isRefreshBackingOff(accountId: accountId))
+    }
+
+    /// The same race with a successful answer: tokens derived from the old credential must
+    /// not overwrite the ones the user just signed in with.
+    @Test func aRefreshSucceedingAfterANewSignIn_doesNotOverwriteIt() async {
+        let manager = OAuthManager()
+        let accountId = "a4-relogin-ok-\(UUID().uuidString)"
+        defer {
+            manager.signOut(accountId: accountId)
+            OAuthTokenStorage.delete(for: accountId)
+        }
+        manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
+
+        let gate = Gate()
+        manager.tokenRetryPolicy = Self.noDelay
+        manager.tokenTransport = { request in
+            await gate.enter()
+            return try Self.response(request, status: 200, body: Self.validTokenBody)
+        }
+        let refresh = Task { await manager.getAccessToken(for: accountId) }
+        while await !gate.hasBeenEntered() {
+            await Task.yield()
+        }
+
+        manager.storeTokens(accountId: accountId, provider: .claude, accessToken: "at-fresh", refreshToken: "rt-fresh", expiresAt: Date().addingTimeInterval(3_600))
+        await gate.open()
+        _ = await refresh.value
+
+        #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == "rt-fresh", "the old request overwrote the new sign-in")
+        #expect(await manager.getAccessToken(for: accountId) == "at-fresh")
+    }
+
+    /// Found in the seventh review. An install migrated by a version without the done-flag,
+    /// whose delete of the old single-account entry failed, kept that entry. With accounts
+    /// registered the migration returned early and never set the flag, so signing out of
+    /// every account later migrated the leftover back in. It now sets the flag and leaves
+    /// the old entries alone. (Real Keychain items are not touched by this test: it checks
+    /// the flag only.)
+    @Test func legacyMigration_withAccountsRegistered_setsItsFlag() {
+        let flag = "aibattery_legacyKeychainLayoutMigrated"
+        let wasSet = UserDefaults.standard.object(forKey: flag)
+        defer { UserDefaults.standard.set(wasSet, forKey: flag) }
+
+        let manager = OAuthManager()
+        let accountId = "org-legacy-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: accountId, addedAt: Date()))
+        defer { manager.accountStore.remove(id: accountId) }
+        UserDefaults.standard.removeObject(forKey: flag)
+
+        manager.migrateFromLegacy()
+
+        #expect(UserDefaults.standard.bool(forKey: flag), "a leftover old entry could be migrated back in later")
+    }
+
     /// Control for the test above: the same transport with no sign-out stores the token.
     @Test func refresh_withoutSignOut_installsNewTokens() async {
         let manager = OAuthManager()

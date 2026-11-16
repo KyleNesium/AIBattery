@@ -27,11 +27,21 @@ extension OAuthManager {
     /// The old entries are deleted here and nowhere else, after their token has been copied
     /// and verified. Other accounts being registered is not evidence of that: the first read
     /// may have failed, and the user may have added a different account since.
+    ///
+    /// A launch that finds accounts registered sets the flag and leaves the old entries
+    /// alone. That covers an install migrated by a version without the flag whose delete
+    /// of the old entries failed, and a run of this one cut short before it set the flag.
+    /// Without it, signing out of every account later would migrate the leftover token
+    /// back in and sign the user in again. The cost is the rare install whose old token
+    /// was never copied (its first read failed and the user added another account since):
+    /// that sign-in is not imported, and the user signs in again. Nothing is deleted.
     func migrateFromLegacy() {
         let migrationKey = "aibattery_legacyKeychainLayoutMigrated"
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-        // Already migrated — accounts exist
-        guard accountStore.accounts.isEmpty else { return }
+        guard accountStore.accounts.isEmpty else {
+            UserDefaults.standard.set(true, forKey: migrationKey)
+            return
+        }
 
         // Read the legacy (unprefixed) entry once. A second read could fail where the first
         // succeeded (a prompt answered differently), and the migration then registered an

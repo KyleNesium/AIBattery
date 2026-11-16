@@ -181,7 +181,9 @@ final class RefreshTokenVault: @unchecked Sendable {
     func copy(from source: String, to destination: String) -> Bool {
         guard ioLock.try() else { return false }
         defer { ioLock.unlock() }
-        guard load(retryingFailure: false) == nil else { return false }
+        // Never read on the caller's behalf: a read can sit on a prompt, and this runs on
+        // the main thread. A source with a stored token means the vault was read already.
+        guard entries != nil else { return false }
         applyPending()
         guard !unsaved, var updated = entries,
               let token = updated[source], token != Self.removedMarker
@@ -189,7 +191,14 @@ final class RefreshTokenVault: @unchecked Sendable {
             return false
         }
         updated[destination] = token
-        guard let json = Self.encode(updated), keychain.set(itemName, json) == errSecSuccess else {
+        guard let json = Self.encode(updated) else { return false }
+        let status = keychain.set(itemName, json)
+        guard status == errSecSuccess else {
+            // The copy itself leaves nothing behind, but a refusal is still a refusal: the
+            // flush for a change that arrived meanwhile must not write straight after it.
+            if KeychainHelper.isRefusal(status) {
+                writeRefused = true
+            }
             return false
         }
         entries = updated

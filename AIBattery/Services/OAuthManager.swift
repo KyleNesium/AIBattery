@@ -579,9 +579,10 @@ public final class OAuthManager: ObservableObject {
         case .success(let result):
             // `signOut` cancels this task and drops `tokens[accountId]`, but the network
             // round-trip can't be retracted. Writing the fresh set back here would
-            // resurrect the account in memory and re-create its Keychain item.
-            guard !Task.isCancelled, tokens[accountId] != nil else {
-                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+            // resurrect the account in memory and re-create its Keychain item. Likewise
+            // when the user signed in again while this request was out.
+            guard !Task.isCancelled, isCurrentRefreshToken(refresh, accountId: accountId) else {
+                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) finished after sign-out or a new sign-in — discarding")
                 return nil
             }
             tokens[accountId] = AccountTokens(
@@ -596,6 +597,12 @@ public final class OAuthManager: ObservableObject {
         case .failure(let error):
             // Only mark as unauthenticated for auth errors (revoked/invalid token).
             // Transient errors (network, 5xx) keep isAuthenticated so we retry next cycle.
+            // Either way, only for the credential this request used: a failure that comes
+            // back after the user signed in again is about a token that is already gone.
+            guard isCurrentRefreshToken(refresh, accountId: accountId) else {
+                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) failed after a new sign-in — ignoring")
+                return nil
+            }
             if error.isTransient {
                 recordRefreshFailure(accountId: accountId)
                 AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), backing off before the next attempt")
@@ -620,8 +627,8 @@ public final class OAuthManager: ObservableObject {
         switch result {
         case .success(let set):
             // Same post-sign-out guard as the Anthropic arm: never resurrect a removed account.
-            guard !Task.isCancelled, tokens[accountId] != nil else {
-                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+            guard !Task.isCancelled, isCurrentRefreshToken(refresh, accountId: accountId) else {
+                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) finished after sign-out or a new sign-in — discarding")
                 return nil
             }
             let expires = JWTDecoder.expiry(set.accessToken) ?? Date().addingTimeInterval(Self.fallbackTokenLifetime)
@@ -643,7 +650,12 @@ public final class OAuthManager: ObservableObject {
         case .failure(let error):
             // Identical disposition to the Anthropic arm above: transient errors
             // (network, 5xx) keep isAuthenticated and back off before the next attempt;
-            // only genuine auth errors sign the account out.
+            // only genuine auth errors sign the account out, and only for the credential
+            // this request used.
+            guard isCurrentRefreshToken(refresh, accountId: accountId) else {
+                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) failed after a new sign-in — ignoring")
+                return nil
+            }
             if error.isTransient {
                 recordRefreshFailure(accountId: accountId)
                 AppLogger.oauth.warning("Codex OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), backing off before the next attempt")
@@ -652,6 +664,15 @@ public final class OAuthManager: ObservableObject {
             }
             return nil
         }
+    }
+
+    /// Whether `refresh` is still the account's refresh token. A refresh request can take
+    /// a minute and more (three attempts with 30 s timeouts); in that time the user can sign
+    /// out, or sign in again to the same account, which has the same id. The answer to the
+    /// old request is about a credential that is gone, and must not sign out the new one or
+    /// overwrite it.
+    private func isCurrentRefreshToken(_ refresh: String, accountId: String) -> Bool {
+        tokens[accountId]?.refreshToken == refresh
     }
 
     // MARK: - Per-Account Keychain Storage
