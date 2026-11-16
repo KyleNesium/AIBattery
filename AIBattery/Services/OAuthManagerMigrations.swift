@@ -19,15 +19,21 @@ extension OAuthManager {
     /// One-time migration: moves legacy Keychain entries (unprefixed) to the new prefixed format.
     ///
     /// The order matters, because each step can be the last one that runs: write and verify
-    /// the new entry, register the account, mark the migration done, and only then delete
-    /// the old entries. A crash at any point leaves a sign-in the next launch can find. The
-    /// done-flag is what makes a leftover old entry harmless: without it, a user who later
-    /// signed out of every account would have that stale token migrated back in.
+    /// the new entry, register the account, and only then delete the old entries and mark
+    /// the migration done. A crash at any point leaves a sign-in the next launch can find.
+    ///
+    /// A launch that finds accounts already registered finishes the job: it deletes any old
+    /// entries and sets the flag. That covers a run that was cut short after registering the
+    /// account, where the old token would otherwise sit in the Keychain until the user
+    /// signed out of every account, and then be migrated back in.
     func migrateFromLegacy() {
         let migrationKey = "aibattery_legacyKeychainLayoutMigrated"
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-        // Already migrated — accounts exist
-        guard accountStore.accounts.isEmpty else { return }
+        guard accountStore.accounts.isEmpty else {
+            Self.deleteLegacyEntries()
+            UserDefaults.standard.set(true, forKey: migrationKey)
+            return
+        }
 
         // Read the legacy (unprefixed) entry once. A second read could fail where the first
         // succeeded (a prompt answered differently), and the migration then registered an
@@ -59,9 +65,13 @@ extension OAuthManager {
 
         accountStore.add(record)
         accountStore.setActive(id: tempId)
-        UserDefaults.standard.set(true, forKey: migrationKey)
 
-        // Clean up all legacy unprefixed entries
+        Self.deleteLegacyEntries()
+        UserDefaults.standard.set(true, forKey: migrationKey)
+    }
+
+    /// The unprefixed entries of the original single-account layout.
+    private static func deleteLegacyEntries() {
         for key in ["accessToken", "refreshToken", "expiresAt"] {
             KeychainHelper.delete(account: key)
         }

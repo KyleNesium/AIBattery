@@ -42,6 +42,10 @@
     (the move into the single item does its job by writing the new copy first), a failed
     update now leaves the existing item alone, and the other two write the new copy and
     register the account before they remove anything.
+  - A sign-in is no longer lost because the Keychain was briefly unusable. A new account
+    keeps its temporary id until its token is safely stored, and a change made while the
+    Keychain cannot be read is saved as soon as it can. Nothing you refused on a prompt is
+    ever tried again on its own.
   - A Keychain write that fails is retried on its own, 30 seconds later and then at
     longer intervals. Before, the new token stayed in memory until some later token change
     happened to save it, and a quit in between lost the sign-in. This matters most for a

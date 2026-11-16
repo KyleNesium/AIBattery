@@ -103,7 +103,7 @@ struct OAuthManagerRefreshTests {
             if storageKey == realId {
                 observed.temporaryCopyAtSave = OAuthTokenStorage.load(for: tempId).tokens.refreshToken
             }
-            OAuthTokenStorage.save(tokens, for: storageKey)
+            return OAuthTokenStorage.save(tokens, for: storageKey)
         }
         // `$accounts` publishes the new list as it is assigned, so this runs inside the update.
         let watching = manager.accountStore.$accounts.sink { accounts in
@@ -121,6 +121,38 @@ struct OAuthManagerRefreshTests {
         #expect(observed.copiesWhenTheRecordMoved?.real == "rt-move", "the record moved before its new id had a token")
         #expect(observed.copiesWhenTheRecordMoved?.temporary == "rt-move", "the temporary copy was removed before the record moved")
         #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-move")
+        #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
+    }
+
+    /// Found in the fourth review: the record was pointed at the real id whether or not the
+    /// Keychain had taken the token under it. If the write had failed and the app then quit,
+    /// the next launch found a record for the real id and a token only under the temporary one.
+    @Test func resolvingAnAccountId_waitsUntilTheTokenIsStored() {
+        let manager = OAuthManager()
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
+        defer {
+            manager.signOut(accountId: realId)
+            manager.signOut(accountId: tempId)
+        }
+        manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-wait", expiresAt: nil)
+
+        // The Keychain does not take the write.
+        manager.tokenPersistence = { _, _ in false }
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(manager.accountStore.accounts.contains { $0.id == tempId }, "the record must keep the id its stored token is under")
+        #expect(!manager.accountStore.accounts.contains { $0.id == realId })
+        #expect(manager.isAuthenticated(accountId: tempId), "and the account is still signed in")
+        #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == "rt-wait")
+
+        // It runs again after the next API call; this time the write lands.
+        manager.tokenPersistence = { OAuthTokenStorage.save($0, for: $1) }
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(manager.accountStore.accounts.contains { $0.id == realId })
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-wait")
         #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
     }
 

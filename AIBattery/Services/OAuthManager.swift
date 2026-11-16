@@ -100,7 +100,7 @@ public final class OAuthManager: ObservableObject {
     /// Whether a failed read is worth retrying. Deny / Cancel on the prompt is a refusal,
     /// and retrying would only raise the prompt again, so that account signs out as before.
     nonisolated static func isRetryableReadFailure(_ status: OSStatus) -> Bool {
-        status != errSecUserCanceled && status != errSecAuthFailed
+        !KeychainHelper.isRefusal(status)
     }
 
     /// Account registry — persisted to UserDefaults.
@@ -415,8 +415,17 @@ public final class OAuthManager: ObservableObject {
         // point the record at it, and only then remove the old copy. A crash after any step
         // leaves a sign-in the next launch can find.
         if let data = tokens[tempId] {
+            let previous = tokens[realOrgId]
             tokens[realOrgId] = data
-            saveTokens(for: realOrgId)
+            guard saveTokens(for: realOrgId) else {
+                // The Keychain does not hold the new copy yet. Leave the account under its
+                // temporary id, where its stored token is; this runs again after the next
+                // API call. Moving the record now would strand that token if the app quit
+                // before the write went through.
+                tokens[realOrgId] = previous
+                AppLogger.oauth.info("resolveAccountIdentity: token not stored yet, keeping the temporary id")
+                return
+            }
         }
 
         // Update account store (handles duplicate detection/merge internally)
@@ -650,11 +659,13 @@ public final class OAuthManager: ObservableObject {
     /// plus UserDefaults (expiry) through `OAuthTokenStorage`. Tests substitute a sink,
     /// which is what makes the registration and sign-in paths — cap guards, malformed
     /// keys, state mismatch — testable without touching the real Keychain.
-    var tokenPersistence: (AccountTokens, String) -> Void = { OAuthTokenStorage.save($0, for: $1) }
+    /// Returns whether the refresh token is in the Keychain now (see `OAuthTokenStorage.save`).
+    var tokenPersistence: (AccountTokens, String) -> Bool = { OAuthTokenStorage.save($0, for: $1) }
 
-    private func saveTokens(for accountId: String) {
-        guard let data = tokens[accountId] else { return }
-        tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
+    @discardableResult
+    private func saveTokens(for accountId: String) -> Bool {
+        guard let data = tokens[accountId] else { return true }
+        return tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
 
     private func loadTokens(for accountId: String) -> OAuthTokenStorage.Loaded {
@@ -673,7 +684,7 @@ public final class OAuthManager: ObservableObject {
     func storeTokens(accountId: String, provider: AIProvider, accessToken: String?, refreshToken: String?, expiresAt: Date?) {
         let data = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
         tokens[accountId] = data
-        tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider))
+        _ = tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider))
     }
 
     /// Memory-only token seed for tests — nothing is written to the Keychain or

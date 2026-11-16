@@ -8,6 +8,7 @@ private final class FakeKeychain: @unchecked Sendable {
     private var items: [String: String] = [:]
     private var readFailures: [String: OSStatus] = [:]
     private var readCounts: [String: Int] = [:]
+    private var writeCount = 0
     private var writeFailure: OSStatus?
     private var writesAreCorrupted = false
     private var refusedDeletes: Set<String> = []
@@ -30,6 +31,7 @@ private final class FakeKeychain: @unchecked Sendable {
             set: { [self] name, value in
                 lock.withLock { onWrite }?()
                 return lock.withLock {
+                    writeCount += 1
                     if let writeFailure {
                         return writeFailure
                     }
@@ -61,6 +63,11 @@ private final class FakeKeychain: @unchecked Sendable {
 
     func reads(of name: String) -> Int {
         lock.withLock { readCounts[name, default: 0] }
+    }
+
+    /// Write attempts, successful or not.
+    var writes: Int {
+        lock.withLock { writeCount }
     }
 
     func failReads(of name: String, with status: OSStatus?) {
@@ -541,6 +548,118 @@ struct RefreshTokenVaultTests {
         keychain.failWrites(false)
         #expect(vault.token(for: "a") == .found("A"))
         #expect(keychain.vault() == ["a": "A", "b": "B"], "the next vault call saves it")
+    }
+
+    /// Found in the fourth review: a retry already on the timer survived a later refusal
+    /// and wrote again, which can raise the prompt the user had just declined.
+    @Test func aTimerAlreadyRunningDoesNotWriteAfterARefusal() throws {
+        try keychain.putVault(["a": "A"])
+        let vault = makeVault()
+        #expect(vault.token(for: "a") == .found("A"))
+
+        keychain.failWrites(true)
+        vault.set("B", for: "b")
+        #expect(retries.delays.count == 1, "the failed write put a retry on the timer")
+
+        keychain.failWrites(true, status: errSecUserCanceled)
+        vault.set("C", for: "c")
+        let writesBeforeTheTimer = keychain.writes
+
+        retries.fireNext()
+        #expect(keychain.writes == writesBeforeTheTimer, "the timer wrote after the user refused")
+    }
+
+    /// Found in the fourth review: a change made while the vault could not be read waited
+    /// for a read that nothing else might ever make. With no unreadable account left to
+    /// drive one, a sign-in was never saved, and a quit lost it.
+    @Test func aChangeWaitingOnAnUnreadVaultRetriesTheReadItself() throws {
+        try keychain.putVault(["a": "A"])
+        keychain.failReads(of: item, with: errSecInteractionNotAllowed)
+        let vault = makeVault()
+        #expect(vault.token(for: "a") == .failed(errSecInteractionNotAllowed))
+
+        #expect(vault.set("B", for: "b") == false, "not stored yet, and the caller is told so")
+        #expect(retries.delays.count == 1, "a retry is on the timer")
+
+        // Still unreadable: the retry backs off instead of giving up.
+        clock.advance(RefreshTokenVault.failureShareWindow + 1)
+        retries.fireNext()
+        #expect(retries.delays.count == 1)
+        #expect(keychain.vault() == ["a": "A"], "nothing is written while the vault is unread")
+
+        // The Keychain becomes readable. No account asks for its token; the retry alone saves the sign-in.
+        keychain.failReads(of: item, with: nil)
+        clock.advance(RefreshTokenVault.failureShareWindow + 1)
+        retries.fireNext()
+        #expect(keychain.vault() == ["a": "A", "b": "B"])
+        #expect(makeVault().token(for: "b") == .found("B"), "the next launch has the sign-in")
+    }
+
+    /// A change can arrive while a read is waiting on a prompt. If that read then fails, the
+    /// change is still waiting and the reader has gone; something must put a retry on the timer.
+    @Test func aChangeMadeDuringAReadThatThenFailsIsStillRetried() throws {
+        try keychain.putVault(["a": "A"])
+        keychain.failReads(of: item, with: errSecInteractionNotAllowed)
+        let gate = hold(item)
+        let vault = makeVault()
+
+        let readDone = DispatchSemaphore(value: 0)
+        Thread { [vault] in
+            _ = vault.token(for: "a")
+            readDone.signal()
+        }.start()
+        #expect(gate.entered.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
+
+        let queued = returnsPromptly { [vault] in vault.set("B", for: "b") }
+        #expect(queued, "set() blocked behind the prompting read")
+
+        keychain.holdReads(nil)
+        gate.release.signal()
+        #expect(readDone.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
+
+        for _ in 0..<500 where retries.delays.isEmpty {
+            usleep(10_000)
+        }
+        #expect(retries.delays.count == 1, "the queued sign-in was left with nothing to retry it")
+        #expect(keychain.vault() == ["a": "A"], "and nothing was written to a vault that was never read")
+    }
+
+    /// After Deny or Cancel on the read prompt nothing may read again by itself: not a timer
+    /// started by a change, and not one that was already running.
+    @Test func aRefusedReadIsNeverRepeatedByATimer() throws {
+        try keychain.putVault(["a": "A"])
+        keychain.failReads(of: item, with: errSecInteractionNotAllowed)
+        let vault = makeVault()
+        #expect(vault.token(for: "a") == .failed(errSecInteractionNotAllowed))
+        vault.set("B", for: "b")
+        #expect(retries.delays.count == 1, "a retry is on the timer from the first, passing failure")
+
+        // The user is asked again and says no.
+        keychain.failReads(of: item, with: errSecAuthFailed)
+        clock.advance(RefreshTokenVault.failureShareWindow + 1)
+        #expect(vault.token(for: "a") == .failed(errSecAuthFailed))
+        let readsAfterTheRefusal = keychain.reads(of: item)
+
+        // The timer that was already running fires long after; a new change arrives too.
+        clock.advance(600)
+        retries.fireNext()
+        vault.set("C", for: "c")
+        retries.fireNext()
+
+        #expect(keychain.reads(of: item) == readsAfterTheRefusal, "something read the item again on its own")
+        #expect(retries.delays.isEmpty, "and nothing is left on the timer")
+    }
+
+    @Test func setReportsWhetherTheKeychainHoldsTheToken() {
+        let vault = makeVault()
+        #expect(vault.set("A", for: "a") == true)
+
+        keychain.failWrites(true)
+        #expect(vault.set("A2", for: "a") == false)
+
+        keychain.failWrites(false)
+        #expect(vault.set("A3", for: "a") == true)
+        #expect(keychain.vault() == ["a": "A3"])
     }
 
     /// Any later visit to the vault is also a chance to save what an earlier write missed.

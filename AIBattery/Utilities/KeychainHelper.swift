@@ -86,6 +86,12 @@ enum KeychainHelper {
         return nil
     }
 
+    /// Deny or Cancel on a Keychain prompt. Trying again would only raise the prompt again,
+    /// so nothing retries on its own after one of these.
+    static func isRefusal(_ status: OSStatus) -> Bool {
+        status == errSecUserCanceled || status == errSecAuthFailed
+    }
+
     /// Returns whether the item is gone: deleted, or never there. macOS refuses a delete
     /// from a build the item has not approved, so false means it is still in the Keychain.
     @discardableResult

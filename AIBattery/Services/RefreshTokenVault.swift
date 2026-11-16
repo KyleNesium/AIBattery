@@ -59,8 +59,11 @@ struct KeychainAccess: Sendable {
 ///   migration; it needs no flag and repeats for any account that failed the first time.
 /// - **Never write unread.** A write replaces the whole item, so writing before a read has
 ///   succeeded would destroy tokens this process has not seen. A change made while the
-///   vault is unreadable waits in memory and is applied when a later read succeeds. It is
-///   lost if the app quits first.
+///   vault is unreadable waits in memory, and the vault tries the read again for it on a
+///   timer. It is lost if the app quits before a read succeeds.
+/// - **Memory is never left ahead of the Keychain for long.** A failed write, or a change
+///   still waiting for a read, is retried on a timer. Nothing the user refused (Deny or
+///   Cancel on a prompt) is repeated by a timer.
 /// - **One answer per failure.** A failed read is reused for `failureShareWindow`, so one
 ///   Deny, or one prompt cancelled by sleep, answers every account instead of raising a
 ///   prompt for each.
@@ -109,6 +112,8 @@ final class RefreshTokenVault: @unchecked Sendable {
     /// True while `entries` holds something the Keychain does not, because a write failed.
     /// Guarded by `ioLock`, like the retry state below it.
     private var unsaved = false
+    /// The last write failed because the user said no. A timer must not write again.
+    private var writeRefused = false
     private var retryDelay: TimeInterval = 0
     private var retryScheduled = false
 
@@ -160,7 +165,10 @@ final class RefreshTokenVault: @unchecked Sendable {
         return adoption
     }
 
-    func set(_ token: String, for key: String) {
+    /// Returns whether the Keychain holds the token now. False means the change is kept in
+    /// memory and will be written when the Keychain allows it.
+    @discardableResult
+    func set(_ token: String, for key: String) -> Bool {
         change(key, to: token)
     }
 
@@ -173,25 +181,62 @@ final class RefreshTokenVault: @unchecked Sendable {
 
     // MARK: - Internal
 
-    private func change(_ key: String, to token: String?) {
+    /// Records a change and writes it if the vault can be written right now. Returns whether
+    /// the Keychain holds it.
+    @discardableResult
+    private func change(_ key: String, to token: String?) -> Bool {
         pendingLock.withLock { _ = pending.updateValue(token, forKey: key) }
         guard ioLock.try() else {
             // Busy: a read is waiting on a prompt, and this thread must not wait with it.
-            // The reader applies queued changes before it lets go; this flush catches a
-            // change that arrives after the reader's last look.
+            // The reader applies queued changes before it lets go. This catches the two
+            // cases it cannot: a change that arrives after its last look, and a read that
+            // ends in failure, which leaves the change waiting with nothing to retry it.
             DispatchQueue.global(qos: .utility).async { [self] in
-                ioLock.withLock {
-                    if entries != nil {
-                        applyPending()
-                    }
-                }
+                ioLock.withLock { recover() }
             }
-            return
+            return false
         }
         defer { ioLock.unlock() }
-        if load(retryingFailure: false) == nil {
-            applyPending()
+        guard load(retryingFailure: false) == nil else {
+            // The vault has not been read, because an earlier read failed. If that failure
+            // can pass (a prompt cancelled by sleep, a locked keychain), try the read again
+            // on the timer: without this the change waited for a read that nothing else
+            // might ever make, and a quit lost the sign-in. After a refusal nothing retries;
+            // this function also runs on every poll while an account id is unresolved, and
+            // a read from here would raise the prompt each time.
+            if let failure = lastFailure, !KeychainHelper.isRefusal(failure.status) {
+                scheduleRetry()
+            }
+            return false
         }
+        applyPending()
+        return !unsaved
+    }
+
+    /// Brings the Keychain in line with memory: reads the item when a change is waiting on
+    /// that, then writes whatever is waiting or unsaved. Needs `ioLock`.
+    ///
+    /// Runs on the retry timer, and once the vault is free after a change that found it
+    /// busy. It never repeats, by itself, something the user refused: after a refused read
+    /// it does not read, and a refused write is not written again.
+    private func recover() {
+        let changesWaiting = pendingLock.withLock { !pending.isEmpty }
+        if entries == nil {
+            guard changesWaiting else { return }
+            if let failure = lastFailure, KeychainHelper.isRefusal(failure.status) {
+                return
+            }
+            if let status = load(retryingFailure: true) {
+                if !KeychainHelper.isRefusal(status) {
+                    scheduleRetry()
+                }
+                return
+            }
+        }
+        if writeRefused, !changesWaiting {
+            return
+        }
+        applyPending()
     }
 
     /// Reads the item if it is not in memory yet. Returns nil once loaded, else the failure.
@@ -249,12 +294,14 @@ final class RefreshTokenVault: @unchecked Sendable {
         guard status == errSecSuccess else {
             AppLogger.oauth.error("Keychain: writing the refresh-token item failed (\(status))")
             unsaved = true
-            if status != errSecUserCanceled, status != errSecAuthFailed {
+            writeRefused = KeychainHelper.isRefusal(status)
+            if !writeRefused {
                 scheduleRetry()
             }
             return nil
         }
         unsaved = false
+        writeRefused = false
         retryDelay = 0
         return json
     }
@@ -276,9 +323,7 @@ final class RefreshTokenVault: @unchecked Sendable {
             guard let self else { return }
             ioLock.withLock {
                 self.retryScheduled = false
-                if self.unsaved {
-                    self.write()
-                }
+                self.recover()
             }
         }
     }
