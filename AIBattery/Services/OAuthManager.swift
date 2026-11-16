@@ -420,32 +420,25 @@ public final class OAuthManager: ObservableObject {
         }
 
         // Move the tokens from the temp id to the real org id in an order that never leaves
-        // the account record pointing at an id with no token: save under the new id, then
-        // point the record at it, and only then remove the old copy. A crash after any step
+        // the account record pointing at an id with no token: copy to the new id, then point
+        // the record at it, and only then remove the old copy. A crash after any step
         // leaves a sign-in the next launch can find.
+        //
+        // The copy is one Keychain write that either lands or changes nothing. If it does
+        // not land, the account stays under its temporary id, where its stored token is,
+        // and this runs again later. There is nothing to undo.
         if let data = tokens[tempId] {
-            let previous = tokens[realOrgId]
-            tokens[realOrgId] = data
-            guard saveTokens(for: realOrgId) else {
-                // The Keychain does not hold the new copy yet. Leave the account under its
-                // temporary id, where its stored token is, and try again later. Moving the
-                // record now would strand that token if the app quit before the write went
-                // through.
-                //
-                // Undo the attempt in storage as well as in memory. The failed write is
-                // still queued there under the real id; if that id belongs to another
-                // account (the same organisation signed in twice), it would later replace
-                // that account's token with this one, even after this one was signed out.
-                tokens[realOrgId] = previous
-                if previous != nil {
-                    saveTokens(for: realOrgId)
-                } else {
-                    deleteTokens(for: realOrgId)
-                }
+            let provider = provider(for: tempId)
+            let copied = tokenCopy(
+                Self.tokenStorageKey(accountId: tempId, provider: provider),
+                Self.tokenStorageKey(accountId: realOrgId, provider: provider)
+            )
+            guard copied else {
                 identityMoveRetryAfter[tempId] = Date().addingTimeInterval(identityMoveRetryInterval)
-                AppLogger.oauth.info("resolveAccountIdentity: token not stored yet, keeping the temporary id")
+                AppLogger.oauth.info("resolveAccountIdentity: token not stored under the real id yet, keeping the temporary one")
                 return
             }
+            tokens[realOrgId] = data
         }
         identityMoveRetryAfter[tempId] = nil
 
@@ -680,13 +673,15 @@ public final class OAuthManager: ObservableObject {
     /// plus UserDefaults (expiry) through `OAuthTokenStorage`. Tests substitute a sink,
     /// which is what makes the registration and sign-in paths — cap guards, malformed
     /// keys, state mismatch — testable without touching the real Keychain.
-    /// Returns whether the refresh token is in the Keychain now (see `OAuthTokenStorage.save`).
-    var tokenPersistence: (AccountTokens, String) -> Bool = { OAuthTokenStorage.save($0, for: $1) }
+    var tokenPersistence: (AccountTokens, String) -> Void = { OAuthTokenStorage.save($0, for: $1) }
 
-    @discardableResult
-    private func saveTokens(for accountId: String) -> Bool {
-        guard let data = tokens[accountId] else { return true }
-        return tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
+    /// Copies an account's stored tokens to another storage key and reports whether the
+    /// Keychain holds them there (see `OAuthTokenStorage.copy`). Tests substitute it.
+    var tokenCopy: (String, String) -> Bool = { OAuthTokenStorage.copy(from: $0, to: $1) }
+
+    private func saveTokens(for accountId: String) {
+        guard let data = tokens[accountId] else { return }
+        tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
 
     private func loadTokens(for accountId: String) -> OAuthTokenStorage.Loaded {
@@ -705,7 +700,7 @@ public final class OAuthManager: ObservableObject {
     func storeTokens(accountId: String, provider: AIProvider, accessToken: String?, refreshToken: String?, expiresAt: Date?) {
         let data = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
         tokens[accountId] = data
-        _ = tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider))
+        tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider))
     }
 
     /// Memory-only token seed for tests — nothing is written to the Keychain or

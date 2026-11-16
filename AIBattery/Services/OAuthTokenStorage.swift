@@ -22,15 +22,9 @@ enum OAuthTokenStorage {
 
     /// Persist the refresh token (Keychain) and expiry (UserDefaults) for an account.
     /// The access token is intentionally NOT persisted.
-    ///
-    /// Returns whether the Keychain holds the refresh token now. False means it is kept in
-    /// memory and will be written when the Keychain allows; a caller about to do something
-    /// that relies on the token being stored (changing an account's id) must wait.
-    @discardableResult
-    static func save(_ tokens: AccountTokens, for accountId: String) -> Bool {
-        var stored = true
+    static func save(_ tokens: AccountTokens, for accountId: String) {
         if let refresh = tokens.refreshToken {
-            stored = RefreshTokenVault.shared.set(refresh, for: accountId)
+            RefreshTokenVault.shared.set(refresh, for: accountId)
         }
         if let expires = tokens.expiresAt {
             UserDefaults.standard.set(
@@ -38,7 +32,18 @@ enum OAuthTokenStorage {
                 forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId
             )
         }
-        return stored
+    }
+
+    /// Copy an account's persisted state to another id, for an account whose id is changing.
+    /// Returns whether the Keychain holds the refresh token under the new id. False means
+    /// nothing changed and the caller should try again later (see `RefreshTokenVault.copy`).
+    static func copy(from accountId: String, to newAccountId: String) -> Bool {
+        guard RefreshTokenVault.shared.copy(from: accountId, to: newAccountId) else { return false }
+        let interval = UserDefaults.standard.double(forKey: UserDefaultsKeys.tokenExpiresAtPrefix + accountId)
+        if interval > 0 {
+            UserDefaults.standard.set(interval, forKey: UserDefaultsKeys.tokenExpiresAtPrefix + newAccountId)
+        }
+        return true
     }
 
     /// What `load` found.

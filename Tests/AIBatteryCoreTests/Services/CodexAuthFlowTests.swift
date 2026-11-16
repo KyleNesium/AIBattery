@@ -16,10 +16,7 @@ struct CodexAuthFlowTests {
         UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.activeAccountId)
         let manager = OAuthManager()
         let persisted = Box<[String]>([])
-        manager.tokenPersistence = { _, storageKey in
-            persisted.value.append(storageKey)
-            return true
-        }
+        manager.tokenPersistence = { _, storageKey in persisted.value.append(storageKey) }
         return (manager, persisted)
     }
 

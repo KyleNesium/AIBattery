@@ -165,11 +165,35 @@ final class RefreshTokenVault: @unchecked Sendable {
         return adoption
     }
 
-    /// Returns whether the Keychain holds the token now. False means the change is kept in
-    /// memory and will be written when the Keychain allows it.
-    @discardableResult
-    func set(_ token: String, for key: String) -> Bool {
+    func set(_ token: String, for key: String) {
         change(key, to: token)
+    }
+
+    /// Copies the token stored under `source` to `destination` in one Keychain write, or
+    /// does nothing at all. Returns whether the Keychain now holds it under both keys.
+    ///
+    /// For the one caller that must know the token is stored before it goes on: an account
+    /// changing id. Unlike `set`, a copy that cannot be written is not kept for later. It
+    /// leaves no trace in memory, in the queue or on the retry timer, so the caller can
+    /// simply try again, and a copy that was abandoned can never land afterwards on a key
+    /// that belongs to another account. It refuses rather than waits whenever the vault is
+    /// busy, unread, or already holding something the Keychain does not.
+    func copy(from source: String, to destination: String) -> Bool {
+        guard ioLock.try() else { return false }
+        defer { ioLock.unlock() }
+        guard load(retryingFailure: false) == nil else { return false }
+        applyPending()
+        guard !unsaved, var updated = entries,
+              let token = updated[source], token != Self.removedMarker
+        else {
+            return false
+        }
+        updated[destination] = token
+        guard let json = Self.encode(updated), keychain.set(itemName, json) == errSecSuccess else {
+            return false
+        }
+        entries = updated
+        return true
     }
 
     func remove(_ key: String) {
@@ -181,10 +205,8 @@ final class RefreshTokenVault: @unchecked Sendable {
 
     // MARK: - Internal
 
-    /// Records a change and writes it if the vault can be written right now. Returns whether
-    /// the Keychain holds it.
-    @discardableResult
-    private func change(_ key: String, to token: String?) -> Bool {
+    /// Records a change and writes it if the vault can be written right now.
+    private func change(_ key: String, to token: String?) {
         pendingLock.withLock { _ = pending.updateValue(token, forKey: key) }
         guard ioLock.try() else {
             // Busy: a read is waiting on a prompt, and this thread must not wait with it.
@@ -195,23 +217,20 @@ final class RefreshTokenVault: @unchecked Sendable {
                 guard let self else { return }
                 ioLock.withLock { self.recover() }
             }
-            return false
+            return
         }
         defer { ioLock.unlock() }
         guard load(retryingFailure: false) == nil else {
             // The vault has not been read, because an earlier read failed. If that failure
             // can pass (a prompt cancelled by sleep, a locked keychain), try the read again
             // on the timer: without this the change waited for a read that nothing else
-            // might ever make, and a quit lost the sign-in. After a refusal nothing retries;
-            // this function also runs on every poll while an account id is unresolved, and
-            // a read from here would raise the prompt each time.
+            // might ever make, and a quit lost the sign-in. After a refusal nothing retries.
             if let failure = lastFailure, !KeychainHelper.isRefusal(failure.status) {
                 scheduleRetry()
             }
-            return false
+            return
         }
         applyPending()
-        return !unsaved
     }
 
     /// Brings the Keychain in line with memory: reads the item when a change is waiting on
@@ -234,7 +253,9 @@ final class RefreshTokenVault: @unchecked Sendable {
                 return
             }
         }
-        if writeRefused, !changesWaiting {
+        // After a refused write nothing here writes again, even with a change waiting: the
+        // user said no a moment ago. The next change they make writes everything.
+        if writeRefused {
             return
         }
         applyPending()

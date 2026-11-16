@@ -582,7 +582,7 @@ struct RefreshTokenVaultTests {
         let vault = makeVault()
         #expect(vault.token(for: "a") == .failed(errSecInteractionNotAllowed))
 
-        #expect(vault.set("B", for: "b") == false, "not stored yet, and the caller is told so")
+        vault.set("B", for: "b")
         #expect(retries.delays.count == 1, "a retry is on the timer")
 
         // Still unreadable: the retry backs off instead of giving up.
@@ -653,16 +653,106 @@ struct RefreshTokenVaultTests {
         #expect(retries.delays.isEmpty, "and nothing is left on the timer")
     }
 
-    @Test func setReportsWhetherTheKeychainHoldsTheToken() {
+    /// Found in the sixth review: a change that arrived while a write was in progress
+    /// scheduled a flush. The write was refused, and the flush then wrote again by itself,
+    /// which can raise the prompt the user had just declined.
+    @Test func aFlushDoesNotWriteAgainAfterARefusal() throws {
+        try keychain.putVault(["a": "A"])
         let vault = makeVault()
-        #expect(vault.set("A", for: "a") == true)
+        #expect(vault.token(for: "a") == .found("A"))
+
+        keychain.failWrites(true, status: errSecUserCanceled)
+        let entered = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        keychain.holdWrites {
+            entered.signal()
+            _ = release.wait(timeout: .now() + 10)
+        }
+        let firstWriteDone = DispatchSemaphore(value: 0)
+        Thread { [vault] in
+            vault.set("B", for: "b")
+            firstWriteDone.signal()
+        }.start()
+        #expect(entered.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
+
+        let queued = returnsPromptly { [vault] in vault.set("C", for: "c") }
+        #expect(queued, "set() blocked behind a write in progress")
+
+        keychain.holdWrites(nil)
+        release.signal()
+        #expect(firstWriteDone.wait(timeout: .now() + 5) == .success, "the hooked operation never ran")
+        let writesAfterTheRefusal = keychain.writes
+
+        retries.fireNext()
+        #expect(keychain.writes == writesAfterTheRefusal, "the flush wrote after the user refused")
+
+        // The next change the user makes carries everything.
+        keychain.failWrites(false)
+        vault.set("D", for: "d")
+        #expect(keychain.vault() == ["a": "A", "b": "B", "c": "C", "d": "D"])
+    }
+
+    // MARK: - copy: all or nothing, for an account changing id
+
+    @Test func copyStoresTheTokenUnderBothKeysInOneWrite() throws {
+        try keychain.putVault(["pending": "T", "other": "O"])
+        let vault = makeVault()
+        #expect(vault.token(for: "pending") == .found("T"))
+        let writesBefore = keychain.writes
+
+        #expect(vault.copy(from: "pending", to: "org") == true)
+
+        #expect(keychain.writes == writesBefore + 1)
+        #expect(keychain.vault() == ["pending": "T", "org": "T", "other": "O"])
+        #expect(makeVault().token(for: "org") == .found("T"))
+    }
+
+    /// Found in the fifth and sixth reviews. A copy that does not land must leave nothing
+    /// behind: not in memory, not queued, not on the timer. Otherwise it lands later, on a
+    /// key that may belong to another account, after the caller has given up on it.
+    @Test func aCopyThatCannotBeWrittenLeavesNothingBehind() throws {
+        try keychain.putVault(["pending": "T", "org": "ORIGINAL"])
+        let vault = makeVault()
+        #expect(vault.token(for: "pending") == .found("T"))
 
         keychain.failWrites(true)
-        #expect(vault.set("A2", for: "a") == false)
+        #expect(vault.copy(from: "pending", to: "org") == false)
+        #expect(vault.copy(from: "pending", to: "new-org") == false)
 
+        #expect(vault.token(for: "org") == .found("ORIGINAL"), "the destination's own token was replaced in memory")
+        #expect(vault.token(for: "new-org") == .notFound)
+        #expect(retries.delays.isEmpty, "nothing may be left to retry")
+
+        // Writes work again, and the pending account is signed out. Nothing from the
+        // abandoned copies may reach the Keychain.
         keychain.failWrites(false)
-        #expect(vault.set("A3", for: "a") == true)
-        #expect(keychain.vault() == ["a": "A3"])
+        vault.remove("pending")
+        #expect(keychain.vault() == ["org": "ORIGINAL"])
+    }
+
+    @Test func copyRefusesRatherThanWaits() throws {
+        // Unread: no read is made on the caller's behalf, and nothing is queued.
+        try keychain.putVault(["pending": "T"])
+        keychain.failReads(of: item, with: errSecInteractionNotAllowed)
+        let unread = makeVault()
+        #expect(unread.token(for: "pending") == .failed(errSecInteractionNotAllowed))
+        let readsBefore = keychain.reads(of: item)
+        #expect(unread.copy(from: "pending", to: "org") == false)
+        #expect(keychain.reads(of: item) == readsBefore)
+        #expect(retries.delays.isEmpty)
+
+        // Nothing stored under the source.
+        keychain.failReads(of: item, with: nil)
+        let vault = makeVault()
+        #expect(vault.copy(from: "nobody", to: "org") == false)
+
+        // Memory ahead of the Keychain: the copy's own visit saves what was waiting first,
+        // so the token it copies is one the Keychain holds.
+        keychain.failWrites(true)
+        vault.set("NEW", for: "pending")
+        keychain.failWrites(false)
+        #expect(vault.copy(from: "pending", to: "org") == true)
+        #expect(keychain.vault() == ["pending": "NEW", "org": "NEW"])
     }
 
     /// Any later visit to the vault is also a chance to save what an earlier write missed.

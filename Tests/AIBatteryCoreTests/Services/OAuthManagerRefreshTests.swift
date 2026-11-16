@@ -80,7 +80,7 @@ struct OAuthManagerRefreshTests {
     }
 
     /// A new Claude account starts under a temporary id and moves to its organisation id
-    /// after the first API call. Three things change: the token is saved under the new id,
+    /// after the first API call. Three things change: the token is copied to the new id,
     /// the account record is pointed at it, and the old copy is removed. They must happen in
     /// that order, so that a crash after any one of them leaves a record whose id has a token.
     @Test func resolvingAnAccountId_neverLeavesTheRecordWithoutAToken() {
@@ -95,16 +95,9 @@ struct OAuthManagerRefreshTests {
         manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-move", expiresAt: nil)
 
         final class Observed: @unchecked Sendable {
-            var temporaryCopyAtSave: String?
             var copiesWhenTheRecordMoved: (temporary: String?, real: String?)?
         }
         let observed = Observed()
-        manager.tokenPersistence = { tokens, storageKey in
-            if storageKey == realId {
-                observed.temporaryCopyAtSave = OAuthTokenStorage.load(for: tempId).tokens.refreshToken
-            }
-            return OAuthTokenStorage.save(tokens, for: storageKey)
-        }
         // `$accounts` publishes the new list as it is assigned, so this runs inside the update.
         let watching = manager.accountStore.$accounts.sink { accounts in
             guard observed.copiesWhenTheRecordMoved == nil, accounts.contains(where: { $0.id == realId }) else { return }
@@ -117,19 +110,16 @@ struct OAuthManagerRefreshTests {
 
         manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
 
-        #expect(observed.temporaryCopyAtSave == "rt-move", "the temporary copy was removed before the new one was saved")
         #expect(observed.copiesWhenTheRecordMoved?.real == "rt-move", "the record moved before its new id had a token")
         #expect(observed.copiesWhenTheRecordMoved?.temporary == "rt-move", "the temporary copy was removed before the record moved")
         #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-move")
         #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
+        #expect(manager.isAuthenticated(accountId: realId))
     }
 
-    /// Found in the fourth review: the record was pointed at the real id whether or not the
-    /// Keychain had taken the token under it. If the write had failed and the app then quit,
-    /// the next launch found a record for the real id and a token only under the temporary one.
-    ///
-    /// The stub stores the token and then says it is not in the Keychain, which is the state
-    /// a failed write leaves: the change is in the vault's memory, queued for a retry.
+    /// Found in review: the record was pointed at the real id whether or not the Keychain
+    /// had taken the token under it. If the write had failed and the app then quit, the next
+    /// launch found a record for the real id and a token only under the temporary one.
     @Test func resolvingAnAccountId_waitsUntilTheTokenIsStored() {
         let manager = OAuthManager()
         manager.identityMoveRetryInterval = 0
@@ -142,20 +132,18 @@ struct OAuthManagerRefreshTests {
         }
         manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-wait", expiresAt: nil)
 
-        manager.tokenPersistence = { tokens, storageKey in
-            OAuthTokenStorage.save(tokens, for: storageKey)
-            return false
-        }
+        // The Keychain does not take the copy.
+        manager.tokenCopy = { _, _ in false }
         manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
 
         #expect(manager.accountStore.accounts.contains { $0.id == tempId }, "the record must keep the id its stored token is under")
         #expect(!manager.accountStore.accounts.contains { $0.id == realId })
         #expect(manager.isAuthenticated(accountId: tempId), "and the account is still signed in")
+        #expect(!manager.isAuthenticated(accountId: realId))
         #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == "rt-wait")
-        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == nil, "the attempt left a token queued under the real id")
 
-        // It runs again after a later API call; this time the write lands.
-        manager.tokenPersistence = { OAuthTokenStorage.save($0, for: $1) }
+        // It runs again after a later API call; this time the copy lands.
+        manager.tokenCopy = { OAuthTokenStorage.copy(from: $0, to: $1) }
         manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
 
         #expect(manager.accountStore.accounts.contains { $0.id == realId })
@@ -163,11 +151,13 @@ struct OAuthManagerRefreshTests {
         #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
     }
 
-    /// Found in the fifth review. The same organisation signed in twice: account A is
-    /// registered under the real id, and B is still under a temporary one. B's move fails.
-    /// The failed write stayed queued under A's id, so it later replaced A's token with B's,
-    /// even after B had been signed out.
-    @Test func aFailedAccountIdMove_leavesTheOtherAccountsTokenAlone() {
+    /// Found in review, twice. The same organisation signed in twice: account A is registered
+    /// under the real id, and B is still under a temporary one. When B's move failed, the
+    /// attempt left B's token on its way to A's id, where it later replaced A's, even after
+    /// B had been signed out. A failed move must leave A exactly as it was, in memory and in
+    /// storage. (`RefreshTokenVaultTests` covers the storage half: a failed copy leaves
+    /// nothing behind.)
+    @Test func aFailedAccountIdMove_leavesTheOtherAccountAlone() {
         let manager = OAuthManager()
         let tempId = "pending-\(UUID().uuidString)"
         let realId = "org-\(UUID().uuidString)"
@@ -177,15 +167,20 @@ struct OAuthManagerRefreshTests {
             manager.signOut(accountId: realId)
             manager.signOut(accountId: tempId)
         }
-        manager.storeTokens(accountId: realId, provider: .claude, accessToken: nil, refreshToken: "rt-A", expiresAt: nil)
+        manager.storeTokens(accountId: realId, provider: .claude, accessToken: "at-A", refreshToken: "rt-A", expiresAt: Date().addingTimeInterval(3_600))
         manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-B", expiresAt: nil)
 
+        final class Saves: @unchecked Sendable { var keys: [String] = [] }
+        let saves = Saves()
         manager.tokenPersistence = { tokens, storageKey in
+            saves.keys.append(storageKey)
             OAuthTokenStorage.save(tokens, for: storageKey)
-            return false
         }
+        manager.tokenCopy = { _, _ in false }
         manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
-        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-A", "B's token was left queued under A's id")
+
+        #expect(saves.keys.isEmpty, "a failed move must write nothing: \(saves.keys)")
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-A")
 
         manager.signOut(accountId: tempId)
         #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-A")
@@ -208,10 +203,8 @@ struct OAuthManagerRefreshTests {
 
         final class Count: @unchecked Sendable { var value = 0 }
         let attempts = Count()
-        manager.tokenPersistence = { _, storageKey in
-            if storageKey == realId {
-                attempts.value += 1
-            }
+        manager.tokenCopy = { _, _ in
+            attempts.value += 1
             return false
         }
         manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
