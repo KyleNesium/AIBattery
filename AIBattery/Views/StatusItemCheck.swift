@@ -1,18 +1,13 @@
 import AppKit
 
-/// The menu bar item's identity, and a check, once after launch, that it reached the screen.
+/// A check, once after launch, that the menu bar item reached the screen.
 ///
-/// Why this exists: on macOS 27 users report menu bar apps whose process runs but whose icon
-/// never appears. macOS 27 draws the whole menu bar as one window and keeps each item's place
-/// by its autosave name; an item created without one is the implicit "Item-0". Other menu bar
-/// apps hit by this (CodexBar, FineTune) moved to a stable name set at zero width, before the
-/// item is sized. No fix is confirmed anywhere, so the app also writes one log line saying
-/// whether the item made it onto the screen, which is the evidence a report needs.
+/// Why this exists: "AI Battery is running but not in my menu bar" is the report menu bar
+/// apps get on macOS 27, which draws the whole menu bar as one window and hides items that
+/// don't fit behind an arrow at its right end. Usually that is where the icon is. When it
+/// is not, this line in the log is the evidence a report needs (`docs/FAQ.md` has the
+/// command that collects it), and CI prints it from every launch, including on macOS 27.
 enum StatusItemCheck {
-    /// Stable identity for the status item. AppKit stores its position under
-    /// `NSStatusItem Preferred Position <name>` in the app's defaults.
-    static let autosaveName = "AIBatteryStatusItem"
-
     /// How long after launch to look. Long enough for the menu bar host to place the item.
     static let delay: TimeInterval = 10
 

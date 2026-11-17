@@ -93,7 +93,6 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | `RefreshTokenVault.failureShareWindow` | 5 sec — a failed read of the item is reused for this long, so one Deny or one cancelled prompt answers every account instead of raising a prompt for each |
 | `RefreshTokenVault.firstRetryDelay` / `maxRetryDelay` | 30 sec, doubling to 300 sec — how long after a failed write of the item the vault tries again on its own. No timer after a refusal (`errSecUserCanceled`, `errSecAuthFailed`) |
 | `OAuthManager.identityMoveRetryInterval` | 300 sec — after an account-id move that the Keychain did not take, how long `resolveAccountIdentity` waits before trying again (it is called after every API call while an account is pending) |
-| `StatusItemCheck.autosaveName` | `"AIBatteryStatusItem"` — the menu bar item's stable identity, set at zero width before it is sized |
 | `StatusItemCheck.delay` | 10 sec — after setup, when the one launch log line about the menu bar item is written |
 | `RefreshTokenVault.appBundleIdentifier` | `com.KyleNesium.AIBattery` — only a process with this bundle id opens the real item; any other (the test runner) gets an in-memory store. Pinned to `Info.plist` by a test and to the built bundle by `verify-release.sh` |
 | Max accounts | 3 **per provider** (`AccountStore.maxAccountsPerProvider`) |

@@ -10,7 +10,9 @@ permissions:
 jobs:
   release:
     name: Build & Publish
-    runs-on: macos-15
+    # The runner ci.yml's blocking job uses, so the release is built by the same Xcode
+    # (26.6) that CI tested and that the app is built with by hand.
+    runs-on: macos-26
     timeout-minutes: 15
     env:
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_EDDSA_KEY != '' }}
@@ -22,8 +24,8 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: spm-${{ runner.os }}-
+          key: spm-macos-26-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-macos-26-
 
       - name: Build
         run: swift build --build-tests

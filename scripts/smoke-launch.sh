@@ -25,7 +25,16 @@ if [ ! -x "$BIN" ]; then
 fi
 
 LOG=$(mktemp)
-trap 'rm -f "$LOG"' EXIT
+# The app's own log while it runs: StatusItemCheck writes one line, 10 s after launch,
+# saying whether the menu bar item reached the screen. Printed at the end; a "looks
+# hidden" line becomes a CI warning, not a failure.
+APPLOG=$(mktemp)
+log stream --level info --style compact \
+  --predicate 'subsystem == "com.KyleNesium.AIBattery" AND category == "general"' >"$APPLOG" 2>&1 &
+LOGPID=$!
+disown "$LOGPID" # no "Terminated" job notice when the trap stops it
+trap 'kill "$LOGPID" 2>/dev/null; rm -f "$LOG" "$APPLOG"' EXIT
+sleep 1 # let the stream attach before the app starts
 
 # Run the binary itself, not `open`: the script then owns the PID, the exit status and stderr,
 # which is where both dyld and the Swift runtime print why they stopped.
@@ -50,4 +59,14 @@ done
 
 kill -TERM "$PID" 2>/dev/null || true
 wait "$PID" 2>/dev/null || true
-echo "✓ $(basename "$APP") stayed up for ${UPTIME}s"
+echo "✓ $(basename "$APP") stayed up for ${UPTIME}s on macOS $(sw_vers -productVersion)"
+
+MENU_BAR=$(grep -m1 'Menu bar item' "$APPLOG" | sed 's/.*\(Menu bar item\)/\1/' || true)
+if [ -z "$MENU_BAR" ]; then
+  echo "  menu bar: no line in the app's log (the uptime may be shorter than the 10 s check)"
+elif echo "$MENU_BAR" | grep -q 'looks hidden'; then
+  echo "::warning title=Menu bar item::$MENU_BAR"
+  echo "⚠ $MENU_BAR"
+else
+  echo "  $MENU_BAR"
+fi

@@ -346,9 +346,9 @@ docs/
 .github/
   dependabot.yml                  — Monthly PRs for the pinned Actions and the Swift package; ci.yml does not run on them, dispatch it by hand
 .github/workflows/
-  ci.yml                          — Build + test + bundle + launch smoke test on push/PR (macos-15)
+  ci.yml                          — Build + test + bundle + launch smoke test on push/PR: `macos-26` (Xcode 26.6, blocking) and `xcode-27` (macOS 27 + Xcode 27 preview image, `continue-on-error`)
   lint.yml                        — SwiftFormat + SwiftLint on PRs targeting main (macos-15)
-  release.yml                     — Release: build → launch smoke test → verify → GitHub Release → update Homebrew cask (macos-15)
+  release.yml                     — Release: build → launch smoke test → verify → GitHub Release → update Homebrew cask (macos-26, Xcode 26.6)
 scripts/
   build-app.sh                    — Build release binary + .app bundle + zip/dmg
   update-homebrew.sh              — Auto-update KyleNesium/homebrew-tap cask (version + SHA256)
@@ -362,7 +362,7 @@ CHANGELOG.md                      — Release notes per version
 
 ## Build Configuration
 
-- **SPM**: swift-tools-version 6.0, Swift 6 language mode (`.swiftLanguageMode(.v6)`) on all targets, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests). No isolated `deinit` is needed, so the macOS 13 target doesn't block it: state that a `@MainActor` class's `deinit` tears down is `nonisolated(unsafe)` (`UsageViewModel`, `StatusBarManager`). CI compiles with an older toolchain than a current local Xcode (Swift 6.1.2 on `macos-15`), and the first flip, in May 2026, was reverted for isolation errors only that SDK raised. So a clean local Swift 6 build doesn't prove CI is green.
+- **SPM**: swift-tools-version 6.0, Swift 6 language mode (`.swiftLanguageMode(.v6)`) on all targets, 3 targets: AIBatteryCore (library), AIBattery (executable), AIBatteryCoreTests (tests). No isolated `deinit` is needed, so the macOS 13 target doesn't block it: state that a `@MainActor` class's `deinit` tears down is `nonisolated(unsafe)` (`UsageViewModel`, `StatusBarManager`). Until 3.5.0 CI compiled with an older toolchain than a current local Xcode (Swift 6.1.2 on `macos-15`), and the first flip, in May 2026, was reverted for isolation errors only that SDK raised. CI and releases now use `macos-26` with Xcode 26.6, the same toolchain as a current local build, plus a non-blocking `xcode-27` job (macOS 27, Xcode 27), which is where a newer SDK's new errors now show up first.
 - **Platform**: macOS 13+ (Ventura)
 - **Sandbox**: Disabled (needs Keychain + filesystem access)
 - **Codesigning**: Ad-hoc by default (`codesign --sign -`), parameterized via `CODE_SIGN_IDENTITY` env var for Developer ID signing. Hardened runtime (`--options runtime`), entitlements embedded, bundle identifier sealed — gives the app a stable identity for Keychain ACL whitelisting. Entitlements file selected automatically (`AIBattery-AppStore.entitlements` when `APP_STORE_BUILD` is set)

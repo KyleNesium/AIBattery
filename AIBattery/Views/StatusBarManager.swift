@@ -132,13 +132,11 @@ public final class StatusBarManager: NSObject {
 
     public func setup(viewModel: UsageViewModel, oauthManager: OAuthManager) {
         self.viewModel = viewModel
-        // Created at zero width, named, then sized: the item never exists under the
-        // implicit "Item-0" identity, which macOS 27's menu bar host is reported to lose
-        // track of (see `StatusItemCheck`). The name changes where AppKit stores the
-        // item's position, so it starts once in the default place after this update.
-        let item = NSStatusBar.system.statusItem(withLength: 0)
-        item.autosaveName = StatusItemCheck.autosaveName
-        item.length = NSStatusItem.variableLength
+        // No `autosaveName`: AppKit keeps the item's place under the implicit "Item-0"
+        // (`NSStatusItem Preferred Position Item-0`). Naming it would move every user's
+        // icon once, to the default place, which on a full menu bar is behind the notch or
+        // macOS 27's overflow arrow.
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
         if let button = item.button {

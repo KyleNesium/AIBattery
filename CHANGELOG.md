@@ -13,14 +13,11 @@
   that is not newer than it, so the next release from Anthropic shows a close figure until
   the app adds its exact rate, instead of a figure that can be several times off. Amazon
   Bedrock model ids resolve to their exact rate too. (#213)
-- **macOS 27: help for a menu bar icon that doesn't appear.** On macOS 27 Golden Gate some
-  menu bar apps run but show no icon, mostly because macOS now hides items that don't fit
-  behind an arrow at the right end of the menu bar. The FAQ has a checklist and a command to
-  run when the icon is missing. The menu bar item now has a stable name, created before it
-  is sized, as other menu bar apps did for the same report; it starts once in the default
-  place after this update. Ten seconds after launch the app writes one line to the system
-  log saying whether the item reached the screen, which is what a bug report needs. This
-  could not be tested on macOS 27. (#213)
+- **macOS 27: help for a menu bar icon that doesn't appear.** macOS 27 Golden Gate hides menu
+  bar items that don't fit behind an arrow at the right end of the menu bar, which makes a
+  running AI Battery look missing. The FAQ has a checklist and a command to run when the icon
+  is missing. Ten seconds after launch the app writes one line to the system log saying
+  whether its menu bar item reached the screen, which is what a bug report needs. (#213)
 - **Signing in again while a sign-in renewal is still in progress no longer signs you out.**
   Renewing a session can take a minute when the network is slow. If you signed in again to
   the same account in that time and the old renewal then failed, the app signed out the
@@ -70,6 +67,13 @@
   still follows Codex only, so a green dot during an OpenAI incident now explains itself. (#213)
 - **Sparkle 2.10.0 → 2.10.1** — patch update within the existing `2.6.0..<3.0.0` range. It fixes an update being installed early when the app sits in an NFC-encoded path, and adds translations. Its appcast fixes don't apply: AI Battery writes its own appcast (`scripts/generate-appcast.sh`) and uses no `releaseNotesLink`. No app-facing change. (#213)
 - **Swift 6 language mode** on all three targets (was Swift 5 with strict concurrency). The macOS 13 target didn't block it after all: no isolated `deinit` is needed. Fixes were few: `nonisolated` on five constants and pure helpers (and two test fixtures), and `Sendable`-safe captures in the Codex sign-in listener. The build is now warning-free. Swift 6 also checks actor isolation at runtime, so a main-actor callback the system invokes off the main thread now stops the app instead of running. Every system callback (dispatch sources, FSEvents, notification observers, KVO, the network monitor) already runs on `.main` or hops there explicitly. (#213)
+- **Built with Xcode 26.6 (the macOS 26 SDK).** Releases were built with Xcode 16.4 on a macOS
+  15 runner while the app was tested by hand with Xcode 26, so what shipped was not what had
+  been tested. Releases and CI now use the macOS 26 runner with Xcode 26.6. On macOS 26 and
+  later, standard controls take the current system look. (#213)
+- **CI also runs on macOS 27**, on GitHub's preview image with Xcode 27: build, tests, and a
+  launch of the built app. A failure there is shown on its job without failing the run,
+  because preview images can queue or be unstable. (#213)
 - CI and the release workflow: the built app is launched and must stay up for 20 seconds (`scripts/smoke-launch.sh`). A signed bundle that died at launch — a missing `Sparkle.framework`, or a Swift 6 isolation trap in a launch-path callback — used to pass every check. In `release.yml` the check runs on the bundle about to be published, before anything is. (#213)
 - `verify-release.sh` checks that the built bundle's id is the one `RefreshTokenVault` requires before it opens the real Keychain item. A mismatch would keep every token in memory and sign every user out at each launch. (#213)
 - Dependabot opens monthly pull requests for the pinned GitHub Actions and the Swift package dependency (`.github/dependabot.yml`). (#213)

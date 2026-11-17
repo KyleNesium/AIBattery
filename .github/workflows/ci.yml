@@ -34,12 +34,28 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build, Test & Verify
+    name: Build, Test & Verify (${{ matrix.name }})
     # Defensive: with the triggers above, drafts never reach this workflow at
     # all (only `ready_for_review` is wired). Keeping the check belt-and-braces
     # in case the trigger config gets relaxed later.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # What ships: release.yml builds on this runner, with Xcode 26.6, the version the
+          # app is built with by hand. A failure here fails the run.
+          - name: macOS 26
+            runner: macos-26
+            preview: false
+          # The newest macOS: GitHub's preview image runs macOS 27 with Xcode 27. Builds,
+          # tests and launches the app there. Preview images can queue or be unstable, so
+          # a failure shows on this job but does not fail the run.
+          - name: macOS 27 preview
+            runner: xcode-27
+            preview: true
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.preview }}
     # Bumped from 10 → 22: the test step has 3 × 6-minute retry attempts for
     # macos-15 swiftpm-testing-helper hangs. At 10 minutes the job timeout
     # cancelled before the retry logic could try a second attempt — observed
@@ -53,11 +69,15 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: spm-${{ runner.os }}-
+          # Per runner: a build cache from one Xcode must not be restored under another.
+          key: spm-${{ matrix.runner }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-${{ matrix.runner }}-
 
-      - name: Show Swift version
-        run: swift --version
+      - name: Show macOS, Xcode and Swift versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
 
       - name: Build
         run: swift build --build-tests
