@@ -44,15 +44,18 @@ jobs:
       matrix:
         include:
           # What ships: release.yml builds on this runner, with Xcode 26.6, the version the
-          # app is built with by hand. A failure here fails the run.
+          # app is built with by hand. Pinned, so an update of the runner image cannot change
+          # the toolchain under a release. A failure here fails the run.
           - name: macOS 26
             runner: macos-26
+            xcode: "26.6"
             preview: false
           # The newest macOS: GitHub's preview image runs macOS 27 with Xcode 27. Builds,
           # tests and launches the app there. Preview images can queue or be unstable, so
           # a failure shows on this job but does not fail the run.
           - name: macOS 27 preview
             runner: xcode-27
+            xcode: ""
             preview: true
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.preview }}
@@ -72,6 +75,10 @@ jobs:
           # Per runner: a build cache from one Xcode must not be restored under another.
           key: spm-${{ matrix.runner }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: spm-${{ matrix.runner }}-
+
+      - name: Select Xcode ${{ matrix.xcode }}
+        if: matrix.xcode != ''
+        run: sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
 
       - name: Show macOS, Xcode and Swift versions
         run: |
@@ -109,11 +116,11 @@ jobs:
           # The arithmetic, written down so the next bump need not re-derive it
           # (it has been left behind three times now, once in this very PR —
           # release.yml was bumped and this file was not):
-          #   1802 tests in the suite
+          #   1803 tests in the suite
           #  −   6 opt-in real-data tests, `.enabled(if:)` on
           #       AIBATTERY_REAL_CLAUDE_LOGS / AIBATTERY_REAL_CODEX_LOGS, which
           #       are never set on CI and print as "skipped", not ✔
-          #   = 1796 ✔ markers expected on a clean run.
+          #   = 1797 ✔ markers expected on a clean run.
           # 1730 leaves a little room for suite churn between bumps while still
           # catching a crash in the last few hundred tests.
           MIN_PASSES=1730

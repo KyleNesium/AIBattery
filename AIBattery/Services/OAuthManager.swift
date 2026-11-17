@@ -23,7 +23,7 @@ import os
 /// - No API keys — uses OAuth Bearer tokens only
 /// - Refresh tokens enable long-lived sessions without re-authentication
 @MainActor
-public final class OAuthManager: ObservableObject {
+public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
     public static let shared = OAuthManager()
 
     // Anthropic OAuth constants (same as Claude Code / OpenCode)

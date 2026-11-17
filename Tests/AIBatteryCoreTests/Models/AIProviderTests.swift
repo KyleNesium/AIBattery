@@ -25,7 +25,7 @@ struct AIProviderTests {
     @Test func brandMarks_areBundledAndLoadable() {
         for provider in AIProvider.allCases {
             let url = AIProvider.markURL(for: provider)
-            #expect(url != nil, "missing \(provider.markResourceName).svg")
+            #expect(url != nil, "missing \(provider.markResourceName).svg; looked under \(AIProvider.defaultMarkSearchRoots.map(\.path))")
             #expect(provider.markImage != nil, "unloadable mark for \(provider)")
         }
         #expect(AIProvider.claude.markResourceName == "claude")
@@ -53,6 +53,22 @@ struct AIProviderTests {
         #expect(AIProvider.markURL(for: .codex, searchRoots: [empty, root]) == nil)
         #expect(AIProvider.markURL(for: .claude, searchRoots: []) == nil)
         #expect(AIProvider.resourceBundleName == "AIBattery_AIBatteryCore.bundle")
+    }
+
+    /// Swift 6.4 (Xcode 27) builds with Swift Build by default, which lays the resource
+    /// bundle out as a standard macOS bundle: the copied folder lands at
+    /// `<bundle>/Contents/Resources/Resources/`. On the macOS 27 CI runner every badge test
+    /// failed until the resolver looked there too.
+    @Test func markURL_findsTheStandardMacOSBundleLayout() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("aib-marks-\(UUID().uuidString)")
+        let resources = root.appendingPathComponent(AIProvider.resourceBundleName)
+            .appendingPathComponent("Contents/Resources/Resources")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("<svg/>".utf8).write(to: resources.appendingPathComponent("openai.svg"))
+
+        let found = AIProvider.markURL(for: .codex, searchRoots: [root])
+        #expect(found?.path == resources.appendingPathComponent("openai.svg").path)
     }
 
     @Test func accountRecord_decodesLegacyJSONWithoutProvider() throws {

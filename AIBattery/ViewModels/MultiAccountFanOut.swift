@@ -35,9 +35,11 @@ protocol MultiAccountTokenProviding: Sendable {
     func accessToken(for accountId: String) async -> String?
 }
 
-extension RateLimitFetcher: RateLimitFetching {}
+// The conformances of `RateLimitFetcher` and `OAuthManager` are declared on the classes
+// themselves: both protocols refine `Sendable`, and Swift 6.4 requires a Sendable
+// conformance to be declared in the class's own file.
 
-extension OAuthManager: MultiAccountTokenProviding {
+extension OAuthManager {
     func multiAccountDisplayIDs() -> [String] {
         AccountStore.multiAccountDisplayIDs(
             accounts: accountStore.accounts,

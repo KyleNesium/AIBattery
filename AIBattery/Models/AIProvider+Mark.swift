@@ -25,26 +25,40 @@ public extension AIProvider {
     /// Where the resource bundle can live, in priority order:
     /// 1. `Contents/Resources` of the packaged app (what `scripts/build-app.sh` ships)
     /// 2. the executable's directory (`swift run` / bare `.build/release/AIBattery`)
-    /// 3. next to the loaded module (`swift test`: the test bundle's parent is `.build/<config>/`)
+    /// 3. next to the loaded module (`swift test`: the test bundle's parent is the products directory)
+    /// 4. inside the loaded module's bundle (a test bundle that embeds its resources)
     nonisolated static var defaultMarkSearchRoots: [URL] {
         var roots: [URL] = []
         if let resources = Bundle.main.resourceURL {
             roots.append(resources)
         }
         roots.append(Bundle.main.bundleURL)
-        roots.append(Bundle(for: MarkCache.self).bundleURL.deletingLastPathComponent())
+        let module = Bundle(for: MarkCache.self)
+        roots.append(module.bundleURL.deletingLastPathComponent())
+        if let embedded = module.resourceURL {
+            roots.append(embedded)
+        }
         return roots
     }
 
-    /// First `<root>/<resourceBundleName>/Resources/<name>.svg` that exists, else nil.
+    /// Inside the resource bundle, where the copied `Resources` folder sits. SwiftPM's native
+    /// build system makes a flat bundle (`<bundle>/Resources/…`); Swift Build, the default
+    /// from Swift 6.4 (Xcode 27), makes a standard macOS bundle (`<bundle>/Contents/Resources/
+    /// Resources/…`). Both are looked for, so the build system can change without the badges
+    /// silently falling back to SF symbols.
+    nonisolated static let resourceFolderPaths = ["Resources", "Contents/Resources/Resources"]
+
+    /// First `<root>/<resourceBundleName>/<resource folder>/<name>.svg` that exists, else nil.
     nonisolated static func markURL(for provider: AIProvider, searchRoots: [URL] = defaultMarkSearchRoots) -> URL? {
         for root in searchRoots {
-            let candidate = root
-                .appendingPathComponent(resourceBundleName)
-                .appendingPathComponent("Resources")
-                .appendingPathComponent("\(provider.markResourceName).svg")
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                return candidate
+            for folder in resourceFolderPaths {
+                let candidate = root
+                    .appendingPathComponent(resourceBundleName)
+                    .appendingPathComponent(folder)
+                    .appendingPathComponent("\(provider.markResourceName).svg")
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    return candidate
+                }
             }
         }
         return nil
