@@ -270,7 +270,8 @@ enum MotionConstants {
     /// instead, so this constant is the OpenAI mark's alone). Deliberately slow — over
     /// three times `spin` — and eased at both ends: this is an ornament, not feedback,
     /// so it should unfold while you look at the card rather than snap the moment the
-    /// cursor lands. A faster turn read as a control reacting to a click.
+    /// cursor lands. A faster turn read as a control reacting to a click. It carries a
+    /// sixth of a revolution (`ProviderBadge.hoverRotationDegrees`), about 40° a second.
     static let markSpin: Animation = .easeInOut(duration: 1.6)
 
     /// The hovered brand mark's lift. The spring *is* the gesture, which matters more

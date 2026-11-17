@@ -20,7 +20,8 @@ enum MarkHoverMotion {
     /// physics, which is why this case is simply an under-damped spring.
     case bloom
     /// OpenAI's knot: a single woven loop with no ends, so turning it traces the form
-    /// instead of fighting it.
+    /// instead of fighting it. It turns a sixth of a revolution, not a whole one; see
+    /// `ProviderBadge.hoverRotationDegrees`.
     case turn
 }
 
@@ -43,10 +44,11 @@ extension AIProvider {
 /// **Hover.** The mark lifts and glows, and then does whatever its shape asks for —
 /// `AIProvider.markHoverMotion`. Claude springs, Codex turns.
 ///
-/// The turn is a *full* 360°, which matters: it lands on the exact pixels it started
-/// from, so the mark can never settle visibly rotated the way a partial turn would.
-/// Rotation resets without animation before each turn (the `RefreshButton` idiom) so the
-/// angle never accumulates unbounded while always moving forward.
+/// The turn is a sixth of a revolution, which matters: the knot is six identical strands
+/// around its centre, so a 60° turn lands on the exact pixels it started from and the
+/// mark can never settle visibly rotated. Rotation resets without animation before each
+/// turn (the `RefreshButton` idiom) so the angle never accumulates unbounded while always
+/// moving forward; at a multiple of 60° the reset is invisible.
 ///
 /// The spring is the bloom's entire gesture — there is no second state to drive, and
 /// deliberately so. SwiftUI interpolates a modifier's value between states rather than
@@ -69,9 +71,16 @@ struct ProviderBadge: View {
     /// pass a larger one; the slot stays put so every text column still lines up.
     var markSize: CGFloat
 
-    /// A whole revolution, and it must stay one. Nothing unwinds the angle when the
-    /// hover ends, so any other value would leave the mark resting visibly rotated.
-    static let hoverRotationDegrees: Double = 360
+    /// The OpenAI knot's rotational symmetry: six identical strands, so it looks the same
+    /// every 60°. Measured on the bundled SVG, and pinned by a test that renders it.
+    static let markSymmetryDegrees: Double = 60
+
+    /// One strand's worth of turn. A whole revolution (until 3.5.0) read as the mark
+    /// spinning; a sixth of one, over the same `MotionConstants.markSpin`, is a slow twist
+    /// at a sixth of the speed. It must stay a multiple of `markSymmetryDegrees`: nothing
+    /// unwinds the angle when the hover ends, so any other value would leave the mark
+    /// resting visibly rotated.
+    static let hoverRotationDegrees: Double = markSymmetryDegrees
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selfHovered = false
@@ -149,7 +158,7 @@ struct ProviderBadge: View {
     }
 
     /// One forward turn. Reset is deliberately unanimated so the angle returns to 0
-    /// without visibly unwinding, then the turn animates to a full revolution.
+    /// without visibly unwinding, then the turn animates to `hoverRotationDegrees`.
     private func spinOnce() {
         withAnimation(.none) { rotation = 0 }
         withAnimation(MotionConstants.markSpin) { rotation = Self.hoverRotationDegrees }
