@@ -91,12 +91,17 @@ final class RefreshTokenVault: @unchecked Sendable {
     /// a test can never read, raise a prompt for, or rewrite the tokens of the app
     /// installed on the same Mac. A test pins `appBundleIdentifier` to Info.plist.
     static let shared: RefreshTokenVault = {
-        let isApp = Bundle.main.bundleIdentifier == appBundleIdentifier
-        if !isApp {
+        if !isAppProcess {
             AppLogger.oauth.notice("Refresh tokens are kept in memory only: this process is not the app")
         }
-        return RefreshTokenVault(keychain: isApp ? .system : .inMemory())
+        return RefreshTokenVault(keychain: isAppProcess ? .system : .inMemory())
     }()
+
+    /// Whether this process is the app itself, the only process allowed to touch the app's
+    /// real Keychain items. False in the test runner.
+    static var isAppProcess: Bool {
+        Bundle.main.bundleIdentifier == appBundleIdentifier
+    }
 
     private let keychain: KeychainAccess
     private let itemName: String

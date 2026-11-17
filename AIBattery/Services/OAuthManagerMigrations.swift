@@ -42,6 +42,10 @@ extension OAuthManager {
             UserDefaults.standard.set(true, forKey: migrationKey)
             return
         }
+        // Only the app reads the old entries. Every test builds an `OAuthManager`, and on a
+        // Mac that still has an old single-account entry this would otherwise copy it into
+        // the test's own account list and delete the real one.
+        guard RefreshTokenVault.isAppProcess else { return }
 
         // Read the legacy (unprefixed) entry once. A second read could fail where the first
         // succeeded (a prompt answered differently), and the migration then registered an
