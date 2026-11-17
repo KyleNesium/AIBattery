@@ -47,7 +47,7 @@ swift build -c release
 swift test --no-parallel
 ```
 
-1798 tests across 135 files, using `import Testing` + `@testable import AIBatteryCore`.
+1802 tests across 136 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities

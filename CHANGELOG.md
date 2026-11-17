@@ -13,6 +13,14 @@
   that is not newer than it, so the next release from Anthropic shows a close figure until
   the app adds its exact rate, instead of a figure that can be several times off. Amazon
   Bedrock model ids resolve to their exact rate too. (#213)
+- **macOS 27: help for a menu bar icon that doesn't appear.** On macOS 27 Golden Gate some
+  menu bar apps run but show no icon, mostly because macOS now hides items that don't fit
+  behind an arrow at the right end of the menu bar. The FAQ has a checklist and a command to
+  run when the icon is missing. The menu bar item now has a stable name, created before it
+  is sized, as other menu bar apps did for the same report; it starts once in the default
+  place after this update. Ten seconds after launch the app writes one line to the system
+  log saying whether the item reached the screen, which is what a bug report needs. This
+  could not be tested on macOS 27. (#213)
 - **Signing in again while a sign-in renewal is still in progress no longer signs you out.**
   Renewing a session can take a minute when the network is slow. If you signed in again to
   the same account in that time and the old renewal then failed, the app signed out the

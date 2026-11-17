@@ -21,6 +21,28 @@ Alternatively: **System Settings → Privacy & Security → Open Anyway**. Eithe
 - **After running for a while**: update to the latest release. Versions before v2.0.3 had concurrency bugs that could crash during background refresh or sleep/wake.
 - **Still happening**: open **Console.app**, filter for `AIBattery`, and [open an issue](https://github.com/KyleNesium/AIBattery/issues) with the crash log and your macOS version. macOS 13.0–13.2 had `MenuBarExtra` bugs that 13.3 fixed.
 
+### AI Battery is running but its icon is not in the menu bar
+
+Most often macOS has hidden the icon because the menu bar is full. This is common on a MacBook with a notch, and since macOS 27 Golden Gate it is the default behaviour: items that don't fit go behind an arrow at the right end of the menu bar. Check, in order:
+
+1. **The overflow arrow (macOS 27).** Click the arrow at the right end of the menu bar. If AI Battery is there, hold ⌘ and drag it into the visible part of the bar, or remove icons you don't need.
+2. **System Settings → Menu Bar → Allow in the Menu Bar.** Make sure AI Battery is switched on.
+3. **A menu bar manager** (Bartender, Ice, Hidden Bar and similar). Most of them broke with macOS 27. Quit it and look again.
+4. **Quit and relaunch** AI Battery: `killall AIBattery; open -a AIBattery`.
+
+If the icon is still missing, run this in Terminal and [open an issue](https://github.com/KyleNesium/AIBattery/issues) with the output. It reads no tokens and no account details:
+
+```bash
+sw_vers -productVersion
+pgrep -x AIBattery >/dev/null && echo "AI Battery is running" || echo "AI Battery is NOT running"
+/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/AIBattery.app/Contents/Info.plist
+defaults read com.KyleNesium.AIBattery 2>/dev/null | grep 'NSStatusItem'
+log show --last 1h --style compact --predicate 'subsystem == "com.KyleNesium.AIBattery" AND category == "general"' | grep -i 'menu bar item'
+ls -t ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i aibattery | head -3
+```
+
+From v3.5.0 the app writes one line to that log ten seconds after launch, saying whether its menu bar item reached the screen. If AI Battery is **not running**, it is not a menu bar problem: see the Gatekeeper entry above, and attach the newest crash report the last command lists.
+
 ### macOS asks about Keychain access
 
 AI Battery stores your accounts' OAuth refresh tokens in the macOS Keychain, all in one item. Click **Always Allow**. The prompt appears once after each update, because macOS ties a Keychain item to the exact build that wrote it and an update is a new build. "Allow" without "Always" works too, but macOS then asks again on every launch.
