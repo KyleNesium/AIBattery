@@ -117,6 +117,17 @@ if [ -d "$APP_BUNDLE" ]; then
     fail "Sparkle.framework missing from bundle"
   fi
 
+  # Provider logos, in either SwiftPM bundle layout (AIProvider.resourceFolderPaths). A
+  # missing logo is not a crash: the header badges fall back to SF symbols, silently.
+  for mark in claude openai; do
+    if [ -f "$APP_BUNDLE/Contents/Resources/AIBattery_AIBatteryCore.bundle/Resources/$mark.svg" ] \
+      || [ -f "$APP_BUNDLE/Contents/Resources/AIBattery_AIBatteryCore.bundle/Contents/Resources/Resources/$mark.svg" ]; then
+      pass "Provider logo bundled: $mark.svg"
+    else
+      fail "Provider logo missing from the bundle: $mark.svg"
+    fi
+  done
+
   # Check Info.plist keys
   BUNDLE_PLIST="$APP_BUNDLE/Contents/Info.plist"
   if /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$BUNDLE_PLIST" &>/dev/null; then

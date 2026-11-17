@@ -193,6 +193,16 @@ jobs:
             fi
           done
           echo "XPC identity check OK"
+          # Provider logos inside the built app, in either SwiftPM bundle layout. A missing
+          # one is silent in the app (SF-symbol fallback), so it is checked here.
+          for mark in claude openai; do
+            found=$(find .build/AIBattery.app/Contents/Resources/AIBattery_AIBatteryCore.bundle -name "$mark.svg" | head -n1)
+            if [ -z "$found" ]; then
+              echo "FAIL: $mark.svg is not in the app bundle"
+              exit 1
+            fi
+            echo "Logo OK: ${found#.build/AIBattery.app/}"
+          done
 
       # codesign and the unit tests both pass on a bundle that dies at launch: dyld
       # cannot load Sparkle.framework, or (Swift 6 language mode) a main-actor callback

@@ -80,7 +80,8 @@
   The logo lookup now reads both layouts, `build-app.sh` asks SwiftPM where the products
   are instead of assuming `.build/release`, and three `Sendable` conformances that Swift 6.4
   warns about moved into their classes' own files. Releases stay pinned to Xcode 26.6 until
-  Xcode 27 is chosen on purpose. (#213)
+  Xcode 27 is chosen on purpose. CI and `verify-release.sh` now check that both logos are
+  inside the built app, since a missing one only shows as a fallback symbol. (#213)
 - CI and the release workflow: the built app is launched and must stay up for 20 seconds (`scripts/smoke-launch.sh`). A signed bundle that died at launch — a missing `Sparkle.framework`, or a Swift 6 isolation trap in a launch-path callback — used to pass every check. In `release.yml` the check runs on the bundle about to be published, before anything is. (#213)
 - `verify-release.sh` checks that the built bundle's id is the one `RefreshTokenVault` requires before it opens the real Keychain item. A mismatch would keep every token in memory and sign every user out at each launch. (#213)
 - Dependabot opens monthly pull requests for the pinned GitHub Actions and the Swift package dependency (`.github/dependabot.yml`). (#213)
