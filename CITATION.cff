@@ -16,7 +16,7 @@ url: https://aibattery.dev
 repository-artifact: https://github.com/KyleNesium/AIBattery/releases
 license: MIT
 version: 3.5.0
-date-released: '2026-11-17'
+date-released: '2026-11-18'
 keywords:
   - claude-code
   - codex

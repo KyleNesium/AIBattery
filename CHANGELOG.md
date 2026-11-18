@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.5.0] — 2026-11-17
+## [3.5.0] — 2026-11-18
 
 ### Fixed
 - **The Codex status tooltip says what it covers.** The Codex dot follows only the five Codex components on OpenAI's status page, so an incident elsewhere (on 2026-11-13, the ChatGPT Microsoft 365 connector) correctly leaves it green. The tooltip still read "All systems operational" while OpenAI's page said "Partial System Degradation". It now reads "Codex: All systems operational". (#213)
