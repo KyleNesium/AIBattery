@@ -16,7 +16,8 @@
 - **macOS 27: help for a menu bar icon that doesn't appear.** macOS 27 Golden Gate hides menu
   bar items that don't fit behind an arrow at the right end of the menu bar, which makes a
   running AI Battery look missing. The FAQ has a checklist and a command to run when the icon
-  is missing. Ten seconds after launch the app writes one line to the system log saying
+  is missing. The checklist starts with the Keychain prompt: after an update the icon appears
+  only once that prompt is answered. Ten seconds after launch the app writes one line to the system log saying
   whether its menu bar item reached the screen, which is what a bug report needs. (#213)
 - **Signing in again while a sign-in renewal is still in progress no longer signs you out.**
   Renewing a session can take a minute when the network is slow. If you signed in again to

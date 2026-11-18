@@ -64,8 +64,10 @@ enum StatusItemCheck {
         )
     }
 
-    /// Writes one line to the unified log. A hidden item is logged as an error so that
-    /// `log show` still has it later; info lines are not kept.
+    /// Writes one line to the unified log. Both lines are kept on disk (error and notice;
+    /// macOS discards info lines), so the FAQ's `log show` command finds either one. No line
+    /// at all means setup has not run yet: the app reads the Keychain before it creates
+    /// the item, so an unanswered password prompt holds it back.
     @MainActor
     static func log(_ item: NSStatusItem) {
         let observation = observe(item)
@@ -73,7 +75,7 @@ enum StatusItemCheck {
         if let problem = problem(with: observation) {
             AppLogger.general.error("Menu bar item looks hidden: \(problem, privacy: .public). \(observation.summary, privacy: .public), \(system, privacy: .public)")
         } else {
-            AppLogger.general.info("Menu bar item is on screen. \(observation.summary, privacy: .public), \(system, privacy: .public)")
+            AppLogger.general.notice("Menu bar item is on screen. \(observation.summary, privacy: .public), \(system, privacy: .public)")
         }
     }
 }

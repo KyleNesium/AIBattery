@@ -25,10 +25,11 @@ Alternatively: **System Settings → Privacy & Security → Open Anyway**. Eithe
 
 Most often macOS has hidden the icon because the menu bar is full. This is common on a MacBook with a notch, and since macOS 27 Golden Gate it is the default behaviour: items that don't fit go behind an arrow at the right end of the menu bar. Check, in order:
 
-1. **The overflow arrow (macOS 27).** Click the arrow at the right end of the menu bar. If AI Battery is there, hold ⌘ and drag it into the visible part of the bar, or remove icons you don't need.
-2. **System Settings → Menu Bar → Allow in the Menu Bar.** Make sure AI Battery is switched on.
-3. **A menu bar manager** (Bartender, Ice, Hidden Bar and similar). Most of them broke with macOS 27. Quit it and look again.
-4. **Quit and relaunch** AI Battery: `killall AIBattery; open -a AIBattery`.
+1. **Just installed or updated? Answer the Keychain prompt.** AI Battery reads your accounts from the Keychain before it puts its icon in the menu bar, and after every update macOS asks for your password once (see the Keychain entry below). Until that prompt is answered there is no icon. It can be hidden behind other windows. Click **Always Allow**.
+2. **The overflow arrow (macOS 27).** Click the arrow at the right end of the menu bar. If AI Battery is there, hold ⌘ and drag it into the visible part of the bar, or remove icons you don't need.
+3. **System Settings → Menu Bar → Allow in the Menu Bar.** Make sure AI Battery is switched on.
+4. **A menu bar manager** (Bartender, Ice, Hidden Bar and similar). Most of them broke with macOS 27. Quit it and look again.
+5. **Quit and relaunch** AI Battery: `killall AIBattery; open -a AIBattery`.
 
 If the icon is still missing, run this in Terminal and [open an issue](https://github.com/KyleNesium/AIBattery/issues) with the output. It reads no tokens and no account details:
 
@@ -41,11 +42,11 @@ log show --last 1h --style compact --predicate 'subsystem == "com.KyleNesium.AIB
 ls -t ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i aibattery | head -3
 ```
 
-From v3.5.0 the app writes one line to that log ten seconds after launch, saying whether its menu bar item reached the screen. If AI Battery is **not running**, it is not a menu bar problem: see the Gatekeeper entry above, and attach the newest crash report the last command lists.
+From v3.5.0 the app writes one line to that log ten seconds after it sets up its icon, saying whether the icon reached the screen. If AI Battery is running and the command prints no such line, the app is still waiting for the Keychain prompt (step 1). If AI Battery is **not running**, it is not a menu bar problem: see the Gatekeeper entry above, and attach the newest crash report the last command lists.
 
 ### macOS asks about Keychain access
 
-AI Battery stores your accounts' OAuth refresh tokens in the macOS Keychain, all in one item. Click **Always Allow**. The prompt appears once after each update, because macOS ties a Keychain item to the exact build that wrote it and an update is a new build. "Allow" without "Always" works too, but macOS then asks again on every launch.
+AI Battery stores your accounts' OAuth refresh tokens in the macOS Keychain, all in one item. Click **Always Allow**. The prompt appears once after each update, because macOS ties a Keychain item to the exact build that wrote it and an update is a new build. Until you answer it, AI Battery has no icon in the menu bar. "Allow" without "Always" works too, but macOS then asks again on every launch.
 
 Before v3.5.0 each account had its own item, so an update asked once per account. The first launch of v3.5.0 moves them into the single item and asks once per account one last time.
 

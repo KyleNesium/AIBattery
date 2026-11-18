@@ -156,8 +156,12 @@ extension OAuthManager {
                 }
                 if case .failure = result {
                     // Terminal: the body is an OAuth error. It never contains a token.
+                    // The error code (`invalid_grant`, …) is public, so a sign-out in the
+                    // log says whether the grant was revoked or the answer was not OAuth
+                    // at all (a proxy's 400 page); the body itself stays private.
                     let bodyStr = String(data: data.prefix(512), encoding: .utf8) ?? "(no body)"
-                    AppLogger.oauth.error("Token endpoint returned \(http.statusCode): \(bodyStr)")
+                    let errorCode = OAuthErrorBody(data: data)?.type.map { String($0.prefix(40)) } ?? "no OAuth error code"
+                    AppLogger.oauth.error("Token endpoint returned \(http.statusCode) (\(errorCode, privacy: .public)): \(bodyStr)")
                 }
                 return result
             } catch {

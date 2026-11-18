@@ -172,7 +172,7 @@ AIBattery/
     ProviderDispatchingFetcher.swift — Routes each fan-out fetch: Claude → RateLimitFetcher, Codex ChatGPT → CodexRateLimitFetcher.fetch, Codex API key → fetchAPIKeyLimits (never the ChatGPT endpoint)
     UsageViewModel+ProviderRouting.swift — Aggregator / fetcher-cache / fetch / status routing by the active account's provider + Codex plan-name sync (toggle-gated, coalesced, seeded to avoid an N+1 fetch) + the `RateLimitFetching` / `MultiAccountTokenProviding` dependency seams (singletons in prod, mocks in tests) + the shared `multiAccountDisplayIDs` filter (non-pending AND authenticated). Standalone, not a `UsageViewModel` method, so it's unit-tested end-to-end without spinning up the VM's timers/watchers.
   Views/
-    StatusItemCheck.swift         — The menu bar item's stable autosave name, and the one log line after launch saying whether it reached the screen
+    StatusItemCheck.swift         — The one log line after setup saying whether the menu bar item reached the screen (no autosave name: see `UI_SPEC.md`)
     StatusBarManager.swift        — NSStatusItem + floating NSPanel core: stored state, setup (observers/monitors/panel construction), deinit. Split per the UsageViewModel precedent; shared state declared non-private for cross-file extensions
     StatusBarManager+ButtonUpdate.swift — Menu-bar image rendering (`updateButton`), `MenuBarRenderKey` render-skip (image rebuilt only when text/percent-bucket/color/broken/sparkle/appearance changed), recovery sparkle
     StatusBarManager+Countdown.swift — Adaptive countdown ticker (1s/10s) + pure `countdownResetDate(for:now:)` reset selection
