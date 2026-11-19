@@ -29,6 +29,11 @@
   as it was and the warning thresholds never fired. The window now follows one rule (1M from
   the 4.6 generation on, 200K before it) on the version read from the model id, so a new
   model needs no table entry. (#213)
+- **One account at its limit no longer hides the others in the menu bar.** With "All
+  accounts in menu bar" on, an account that hit its limit replaced the whole list with its
+  reset countdown, so the menu bar showed a red star and "5H 2h 15m" while your other
+  accounts still had room. The countdown now takes only that account's place:
+  `42% | 5H 2h 15m`. (#213)
 - **`gpt-6.1-terra` is billed at its own rate** — $1 / $5 per million tokens with cached input at $0.05 — instead of the gpt-6 family rate, which is double. (#213)
 
 ### Changed

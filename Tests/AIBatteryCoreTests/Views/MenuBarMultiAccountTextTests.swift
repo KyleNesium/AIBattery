@@ -507,7 +507,10 @@ struct MenuBarMultiAccountTextTests {
         #expect(result.text == "42%\u{00A0}|\u{00A0}23%")
     }
 
-    @Test("Multi-account: one account throttled → countdown mode kicks in")
+    /// One account at its limit used to replace the whole list with its countdown, so
+    /// the bar read "5H 5m" while the other account still had room. Its countdown now
+    /// takes only its own slot.
+    @Test("Multi-account: a throttled account counts down in its own slot, the others keep their numbers")
     func resolveDisplay_oneThrottled_countdown() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let reset = now.addingTimeInterval(300) // 5 min away
@@ -531,8 +534,33 @@ struct MenuBarMultiAccountTextTests {
         #expect(result.usedMultiAccount == true)
         #expect(result.countdownReset == reset)
         #expect(result.isExhausted == true)
-        // Countdown text — not the percent strip — when an account is exhausted.
-        #expect(result.text != "42%\u{00A0}|\u{00A0}100%")
+        #expect(result.text == "42%\u{00A0}|\u{00A0}5H 5m")
+    }
+
+    @Test("Multi-account: each spent account counts down to its own reset; the soonest drives the ticker")
+    func resolveDisplay_twoSpent_eachCountsDown() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let soon = now.addingTimeInterval(300)
+        let later = now.addingTimeInterval(7_200)
+        let throttled = Self.usage(
+            fiveHourUtilization: 1.0, fiveHourReset: soon,
+            fiveHourStatus: "throttled", overallStatus: "throttled"
+        )
+        // At 100% without a throttled status: a countdown, but no window code.
+        let full = Self.usage(sevenDayUtilization: 1.0, sevenDayReset: later)
+        let healthy = Self.usage(fiveHourUtilization: 0.23)
+        let result = MenuBarMultiAccountText.resolveDisplay(
+            toggleOn: true,
+            perAccount: ["a": full, "b": healthy, "c": throttled],
+            order: ["a", "b", "c"],
+            activeRateLimits: healthy,
+            activePercent: 23,
+            metricMode: .fiveHour,
+            now: now,
+            countdownResetDate: Self.countdownReset
+        )
+        #expect(result.text == "2h 0m\u{00A0}|\u{00A0}23%\u{00A0}|\u{00A0}5H 5m")
+        #expect(result.countdownReset == soon)
     }
 
     @Test("Single-account: active throttled → countdown mode")
@@ -910,6 +938,18 @@ struct MenuBarMultiAccountTextTests {
         #expect(spoken == "AI Battery, limit reached, resets in 5H 2h 15m")
     }
 
+    @Test("A countdown slot on the multi-account bar is read as part of the list")
+    func spoken_multiAccountCountdownStaysAList() {
+        let spoken = MenuBarMultiAccountText.spokenDescription(
+            display: Self.display(
+                text: "42%\u{00A0}|\u{00A0}5H 2h 15m", isExhausted: true,
+                countdownReset: Date().addingTimeInterval(8_100), usedMultiAccount: true
+            ),
+            metricLabel: "5 Hour"
+        )
+        #expect(spoken == "AI Battery, usage by account, 42%, 5H 2h 15m, limit reached")
+    }
+
     @Test("Provider glyphs are spoken as provider names")
     func spoken_glyphsBecomeNames() {
         let text = "\(AIProvider.claude.glyph)\u{00A0}42%  \(AIProvider.codex.glyph)\u{00A0}57%"
@@ -928,7 +968,8 @@ struct MenuBarMultiAccountTextTests {
     /// the single-account branch.
     @Test("Multi-account countdown carries the binding window code")
     func multiAccountCountdownIsPrefixed() {
-        let reset = Date().addingTimeInterval(3_600)
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(3_600)
         let throttled = Self.usage(
             fiveHourUtilization: 1.0, fiveHourReset: reset,
             fiveHourStatus: "throttled", overallStatus: "throttled"
@@ -941,10 +982,10 @@ struct MenuBarMultiAccountTextTests {
             activeRateLimits: nil,
             activePercent: 0.2,
             metricMode: .fiveHour,
-            now: Date(),
+            now: now,
             countdownResetDate: { usage, _ in usage.isThrottled ? usage.fiveHourReset : nil }
         )
         #expect(display.usedMultiAccount)
-        #expect(display.text.hasPrefix(throttled.bindingWindowShortCode))
+        #expect(display.text == "\(throttled.bindingWindowShortCode) 1h 0m\u{00A0}|\u{00A0}20%")
     }
 }

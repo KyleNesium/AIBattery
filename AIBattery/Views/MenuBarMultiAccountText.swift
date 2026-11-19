@@ -6,8 +6,10 @@ import Foundation
 /// Activated when `aibattery_showAllAccountsInMenuBar == true` AND ≥2 authenticated
 /// accounts are present. Renders each account's percent in `AccountStore.accounts`
 /// order, joined by non-breaking-space-padded `|` so a slot doesn't break across the
-/// separator. The icon visuals (star color, breath, broken state) are driven by the
-/// **worst** account, since one icon must communicate the most actionable signal.
+/// separator. An account at its limit shows its own reset countdown in its slot; the
+/// others keep their percentages. The icon visuals (star color, breath, broken state)
+/// are driven by the **worst** account, since one icon must communicate the most
+/// actionable signal.
 enum MenuBarMultiAccountText {
     struct Output: Equatable {
         /// e.g. "42%\u{00A0}|\u{00A0}23%". Empty for empty input.
@@ -30,15 +32,19 @@ enum MenuBarMultiAccountText {
     ///   - order: account IDs in display order (typically `AccountStore.accounts.map(\.id)`).
     ///   - providers: per-account provider, keyed by account ID. Defaults to empty (single provider mode).
     ///   - limits: per-account `RateLimitUsage`, keyed by account ID. Missing entries → "—".
-    ///     because context health is per-session, not per-account, and would not
-    ///     produce a meaningful per-account number.
+    ///   - countdowns: per-account reset countdown text, keyed by account ID. An entry
+    ///     takes that account's slot in place of its percentage.
     static func build(
         order: [String],
         providers: [String: AIProvider] = [:],
         limits: [String: RateLimitUsage],
-        apiLimits: [String: StandardRateLimits] = [:]
+        apiLimits: [String: StandardRateLimits] = [:],
+        countdowns: [String: String] = [:]
     ) -> Output {
         let parts: [String] = order.map { id in
+            if let countdown = countdowns[id] {
+                return countdown
+            }
             guard let pct = headlinePercent(id: id, limits: limits, apiLimits: apiLimits) else { return "—" }
             return PercentFormat.display(pct)
         }
@@ -120,26 +126,10 @@ enum MenuBarMultiAccountText {
     }
 
     /// Countdown text, prefixed with the window code when one is known.
-    private static func countdownText(reset: Date, windowCode: String?) -> String {
-        guard let windowCode else { return RateLimitUsage.countdownText(to: reset) }
-        return "\(windowCode) \(RateLimitUsage.countdownText(to: reset))"
-    }
-
-    /// The binding window short code of the displayed, throttled account whose reset is
-    /// the one being counted down.
-    private static func bindingWindowCode(
-        for reset: Date,
-        order: [String],
-        limits: [String: RateLimitUsage],
-        now: Date,
-        countdownResetDate: (RateLimitUsage, Date) -> Date?
-    ) -> String? {
-        for id in order {
-            guard let usage = limits[id], usage.isThrottled,
-                  countdownResetDate(usage, now) == reset else { continue }
-            return usage.bindingWindowShortCode
-        }
-        return nil
+    private static func countdownText(reset: Date, windowCode: String?, now: Date) -> String {
+        let countdown = RateLimitUsage.countdownText(to: reset, from: now)
+        guard let windowCode else { return countdown }
+        return "\(windowCode) \(countdown)"
     }
 
     /// Whether the toggle would render a multi-account display given current state.
@@ -174,8 +164,8 @@ enum MenuBarMultiAccountText {
     ///   - order: account IDs in display order (typically authenticated, non-pending
     ///     accounts from `AccountStore.accounts`).
     ///   - activeRateLimits: the active account's `RateLimitUsage` from
-    ///     `UsageViewModel.snapshot?.rateLimits`. Used for single-account fallback
-    ///     and as a countdown floor.
+    ///     `UsageViewModel.snapshot?.rateLimits`. Used for the single-account fallback;
+    ///     on a list it can still break the star, but never adds a countdown no slot shows.
     ///   - activePercent: the active account's percent for the resolved metric mode.
     ///   - metricMode: the resolved metric mode (auto-mode hysteresis output).
     ///   - confirmed: whether the displayed data came from a fresh fetch. When `false`
@@ -221,32 +211,28 @@ enum MenuBarMultiAccountText {
         let useWorstOnly = !useMulti && fetchedCount >= 2 && order.count >= 2
 
         if useMulti {
-            let multi = build(order: order, providers: providers, limits: perAccount, apiLimits: apiLimits)
-            let percent = max(multi.worstPercent, activePercent)
-            let isExhausted = confirmed && (multi.anyThrottled || (activeRateLimits?.isThrottled ?? false))
-            let reset: Date? = confirmed
-                ? [
-                    // Only displayed accounts — same reason as `build`'s worst/throttled
-                    // scan: a filtered-out entry must not start a countdown the user
-                    // cannot trace to any visible percentage.
-                    order.compactMap { perAccount[$0] }.compactMap { countdownResetDate($0, now) }.min(),
-                    activeRateLimits.flatMap { countdownResetDate($0, now) },
-                ].compactMap { $0 }.min()
-                : nil
-            let text: String = if let reset {
-                // Prefix the binding window code (5H/7D) of whichever displayed account
-                // owns the soonest reset, exactly as the single-account branch does.
-                // Without it a colour-blind user with two accounts had no non-colour cue
-                // that the bar had switched from percentages to a countdown.
-                countdownText(reset: reset, windowCode: bindingWindowCode(for: reset, order: order, limits: perAccount, now: now, countdownResetDate: countdownResetDate))
-            } else {
-                multi.text
+            // Every account keeps its slot. One at its limit shows its own reset countdown
+            // where its percentage was, prefixed with the window code (5H/7D) when it is
+            // genuinely throttled, the same rule as the single-account bar. Until 3.5.0 the
+            // soonest countdown replaced the whole list, so one spent account hid all the
+            // others: the bar said "wait 2h" while another account still had room.
+            // Only displayed accounts count down: a filtered-out entry must not start a
+            // countdown the user cannot trace to any slot.
+            var countdowns: [String: String] = [:]
+            var soonest: Date?
+            if confirmed {
+                for id in order {
+                    guard let usage = perAccount[id], let reset = countdownResetDate(usage, now) else { continue }
+                    countdowns[id] = countdownText(reset: reset, windowCode: usage.isThrottled ? usage.bindingWindowShortCode : nil, now: now)
+                    soonest = min(soonest ?? reset, reset)
+                }
             }
+            let multi = build(order: order, providers: providers, limits: perAccount, apiLimits: apiLimits, countdowns: countdowns)
             return Display(
-                text: text,
-                percent: percent,
-                isExhausted: isExhausted,
-                countdownReset: reset,
+                text: multi.text,
+                percent: max(multi.worstPercent, activePercent),
+                isExhausted: confirmed && (multi.anyThrottled || (activeRateLimits?.isThrottled ?? false)),
+                countdownReset: soonest,
                 usedMultiAccount: true
             )
         } else if useWorstOnly {
@@ -263,7 +249,7 @@ enum MenuBarMultiAccountText {
                 ? shown.compactMap { countdownResetDate($0, now) }.min()
                 : nil
             let text: String = if let reset {
-                RateLimitUsage.countdownText(to: reset)
+                RateLimitUsage.countdownText(to: reset, from: now)
             } else {
                 PercentFormat.display(worst)
             }
@@ -280,9 +266,9 @@ enum MenuBarMultiAccountText {
                 // When genuinely throttled, prefix the binding window code (5H/7D) so the
                 // menu bar alone tells you whether you're waiting hours or a day+.
                 if let rl = activeRateLimits, rl.isThrottled {
-                    "\(rl.bindingWindowShortCode) \(RateLimitUsage.countdownText(to: activeReset))"
+                    "\(rl.bindingWindowShortCode) \(RateLimitUsage.countdownText(to: activeReset, from: now))"
                 } else {
-                    RateLimitUsage.countdownText(to: activeReset)
+                    RateLimitUsage.countdownText(to: activeReset, from: now)
                 }
             } else {
                 PercentFormat.display(activePercent)
@@ -324,16 +310,17 @@ enum MenuBarMultiAccountText {
         }
 
         var parts = ["AI Battery"]
-        if display.countdownReset != nil {
+        if display.usedMultiAccount {
+            // A countdown here stands in one account's slot, so the bar is still a list.
+            parts.append("usage by account")
+            parts.append(body)
+            if display.isExhausted || display.countdownReset != nil {
+                parts.append("limit reached")
+            }
+        } else if display.countdownReset != nil {
             // A countdown replaces the percentage entirely, so "N%" vocabulary would lie.
             parts.append("limit reached")
             parts.append("resets in \(body)")
-        } else if display.usedMultiAccount {
-            parts.append("usage by account")
-            parts.append(body)
-            if display.isExhausted {
-                parts.append("limit reached")
-            }
         } else {
             parts.append(metricLabel)
             parts.append(body)
