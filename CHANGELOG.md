@@ -1,24 +1,13 @@
 # Changelog
 
-## [3.5.0] — 2026-11-18
+## [3.5.0] — 2026-11-19
 
 ### Fixed
-- **The Codex status tooltip says what it covers.** The Codex dot follows only the five Codex components on OpenAI's status page, so an incident elsewhere (on 2026-11-13, the ChatGPT Microsoft 365 connector) correctly leaves it green. The tooltip still read "All systems operational" while OpenAI's page said "Partial System Degradation". It now reads "Codex: All systems operational". (#213)
-- **Claude Fable 5.2 is billed at its own rate.** It had no row in the price table, so it was costed as Fable 5: $10 / $50 per million tokens with cache reads at $1.00, against a published $8 / $40 and $0.20. Cache reads make up most of a Claude Code session, so the API-equivalent cost shown for Fable 5.2 was about double the published one (2.1× on ten days of real logs). Claude Mythos 5.2 gets the same row, and the bare `fable` alias bills at the 5.2 rate. Costs are recomputed from token counts, so past and all-time figures correct themselves. (#213)
-- **A Claude model newer than the app is billed at its nearest known predecessor.** The price
-  lookup was a substring scan, which is how Fable 5.2 came to be costed as Fable 5: any new
-  minor version matched its generation's first release, and a version matching nothing fell
-  to a per-family constant that had not been updated (an unlisted Haiku 5.x would have cost
-  ten times Haiku 5.5). A model is now billed at the newest listed version of its family
-  that is not newer than it, so the next release from Anthropic shows a close figure until
-  the app adds its exact rate, instead of a figure that can be several times off. Amazon
-  Bedrock model ids resolve to their exact rate too. (#213)
-- **macOS 27: help for a menu bar icon that doesn't appear.** macOS 27 Golden Gate hides menu
-  bar items that don't fit behind an arrow at the right end of the menu bar, which makes a
-  running AI Battery look missing. The FAQ has a checklist and a command to run when the icon
-  is missing. The checklist starts with the Keychain prompt: after an update the icon appears
-  only once that prompt is answered. Ten seconds after launch the app writes one line to the system log saying
-  whether its menu bar item reached the screen, which is what a bug report needs. (#213)
+- **One account at its limit no longer hides the others in the menu bar.** With "All
+  accounts in menu bar" on, an account that hit its limit replaced the whole list with its
+  reset countdown, so the menu bar showed a red star and "5H 2h 15m" while your other
+  accounts still had room. The countdown now takes only that account's place:
+  `42% | 5H 2h 15m`. (#213)
 - **Signing in again while a sign-in renewal is still in progress no longer signs you out.**
   Renewing a session can take a minute when the network is slow. If you signed in again to
   the same account in that time and the old renewal then failed, the app signed out the
@@ -29,12 +18,24 @@
   as it was and the warning thresholds never fired. The window now follows one rule (1M from
   the 4.6 generation on, 200K before it) on the version read from the model id, so a new
   model needs no table entry. (#213)
-- **One account at its limit no longer hides the others in the menu bar.** With "All
-  accounts in menu bar" on, an account that hit its limit replaced the whole list with its
-  reset countdown, so the menu bar showed a red star and "5H 2h 15m" while your other
-  accounts still had room. The countdown now takes only that account's place:
-  `42% | 5H 2h 15m`. (#213)
+- **Claude Fable 5.2 is billed at its own rate.** It had no row in the price table, so it was costed as Fable 5: $10 / $50 per million tokens with cache reads at $1.00, against a published $8 / $40 and $0.20. Cache reads make up most of a Claude Code session, so the API-equivalent cost shown for Fable 5.2 was about double the published one (2.1× on ten days of real logs). Claude Mythos 5.2 gets the same row, and the bare `fable` alias bills at the 5.2 rate. Costs are recomputed from token counts, so past and all-time figures correct themselves. (#213)
+- **A Claude model newer than the app is billed at its nearest known predecessor.** The price
+  lookup was a substring scan, which is how Fable 5.2 came to be costed as Fable 5: any new
+  minor version matched its generation's first release, and a version matching nothing fell
+  to a per-family constant that had not been updated (an unlisted Haiku 5.x would have cost
+  ten times Haiku 5.5). A model is now billed at the newest listed version of its family
+  that is not newer than it, so the next release from Anthropic shows a close figure until
+  the app adds its exact rate, instead of a figure that can be several times off. Amazon
+  Bedrock model ids resolve to their exact rate too. (#213)
 - **`gpt-6.1-terra` is billed at its own rate** — $1 / $5 per million tokens with cached input at $0.05 — instead of the gpt-6 family rate, which is double. (#213)
+- **The Codex status tooltip says what it covers.** The Codex dot follows only the five Codex components on OpenAI's status page, so an incident elsewhere (on 2026-11-13, the ChatGPT Microsoft 365 connector) correctly leaves it green. The tooltip still read "All systems operational" while OpenAI's page said "Partial System Degradation". It now reads "Codex: All systems operational". (#213)
+- **macOS 27: help for a menu bar icon that doesn't appear.** macOS 27 Golden Gate hides menu
+  bar items that don't fit behind an arrow at the right end of the menu bar, which makes a
+  running AI Battery look missing. The FAQ has a checklist and a command to run when the icon
+  is missing. The checklist starts with the Keychain prompt: after an update the icon appears
+  only once that prompt is answered. Ten seconds after launch the app writes one line to the
+  system log saying whether its menu bar item reached the screen, which is what a bug report
+  needs. (#213)
 
 ### Changed
 - **An update now asks for your Keychain password once, not once per account.** macOS ties

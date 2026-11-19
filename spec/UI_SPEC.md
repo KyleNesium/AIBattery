@@ -540,7 +540,6 @@ Face changes are **directional**: going in, the overview fades out sliding `Layo
 - Broken star: triggered if any account has `isThrottled == true` OR any account has 100%+ utilization.
 - **Countdown per slot** (3.5.0): an account that is actually exhausted (throttled, or 100%+ on a window) shows its own reset countdown **in its own slot**, and every other account keeps its percentage: `42% | 5H 2h 15m`. `resolveDisplay` calls `countdownResetDate(for:now:)` per displayed account; a throttled account's slot is prefixed with its window code, a bare 100% is not (the single-account rule). The soonest of those resets is `Display.countdownReset`, which drives the 1 s / 10 s ticker. Until 3.5.0 the soonest countdown replaced the **whole** list, so one spent account hid every other account's number and the bar said "wait 2h" while another account still had room. Healthy accounts with normal future resets never show a countdown. Unconfirmed data shows no countdown at all (stale alarm suppression). VoiceOver reads the list as a list: "usage by account, 42%, 5H 2h 15m, limit reached".
 - Empty/missing slot: `"—"` (e.g. account fetched but data not yet present).
-- `MetricMode.contextHealth`: falls back to `.fiveHour` for per-account percents (context health is per-session, not per-account).
 - Single-account fallback: when only 1 account is authenticated even with toggle ON, falls back to the single-account renderer (no separator).
 
 ### MenuBarIcon (`Views/MenuBarIcon.swift`)
