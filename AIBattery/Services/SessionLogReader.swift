@@ -284,7 +284,7 @@ final class SessionLogReader: @unchecked Sendable {
             let head = Self.headBytes(of: fileURL)
             let resumeFrom = Self.tailParseOffset(cached: cache[path], newSize: fileSize, head: head)
             let parse = readSessionFile(at: fileURL, from: resumeFrom ?? 0)
-            let tailMerge: SessionLogReader.TailMerge? = if let resumeFrom, let previous = cache[path]?.entries {
+            let tailMerge: SessionLogReader.TailMerge? = if resumeFrom != nil, let previous = cache[path]?.entries {
                 Self.mergingTail(
                     parse.entries,
                     into: previous,

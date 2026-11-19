@@ -13,7 +13,7 @@ import Foundation
 ///
 /// Caches results per account ID to support multi-account.
 @MainActor
-final class RateLimitFetcher {
+final class RateLimitFetcher: RateLimitFetching {
     static let shared = RateLimitFetcher()
 
     // URL constants are internal so the endpoint extensions

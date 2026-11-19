@@ -89,7 +89,12 @@ Every hardcoded value in the app. When changing a threshold, URL, or price, upda
 | Probe content | `"."` |
 | Probe max_tokens | `1` |
 | User-Agent | `AIBattery/{version} (macOS)` (dynamic from bundle) |
-| Keychain service (OAuth) | `"AIBattery"` — items `refreshToken_<accountId>` (Claude) / `refreshToken_codex_<accountId>` (Codex) |
+| Keychain service (OAuth) | `"AIBattery"` — one item, account `refreshTokens` (`RefreshTokenVault.itemName`): a JSON object `{storage key: refresh token}`, storage key `<accountId>` (Claude) / `codex_<accountId>` (Codex). Pre-3.5 items `refreshToken_<storage key>` are adopted into it and deleted |
+| `RefreshTokenVault.failureShareWindow` | 5 sec — a failed read of the item is reused for this long, so one Deny or one cancelled prompt answers every account instead of raising a prompt for each |
+| `RefreshTokenVault.firstRetryDelay` / `maxRetryDelay` | 30 sec, doubling to 300 sec — how long after a failed write of the item the vault tries again on its own. No timer after a refusal (`errSecUserCanceled`, `errSecAuthFailed`) |
+| `OAuthManager.identityMoveRetryInterval` | 300 sec — after an account-id move that the Keychain did not take, how long `resolveAccountIdentity` waits before trying again (it is called after every API call while an account is pending) |
+| `StatusItemCheck.delay` | 10 sec — after setup, when the one launch log line about the menu bar item is written |
+| `RefreshTokenVault.appBundleIdentifier` | `com.KyleNesium.AIBattery` — only a process with this bundle id opens the real item; any other (the test runner) gets an in-memory store. Pinned to `Info.plist` by a test and to the built bundle by `verify-release.sh` |
 | Max accounts | 3 **per provider** (`AccountStore.maxAccountsPerProvider`) |
 | Codex OAuth client-id | `app_EMoamEEZ73f0CkXaXp7hrann` (Codex CLI's public client, from `codex-rs`) |
 | Codex OAuth callback port | `1455` (127.0.0.1 only) |
@@ -194,18 +199,13 @@ Exposed as `StatusFeedConfig.claude.knownComponents` (legacy alias `StatusChecke
 
 | Model | Window |
 |-------|--------|
-| claude-opus-4-6 | 1,000,000 |
-| claude-sonnet-4-6-20250929 | 1,000,000 |
-| claude-sonnet-4-5-20250929 | 1,000,000 |
-| claude-haiku-4-5-20251001 | 1,000,000 |
-| claude-3-5-sonnet-20241022 | 200,000 |
-| claude-3-5-haiku-20241022 | 200,000 |
-| claude-haiku-3-5-20241022 | 200,000 |
-| claude-3-opus-20240229 | 200,000 |
-| claude-3-sonnet-20240229 | 200,000 |
-| claude-3-haiku-20240307 | 200,000 |
+| Any Claude model from the 4.6 generation on (Opus 4.6+, Sonnet 4.6+, Haiku 5.5, Fable / Mythos, and any later model) | 1,000,000 — `TokenHealthConfig.defaultContextWindow` |
+| Any Claude model before 4.6 (Opus 4.5 / 4.1 / 4, Sonnet 4.5 / 4, Haiku 4.5, every 3.x) | 200,000 — `TokenHealthConfig.legacyContextWindow` |
+| A Claude id with no recognisable family or version | 1,000,000 |
 | `gpt-*` (any) | 258,400 — `TokenHealthConfig.openAIDefaultContextWindow`, the **fallback** used only when a record has no `contextWindow`; normally superseded by the per-record `model_context_window` Codex CLI 0.152 reports in `token_count` events for the gpt-5.x family |
 | Default fallback | 1,000,000 |
+
+The Claude rows are one rule, `version < TokenHealthConfig.longContextFromVersion` (`[4, 6]`), on the version `ModelNameMapper.claudeFamilyAndVersion(of:)` reads from the model id — the same parsing the price lookup uses — so a new model needs no entry. Source: Anthropic's models overview (platform.claude.com/docs/en/about-claude/models/overview), checked 2026-11-14. Until 3.5.0 a table of ids gave every 4.x model 1M, so a Haiku 4.5 or Sonnet 4.5 session read as a fifth as full as it was.
 
 ## Health Thresholds
 
@@ -267,6 +267,8 @@ Pricing per million tokens:
 
 | Key (match order) | Input | Output | Cache Write | Cache Read |
 |-------|-------|--------|-------------|------------|
+| `fable 5.2` | $8 | $40 | $10 | $0.2 |
+| `mythos 5.2` | $8 | $40 | $10 | $0.2 |
 | `fable 5.1` | $10 | $50 | $12.5 | $0.25 |
 | `mythos 5.1` | $10 | $50 | $12.5 | $0.25 |
 | `fable 5` | $10 | $50 | $12.5 | $1 |
@@ -289,20 +291,39 @@ Pricing per million tokens:
 | `haiku 3.5` | $0.8 | $4 | $1 | $0.08 |
 | `haiku 3` | $0.25 | $1.25 | $0.3 | $0.03 |
 
-Keys are matched with `displayName(for:).lowercased().contains(key)` and the **first hit
-wins**, so each row must precede any shorter key that would swallow it (`opus 5.5` before
-`opus 5`, `haiku 3.5` before `haiku 3`); a test asserts that ordering structurally. A
-Claude model matching no row falls back to its family's current-generation rate
-(`familyFallback`: fable/mythos $10/$50, opus $5/$25, sonnet $2/$10, haiku $1/$5) rather
-than costing $0. Retired models keep their own published rates (Opus 3/4 $15/$75,
+A key is a family and a version. A Claude model is billed at **the newest row of its family
+that is not newer than it** (`ModelPricing.claudePricing(for:)`, on the family and version
+`ModelNameMapper.claudeFamilyAndVersion(of:)` reads from the id):
+
+| Model | Row used | Why |
+|-------|----------|-----|
+| A listed version (`claude-opus-5-5`) | its own | |
+| A later minor (`claude-fable-5-3`) | `fable 5.2` | nearest predecessor, never the generation's base row |
+| A later generation (`claude-opus-6`) | `opus 5.5` | the family's newest row |
+| A retired minor (`claude-opus-4-1`) | `opus 4` | its generation's row |
+| No version (`fable`) | `fable 5.2` | the family's newest row |
+| Older than every row (`claude-opus-2`) | `opus 3` | the oldest row |
+| No known family | none | no cost shown rather than a made-up one |
+
+The version is the first dotted number after the family name, so a suffix does not disturb
+it, and a Bedrock id (`global.anthropic.claude-fable-5-2`) resolves to the same row. Within
+a family the rows must run **newest first**; a test asserts it.
+
+A model with no row is therefore approximate, not exact, until its row is added: prices
+have moved between neighbouring versions (Fable 5.1 → 5.2 fell 20%). Add the row in the
+release that follows a new model. Until 3.5.0 the lookup was a substring scan with a table
+of family constants behind it: Fable 5.2 matched the `fable 5` base row and showed about
+double its published cost, and an unlisted Haiku 5.x would have fallen to a $1/$5 constant,
+ten times Haiku 5.5's rate. Retired models keep their own published rates (Opus 3/4 $15/$75,
 Claude 3 Haiku $0.25/$1.25).
 
-OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29 and 2026-10-11; cache write billed at the input rate, longest prefix wins):
+OpenAI / Codex (`OpenAIModelPricing`, per developers.openai.com/api/docs/pricing 2026-09-21, re-checked 2026-09-29, 2026-10-11 and 2026-11-14; cache write billed at the input rate, longest prefix wins):
 
 | Model prefix | Input | Output | Cache Read |
 |-------|-------|--------|------------|
 | gpt-6-astra | $10.00 | $50.00 | $1.00 |
 | gpt-6.1-sol | $2.00 | $10.00 | $0.10 |
+| gpt-6.1-terra | $1.00 | $5.00 | $0.05 |
 | gpt-6-sol | $2.00 | $10.00 | $0.20 |
 | gpt-6-luna | $0.10 | $0.50 | $0.01 |
 | gpt-5.6-sol | $4.00 | $20.00 | $0.40 |
@@ -338,7 +359,7 @@ IDs absent from the pricing page fall through to their longest listed prefix (e.
 | Tutorial seen | `aibattery_hasSeenTutorial` (Bool, default false) |
 | Signed-out provider | `aibattery_signedOutProvider` (String — `AIProvider` raw value, default `"claude"`) — which provider the signed-out sign-in screen offers first; written by `OAuthManager.signOut` (the removed account's provider) and by the sign-in screen's Claude \| Codex picker |
 | Show account email | `aibattery_showFullAccountIdentity` (Bool, default false) — when false, a discovered email in the header chip / chip menu is masked (`k•••@domain`, `AccountStore.maskedEmail` — only an email-shaped string: non-empty local part, dotted domain, no whitespace); aliases and workspace names are shown as-is. When true, an alias also gains the identity it covers (`AccountStore.hiddenIdentity`): appended in parentheses before the plan in the chip menu rows, the chip tooltip and its VoiceOver description, and drawn on its **own line** under the gauges on each overview card. Neither the card's name nor the chip face appends it inline — 275pt truncates an appended address mid-domain. Settings placeholders are never masked. The Settings row is always shown, even when no account currently has a maskable email. |
-| Show all accounts in menu bar | `aibattery_showAllAccountsInMenuBar` (Bool, default false) — when true and ≥2 authenticated accounts exist, the menu bar shows percentages for every account joined by `\u{00A0}|\u{00A0}` (e.g. `42% | 23%`). Star color, broken-star state, and countdown reset are driven by the worst account. `MetricMode.contextHealth` falls back to `.fiveHour` for per-account percents (context health is per-session, not per-account). |
+| Show all accounts in menu bar | `aibattery_showAllAccountsInMenuBar` (Bool, default false) — when true and ≥2 authenticated accounts exist, the menu bar shows percentages for every account joined by `\u{00A0}|\u{00A0}` (e.g. `42% | 23%`). Star color and broken-star state are driven by the worst account; an account at its limit shows its own reset countdown in its slot. Each slot shows that account's headline (`headlinePercent`), whatever the metric tab. |
 
 ## Dynamic Probe Model Storage
 
@@ -449,7 +470,7 @@ See also: Design Tokens section for the Swift enum constants (`MotionConstants.s
 | Copy hover highlight | `ThemeColors.copyableHoverFill` (`copyableHoverFillAlpha`) background, `NSCursor.pointingHand` |
 | Auto mode button | Static accent-colored (`ThemeColors.action` = `.accentColor`) fill/stroke/shadow when active — no pulse animation |
 | MarqueeText scroll | 30pt/s linear, 0.5s pause at each end (`marqueePauseSeconds`) |
-| Brand mark hover | Shared by both marks: a spring lift (`MotionConstants.markLift`) and a `Layout.markGlowRadius` (5) glow at `ThemeColors.markGlowOpacity` (0.55) in the provider's colour, the glow riding the same spring as the scale. The gesture then splits by `AIProvider.markHoverMotion`. **Claude `.bloom`** — an under-damped spring to `Layout.markBloomScale` (1.35), overshooting to roughly 1.48 before wobbling back onto it. The target is larger than the turn's on purpose: a spring can only be as rubbery as the distance it covers, and at 1.18 the overshoot did not register. **Codex `.turn`** — a damped spring to `Layout.markHoverScale` (1.18) plus one full turn (`ProviderBadge.hoverRotationDegrees` = 360) over `MotionConstants.markSpin` (1.6s); a whole turn on purpose, since nothing unwinds the angle on hover-out. Both are driven by the parent's hover (chip, card) so the target is bigger than the 12pt mark. Reduce Motion: glow only. **Rejected, do not retry:** rotating the sunburst (uneven rays → reads as a wobble); an expanding ghost copy (hidden behind an opaque logo → reads as a smudge); and any hand-shaped `f(position)` curve — see `markLift` for why those silently do nothing |
+| Brand mark hover | Shared by both marks: a spring lift (`MotionConstants.markLift`) and a `Layout.markGlowRadius` (5) glow at `ThemeColors.markGlowOpacity` (0.55) in the provider's colour, the glow riding the same spring as the scale. The gesture then splits by `AIProvider.markHoverMotion`. **Claude `.bloom`** — an under-damped spring to `Layout.markBloomScale` (1.35), overshooting to roughly 1.48 before wobbling back onto it. The target is larger than the turn's on purpose: a spring can only be as rubbery as the distance it covers, and at 1.18 the overshoot did not register. **Codex `.turn`** — a damped spring to `Layout.markHoverScale` (1.18) plus a sixth of a turn (`ProviderBadge.hoverRotationDegrees` = 60, one `markSymmetryDegrees`) over `MotionConstants.markSpin` (1.6s); 60° on purpose, since the knot looks the same every 60° and nothing unwinds the angle on hover-out (a test renders the mark to prove it). A whole turn, until 3.5.0, read as spinning. Both are driven by the parent's hover (chip, card) so the target is bigger than the 12pt mark. Reduce Motion: glow only. **Rejected, do not retry:** rotating the sunburst (uneven rays → reads as a wobble); an expanding ghost copy (hidden behind an opaque logo → reads as a smudge); and any hand-shaped `f(position)` curve — see `markLift` for why those silently do nothing |
 | MarqueeText hold | 3s before cycling to next text (non-scrolling) |
 | MarqueeText cross-fade | 0.3s ease-out fade out, 0.3s ease-in fade in |
 
@@ -542,7 +563,7 @@ Canonical Swift constants backing the numeric values in the tables above. Define
 | `MotionConstants.standard` | `.easeOut(duration: 0.15)` | Standard section expand/collapse, settings toggle, account switch |
 | `MotionConstants.snappy` | `.easeOut(duration: 0.1)` | Session navigation, metric mode change |
 | `MotionConstants.smooth` | `.easeInOut(duration: 0.4)` | Gauge bar fill, chart transitions |
-| `MotionConstants.markSpin` | `.easeInOut(duration: 1.6)` | The hovered brand mark's single turn (Codex only — Claude's mark blooms). Deliberately slow — over 3x `spin` — because it is an ornament, not feedback: it should unfold while you look at the card, not snap when the cursor lands |
+| `MotionConstants.markSpin` | `.easeInOut(duration: 1.6)` | The hovered brand mark's single turn (Codex only — Claude's mark blooms). Deliberately slow — over 3x `spin` — because it is an ornament, not feedback: it should unfold while you look at the card, not snap when the cursor lands. It carries a sixth of a turn (60°), about 40° a second |
 | `MotionConstants.markLift(reduceMotion:motion:)` | `.bloom`: `.spring(response: 0.45, dampingFraction: 0.3)`; `.turn`: `.spring(response: 0.75, dampingFraction: 0.7)`; either under Reduce Motion: `.easeOut(duration: 0.45)` | The hovered brand mark's lift, **and its entire character**. The bloom's spring is deliberately under-damped — first overshoot ≈ 37% of the travel — so the mark sails past its target, snaps back under and wobbles onto it. The turn's is well damped: the rotation is already carrying the movement, so the scale settles quietly beneath it. This must stay in the spring: SwiftUI interpolates a modifier's value between states rather than re-running `body` per frame, so a hand-shaped curve read from `@State` only samples its endpoints and never plays |
 | `MotionConstants.expandTransition` | `.opacity` (plain cross-fade) | Section / settings expand-collapse content transition. `.move(edge:)` is banned inside the popover — see token doc-comment for the NSPanel resize-race rationale. |
 | `MotionConstants.fadeIn` | `.easeIn(duration: 0.3)` | Marquee text fade-in, generic incoming-content fade |
@@ -596,7 +617,7 @@ Codex rollouts (`CodexSessionLogReader` / `CodexSessionLogParser`) reuse the 64 
 
 | Path | Purpose |
 |------|---------|
-| macOS Keychain, service `"AIBattery"` | OAuth refresh token only (`refreshToken_{accountId}` Claude / `refreshToken_codex_{accountId}` Codex); access token in memory, expiry in UserDefaults (`aibattery_expiresAt_{storageKey}`) |
+| macOS Keychain, service `"AIBattery"` | OAuth refresh tokens only, all accounts in the one item `refreshTokens`; access token in memory, expiry in UserDefaults (`aibattery_expiresAt_{storageKey}`) |
 | `~/Library/Application Support/AIBattery/aibattery.lock` | Single-instance POSIX file lock |
 | `~/Library/Application Support/AIBattery/token-ledger.json` | Persistent per-model token high-water ledger (`TokenLedger`); keeps totals from dropping on a stats-cache rebuild |
 | `~/.claude/stats-cache.json` | Historical usage aggregates |

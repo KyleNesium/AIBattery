@@ -65,7 +65,7 @@ struct DisplaySettingsSection: View {
                 Toggle("All accounts in menu bar", isOn: $showAllAccountsInMenuBar)
                     .toggleStyle(.checkbox)
                     .font(Typography.caption)
-                    .help("List every account's usage in the menu bar (e.g. 42% | 23%). The popover already shows all accounts whenever you have more than one; this adds them to the menu bar too. Star color and countdown reflect the worst account.")
+                    .help("List every account's usage in the menu bar (e.g. 42% | 23%). The popover already shows all accounts whenever you have more than one; this adds them to the menu bar too. An account at its limit shows its reset countdown in its own place; the star color reflects the worst account.")
             }
             // No gate on this row. It was hidden when no account had a maskable email,
             // which meant the one setting that controls how accounts are identified

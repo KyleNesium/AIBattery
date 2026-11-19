@@ -1,0 +1,17 @@
+# Monthly pull requests for the two things this repo pins: the GitHub Actions used by the
+# workflows (pinned by commit SHA, with the version in a trailing comment) and the Swift
+# package dependency (Sparkle, in Package.resolved).
+#
+# A Dependabot PR is never a draft, so ci.yml does not run on it: that workflow fires only
+# when a PR leaves draft. Before merging one, run the full check by hand:
+#   gh workflow run ci.yml --ref <the PR's branch>
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: swift
+    directory: /
+    schedule:
+      interval: monthly

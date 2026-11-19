@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Testing
 @testable import AIBatteryCore
@@ -10,8 +11,29 @@ import Testing
 @Suite("OAuthManager — refresh path")
 @MainActor
 struct OAuthManagerRefreshTests {
-    private static let validTokenBody = #"{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}"#
+    nonisolated private static let validTokenBody = #"{"access_token":"at-new","refresh_token":"rt-new","expires_in":3600}"#
     private static let noDelay = RetryPolicy(baseDelay: 0, maxDelay: 0)
+
+    /// Waits for the stubbed transport to be entered, for at most five seconds, so a
+    /// regression that never calls it fails the test instead of hanging the suite.
+    private static func entered(_ gate: Gate) async -> Bool {
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            if await gate.hasBeenEntered() {
+                return true
+            }
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        return false
+    }
+
+    /// `signOut` records the provider to offer on the signed-out screen in
+    /// `UserDefaults.standard`. A test that signs out puts the previous value back, so the
+    /// suite leaves no trace for the tests that run after it.
+    private static func restoringSignedOutProvider() -> () -> Void {
+        let previous = UserDefaults.standard.object(forKey: UserDefaultsKeys.signedOutProvider)
+        return { UserDefaults.standard.set(previous, forKey: UserDefaultsKeys.signedOutProvider) }
+    }
 
     /// Lets a stubbed transport park until the test says go, and lets the test wait
     /// until the transport has actually been entered.
@@ -50,10 +72,11 @@ struct OAuthManagerRefreshTests {
     /// into memory or the Keychain — the user removed the account, and the Keychain item
     /// would otherwise reappear (under the wrong prefix for a Codex account).
     @Test func signOutDuringInFlightRefresh_doesNotResurrectTokens() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
         let manager = OAuthManager()
         let accountId = "a4-refresh-\(UUID().uuidString)"
-        let keychainAccount = "refreshToken_\(accountId)"
-        defer { KeychainHelper.delete(account: keychainAccount) }
+        defer { OAuthTokenStorage.delete(for: accountId) }
 
         manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
         #expect(manager.isAuthenticated(accountId: accountId))
@@ -66,8 +89,10 @@ struct OAuthManagerRefreshTests {
         }
 
         let refresh = Task { await manager.getAccessToken(for: accountId) }
-        while await !gate.hasBeenEntered() {
-            await Task.yield()
+        guard await Self.entered(gate) else {
+            Issue.record("the refresh never reached the token endpoint")
+            await gate.open()
+            return
         }
 
         manager.signOut(accountId: accountId)
@@ -76,17 +101,255 @@ struct OAuthManagerRefreshTests {
         let token = await refresh.value
         #expect(token == nil, "a refresh finishing after sign-out must not hand out a token")
         #expect(!manager.isAuthenticated(accountId: accountId))
-        #expect(KeychainHelper.get(account: keychainAccount) == nil, "sign-out must win: no Keychain write")
+        #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == nil, "sign-out must win: no Keychain write")
+    }
+
+    /// A new Claude account starts under a temporary id and moves to its organisation id
+    /// after the first API call. Three things change: the token is copied to the new id,
+    /// the account record is pointed at it, and the old copy is removed. They must happen in
+    /// that order, so that a crash after any one of them leaves a record whose id has a token.
+    @Test func resolvingAnAccountId_neverLeavesTheRecordWithoutAToken() {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
+        defer {
+            manager.signOut(accountId: realId)
+            manager.signOut(accountId: tempId)
+        }
+        manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-move", expiresAt: nil)
+
+        final class Observed: @unchecked Sendable {
+            var copiesWhenTheRecordMoved: (temporary: String?, real: String?)?
+        }
+        let observed = Observed()
+        // `$accounts` publishes the new list as it is assigned, so this runs inside the update.
+        let watching = manager.accountStore.$accounts.sink { accounts in
+            guard observed.copiesWhenTheRecordMoved == nil, accounts.contains(where: { $0.id == realId }) else { return }
+            observed.copiesWhenTheRecordMoved = (
+                OAuthTokenStorage.load(for: tempId).tokens.refreshToken,
+                OAuthTokenStorage.load(for: realId).tokens.refreshToken
+            )
+        }
+        defer { watching.cancel() }
+
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(observed.copiesWhenTheRecordMoved?.real == "rt-move", "the record moved before its new id had a token")
+        #expect(observed.copiesWhenTheRecordMoved?.temporary == "rt-move", "the temporary copy was removed before the record moved")
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-move")
+        #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
+        #expect(manager.isAuthenticated(accountId: realId))
+    }
+
+    /// Found in review: the record was pointed at the real id whether or not the Keychain
+    /// had taken the token under it. If the write had failed and the app then quit, the next
+    /// launch found a record for the real id and a token only under the temporary one.
+    @Test func resolvingAnAccountId_waitsUntilTheTokenIsStored() {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        manager.identityMoveRetryInterval = 0
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
+        defer {
+            manager.signOut(accountId: realId)
+            manager.signOut(accountId: tempId)
+        }
+        manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-wait", expiresAt: nil)
+
+        // The Keychain does not take the copy.
+        manager.tokenCopy = { _, _ in false }
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(manager.accountStore.accounts.contains { $0.id == tempId }, "the record must keep the id its stored token is under")
+        #expect(!manager.accountStore.accounts.contains { $0.id == realId })
+        #expect(manager.isAuthenticated(accountId: tempId), "and the account is still signed in")
+        #expect(!manager.isAuthenticated(accountId: realId))
+        #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == "rt-wait")
+
+        // It runs again after a later API call; this time the copy lands.
+        manager.tokenCopy = { OAuthTokenStorage.copy(from: $0, to: $1) }
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(manager.accountStore.accounts.contains { $0.id == realId })
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-wait")
+        #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
+    }
+
+    /// Found in review, twice. The same organisation signed in twice: account A is registered
+    /// under the real id, and B is still under a temporary one. When B's move failed, the
+    /// attempt left B's token on its way to A's id, where it later replaced A's, even after
+    /// B had been signed out. A failed move must leave A exactly as it was, in memory and in
+    /// storage. (`RefreshTokenVaultTests` covers the storage half: a failed copy leaves
+    /// nothing behind.)
+    @Test func aFailedAccountIdMove_leavesTheOtherAccountAlone() {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: realId, addedAt: Date()))
+        manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
+        defer {
+            manager.signOut(accountId: realId)
+            manager.signOut(accountId: tempId)
+        }
+        manager.storeTokens(accountId: realId, provider: .claude, accessToken: "at-A", refreshToken: "rt-A", expiresAt: Date().addingTimeInterval(3_600))
+        manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-B", expiresAt: nil)
+
+        final class Saves: @unchecked Sendable { var keys: [String] = [] }
+        let saves = Saves()
+        manager.tokenPersistence = { tokens, storageKey in
+            saves.keys.append(storageKey)
+            OAuthTokenStorage.save(tokens, for: storageKey)
+        }
+        manager.tokenCopy = { _, _ in false }
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(saves.keys.isEmpty, "a failed move must write nothing: \(saves.keys)")
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-A")
+
+        manager.signOut(accountId: tempId)
+        #expect(OAuthTokenStorage.load(for: realId).tokens.refreshToken == "rt-A")
+        #expect(manager.isAuthenticated(accountId: realId))
+        #expect(OAuthTokenStorage.load(for: tempId).tokens.refreshToken == nil)
+    }
+
+    /// The move is retried after every API call while the account is pending. Without a
+    /// wait, a Keychain that prompts for each write would prompt on every poll.
+    @Test func aFailedAccountIdMove_isNotRetriedStraightAway() {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        let tempId = "pending-\(UUID().uuidString)"
+        let realId = "org-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: tempId, addedAt: Date()))
+        defer {
+            manager.signOut(accountId: realId)
+            manager.signOut(accountId: tempId)
+        }
+        manager.storeTokens(accountId: tempId, provider: .claude, accessToken: nil, refreshToken: "rt-later", expiresAt: nil)
+
+        final class Count: @unchecked Sendable { var value = 0 }
+        let attempts = Count()
+        manager.tokenCopy = { _, _ in
+            attempts.value += 1
+            return false
+        }
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+        manager.resolveAccountIdentity(tempId: tempId, realOrgId: realId)
+
+        #expect(attempts.value == 1, "the next polls must wait out the retry interval")
+    }
+
+    /// Found in the seventh review. A refresh request can take a minute and more. If the
+    /// user signs in again to the same account meanwhile (same id), the old request's
+    /// "invalid grant" is about a token that is already gone. It signed out the new sign-in
+    /// and deleted its fresh token.
+    @Test func aRefreshFailingAfterANewSignIn_leavesTheNewSignInAlone() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        let accountId = "a4-relogin-\(UUID().uuidString)"
+        defer {
+            manager.signOut(accountId: accountId)
+            OAuthTokenStorage.delete(for: accountId)
+        }
+        manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
+
+        let gate = Gate()
+        manager.tokenRetryPolicy = Self.noDelay
+        manager.tokenTransport = { request in
+            await gate.enter()
+            return try Self.response(request, status: 400, body: #"{"error":"invalid_grant"}"#)
+        }
+        let refresh = Task { await manager.getAccessToken(for: accountId) }
+        guard await Self.entered(gate) else {
+            Issue.record("the refresh never reached the token endpoint")
+            await gate.open()
+            return
+        }
+
+        manager.storeTokens(accountId: accountId, provider: .claude, accessToken: "at-fresh", refreshToken: "rt-fresh", expiresAt: Date().addingTimeInterval(3_600))
+        await gate.open()
+        _ = await refresh.value
+
+        #expect(manager.isAuthenticated(accountId: accountId), "the old request's failure signed out the new sign-in")
+        #expect(manager.lastSignOutReason == nil)
+        #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == "rt-fresh")
+        #expect(!manager.isRefreshBackingOff(accountId: accountId))
+    }
+
+    /// The same race with a successful answer: tokens derived from the old credential must
+    /// not overwrite the ones the user just signed in with.
+    @Test func aRefreshSucceedingAfterANewSignIn_doesNotOverwriteIt() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        let accountId = "a4-relogin-ok-\(UUID().uuidString)"
+        defer {
+            manager.signOut(accountId: accountId)
+            OAuthTokenStorage.delete(for: accountId)
+        }
+        manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
+
+        let gate = Gate()
+        manager.tokenRetryPolicy = Self.noDelay
+        manager.tokenTransport = { request in
+            await gate.enter()
+            return try Self.response(request, status: 200, body: Self.validTokenBody)
+        }
+        let refresh = Task { await manager.getAccessToken(for: accountId) }
+        guard await Self.entered(gate) else {
+            Issue.record("the refresh never reached the token endpoint")
+            await gate.open()
+            return
+        }
+
+        manager.storeTokens(accountId: accountId, provider: .claude, accessToken: "at-fresh", refreshToken: "rt-fresh", expiresAt: Date().addingTimeInterval(3_600))
+        await gate.open()
+        _ = await refresh.value
+
+        #expect(OAuthTokenStorage.load(for: accountId).tokens.refreshToken == "rt-fresh", "the old request overwrote the new sign-in")
+        #expect(await manager.getAccessToken(for: accountId) == "at-fresh")
+    }
+
+    /// Found in the seventh review. An install migrated by a version without the done-flag,
+    /// whose delete of the old single-account entry failed, kept that entry. With accounts
+    /// registered the migration returned early and never set the flag, so signing out of
+    /// every account later migrated the leftover back in. It now sets the flag and leaves
+    /// the old entries alone. (Real Keychain items are not touched by this test: it checks
+    /// the flag only.)
+    @Test func legacyMigration_withAccountsRegistered_setsItsFlag() {
+        let flag = "aibattery_legacyKeychainLayoutMigrated"
+        let wasSet = UserDefaults.standard.object(forKey: flag)
+        defer { UserDefaults.standard.set(wasSet, forKey: flag) }
+
+        let manager = OAuthManager()
+        let accountId = "org-legacy-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: accountId, addedAt: Date()))
+        defer { manager.accountStore.remove(id: accountId) }
+        UserDefaults.standard.removeObject(forKey: flag)
+
+        manager.migrateFromLegacy()
+
+        #expect(UserDefaults.standard.bool(forKey: flag), "a leftover old entry could be migrated back in later")
     }
 
     /// Control for the test above: the same transport with no sign-out stores the token.
     @Test func refresh_withoutSignOut_installsNewTokens() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
         let manager = OAuthManager()
         let accountId = "a4-control-\(UUID().uuidString)"
-        let keychainAccount = "refreshToken_\(accountId)"
         defer {
             manager.signOut(accountId: accountId)
-            KeychainHelper.delete(account: keychainAccount)
+            OAuthTokenStorage.delete(for: accountId)
         }
 
         manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
@@ -104,12 +367,13 @@ struct OAuthManagerRefreshTests {
     /// attempt costs three requests with sleeps between them. The account now backs off,
     /// stays authenticated, and the endpoint is not touched again until the window ends.
     @Test func transientFailure_backsOffAndSkipsTheNextAttempt() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
         let manager = OAuthManager()
         let accountId = "a4-backoff-\(UUID().uuidString)"
-        let keychainAccount = "refreshToken_\(accountId)"
         defer {
             manager.signOut(accountId: accountId)
-            KeychainHelper.delete(account: keychainAccount)
+            OAuthTokenStorage.delete(for: accountId)
         }
 
         manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
@@ -137,14 +401,16 @@ struct OAuthManagerRefreshTests {
 
     /// Backoff is per account — one account's bad network must not stall another's.
     @Test func backoffIsPerAccount() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
         let manager = OAuthManager()
         let failing = "a4-fail-\(UUID().uuidString)"
         let healthy = "a4-ok-\(UUID().uuidString)"
         defer {
             manager.signOut(accountId: failing)
             manager.signOut(accountId: healthy)
-            KeychainHelper.delete(account: "refreshToken_\(failing)")
-            KeychainHelper.delete(account: "refreshToken_\(healthy)")
+            OAuthTokenStorage.delete(for: failing)
+            OAuthTokenStorage.delete(for: healthy)
         }
 
         // Distinct refresh tokens so the stub can fail one and serve the other.
@@ -166,11 +432,13 @@ struct OAuthManagerRefreshTests {
 
     /// A success clears the window, so recovery is immediate rather than waiting it out.
     @Test func successClearsTheBackoff() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
         let manager = OAuthManager()
         let accountId = "a4-recover-\(UUID().uuidString)"
         defer {
             manager.signOut(accountId: accountId)
-            KeychainHelper.delete(account: "refreshToken_\(accountId)")
+            OAuthTokenStorage.delete(for: accountId)
         }
 
         manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)

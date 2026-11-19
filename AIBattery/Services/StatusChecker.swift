@@ -239,12 +239,21 @@ final class StatusChecker {
             description = "\(names): \(worstComponent.status.replacingOccurrences(of: "_", with: " "))"
         }
 
+        // What a filtered feed leaves out: components outside the filter that are degraded
+        // or down. Maintenance is not a fault, so it is not listed.
+        let otherAffected = config.componentFilter.map { filter in
+            summary.components
+                .filter { !filter.contains($0.id) && StatusIndicator.from($0.status).severity >= StatusIndicator.degradedPerformance.severity }
+                .map(\.name)
+        } ?? []
+
         return ClaudeSystemStatus(
             indicator: worstIndicator,
             description: description,
             incidentNames: activeIncidents.map(\.name),
             statusPageURL: config.statusPageBaseURL,
-            componentStatuses: componentStatuses
+            componentStatuses: componentStatuses,
+            otherAffectedServices: otherAffected
         )
     }
 }

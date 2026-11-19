@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import Testing
 @testable import AIBatteryCore
@@ -19,11 +20,52 @@ struct ProviderBadgeTests {
 
     // MARK: - The turn
 
-    /// The turn has to be a whole revolution. Any other angle leaves the mark resting
-    /// rotated once the hover ends, because nothing unwinds it.
-    @Test func theTurnIsAWholeRevolution() {
-        #expect(ProviderBadge.hoverRotationDegrees == 360)
-        #expect(ProviderBadge.hoverRotationDegrees.truncatingRemainder(dividingBy: 360) == 0)
+    /// The turn is one strand of the knot, a sixth of a revolution: a whole one read as
+    /// the mark spinning. It has to stay a multiple of the mark's symmetry, or the mark
+    /// rests rotated once the hover ends, because nothing unwinds it.
+    @Test func theTurnIsOneStrandOfTheKnot() {
+        #expect(ProviderBadge.hoverRotationDegrees == 60)
+        #expect(ProviderBadge.hoverRotationDegrees.truncatingRemainder(dividingBy: ProviderBadge.markSymmetryDegrees) == 0)
+    }
+
+    /// A 60° turn only ends where it started because the bundled OpenAI mark looks the
+    /// same every 60°. A replacement logo without that symmetry would rest crooked after
+    /// every hover, so this renders the real resource, turned about its centre as
+    /// `rotationEffect` turns it. The 30° turn is the control: the comparison must be able
+    /// to fail. At 128 px a 60° turn differs by about 6% of the ink (anti-aliasing), 30°
+    /// by over 100%; Claude's sunburst differs by 78% at 60°.
+    @Test func theOpenAIMarkLooksTheSameAfterOneTurn() throws {
+        let image = try #require(AIProvider.codex.markImage)
+        let rest = Self.alpha(of: image, turnedBy: 0)
+        let ink = Double(rest.reduce(0) { $0 + Int($1) })
+        try #require(ink > 0)
+        func difference(turnedBy degrees: Double) -> Double {
+            let turned = Self.alpha(of: image, turnedBy: degrees)
+            return Double(zip(rest, turned).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }) / ink
+        }
+        #expect(difference(turnedBy: ProviderBadge.hoverRotationDegrees) < 0.2)
+        #expect(difference(turnedBy: 30) > 0.5)
+    }
+
+    /// The mark's alpha channel, drawn into a square bitmap turned about its centre.
+    private static func alpha(of image: NSImage, turnedBy degrees: Double, side: Int = 128) -> [UInt8] {
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: side, pixelsHigh: side, bitsPerSample: 8,
+            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: side * 4, bitsPerPixel: 32
+        ), let context = NSGraphicsContext(bitmapImageRep: rep) else { return [] }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        let centre = CGFloat(side) / 2
+        let turn = NSAffineTransform()
+        turn.translateX(by: centre, yBy: centre)
+        turn.rotate(byDegrees: degrees)
+        turn.translateX(by: -centre, yBy: -centre)
+        turn.concat()
+        image.draw(in: NSRect(x: 0, y: 0, width: side, height: side))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let pixels = rep.bitmapData else { return [] }
+        return (0..<side * side).map { pixels[$0 * 4 + 3] }
     }
 
     /// The mark's turn is an ornament, not feedback, so it must stay slower than the

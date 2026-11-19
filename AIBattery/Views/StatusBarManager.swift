@@ -132,6 +132,10 @@ public final class StatusBarManager: NSObject {
 
     public func setup(viewModel: UsageViewModel, oauthManager: OAuthManager) {
         self.viewModel = viewModel
+        // No `autosaveName`: AppKit keeps the item's place under the implicit "Item-0"
+        // (`NSStatusItem Preferred Position Item-0`). Naming it would move every user's
+        // icon once, to the default place, which on a full menu bar is behind the notch or
+        // macOS 27's overflow arrow.
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         // Configure native AppKit button (no NSHostingView — doesn't render in NSStatusBarButton)
@@ -319,7 +323,7 @@ public final class StatusBarManager: NSObject {
         // KVO callbacks for `effectiveAppearance` are not contractually main-thread, so
         // hop explicitly via `Task { @MainActor in ... }` rather than asserting isolation.
         appearanceObserver = NSApp.observe(\.effectiveAppearance) { [weak panel] _, _ in
-            // Re-capture weakly inside the Task body: Swift 5 mode's checker
+            // Re-capture weakly inside the Task body: the concurrency checker
             // rejects accessing the outer closure's `weak` captures from a
             // concurrent task (they're `var` semantically).
             Task { @MainActor [weak panel] in
@@ -361,6 +365,14 @@ public final class StatusBarManager: NSObject {
         self.statusItem = item
         self.panel = panel
         self.hostingView = hosting
+
+        // One log line, a few seconds in, saying whether the item reached the screen.
+        Task { @MainActor [weak item] in
+            try? await Task.sleep(nanoseconds: UInt64(StatusItemCheck.delay * 1_000_000_000))
+            if let item {
+                StatusItemCheck.log(item)
+            }
+        }
 
         // Pre-warm: force SwiftUI's first layout pass now (at startup) so the first
         // user click doesn't pay the ~500ms+ layout cost. Show the panel offscreen

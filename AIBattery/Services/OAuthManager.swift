@@ -23,7 +23,7 @@ import os
 /// - No API keys — uses OAuth Bearer tokens only
 /// - Refresh tokens enable long-lived sessions without re-authentication
 @MainActor
-public final class OAuthManager: ObservableObject {
+public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
     public static let shared = OAuthManager()
 
     // Anthropic OAuth constants (same as Claude Code / OpenCode)
@@ -95,12 +95,12 @@ public final class OAuthManager: ObservableObject {
     /// One in-flight retry read per account, so concurrent callers raise one prompt.
     private var keychainRetries: [String: Task<Void, Never>] = [:]
     /// Reader for the retry; tests swap in a stub. The launch read always uses the Keychain.
-    var keychainRead: @Sendable (String) -> KeychainHelper.ReadResult = { KeychainHelper.read(account: $0) }
+    var keychainRead: @Sendable (String) -> KeychainHelper.ReadResult = { RefreshTokenVault.shared.token(for: $0) }
 
     /// Whether a failed read is worth retrying. Deny / Cancel on the prompt is a refusal,
     /// and retrying would only raise the prompt again, so that account signs out as before.
     nonisolated static func isRetryableReadFailure(_ status: OSStatus) -> Bool {
-        status != errSecUserCanceled && status != errSecAuthFailed
+        !KeychainHelper.isRefusal(status)
     }
 
     /// Account registry — persisted to UserDefaults.
@@ -115,7 +115,6 @@ public final class OAuthManager: ObservableObject {
     public init() {
         migrateFromLegacy()
         migrateStaleKeychainItems()
-        migrateKeychainAccessibility()
         loadAllTokens()
         updateAuthState()
     }
@@ -399,11 +398,20 @@ public final class OAuthManager: ObservableObject {
         }
     }
 
+    /// How long to wait before trying an account-id move again after the Keychain did not
+    /// take the token. This function is called after every API call while an account is
+    /// pending; without a wait, a Keychain that prompts would prompt on every poll.
+    var identityMoveRetryInterval: TimeInterval = 300
+    private var identityMoveRetryAfter: [String: Date] = [:]
+
     /// Resolve a pending account identity after the first API call returns the real org ID.
     /// Idempotent — skips if the account is already resolved.
     func resolveAccountIdentity(tempId: String, realOrgId: String, billingType: String? = nil) {
         guard let account = accountStore.accounts.first(where: { $0.id == tempId }),
               account.isPendingIdentity else { return }
+        if let retryAfter = identityMoveRetryAfter[tempId], Date() < retryAfter {
+            return
+        }
 
         var updated = account
         updated.id = realOrgId
@@ -411,18 +419,34 @@ public final class OAuthManager: ObservableObject {
             updated.billingType = billing
         }
 
-        // Move Keychain entries from temp ID to real org ID
-        let tokenData = tokens[tempId]
-        deleteTokens(for: tempId)
-        tokens.removeValue(forKey: tempId)
-
-        if let data = tokenData {
+        // Move the tokens from the temp id to the real org id in an order that never leaves
+        // the account record pointing at an id with no token: copy to the new id, then point
+        // the record at it, and only then remove the old copy. A crash after any step
+        // leaves a sign-in the next launch can find.
+        //
+        // The copy is one Keychain write that either lands or changes nothing. If it does
+        // not land, the account stays under its temporary id, where its stored token is,
+        // and this runs again later. There is nothing to undo.
+        if let data = tokens[tempId] {
+            let provider = provider(for: tempId)
+            let copied = tokenCopy(
+                Self.tokenStorageKey(accountId: tempId, provider: provider),
+                Self.tokenStorageKey(accountId: realOrgId, provider: provider)
+            )
+            guard copied else {
+                identityMoveRetryAfter[tempId] = Date().addingTimeInterval(identityMoveRetryInterval)
+                AppLogger.oauth.info("resolveAccountIdentity: token not stored under the real id yet, keeping the temporary one")
+                return
+            }
             tokens[realOrgId] = data
-            saveTokens(for: realOrgId)
         }
+        identityMoveRetryAfter[tempId] = nil
 
         // Update account store (handles duplicate detection/merge internally)
         accountStore.update(oldId: tempId, with: updated)
+
+        deleteTokens(for: tempId)
+        tokens.removeValue(forKey: tempId)
 
         // Move the token-ledger high-water marks from the pending id to the real org id
         // so the account's accumulated history follows it instead of orphaning.
@@ -555,9 +579,10 @@ public final class OAuthManager: ObservableObject {
         case .success(let result):
             // `signOut` cancels this task and drops `tokens[accountId]`, but the network
             // round-trip can't be retracted. Writing the fresh set back here would
-            // resurrect the account in memory and re-create its Keychain item.
-            guard !Task.isCancelled, tokens[accountId] != nil else {
-                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+            // resurrect the account in memory and re-create its Keychain item. Likewise
+            // when the user signed in again while this request was out.
+            guard !Task.isCancelled, isCurrentRefreshToken(refresh, accountId: accountId) else {
+                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) finished after sign-out or a new sign-in — discarding")
                 return nil
             }
             tokens[accountId] = AccountTokens(
@@ -572,6 +597,12 @@ public final class OAuthManager: ObservableObject {
         case .failure(let error):
             // Only mark as unauthenticated for auth errors (revoked/invalid token).
             // Transient errors (network, 5xx) keep isAuthenticated so we retry next cycle.
+            // Either way, only for the credential this request used: a failure that comes
+            // back after the user signed in again is about a token that is already gone.
+            guard isCurrentRefreshToken(refresh, accountId: accountId) else {
+                AppLogger.oauth.info("OAuth refresh for \(accountId, privacy: .public) failed after a new sign-in — ignoring")
+                return nil
+            }
             if error.isTransient {
                 recordRefreshFailure(accountId: accountId)
                 AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), backing off before the next attempt")
@@ -596,8 +627,8 @@ public final class OAuthManager: ObservableObject {
         switch result {
         case .success(let set):
             // Same post-sign-out guard as the Anthropic arm: never resurrect a removed account.
-            guard !Task.isCancelled, tokens[accountId] != nil else {
-                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) finished after sign-out — discarding")
+            guard !Task.isCancelled, isCurrentRefreshToken(refresh, accountId: accountId) else {
+                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) finished after sign-out or a new sign-in — discarding")
                 return nil
             }
             let expires = JWTDecoder.expiry(set.accessToken) ?? Date().addingTimeInterval(Self.fallbackTokenLifetime)
@@ -619,7 +650,12 @@ public final class OAuthManager: ObservableObject {
         case .failure(let error):
             // Identical disposition to the Anthropic arm above: transient errors
             // (network, 5xx) keep isAuthenticated and back off before the next attempt;
-            // only genuine auth errors sign the account out.
+            // only genuine auth errors sign the account out, and only for the credential
+            // this request used.
+            guard isCurrentRefreshToken(refresh, accountId: accountId) else {
+                AppLogger.oauth.info("Codex OAuth refresh for \(accountId, privacy: .public) failed after a new sign-in — ignoring")
+                return nil
+            }
             if error.isTransient {
                 recordRefreshFailure(accountId: accountId)
                 AppLogger.oauth.warning("Codex OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), backing off before the next attempt")
@@ -628,6 +664,15 @@ public final class OAuthManager: ObservableObject {
             }
             return nil
         }
+    }
+
+    /// Whether `refresh` is still the account's refresh token. A refresh request can take
+    /// a minute and more (three attempts with 30 s timeouts); in that time the user can sign
+    /// out, or sign in again to the same account, which has the same id. The answer to the
+    /// old request is about a credential that is gone, and must not sign out the new one or
+    /// overwrite it.
+    private func isCurrentRefreshToken(_ refresh: String, accountId: String) -> Bool {
+        tokens[accountId]?.refreshToken == refresh
     }
 
     // MARK: - Per-Account Keychain Storage
@@ -650,6 +695,10 @@ public final class OAuthManager: ObservableObject {
     /// which is what makes the registration and sign-in paths — cap guards, malformed
     /// keys, state mismatch — testable without touching the real Keychain.
     var tokenPersistence: (AccountTokens, String) -> Void = { OAuthTokenStorage.save($0, for: $1) }
+
+    /// Copies an account's stored tokens to another storage key and reports whether the
+    /// Keychain holds them there (see `OAuthTokenStorage.copy`). Tests substitute it.
+    var tokenCopy: (String, String) -> Bool = { OAuthTokenStorage.copy(from: $0, to: $1) }
 
     private func saveTokens(for accountId: String) {
         guard let data = tokens[accountId] else { return }

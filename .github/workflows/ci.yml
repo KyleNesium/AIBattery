@@ -34,12 +34,31 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build, Test & Verify
+    name: Build, Test & Verify (${{ matrix.name }})
     # Defensive: with the triggers above, drafts never reach this workflow at
     # all (only `ready_for_review` is wired). Keeping the check belt-and-braces
     # in case the trigger config gets relaxed later.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # What ships: release.yml builds on this runner, with Xcode 26.6, the version the
+          # app is built with by hand. Pinned, so an update of the runner image cannot change
+          # the toolchain under a release. A failure here fails the run.
+          - name: macOS 26
+            runner: macos-26
+            xcode: "26.6"
+            preview: false
+          # The newest macOS: GitHub's preview image runs macOS 27 with Xcode 27. Builds,
+          # tests and launches the app there. Preview images can queue or be unstable, so
+          # a failure shows on this job but does not fail the run.
+          - name: macOS 27 preview
+            runner: xcode-27
+            xcode: ""
+            preview: true
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.preview }}
     # Bumped from 10 → 22: the test step has 3 × 6-minute retry attempts for
     # macos-15 swiftpm-testing-helper hangs. At 10 minutes the job timeout
     # cancelled before the retry logic could try a second attempt — observed
@@ -53,11 +72,19 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: spm-${{ runner.os }}-
+          # Per runner: a build cache from one Xcode must not be restored under another.
+          key: spm-${{ matrix.runner }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-${{ matrix.runner }}-
 
-      - name: Show Swift version
-        run: swift --version
+      - name: Select Xcode ${{ matrix.xcode }}
+        if: matrix.xcode != ''
+        run: sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
+
+      - name: Show macOS, Xcode and Swift versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
 
       - name: Build
         run: swift build --build-tests
@@ -89,14 +116,14 @@ jobs:
           # The arithmetic, written down so the next bump need not re-derive it
           # (it has been left behind three times now, once in this very PR —
           # release.yml was bumped and this file was not):
-          #   1743 tests in the suite
+          #   1806 tests in the suite
           #  −   6 opt-in real-data tests, `.enabled(if:)` on
           #       AIBATTERY_REAL_CLAUDE_LOGS / AIBATTERY_REAL_CODEX_LOGS, which
           #       are never set on CI and print as "skipped", not ✔
-          #   = 1737 ✔ markers expected on a clean run.
-          # 1700 leaves a little room for suite churn between bumps while still
+          #   = 1800 ✔ markers expected on a clean run.
+          # 1730 leaves a little room for suite churn between bumps while still
           # catching a crash in the last few hundred tests.
-          MIN_PASSES=1700
+          MIN_PASSES=1730
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
             set +e
@@ -166,3 +193,21 @@ jobs:
             fi
           done
           echo "XPC identity check OK"
+          # Provider logos inside the built app, in either SwiftPM bundle layout. A missing
+          # one is silent in the app (SF-symbol fallback), so it is checked here.
+          for mark in claude openai; do
+            found=$(find .build/AIBattery.app/Contents/Resources/AIBattery_AIBatteryCore.bundle -name "$mark.svg" | head -n1)
+            if [ -z "$found" ]; then
+              echo "FAIL: $mark.svg is not in the app bundle"
+              exit 1
+            fi
+            echo "Logo OK: ${found#.build/AIBattery.app/}"
+          done
+
+      # codesign and the unit tests both pass on a bundle that dies at launch: dyld
+      # cannot load Sparkle.framework, or (Swift 6 language mode) a main-actor callback
+      # the system invokes off the main thread traps. The runner has no accounts and no
+      # Keychain items, so this covers the launch path only — not sign-in, polling with
+      # real data, or sleep/wake.
+      - name: Launch smoke test
+        run: ./scripts/smoke-launch.sh

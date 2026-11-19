@@ -10,7 +10,9 @@ permissions:
 jobs:
   release:
     name: Build & Publish
-    runs-on: macos-15
+    # The runner ci.yml's blocking job uses, so the release is built by the same Xcode
+    # (26.6) that CI tested and that the app is built with by hand.
+    runs-on: macos-26
     timeout-minutes: 15
     env:
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_EDDSA_KEY != '' }}
@@ -22,8 +24,16 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: spm-${{ runner.os }}-
+          key: spm-macos-26-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-macos-26-
+
+      # Pinned to the Xcode ci.yml's blocking job tests with, so an update of the runner
+      # image cannot change the toolchain under a release.
+      - name: Select Xcode 26.6
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          xcodebuild -version
+          swift --version
 
       - name: Build
         run: swift build --build-tests
@@ -53,14 +63,14 @@ jobs:
           # The arithmetic, written down so the next bump need not re-derive it
           # (it has been left behind three times now, once in this very PR —
           # release.yml was bumped and this file was not):
-          #   1743 tests in the suite
+          #   1806 tests in the suite
           #  −   6 opt-in real-data tests, `.enabled(if:)` on
           #       AIBATTERY_REAL_CLAUDE_LOGS / AIBATTERY_REAL_CODEX_LOGS, which
           #       are never set on CI and print as "skipped", not ✔
-          #   = 1737 ✔ markers expected on a clean run.
-          # 1700 leaves a little room for suite churn between bumps while still
+          #   = 1800 ✔ markers expected on a clean run.
+          # 1730 leaves a little room for suite churn between bumps while still
           # catching a crash in the last few hundred tests.
-          MIN_PASSES=1700
+          MIN_PASSES=1730
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::Test attempt $attempt of $max_attempts"
             set +e
@@ -121,6 +131,13 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: ./scripts/build-app.sh
 
+      # The same check ci.yml runs, on the bundle that is about to be published: start the
+      # app and require it to stay up. A bundle that dies at launch passes codesign and the
+      # unit tests. The runner has no accounts and no Keychain items, so this covers the
+      # launch path only.
+      - name: Launch smoke test
+        run: ./scripts/smoke-launch.sh
+
       - name: Generate checksums
         run: |
           cd .build
@@ -128,9 +145,11 @@ jobs:
           cat checksums-sha256.txt
 
       # Gates the release on the checks that actually break auto-update if wrong:
-      # Info.plist / bundle / CHANGELOG version agreement, zip + dmg present, the
+      # Info.plist / bundle / CHANGELOG / CITATION.cff / llms.txt version agreement,
+      # zip + dmg present, the
       # Sparkle edSignature's declared length matching the real ZIP size, SUFeedURL
-      # and SUPublicEDKey present in the shipped Info.plist, and codesign validity.
+      # and SUPublicEDKey present in the shipped Info.plist, the bundle id matching the
+      # one the Keychain vault checks for, and codesign validity.
       # Runs BEFORE the GitHub Release so a broken artifact is never published.
       # The appcast does not exist yet at this point — the script only warns about
       # that, it is generated and checked two steps later.
@@ -139,7 +158,7 @@ jobs:
         run: ./scripts/verify-release.sh "${GITHUB_REF_NAME#v}"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           files: |
             .build/AIBattery.zip

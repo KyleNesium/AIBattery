@@ -1,5 +1,102 @@
 # Changelog
 
+## [3.5.0] — 2026-11-19
+
+### Fixed
+- **One account at its limit no longer hides the others in the menu bar.** With "All
+  accounts in menu bar" on, an account that hit its limit replaced the whole list with its
+  reset countdown, so the menu bar showed a red star and "5H 2h 15m" while your other
+  accounts still had room. The countdown now takes only that account's place:
+  `42% | 5H 2h 15m`. (#213)
+- **Signing in again while a sign-in renewal is still in progress no longer signs you out.**
+  Renewing a session can take a minute when the network is slow. If you signed in again to
+  the same account in that time and the old renewal then failed, the app signed out the
+  new sign-in and deleted it. A renewal now acts only on the sign-in it started with. (#213)
+- **The Context bar uses the right window for Claude 4.5-generation models.** Every 4.x model
+  was assumed to have a 1M-token context window. Anthropic lists 200K for Opus 4.5, Sonnet
+  4.5, Haiku 4.5 and everything earlier, so a session on one of them read as a fifth as full
+  as it was and the warning thresholds never fired. The window now follows one rule (1M from
+  the 4.6 generation on, 200K before it) on the version read from the model id, so a new
+  model needs no table entry. (#213)
+- **Claude Fable 5.2 is billed at its own rate.** It had no row in the price table, so it was costed as Fable 5: $10 / $50 per million tokens with cache reads at $1.00, against a published $8 / $40 and $0.20. Cache reads make up most of a Claude Code session, so the API-equivalent cost shown for Fable 5.2 was about double the published one (2.1× on ten days of real logs). Claude Mythos 5.2 gets the same row, and the bare `fable` alias bills at the 5.2 rate. Costs are recomputed from token counts, so past and all-time figures correct themselves. (#213)
+- **A Claude model newer than the app is billed at its nearest known predecessor.** The price
+  lookup was a substring scan, which is how Fable 5.2 came to be costed as Fable 5: any new
+  minor version matched its generation's first release, and a version matching nothing fell
+  to a per-family constant that had not been updated (an unlisted Haiku 5.x would have cost
+  ten times Haiku 5.5). A model is now billed at the newest listed version of its family
+  that is not newer than it, so the next release from Anthropic shows a close figure until
+  the app adds its exact rate, instead of a figure that can be several times off. Amazon
+  Bedrock model ids resolve to their exact rate too. (#213)
+- **`gpt-6.1-terra` is billed at its own rate** — $1 / $5 per million tokens with cached input at $0.05 — instead of the gpt-6 family rate, which is double. (#213)
+- **The Codex status tooltip says what it covers.** The Codex dot follows only the five Codex components on OpenAI's status page, so an incident elsewhere (on 2026-11-13, the ChatGPT Microsoft 365 connector) correctly leaves it green. The tooltip still read "All systems operational" while OpenAI's page said "Partial System Degradation". It now reads "Codex: All systems operational". (#213)
+- **macOS 27: help for a menu bar icon that doesn't appear.** macOS 27 Golden Gate hides menu
+  bar items that don't fit behind an arrow at the right end of the menu bar, which makes a
+  running AI Battery look missing. The FAQ has a checklist and a command to run when the icon
+  is missing. The checklist starts with the Keychain prompt: after an update the icon appears
+  only once that prompt is answered. Ten seconds after launch the app writes one line to the
+  system log saying whether its menu bar item reached the screen, which is what a bug report
+  needs. (#213)
+
+### Changed
+- **An update now asks for your Keychain password once, not once per account.** macOS ties
+  a Keychain item to the exact build that wrote it, and every release is a new build, so
+  each item raises its own prompt after an update. AI Battery kept one item per account;
+  with three accounts that was three password prompts per update. Every account's refresh
+  token now lives in a single item, so an update asks once however many accounts you have.
+  - **The first launch of 3.5.0 still asks once per account**, one last time, while it moves
+    each token into the new item. Click **Always Allow** each time. The old item is deleted
+    only after the new one has been written and read back.
+  - Nothing is written to the item before it has been read, so a prompt that is cancelled or
+    denied can never cost another account its sign-in. One Deny now signs every account out
+    until the next launch, where it used to sign out one.
+  - A copy of AI Battery older than 3.5.0 will show those accounts as signed out afterwards:
+    it looks for the old per-account items, which are gone.
+  - Four older code paths deleted a token before its replacement was safely in place, so
+    a crash between the two steps lost it: a one-time accessibility migration, the fallback
+    after a failed Keychain update, the move of a new account from its temporary id to its
+    real one, and the migration from the original single-account layout. The first is gone
+    (the move into the single item does its job by writing the new copy first), a failed
+    update now leaves the existing item alone, and the other two write the new copy and
+    register the account before they remove anything.
+  - A sign-in is no longer lost because the Keychain was briefly unusable. A new account
+    keeps its temporary id until its token is safely stored, and a change made while the
+    Keychain cannot be read is saved as soon as it can. Nothing you refused on a prompt is
+    ever tried again on its own.
+  - A Keychain write that fails is retried on its own, 30 seconds later and then at
+    longer intervals. Before, the new token stayed in memory until some later token change
+    happened to save it, and a quit in between lost the sign-in. This matters most for a
+    token that rotates while the Mac is in dark wake, when the Keychain cannot be used.
+  - We tested whether signing releases with our own certificate would remove the prompt
+    altogether. It does not: macOS keys the item to the build, not the certificate, unless
+    the certificate is an Apple Developer ID. (#213)
+- **The Codex status tooltip names other OpenAI services that are degraded or down**, up to
+  three of them: "Codex: All systems operational. Also affected at OpenAI: Sora." The dot
+  still follows Codex only, so a green dot during an OpenAI incident now explains itself. (#213)
+- **The OpenAI logo turns more gently on hover.** It turned a full circle, which read as
+  spinning. It now turns a sixth of a circle in the same time, one strand of its six-strand
+  knot, so it ends exactly where it started. (#213)
+- **Sparkle 2.10.0 → 2.10.1** — patch update within the existing `2.6.0..<3.0.0` range. It fixes an update being installed early when the app sits in an NFC-encoded path, and adds translations. Its appcast fixes don't apply: AI Battery writes its own appcast (`scripts/generate-appcast.sh`) and uses no `releaseNotesLink`. No app-facing change. (#213)
+- **Swift 6 language mode** on all three targets (was Swift 5 with strict concurrency). The macOS 13 target didn't block it after all: no isolated `deinit` is needed. Fixes were few: `nonisolated` on five constants and pure helpers (and two test fixtures), and `Sendable`-safe captures in the Codex sign-in listener. The build is now warning-free. Swift 6 also checks actor isolation at runtime, so a main-actor callback the system invokes off the main thread now stops the app instead of running. Every system callback (dispatch sources, FSEvents, notification observers, KVO, the network monitor) already runs on `.main` or hops there explicitly. (#213)
+- **Built with Xcode 26.6 (the macOS 26 SDK).** Releases were built with Xcode 16.4 on a macOS
+  15 runner while the app was tested by hand with Xcode 26, so what shipped was not what had
+  been tested. Releases and CI now use the macOS 26 runner with Xcode 26.6. On macOS 26 and
+  later, standard controls take the current system look. (#213)
+- **CI also runs on macOS 27**, on GitHub's preview image with Xcode 27: build, tests, and a
+  launch of the built app. A failure there is shown on its job without failing the run,
+  because preview images can queue or be unstable. (#213)
+- **Ready for Xcode 27.** Its Swift 6.4 builds packages with Swift Build by default, which
+  puts build products in a different folder and lays resource bundles out as standard macOS
+  bundles. On the first macOS 27 run the provider logos were not found (14 test failures).
+  The logo lookup now reads both layouts, `build-app.sh` asks SwiftPM where the products
+  are instead of assuming `.build/release`, and three `Sendable` conformances that Swift 6.4
+  warns about moved into their classes' own files. Releases stay pinned to Xcode 26.6 until
+  Xcode 27 is chosen on purpose. CI and `verify-release.sh` now check that both logos are
+  inside the built app, since a missing one only shows as a fallback symbol. (#213)
+- CI and the release workflow: the built app is launched and must stay up for 20 seconds (`scripts/smoke-launch.sh`). A signed bundle that died at launch — a missing `Sparkle.framework`, or a Swift 6 isolation trap in a launch-path callback — used to pass every check. In `release.yml` the check runs on the bundle about to be published, before anything is. (#213)
+- `verify-release.sh` checks that the built bundle's id is the one `RefreshTokenVault` requires before it opens the real Keychain item. A mismatch would keep every token in memory and sign every user out at each launch. (#213)
+- Dependabot opens monthly pull requests for the pinned GitHub Actions and the Swift package dependency (`.github/dependabot.yml`). (#213)
+- Cleared the seven SwiftLint warnings in app code: five force unwraps and two orphaned doc comments. (#213)
+
 ## [3.4.0] — 2026-11-03
 
 ### Added

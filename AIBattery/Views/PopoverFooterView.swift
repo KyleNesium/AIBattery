@@ -194,19 +194,37 @@ struct PopoverFooterView: View {
         return "\(Int(elapsed / 3_600))h ago"
     }
 
-    static let absoluteFormatter: DateFormatter = {
+    /// `DateFormatter` is `Sendable`, so the nonisolated `staleTooltip` can share it.
+    nonisolated static let absoluteFormatter: DateFormatter = {
         let f = DateFormatter()
         f.timeStyle = .medium
         f.dateStyle = .none
         return f
     }()
 
-    static func absoluteTime(_ date: Date) -> String {
+    nonisolated static func absoluteTime(_ date: Date) -> String {
         absoluteFormatter.string(from: date)
     }
 
     private var statusTooltip: String {
-        switch systemIndicator {
+        Self.statusTooltip(
+            for: systemIndicator,
+            provider: provider,
+            otherAffectedServices: systemStatus?.otherAffectedServices ?? []
+        )
+    }
+
+    /// The Codex feed reads only the five Codex components (`StatusFeedConfig.codex`), so an
+    /// incident elsewhere on status.openai.com — a ChatGPT connector, Sora — leaves it green.
+    /// It names its scope; a bare "All systems operational" contradicts OpenAI's own page.
+    /// When other OpenAI services are degraded or down it names up to three of them, so a
+    /// green Codex dot during an OpenAI incident explains itself.
+    nonisolated static func statusTooltip(
+        for indicator: StatusIndicator?,
+        provider: AIProvider,
+        otherAffectedServices: [String] = []
+    ) -> String {
+        let state = switch indicator {
         case .operational: "All systems operational"
         case .degradedPerformance: "Degraded performance"
         case .partialOutage: "Partial outage"
@@ -214,6 +232,11 @@ struct PopoverFooterView: View {
         case .maintenance: "Under maintenance"
         case .unknown, .none: "Check system status"
         }
+        guard provider == .codex else { return state }
+        guard !otherAffectedServices.isEmpty else { return "Codex: \(state)" }
+        let named = otherAffectedServices.prefix(3).joined(separator: ", ")
+        let rest = otherAffectedServices.count - 3
+        return "Codex: \(state). Also affected at OpenAI: \(named)\(rest > 0 ? " and \(rest) more" : "")."
     }
 }
 

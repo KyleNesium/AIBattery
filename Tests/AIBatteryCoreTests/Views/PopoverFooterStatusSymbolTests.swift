@@ -97,6 +97,30 @@ struct PopoverFooterStatusSymbolTests {
         #expect(claude.contains("Last fresh:"))
     }
 
+    /// The Codex feed watches only the Codex components, so an unrelated OpenAI incident
+    /// (the Microsoft 365 connector, 2026-11-13) leaves its dot green. The tooltip names
+    /// the scope, or it reads as contradicting status.openai.com.
+    @Test func statusTooltip_namesTheCodexScope() {
+        #expect(PopoverFooterView.statusTooltip(for: .operational, provider: .claude) == "All systems operational")
+        #expect(PopoverFooterView.statusTooltip(for: .operational, provider: .codex) == "Codex: All systems operational")
+        #expect(PopoverFooterView.statusTooltip(for: .majorOutage, provider: .codex) == "Codex: Major outage")
+        #expect(PopoverFooterView.statusTooltip(for: nil, provider: .claude) == "Check system status")
+    }
+
+    /// A green Codex dot during an OpenAI incident elsewhere must explain itself.
+    @Test func statusTooltip_namesOtherAffectedOpenAIServices() {
+        #expect(
+            PopoverFooterView.statusTooltip(for: .operational, provider: .codex, otherAffectedServices: ["Sora"])
+                == "Codex: All systems operational. Also affected at OpenAI: Sora."
+        )
+        #expect(
+            PopoverFooterView.statusTooltip(for: .partialOutage, provider: .codex, otherAffectedServices: ["A", "B", "C", "D", "E"])
+                == "Codex: Partial outage. Also affected at OpenAI: A, B, C and 2 more."
+        )
+        // The Claude feed is unfiltered, so it never has "other" services to name.
+        #expect(PopoverFooterView.statusTooltip(for: .operational, provider: .claude, otherAffectedServices: ["X"]) == "All systems operational")
+    }
+
     @Test func tutorialFirstStep_matchesQuotaShape() {
         #expect(TutorialOverlay.rateLimitStep(kind: .windows).title == "Rate Limits")
         #expect(TutorialOverlay.rateLimitStep(kind: .credits).title == "Credits")

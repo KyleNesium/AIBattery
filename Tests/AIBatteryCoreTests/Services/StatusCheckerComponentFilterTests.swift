@@ -38,6 +38,22 @@ struct StatusCheckerComponentFilterTests {
         #expect(status.componentStatuses["codex-api"] == .operational)
     }
 
+    /// The Codex dot stays green during an OpenAI incident that does not touch Codex, so the
+    /// status carries what else is degraded or down for the tooltip to name.
+    @Test func filter_listsOtherAffectedServices_withoutColouringTheIndicator() {
+        let images = StatusPageComponent(id: "images", name: "Images", status: "degraded_performance")
+        let realtime = StatusPageComponent(id: "realtime", name: "Realtime", status: "under_maintenance")
+        let ads = StatusPageComponent(id: "ads", name: "Ads", status: "operational")
+        let page = summary(components: [codexAPI, sora, images, realtime, ads])
+
+        let filtered = StatusChecker.parseStatus(page, config: config(filter: ["codex-api"]))
+        #expect(filtered.indicator == .operational)
+        #expect(filtered.otherAffectedServices == ["Sora", "Images"], "maintenance and operational are not faults")
+
+        // An unfiltered feed watches everything, so nothing is "other".
+        #expect(StatusChecker.parseStatus(page, config: config(filter: nil)).otherAffectedServices.isEmpty)
+    }
+
     @Test func filter_flagsFilteredComponentOutage() {
         let down = StatusPageComponent(id: "codex-api", name: "Codex API", status: "partial_outage")
         let status = StatusChecker.parseStatus(summary(components: [down, sora]), config: config(filter: ["codex-api"]))

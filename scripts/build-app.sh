@@ -8,6 +8,11 @@ cd "$(dirname "$0")/.."
 
 echo "Building release binary..."
 swift build -c release
+# Where SwiftPM put the products. With its native build system that is .build/<triple>/release
+# (and the .build/release link); with Swift Build, the default from Swift 6.4 / Xcode 27, it
+# is somewhere else. Ask instead of assuming.
+BIN_DIR=$(swift build -c release --show-bin-path)
+echo "Products: $BIN_DIR"
 
 APP_DIR=".build/AIBattery.app"
 
@@ -31,7 +36,7 @@ echo "Generating app icon..."
 swift scripts/generate-icon.swift .build
 
 echo "Creating .app bundle..."
-cp .build/release/AIBattery "$APP_DIR/Contents/MacOS/AIBattery"
+cp "$BIN_DIR/AIBattery" "$APP_DIR/Contents/MacOS/AIBattery"
 
 # Add rpath so the binary can find frameworks in Contents/Frameworks at runtime
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP_DIR/Contents/MacOS/AIBattery"
@@ -42,8 +47,9 @@ cp AIBattery/PrivacyInfo.xcprivacy "$APP_DIR/Contents/Resources/PrivacyInfo.xcpr
 # SPM resource bundle (provider brand marks, AIBattery/Resources/*.svg). The app resolves
 # it explicitly from Contents/Resources (AIProvider.markURL — NOT Bundle.module, whose
 # generated accessor only checks the .app root and an absolute build-machine path, then
-# traps). Without this copy the header badges silently fall back to SF symbols.
-cp -R .build/release/AIBattery_AIBatteryCore.bundle "$APP_DIR/Contents/Resources/"
+# traps). Without this copy the header badges silently fall back to SF symbols. Either
+# bundle layout works (AIProvider.resourceFolderPaths).
+cp -R "$BIN_DIR/AIBattery_AIBatteryCore.bundle" "$APP_DIR/Contents/Resources/"
 
 # Inject version from git tag if available (e.g. v1.2.4 → 1.2.4)
 GIT_TAG=$(git describe --tags --exact-match 2>/dev/null || true)
@@ -73,8 +79,14 @@ fi
 cp AIBattery/AIBattery.entitlements "$APP_DIR/Contents/Resources/"
 
 # --- Sparkle framework bundling ---
-# Find SPM-built Sparkle.framework (SPM places it under .build/<arch>/release/)
-SPARKLE_BUILD_DIR=$(find .build -path "*/release/Sparkle.framework" -type d 2>/dev/null | head -n1 || true)
+# Find SPM-built Sparkle.framework: next to the binary, else anywhere SwiftPM staged it.
+SPARKLE_BUILD_DIR=""
+if [ -d "$BIN_DIR/Sparkle.framework" ]; then
+  SPARKLE_BUILD_DIR="$BIN_DIR/Sparkle.framework"
+fi
+if [ -z "$SPARKLE_BUILD_DIR" ]; then
+  SPARKLE_BUILD_DIR=$(find .build -path "*/release/Sparkle.framework" -type d 2>/dev/null | head -n1 || true)
+fi
 if [ -z "$SPARKLE_BUILD_DIR" ]; then
   # Fallback: check the xcframework in artifacts
   SPARKLE_BUILD_DIR=$(find .build/artifacts -path "*/macos-*/Sparkle.framework" -type d 2>/dev/null | head -n1 || true)

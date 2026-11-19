@@ -1,7 +1,5 @@
 import Foundation
 
-extension CodexRateLimitFetcher: RateLimitFetching {}
-
 /// Routes a per-account rate-limit fetch to the right fetcher for that account:
 /// Claude → `RateLimitFetcher`; Codex ChatGPT → `CodexRateLimitFetcher.fetch`;
 /// Codex API key → the OpenAI probe (`fetchAPIKeyLimits`) — an API key must never be

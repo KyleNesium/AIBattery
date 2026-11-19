@@ -4,22 +4,53 @@ import Foundation
 ///
 /// Split out of `OAuthManager.swift`, which had grown past the 800-line ceiling in
 /// CLAUDE.md. These run from `init` and each is gated so it does its work once: the
-/// account layout moved from a single unprefixed entry to one per account, stale
-/// `accessToken_` / `expiresAt_` items had to be swept, and the remaining items were
-/// re-created with `ThisDeviceOnly` accessibility so iCloud Keychain stops syncing
-/// refresh tokens to other devices.
+/// account layout moved from a single unprefixed entry to one per account, and stale
+/// `accessToken_` / `expiresAt_` items had to be swept.
+///
+/// A third migration re-created each per-account item with `ThisDeviceOnly` accessibility
+/// by deleting it and adding it back. It was removed in 3.5.0: a crash between the two
+/// steps destroyed the only copy of the token, and it is no longer needed. `RefreshTokenVault`
+/// moves each token into an item that is created `ThisDeviceOnly`, and deletes the old
+/// item only after the new one has read back.
 @MainActor
 extension OAuthManager {
     // MARK: - Migration from Single-Account Format
 
     /// One-time migration: moves legacy Keychain entries (unprefixed) to the new prefixed format.
+    ///
+    /// The order matters, because each step can be the last one that runs: write and verify
+    /// the new entry, register the account, mark the migration done, and only then delete
+    /// the old entries. A crash at any point leaves a sign-in the next launch can find. The
+    /// done-flag is what makes a leftover old entry harmless: without it, a user who later
+    /// signed out of every account would have that stale token migrated back in.
+    ///
+    /// The old entries are deleted here and nowhere else, after their token has been copied
+    /// and verified. Other accounts being registered is not evidence of that: the first read
+    /// may have failed, and the user may have added a different account since.
+    ///
+    /// A launch that finds accounts registered sets the flag and leaves the old entries
+    /// alone. That covers an install migrated by a version without the flag whose delete
+    /// of the old entries failed, and a run of this one cut short before it set the flag.
+    /// Without it, signing out of every account later would migrate the leftover token
+    /// back in and sign the user in again. The cost is the rare install whose old token
+    /// was never copied (its first read failed and the user added another account since):
+    /// that sign-in is not imported, and the user signs in again. Nothing is deleted.
     func migrateFromLegacy() {
-        // Already migrated — accounts exist
-        guard accountStore.accounts.isEmpty else { return }
+        let migrationKey = "aibattery_legacyKeychainLayoutMigrated"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+        guard accountStore.accounts.isEmpty else {
+            UserDefaults.standard.set(true, forKey: migrationKey)
+            return
+        }
+        // Only the app reads the old entries. Every test builds an `OAuthManager`, and on a
+        // Mac that still has an old single-account entry this would otherwise copy it into
+        // the test's own account list and delete the real one.
+        guard RefreshTokenVault.isAppProcess else { return }
 
-        // Check for legacy (unprefixed) Keychain entries
-        let legacyRefresh = KeychainHelper.get(account: "refreshToken")
-        guard legacyRefresh != nil else { return }
+        // Read the legacy (unprefixed) entry once. A second read could fail where the first
+        // succeeded (a prompt answered differently), and the migration then registered an
+        // account with no token.
+        guard let value = KeychainHelper.get(account: "refreshToken") else { return }
 
         AppLogger.oauth.info("Migrating legacy single-account Keychain entries")
 
@@ -32,13 +63,10 @@ extension OAuthManager {
         )
 
         // Only persist the refresh token (access token will be re-derived on launch).
-        // Verify the new entry before deleting the legacy one — if the write fails,
-        // keep the legacy entries intact and retry the migration next launch.
-        if let value = KeychainHelper.get(account: "refreshToken") {
-            guard Self.setAndVerify(account: "refreshToken_\(tempId)", value: value) else {
-                AppLogger.oauth.error("Legacy Keychain migration failed — keeping legacy entries for retry next launch")
-                return
-            }
+        // If the write does not verify, keep everything as it was and retry next launch.
+        guard Self.setAndVerify(account: "refreshToken_\(tempId)", value: value) else {
+            AppLogger.oauth.error("Legacy Keychain migration failed — keeping legacy entries for retry next launch")
+            return
         }
         // expiresAt goes to UserDefaults (not a secret)
         if let expiresStr = KeychainHelper.get(account: "expiresAt"),
@@ -46,13 +74,15 @@ extension OAuthManager {
             UserDefaults.standard.set(interval,
                                       forKey: UserDefaultsKeys.tokenExpiresAtPrefix + tempId)
         }
+
+        accountStore.add(record)
+        accountStore.setActive(id: tempId)
+        UserDefaults.standard.set(true, forKey: migrationKey)
+
         // Clean up all legacy unprefixed entries
         for key in ["accessToken", "refreshToken", "expiresAt"] {
             KeychainHelper.delete(account: key)
         }
-
-        accountStore.add(record)
-        accountStore.setActive(id: tempId)
     }
 
     // MARK: - Migration: Remove Stale Keychain Items
@@ -60,11 +90,11 @@ extension OAuthManager {
     /// Removes accessToken and expiresAt from Keychain (they're no longer stored
     /// there). Moves expiresAt to UserDefaults if not already present.
     ///
-    /// Runs once, like `migrateKeychainAccessibility`. It used to run on every launch,
+    /// Runs once. It used to run on every launch,
     /// spending two `SecItemDelete` calls and a `SecItemCopyMatching` per account to
     /// re-delete items that had been gone since the first launch after the upgrade.
-    /// Keychain calls are slow and can prompt, which is exactly what the one-item-per-
-    /// account rule elsewhere in this file exists to avoid.
+    /// Keychain calls are slow and can prompt, which is exactly what keeping every token in
+    /// one item (`RefreshTokenVault`) exists to avoid.
     func migrateStaleKeychainItems() {
         let migrationKey = "aibattery_staleKeychainItemsMigrated"
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
@@ -84,39 +114,6 @@ extension OAuthManager {
             KeychainHelper.delete(account: "accessToken_\(accountId)")
             KeychainHelper.delete(account: "expiresAt_\(accountId)")
         }
-    }
-
-    // MARK: - Migration: Keychain ThisDeviceOnly Accessibility
-
-    /// One-time migration: re-creates Keychain items with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
-    /// The old flag (`kSecAttrAccessibleWhenUnlocked`) allows iCloud Keychain to sync refresh tokens
-    /// to other Apple devices. Keychain doesn't support updating `kSecAttrAccessible` in-place, so
-    /// we delete and re-add each item. Only runs once (tracked via UserDefaults flag).
-    func migrateKeychainAccessibility() {
-        let migrationKey = "aibattery_keychainThisDeviceOnlyMigrated"
-        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-
-        // Accessibility can't be updated in place, so each item must be deleted and
-        // re-added — a window where a failed re-add would destroy the refresh token.
-        // Hardening: verify the re-add by reading the value back, retry once on
-        // failure, and only mark the migration done when EVERY account verified.
-        // Leaving the flag unset means the next launch retries instead of silently
-        // signing the user out forever.
-        var allVerified = true
-        for account in accountStore.accounts {
-            let keychainAccount = "refreshToken_\(account.id)"
-            guard let value = KeychainHelper.get(account: keychainAccount) else { continue }
-            KeychainHelper.delete(account: keychainAccount)
-            if !Self.setAndVerify(account: keychainAccount, value: value),
-               !Self.setAndVerify(account: keychainAccount, value: value) {
-                allVerified = false
-                AppLogger.oauth.error("Keychain accessibility migration failed for \(account.id, privacy: .public) — will retry next launch")
-            }
-        }
-
-        guard allVerified else { return }
-        UserDefaults.standard.set(true, forKey: migrationKey)
-        AppLogger.oauth.info("Migrated Keychain items to ThisDeviceOnly accessibility")
     }
 
     /// Write a Keychain value and confirm it round-trips. A `set` that reports

@@ -2,10 +2,14 @@ import Testing
 import Foundation
 @testable import AIBatteryCore
 
-/// Real-Keychain roundtrip tests for the layer the accessibility migration (T5)
-/// modifies. Uses UUID-suffixed account names so runs never collide with the
-/// app's real entries (service "AIBattery", account "refreshToken_{orgId}") or
-/// with each other; every test deletes what it created.
+/// `KeychainHelper` round trips run against the real Keychain, under UUID-suffixed account
+/// names so runs never collide with the app's own entries or with each other; every test
+/// deletes what it created.
+///
+/// The `OAuthTokenStorage` tests go through `RefreshTokenVault.shared`, which in a test
+/// process is an in-memory store: the app keeps every account's token in one real item, and
+/// a test must never open that. `RefreshTokenVaultTests` covers the vault's own rules and
+/// one real-Keychain round trip under a throwaway item name.
 ///
 /// CI caveat: the macos-15 runner's keychain may deny ad-hoc-signed test
 /// runners — if these fail there with errSecInteractionNotAllowed-style

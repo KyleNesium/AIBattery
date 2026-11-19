@@ -3,7 +3,8 @@ import Foundation
 /// OpenAI per-model pricing for Codex API-equivalent cost (USD per 1M tokens).
 /// Source: developers.openai.com/api/docs/pricing, read 2026-09-21, re-checked
 /// 2026-09-29 (gpt-5.4 mini/nano, gpt-6 sol/luna, gpt-4.1 + gpt-4o families added
-/// for API-key accounts, which can run any model) and 2026-10-11 (gpt-6.1-sol). Shows what the
+/// for API-key accounts, which can run any model), 2026-10-11 (gpt-6.1-sol) and 2026-11-14
+/// (gpt-6.1-terra added; the gpt-6 and gpt-5.6 rows re-read and unchanged). Shows what the
 /// same tokens would cost on the pay-per-token API — ChatGPT-plan Codex users aren't
 /// billed per token, so this is subscription value, never a bill.
 ///
@@ -17,6 +18,9 @@ enum OpenAIModelPricing {
         // gpt-6.1-sol: same input/output as gpt-6-sol but cached input halved to $0.10
         // (pricing page, 2026-10-11) — the family fallback would bill it at $0.20.
         ("gpt-6.1-sol", rate(input: 2.00, output: 10.00, cached: 0.10)),
+        // gpt-6.1-terra is half the family rate (pricing page, 2026-11-14) — the family
+        // fallback billed it at $2/$10 with $0.20 cached.
+        ("gpt-6.1-terra", rate(input: 1.00, output: 5.00, cached: 0.05)),
         ("gpt-6-sol", rate(input: 2.00, output: 10.00, cached: 0.20)),
         ("gpt-6-luna", rate(input: 0.10, output: 0.50, cached: 0.01)),
         ("gpt-5.6-terra", rate(input: 2.00, output: 12.00, cached: 0.20)),

@@ -13,7 +13,7 @@ import Foundation
 ///
 /// Caches results per account ID to support multi-account.
 @MainActor
-final class CodexRateLimitFetcher {
+final class CodexRateLimitFetcher: RateLimitFetching {
     static let shared = CodexRateLimitFetcher()
 
     nonisolated static let usageURL = URL(string: "https://chatgpt.com/backend-api/wham/usage")!

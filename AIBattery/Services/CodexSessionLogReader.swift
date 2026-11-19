@@ -418,6 +418,21 @@ final class CodexSessionLogReader: @unchecked Sendable, UsageEntrySource {
         return directoriesListedDuringLastDiscovery
     }
 
+    /// Runs discovery on its own, without the merged-entries cache in front of it — tests only.
+    func discoverJSONLFilesForTesting() -> [URL] {
+        lock.lock()
+        defer { lock.unlock() }
+        return discoverJSONLFiles()
+    }
+
+    /// Ages the cached file list past `discoveryTTL` — tests only. The per-directory
+    /// listings are kept, exactly as a real expiry keeps them.
+    func expireDiscoveryTTLForTesting() {
+        lock.lock()
+        defer { lock.unlock() }
+        lastEnumerationDate = .distantPast
+    }
+
     // MARK: - Streaming line reader
 
     /// Everything a parse of one rollout file yields, including what a later parse

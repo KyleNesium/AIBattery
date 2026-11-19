@@ -10,7 +10,7 @@ struct TokenHealthConfigTests {
     }
 
     @Test func contextWindow_datedModel() {
-        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20250929") == 1_000_000)
+        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20250929") == 200_000)
     }
 
     @Test func contextWindow_prefixMatch() {
@@ -47,18 +47,47 @@ struct TokenHealthConfigTests {
 
     // MARK: - Extended context window lookup
 
-    @Test func contextWindow_allKnownModels_4x() {
-        // Claude 4.x models have 1M context windows
+    /// Anthropic's models overview, 2026-11-14: 1M from the 4.6 generation on.
+    @Test func contextWindow_fromFourPointSixOn_isOneMillion() {
         let models = [
             "claude-opus-4-6",
-            "claude-sonnet-4-5-20250929",
             "claude-sonnet-4-6-20250929",
-            "claude-haiku-4-5-20251001",
+            "claude-opus-4-7",
+            "claude-opus-4-8",
+            "claude-opus-5",
+            "claude-sonnet-5",
+            "claude-fable-5-1",
+            "claude-fable-5-2",
+            "claude-opus-5-5",
+            "claude-sonnet-5-5",
+            "claude-haiku-5-5",
+            // Not released when this was written: a new model needs no table entry.
+            "claude-fable-5-3",
+            "claude-opus-6",
         ]
         for model in models {
             #expect(
                 TokenHealthConfig.contextWindow(for: model) == 1_000_000,
                 "Expected 1M for \(model)"
+            )
+        }
+    }
+
+    /// Regression (3.5.0): a table gave every 4.x model 1M, so a Haiku 4.5 or Sonnet 4.5
+    /// session read as a fifth as full as it was. The 4.5 generation has 200K.
+    @Test func contextWindow_beforeFourPointSix_isTwoHundredThousand() {
+        let models = [
+            "claude-opus-4-5",
+            "claude-sonnet-4-5-20250929",
+            "claude-haiku-4-5-20251001",
+            "claude-opus-4-1-20250805",
+            "claude-opus-4-20250514",
+            "claude-sonnet-4-20250514",
+        ]
+        for model in models {
+            #expect(
+                TokenHealthConfig.contextWindow(for: model) == 200_000,
+                "Expected 200K for \(model)"
             )
         }
     }
@@ -82,7 +111,8 @@ struct TokenHealthConfigTests {
 
     @Test func contextWindow_prefixMatch_futureDate() {
         // Same model family with a different date suffix should match via prefix
-        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20260101") == 1_000_000)
+        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-5-20260101") == 200_000)
+        #expect(TokenHealthConfig.contextWindow(for: "claude-sonnet-4-6-20260101") == 1_000_000)
     }
 
     @Test func contextWindow_prefixMatch_haiku35_futureDate() {

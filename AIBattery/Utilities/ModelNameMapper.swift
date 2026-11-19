@@ -17,6 +17,31 @@ enum ModelNameMapper {
         }
     }
 
+    /// Claude model families, as they appear in a lowercased display name.
+    static let claudeFamilies = ["fable", "mythos", "opus", "sonnet", "haiku"]
+
+    /// The family and version of a Claude model id, read from its display name:
+    /// "claude-fable-5-2" → ("fable", [5, 2]), "claude-3-5-sonnet-20241022" → ("sonnet", [3, 5]),
+    /// "opus" → ("opus", []). A Bedrock id resolves the same way
+    /// ("global.anthropic.claude-fable-5-2" displays as "Global.anthropic.claude fable.5.2").
+    /// nil for an id of no known family.
+    static func claudeFamilyAndVersion(of modelId: String) -> (family: String, version: [Int])? {
+        let name = displayName(for: modelId).lowercased()
+        guard let family = claudeFamilies.first(where: { name.contains($0) }),
+              let familyEnd = name.range(of: family)?.upperBound
+        else {
+            return nil
+        }
+        return (family, versionNumbers(in: name[familyEnd...]))
+    }
+
+    /// The first dotted number in `text`: " 4.6[1m]" → [4, 6], ".5.2" → [5, 2], "" → [].
+    static func versionNumbers(in text: some StringProtocol) -> [Int] {
+        let isDigit: (Character) -> Bool = { ("0"..."9").contains($0) }
+        return text.drop { !isDigit($0) }.prefix { isDigit($0) || $0 == "." }
+            .split(separator: ".").compactMap { Int($0) }
+    }
+
     private static func computeDisplayName(for modelId: String) -> String {
         guard !modelId.isEmpty else { return "Unknown" }
 
