@@ -19,10 +19,41 @@ struct CodexTokenClientTests {
         #expect(set.refreshToken == nil)
     }
 
-    @Test func authFailureIsNotTransient() {
-        let result = CodexTokenClient.interpretTokenResponse(statusCode: 400, data: Data())
-        guard case .failure(let error) = result else { Issue.record("expected failure"); return }
-        #expect(!error.isTransient)
+    private let invalidGrant = Data(#"{"error":"invalid_grant","error_description":"Refresh token expired"}"#.utf8)
+    private let nestedReused = Data(#"{"error":{"message":"Already used","type":"invalid_request_error","code":"refresh_token_reused"}}"#.utf8)
+
+    /// An OAuth error body on 400/401/403 is OpenAI's final word: the account signs out.
+    @Test func authFailureWithOAuthBodyIsNotTransient() {
+        for status in [400, 401, 403] {
+            for body in [invalidGrant, nestedReused] {
+                let result = CodexTokenClient.interpretTokenResponse(statusCode: status, data: body)
+                guard case .failure(.codexSignInRejected(status)) = result else {
+                    Issue.record("expected codexSignInRejected(\(status)), got \(result)"); return
+                }
+            }
+        }
+    }
+
+    /// The same statuses without an OAuth body came from a proxy, a captive portal or a
+    /// CDN. They used to sign the account out; they say nothing about the refresh token.
+    @Test func authStatusWithoutOAuthBodyIsTransient() {
+        let bodies = [Data(), Data("<html>Blocked by proxy</html>".utf8), Data(#"{"detail":"bad request"}"#.utf8)]
+        for status in [400, 401, 403] {
+            for body in bodies {
+                let result = CodexTokenClient.interpretTokenResponse(statusCode: status, data: body)
+                guard case .failure(let error) = result else { Issue.record("expected failure"); return }
+                #expect(error.isTransient, "\(status) without an OAuth body must be retried, never signed out")
+            }
+        }
+    }
+
+    /// The log line for a sign-out names the OAuth code, preferring OpenAI's specific one.
+    @Test func logCodePrefersSpecificCode() {
+        #expect(OAuthErrorBody.logCode(nestedReused) == "refresh_token_reused")
+        #expect(OAuthErrorBody.logCode(invalidGrant) == "invalid_grant")
+        #expect(OAuthErrorBody.logCode(Data("<html/>".utf8)) == "no OAuth error body")
+        let long = Data(#"{"error":"\#(String(repeating: "x", count: 500))"}"#.utf8)
+        #expect(OAuthErrorBody.logCode(long).count == 40)
     }
 
     /// A 429 (or any other unexpected status) from the token endpoint says nothing about
@@ -48,7 +79,7 @@ struct CodexTokenClientTests {
 
     /// Codex sign-in errors speak for OpenAI, never Anthropic, and a user cancel is silent.
     @Test func codexErrorsUseOpenAIVoice() {
-        guard case .failure(let rejected) = CodexTokenClient.interpretTokenResponse(statusCode: 400, data: Data()) else {
+        guard case .failure(let rejected) = CodexTokenClient.interpretTokenResponse(statusCode: 400, data: invalidGrant) else {
             Issue.record("expected failure"); return
         }
         #expect(rejected.userMessage.contains("OpenAI"))

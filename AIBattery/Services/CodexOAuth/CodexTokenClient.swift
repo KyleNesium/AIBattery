@@ -55,7 +55,12 @@ enum CodexTokenClient {
                 refreshToken: response.refreshToken
             ))
         case 400, 401, 403:
-            // Bad/expired code or a dead refresh token — OpenAI's answer is final.
+            // Bad/expired code or a dead refresh token — OpenAI's answer is final, but only
+            // when it is an OAuth error body. The same status from a proxy or captive portal
+            // says nothing about the token and must not sign the account out.
+            guard OAuthErrorBody(data: data) != nil else {
+                return .failure(.serverError(statusCode, provider: .codex))
+            }
             return .failure(.codexSignInRejected(statusCode))
         case 500..<600:
             return .failure(.serverError(statusCode, provider: .codex))
@@ -127,10 +132,10 @@ enum CodexTokenClient {
     }
 
     /// Shared POST + retry loop for both grants. Mirrors `OAuthManager.postToken`
-    /// (OAuthManager.swift:427-528): loop over attempts, exponential backoff via
+    /// (OAuthManagerTokenEndpoint.swift): loop over attempts, exponential backoff via
     /// `RetryPolicy.oauth` on transient failures (5xx / transport error), return
-    /// immediately on success or a non-transient failure. Logs status codes and
-    /// error descriptions only — never token values.
+    /// immediately on success or a non-transient failure. Logs status codes, OAuth error
+    /// codes and error descriptions only — never token values or response bodies.
     private static func send(
         _ request: URLRequest,
         transport: @Sendable (URLRequest) async throws -> (Data, URLResponse)
@@ -158,6 +163,12 @@ enum CodexTokenClient {
                     AppLogger.oauth.warning("Codex token endpoint returned \(http.statusCode), attempt \(attempt + 1)/\(maxRetries + 1)")
                     lastError = error
                     continue
+                }
+                if case .failure = result {
+                    // Terminal, so this is what a sign-out traces back to. The error code
+                    // (`invalid_grant`, `refresh_token_reused`, …) is public; nothing else
+                    // from the body is logged.
+                    AppLogger.oauth.error("Codex token endpoint returned \(http.statusCode) (\(OAuthErrorBody.logCode(data), privacy: .public))")
                 }
                 return result
             } catch {
