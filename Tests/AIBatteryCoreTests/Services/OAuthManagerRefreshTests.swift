@@ -361,6 +361,74 @@ struct OAuthManagerRefreshTests {
         #expect(manager.isAuthenticated(accountId: accountId))
     }
 
+    // MARK: - A rejected sign-in keeps its account
+
+    /// A refresh token the provider rejects used to remove the account: it vanished from
+    /// the overview, and the next launch dropped its history (2026-11-18). The account now
+    /// stays, signed out, with the reason ready for the sign-in screen.
+    @Test func rejectedRefresh_keepsTheAccountSignedOut() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        let accountId = "expired-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: accountId, displayName: "Work", addedAt: Date()))
+        defer {
+            manager.signOut(accountId: accountId)
+            OAuthTokenStorage.delete(for: accountId)
+        }
+        manager.seedTokensForTesting(accountId: accountId, accessToken: nil, refreshToken: "rt-old", expiresAt: nil)
+        manager.tokenRetryPolicy = Self.noDelay
+        manager.tokenTransport = { request in try Self.response(request, status: 400, body: #"{"error":"invalid_grant"}"#) }
+
+        #expect(await manager.getAccessToken(for: accountId) == nil)
+        #expect(!manager.isAuthenticated(accountId: accountId))
+        #expect(manager.accountStore.account(id: accountId)?.displayName == "Work", "the account and its name must stay")
+        #expect(manager.lastSignOutReason == OAuthManager.sessionExpiredReason(for: .claude))
+    }
+
+    /// The active account drives the whole popover. When its sign-in is rejected and another
+    /// account is still signed in, the popover moves there instead of the sign-in screen.
+    @Test func rejectedActiveAccount_movesToASignedInAccount() async {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        let rejected = "rejected-\(UUID().uuidString)"
+        let healthy = "healthy-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: rejected, addedAt: Date()))
+        manager.accountStore.add(AccountRecord(id: healthy, addedAt: Date()))
+        defer {
+            for id in [rejected, healthy] {
+                manager.signOut(accountId: id)
+                OAuthTokenStorage.delete(for: id)
+            }
+        }
+        manager.seedTokensForTesting(accountId: rejected, accessToken: nil, refreshToken: "rt-rejected", expiresAt: nil)
+        manager.seedTokensForTesting(accountId: healthy, accessToken: "at", refreshToken: "rt-healthy", expiresAt: .distantFuture)
+        manager.accountStore.setActive(id: rejected)
+        manager.tokenRetryPolicy = Self.noDelay
+        manager.tokenTransport = { request in try Self.response(request, status: 401, body: #"{"error":"invalid_grant"}"#) }
+
+        #expect(await manager.getAccessToken(for: rejected) == nil)
+        #expect(manager.accountStore.activeAccountId == healthy)
+        #expect(manager.isAuthenticated)
+        #expect(manager.accountStore.account(id: rejected) != nil)
+    }
+
+    /// Removing an account is still a removal: only the provider's rejection keeps it.
+    @Test func userSignOut_stillRemovesTheAccount() {
+        let restoreSignedOutProvider = Self.restoringSignedOutProvider()
+        defer { restoreSignedOutProvider() }
+        let manager = OAuthManager()
+        let accountId = "removed-\(UUID().uuidString)"
+        manager.accountStore.add(AccountRecord(id: accountId, addedAt: Date()))
+        manager.seedTokensForTesting(accountId: accountId, accessToken: "at", refreshToken: "rt", expiresAt: nil)
+
+        manager.signOut(accountId: accountId)
+
+        #expect(manager.accountStore.account(id: accountId) == nil)
+        #expect(!manager.isAuthenticated(accountId: accountId))
+    }
+
     // MARK: - Transient-failure backoff
 
     /// A transient refresh failure used to be retried on the very next poll, and each

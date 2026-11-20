@@ -158,8 +158,8 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
     ///   latest refresh's `Task` is cleared from the map; an older refresh completing
     ///   after a newer one was kicked off won't trample the newer task slot.
     /// - **Transient vs. auth errors**: handled in `refreshAccessToken` — transient
-    ///   (network, 5xx) keeps `isAuthenticated` true; only true auth errors trigger
-    ///   `signOut`. This invariant is enforced by `AuthError.isTransient`.
+    ///   (network, 5xx) keeps `isAuthenticated` true; only true auth errors end the
+    ///   sign-in (`expireSignIn`). This invariant is enforced by `AuthError.isTransient`.
     ///
     /// The actual HTTP work runs in `postToken`, which is `nonisolated static` so
     /// the network suspension happens entirely off-MainActor.
@@ -322,11 +322,10 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
         guard let verifier = pendingVerifier else { return .failure(.noVerifier) }
         let expectedState = pendingState
 
-        // Check account limit when adding. Must be the CLAUDE-specific cap: the
-        // 3 Claude + <3 Codex accounts it would let this (Claude-only) flow proceed past
-        // this guard only to have `accountStore.add` silently reject the 4th Claude
-        // account further down — after tokens have already been written to Keychain.
-        if isAddingAccount && !accountStore.canAddAccount(provider: .claude) {
+        // Check the CLAUDE-specific cap before spending the code: past it, `accountStore.add`
+        // would silently reject the new account after its tokens were already stored. A
+        // signed-out Claude account counts as room; it is replaced once the tokens arrive.
+        if !hasRoomForSignIn(provider: .claude) {
             return .failure(.maxAccountsReached)
         }
 
@@ -372,6 +371,7 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
                 billingType: nil,
                 addedAt: Date()
             )
+            makeRoomForSignIn(provider: .claude)
             accountStore.add(record)
             // `add` silently no-ops past the per-provider cap (e.g. the network round-trip
             // above gave a concurrent add time to fill it). Bail out BEFORE persisting
@@ -488,13 +488,30 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
         accountStore.update(oldId: accountId, with: record)
     }
 
-    /// Sign out a specific account (or the active one if nil).
-    /// - Parameter reason: user-facing copy when the app (not the user) signed the
-    ///   account out, e.g. a rejected refresh token. Shown once on the sign-in screen.
+    /// Sign out and remove an account (or the active one if nil): the user removing it.
+    /// A sign-in the provider rejected keeps its account instead (`expireSignIn`).
+    /// - Parameter reason: copy shown once on the sign-in screen.
     func signOut(accountId: String? = nil, reason: String? = nil) {
         let targetId = accountId ?? accountStore.activeAccountId
         guard let id = targetId else { return }
+        if provider(for: id) == .codex {
+            cancelCodexAuthFlow()
+        }
+        clearSignIn(id, reason: reason)
+        accountStore.remove(id: id)
 
+        // Clear PKCE state if in the middle of a flow
+        pendingVerifier = nil
+        pendingState = nil
+        isAddingAccount = false
+
+        updateAuthState()
+    }
+
+    /// Everything a sign-out drops except the account record: the tokens in memory and in
+    /// the Keychain, a refresh or Keychain read in flight, the backoff, the cached reading
+    /// and the alert latches.
+    func clearSignIn(_ id: String, reason: String?) {
         let removedProvider = provider(for: id)
         // Remember which provider to offer on the signed-out root.
         UserDefaults.standard.set(removedProvider.rawValue, forKey: UserDefaultsKeys.signedOutProvider)
@@ -509,29 +526,17 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
         // so a fresh sign-in must not inherit the old one's backoff window.
         clearRefreshBackoff(accountId: id)
         deleteTokens(for: id)
+        // Drop the cached reading (for a Codex API-key account that includes per-minute
+        // limits): `pruneAccounts` only runs at launch, so a sign-in again in the same
+        // session would otherwise inherit the old reading under the same deterministic id.
         if removedProvider == .codex {
-            cancelCodexAuthFlow()
-            // Drop the signed-out account's cached/persisted Codex reading (which for an
-            // API-key account includes per-minute limits) — nothing else prunes it until
-            // the next launch sweep.
             CodexRateLimitFetcher.shared.clearCache(accountId: id)
         } else {
-            // Same reasoning on the Claude side: `pruneAccounts` only runs at launch, so a
-            // sign-out + re-add in one session would otherwise inherit the old reading under
-            // the same (deterministic) org id.
             RateLimitFetcher.shared.clearCache(accountId: id)
         }
         // Drop the account's fired-alert latch too, or a re-added account stays silent at a
         // threshold it already crossed until a sub-threshold reading resets it.
         NotificationManager.shared.clearRateLimitAlerts(accountId: id)
-        accountStore.remove(id: id)
-
-        // Clear PKCE state if in the middle of a flow
-        pendingVerifier = nil
-        pendingState = nil
-        isAddingAccount = false
-
-        updateAuthState()
     }
 
     // MARK: - Auth State
@@ -577,7 +582,7 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
         let tokenResult = await Self.postToken(body: body, transport: tokenTransport, retryPolicy: tokenRetryPolicy)
         switch tokenResult {
         case .success(let result):
-            // `signOut` cancels this task and drops `tokens[accountId]`, but the network
+            // `clearSignIn` cancels this task and drops `tokens[accountId]`, but the network
             // round-trip can't be retracted. Writing the fresh set back here would
             // resurrect the account in memory and re-create its Keychain item. Likewise
             // when the user signed in again while this request was out.
@@ -595,7 +600,7 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
             clearRefreshBackoff(accountId: accountId)
             return result.accessToken
         case .failure(let error):
-            // Only mark as unauthenticated for auth errors (revoked/invalid token).
+            // Only auth errors (revoked/invalid token) end the sign-in, and the account stays.
             // Transient errors (network, 5xx) keep isAuthenticated so we retry next cycle.
             // Either way, only for the credential this request used: a failure that comes
             // back after the user signed in again is about a token that is already gone.
@@ -607,7 +612,7 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
                 recordRefreshFailure(accountId: accountId)
                 AppLogger.oauth.warning("OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), backing off before the next attempt")
             } else {
-                signOut(accountId: accountId, reason: Self.sessionExpiredReason(for: .claude))
+                expireSignIn(accountId: accountId)
             }
             return nil
         }
@@ -660,7 +665,7 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
                 recordRefreshFailure(accountId: accountId)
                 AppLogger.oauth.warning("Codex OAuth refresh failed for account \(accountId, privacy: .public) (\(String(describing: error))), backing off before the next attempt")
             } else {
-                signOut(accountId: accountId, reason: Self.sessionExpiredReason(for: .codex))
+                expireSignIn(accountId: accountId)
             }
             return nil
         }

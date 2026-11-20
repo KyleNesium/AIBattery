@@ -125,6 +125,16 @@ public final class NotificationManager {
         percent >= threshold && !previouslyFired
     }
 
+    /// A provider ended an account's sign-in. The account stays, as a sign-in card in the
+    /// popover; this reaches a user who is not looking at it, since the menu bar simply
+    /// stops showing that account.
+    func notifySignInExpired(accountLabel: String) {
+        send(
+            title: "AI Battery: sign in again",
+            body: "\(accountLabel) was signed out. Open AI Battery and click its card to sign in again."
+        )
+    }
+
     /// Request notification permission from macOS. Fire-and-forget — the system
     /// remembers the user's choice, so subsequent calls are no-ops.
     func requestPermission() {

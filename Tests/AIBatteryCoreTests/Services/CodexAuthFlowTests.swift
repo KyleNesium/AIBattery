@@ -90,6 +90,8 @@ struct CodexAuthFlowTests {
         let (manager, persisted) = makeManager()
         for i in 1...AccountStore.maxAccountsPerProvider {
             manager.accountStore.add(AccountRecord(id: "codex-\(i)", addedAt: Date(), provider: .codex))
+            // Signed in: a signed-out account at the cap would be replaced instead.
+            manager.seedTokensForTesting(accountId: "codex-\(i)", accessToken: "at", refreshToken: "rt-\(i)", expiresAt: nil)
         }
         let result = manager.registerCodexAccount(
             accountId: "codex-overflow",
@@ -117,6 +119,28 @@ struct CodexAuthFlowTests {
         }
         #expect(persisted.value == ["codex_codex-2"])
         #expect(manager.accountStore.activeAccountId == "codex-2")
+    }
+
+    /// A signed-out account (its sign-in was rejected, the record kept) does not block a
+    /// new sign-in at the cap: the new account replaces it, and the signed-in ones stay.
+    @Test func registerCodexAccount_atTheCapReplacesASignedOutAccount() {
+        let (manager, persisted) = makeManager()
+        for i in 1...AccountStore.maxAccountsPerProvider {
+            manager.accountStore.add(AccountRecord(id: "codex-\(i)", addedAt: Date(), provider: .codex))
+        }
+        manager.seedTokensForTesting(accountId: "codex-1", accessToken: "at", refreshToken: "rt-1", expiresAt: nil)
+        manager.seedTokensForTesting(accountId: "codex-3", accessToken: "at", refreshToken: "rt-3", expiresAt: nil)
+        #expect(manager.hasRoomForSignIn(provider: .codex))
+
+        let result = manager.registerCodexAccount(
+            accountId: "codex-new",
+            tokenSet: CodexTokenSet(idToken: nil, accessToken: "at", refreshToken: "rt")
+        )
+        guard case .success = result else {
+            Issue.record("a signed-out account must make room, got \(result)"); return
+        }
+        #expect(persisted.value == ["codex_codex-new"])
+        #expect(manager.accountStore.accounts.map(\.id).sorted() == ["codex-1", "codex-3", "codex-new"])
     }
 
     /// The Claude cap is separate: 3 Codex accounts must not block a Claude sign-in.
