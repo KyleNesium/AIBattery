@@ -10,6 +10,15 @@ import SwiftUI
 @Suite("AboutSection")
 @MainActor
 struct AboutSectionTests {
+    /// GPL v3 requires an interactive program to show its copyright, that there is no
+    /// warranty, and how to see the licence. Settings → About is that place.
+    @Test func legalNotice_namesTheCopyrightTheLicenceAndNoWarranty() {
+        #expect(AboutSection.legalNotice.contains("KyleNesium"))
+        #expect(AboutSection.legalNotice.contains("GNU GPL v3"))
+        #expect(AboutSection.legalNotice.contains("no warranty"))
+        #expect(AboutSection.licenseURL.hasSuffix("/NOTICE"))
+    }
+
     @Test func updateKnown_showsInstallLabelAndHighlights() {
         let update = VersionChecker.UpdateInfo(version: "3.3.0", url: "https://example.com")
         let action = AboutSection.updateAction(for: update, checking: false)

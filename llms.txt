@@ -11,7 +11,7 @@ covering the product rather than the source, is <https://aibattery.dev/llms.txt>
 - **Platform**: macOS 13 (Ventura) or later, Apple Silicon only — the release binary is arm64-only
 - **Language**: Swift 6 / SwiftUI, built with SwiftPM
 - **Current version**: 3.5.0, released 2026-11-19 — <https://github.com/KyleNesium/AIBattery/releases/tag/v3.5.0>
-- **License**: MIT
+- **License**: GPL-3.0-only, with an attribution term (NOTICE); versions up to 3.5.0 were MIT
 - **Dependencies**: Sparkle 2 (auto-update) and Apple frameworks only
 - **Tests**: 1806 tests across 136 test files (Swift Testing)
 - **Website**: <https://aibattery.dev>
@@ -77,4 +77,4 @@ URL with `Accept: text/markdown`.
 ## Optional
 
 - [Deferred work and open questions](docs/TODOS.md)
-- [LICENSE](LICENSE) (MIT) · [Sponsor](https://github.com/sponsors/KyleNesium)
+- [LICENSE](LICENSE) (GPL-3.0) · [NOTICE](NOTICE) (attribution term, commercial licence) · [Sponsor](https://github.com/sponsors/KyleNesium)

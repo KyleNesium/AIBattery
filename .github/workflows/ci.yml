@@ -11,6 +11,7 @@ on:
       - '**.md'
       - 'spec/**'
       - 'LICENSE'
+      - 'NOTICE'
       - '.github/*.md'
   # On PRs, only fire when the PR transitions out of draft. We deliberately do
   # NOT include `synchronize` (= every push to the PR branch) because that
@@ -25,6 +26,7 @@ on:
       - '**.md'
       - 'spec/**'
       - 'LICENSE'
+      - 'NOTICE'
       - '.github/*.md'
   workflow_dispatch:
 

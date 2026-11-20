@@ -12,7 +12,7 @@ Rate limits, context health and token usage for Claude Code **and** OpenAI Codex
 
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange?logo=swift&logoColor=white)](https://swift.org)
 [![macOS](https://img.shields.io/badge/macOS-13%2B-blue?logo=apple&logoColor=white)](https://www.apple.com/macos/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPL--3.0-green.svg)](NOTICE)
 [![CI](https://github.com/KyleNesium/AIBattery/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/KyleNesium/AIBattery/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
 [![GitHub stars](https://img.shields.io/github/stars/KyleNesium/AIBattery?style=social&cacheSeconds=3600)](https://github.com/KyleNesium/AIBattery/stargazers)
 [![Downloads](https://img.shields.io/github/downloads/KyleNesium/AIBattery/total?logo=github&label=Downloads&cacheSeconds=3600)](https://github.com/KyleNesium/AIBattery/releases)
@@ -220,7 +220,7 @@ Open Settings from the gear in the header, or **Settings** in the overview foote
 | **Keychain** | OAuth refresh tokens live in the macOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`). Access tokens are memory-only |
 | **Network** | `api.anthropic.com`, `console.anthropic.com`, `status.claude.com`; with a Codex account `chatgpt.com`, `auth.openai.com`, `status.openai.com`; with an API-key account `api.openai.com`; `api.github.com` (update check, daily) and `kylenesium.github.io` (Sparkle appcast) |
 | **No tracking** | No analytics, no telemetry, no data collection |
-| **Open source** | Every line is auditable, MIT licensed |
+| **Open source** | Every line is auditable, GPL-3.0 licensed |
 | **Release checks** | Each tagged release runs [`verify-release.sh`](scripts/verify-release.sh): codesign, Sparkle signatures, version consistency and bundle integrity, before the GitHub release is published |
 
 Vulnerability reports: see [SECURITY.md](SECURITY.md).
@@ -291,6 +291,6 @@ path, or request the HTML URL with `Accept: text/markdown`.
 
 ## License
 
-[MIT](LICENSE)
+[GNU GPL v3](LICENSE) with one additional term, in [NOTICE](NOTICE): a work built on AI Battery keeps the line "Based on AI Battery by KyleNesium" in its README and its About screen. To use the code on other terms (closed source, or without the credit), ask the author for a commercial licence. Versions up to 3.5.0 were MIT-licensed and stay so.
 
 The Claude and OpenAI marks in the account badge (`AIBattery/Resources/*.svg`) come from [Simple Icons](https://simpleicons.org) (CC0 1.0). The logos remain trademarks of Anthropic and OpenAI respectively; AI Battery is not affiliated with either.
