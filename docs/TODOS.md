@@ -10,38 +10,40 @@ through; the history is in `CHANGELOG.md`.
 Everything found during the 3.5.0 cycle ships here (Kyle, 2026-11-20: fix what a release
 cycle finds in that release). Tick an item when its commit lands on the branch.
 
-- [ ] **Menu bar icon before the Keychain prompt.** `OAuthManager.init` read the token item
+- [x] **Menu bar icon before the Keychain prompt.** `OAuthManager.init` read the token item
   synchronously (`loadAllTokens`) before `StatusBarManager.setup`, so after every update the
   icon did not appear until the prompt was answered. Approach: every account starts in
   `unreadableAccounts` (signed in, last reading shown), one read of the vault runs on a GCD
   thread (not the cooperative pool: it can block for minutes on the prompt), and the view
   model refreshes when it finishes.
-- [ ] **A 400 without an OAuth error body is transient.** `OAuthManager.interpretTokenResponse`
+- [x] **A 400 without an OAuth error body is transient.** `OAuthManager.interpretTokenResponse`
   treated every 400 as final; a proxy or captive-portal 400 signed the account out. Same
   rule as 401/403: only a body with `error` / `error_description` is the provider's word.
   Codex (`CodexTokenClient.interpretTokenResponse`) gets the same rule; it treated any
   400/401/403 as final.
-- [ ] **A rejected sign-in keeps the account.** `signOut` ran on a rejected refresh token and
+- [x] **A rejected sign-in keeps the account.** `signOut` ran on a rejected refresh token and
   removed the account record, so the account vanished (2026-11-18), its "session expired"
   message never showed while other accounts were signed in, and the launch prune then
   dropped its history. Now the record stays as a sign-in card, the active account moves to
   a signed-in one, and signing in again merges into the record (`AccountStore.update`). At
   the per-provider cap, a new sign-in replaces a signed-out record instead of failing.
-- [ ] **Log the Codex token endpoint's final answer**, with its OAuth error code, like the
+- [x] **Log the Codex token endpoint's final answer**, with its OAuth error code, like the
   Claude side (`CodexTokenClient.send`).
-- [ ] **Land the five unlanded reader tests** from `wip/codex-discovery-tests` (4 discovery
-  cache tests) and `wip/reader-incremental-cache-tests` (`codexReader_deletedFilePurgesItsEntries`),
-  then delete both branches.
-- [ ] **Universal binary (Apple Silicon + Intel).** `build-app.sh` builds arm64 only. Build
+- [x] **The five "unlanded" reader tests** from `wip/codex-discovery-tests` and
+  `wip/reader-incremental-cache-tests`: all five were already on main under other names
+  (#213 kept, merged or rewrote each; the symlink one was reversed on purpose, symlinked
+  logs are skipped). Nothing to land; both branches deleted (tips 87849f6, f7638e2).
+- [x] **Universal binary (Apple Silicon + Intel).** `build-app.sh` builds arm64 only. Build
   `--arch arm64 --arch x86_64`, check both slices in `verify-release.sh`, launch the Intel
   slice under Rosetta in CI.
-- [ ] **License: GPL-3.0 with an attribution term, commercial licence on request.** Was MIT.
+- [x] **License: GPL-3.0 with an attribution term, commercial licence on request.** Was MIT.
   Versions up to 3.5.0 stay MIT. The app shows the notice GPL requires (Settings).
-- [ ] **Release docs.** `spec/ARCHITECTURE.md` release steps: push the tag as
+- [x] **Release docs.** `spec/ARCHITECTURE.md` release steps: push the tag as
   `refs/tags/vX.Y.Z` (a branch of the same name made `--tags` ambiguous in 3.4.0), and the
   release date is GitHub's UTC publish day (the website takes `releasedAt` from it).
-- [ ] **GitHub Actions versions** checked against their latest releases (Dependabot's first
-  monthly run has not happened yet).
+- [x] **GitHub Actions versions** checked against their latest releases (Dependabot's first
+  monthly run has not happened yet): checkout v7.0.1, cache v6.1.0 and action-gh-release
+  v3.0.4 are all pinned to their latest commits, and Sparkle 2.10.1 is current. No change.
 - [ ] **Website FAQ** (aibattery-web): the Keychain password after an update, and a missing
   menu bar icon on macOS 27. Draft PR, merged with the release-day sync.
 
