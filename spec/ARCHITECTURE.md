@@ -126,6 +126,9 @@ AIBattery/
     ProjectIdentity.swift         — `ProjectIdentityResolver`: cwd → project (symlink-resolved; a worktree folds into its parent repo by reading its `.git` file). Process-cached
     AccountIdentityRegistry.swift — The one list of account-id-keyed UserDefaults key shapes (calibration bases, observed-model and probe-model prefixes, the Codex rate-limit prefix) plus `migrate(from:to:)`, called from `resolveAccountIdentity` so a resolved id leaves no orphans. Stores with in-memory state keep their own `migrate`
     OAuthManagerMigrations.swift  — The two one-time launch Keychain migrations (legacy single-account layout → prefixed per-account entries, stale `accessToken_`/`expiresAt_` sweep). The third, a delete-and-re-add for `ThisDeviceOnly` accessibility, was removed in 3.5.0: `RefreshTokenVault` reaches the same end without a window that could lose the token. Each is gated by its own done-flag so a launch costs no Keychain calls once applied. Split out when `OAuthManager.swift` passed the 800-line ceiling
+    OAuthManager+AuthError.swift  — `AuthError` (why a sign-in or refresh failed, and its copy), split out to keep OAuthManager.swift under 800 lines
+    OAuthManager+SignInExpiry.swift — `expireSignIn` (a rejected sign-in keeps its account, as a sign-in card), `moveOffSignedOutActiveAccount`, and `hasRoomForSignIn` / `makeRoomForSignIn` (a signed-out account makes room at the per-provider cap)
+    OAuthErrorBody.swift          — The recognisable parts of an OAuth error body, shared by both token clients: only a body like this makes a 400/401/403 final; `logCode` is the one part either client logs publicly
     CodexOAuth/
       CodexOAuthConstants.swift   — client-id, port 1455, scopes, authorize/token URLs lifted from codex-rs
       CodexAuthSession.swift      — In-flight PKCE state; awaits the redirect through `OneShotMailbox`
@@ -156,7 +159,7 @@ AIBattery/
     NetworkMonitor.swift          — NWPathMonitor connectivity observer (triggers refresh on recovery)
     StatusChecker.swift           — Feed-configurable Statuspage client (`StatusFeedConfig`; `.shared` = Claude, `.codex` = OpenAI); HTTP fetch + decode + parse via `nonisolated static func fetchAndParse(config:timeout:)` returning a `Sendable FetchOutcome`; optional component filter
     SingleInstanceGuard.swift     — POSIX flock single-instance guard, SIGTERM handler
-    NotificationManager.swift     — Status outage + rate limit alerts via UNUserNotificationCenter
+    NotificationManager.swift     — Status outage + rate limit alerts, and "sign in again" when a provider ends a sign-in, via UNUserNotificationCenter (delivered only in the app process)
     LaunchAtLoginManager.swift    — SMAppService launch-at-login toggle
     VersionChecker.swift          — GitHub Releases update checker (24h cadence)
     SparkleUpdateService.swift     — Sparkle 2 wrapper for user-initiated auto-update
@@ -198,7 +201,7 @@ AIBattery/
       DisplaySettingsSection.swift — Display toggles + idle session cutoff slider
       AlertSettingsSection.swift  — Status alerts + rate limit alerts
       LaunchAtLoginSection.swift  — Launch at Login toggle
-      AboutSection.swift          — App name + version, Check for Updates / Install, release notes, Sparkle error
+      AboutSection.swift          — App name + version, Check for Updates / Install, release notes, licence link + GPL legal notice, Sparkle error
     AuthView.swift                 — OAuth login screen, parameterised by provider: Claude paste-code flow / Codex browser round-trip + "Import Codex CLI login"
     TutorialOverlay.swift         — First-launch 3-step walkthrough overlay
     Components/
@@ -376,11 +379,12 @@ CHANGELOG.md                      — Release notes per version
 - **Compiler flag**: `ENABLE_VERSION_CHECKER` — always defined by all 3 SPM targets; view-side references (`UpdateArrowButton`, `availableUpdate` properties) are unguarded, so removing the define does not compile — kept for the service files' `#if` only
 - **Compiler flag**: `APP_SANDBOX` — NOT defined by default. Reserved for future App Store sandbox support. Only set for App Store builds
 - **Privacy manifest**: `PrivacyInfo.xcprivacy` bundled as SPM resource, also copied to `Contents/Resources/` by build script
-- **SPM resource bundle**: `scripts/build-app.sh` copies `.build/release/AIBattery_AIBatteryCore.bundle` into `Contents/Resources/`. **`Bundle.module` is never used** — SwiftPM's generated accessor only searches `Bundle.main.bundleURL/<bundle>` (the .app root, which codesign's bundle-format rules forbid anyway) and an absolute path on the build machine, then `fatalError`s; it passes on the dev machine and crashes every install. `AIProvider.markURL(for:searchRoots:)` instead walks `Bundle.main.resourceURL` (packaged app) → `Bundle.main.bundleURL` (bare `.build/release` binary) → the loaded module's parent directory (`swift test`) and returns nil when nothing matches, so a missing bundle degrades to the SF-symbol badge instead of a crash. Release smoke test: copy the .app elsewhere, hide `.build/release/AIBattery_AIBatteryCore.bundle`, launch, confirm the brand marks still render.
+- **Universal binary**: `scripts/build-app.sh` builds `--arch arm64 --arch x86_64` (override: `AIBATTERY_ARCHS`), so products land in `.build/apple/Products/Release`; the script asks SwiftPM (`--show-bin-path`) instead of assuming. `verify-release.sh` and CI fail an app without both slices, and CI and `release.yml` launch the Intel slice under Rosetta (`SMOKE_ARCH=x86_64 scripts/smoke-launch.sh`). Until 3.6.0 releases were arm64-only.
+- **SPM resource bundle**: `scripts/build-app.sh` copies `AIBattery_AIBatteryCore.bundle` from the products folder into `Contents/Resources/`; the multi-architecture build lays it out as a standard bundle (`Contents/Resources/Resources/*.svg`), which `AIProvider.resourceFolderPaths` reads. **`Bundle.module` is never used** — SwiftPM's generated accessor only searches `Bundle.main.bundleURL/<bundle>` (the .app root, which codesign's bundle-format rules forbid anyway) and an absolute path on the build machine, then `fatalError`s; it passes on the dev machine and crashes every install. `AIProvider.markURL(for:searchRoots:)` instead walks `Bundle.main.resourceURL` (packaged app) → `Bundle.main.bundleURL` (bare `.build/release` binary) → the loaded module's parent directory (`swift test`) and returns nil when nothing matches, so a missing bundle degrades to the SF-symbol badge instead of a crash. Release smoke test: copy the .app elsewhere, hide `.build/release/AIBattery_AIBatteryCore.bundle`, launch, confirm the brand marks still render.
 
 ## Release Pipeline
 
-1. Tag a version: `git tag v1.x.x && git push --tags`
+1. Tag a version from main: `git tag vX.Y.Z && git push origin refs/tags/vX.Y.Z` (the full ref: in 3.4.0 a branch with the same name as the tag made a plain push ambiguous). The CHANGELOG / CITATION.cff / llms.txt release date is the **UTC** day GitHub publishes the release: the website takes `releasedAt` from the release's `published_at`, so a local date one side of midnight UTC makes the two disagree.
 2. `release.yml` builds the app, creates a GitHub Release with `.zip` and `.dmg`
 3. `scripts/generate-appcast.sh` generates `appcast.xml` with EdDSA signature, pushes to `gh-pages` branch (requires `SPARKLE_EDDSA_KEY` repo secret)
 4. `scripts/update-homebrew.sh` auto-updates `KyleNesium/homebrew-tap` — downloads the zip, computes SHA256, commits updated cask formula

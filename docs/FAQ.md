@@ -15,6 +15,10 @@ open /Applications/AIBattery.app
 
 Alternatively: **System Settings → Privacy & Security → Open Anyway**. Either fix is one-time per install.
 
+### Does it run on Intel Macs?
+
+Yes, from v3.6.0: the app is universal (Apple Silicon and Intel), on macOS 13 or later. v3.5.0 and earlier were built for Apple Silicon only and do not open on an Intel Mac.
+
 ### The app appears in the menu bar, then disappears
 
 - **On first launch**: Gatekeeper silently killed it. Run the `xattr` command above.
@@ -25,7 +29,7 @@ Alternatively: **System Settings → Privacy & Security → Open Anyway**. Eithe
 
 Most often macOS has hidden the icon because the menu bar is full. This is common on a MacBook with a notch, and since macOS 27 Golden Gate it is the default behaviour: items that don't fit go behind an arrow at the right end of the menu bar. Check, in order:
 
-1. **Just installed or updated? Answer the Keychain prompt.** AI Battery reads your accounts from the Keychain before it puts its icon in the menu bar, and after every update macOS asks for your password once (see the Keychain entry below). Until that prompt is answered there is no icon. It can be hidden behind other windows. Click **Always Allow**.
+1. **Before v3.6.0, just installed or updated? Answer the Keychain prompt.** Up to v3.5.0 AI Battery read your accounts from the Keychain before it put its icon in the menu bar, and after every update macOS asks for your password once (see the Keychain entry below), so there was no icon until that prompt was answered. It can be hidden behind other windows. Click **Always Allow**. From v3.6.0 the icon appears first, showing your last numbers, and updates once you answer.
 2. **The overflow arrow (macOS 27).** Click the arrow at the right end of the menu bar. If AI Battery is there, hold ⌘ and drag it into the visible part of the bar, or remove icons you don't need.
 3. **System Settings → Menu Bar → Allow in the Menu Bar.** Make sure AI Battery is switched on.
 4. **A menu bar manager** (Bartender, Ice, Hidden Bar and similar). Most of them broke with macOS 27. Quit it and look again.
@@ -42,11 +46,11 @@ log show --last 1h --style compact --predicate 'subsystem == "com.KyleNesium.AIB
 ls -t ~/Library/Logs/DiagnosticReports 2>/dev/null | grep -i aibattery | head -3
 ```
 
-From v3.5.0 the app writes one line to that log ten seconds after it sets up its icon, saying whether the icon reached the screen. If AI Battery is running and the command prints no such line, the app is still waiting for the Keychain prompt (step 1). If AI Battery is **not running**, it is not a menu bar problem: see the Gatekeeper entry above, and attach the newest crash report the last command lists.
+From v3.5.0 the app writes one line to that log ten seconds after it sets up its icon, saying whether the icon reached the screen. If AI Battery (before v3.6.0) is running and the command prints no such line, the app is still waiting for the Keychain prompt (step 1). If AI Battery is **not running**, it is not a menu bar problem: see the Gatekeeper entry above, and attach the newest crash report the last command lists.
 
 ### macOS asks about Keychain access
 
-AI Battery stores your accounts' OAuth refresh tokens in the macOS Keychain, all in one item. Click **Always Allow**. The prompt appears once after each update, because macOS ties a Keychain item to the exact build that wrote it and an update is a new build. Until you answer it, AI Battery has no icon in the menu bar. "Allow" without "Always" works too, but macOS then asks again on every launch.
+AI Battery stores your accounts' OAuth refresh tokens in the macOS Keychain, all in one item. Click **Always Allow**. The prompt appears once after each update, because macOS ties a Keychain item to the exact build that wrote it and an update is a new build. From v3.6.0 the menu bar icon is there while the prompt waits, with your last numbers; they refresh once you answer. Before v3.6.0 there was no icon until you answered. "Allow" without "Always" works too, but macOS then asks again on every launch.
 
 Before v3.5.0 each account had its own item, so an update asked once per account. The first launch of v3.5.0 moves them into the single item and asks once per account one last time.
 
@@ -55,9 +59,13 @@ Before v3.5.0 each account had its own item, so an update asked once per account
 ### How sessions are kept alive
 
 - Access tokens refresh automatically, 5 minutes before expiry, to avoid clock-skew failures.
-- Temporary server errors retry automatically; only a genuine auth error signs the account out.
+- Temporary server errors retry automatically. Only Anthropic or OpenAI rejecting the sign-in signs the account out, and the account stays in the list, marked "Signed out", for you to sign in again.
 - The refresh token lives in the Keychain, separate from Claude Code's and the Codex CLI's own credentials. The access token is held in memory only.
 - Error messages are specific: expired code, invalid code, server error and network error each have their own text.
+
+### An account card says "Signed out"
+
+Anthropic or OpenAI ended that sign-in: the refresh token expired or was revoked (signing out on the web, changing your password, or a long time unused). Click the card to sign in again; the account keeps its name and history. If you have alerts on, macOS also shows a "sign in again" notification. Until v3.6.0 such an account was removed from the list instead.
 
 ### Only rate limits show. Tokens, models and activity are empty
 

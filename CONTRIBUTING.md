@@ -91,4 +91,4 @@ Found a vulnerability? Please report it privately — see [SECURITY.md](SECURITY
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions are licensed under the [GNU GPL v3](LICENSE) with the additional term in [NOTICE](NOTICE), and that the author may also license them to others on commercial terms. The second part is what keeps the commercial licence in NOTICE possible: without it, a single outside contribution could only ever be offered under the GPL.

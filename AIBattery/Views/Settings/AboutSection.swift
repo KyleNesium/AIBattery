@@ -113,8 +113,30 @@ struct AboutSection: View {
                             NSWorkspace.shared.open(url)
                         }
                     }
+                    LinkActionButton(
+                        label: "License",
+                        icon: "arrow.up.right",
+                        help: "Open the GNU GPL v3 and its additional term on GitHub",
+                        accessibilityLabel: "Open the license in your browser"
+                    ) {
+                        if let url = URL(string: Self.licenseURL) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
                 }
                 Spacer()
+            }
+
+            // GPL v3's "Appropriate Legal Notices" (section 0): the copyright, that there is
+            // no warranty, and where the licence is (the button above). A work based on AI
+            // Battery must keep its attribution in the same place (the 7(b) term in NOTICE).
+            HStack(alignment: .top, spacing: Spacing.section) {
+                labelColumnIndent
+                Text(Self.legalNotice)
+                    .font(Typography.tinyLabel)
+                    .foregroundStyle(ThemeColors.secondaryLabel)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
 
             #if ENABLE_VERSION_CHECKER
@@ -173,6 +195,8 @@ struct AboutSection: View {
     }
 
     static let releasesURL = "https://github.com/KyleNesium/AIBattery/releases"
+    static let licenseURL = "https://github.com/KyleNesium/AIBattery/blob/main/NOTICE"
+    static let legalNotice = "© 2026 KyleNesium. Free software under the GNU GPL v3, with no warranty."
     static let latestReleaseURL = "https://github.com/KyleNesium/AIBattery/releases/latest"
 
     #if ENABLE_VERSION_CHECKER

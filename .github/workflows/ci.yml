@@ -11,6 +11,7 @@ on:
       - '**.md'
       - 'spec/**'
       - 'LICENSE'
+      - 'NOTICE'
       - '.github/*.md'
   # On PRs, only fire when the PR transitions out of draft. We deliberately do
   # NOT include `synchronize` (= every push to the PR branch) because that
@@ -25,6 +26,7 @@ on:
       - '**.md'
       - 'spec/**'
       - 'LICENSE'
+      - 'NOTICE'
       - '.github/*.md'
   workflow_dispatch:
 
@@ -116,11 +118,11 @@ jobs:
           # The arithmetic, written down so the next bump need not re-derive it
           # (it has been left behind three times now, once in this very PR —
           # release.yml was bumped and this file was not):
-          #   1806 tests in the suite
+          #   1819 tests in the suite
           #  −   6 opt-in real-data tests, `.enabled(if:)` on
           #       AIBATTERY_REAL_CLAUDE_LOGS / AIBATTERY_REAL_CODEX_LOGS, which
           #       are never set on CI and print as "skipped", not ✔
-          #   = 1800 ✔ markers expected on a clean run.
+          #   = 1813 ✔ markers expected on a clean run.
           # 1730 leaves a little room for suite churn between bumps while still
           # catching a crash in the last few hundred tests.
           MIN_PASSES=1730
@@ -203,6 +205,13 @@ jobs:
             fi
             echo "Logo OK: ${found#.build/AIBattery.app/}"
           done
+          # Universal binary: an arm64-only app does not launch on an Intel Mac at all.
+          archs=$(lipo -archs .build/AIBattery.app/Contents/MacOS/AIBattery)
+          if [[ " $archs " != *" arm64 "* || " $archs " != *" x86_64 "* ]]; then
+            echo "FAIL: the app binary is not universal ($archs)"
+            exit 1
+          fi
+          echo "Architectures OK: $archs"
 
       # codesign and the unit tests both pass on a bundle that dies at launch: dyld
       # cannot load Sparkle.framework, or (Swift 6 language mode) a main-actor callback
@@ -211,3 +220,10 @@ jobs:
       # real data, or sleep/wake.
       - name: Launch smoke test
         run: ./scripts/smoke-launch.sh
+
+      # The Intel slice of the universal binary, under Rosetta. Installing Rosetta is a
+      # no-op when the image already has it; if it cannot be installed, the launch fails.
+      - name: Launch smoke test (Intel slice)
+        run: |
+          softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1 || true
+          SMOKE_ARCH=x86_64 ./scripts/smoke-launch.sh

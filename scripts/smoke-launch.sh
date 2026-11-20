@@ -2,6 +2,7 @@
 # Launch smoke test — start the built app and fail if it does not stay up.
 # Usage: ./scripts/smoke-launch.sh [app-bundle] [seconds]
 #        defaults: .build/AIBattery.app (run build-app.sh first), 20 seconds
+#        SMOKE_ARCH=x86_64 runs the Intel slice of the universal binary (Rosetta on Apple silicon)
 #
 # Why: codesign and the unit tests both pass on a bundle that dies at launch. Two real ways:
 #   - dyld cannot load Sparkle.framework (the bundle was assembled wrong);
@@ -38,7 +39,8 @@ sleep 1 # let the stream attach before the app starts
 
 # Run the binary itself, not `open`: the script then owns the PID, the exit status and stderr,
 # which is where both dyld and the Swift runtime print why they stopped.
-"$BIN" >"$LOG" 2>&1 &
+ARCH="${SMOKE_ARCH:-$(uname -m)}"
+arch -"$ARCH" "$BIN" >"$LOG" 2>&1 &
 PID=$!
 
 for ((elapsed = 1; elapsed <= UPTIME; elapsed++)); do
@@ -59,7 +61,7 @@ done
 
 kill -TERM "$PID" 2>/dev/null || true
 wait "$PID" 2>/dev/null || true
-echo "✓ $(basename "$APP") stayed up for ${UPTIME}s on macOS $(sw_vers -productVersion)"
+echo "✓ $(basename "$APP") ($ARCH) stayed up for ${UPTIME}s on macOS $(sw_vers -productVersion)"
 
 MENU_BAR=$(grep -m1 'Menu bar item' "$APPLOG" | sed 's/.*\(Menu bar item\)/\1/' || true)
 if [ -z "$MENU_BAR" ]; then

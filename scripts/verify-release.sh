@@ -117,6 +117,14 @@ if [ -d "$APP_BUNDLE" ]; then
     fail "Sparkle.framework missing from bundle"
   fi
 
+  # Universal binary: an arm64-only app does not launch on an Intel Mac at all.
+  ARCHS_FOUND=$(lipo -archs "$APP_BUNDLE/Contents/MacOS/AIBattery" 2>/dev/null || true)
+  if [[ " $ARCHS_FOUND " == *" arm64 "* && " $ARCHS_FOUND " == *" x86_64 "* ]]; then
+    pass "Universal binary: $ARCHS_FOUND"
+  else
+    fail "App binary is not universal (found: ${ARCHS_FOUND:-none}); Intel Macs cannot run it"
+  fi
+
   # Provider logos, in either SwiftPM bundle layout (AIProvider.resourceFolderPaths). A
   # missing logo is not a crash: the header badges fall back to SF symbols, silently.
   for mark in claude openai; do

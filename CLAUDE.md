@@ -27,6 +27,7 @@ The `spec/` folder is the single source of truth.
 ```bash
 swift build -c release
 
+# Universal (arm64 + x86_64) by default; AIBATTERY_ARCHS=arm64 for a faster local build.
 # Local smoke-test bundle. The release binary links Sparkle.framework via
 # @executable_path/../Frameworks, so a bare "copy the binary into an .app"
 # bundle aborts at launch (dyld: Library not loaded). Always use the script:
@@ -47,7 +48,7 @@ swift build -c release
 swift test --no-parallel
 ```
 
-1806 tests across 136 files, using `import Testing` + `@testable import AIBatteryCore`.
+1819 tests across 137 files, using `import Testing` + `@testable import AIBatteryCore`.
 
 The package has 3 SPM targets:
 - **AIBatteryCore** (`.target`, path `AIBattery/`) — all logic: models, services, views, utilities
@@ -85,8 +86,8 @@ These aren't obvious from reading the code — know them before making changes:
 - JSONL tokens must not double-count with `stats-cache.json` (see DATA_LAYER.md)
 - `OAuthManager.exchangeCode()` returns `Result<Void, AuthError>` — callers handle typed errors. Validates state parameter for CSRF protection.
 - `APIFetchResult.isCached` distinguishes fresh API data from stale cache — always check before treating as fresh. The `RateLimitFetcher` cache never expires (stale data beats empty bars); individual rate-limit windows are cleared at their own reset via `withClearedExpiredWindows`.
-- OAuth refresh: transient errors (network + server 5xx) keep `isAuthenticated` true (retry next cycle); only auth errors trigger logout. Token endpoint retries 5xx up to 2 times with backoff. Token refresh fires 5 min before expiry to avoid clock-skew 401s. Concurrent refresh attempts are serialized via a shared task.
-- A failed Keychain read is **not** a sign-out (`KeychainHelper.ReadResult.failed`): the account stays in `unreadableAccounts`, keeps its last reading, and `getAccessToken` re-reads off main on the refresh backoff. Only Deny / Cancel on the prompt (`errSecUserCanceled`, `errSecAuthFailed`) or a missing item signs it out. A prompt cancelled by sleep used to strand the app on "Sign in" with both tokens intact.
+- OAuth refresh: transient errors (network + server 5xx) keep `isAuthenticated` true (retry next cycle); only an OAuth error body from the provider (`OAuthErrorBody`: a 400/401/403 carrying `error`) ends a sign-in, and then the account stays as a sign-in card (`expireSignIn`); the same statuses without one are transient. Only the user removes an account (`signOut`). Token endpoint retries 5xx up to 2 times with backoff. Token refresh fires 5 min before expiry to avoid clock-skew 401s. Concurrent refresh attempts are serialized via a shared task.
+- A failed Keychain read is **not** a sign-out (`KeychainHelper.ReadResult.failed`): the account stays in `unreadableAccounts`, keeps its last reading, and `getAccessToken` re-reads off main on the refresh backoff. Only Deny / Cancel on the prompt (`errSecUserCanceled`, `errSecAuthFailed`) or a missing item leaves it signed out (kept, as a sign-in card). A prompt cancelled by sleep used to strand the app on "Sign in" with both tokens intact. The launch read is off main too (`loadAllTokens`): every account starts in `unreadableAccounts`, so the menu bar icon is up before any Keychain prompt.
 - StatusChecker backs off exponentially after failures (60s → 120s → 240s, capped at 5 min, ±20% jitter) — no immediate retries. One `StatusChecker` per feed (`.shared` Claude, `.codex` OpenAI filtered to the five Codex components). `CodexRateLimitFetcher` applies the same backoff curve per account to the `wham/usage` endpoint and serves the session-log fallback meanwhile
 - SessionLogReader per-file cache stores fingerprints only (modDate + fileSize); raw entry arrays released after merge into cachedAllEntries. On dirty cycle, only changed files re-parsed — eliminates double-storage. Trailing JSONL lines without closing `}` are skipped; leftover buffer capped at 1MB (oversized lines discarded)
 - NotificationManager fires once per outage via `UNUserNotificationCenter`, deduplicates per component, resets on recovery

@@ -20,37 +20,18 @@ extension OAuthManager {
     /// `nonisolated` because `postToken` is `nonisolated static` and references this.
     nonisolated private static let maxRetries = 2
 
-    /// The recognisable parts of an OAuth error body. Anthropic answers either the
-    /// standard `{"error":"invalid_grant","error_description":"…"}` or its nested
-    /// `{"error":{"type":"…","message":"…"}}` shape.
-    private struct OAuthErrorBody {
-        let type: String?
-        let message: String?
-
-        /// nil when the body is not a JSON object carrying `error` / `error_description`.
-        init?(data: Data) {
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-            let nested = json["error"] as? [String: Any]
-            let type = json["error"] as? String ?? nested?["type"] as? String
-            let message = json["error_description"] as? String ?? nested?["message"] as? String
-            guard type != nil || message != nil else { return nil }
-            self.type = type
-            self.message = message
-        }
-    }
-
     /// Pure classification of one token-endpoint response. Mirrors
     /// `CodexTokenClient.interpretTokenResponse`: a non-transient failure makes the
     /// refresh path sign the account out and delete its Keychain item, so only a body
     /// that is recognisably an OAuth error (`error` / `error_description` present) is
     /// treated as the provider's final word. Everything else is transient:
     /// - 2xx whose body does not decode (captive portal, proxy HTML, truncated response)
-    /// - 401 / 403 with no OAuth error body (WAF, CDN, proxy)
+    /// - 400 / 401 / 403 with no OAuth error body (WAF, CDN, proxy, captive portal)
     /// - 429, 5xx, and any status outside {400, 401, 403}
     ///
-    /// A 400 stays terminal regardless of body — the OAuth spec reserves it for a
-    /// malformed or rejected grant, and the pre-existing `.unknownError` copy tells the
-    /// user to check Console.app.
+    /// A 400 used to be final whatever its body. On 2026-11-18 one arrived four seconds
+    /// after a wake from deep sleep and signed an account out; a 400 that is not an OAuth
+    /// error is no evidence about the credential, so it now waits for the next cycle.
     nonisolated static func interpretTokenResponse(statusCode: Int, data: Data) -> Result<TokenResult, AuthError> {
         switch statusCode {
         case 200..<300:
@@ -75,7 +56,7 @@ extension OAuthManager {
             return .failure(.invalidCode)
         case 400:
             guard let body = OAuthErrorBody(data: data) else {
-                return .failure(.unknownError("Server returned status \(statusCode). Check Console.app for details."))
+                return .failure(.serverError(statusCode))
             }
             if body.type == "invalid_grant" {
                 return .failure(.expired)
@@ -157,11 +138,9 @@ extension OAuthManager {
                 if case .failure = result {
                     // Terminal: the body is an OAuth error. It never contains a token.
                     // The error code (`invalid_grant`, …) is public, so a sign-out in the
-                    // log says whether the grant was revoked or the answer was not OAuth
-                    // at all (a proxy's 400 page); the body itself stays private.
+                    // log says why; the body itself stays private.
                     let bodyStr = String(data: data.prefix(512), encoding: .utf8) ?? "(no body)"
-                    let errorCode = OAuthErrorBody(data: data)?.type.map { String($0.prefix(40)) } ?? "no OAuth error code"
-                    AppLogger.oauth.error("Token endpoint returned \(http.statusCode) (\(errorCode, privacy: .public)): \(bodyStr)")
+                    AppLogger.oauth.error("Token endpoint returned \(http.statusCode) (\(OAuthErrorBody.logCode(data), privacy: .public)): \(bodyStr)")
                 }
                 return result
             } catch {

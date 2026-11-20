@@ -1,5 +1,41 @@
 # Changelog
 
+## [3.6.0] — 2026-11-20
+
+### Fixed
+- **The menu bar icon appears before the Keychain prompt.** After every update macOS asks
+  once for your Keychain password, and until now AI Battery waited for that answer before
+  it put its icon in the menu bar, so the app looked broken, or missing on macOS 27. The
+  icon now appears straight away with your last numbers, and they refresh as soon as you
+  answer. (#214)
+- **An account whose sign-in ends stays in the list.** When Anthropic or OpenAI rejected an
+  account's saved sign-in, the app removed the account: it disappeared from the overview,
+  the "session expired" message showed only when no other account was signed in, and its
+  history was dropped at the next launch. The account now stays, marked "Signed out · click
+  to sign in", with its name and history, and macOS shows a "sign in again" notification if
+  alerts are on. With three accounts of one provider, a new sign-in replaces a signed-out
+  one instead of failing. (#214)
+- **A network glitch no longer signs you out.** A 400, 401 or 403 from the sign-in server
+  now counts as a rejection only when it carries an OAuth error. The same status from a
+  proxy, a captive portal or a CDN is retried like any other temporary error. On
+  2026-11-18 one such 400, seconds after the Mac woke from sleep, signed an account out.
+  Codex follows the same rule, and logs the error code when it does sign out. (#214)
+
+### Added
+- **Intel Macs.** The app is universal (Apple Silicon and Intel). CI and the release
+  workflow launch the Intel build under Rosetta, and `verify-release.sh` fails an app
+  without both. The download grows from 3.7 MB to 5.9 MB. (#214)
+
+### Changed
+- **License: GNU GPL v3 with an attribution term**, instead of MIT. Anyone may use, change
+  and share AI Battery; a work built on it must stay under the GPL and keep the line
+  "Based on AI Battery by KyleNesium" in its README and About screen (`NOTICE`). A
+  commercial licence is available for other terms. Versions up to 3.5.0 remain MIT.
+  Settings → About shows the copyright, a link to the licence and that there is no
+  warranty, as the GPL asks of an app with a user interface. (#214)
+- Release steps (`spec/ARCHITECTURE.md`): push the tag by its full ref, and date a release
+  by the UTC day GitHub publishes it, which is the date the website shows. (#214)
+
 ## [3.5.0] — 2026-11-19
 
 ### Fixed

@@ -27,7 +27,8 @@ extension OAuthManager {
         }
         let accountId = Self.apiKeyAccountId(for: key)
         guard accountStore.canAddAccount(provider: .codex)
-            || accountStore.accounts.contains(where: { $0.id == accountId }) else {
+            || accountStore.accounts.contains(where: { $0.id == accountId })
+            || makeRoomForSignIn(provider: .codex) else {
             return .failure(.maxAccountsReached)
         }
         storeTokens(accountId: accountId, provider: .codex, accessToken: key, refreshToken: key, expiresAt: .distantFuture)
@@ -131,7 +132,8 @@ extension OAuthManager {
         // a Keychain entry. The UI also hides "Add Codex Account…" at the cap, but this
         // is the real protection (a sign-in can still race a stale UI state).
         guard accountStore.canAddAccount(provider: .codex)
-            || accountStore.accounts.contains(where: { $0.id == accountId }) else {
+            || accountStore.accounts.contains(where: { $0.id == accountId })
+            || makeRoomForSignIn(provider: .codex) else {
             AppLogger.oauth.warning("Codex sign-in rejected — per-provider account cap reached")
             return .failure(.maxAccountsReached)
         }

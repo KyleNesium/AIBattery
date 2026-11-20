@@ -146,6 +146,36 @@ struct OAuthPostTokenTests {
         #expect(stub.attemptCount == 3)
     }
 
+    /// A 400 with no OAuth error body (a proxy's error page, a captive portal) used to be
+    /// final and sign the account out — on 2026-11-18 one did, seconds after a wake from
+    /// deep sleep. It says nothing about the refresh token, so it is retried.
+    @Test func badRequest400_withoutOAuthBody_isTransient_retries() async {
+        for body in ["", "<html><h1>400 Bad Request</h1></html>", #"{"detail":"bad"}"#] {
+            let stub = TransportStub([.status(400, body: body), .status(400, body: body), .status(400, body: body)])
+            let result = await Self.post(stub)
+
+            guard case .failure(let error) = result, case .serverError(400, _) = error else {
+                Issue.record("Expected .serverError(400) for body \(body), got \(result)")
+                return
+            }
+            #expect(error.isTransient)
+            #expect(stub.attemptCount == 3)
+        }
+    }
+
+    /// An OAuth error other than `invalid_grant` on a 400 is still the provider's answer.
+    @Test func badRequest400_otherOAuthError_isTerminal() async {
+        let stub = TransportStub([.status(400, body: #"{"error":"invalid_request","error_description":"bad scope"}"#)])
+        let result = await Self.post(stub)
+
+        guard case .failure(let error) = result else {
+            Issue.record("Expected failure, got \(result)")
+            return
+        }
+        #expect(!error.isTransient)
+        #expect(stub.attemptCount == 1)
+    }
+
     /// Statuses outside {400, 401, 403, 429, 5xx} (404 from a CDN, 408, 418…) say
     /// nothing about the credential.
     @Test func unexpectedStatus404_isTransient() async {

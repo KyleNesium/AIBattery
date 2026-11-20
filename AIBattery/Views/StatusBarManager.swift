@@ -254,6 +254,19 @@ public final class StatusBarManager: NSObject {
             }
             .store(in: &cancellables)
 
+        // Saved sign-ins load off the main thread at launch, so the icon is up before any
+        // Keychain prompt. When that read outlasts the first refresh (the prompt sat open),
+        // refresh as soon as it ends rather than at the next poll. `dropFirst` skips the
+        // replayed value: a read that finished before this subscription needs nothing more.
+        oauthManager.$savedSignInsLoaded
+            .removeDuplicates()
+            .dropFirst()
+            .filter { $0 }
+            .sink { _ in
+                Task { @MainActor in await viewModel.refresh() }
+            }
+            .store(in: &cancellables)
+
         // Refresh on auth change. `dropFirst` skips the value `@Published` replays on
         // subscription: at launch that fired a refresh at t≈0 on top of the view model's
         // own `initialPollDelay` refresh two seconds later. Only real flips (sign-out →

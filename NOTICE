@@ -1,0 +1,43 @@
+AI Battery
+Copyright (C) 2026 KyleNesium
+https://github.com/KyleNesium/AIBattery
+
+AI Battery is free software: you can redistribute it and/or modify it under the terms
+of the GNU General Public License, version 3 only, as published by the Free Software
+Foundation (the full text is in LICENSE), with the additional term below. It is
+distributed WITHOUT ANY WARRANTY; see the licence for details.
+
+
+Additional term (GNU GPL version 3, section 7(b))
+-------------------------------------------------
+
+Any work that contains AI Battery or is based on it, in source or binary form, must
+keep this author attribution:
+
+    Based on AI Battery by KyleNesium (https://github.com/KyleNesium/AIBattery)
+
+in its source distribution (a NOTICE or README file) and, when the work has an
+interactive user interface, in the Appropriate Legal Notices that interface shows
+(for example its About or Settings screen).
+
+
+Commercial licence
+------------------
+
+To use AI Battery's code on other terms, for example in a closed-source product or
+without the attribution above, you need a commercial licence from the author.
+Contact the author through https://github.com/KyleNesium.
+
+
+Earlier versions
+----------------
+
+Versions up to and including 3.5.0 were released under the MIT License, and copies of
+those versions keep it. Version 3.6.0 and later are licensed on the terms above.
+
+
+Third-party software
+--------------------
+
+Sparkle (https://sparkle-project.org), bundled for automatic updates, is distributed
+under its own MIT-style licence: https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE
