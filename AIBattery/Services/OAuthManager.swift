@@ -94,7 +94,7 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
     private var unreadableAccounts: Set<String> = []
     /// One in-flight retry read per account, so concurrent callers raise one prompt.
     private var keychainRetries: [String: Task<Void, Never>] = [:]
-    /// Reader for the retry; tests swap in a stub. The launch read always uses the Keychain.
+    /// Reader for the retry; tests swap in a stub. The launch read in `init` uses the default.
     var keychainRead: @Sendable (String) -> KeychainHelper.ReadResult = { RefreshTokenVault.shared.token(for: $0) }
 
     /// Whether a failed read is worth retrying. Deny / Cancel on the prompt is a refusal,
@@ -107,6 +107,11 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
     @Published public var accountStore = AccountStore()
 
     @Published public var isAuthenticated: Bool = false
+
+    /// False until the launch read of the saved sign-ins has finished (`loadAllTokens`).
+    /// The status bar refreshes when it flips, so the numbers do not wait for the next poll
+    /// when the read sat on a Keychain prompt.
+    @Published public private(set) var savedSignInsLoaded = false
 
     /// Why the last sign-out happened when the app did it (rejected refresh token).
     /// nil after a user-initiated sign-out and cleared once any account authenticates.
@@ -237,83 +242,6 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
         ]
 
         return components.url
-    }
-
-    /// Auth error types for specific failure feedback.
-    enum AuthError: Error {
-        case noVerifier
-        case invalidCode
-        case expired
-        case networkError
-        /// Transient failure from the provider's token endpoint (5xx, 429, …). The
-        /// provider picks the wording — a Codex sign-in must never blame Anthropic.
-        case serverError(Int, provider: AIProvider = .claude)
-        case maxAccountsReached
-        /// OpenAI's token endpoint refused the Codex sign-in (400/401/403). Non-transient.
-        case codexSignInRejected(Int)
-        /// The user cancelled the Codex browser sign-in. Not an error to display.
-        case cancelled
-        case unknownError(String)
-
-        var userMessage: String {
-            switch self {
-            case .noVerifier: "Auth flow not started. Please click Authenticate first."
-            case .invalidCode: "Invalid authorization code. Please try again."
-            case .expired: "Authorization code expired. Please re-authenticate."
-            case .networkError: "Network error. Check your connection and try again."
-            case .serverError(let code, .claude): "Anthropic's server returned \(code). This is a temporary issue on their end — please try again in a moment."
-            case .serverError(let code, .codex): "OpenAI's sign-in server returned \(code). This is a temporary issue on their end — please try again in a moment."
-            case .maxAccountsReached: "Maximum of \(AccountStore.maxAccountsPerProvider) accounts per provider reached. Remove one before adding another."
-            case .codexSignInRejected(let code): "OpenAI rejected the sign-in (HTTP \(code)). Please try again."
-            case .cancelled: ""
-            case .unknownError(let msg): msg
-            }
-        }
-
-        /// Whether this error is transient and the caller should preserve auth state.
-        var isTransient: Bool {
-            switch self {
-            case .networkError, .serverError: true
-            default: false
-            }
-        }
-
-        nonisolated static let malformedAPIKeyMessage = "That doesn't look like an OpenAI API key (expected sk-…)."
-
-        /// True when the user backed out on purpose — callers show no error copy.
-        var isCancellation: Bool {
-            if case .cancelled = self {
-                return true
-            }
-            return false
-        }
-
-        /// Copy for a Codex browser sign-in that ended without a usable redirect.
-        nonisolated static func codexCallbackFailure(_ error: CodexCallbackError) -> AuthError {
-            switch error {
-            case .providerError("cancelled"):
-                .cancelled
-            case .providerError("timeout"):
-                .unknownError("Sign-in timed out after 3 minutes. Please try again.")
-            case .providerError(let reason):
-                .unknownError("OpenAI declined the sign-in (\(Self.sanitizedProviderReason(reason))). Please try again.")
-            case .missingCode, .missingState, .notCallbackPath:
-                .unknownError("The browser redirect was malformed. Please try again.")
-            }
-        }
-
-        /// The `error` query parameter arrives on an open loopback port, so any local
-        /// process can put arbitrary text in front of the user attributed to OpenAI.
-        /// Keep recognisable OAuth codes, replace anything else with a generic word.
-        nonisolated static func sanitizedProviderReason(_ reason: String) -> String {
-            let known: Set = [
-                "access_denied", "invalid_request", "invalid_scope", "invalid_client",
-                "unauthorized_client", "unsupported_response_type", "server_error",
-                "temporarily_unavailable", "interaction_required", "login_required",
-                "consent_required", "account_selection_required",
-            ]
-            return known.contains(reason) ? reason : "unrecognised error"
-        }
     }
 
     /// Complete the OAuth flow: exchange the authorization code for tokens.
@@ -710,10 +638,6 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
         tokenPersistence(data, Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
 
-    private func loadTokens(for accountId: String) -> OAuthTokenStorage.Loaded {
-        OAuthTokenStorage.load(for: Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
-    }
-
     private func deleteTokens(for accountId: String) {
         OAuthTokenStorage.delete(for: Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId)))
     }
@@ -735,14 +659,49 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
         tokens[accountId] = AccountTokens(accessToken: accessToken, refreshToken: refreshToken, expiresAt: expiresAt)
     }
 
-    /// Synchronous on purpose (state is complete before the first refresh), so an
-    /// unapproved Keychain prompt holds launch until it is answered or cancelled.
+    /// Reads every account's saved sign-in off the main thread.
+    ///
+    /// Until 3.6.0 this read ran synchronously here in `init`, before the status item
+    /// existed, so after every update the menu bar icon stayed missing until the Keychain
+    /// prompt was answered, and the app looked broken (or absent, on macOS 27). Now each
+    /// account starts as unreadable (signed in, showing its last reading) and one read
+    /// fills them all in. The read shares `retryKeychainRead`'s slot per account, so a
+    /// refresh meanwhile waits for it instead of starting a second read.
     private func loadAllTokens() {
-        for account in accountStore.accounts {
-            let loaded = loadTokens(for: account.id)
-            tokens[account.id] = loaded.tokens
-            if let status = loaded.readFailure, Self.isRetryableReadFailure(status) {
-                unreadableAccounts.insert(account.id)
+        let keys = accountStore.accounts.map { ($0.id, Self.tokenStorageKey(accountId: $0.id, provider: $0.provider)) }
+        guard !keys.isEmpty else {
+            savedSignInsLoaded = true
+            return
+        }
+        for (id, _) in keys {
+            tokens[id] = AccountTokens(accessToken: nil, refreshToken: nil, expiresAt: nil)
+            unreadableAccounts.insert(id)
+        }
+        let read = keychainRead
+        let load = Task { [weak self] in
+            let results = await Self.readOffMain {
+                keys.map { id, key in (id, OAuthTokenStorage.load(for: key, readKeychain: read)) }
+            }
+            guard let self else { return }
+            for (id, loaded) in results {
+                finishKeychainRetry(accountId: id, loaded: loaded)
+            }
+            moveOffSignedOutActiveAccount()
+            updateAuthState()
+            savedSignInsLoaded = true
+        }
+        for (id, _) in keys {
+            keychainRetries[id] = load
+        }
+    }
+
+    /// Runs a blocking Keychain read on a GCD thread. The read can wait on the password
+    /// prompt for minutes; on the Swift concurrency pool that would hold one of its few
+    /// threads the whole time, and a read per account could stall every other task.
+    nonisolated static func readOffMain<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: work())
             }
         }
     }
@@ -758,7 +717,7 @@ public final class OAuthManager: ObservableObject, MultiAccountTokenProviding {
         let key = Self.tokenStorageKey(accountId: accountId, provider: provider(for: accountId))
         let read = keychainRead
         keychainRetries[accountId] = Task { [weak self] in
-            let loaded = await Task.detached { OAuthTokenStorage.load(for: key, readKeychain: read) }.value
+            let loaded = await Self.readOffMain { OAuthTokenStorage.load(for: key, readKeychain: read) }
             self?.finishKeychainRetry(accountId: accountId, loaded: loaded)
         }
     }

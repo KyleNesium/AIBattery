@@ -241,6 +241,9 @@ public final class NotificationManager {
 
     /// Deliver notification via UNUserNotificationCenter.
     private func deliverNotification(title: String, body: String) {
+        // Outside the app (the test runner) `UNUserNotificationCenter.current()` throws an
+        // Objective-C exception that takes the whole process down.
+        guard RefreshTokenVault.isAppProcess else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
