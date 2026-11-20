@@ -138,6 +138,13 @@ jobs:
       - name: Launch smoke test
         run: ./scripts/smoke-launch.sh
 
+      # The Intel slice of the universal binary, under Rosetta. Installing Rosetta is a
+      # no-op when the image already has it; if it cannot be installed, the launch fails.
+      - name: Launch smoke test (Intel slice)
+        run: |
+          softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1 || true
+          SMOKE_ARCH=x86_64 ./scripts/smoke-launch.sh
+
       - name: Generate checksums
         run: |
           cd .build

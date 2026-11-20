@@ -7,11 +7,17 @@ SIGN_IDENTITY="${CODE_SIGN_IDENTITY:--}"
 cd "$(dirname "$0")/.."
 
 echo "Building release binary..."
-swift build -c release
-# Where SwiftPM put the products. With its native build system that is .build/<triple>/release
-# (and the .build/release link); with Swift Build, the default from Swift 6.4 / Xcode 27, it
-# is somewhere else. Ask instead of assuming.
-BIN_DIR=$(swift build -c release --show-bin-path)
+# Universal: Apple Silicon and Intel (until 3.6.0 releases were arm64 only, so Intel Macs
+# could not run them). AIBATTERY_ARCHS="arm64" builds one slice for a faster local build.
+ARCH_FLAGS=()
+for arch in ${AIBATTERY_ARCHS:-arm64 x86_64}; do
+  ARCH_FLAGS+=(--arch "$arch")
+done
+swift build -c release "${ARCH_FLAGS[@]}"
+# Where SwiftPM put the products: .build/<triple>/release for one architecture with its
+# native build system, .build/apple/Products/Release for two, and somewhere else again with
+# Swift Build, the default from Swift 6.4 / Xcode 27. Ask instead of assuming.
+BIN_DIR=$(swift build -c release "${ARCH_FLAGS[@]}" --show-bin-path)
 echo "Products: $BIN_DIR"
 
 APP_DIR=".build/AIBattery.app"
